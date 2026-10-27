@@ -29,7 +29,7 @@ needed to stop the leak. What remains is rotation, because the values were expos
 | 5 | `DO_SPACES_KEY` | DigitalOcean Spaces | DO console → API → Spaces keys | `DigitalOcean Spaces - popdam bucket (nyc3)` |
 | 6 | `DO_SPACES_SECRET` | DigitalOcean Spaces | (same key pair as #5) | (same item) |
 | 7 | `WINDOWS_AGENT_SG_NAS_PASS` (row deleted Oct 2026; Y: now uses `popdam-render`) | Synology-LOCAL `popdam` (corrected 2026-10-21) | DSM on each unit — see `docs/ops/179-popdam-nas-rotation-plan.md` | `Synology edgesynology2 - styleguides SMB share` |
-| 8 | `WINDOWS_AGENT_NAS_PASS` (row deleted Oct 2026; Z: now uses `popdam-render`) | Synology-LOCAL `ahazan` (corrected 2026-10-21; units are not domain-joined) | DSM on each unit (Albert's personal account) | `Synology 192.168.3.101 - mac SMB share` |
+| 8 | `WINDOWS_AGENT_NAS_PASS` (row deleted Oct 2026; Z: now uses `popdam-render`) | Synology-LOCAL `ahazan` (corrected 2026-10-21; units are not domain-joined) | DSM on each unit (Albert's personal account) | `Synology …101 - mac SMB share` (item title carries the unit's LAN address; kept out of this public repo) |
 
 All 1Password items are in the `vibe_coding` vault.
 

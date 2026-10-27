@@ -1,13 +1,11 @@
-
--- Idempotent seed: insert default admin_config values only if missing
-INSERT INTO public.admin_config (key, value) VALUES
-  ('SCAN_MIN_DATE', '"2010-01-01"'::jsonb),
-  ('THUMBNAIL_MIN_DATE', '"2020-01-01"'::jsonb),
-  ('NAS_HOST', '"edgesynology2"'::jsonb),
-  ('NAS_IP', '"100.64.0.2"'::jsonb),
-  ('NAS_SHARE', '"mac"'::jsonb),
-  ('NAS_MOUNT_ROOT', '"/mnt/nas/mac"'::jsonb),
-  ('DO_SPACES_REGION', '"nyc3"'::jsonb),
-  ('DO_SPACES_BUCKET', '"popdam"'::jsonb),
-  ('DO_SPACES_BASE_URL', '"https://popdam.nyc3.digitaloceanspaces.com"'::jsonb)
-ON CONFLICT (key) DO NOTHING;
+-- Production migration-history marker for a pre-shared-db PopDAM migration.
+--
+-- Version: 20260220145722
+-- Name: 1aac30f3-e67e-425d-b8fe-27b286ffe4eb
+--
+-- This migration was already applied to the production Supabase project before
+-- the shared-db repository became the canonical migration workspace; canonical
+-- carries the same marker (20260220145722_1aac30f3_e67e_425d_b8fe_27b286ffe4eb.sql).
+-- The SQL body intentionally remains empty here — the original idempotent
+-- admin_config seed values (including a then-current NAS address) stay in git
+-- history and are not republished in this public repo.

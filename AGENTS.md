@@ -280,8 +280,9 @@ Files outside project-owned areas that were intentionally modified:
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
 
 **NAS topology (read this before pointing anything at a NAS):** PopDAM/PopSG use
-**two** Synology units — `edgesynology1` (192.168.3.100) and `edgesynology2`
-(192.168.3.101), both joined to AD `IML.isaacmorris.com`. Sync is **one-way**:
+**two** Synology units — `edgesynology1` and `edgesynology2`, both joined to
+AD `IML.isaacmorris.com` (LAN addresses are deliberately kept out of this
+public repo; see the canonical NAS topology doc linked below). Sync is **one-way**:
 edge2 pulls from edge1, nothing flows back. **Read on edge2** (crawl/scan/scrape —
 offloads edge1) and **write on edge1** (moves/checkouts — a write to edge2 is
 stranded and lost). The file-scraping agents run against edge2 by design; the

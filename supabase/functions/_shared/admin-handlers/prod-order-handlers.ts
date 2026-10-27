@@ -208,8 +208,8 @@ function base64UrlEncode(input: string | Uint8Array): string {
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
   const base64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/-----BEGIN[ ]PRIVATE[ ]KEY-----/g, "")
+    .replace(/-----END[ ]PRIVATE[ ]KEY-----/g, "")
     .replace(/\s/g, "");
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
