@@ -855,11 +855,12 @@ async function proveCasePacks4858() {
   const listUrl = new URL("/rest/v1/dam_order_list", url);
   listUrl.searchParams.set("select", "order_id,order_line_id,case_pack,cases_reported,assortment_parent_key");
   listUrl.searchParams.set("order_id", `in.(${ids.join(",")})`);
+  listUrl.searchParams.set("limit", "500");
   listUrl.searchParams.set("order_voided_at", "is.null");
   listUrl.searchParams.set("line_voided_at", "is.null");
   listUrl.searchParams.set("or", "(order_type.is.null,order_type.not.ilike.*sample*)");
   const listResponse = await fetch(listUrl, {
-    headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json" },
+    headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json", "Accept-Profile": "api" },
   });
   const listRows = await listResponse.json().catch(() => null);
   if (!listResponse.ok) fail(`authenticated OrderList returned HTTP ${listResponse.status}`);

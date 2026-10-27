@@ -5,10 +5,14 @@ with migration as (
 ), order_lines as (
   select po.id order_id,po.production_order_number,pol.id order_line_id,pol.source_id,
          pol.sku,pol.quantity_ordered,pol.case_pack direct_case_pack,pol.order_type,
+         pol.assortment_component_ordinal is not null is_assortment,
          pol.metadata->>'master_item_no' master_item_no,
          pol.metadata->>'component_source_hash' component_hash
   from plm.production_order po join plm.production_order_line pol on pol.production_order_id=po.id
-  where po.source_system='coldlion' and not (pol.metadata ? 'order_list_source')
+  where po.source_system='coldlion'
+    and not exists (select 1 from plm.production_order_line excluded
+      where excluded.production_order_id=po.id and excluded.voided_at is null
+        and (excluded.source_system is distinct from 'coldlion' or excluded.metadata ? 'order_list_source'))
     and po.voided_at is null and pol.voided_at is null
     and lower(coalesce(pol.order_type,'')) not like '%sample%'
 ), source_lines as (
@@ -26,29 +30,31 @@ with migration as (
   join coldlion.intake_order_component c on c.line_id=l.id
     and c.component_source_hash=s.component_hash
     and coalesce(nullif(btrim(c.sub_item_no),''),l.master_item_no)=s.sku
-  where s.sales_order_line_no=0
+  where s.is_assortment and nullif(btrim(c.sub_item_no),'')=s.sku
 ), resolved_components as (
   -- Collapse versions only when company, division, quantity and ordered units agree.
   select order_id,production_order_number,order_line_id,source_id,sku,quantity_ordered,
          sales_order_no,sales_order_line_no,master_item_no,
          min(component_pack) component_pack,min(order_qty) source_order_qty,
          count(distinct company_code) company_versions,count(distinct division_code) division_versions,
-         count(distinct component_pack) pack_versions,count(distinct order_qty) unit_versions
+         count(distinct component_pack) pack_versions,count(distinct order_qty) unit_versions,
+         bool_and(component_pack is not null and order_qty is not null) all_source_values_present
   from component_versions
   group by order_id,production_order_number,order_line_id,source_id,sku,quantity_ordered,
            sales_order_no,sales_order_line_no,master_item_no
 ), line_expectations as (
   select s.order_id,s.production_order_number,s.order_line_id,
-         case when sl.sales_order_line_no=0 then r.component_pack else s.direct_case_pack end case_pack,
-         case when sl.sales_order_line_no=0 then s.quantity_ordered/nullif(r.component_pack,0)
+         case when s.is_assortment then r.component_pack else s.direct_case_pack end case_pack,
+         case when s.is_assortment then s.quantity_ordered/nullif(r.component_pack,0)
               when s.direct_case_pack>0 then s.quantity_ordered/s.direct_case_pack end cases_reported,
-         case when sl.sales_order_line_no=0 then concat_ws(':',sl.sales_order_no,sl.sales_order_line_no,sl.master_item_no) end group_key,
-         coalesce(sl.sales_order_line_no=0,false) is_assortment,
+         case when s.is_assortment then concat_ws(':',sl.sales_order_no,sl.sales_order_line_no,sl.master_item_no) end group_key,
+         s.is_assortment,
          (sl.order_line_id is not null and r.order_line_id is not null
           and r.company_versions=1 and r.division_versions=1 and r.pack_versions=1 and r.unit_versions=1
-          and r.component_pack>0 and r.source_order_qty=s.quantity_ordered) source_consistent,
-         (sl.order_line_id is not null and sl.sales_order_line_no<>0
-          and s.direct_case_pack>0 and s.quantity_ordered is not null) direct_consistent
+          and r.all_source_values_present and r.component_pack>0 and r.source_order_qty=s.quantity_ordered
+          and s.quantity_ordered>=r.component_pack and nullif(btrim(sl.master_item_no),'') is not null) source_consistent,
+         (sl.order_line_id is not null and not s.is_assortment
+          and s.direct_case_pack>0 and s.quantity_ordered>=s.direct_case_pack) direct_consistent
   from order_lines s
   left join source_lines sl on sl.order_line_id=s.order_line_id
   left join resolved_components r on r.order_line_id=s.order_line_id
