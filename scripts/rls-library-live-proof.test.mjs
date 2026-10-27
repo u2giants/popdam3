@@ -73,3 +73,13 @@ test('diagnostics retain only fixed route kinds, bounded status counts and safe 
   requireReadonlyDiagnosticEnvironment({});
   for (const key of ['PROD_DB_PASSWORD','DATABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_ACCESS_TOKEN']) assert.throws(()=>requireReadonlyDiagnosticEnvironment({[key]:'CANARY'}));
 });
+
+test('fixed readonly entry cannot instantiate fixture or database client and binds exact deployed source', async () => {
+  const {readFileSync} = await import('node:fs');
+  const source = readFileSync(new URL('./run-rls-read-diagnostic.mjs',import.meta.url),'utf8');
+  assert(source.includes('await run(env, null)'));
+  assert(source.includes('requireReadonlyDiagnosticEnvironment(process.env)'));
+  assert(source.includes("DEPLOYED_FRONTEND_SHA:'a273bff8b14395d13191186a6cb83c98b7829dc1'"));
+  for(const forbidden of ['createFixtureProtocol','protectedCounts','createClient','createRequire','rls-owned-fixture.mjs']) assert.equal(source.includes(forbidden),false);
+  assert(source.indexOf('delete process.env.POPDAM_TEST_PASSWORD') < source.indexOf('await run(env, null)'));
+});
