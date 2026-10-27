@@ -55,3 +55,21 @@ test('default filter lookup permits exactly its read-only action, never admin wr
   }
   assert.equal(permittedRequest({url:url+'?action=get-filter-options',method:'POST',body:{action:'get-filter-options'}}), false);
 });
+
+test('diagnostics retain only fixed route kinds, bounded status counts and safe error classes', async () => {
+  const {diagnosticRoute,errorClass,incrementStatus,requireReadonlyDiagnosticEnvironment} = await import('./rls-library-live-proof.mjs');
+  const counts = {};
+  incrementStatus(counts, `https://${HOST}/rest/v1/style_groups?sku=PRIVATE_CANARY`, 403);
+  incrementStatus(counts, 'https://unexpected.example/PRIVATE_CANARY?token=SECRET_CANARY', 500);
+  incrementStatus(counts, 'https://unexpected.example/', 999);
+  assert.deepEqual(counts, {'library:403':1,'static-other:500':1});
+  counts['library:403']=10000;
+  incrementStatus(counts, `https://${HOST}/rest/v1/style_groups`,403);
+  assert.equal(counts['library:403'],10000);
+  assert.equal(errorClass({name:'SECRET_CANARY',message:'PRIVATE_CANARY'}),'OtherError');
+  assert.equal(errorClass(new TypeError('PRIVATE_CANARY')),'TypeError');
+  assert.equal(diagnosticRoute('https://dam.designflow.app/login?secret=CANARY'),'app-page');
+  assert.equal(JSON.stringify(counts).includes('CANARY'),false);
+  requireReadonlyDiagnosticEnvironment({});
+  for (const key of ['PROD_DB_PASSWORD','DATABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_ACCESS_TOKEN']) assert.throws(()=>requireReadonlyDiagnosticEnvironment({[key]:'CANARY'}));
+});

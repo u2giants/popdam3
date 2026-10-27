@@ -48,5 +48,8 @@ test('actual local-custody failure cannot call SDK authentication or fixture pre
     const report=await run({POPDAM_ACCEPTANCE_BASE_URL:'https://dam.designflow.app',SUPABASE_PROJECT_ID:'qsllyeztdwjgirsysgai',POPDAM_TEST_USER:'ai-admin@designflow.app',POPDAM_TEST_PASSWORD:'UNIT_CANARY',DEPLOYED_FRONTEND_SHA:'a'.repeat(40),POPDAM_PLAYWRIGHT_PACKAGE:BROWSER_PACKAGE,POPDAM_PROOF_FILE:path.join(directory,'receipt.json')},
       {prepare:async()=>{prepared++;},cleanup:async()=>{},summary:()=>({passed:false})});
     assert.equal(prepared,0);assert.equal(report.passed,false);assert.equal(report.password_login,false);
+    assert.equal(report.diagnostics.failed_stage,'local-browser');
+    assert.equal(report.diagnostics.header_count,null);
+    assert.equal(JSON.stringify(report).includes('UNIT_CANARY'),false);
   } finally {if(old===undefined)delete process.env.PLAYWRIGHT_HOST_PLATFORM_OVERRIDE;else process.env.PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=old;fs.rmSync(directory,{recursive:true});}
 });
