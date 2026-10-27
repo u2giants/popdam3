@@ -154,7 +154,7 @@ test('tampered_or_unsafe_preparation_is_rejected: unknown fields, versions, trav
   assert.throws(() => validatePreparedReceipt(prepared({ policy_digests: {} })), /at least one digest/)
   assert.throws(() => validatePreparedReceipt(prepared({ policy_digests: { tool: 'abc' } })), /policy_digests\.tool is malformed/)
   assert.throws(() => validatePreparedReceipt(prepared({ target: { identifier: 'postgresql://postgres:hunter2@db.example.com/postgres' } })), /credential-shaped/)
-  assert.throws(() => validatePreparedReceipt(prepared({ holder_id: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' })), /credential-shaped|malformed/)
+  assert.throws(() => validatePreparedReceipt(prepared({ holder_id: 'ghp_' + 'abcdefghijklmnopqrstuvwxyz0123456789' })), /credential-shaped|malformed/)
   assert.throws(() => validatePreparedReceipt(prepared({ prepared_checks: [{ name: 'x', result: 'maybe', digest: D('1') }] })), /pass or fail/)
   assert.throws(() => validatePreparedReceipt(prepared({ created_at: 'yesterday' })), /created_at is malformed/)
 

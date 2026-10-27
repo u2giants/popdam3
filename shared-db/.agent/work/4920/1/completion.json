@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4920,
+  "outcome": "ready-for-merge",
+  "pr": 4922,
+  "migration_versions": [
+    "20261027182138"
+  ],
+  "contract_ref": "refs/db-contracts/4920/1",
+  "contract_sha256": "be4f3aeb06e3cbd6114aeb458d24e0652e03fb672949f526f41c053eaba59f55",
+  "base_sha": "46b7b525d90b9569c6b57fd88601eee0ec7159fe",
+  "head_sha": "25635f713b7f7b8770e4b2d654b1fb5c89b5111b",
+  "files_changed": [
+    "supabase/migrations/20261027182138_crm_email_routing_stage_rpcs.sql",
+    "supabase/tests/crm_email_routing_stage_rpcs_contracts.sql"
+  ],
+  "db_reads": [
+    "table crm.email_message",
+    "table crm.department",
+    "table crm.opportunity",
+    "table core.customer"
+  ],
+  "db_writes": [
+    "function api.crm_email_routing_stage_counts",
+    "function api.crm_email_routing_stage_page"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree at the implementation head."
+    },
+    {
+      "command": "ephemeral-database contract tests pass on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "Database Contract Tests on the PR head (pull_request check)."
+    }
+  ],
+  "assumptions_resolved": [
+    "22,682-row production count measured read-only 2026-10-27."
+  ],
+  "stop_conditions_hit": []
+}

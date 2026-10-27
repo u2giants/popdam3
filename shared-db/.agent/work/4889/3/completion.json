@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 4889,
+  "outcome": "ready-for-merge",
+  "pr": 4923,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4889/3",
+  "contract_sha256": "9066047342b6a7f8824e7c26f52fc099bb518a32ee16250c1ebf47a62e66b551",
+  "head_sha": "86f51fbc1e853f8e2d74eca30c56bffed3c3e726",
+  "base_sha": "46b7b525d90b9569c6b57fd88601eee0ec7159fe",
+  "files_changed": [
+    "docs/agents/review-recovery-policy.md",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Truth audit passed:370 sites107 sources. /tmp/4889-gen3-truth-audit.log"
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "24 tests passed,0 failed,0 skipped. /tmp/4889-gen3-truth-tests.log"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "git diff --check passed."
+    },
+    {
+      "command": "Verify runtime source and circuit-breaker tests are byte-identical to independently approved a380dd1f6092bfa2ad9828566f026bcf7b8f5173",
+      "exit_code": 0,
+      "evidence": "git diff --exit-code a380dd1f6092bfa2ad9828566f026bcf7b8f5173 -- both runtime and test paths passed; bytes identical."
+    }
+  ],
+  "assumptions_resolved": [
+    "Generation 2 remains preserved in immutable contract ref and a380dd1 history; its 233-test run and both stored-base actual-history replays are prior evidence, not reruns on this head.",
+    "Only the semantic comment disposition and owned evidence retirement changed; discovery and runtime guards remain unchanged."
+  ],
+  "stop_conditions_hit": []
+}

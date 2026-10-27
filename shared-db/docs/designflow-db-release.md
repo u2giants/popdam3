@@ -9,6 +9,21 @@ main merge protection must pass a live negative test (or a centrally controlled
 deployment gate must be proven if native protection is unavailable). Until those facts are
 recorded on #4655, no automatic release or enforced deployment hold is claimed.
 
+## Current delivery update — October 27, 2026
+
+Verified at 2:26 PM EDT. This supersedes the October 26 pending-source snapshot below without removing its historical evidence. All six source PRs (backend #241, Item Master #144, Tracking #158, data-syncing #82, BFF #64, frontend #384) and all six following production PRs are merged. No additional PR from Uma was identified.
+
+| Application | Merged production PR | Production source |
+|---|---|---|
+| backend | [#243](https://github.com/popcre/designflow-backend/pull/243) | `8a21fb82410bb4e1b975ddfb15ad977e86a93a77` |
+| item-master | [#146](https://github.com/popcre/designflow-item-master/pull/146) | `1f94e0f0e56509fc8299be8e87a6987ca752e37e` |
+| tracking | [#160](https://github.com/popcre/designflow-tracking/pull/160) | `ff96fbb61870196920901931e512fb49bc9066bf` |
+| data-syncing | [#84](https://github.com/popcre/designflow-data-syncing/pull/84) | `490be7b0b4b2c44cd83bf4d88d0a115fdd5b33d4` |
+| bff | [#66](https://github.com/popcre/designflow-bff/pull/66) | `fa88b587230b82a7322ab3e3ba33d36781a70ea5` |
+| frontend | [#388](https://github.com/popcre/designflow-frontend/pull/388) | `22562c6f6c11e67579aa77b7159e613a53155fa9` |
+
+All six exact production sources have successful Cloud Build runs. Read-only Cloud Run service readbacks show every latest revision Ready and receiving 100% of untagged traffic. This proves deployment, not business acceptance. The broader issue #4655 remains open for the remaining notification/event evidence and application acceptance; do not repeat completed lock repairs or production promotions.
+
 ## Release identity and source custody
 
 Each application records `.release/database.json` with its exact canonical source
@@ -213,9 +228,9 @@ Issue #4655 owns `config/designflow-consumer-release-notify.yml` as the canonica
 
 The five-minute cron is a fallback, not a latency guarantee: actual scheduled runs 39902566401 and 39933299973 arrived at 12:51 AM EDT and 5:38 AM EDT on October 23, 2026; no later scheduled run existed at 9:35 AM EDT that day. Notifications reuse the existing central workflow, which independently reads current application heads, requirements and production proof. A notification supplies no release authorization.
 
-This source does not activate credentials, install an App or publish application workflows. Obtain assigned independent exact-input APPROVE before provisioning the resources below. Keep source approval, configuration activation, actual central observer execution/status publication, and real develop-event delivery distinct.
+The original dedicated App and six consumer notifications were already active before PR #4847; authenticated app-triggered observers and the October 26 completion batch prove delivery. The sequence below records the original provisioning design, not unfinished work. Do not recreate the App, reinstall it, regenerate keys or rotate credentials to roll out the updated template. Any future resource change follows the then-current owner policy and resource checks. Keep configuration activation, actual observer execution/status publication and real develop-event delivery distinct.
 
-Proposed exact actions:
+Historical provisioning sequence (completed; retain its constraints, do not replay):
 1. Create a private GitHub App owned by popcre, requested slug popcre-dflow-db-release-dispatch, homepage https://github.com/popcre/shared-db, no webhook, no OAuth/client secret use, no organization/account permissions, repository Actions WRITE only plus GitHub implicit metadata READ. Install ONLY on popcre/shared-db, not all repositories. Do not modify the existing pop-ai-watchers App or existing status publisher permissions.
 2. Generate one new dedicated private key; transport only via its protected downloaded file and pipes, store in 1Password vibe_coding with durable title/context/tags and actual App/installation IDs. Never expose values in chat, logs, arguments or commits. Delete no existing credential and perform no rotation.
 3. Set the new dedicated key as repository Actions secret DFLOW_RELEASE_DISPATCH_PRIVATE_KEY in exactly popcre/designflow-backend, designflow-bff, designflow-frontend, designflow-item-master, designflow-tracking and designflow-data-syncing. Set public variable DFLOW_RELEASE_DISPATCH_APP_ID in those six repositories to the actual new App ID. No central SYNC_TOKEN or watcher private key is copied. The new key can mint only central installation Actions-write tokens; no repository contents, admin or database permission is granted. Actions-write includes cancellation/dispatch capability; review that explicit limited residual risk.
@@ -355,3 +370,93 @@ The canonical sync workflow sends one readiness notification after the complete 
 Rollout is additive: merge and prove the central completion notification before activating the consumer filter. Keep existing consumer notifications active until that proof exists. The canonical consumer template skips only an authenticated mirror-only push: its bot identity and message must match, and bounded root-tree metadata must prove that only the shared-db tree changed. Real application changes, mixed changes, relevant production PR events, unknown metadata, and API errors all retain their normal notification. Filtering affects duplicate delivery only, never readiness decisions or pending/failure/success publication.
 
 Issue #4655 owns the template and all six byte-identical consumer copies. Unit tests exercise the actual classifier and completion dispatch, including partial failures, malformed metadata, mixed changes, and dispatch failures. Synthetic tests do not replace actual central dispatch and consumer rollout evidence recorded on that issue.
+
+### Verified delivery and remaining rollout — October 26, 2026
+
+This is a dated delivery record, not authority to reuse a stale commit stamp. The
+coordinator's complete evidence and merge list are on
+[issue #4655](https://github.com/popcre/shared-db/issues/4655#issuecomment-6428912824).
+Read current PR heads and current checks before acting; preserve the completed
+repairs, parked source and unrestricted sandbox/develop commits.
+
+| Outcome | Verified state | Next owner / proof |
+|---|---|---|
+| Dependency locks in Backend, Item Master, Tracking and Data Syncing | Done in the prepared source: unchanged locks recovered from successful production images, frozen installs and both environment suites passed | Do not regenerate or upgrade these dependencies as part of notification rollout |
+| Central completion notification | Done: [PR #4847](https://github.com/popcre/shared-db/pull/4847), merged as `d1b88949f17c6c53087b997bfa6c45b3cf5c5439` | Preserve every existing readiness decision, status publisher and production check |
+| Six consumer workflow updates | Source prepared; all six PRs remained open at 8:12 PM EDT on October 26 | Uma merges the source PRs below through the existing application process |
+| Production delivery of this follow-up | Open; sandbox evidence is not production delivery | Uma performs normal develop-to-main promotion with all existing checks; coordinator records subsequent runtime proof on #4655 |
+| Active consumer filtering | Open until the consumer workflows reach their default/release branches | Coordinator proves a real mirror-only push is suppressed and a real/mixed application change still notifies; keep live proof open on #4655 |
+
+The complete source PR list is [Backend #241](https://github.com/popcre/designflow-backend/pull/241),
+[Item Master #144](https://github.com/popcre/designflow-item-master/pull/144),
+[Tracking #158](https://github.com/popcre/designflow-tracking/pull/158),
+[Data Syncing #82](https://github.com/popcre/designflow-data-syncing/pull/82),
+[BFF #64](https://github.com/popcre/designflow-bff/pull/64) and
+[Frontend #384](https://github.com/popcre/designflow-frontend/pull/384).
+These target develop; do not self-merge application PRs. Existing appearance,
+linked-item and session-revocation work in those shared sandbox PRs is preserved.
+
+Actual [batch 40411453210](https://github.com/popcre/shared-db/actions/runs/40411453210)
+completed nine consumer mirrors and one completion dispatch. Its first observer
+was replaced in the existing legacy notification burst. A subsequent unchanged
+[batch 40411909589](https://github.com/popcre/shared-db/actions/runs/40411909589)
+proved isolated delivery to exactly one correlated
+[observer 40411985776](https://github.com/popcre/shared-db/actions/runs/40411985776),
+which reported all twelve develop/main snapshots READY. Actor, canonical main
+SHA and creation time were bound to the completion job. The original per-app
+notifications remained enabled during that proof. Seventeen tests covered the
+actual classifier and dispatch, including partial failures and mixed changes;
+these synthetic negatives are not a claim of an actual failed-mirror exercise.
+
+At 6:33 PM EDT on October 26, all six final source heads had green checks and
+successful sandbox builds, and their Ready revisions served 100% traffic with
+image digests matching the exact successful builds:
+
+| App | Verified sandbox source head | Build | Ready revision |
+|---|---|---|---|
+| Backend | `0237b66106075eef27e83910eba8127d728aa764` | `fd43d6d2-a2cc-470a-920f-5a41674a837b` | `popcre-albert-core-sandbox-00904-qkj` |
+| Item Master | `af32389e9b5e1d5da04a7ed325bd839f444b4cf1` | `5dd4bf12-eebe-4310-b5ea-3ff20845ab8a` | `popcre-albert-item-sandbox-00207-xvv` |
+| Tracking | `2c0ebbf8f97364fed87333aa2a7269adc4b4c6ce` | `8c42b9df-2b61-49df-b30d-ef3fb424ed5d` | `popcre-albert-tracking-sandbox-00460-7bf` |
+| Data Syncing | `d479f5980bf91bce6d92794d0c468dd493b6c5bd` | `0d07e367-5d7a-463b-8354-d447fa917449` | `popcre-albert-sync-sandbox-00153-8kd` |
+| BFF | `afb0678dfda9be03452fa9ad9e116174fa1bcbbe` | `5a177c70-ff79-40e5-a92a-5420b0f1d653` | `popcre-albert-bff-sandbox-00131-kgh` |
+| Frontend | `233d2394c6c0c89f0164e27c4703372445eca8a2` | `d0af073d-3ae3-4935-9871-cbf734cc29a8` | `popcre-albert-frontend-sandbox-00735-bks` |
+
+Frontend advanced to `b180879cfc8c1d6ff8f6ec471694903fd4249700` by the
+8:12 PM EDT documentation readback. Its reported GitHub checks, including its
+sandbox build check, were green. The table's earlier live-image observation
+remains historical and does not independently prove that newer image is live.
+The other five PR heads still matched the table. Re-read all heads, checks and
+runtime images before claiming present delivery; do not redo completed repairs.
+
+### Dependency locks and environment-safe tests
+
+Tracking's production build `191c2f89` failed because one business-behavior test
+assumed the development schema for AuditLog. The existing repairs in Tracking
+#156/#157 are preserved. The incident does not justify removing explicit schema
+expectations from tests whose purpose is schema mapping.
+
+Backend, Item Master and Tracking now carry the unchanged production `yarn.lock`
+and require Yarn Classic 1.22.22 with frozen installs. Data Syncing carries the
+unchanged production `package-lock.json` and requires npm 11.19.1 with `npm ci`;
+its historical Yarn lock remains preserved but does not govern npm installs.
+Docker build contexts exclude local node_modules. Dependency definitions were
+unchanged apart from package-manager metadata; this was not a dependency upgrade.
+
+Their automatic unit matrix runs the complete mocked suite for production and
+develop on PRs and sandbox pushes. Install the full locked test dependencies
+before setting the test environment. Production tests use `NODE_ENV=production`
+and `SCHEMA=dflow_prod`; develop tests use `NODE_ENV=develop` and an empty
+`SCHEMA`. No production database credentials or live writes belong in these tests.
+
+The final matrices passed for Backend (225 suites, 2604 tests per environment),
+Item Master (61 suites, 647 tests), Tracking (124 suites, 1670 passes and one
+existing skip) and Data Syncing (25 suites, 260 tests). Existing inherited
+environment assumptions found in Backend and Item Master were repaired while
+retaining independently expected schema assertions. Controlled mismatches also
+proved that both frozen Yarn and npm ci refuse manifest/lock disagreement.
+Frontend's recorded image build ran its full unit suite and sandbox AOT build;
+it was not a production deployment or a production-configuration build claim.
+
+Follow the consumer testing rule in [development](development.md#designflow-consumer-environment-tests).
+The app repositories' own development guides contain their exact install and
+test commands. Shared-db itself has no package.json and no app test runtime.

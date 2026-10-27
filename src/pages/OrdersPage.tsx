@@ -35,11 +35,11 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS, orderWindowStart } from "@/lib/order-list";
+import { buildOrderListEdit, ensureAssortmentQuantityInSavedColumnState, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS, orderWindowStart } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
-function orderListSalesDateScope(
+function orderListBlockScope(
   generation: number,
   request: { sortModel?: unknown; filterModel?: unknown; search?: string },
 ) {
@@ -63,7 +63,7 @@ export default function OrdersPage() {
   const [hasLoadedRows, setHasLoadedRows] = useState(false);
   const [summaryCountsEnabled, setSummaryCountsEnabled] = useState(false);
   const [salesOrderDateErrors, setSalesOrderDateErrors] = useState<Record<string, string>>({});
-  const [activeSalesOrderDateScope, setActiveSalesOrderDateScope] = useState<string | null>(null);
+  const [activeOrderListBlockScope, setActiveOrderListBlockScope] = useState<string | null>(null);
   const salesOrderDateGeneration = useRef(0);
   // Default view shows the last 12 months by window date; "Show old" lifts that limit.
   const [showOld, setShowOld] = useState(false);
@@ -79,7 +79,7 @@ export default function OrdersPage() {
   /** Reloads the rows the grid is showing, without re-reading the whole list. */
   const refreshRows = useCallback(() => {
     salesOrderDateGeneration.current += 1;
-    setActiveSalesOrderDateScope(null);
+    setActiveOrderListBlockScope(null);
     setSalesOrderDateErrors({});
     refreshOrderListRows(gridRef.current?.api);
   }, []);
@@ -96,10 +96,11 @@ export default function OrdersPage() {
       gridRef.current?.api,
       async (request) => {
         const fullRequest = { ...request, search: "" };
-        const scope = orderListSalesDateScope(salesOrderDateGeneration.current, fullRequest);
-        setActiveSalesOrderDateScope(scope);
+        const scope = orderListBlockScope(salesOrderDateGeneration.current, fullRequest);
+        setActiveOrderListBlockScope(scope);
         const block = await fetchOrderListBlock(fullRequest);
-        setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, request.startRow, block.salesOrderDatesError));
+        const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError].filter((message): message is string => Boolean(message));
+        setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, request.startRow, warnings.length ? warnings.join("\n") : null));
         return block.rows;
       },
       (row) => row.order_line_id,
@@ -149,10 +150,11 @@ export default function OrdersPage() {
             search: "",
             orderWindowStart: showOldRef.current ? null : orderWindowStart(),
           };
-          const scope = orderListSalesDateScope(salesOrderDateGeneration.current, request);
-          setActiveSalesOrderDateScope(scope);
+          const scope = orderListBlockScope(salesOrderDateGeneration.current, request);
+          setActiveOrderListBlockScope(scope);
           const block = await fetchOrderListBlock(request);
-          setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, params.startRow, block.salesOrderDatesError));
+          const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError].filter((message): message is string => Boolean(message));
+          setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, params.startRow, warnings.length ? warnings.join("\n") : null));
           setLoadError(null);
           setHasLoadedRows(true);
           // A short block proves the exact end. Otherwise the grid keeps paging
@@ -334,7 +336,9 @@ export default function OrdersPage() {
     const api = gridRef.current?.api;
     if (!api) return;
     if (Array.isArray(view.column_state)) {
-      api.applyColumnState({ state: ensureSalesOrderDateInSavedColumnState(view.column_state) as any, applyOrder: true });
+      const withSalesOrderDate = ensureSalesOrderDateInSavedColumnState(view.column_state);
+      const withAssortmentQuantity = ensureAssortmentQuantityInSavedColumnState(withSalesOrderDate);
+      api.applyColumnState({ state: withAssortmentQuantity as any, applyOrder: true });
     }
     api.setFilterModel((view.filter_model ?? null) as any);
     setActiveViewId(view.id);
@@ -439,11 +443,16 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {activeTab === "orders" && activeSalesOrderDateScope && Object.keys(salesOrderDateErrors).some((key) => key.startsWith(`${activeSalesOrderDateScope}:`)) && (
-        <div role="status" className="border-b border-amber-500/40 bg-amber-500/10 p-2 text-sm text-foreground">
-          SO Date could not be loaded for some rows. Refresh OrderList to try again.
-        </div>
-      )}
+      {activeTab === "orders" && activeOrderListBlockScope && (() => {
+        const warnings = [...new Set(Object.entries(salesOrderDateErrors)
+          .filter(([key]) => key.startsWith(`${activeOrderListBlockScope}:`))
+          .flatMap(([, messages]) => messages.split("\n")))];
+        return warnings.length > 0 ? (
+          <div role="status" className="border-b border-amber-500/40 bg-amber-500/10 p-2 text-sm text-foreground">
+            {warnings.map((message) => <div key={message}>{message}</div>)}
+          </div>
+        ) : null;
+      })()}
 
       <div className="min-h-0 flex-1 p-3">
         <div className="h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">

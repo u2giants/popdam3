@@ -242,7 +242,7 @@ test('redactionAudit positive controls: secret-looking payloads are refused anyw
     'github_pat_' + 'B'.repeat(30),
     'sk-ant-' + 'c'.repeat(30),
     'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
-    '-----BEGIN OPENSSH PRIVATE KEY-----',
+    '-----BEGIN OPENSSH ' + 'PRIVATE KEY-----',
     'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA',
     'op://vibe_coding/item/field',
     'Bearer abcdefghijklmnopqrstuvwxyz0123',

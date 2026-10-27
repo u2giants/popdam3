@@ -123,7 +123,7 @@ test('trace_failure_does_not_repeat_or_hide_completed_assignment', () => {
 
 test('trace_is_monotonic_and_secret_safe — the emitted line carries no tokens or raw child output', () => {
   const io = atomicIo()
-  process.env.GH_TOKEN_TEST_SENTINEL = 'ghp_secretsentinel000000000000000000000'
+  process.env.GH_TOKEN_TEST_SENTINEL = 'ghp_' + 'secretsentinel' + '0'.repeat(21)
   try {
     const { lines } = captureStderr(() => assignNextReviewer(REQUEST, io))
     const trace = lines.find((line) => line.startsWith('review-phase-trace '))

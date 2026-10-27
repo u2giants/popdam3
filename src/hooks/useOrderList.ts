@@ -73,11 +73,18 @@ export type OrderListBlock = {
   rows: OrderListRow[];
   totalRowCount: number | null;
   salesOrderDatesError: string | null;
+  assortmentQuantitiesError?: string | null;
 };
 
 export type OrderListSalesOrderDate = { order_line_id: string; sales_order_date: string | null };
+export type OrderListAssortmentQuantity = {
+  order_line_id: string;
+  assortment_sku_quantity: number | null;
+  quantity_source: "order_recipe" | "current_recipe" | null;
+};
 
 const SALES_ORDER_DATES_UNAVAILABLE = "SO Date could not be loaded. Refresh OrderList to try again.";
+const ASSORTMENT_QUANTITIES_UNAVAILABLE = "SKU quantity in assortment could not be loaded. Refresh OrderList to try again.";
 
 function isIsoCalendarDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -135,6 +142,46 @@ async function attachOrderListSalesOrderDates(rows: OrderListRow[]): Promise<Ord
   });
   if (error) throw error;
   return mergeOrderListSalesOrderDates(rows, data ?? []);
+}
+
+/** Merge recipe quantities by exact line ID; null or undefined RPC data is malformed. */
+export function mergeOrderListAssortmentQuantities(rows: OrderListRow[], quantityRows: unknown): OrderListRow[] {
+  if (!Array.isArray(quantityRows)) throw new Error("Could not read OrderList assortment quantities.");
+  const requestedIds = new Set(rows.filter((row) => typeof row.assortment_id === "string" && row.assortment_id.trim() !== "").map((row) => row.order_line_id));
+  const quantities = new Map<string, OrderListAssortmentQuantity>();
+  for (const result of quantityRows as OrderListAssortmentQuantity[]) {
+    if (!result || typeof result.order_line_id !== "string" || !requestedIds.has(result.order_line_id)) {
+      throw new Error("Assortment quantity lookup returned an unexpected OrderList line.");
+    }
+    if (quantities.has(result.order_line_id)) throw new Error("Assortment quantity lookup returned a duplicate OrderList line.");
+    const quantity = result.assortment_sku_quantity;
+    const source = result.quantity_source;
+    const sourceValid = source === null || source === "order_recipe" || source === "current_recipe";
+    const quantityValid = quantity === null || (typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0);
+    if (!sourceValid || !quantityValid || ((quantity === null) !== (source === null))) {
+      throw new Error("Assortment quantity lookup returned an invalid quantity or source.");
+    }
+    quantities.set(result.order_line_id, result);
+  }
+  return rows.map((row) => {
+    const result = quantities.get(row.order_line_id);
+    return {
+      ...row,
+      assortment_sku_quantity: result?.assortment_sku_quantity ?? null,
+      assortment_quantity_source: result?.quantity_source ?? null,
+    };
+  });
+}
+
+async function attachOrderListAssortmentQuantities(rows: OrderListRow[]): Promise<OrderListRow[]> {
+  const assortmentRows = rows.filter((row) => typeof row.assortment_id === "string" && row.assortment_id.trim() !== "");
+  if (assortmentRows.length === 0) return rows.map((row) => ({ ...row, assortment_sku_quantity: null, assortment_quantity_source: null }));
+  if (assortmentRows.length > 1500) throw new Error("Assortment quantity lookup exceeded its 1,500-line bound.");
+  const { data, error } = await (supabase as any).rpc("get_dam_order_assortment_quantities", {
+    p_line_ids: assortmentRows.map((row) => row.order_line_id),
+  });
+  if (error) throw error;
+  return mergeOrderListAssortmentQuantities(rows, data);
 }
 
 export type OrderListFindRequest = Pick<OrderListBlockRequest, "filterModel" | "sortModel" | "search">;
@@ -213,6 +260,27 @@ export async function fetchOrderListCount(request: OrderListBlockRequest): Promi
   return count;
 }
 
+/** Keeps each `in.(...)` request URL well under proxy limits (100 UUIDs ≈ 3.7 KB). */
+const ORDER_LIST_ID_CHUNK = 100;
+
+/** Full grid rows for exact line IDs, returned in the order the IDs were given. */
+async function fetchOrderListRowsById(ids: string[]): Promise<OrderListRow[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += ORDER_LIST_ID_CHUNK) chunks.push(ids.slice(i, i + ORDER_LIST_ID_CHUNK));
+  const results = await Promise.all(chunks.map((chunk) => orderListTable().select(ORDER_LIST_SELECT).in("order_line_id", chunk)));
+  const byId = new Map<string, OrderListRow>();
+  for (const { data, error } of results as Array<{ data: OrderListRow[] | null; error: unknown }>) {
+    if (error) throw error;
+    for (const row of data ?? []) byId.set(row.order_line_id, row);
+  }
+  // A line deleted between the two requests simply drops out of this block.
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
+}
+
 /**
  * One bounded block of the view. Sorting, filtering and search all run in the
  * database, so results cover every matching row, not only the loaded ones.
@@ -223,25 +291,50 @@ export async function fetchOrderListCount(request: OrderListBlockRequest): Promi
  * AG Grid discovers the exact end when a bounded block returns fewer rows.
  */
 export async function fetchOrderListBlock(request: OrderListBlockRequest): Promise<OrderListBlock> {
-  const rowQuery = applyOrderListShape(orderListTable().select(ORDER_LIST_SELECT), request, true);
-  const { data, error } = await rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
-  if (error) throw error;
-
-  const sourceRows = (data ?? []) as OrderListRow[];
-  let rows = sourceRows;
-  let salesOrderDatesError: string | null = null;
-  try {
-    rows = await attachOrderListSalesOrderDates(sourceRows);
-  } catch {
-    // This is an optional display field. Keep the primary OrderList rows usable
-    // and make the failed sidecar lookup visible to the page.
-    rows = sourceRows.map((row) => ({ ...row, sales_order_date: null }));
-    salesOrderDatesError = SALES_ORDER_DATES_UNAVAILABLE;
-  }
+  // Two steps on purpose. Sorting the view with every grid column built for
+  // every line cost ~2s warm and exceeded the 8s statement_timeout on a cold
+  // first load (production 2026-10-27). Ranking only line IDs is ~0.6s, and
+  // fetching the chosen lines by primary key is ~30ms per 100.
+  const idQuery = applyOrderListShape(orderListTable().select("order_line_id"), request, true);
+  const { data: idData, error: idError } = await idQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
+  if (idError) throw idError;
+  const sourceRows = await fetchOrderListRowsById(((idData ?? []) as Array<{ order_line_id: string }>).map((row) => row.order_line_id));
+  const baseRows: OrderListRow[] = sourceRows.map((row) => ({
+    ...row,
+    sales_order_date: null,
+    assortment_sku_quantity: null,
+    assortment_quantity_source: null,
+  }));
+  const [salesDatesResult, assortmentQuantitiesResult] = await Promise.allSettled([
+    attachOrderListSalesOrderDates(baseRows),
+    attachOrderListAssortmentQuantities(baseRows),
+  ]);
+  // Merge the independent optional lookups by their exact line IDs. A failure
+  // in either sidecar leaves the primary rows and the other sidecar intact.
+  const datesById = new Map(
+    salesDatesResult.status === "fulfilled"
+      ? salesDatesResult.value.map((row) => [row.order_line_id, row.sales_order_date] as const)
+      : [],
+  );
+  const quantitiesById = new Map(
+    assortmentQuantitiesResult.status === "fulfilled"
+      ? assortmentQuantitiesResult.value.map((row) => [row.order_line_id, [row.assortment_sku_quantity, row.assortment_quantity_source] as const] as const)
+      : [],
+  );
+  const rows = baseRows.map((row) => {
+    const [assortment_sku_quantity, assortment_quantity_source] = quantitiesById.get(row.order_line_id) ?? [null, null];
+    return {
+      ...row,
+      sales_order_date: datesById.get(row.order_line_id) ?? null,
+      assortment_sku_quantity,
+      assortment_quantity_source,
+    };
+  });
   return {
     rows,
     totalRowCount: null,
-    salesOrderDatesError,
+    salesOrderDatesError: salesDatesResult.status === "rejected" ? SALES_ORDER_DATES_UNAVAILABLE : null,
+    assortmentQuantitiesError: assortmentQuantitiesResult.status === "rejected" ? ASSORTMENT_QUANTITIES_UNAVAILABLE : null,
   };
 }
 

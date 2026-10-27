@@ -80,3 +80,14 @@ migration as forward-only.
 3. For schema: preview apply evidence, then production apply result + live proof
    on the issue.
 4. Do not treat a green workflow as live proof without the issue checklist.
+
+## DesignFlow application follow-ups
+
+Read [DesignFlow database release readiness](designflow-db-release.md), including
+its consolidated-notification delivery record and complete consumer PR list.
+A successful central mirror batch or database stamp does not merge an app PR,
+install its dependency lock in production, or prove a new runtime image is live.
+Uma retains application merge/promotion ownership; each new head keeps all
+existing production checks and subsequent runtime verification. The recorded
+sandbox images and dated readiness snapshots must not be reused as proof of a
+later source head.
