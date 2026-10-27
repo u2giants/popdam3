@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 4886,
+  "generation": 3,
+  "outcome": "ready-for-merge",
+  "pr": 4888,
+  "migration_versions": [
+    "20261027132801"
+  ],
+  "contract_ref": "refs/db-contracts/4886/3",
+  "contract_sha256": "48f0c249d55e7801a035f2b335c1b0973aa55b1a4e3e109b35e4fd228f4de453",
+  "head_sha": "0cf40823fc7375efe4f981e024a738efe4a87a37",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "files_changed": [
+    "supabase/migrations/20261027132801_orderlist_intake_scoped_link.sql",
+    "supabase/tests/orderlist_intake_scoped_link.sql"
+  ],
+  "db_reads": [
+    "table plm.production_order_line",
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_rows",
+    "function dam.orderlist_product_facts"
+  ],
+  "db_writes": [
+    "function public.link_dam_order_lines_scoped"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL checks passed, including expected-count/verify-cost/EOL guards. No production write."
+    },
+    {
+      "command": "scoped helper SQL regression on isolated database",
+      "exit_code": 0,
+      "evidence": "PostgreSQL17 network-none Docker: current production schema only restored locally with no rows. New helper plus supabase/tests/orderlist_intake_scoped_link.sql ON_ERROR_STOP=1 exit0. Parameter bounds, deduplication, explicit catalogs, ambiguous/conflicting workflows, existing/manual/not-applicable/out-of-scope preservation, caller rollback, second identical invocation byte-for-byte no-op."
+    }
+  ],
+  "artifacts": [
+    "https://github.com/popcre/shared-db/issues/4887"
+  ],
+  "unresolved_questions": [],
+  "notes": [
+    "Helper dependency only; caller patch deferred until production helper exists. Parent owns merge and production decisions. Application526 remains open."
+  ],
+  "assumptions_resolved": [
+    "Existing production schema supports helper reads; isolated synthetic regression passed.",
+    "Helper-only publication avoids calling a missing production helper; caller follows after promotion."
+  ],
+  "stop_conditions_hit": []
+}

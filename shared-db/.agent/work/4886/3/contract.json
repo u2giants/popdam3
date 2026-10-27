@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 4886,
+  "generation": 3,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Dependency stage1 only: additive scoped service helper; caller code remains private until helper is live",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "dispatcher": "Codex parent chat, Albert explicitly requested subagent",
+  "worker": "codex",
+  "branch": "codex/orderlist-division-intake",
+  "worktree": "/tmp/orderlist-division-intake",
+  "allowed_paths": [
+    "supabase/migrations/20261027132801_orderlist_intake_scoped_link.sql",
+    "supabase/tests/orderlist_intake_scoped_link.sql"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261027132801_orderlist_intake_scoped_link.sql",
+    "supabase/tests/orderlist_intake_scoped_link.sql"
+  ],
+  "db_reads": [
+    "table plm.production_order_line",
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_rows",
+    "function dam.orderlist_product_facts"
+  ],
+  "db_writes": [
+    "function public.link_dam_order_lines_scoped"
+  ],
+  "prohibited_actions": [
+    "No unrelated table/view/schema changes",
+    "No replay of completed repairs or broad bulk relink",
+    "Preserve existing links/manual choices",
+    "Parent owns merge and production decisions"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "scoped helper SQL regression on isolated database"
+  ],
+  "assumptions": [
+    "Settled division classification and landed division descriptions remain authority",
+    "This narrows already prepublished generation2 before first implementation commit; caller publication is a separate post-promotion stage"
+  ],
+  "stop_conditions": [
+    "Unknown source division fails visibly",
+    "Conflicting Master Data is never chosen"
+  ],
+  "evidence_parent": {
+    "work_issue": 4886,
+    "generation": 2,
+    "contract_sha256": "f405f59c32571193e86ca055f2bf111253e6f77b9e35699a073448390a99e07d"
+  }
+}
