@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "work_issue": 4889,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete the same correction by explicitly classifying its non-database comment in the required semantic inventory; preserve unchanged runtime behavior and all guards.",
+  "base_sha": "a380dd1f6092bfa2ad9828566f026bcf7b8f5173",
+  "dispatcher": "Codex chat 01a17ac8-b42b-7530-846a-1b621b549448 on hetz",
+  "worker": "Codex subagent finish_assortment_column",
+  "branch": "codex/4889-provenance-followup",
+  "worktree": "/tmp/shared-db-4889-provenance-followup",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/agents/review-recovery-policy.md",
+    ".agent/work/4889/2/contract.json",
+    ".agent/work/4889/2/completion.json",
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4889/3/contract.json",
+    ".agent/work/4889/3/completion.json"
+  ],
+  "file_writes": [
+    "docs/verification/throughput-dispositions/scripts~lib~lanes~review-circuit-breaker.mjs.json",
+    ".agent/work/4889/2/contract.json",
+    ".agent/work/4889/2/completion.json",
+    ".agent/work/4889/3/contract.json",
+    ".agent/work/4889/3/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No schema, database, toolkit installer or window change",
+    "No immutable record rewrite, review import, refund or foreign evidence exclusion",
+    "No runtime code or tests change; only semantic comment disposition and own evidence retirement/tail",
+    "No weakening semantic discovery or inventory guard"
+  ],
+  "required_checks": [
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "git diff --check",
+    "Verify runtime source and circuit-breaker tests are byte-identical to independently approved a380dd1f6092bfa2ad9828566f026bcf7b8f5173"
+  ],
+  "assumptions": [
+    "Albert latest direct instruction authorizes necessary blocker repair and bypassing rules; observation freeze unchanged. Feature production recovery proceeds independently."
+  ],
+  "stop_conditions": [
+    "Forged, foreign, partial or unreadable historical evidence",
+    "Unreviewed source or production action",
+    "No corrected later same-generation immutable source witness",
+    "Any failed check, changed non-check report field or source head accepted"
+  ],
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4889,
+    "generation": 2,
+    "contract_sha256": "067ca1e0547bafa6b39a1077c3dd979d0c1cce2be460710e2d7da48ecc0fef2e"
+  }
+}

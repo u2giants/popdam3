@@ -1089,3 +1089,61 @@ for(const bad of ['foreign-pr','foreign-issue','hash','contract','partial','json
  const f=preEvidenceRetirementFixture(t,{bad})
  assert.throws(()=>f.proof())
 })
+
+function correctedTransientChecksFixture(t,{bad=null}={}){
+ const f=realGitFixture(t),issue=3536,pr=3999,published=new Map(),sha=()=>f.git(['rev-parse','HEAD']).trim()
+ const write=(generation,c,r)=>{
+  const dir=path.join(f.dir,`.agent/work/${issue}/${generation}`);mkdirSync(dir,{recursive:true})
+  writeFileSync(path.join(dir,'contract.json'),JSON.stringify(c));writeFileSync(path.join(dir,'completion.json'),JSON.stringify(r))
+  f.git(['add','.agent']);f.git(['commit','-qm','paired transient evidence'])
+ }
+ const retire=g=>{f.git(['rm','-r',`.agent/work/${issue}/${g}`]);f.git(['commit','-qm','ordinary same-issue retirement'])}
+ for(let generation=1;generation<=4;generation++){
+  const c={schema_version:generation===1?1:2,...(generation===1?{}:{generation,evidence_parent:{work_issue:issue,generation:generation-1,contract_sha256:contractHash(published.get(generation-1))}}),work_issue:issue,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Controlled corrected transient report',base_sha:f.base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:f.dir,allowed_paths:['app.txt',`.agent/work/${issue}/**`],file_writes:['app.txt',`.agent/work/${issue}/**`],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown']}
+  published.set(generation,structuredClone(c))
+  const implementation=f.commit('app.txt',`controlled implementation generation ${generation}\n`)
+  const r={schema_version:1,work_issue:issue,outcome:'ready-for-merge',pr,migration_versions:[],contract_ref:`refs/db-contracts/${issue}/${generation}`,contract_sha256:contractHash(c),head_sha:implementation,base_sha:f.base,files_changed:['app.txt'],db_reads:[],db_writes:[],checks:[{command:'fixture',exit_code:0,evidence:'Controlled unchanged-source check'}],assumptions_resolved:[],stop_conditions_hit:[]}
+  if(generation===3){
+   const provisional=structuredClone(r);provisional.checks[0].command='bash fixture'
+   if(bad==='old-failed')provisional.checks[0].exit_code=1
+   if(bad==='old-empty')provisional.checks=[]
+   if(bad==='extra-failed'){provisional.checks[0].command='fixture';provisional.checks.push({command:'extra',exit_code:1,evidence:'Actual failed extra check'})}
+   if(bad==='files')provisional.files_changed=[]
+   if(bad==='contract')c.goal='forged transient contract'
+   if(bad==='pr')provisional.pr++
+   if(bad==='issue')provisional.work_issue++
+   if(bad==='hash')provisional.contract_sha256='f'.repeat(64)
+   if(bad==='files')r.files_changed=[]
+   if(bad==='not-later')write(generation,c,r)
+   write(generation,c,provisional)
+   if(bad==='partial'){
+    f.git(['rm',`.agent/work/${issue}/3/completion.json`]);f.git(['commit','-qm','partial historical pair'])
+   }
+   if(bad==='json'){
+    const file=path.join(f.dir,`.agent/work/${issue}/3/completion.json`);writeFileSync(file,'unreadable JSON');f.git(['add',file]);f.git(['commit','-qm','unreadable historical record'])
+   }
+   if(bad==='tail')f.commit('app.txt','unbound source edit between reports\n')
+   if(bad==='head')r.head_sha=f.commit('app.txt','changed corrected implementation\n')
+   if(bad==='field')r.assumptions_resolved=['changed non-check report field']
+   if(bad==='new-failed')r.checks[0].exit_code=1
+   if(!['uncorrected','not-later'].includes(bad))write(generation,c,r)
+  }else write(generation,c,r)
+  if(generation<4)retire(generation)
+ }
+ const after=sha(),read=ref=>{const match=/^refs\/db-contracts\/3536\/(\d+)$/.exec(ref);if(!match||bad==='published')throw Error('published contract unavailable');return structuredClone(published.get(Number(match[1])))}
+ return {...f,after,proof:()=>derivePaidContentProof(f.before,after,f.base,f.git,verifiedEvidencePaths(f.before,after,{gitRunner:f.git}),pr,read)}
+}
+test('#4889 corrected transient check label authenticates later same-source report without refund or approval carry',t=>{
+ const f=correctedTransientChecksFixture(t),proof=f.proof()
+ assert.equal(proof.kind,'unchanged');assert.equal(proof.witness,undefined)
+ assert.deepEqual(proof.preEvidenceRetirements[0].generations,[1,2,3])
+ assert.equal(proof.supersededTransientCheckRecords.length,1)
+ assert.equal(proof.supersededTransientCheckRecords[0].generation,3)
+ assert.notEqual(proof.supersededTransientCheckRecords[0].provisionalReportJsonSha256,proof.supersededTransientCheckRecords[0].correctedReportJsonSha256)
+ assert.notEqual(prContentDigest(f.before,f.base,{gitRunner:f.git}),prContentDigest(f.after,f.base,{gitRunner:f.git}))
+ const starts=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
+ assert.equal(assertPaidReviewCapacity({...request,headSha:f.after},{...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})}).paidAttempts,2)
+})
+for(const bad of ['uncorrected','old-failed','old-empty','extra-failed','new-failed','head','field','files','tail','not-later','partial','json','pr','issue','hash','contract','published'])test(`#4889 corrected transient check label refuses ${bad}`,t=>{
+ assert.throws(()=>correctedTransientChecksFixture(t,{bad}).proof())
+})

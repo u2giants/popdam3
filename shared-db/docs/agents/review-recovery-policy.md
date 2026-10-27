@@ -73,3 +73,17 @@ ban on metadata source witnesses remain unchanged. The diagnostic result lists
 unchanged, even when genuine product edits survive. All unknown/nonterminal
 starts remain charged; no history, negative verdict, review equivalence rule or
 production gate is rewritten. A new independent exact-head review is required.
+
+A wholly transient provisional report may have a missing required-check label
+that the same author corrected before retiring that generation. The pre-evidence
+recovery recognizes this only when all recorded provisional checks passed, its
+only contract problems are missing required checks, and a later fully satisfied
+same-generation report has the exact same immutable contract, implementation
+head and every non-check report field. Every provisional observation must precede
+a corrected witness on the same first-parent history. That witness must prove its
+actual implementation files and canonical own-pair-only tail against the published
+contract chain. Failed checks, changed source or other report fields, partial or
+unreadable records, missing later correction and forged/foreign bindings refuse.
+No command text is normalized or treated as equivalent. The result retains hashes
+and witnesses under `supersededTransientCheckRecords`; original reports and paid
+charges remain intact. Neither report becomes approval-equivalence authority.

@@ -67,7 +67,7 @@ export function paidStart(row, commit) {
 
 
 // Budget-only historical normalization. Strict review equivalence is unchanged.
-function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[],preEvidenceRetirements=[]) {
+function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[],preEvidenceRetirements=[],supersededTransientCheckRecords=[]) {
   const run=args=>String(git(args)).trim(),raw=args=>String(git(args))
   const ancestor=(a,b)=>{try{run(['merge-base','--is-ancestor',a,b]);return true}catch(e){if(e.status===1)return false;throw e}}
   const pairPaths=(issue,generation)=>['contract','completion'].map(kind=>`.agent/work/${issue}/${generation}/${kind}.json`)
@@ -160,7 +160,7 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
       generations.add(Number(m[2]))
     }
     if(generations.size*boundary>1000)refuse()
-    const seen=new Set()
+    const seen=new Set(),transientVariants=new Map()
     for(const commit of rows.slice(0,boundary))for(const generation of generations){
       const paths=pairPaths(issue,generation)
       const listed=run(['ls-tree','--name-only',commit,'--',...paths]).split('\n').filter(Boolean)
@@ -168,10 +168,46 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
       if(listed.length!==2)refuse()
       const record=read(commit,issue,generation);if(!record)refuse()
       validateContract(record.contract);validateCompletionReport(record.report,{validateCompletionRecord})
-      if(contractHash(record.contract)!==contractHash(lineage.get(generation))||record.report.work_issue!==issue||record.report.pr!==pr||record.report.contract_ref!==`refs/db-contracts/${issue}/${generation}`||!reconcileReportWithContract(record.report,record.contract).satisfied)refuse()
+      if(contractHash(record.contract)!==contractHash(lineage.get(generation))||record.report.work_issue!==issue||record.report.pr!==pr||record.report.contract_ref!==`refs/db-contracts/${issue}/${generation}`||record.report.checks.some(check=>check.exit_code!==0))refuse()
+      const variants=transientVariants.get(generation)??new Map()
+      const variant=variants.get(record.key)??{record,witnesses:[]}
+      variant.witnesses.push(commit);variants.set(record.key,variant);transientVariants.set(generation,variants)
       seen.add(generation)
     }
     if(seen.size!==generations.size)refuse()
+    let correctionSteps=0
+    const correctionStep=()=>{if(++correctionSteps>1000)refuse()}
+    const withoutChecks=report=>JSON.stringify({...report,checks:null})
+    for(const [generation,variants] of transientVariants)for(const provisional of variants.values()){
+      const {record,witnesses}=provisional,{contract,report}=record
+      const result=reconcileReportWithContract(report,contract)
+      if(result.satisfied)continue
+      // Provisional results remain non-authorizing. Only missing-check labels
+      // may be superseded, never a failed check, changed source or other field.
+      if(!result.problems.length||!result.problems.every(problem=>problem.startsWith('required check was never run: '))||!report.checks.length||report.checks.some(check=>check.exit_code!==0))refuse()
+      let correctedWitnesses=[]
+      const corrected=[...variants.values()].find(candidate=>{
+        correctionStep()
+        const c=candidate.record
+        if(candidate===provisional||withoutChecks(c.report)!==withoutChecks(report)||!c.report.checks.length||c.report.checks.some(check=>check.exit_code!==0)||!reconcileReportWithContract(c.report,c.contract).satisfied)return false
+        const validWitnesses=candidate.witnesses.filter(witness=>{
+          correctionStep()
+          if(!canonicalTail(c,witness))return false
+          // Authenticate the later report's actual source/file/own-pair tail
+          // and published lineage. No string/command equivalence is inferred.
+          verifyGitEvidence({contract:c.contract,report:c.report,prBaseSha:c.report.base_sha??c.contract.base_sha,prHeadSha:witness},{
+            isAncestor:ancestor,mergeBase:(a,b)=>run(['merge-base',a,b]),changedFiles:(a,b)=>run(['diff','--name-only',a,b]).split('\n').filter(Boolean),
+            readPublishedContract:ref=>{const match=new RegExp(`^refs/db-contracts/${issue}/([1-9][0-9]*)$`).exec(ref);if(!match)refuse();return published(Number(match[1]))}
+          })
+          return true
+        })
+        const later=witnesses.every(start=>validWitnesses.some(end=>{correctionStep();return start!==end&&ancestor(start,end)}))
+        if(later)correctedWitnesses=validWitnesses
+        return later
+      })
+      if(!corrected)refuse()
+      supersededTransientCheckRecords.push({generation,sourceHead:report.head_sha,contractSha256:contractHash(contract),provisionalWitnesses:witnesses,correctedWitnesses,provisionalReportJsonSha256:createHash('sha256').update(JSON.stringify(report)).digest('hex'),correctedReportJsonSha256:createHash('sha256').update(JSON.stringify(corrected.record.report)).digest('hex')})
+    }
     preEvidenceRetirements.push({issue,pr,before,after,generations:[...generations].sort((a,b)=>a-b)})
     return [] // No metadata exclusions and no trusted-baseline fiction.
   }
@@ -282,7 +318,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   const ancestor = (a,b) => { try { run(['merge-base','--is-ancestor',a,b]); return true } catch (error) { if(error?.status===1)return false;throw error } }
   const registry=readStoredHashRegistry(protectedMain,{gitRunner:git})
   const stored=[...new Set(registry.map(entry=>entry.file))]
-  const canonicalAppends=[],supersededCheckPrefixes=[],preEvidenceRetirements=[]
+  const canonicalAppends=[],supersededCheckPrefixes=[],preEvidenceRetirements=[],supersededTransientCheckRecords=[]
   const canonicalPinOverlaps=[]
   const canonicalImportUnions=[]
   const canonicalRegistryUnions=[]
@@ -536,7 +572,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     for(const file of run(['diff','--name-only',tree(expected),after,'--',...paths]).split('\n').filter(Boolean)){
       if(file.startsWith('.agent/'))neededFiles.add(file)
     }
-    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes,preEvidenceRetirements):[]
+    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes,preEvidenceRetirements,supersededTransientCheckRecords):[]
     if(intermediate.length)paths=[...paths,...intermediate.map(p=>`:(top,literal,exclude)${p}`)]
     // Recompute with the exact authenticated historical pair paths. They can
     // explain evidence retirement but can never serve as an author witness.
@@ -634,7 +670,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     }
     // Recovery proves no extra paid capacity: every legacy start stays charged,
     // even when real source changed. All source/merge checks above still run.
-    if(preEvidenceRetirements.length)return {schema:1,before,after,protectedMain,kind:'unchanged',preEvidenceRetirements,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
+    if(preEvidenceRetirements.length)return {schema:1,before,after,protectedMain,kind:'unchanged',preEvidenceRetirements,...(supersededTransientCheckRecords.length?{supersededTransientCheckRecords}:{}),canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
     if (!authored) throw new LaneError('review budget surviving author source edit unavailable')
     return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(canonicalRecovery?{canonicalRecovery}:{}),...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
   } catch (error) {
