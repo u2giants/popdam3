@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4906,
+  "outcome": "ready-for-merge",
+  "pr": 4902,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4906/1",
+  "contract_sha256": "34537e8585d57b0b81e0a9f3598ae0bf748326ba5d9be3a0e616e6cee762ffbd",
+  "head_sha": "aaf1061a1f0e87fa1ce134934ca3b190f96a5d85",
+  "base_sha": "24f879e9fa62019110574c8b4f0a7734795c5627",
+  "files_changed": ["scripts/designflow-db-release.mjs", "scripts/designflow-db-release.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test scripts/designflow-db-release.test.mjs", "exit_code": 0, "evidence": "# pass 49 # fail 0"},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors"}
+  ],
+  "assumptions_resolved": ["Closed issues are read via the issues API state_reason field"],
+  "stop_conditions_hit": []
+}

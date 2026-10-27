@@ -1,7 +1,7 @@
 import { mergeComputedLicenseStatus } from "@/lib/master-data-workflow";
 import { supabase } from "@/integrations/supabase/client";
 import { filterStyleTrackerCandidates } from "@/lib/style-tracker-candidates";
-import { MASTER_DATA_FETCH_BATCH_SIZE, fetchMasterDataPageRanges, STYLE_TRACKER_ROW_SELECT, nextMasterDataPageOffset, shouldFetchNextMasterDataBatch } from "@/lib/master-data-loading";
+import { fetchMasterDataPageRanges, STYLE_TRACKER_ROW_SELECT, nextMasterDataPageOffset, shouldFetchNextMasterDataBatch, masterDataBatchRanges, type MasterDataBatchRange } from "@/lib/master-data-loading";
 import { bridgeWriteCounts } from "@/lib/style-tracker-save";
 import { type FieldKey, type StyleRow, type ReviewItem, type LinkCandidate, type PickerOption, type AuditLogEntry, type AuditCell, type SavedView } from "./types";
 import { MANUAL_CANDIDATE_LIMIT } from "./columns";
@@ -26,13 +26,13 @@ export async function refreshBridgeWithMeasurement() {
 }
 
 export async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
-  const fetchBatch = async (from: number) => {
+  const fetchBatch = async ({ offset: from, expectedRows }: MasterDataBatchRange) => {
     const { data, error } = await (supabase as any)
       .from("style_tracker_rows_with_bridge")
       .select(STYLE_TRACKER_ROW_SELECT)
       .eq("source_sheet", sourceSheet)
       .order("source_row_number", { ascending: false })
-      .range(from, from + MASTER_DATA_FETCH_BATCH_SIZE - 1);
+      .range(from, from + expectedRows - 1);
     if (error) throw error;
     const rows = (data ?? []) as StyleRow[];
     if (!rows.length) return rows;
@@ -41,12 +41,14 @@ export async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
     return mergeComputedLicenseStatus(rows, statuses ?? []);
   };
 
-  // PostgREST caps responses at 1,000 rows. A query page is four ordered
-  // ranges so the grid can render its first 4,000 rows before later pages load.
+  // PostgREST caps responses at 1,000 rows. The first page is a 1,000-row and
+  // a 500-row range so the grid renders its first 1,500 rows before later
+  // 4,000-row pages load in the background.
+  const ranges = masterDataBatchRanges(pageOffset);
   const batches = await fetchMasterDataPageRanges(pageOffset, fetchBatch, sourceSheet);
   return {
     rows: batches.flat(),
-    hasNextPage: batches.every((batch) => shouldFetchNextMasterDataBatch(batch.length)),
+    hasNextPage: ranges.every((range, index) => shouldFetchNextMasterDataBatch(batches[index]?.length ?? 0, range.expectedRows)),
     nextOffset: nextMasterDataPageOffset(pageOffset),
   };
 }

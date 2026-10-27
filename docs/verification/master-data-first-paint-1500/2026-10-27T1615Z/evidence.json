@@ -1,0 +1,48 @@
+{
+  "buildStamp": "eb405c0",
+  "firstPaintMs": 7210,
+  "completeMs": 29226,
+  "finalStatus": "12,875 rows loaded",
+  "timeline": [
+    {
+      "ts": 1793117084064,
+      "status": "Loading Master Data\u2026",
+      "rowCount": 0,
+      "rel": 538
+    },
+    {
+      "ts": 1793117090561,
+      "status": "1,500 of 12,875 rows loaded \u2014 loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 7035
+    },
+    {
+      "ts": 1793117090736,
+      "event": "screenshot-first-paint",
+      "rel": 7210
+    },
+    {
+      "ts": 1793117099799,
+      "status": "5,500 of 12,875 rows loaded \u2014 loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 16273
+    },
+    {
+      "ts": 1793117107412,
+      "status": "9,500 of 12,875 rows loaded \u2014 loading the rest. Find and filters cover loaded rows.",
+      "rowCount": 30,
+      "rel": 23886
+    },
+    {
+      "ts": 1793117112613,
+      "status": "12,875 rows loaded",
+      "rowCount": 30,
+      "rel": 29087
+    },
+    {
+      "ts": 1793117112752,
+      "event": "screenshot-complete",
+      "rel": 29226
+    }
+  ]
+}

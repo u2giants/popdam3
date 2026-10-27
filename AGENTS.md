@@ -61,6 +61,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
+- plan_credential_rotation_20261027.md — CANCELLED by owner ruling 2026-10-27 (on-machine exposure → redact, not rotate); retained as reference for the next real rotation
 - plan_orderlist_sheets_full_integration.md — completed native Sheets integration; read STATUS for verified delivery and separate held source decisions; its completed session handoff is retired.
 
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
@@ -453,6 +454,7 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 
 Full entries live in [`docs/incident-log.md`](docs/incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
+- Resolved 2026-10-27: Supabase sb_secret printed into an AI transcript — redacted on-machine per owner ruling; rotation cancelled
 - Resolved 2026-07-01: Microsoft login returned "500: Database error granting user" on first attempt
 - Resolved 2026-06-25: PopDAM Helper (Windows) uninstall failed with "NSIS Error: Error launching installer" — CI cached the NSIS toolchain
 - Resolved 2026-06-22: coolify-proxy lost its Docker socket again → nas-mcp 502 (now self-healing)

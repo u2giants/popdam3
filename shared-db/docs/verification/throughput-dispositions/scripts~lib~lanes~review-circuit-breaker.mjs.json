@@ -17,6 +17,14 @@
       "disposition": "excluded",
       "reason": "Owned reviewer-budget Git provenance maintenance on work issue 3536: this guard refuses a missing canonical Git blob during immutable parent/source proof. It makes no claim about a database object or migration being absent and cannot clear a database alarm.",
       "legacy_semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:c07f487bef49f6264f2846d25b763f32fb2f297a69703aaa938b86ba72a83d1e:1"
+    },
+    {
+      "site": "scripts/lib/lanes/review-circuit-breaker.mjs:185",
+      "semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:5a98f33a79d041adaa875d4935c645a992eda82012c4dad076314cc502cfb377:context-3495826e765947e556e459496e38c11b59fd49bcd3737d0c4f49de67c2f8a890",
+      "line_sha256": "5a98f33a79d041adaa875d4935c645a992eda82012c4dad076314cc502cfb377",
+      "disposition": "excluded",
+      "reason": "Owned reviewer-budget provenance maintenance on work issue 4889: this comment concerns unavailable required-check labels in non-authorizing historical review metadata. It asserts no database absence and cannot clear a database alarm; correction still requires immutable lineage and a later verified same-source witness.",
+      "legacy_semantic_key": "scripts/lib/lanes/review-circuit-breaker.mjs:5a98f33a79d041adaa875d4935c645a992eda82012c4dad076314cc502cfb377:1"
     }
   ]
 }

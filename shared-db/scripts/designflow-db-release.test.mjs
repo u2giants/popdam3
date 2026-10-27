@@ -22,6 +22,7 @@ function fixture() {
     sourceFacts: async () => ({ repository: 'popcre/shared-db', base_branch: 'main', merged: true, source_pr: 4653, work_issue: 4646,
       head_sha40: 'b'.repeat(40), merge_sha40: 'c'.repeat(40), merge_in_main: true, files: [{ path, content }] }),
     productionEvidence: async () => ({ source_pr: 4653, run_id: 123, artifact_digest: 'sha256:' + 'd'.repeat(64) }),
+    workIssue: async () => ({ state: 'open', state_reason: null }),
     promote: async () => { effects.push('promote'); return { state: 'dispatched' }; },
     catalog: async () => { effects.push('catalog'); return { checked_contracts: 1, failures: [] }; },
     manifest: async () => manifest, status: async (...args) => effects.push(args) };
@@ -436,4 +437,40 @@ test('actual sourceFacts preserves real links and refuses conflicting or invalid
 
 test('sourceFacts retains historical identity after reference-only work is genuinely closed',()=>{
  const f=sourceBindingFixture();f.state.issueState='closed';assert.equal(sourceFacts(f.required,f.io).work_issue,4646);
+});
+
+test('closed completed work with verified production evidence is ready without admission or reopening', async () => {
+  const f = fixture();
+  f.io.workIssue = async () => { f.effects.push('workIssue'); return { state: 'closed', state_reason: 'completed' }; };
+  const result = await assess(f);
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(f.effects, ['catalog']);
+});
+
+test('closed completed work without production evidence waits for current-live proof and never promotes', async () => {
+  const f = fixture();
+  f.io.productionEvidence = async () => null;
+  f.io.workIssue = async () => ({ state: 'closed', state_reason: 'completed' });
+  const result = await assess(f);
+  assert.equal(result.status, 'waiting');
+  assert.deepEqual(result.progress, { state: 'current-live-reverification-required', source_pr: 4653 });
+  assert.deepEqual(f.effects, []);
+});
+
+test('closed unfinished work without production evidence still refuses admission', async () => {
+  for (const state_reason of ['not_planned', null, 'reopened']) {
+    const f = fixture();
+    f.io.productionEvidence = async () => null;
+    f.io.workIssue = async () => ({ state: 'closed', state_reason });
+    await assert.rejects(assess(f), /issue #4646 is closed and cannot be admitted/);
+    assert.deepEqual(f.effects, []);
+  }
+});
+
+test('open work without production evidence still promotes', async () => {
+  const f = fixture();
+  f.io.productionEvidence = async () => null;
+  const result = await assess(f);
+  assert.equal(result.status, 'waiting');
+  assert.deepEqual(f.effects, ['promote']);
 });

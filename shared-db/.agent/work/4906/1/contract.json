@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "work_issue": 4906,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Release observer: a closed-as-completed work issue is satisfied by verified production evidence and waits for current-live proof otherwise, instead of failing admission; closed unfinished work still refuses; never reopen issues",
+  "base_sha": "24f879e9fa62019110574c8b4f0a7734795c5627",
+  "dispatcher": "Claude Code session on edge-dev3 for owner Albert Hazan (chat 2026-10-27)",
+  "worker": "Claude Code session on edge-dev3",
+  "branch": "fix/release-closed-live-issue",
+  "worktree": "/home/ahazan/repos/shared-db-wt-closed-live",
+  "allowed_paths": ["scripts/designflow-db-release.mjs", "scripts/designflow-db-release.test.mjs"],
+  "file_writes": ["scripts/designflow-db-release.mjs", "scripts/designflow-db-release.test.mjs"],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": ["No database writes, migrations or schema changes", "Never reopen or edit work issues from the observer"],
+  "required_checks": ["node --test scripts/designflow-db-release.test.mjs", "git diff --check"],
+  "assumptions": ["GitHub issue state_reason 'completed' marks finished work"],
+  "stop_conditions": ["Any needed change outside allowed paths", "Any database write"]
+}

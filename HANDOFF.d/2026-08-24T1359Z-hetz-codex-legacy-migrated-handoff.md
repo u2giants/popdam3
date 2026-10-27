@@ -25,7 +25,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 > **Active workstream — Search pipeline overhaul (2026-07-14):** a holistic,
 > sequenced plan to tune the three search layers (AI tagging → DB storage/indexing
 > → NL query translation) to one shared contract is in
-> [`fix_SEARCH_PIPELINE_PLAN.md`](fix_SEARCH_PIPELINE_PLAN.md). Direction is
+> `fix_SEARCH_PIPELINE_PLAN.md` (retired). Direction is
 > **hybrid-semantic default**. Key confirmed prod finding: the hybrid corpus is
 > built and current (130,777 docs) but **only 1 doc is embedded** — nothing calls
 > `dam-search-ai` `embed-batch`, so semantic search is dead until the Phase-2

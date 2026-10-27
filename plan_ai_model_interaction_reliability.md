@@ -1,6 +1,6 @@
 # AI Model Interaction Reliability Implementation Plan
 
-Linked handoff: [`HANDOFF.d/2026-08-16T0228Z-hetz-codex-ai-model-routing-plan.md`](HANDOFF.d/2026-08-16T0228Z-hetz-codex-ai-model-routing-plan.md)
+Linked handoff: `HANDOFF.d/2026-08-16T0228Z-hetz-codex-ai-model-routing-plan.md` (retired)
 
 GitHub tracking issue: [`u2giants/popdam3#90`](https://github.com/u2giants/popdam3/issues/90)
 
