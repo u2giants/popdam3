@@ -1,6 +1,7 @@
 import { mkdir, open, lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {inspectVisibleAssetCandidate,PRIVATE_OUTPUT} from './rls-visible-asset-candidate.mjs';
 import {BROWSER_PACKAGE,openQualifiedBlankBrowser,fixedBrowserEnvironment} from './rls-browser-custody.mjs';
 
 export const ORIGIN = 'https://dam.designflow.app';
@@ -29,10 +30,52 @@ export function permittedRequest({ url, method, body }) {
   // Existing default library filter lookup is a read-only edge handler. Never
   // allow another admin action, extra body field or a selected-licensor variant.
   if (verb === 'POST' && u.pathname === '/functions/v1/admin-api' && u.search === '') {
-    return Boolean(body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 1 && body.action === 'get-filter-options');
+    return Boolean(plainBody(body) && ((Object.keys(body).length === 1 && body.action === 'get-filter-options') || exactOperationRead(body)));
   }
   const rpc = /^\/rest\/v1\/rpc\/([^/]+)$/.exec(u.pathname);
   return Boolean(verb === 'POST' && rpc && FACETS.has(rpc[1]));
+}
+
+export const plainBody = body => Boolean(body && Object.getPrototypeOf(body) === Object.prototype);
+export const exactOperationRead = body => Boolean(plainBody(body) && Object.keys(body).length === 2 && Object.hasOwn(body,'action') && Object.hasOwn(body,'keys') && body.action === 'get-config' && Array.isArray(body.keys) && body.keys.length === 1 && body.keys[0] === 'BULK_OPERATIONS');
+export function deniedRequestKind({url,method,body}) {
+  const verb = ['GET','POST','PATCH','PUT','DELETE','HEAD','OPTIONS'].includes(method) ? method : 'OTHER';
+  const u = new URL(url);
+  let kind='other-target';
+  if (u.origin === `https://${HOST}`) {
+    kind='supabase-other';
+    if (u.pathname === '/functions/v1/admin-api') kind=exactOperationRead(body)?'operation-read':plainBody(body)&&body.action==='get-filter-options'?'filter-options':plainBody(body)&&['set-config','update-bulk-op'].includes(body.action)?'admin-known-mutation':'admin-other';
+    else if (u.pathname === '/rest/v1/style_groups') kind='groups';
+    else if (u.pathname === '/rest/v1/assets') kind='assets';
+    else if (u.pathname === '/auth/v1/token') kind=u.search==='?grant_type=password'?'password-auth':'other-auth-token';
+    else if (u.pathname === '/auth/v1/logout') kind='logout';
+  }
+  return `${kind}:${verb}`;
+}
+const SQLSTATES = new Set(['57014','42501','42703','42883','PGRST202','PGRST204','XX000']);
+export function safeErrorCode(value) { return SQLSTATES.has(value) ? value : 'OTHER'; }
+export async function facetResponseFact(response) {
+  const status=response.status();
+  const fact={state:'completed',status,error_code:null};
+  if(status>=400) {
+    fact.error_code='OTHER';
+    try {
+      const length=response.headers()['content-length'];
+      if(!/^[1-9][0-9]{0,3}$/.test(length||'') || Number(length)>8192)return fact;
+      const text=await response.text();
+      if(Buffer.byteLength(text)>8192)return fact;
+      const data=JSON.parse(text);fact.error_code=safeErrorCode(data?.code);
+    } catch { /* no error body/message retained */ }
+  }
+  return fact;
+}
+export function fixedFilterCountResponse(response) {
+  const u=new URL(response.url());return !u.username&&!u.password&&u.origin===`https://${HOST}`&&u.pathname==='/rest/v1/rpc/get_filter_counts'&&response.request().method()==='POST';
+}
+export async function boundedFacetWait(promise) {
+  let timer;
+  try{return await Promise.race([promise,new Promise(resolve=>{timer=setTimeout(()=>resolve({state:'pending',status:null,error_code:null}),25000);})]);}
+  finally{clearTimeout(timer);}
 }
 
 export function diagnosticRoute(raw) {
@@ -66,7 +109,9 @@ export function requireReadonlyDiagnosticEnvironment(env) {
   if (env.PROD_DB_PASSWORD || env.DATABASE_URL || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ACCESS_TOKEN || Object.keys(env).some(k => /(?:DB_PASSWORD|SERVICE_ROLE)/.test(k) && env[k])) throw new Error('readonly diagnostic forbids database credentials');
 }
 
-export async function run(env = process.env, fixture = null) {
+export async function run(env = process.env, fixture = null, inspection = false) {
+  if (inspection !== false && inspection !== true) throw new Error('fixed inspection flag');
+  if (inspection && fixture) throw new Error('readonly inspection has no fixture');
   if (env.POPDAM_ACCEPTANCE_BASE_URL !== ORIGIN || env.SUPABASE_PROJECT_ID !== HOST.split('.')[0]) throw new Error('target');
   if (env.POPDAM_TEST_USER !== 'ai-admin@designflow.app' || !env.POPDAM_TEST_PASSWORD) throw new Error('existing dedicated identity');
   if (!/^[a-f0-9]{40}$/.test(env.DEPLOYED_FRONTEND_SHA || '')) throw new Error('build binding');
@@ -74,8 +119,11 @@ export async function run(env = process.env, fixture = null) {
   browserEnvironment(env);
   const report = { schema_version: 1, issue: 4427, passed: false, target: ORIGIN, project: HOST.split('.')[0],
     deployed_frontend_sha: env.DEPLOYED_FRONTEND_SHA, password_login: false, library_read: false,
-    library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0, blocked_hostnames: [], diagnostics: {stage: 'private-output', failed_stage: null, page_error_classes: {}, header_count: null, header_commit_match: false, public_commit_match: false, http_status_counts: {}} };
+    library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0, blocked_hostnames: [], diagnostics: {stage: 'private-output', failed_stage: null, page_error_classes: {}, header_count: null, header_commit_match: false, public_commit_match: false, http_status_counts: {}, denied_request_counts: {}} };
   const diagnostic = report.diagnostics;
+  if(inspection) report.inspection={facet:{state:'pending',status:null,error_code:null},candidate:null};
+  let finishFacet, facetCaptured=false;
+  const facetPromise=new Promise(resolve=>{finishFacet=resolve;});
   let browser, context, page, output;
   const reads = new Set();
   let tokenCalls = 0, logoutCalls = 0, tokenIssued = false;
@@ -102,6 +150,8 @@ export async function run(env = process.env, fixture = null) {
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/logout') allowed &&= ++logoutCalls === 1;
       if (!allowed) {
         report.blocked_requests++;
+        const kind=deniedRequestKind({url:request.url(),method:request.method(),body});
+        diagnostic.denied_request_counts[kind]=Math.min(10000,(diagnostic.denied_request_counts[kind]||0)+1);
         if (/^[a-z0-9.-]{1,253}$/.test(url.hostname) && !report.blocked_hostnames.includes(url.hostname) && report.blocked_hostnames.length < 10) report.blocked_hostnames.push(url.hostname);
         return route.abort('blockedbyclient');
       }
@@ -115,6 +165,7 @@ export async function run(env = process.env, fixture = null) {
     if (fixture) await fixture.prepare();
     page.on('response', response => {
       incrementStatus(diagnostic.http_status_counts, response.url(), response.status());
+      if(inspection && !facetCaptured && fixedFilterCountResponse(response)) {facetCaptured=true;void facetResponseFact(response).then(finishFacet);}
       const u = new URL(response.url());
       if (u.hostname !== HOST) return;
       if (u.pathname === '/auth/v1/token' && response.status() === 200) tokenIssued = true;
@@ -137,6 +188,7 @@ export async function run(env = process.env, fixture = null) {
     }), env.DEPLOYED_FRONTEND_SHA, {timeout: 20000});
     diagnostic.stage = 'database-banner';
     if (await page.getByText(/Connected to a non-production database/).count()) throw new Error('database banner');
+    if(inspection) {diagnostic.stage='facet-wait';report.inspection.facet=await boundedFacetWait(facetPromise);}
     diagnostic.stage = 'library-read';
     // Retain no response bodies, rows, URLs with identifiers, screenshots or cookies.
     await page.waitForResponse(r => reads.has(r), {timeout: 20000}).catch(() => {
@@ -159,6 +211,7 @@ export async function run(env = process.env, fixture = null) {
     report.library_reloaded = reads.size > before;
     diagnostic.stage = 'fixture-exercise';
     if (fixture) await fixture.exercise(page);
+    if(inspection) {diagnostic.stage='asset-candidate';report.inspection.candidate=await inspectVisibleAssetCandidate(page,PRIVATE_OUTPUT);}
     diagnostic.stage = 'complete';
   } catch { diagnostic.failed_stage = diagnostic.stage; /* No raw error is emitted. */ }
   finally {

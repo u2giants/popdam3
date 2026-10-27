@@ -104,3 +104,43 @@ test('facet diagnostics expose only four fixed admitted names and no private URL
   assert.deepEqual(counts,{'supabase-read:500':1,'facet-get_filter_counts:500':1});
   assert.equal(JSON.stringify(counts).includes('CANARY'),false);
 });
+
+test('operation hydration admits exact read-only key body and rejects all broader admin requests',()=>{
+ const url=`https://${HOST}/functions/v1/admin-api`, body={action:'get-config',keys:['BULK_OPERATIONS']};
+ assert.equal(permittedRequest({url,method:'POST',body}),true);
+ for(const bad of [null,[],{},Object.assign(Object.create(null),body),{...body,extra:true},{action:'get-config',keys:[]},{action:'get-config',keys:['*']},{action:'get-config',keys:['OTHER']},{action:'get-config',keys:['BULK_OPERATIONS','BULK_OPERATIONS']},{action:'get-config'},{action:'set-config',keys:['BULK_OPERATIONS']},{action:'update-bulk-op',keys:['BULK_OPERATIONS']}])assert.equal(permittedRequest({url,method:'POST',body:bad}),false);
+ for(const method of ['GET','PUT','PATCH','DELETE'])assert.equal(permittedRequest({url,method,body}),false);
+ for(const target of [url+'?private=CANARY',`https://other.supabase.co/functions/v1/admin-api`,`https://${HOST}/functions/v1/other`])assert.equal(permittedRequest({url:target,method:'POST',body}),false);
+});
+test('normal deployed operation mount callchain matches admitted resource without starting work',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+ assert(read('../src/components/library/BulkActionBar.tsx').includes('usePersistentOperation("ai-tag-groups")'));
+ assert(read('../src/hooks/usePersistentOperation.ts').includes('call("get-config", { keys: [CONFIG_KEY] })'));
+ assert(read('../src/hooks/usePersistentOperation.ts').includes('const CONFIG_KEY = "BULK_OPERATIONS"'));
+ assert(read('../src/hooks/useAdminApi.ts').includes('body: { action, ...payload }'));
+});
+test('denial enums and facet errors never export raw URL/body/query/message canaries',async()=>{
+ const {deniedRequestKind,safeErrorCode,facetResponseFact,fixedFilterCountResponse}=await import('./rls-library-live-proof.mjs');
+ assert.equal(deniedRequestKind({url:`https://${HOST}/functions/v1/admin-api?PRIVATE_CANARY=SECRET_CANARY`,method:'POST',body:{action:'PRIVATE_CANARY'}}),'admin-other:POST');
+ assert.equal(deniedRequestKind({url:`https://${HOST}/rest/v1/PRIVATE_CANARY`,method:'PRIVATE_CANARY',body:{secret:'SECRET_CANARY'}}),'supabase-other:OTHER');
+ for(const code of ['57014','42501','42703','42883','PGRST202','PGRST204','XX000'])assert.equal(safeErrorCode(code),code);
+ for(const code of ['PRIVATE_CANARY','57014\nSECRET_CANARY',null,{},500])assert.equal(safeErrorCode(code),'OTHER');
+ const response={status:()=>500,headers:()=>({'content-length':'75'}),text:async()=>JSON.stringify({code:'57014',message:'PRIVATE_CANARY SECRET_CANARY'})};
+ const fact=await facetResponseFact(response);assert.deepEqual(fact,{state:'completed',status:500,error_code:'57014'});assert.equal(JSON.stringify(fact).includes('CANARY'),false);
+ let read=0;assert.equal((await facetResponseFact({...response,headers:()=>({}),text:async()=>{read++;return '{}';}})).error_code,'OTHER');assert.equal(read,0);
+ assert.equal((await facetResponseFact({...response,headers:()=>({'content-length':'99999'})})).error_code,'OTHER');
+ const r={url:()=>`https://${HOST}/rest/v1/rpc/get_filter_counts?PRIVATE_CANARY`,request:()=>({method:()=> 'POST'})};
+ assert.equal(fixedFilterCountResponse(r),true);assert.equal(fixedFilterCountResponse({...r,request:()=>({method:()=> 'GET'})}),false);
+});
+test('facet observation is bounded25seconds with truthful pending and fixed readonly inspection entry',async t=>{
+ const {boundedFacetWait}=await import('./rls-library-live-proof.mjs');
+ let duration;
+ t.mock.method(globalThis,'setTimeout',(callback,ms)=>{duration=ms;queueMicrotask(callback);return 123;});
+ const result=await boundedFacetWait(new Promise(()=>{}));assert.equal(duration,25000);assert.deepEqual(result,{state:'pending',status:null,error_code:null});
+ const {readFileSync}=await import('node:fs');const source=readFileSync(new URL('./run-rls-read-inspection.mjs',import.meta.url),'utf8');
+ assert(source.includes('await run(env, null, true)'));assert(source.includes('requireReadonlyDiagnosticEnvironment(process.env)'));
+ assert(source.includes('/tmp/popdam-4427-read-inspection-private-01a17a03/proof.json'));
+ for(const forbidden of ['createFixtureProtocol','protectedCounts','createClient','createRequire','rls-owned-fixture.mjs'])assert.equal(source.includes(forbidden),false);
+ await assert.rejects(run({},null,()=>{}),/fixed inspection flag/);
+});
