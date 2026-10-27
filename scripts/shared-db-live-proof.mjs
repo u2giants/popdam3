@@ -39,11 +39,69 @@ const ASSERTIONS = {
   4190: "production cron.job 'refresh-style-guide-matviews' schedule is '7 * * * *' and 'refresh-style-guide-library-default-snapshot' schedule is '*/15 * * * *', both active, with succeeded runs after the change",
   4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
   4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
+  4858: "Signed-in OrderList returns per-design case packs and tracking counts each physical assortment carton once",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
 
 export class ProofFailure extends Error {}
 export class NotYetApplied extends Error {}
+
+// Compare authenticated OrderList rows and tracking summaries with the
+// independently sourced ColdLion expectations returned by the management read.
+export function evaluateCasePacks4858(expected, orderRows, trackingRows) {
+  if (!Array.isArray(expected) || !expected.length) throw new NotYetApplied("no consistent source-only ColdLion order is available");
+  if (!Array.isArray(orderRows) || !Array.isArray(trackingRows)) fail("viewer reads did not return row arrays");
+  if (new Set(expected.map((row) => row.order_line_id)).size !== expected.length) fail("source expectations contain duplicate lines");
+  const byLine = new Map();
+  for (const row of orderRows) {
+    if (byLine.has(row.order_line_id)) fail("OrderList returned a duplicate line");
+    byLine.set(row.order_line_id, row);
+  }
+  const byOrder = new Map();
+  for (const row of trackingRows) {
+    if (byOrder.has(row.order_id)) fail("tracking returned a duplicate order");
+    byOrder.set(row.order_id, row);
+  }
+  const grouped = new Map();
+  const actualGroupBySource = new Map();
+  const sourceGroupByActual = new Map();
+  for (const line of expected) {
+    const row = byLine.get(line.order_line_id);
+    if (!row) fail("OrderList omitted an expected design");
+    if (Number(row.case_pack) !== Number(line.case_pack)) fail("OrderList returned an incorrect per-design case pack");
+    if (Number(row.cases_reported) !== Number(line.cases_reported)) fail("OrderList returned incorrect per-design cases");
+    if (line.group_key) {
+      const actual = row.assortment_parent_key;
+      if (!actual) fail("assortment group key is missing");
+      const sourceKey = `${line.order_id}:${line.group_key}`;
+      const priorActual = actualGroupBySource.get(sourceKey);
+      const priorSource = sourceGroupByActual.get(`${line.order_id}:${actual}`);
+      if ((priorActual && priorActual !== actual) || (priorSource && priorSource !== sourceKey)) fail("assortment group keys are inconsistent");
+      actualGroupBySource.set(sourceKey, actual);
+      sourceGroupByActual.set(`${line.order_id}:${actual}`, sourceKey);
+    } else if (row.assortment_parent_key) {
+      fail("direct line unexpectedly shares an assortment group key");
+    }
+    const key = line.order_id;
+    if (!grouped.has(key)) grouped.set(key, { cartons: new Map(), declaredTotal: Number(line.order_cases) });
+    const g = grouped.get(key);
+    if (g.declaredTotal !== Number(line.order_cases)) fail("source expectations disagree on the order total");
+    const carton = line.group_key || line.order_line_id;
+    if (g.cartons.has(carton) && g.cartons.get(carton) !== Number(line.cases_reported)) fail("source assortment group has conflicting carton counts");
+    g.cartons.set(carton, Number(line.cases_reported));
+  }
+  if (byLine.size !== expected.length) fail("OrderList returned unexpected lines");
+  for (const [orderId, want] of grouped) {
+    const got = byOrder.get(orderId);
+    if (!got) fail("tracking omitted an expected order");
+    const expectedTotal = [...want.cartons.values()].reduce((sum, n) => sum + n, 0);
+    if (expectedTotal !== want.declaredTotal) fail("source-derived order total is inconsistent with its physical groups");
+    if (Number(got.total_cases) !== expectedTotal) fail("tracking total_cases did not count each carton once");
+    if (Number(got.unknown_case_groups) !== 0) fail("tracking has unknown case groups");
+  }
+  if (byOrder.size !== grouped.size) fail("tracking returned unexpected orders");
+  return { orders_checked: grouped.size, designs_checked: expected.length, assortment_designs: expected.filter((r) => r.group_key).length };
+}
 
 function fail(message) {
   throw new ProofFailure(message);
@@ -778,6 +836,46 @@ async function proveSoDates() {
   };
 }
 
+async function proveCasePacks4858() {
+  const email = process.env.POPDAM_VIEWER_TEST_USER || "";
+  const password = process.env.POPDAM_VIEWER_TEST_PASSWORD || "";
+  if (!email || !password) fail("POPDAM_VIEWER_TEST_USER / POPDAM_VIEWER_TEST_PASSWORD are empty");
+  const anonKey = await publishableKey();
+  const sampled = await managementQuery(await proofSql("shared-db-live-proof-4858.sql"));
+  if (sampled.status >= 400) fail(`4858 sample query returned HTTP ${sampled.status}`);
+  const sourceProof = sampled.json?.[0]?.proof;
+  if (sourceProof?.migration_applied !== true) throw new NotYetApplied("production migration 20261027010036 is not installed");
+  const expected = sourceProof.orders ?? [];
+  if (!expected.length) fail("no consistent source-only ColdLion order sample with an assortment is available");
+  const signIn = await userPost("/auth/v1/token?grant_type=password", { email, password }, { apikey: anonKey });
+  if (signIn.status !== 200 || !signIn.json?.access_token) fail(`viewer sign-in returned HTTP ${signIn.status}`);
+  const user = { apikey: anonKey, bearer: signIn.json.access_token };
+  const ids = [...new Set(expected.map((r) => r.order_id))];
+  const start = Date.now();
+  const listUrl = new URL("/rest/v1/dam_order_list", url);
+  listUrl.searchParams.set("select", "order_id,order_line_id,case_pack,cases_reported,assortment_parent_key");
+  listUrl.searchParams.set("order_id", `in.(${ids.join(",")})`);
+  listUrl.searchParams.set("limit", "500");
+  listUrl.searchParams.set("order_voided_at", "is.null");
+  listUrl.searchParams.set("line_voided_at", "is.null");
+  listUrl.searchParams.set("or", "(order_type.is.null,order_type.not.ilike.*sample*)");
+  const listResponse = await fetch(listUrl, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${user.bearer}`, Accept: "application/json", "Accept-Profile": "api" },
+  });
+  const listRows = await listResponse.json().catch(() => null);
+  if (!listResponse.ok) fail(`authenticated OrderList returned HTTP ${listResponse.status}`);
+  const trackingRows = [];
+  for (const order of expected.filter((r, i, a) => a.findIndex((x) => x.order_id === r.order_id) === i)) {
+    const result = await userPost("/rest/v1/rpc/get_dam_order_tracking", { p_offset: 0, p_limit: 20, p_search: order.production_order_number, p_only_open: false }, user);
+    if (result.status !== 200 || !Array.isArray(result.json)) fail(`authenticated tracking search returned HTTP ${result.status}`);
+    const row = result.json.find((r) => r.order_id === order.order_id);
+    if (!row) fail("bounded tracking search omitted a sampled order");
+    trackingRows.push(row);
+  }
+  const counts = evaluateCasePacks4858(expected, listRows, trackingRows);
+  return { call: "authenticated OrderList and bounded order tracking reads", elapsed_ms: Date.now() - start, ...counts };
+}
+
 
 // ── 4692: DAM image-embed worker on production (u2giants/popdam3#486) ───────
 // dam is not exposed to PostgREST, so these go through the Management API.
@@ -879,7 +977,7 @@ async function proveImageEmbed() {
   };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed };
+const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed, 4858: proveCasePacks4858 };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");
