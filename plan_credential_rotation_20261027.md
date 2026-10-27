@@ -1,4 +1,4 @@
-# Rotation plan v6 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
+# Rotation plan v7 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
 
 ## Incident summary
 
@@ -50,7 +50,13 @@ through shell environment variables and pipes into HTTP requests and was
 never echoed: the legacy `SUPABASE_SERVICE_ROLE_KEY` JWT, the Supabase CLI
 token, the Railway tokens, and the tester passwords (old and new). The
 per-viewer session minted during the live proof was deleted from disk at
-12:15 PM EDT. No other session, log, or file received the leaked value.
+12:15 PM EDT. No other session, log, or file received the leaked value. The transcript
+that did contain it is the ZCode session store on `hetz`
+(`~/.zcode/…`, session id recorded as `unknown` by the client); it is
+retained until Stage B closes the key — purging session continuity stores
+is not taken unilaterally, and this retention is an explicitly accepted
+residual risk, tracked on issue #551, because the value is revoked at
+Stage B completion in any case.
 
 ## Current edge-function secret set (GET /v1/projects/qsllyeztdwjgirsysgai/secrets, 2026-10-27)
 
@@ -59,14 +65,15 @@ Names only (values are write-only via the API): `SUPABASE_URL`,
 `SUPABASE_SECRET_KEYS`, `SUPABASE_DB_URL`, `SUPABASE_JWKS`,
 `BULK_OPERATION_ALERT_SECRET`, `BREVO_API_KEY`, `META_API_KEY`,
 `TEXT_EMBED_URL`, `TEXT_EMBED_KEY`. The secrets-update call in Stage A is executed
-under a proven-at-execution contract: first read the Management API
-specification for the exact endpoint and verb; if the operation is an upsert
-of named secrets only, send the single changed pair; if any doubt remains
-that it could replace the set, send the complete current secret list (values
-re-read via GET where readable, plus the one changed value) and after the
-write re-list secret names and assert `BREVO_API_KEY`, `TEXT_EMBED_KEY` and
-`META_API_KEY` are still present. Deletion of secrets is a separate endpoint
-and is never called.
+under a proven-at-execution contract: the Management API bulk-secrets
+update is a POST that creates-or-updates only the named secrets it is
+given; secret deletion is a separate DELETE endpoint and is never called in
+this plan. Before the POST, take the current secret name list via GET
+(recorded above); after the POST, re-list names and assert `BREVO_API_KEY`,
+`TEXT_EMBED_KEY` and `META_API_KEY` are still present and no name vanished.
+If any name is missing, restore it immediately from 1Password/known values —
+the recovery is executable because the write only ever carries the single
+changed pair, so any disappearance is a platform fault to reverse at once.
 
 ## Blast radius of the edge-secret update
 
@@ -126,28 +133,44 @@ is what makes this stage safe.
    probes), update their 1P items, verify each with a password-grant
    sign-in.
 3. Create a NEW sb_secret (`POST /v1/projects/qsllyeztdwjgirsysgai/api-keys`,
-   Management API). Store it in the 1P field `SUPABASE_SECRET_KEY` (the
-   leaked value moves to the notes as "leaked, pending revoke" with its key
-   id `c4f5a00a-53ae-4392-996d-9f519462f488`).
+   Management API, name `popdam-rotation-20261027`). Record BOTH ids
+   durably in the 1P notes before anything else: the leaked key's id
+   `c4f5a00a-53ae-4392-996d-9f519462f488` (marked "leaked, pending revoke")
+   and the NEW key's id and name (marked "active, deployed"). Store the new
+   value in the 1P field `SUPABASE_SECRET_KEY`.
 4. Verify the new key against PostgREST and the auth admin API (read-only probes) BEFORE any edge change.
-5. Update the edge function secret `SUPABASE_SERVICE_ROLE_KEY` to the new key
+5. WRITABILITY GATE — determine whether the edge-runtime
+   `SUPABASE_SERVICE_ROLE_KEY` is a user-writable secret or a
+   platform-injected value derived from the project's default secret key
+   (`docs/archive/plan_admin_auth_helper.md` records the deployed digest
+   matching the project default sb_secret). Probe: submit a secrets update
+   for that name carrying the CURRENT value (a no-op write; zero behavioral
+   delta whether accepted or rejected).
+   - If ACCEPTED: the name is user-writable; continue with step 6 as
+     written.
+   - If REJECTED: the value is platform-managed and can only change by
+     rotating the project's default secret key — which revokes the leaked
+     key immediately. That is a Stage-B-class action: STOP after steps 1–4
+     and step 8, leave the leaked key's edge power in place, and record on
+     issue #551 that the rotation is wholly gated on Railway confirmation.
+6. Update the edge function secret `SUPABASE_SERVICE_ROLE_KEY` to the new key
    (`PUT /v1/projects/qsllyeztdwjgirsysgai/secrets`). This is the proven
    consumer of the leaked value.
-6. Verify with probes against the exact set of edge functions whose AUTH
-   accepts this key class as a bearer token — `admin-api` and
-   `dam-search-ai` (both `allowServiceRole`): the NEW key authenticates (an
-   app-level error reply, never 401/403) and the leaked key is refused
-   (401/403). Every other function never accepted this key class and is
-   unchanged by construction: `agent-api` authenticates bridge/Windows
-   agents with `x-agent-key` only; `helper-api` and `verify-app-access`
-   validate end-user JWTs; the export functions and `agent-api` use the
-   edge-held service key server-side (via `service-client`), never as a
-   caller credential. The worker's `reprocess-metadata` operation enters
+7. Verify with probes against every edge function whose AUTH accepts this
+   key class as a bearer token — the five `allowServiceRole` functions:
+   `admin-api`, `dam-search-ai`, `export-table`, `export-sql-dump`,
+   `export-thumbnail-manifest`. Expect the NEW key to authenticate (an
+   app-level error reply, never 401/403) and the leaked key to be refused
+   (401/403). Only `admin-api` and `dam-search-ai` additionally carry the
+   verified-legacy-JWT path. Functions NOT probed because they never accept
+   this key class as a caller credential, and are unchanged by
+   construction: `agent-api` (bridge/Windows agents authenticate with
+   `x-agent-key`); `helper-api` and `verify-app-access` (end-user JWTs). The worker's `reprocess-metadata` operation enters
    through the same `admin-api` gate and code path as the admin-api probe,
    so its behavior follows that probe result; it is additionally confirmed
    by the operator on the next natural use rather than by triggering a bulk
    job for testing.
-7. Update the 1P item notes with the rotation record and open item.
+8. Update the 1P item notes with the rotation record and open item.
 
 Stage A risk: only the on-demand admin `reprocess-metadata` operation can
 degrade (worker → admin-api 401) IF Railway's optional `SUPABASE_SECRET_KEY`
