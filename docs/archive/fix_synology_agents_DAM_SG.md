@@ -74,8 +74,8 @@ Agents are **outbound-only**. There is no inbound connection to an agent.
 Canonical spec: [`u2giants/synology-monitor` → `docs/NAS_TOPOLOGY.md`](https://github.com/u2giants/synology-monitor/blob/main/docs/NAS_TOPOLOGY.md).
 Summary an implementer must internalize:
 
-- There are **two physical Synology units**: `edgesynology1` (`192.168.3.100`) and
-  `edgesynology2` (`192.168.3.101`), both joined to Active Directory
+- There are **two physical Synology units**: `edgesynology1` and
+  `edgesynology2`, both joined to Active Directory
   `IML.isaacmorris.com`.
 - **All folders exist on both units.** DAM's `mac` share and PopSG's `styleguides`
   share are present on each.
@@ -170,7 +170,7 @@ edge2 today, but by configuration, not by an enforced rule.
 
   | Purpose | admin_config keys | Host | Share | AD user | Drive |
   |---|---|---|---|---|---|
-  | DAM (Decor) | `WINDOWS_AGENT_NAS_*` | `192.168.3.101` (edge2) | `mac` | `ahazan` | `Z:` |
+  | DAM (Decor) | `WINDOWS_AGENT_NAS_*` | `edgesynology2` | `mac` | `ahazan` | `Z:` |
   | SG (styleguides) | `WINDOWS_AGENT_SG_NAS_*` | `edgesynology2` (edge2) | `styleguides` | `popdam` | `Y:` |
 
 ### 3.3 Why this is a problem
@@ -196,8 +196,8 @@ A **single NAS-access profile**, expressed once and delivered to agents by
 
 ```
 nas_access:
-  read_unit:   { host: edgesynology2, ip: 192.168.3.101 }   # ALL reads
-  write_unit:  { host: edgesynology1, ip: 192.168.3.100 }   # ALL writes
+  read_unit:   { host: edgesynology2 }   # ALL reads
+  write_unit:  { host: edgesynology1 }   # ALL writes
   credential:  <single AD service account>                  # both shares, both units
   roots:
     - { app: dam,   share: mac,         subpath: Decor }

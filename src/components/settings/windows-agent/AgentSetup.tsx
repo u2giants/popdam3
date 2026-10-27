@@ -292,7 +292,7 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
 
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Host</label>
-            <Input placeholder="\\192.168.1.100" value={nasHost} onChange={(e) => setNasHost(e.target.value)} className="font-mono text-xs" />
+            <Input placeholder="\\192.0.2.100" value={nasHost} onChange={(e) => setNasHost(e.target.value)} className="font-mono text-xs" />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Share</label>

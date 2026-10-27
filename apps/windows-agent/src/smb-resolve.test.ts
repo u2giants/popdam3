@@ -32,8 +32,8 @@ describe("splitSmbRoot", () => {
   });
 
   it("handles a UNC share path", () => {
-    assert.deepEqual(splitSmbRoot("\\\\192.168.3.101\\mac\\Decor\\a.psd"), {
-      root: "\\\\192.168.3.101\\mac\\",
+    assert.deepEqual(splitSmbRoot("\\\\192.0.2.101\\mac\\Decor\\a.psd"), {
+      root: "\\\\192.0.2.101\\mac\\",
       segments: ["Decor", "a.psd"],
     });
   });

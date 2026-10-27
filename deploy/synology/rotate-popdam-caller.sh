@@ -33,7 +33,8 @@ op read -n "op://vibe_coding/$STAGING/password" > "$T/new"
 op read -n "op://vibe_coding/$AI_ITEM/password" > "$T/sudo"
 for f in old new sudo; do [ -s "$T/$f" ] || { echo "FAIL: $f empty"; exit 1; }; done
 # Transport (proven 2026-10-21): hetz ~/.ssh config key for each unit with
-# `-l ai` (edge2 100.107.131.36:1904, edge1 100.107.131.35:22) and `scp -O`
+# `-l ai` (edge2 :1904, edge1 :22; addresses live in ~/.ssh/config and the
+# hashed scripts/nas_known_hosts) and `scp -O`
 # (legacy SCP protocol; SFTP is off on these units, -O does not need it).
 
 "${SSH[@]}" "mkdir -m 700 $RD"

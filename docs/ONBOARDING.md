@@ -569,7 +569,7 @@ The `path-utils.ts` library converts `relative_path` into display formats based 
 | Mode | Example |
 |------|---------|
 | UNC by hostname | `\\NAS-NAME\share\Decor\Projects\...` |
-| UNC by IP | `\\192.168.1.100\share\Decor\Projects\...` |
+| UNC by IP | `\\192.0.2.100\share\Decor\Projects\...` |
 | Synology Drive (remote) | `C:\Users\Name\SynologyDrive\share\Decor\Projects\...` |
 
 Users can switch between modes. Preference is stored in `localStorage`.

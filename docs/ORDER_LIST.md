@@ -234,6 +234,15 @@ identity (down from Yzhou's measured 58,527 before the repair).
 - A relink always writes `manual`, in both directions. There is no UI path back
   to `matched`, so re-pointing a line at the item it already had still changes
   its status. That is deliberate: a human decision stays visible as one.
+- A missing Licensed/Generic on a line does not block a unique relink
+  (2026-10-27, [#526](https://github.com/u2giants/popdam3/issues/526)). When ERP
+  intake omitted the discriminator but the normalized Style # resolves to exactly
+  one bridged item in exactly one Master Data catalog, setting that catalog on the
+  line through `update_dam_order` and then linking through `link_dam_order_line`
+  is contract-legal. One item in both catalogs, or multiple items, stays
+  ambiguous. Repair outcome: 61 + 612 lines restored; the remaining unlinked lines
+  have no decidable candidate, and the 10 ambiguous lines on legacy PO D0623 were
+  ruled disregarded by Albert and set `not_applicable`.
 
 ## Editing rules
 

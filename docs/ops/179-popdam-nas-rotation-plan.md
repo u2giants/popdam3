@@ -14,7 +14,8 @@ This lifts the earlier "Not rotated, per Albert" hold for this credential only.
 
 ## Credential and provider
 - Credential: Synology local user `popdam` (administrators) on edgesynology1
-  (100.107.131.35) and edgesynology2 (100.107.131.36). Same value on both (owner
+  and edgesynology2 (Tailscale addresses live in the private vault and
+  `scripts/nas_known_hosts`, not in this public repo). Same value on both (owner
   decision 2026-10-01).
 - Provider: DSM on each unit, self-service change from the unit itself over
   `https://localhost:5001`: `SYNO.Core.User.PasswordConfirm` v2 then

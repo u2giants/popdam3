@@ -28,7 +28,7 @@ Host/IP are display-time prefixes only.
 These must exist in a single config source (admin_config or env) and be reused everywhere.
 
 - `NAS_HOST` = hostname for UNC display (example: `edgesynology2`)
-- `NAS_IP` = LAN IP for UNC-by-IP display (example: `192.168.3.100`)
+- `NAS_IP` = LAN IP for UNC-by-IP display (example: `192.0.2.100`)
 - `NAS_SHARE` = share name (example: `mac`) — compare case-insensitively, normalize to lowercase
 - `NAS_CONTAINER_MOUNT_ROOT` = mount root inside Bridge Agent container (example: `/mnt/nas/mac`)
 
@@ -70,7 +70,7 @@ Supported inputs:
 `\\edgesynology2\mac\Decor\Projects\Foo\bar.psd`
 
 ### 4.2 UNC path (IP)
-`\\192.168.3.100\mac\Decor\Projects\Foo\bar.psd`
+`\\192.0.2.100\mac\Decor\Projects\Foo\bar.psd`
 
 ### 4.3 Container path
 `/mnt/nas/mac/Decor/Projects/Foo/bar.psd`

@@ -4,7 +4,7 @@ import { nasReadyForClaim } from "./claim-gate";
 import { redactSecret } from "./nas-mapper";
 
 test("a failed remap blocks claiming", async () => {
-  const r = await nasReadyForClaim("192.168.3.101", async () => ({ ok: false, error: "denied" }));
+  const r = await nasReadyForClaim("192.0.2.101", async () => ({ ok: false, error: "denied" }));
   assert.deepEqual(r, { ready: false, error: "denied" });
 });
 

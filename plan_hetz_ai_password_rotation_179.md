@@ -3,6 +3,9 @@
 Supersedes v13 (commit 157a1572). Amends step 2d: the console/rescue requirement is replaced by three independent recovery proofs, because a password change cannot lock out key-based access. Reviews on record: GLM 20261013T233759-3326759-1761, 20261013T234438-3485893-11289; Gemini 20261013T235505-3728866-4419, 20261014T000451-3886229-19465, 20261014T001840-4074085-28799; DeepSeek 20261013T235105-3638091-26324, 20261014T000019-3807599-14958, 20261014T001352-4037250-9191. No secret values appear here.
 
 ## STATUS
+Restore-source 1Password item names for NAS credentials: see the rotation table
+in `fix_admin_config_secret_rotation.md` (pointer carried from the retired
+2026-10-14 handoff, 2026-10-27).
 Not executed. v14 final-check requested on the plan commit; step 2d proven read-only (see #179). No host, vault, or NAS change has happened.
 
 ## Scope

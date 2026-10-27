@@ -14,7 +14,7 @@
 
 ## STATUS — read this first
 
-**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Current continuation: [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
+**Updated October 11, 2026.** Start by rechecking the current #96 pilot and #92 recovery gates, then resume the remaining coverage/rollout work. Do not infer current counts from this dated snapshot. Continuation handoff retired 2026-10-27 (consolidated onto #143): [2026-10-11 coordinator handoff](https://github.com/u2giants/popdam3/blob/db60b4be8cabcf8856f930a52677c431220e7f64/HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md); live verification is recorded in [#97](https://github.com/u2giants/popdam3/issues/97).
 
 **Image-embedding side note (2026-10-23, edge-dev):** DINOv3 (`facebook/dinov3-vitb16-pretrain-lvd1689m`) and SigLIP 2 (`google/siglip2-base-patch16-naflex`) are installed and proven on the owner GPU desktop `edge-dev` (RTX 3060 Ti). Picture embeddings remain **out of scope for this plan** (see §4 / §7) and still need Albert’s explicit go-ahead before any shared-db schema work. Session record: [HANDOFF.d/2026-10-23T1901Z-edge-dev-mimo-dinov3-siglip2-ready.md](HANDOFF.d/2026-10-23T1901Z-edge-dev-mimo-dinov3-siglip2-ready.md).
 

@@ -6,4 +6,4 @@ server_url=https://qsllyeztdwjgirsysgai.supabase.co
 pairing_code=XXXX-XXXX-XXXX-XXXX
 ; Optional NAS mapping (the agent also receives NAS settings from admin_config)
 drive_letter=Z
-nas_unc=\\192.168.3.101\mac
+nas_unc=\\edgesynology2\mac
