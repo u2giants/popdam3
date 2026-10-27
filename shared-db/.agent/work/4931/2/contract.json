@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Correct the SO 7128092 AA0631P1P01 component ref identity (label RS) left by the first repair, and remove a duplicate placeholder line if one was minted",
+  "base_sha": "d3c9991b96e74e87aba0d14e0cb279e87e53664c",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan (chat 2026-10-27: \"yes, fix it\")",
+  "worker": "Claude Code session on hetz",
+  "branch": "fix/coldlion-7128092-label-4931",
+  "worktree": "/worksp/shared-db/.claude/worktrees/xenodochial-feynman-c20cdf",
+  "allowed_paths": [
+    "tools/coldlion-landing/repairs/20261027-component-identity-label.sql"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/repairs/20261027-component-identity-label.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migrations or schema changes",
+    "No database write from this pull request or this session; the intake workflow applies the repair once"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Disclosure: the repair file was drafted minutes before this generation was published; it is published before the implementation commit",
+    "Production readback 7:30 PM EDT: component:5 sits on D3691 AA0631P1P01 with sub_label_code null while ColdLion stages RS; guard reports it missing"
+  ],
+  "stop_conditions": [
+    "Any needed change outside allowed paths",
+    "Any schema change"
+  ]
+}

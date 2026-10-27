@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "outcome": "ready-for-merge",
+  "pr": 4939,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4931/2",
+  "contract_sha256": "61618e7dd72ebaa8f104d344a6ad867a1cb40975e45fab111c96f690268d650c",
+  "head_sha": "d21c46bec84b0aaf6e6ee917a63cd00e96f59244",
+  "base_sha": "d3c9991b96e74e87aba0d14e0cb279e87e53664c",
+  "files_changed": ["tools/coldlion-landing/repairs/20261027-component-identity-label.sql"],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test tools/coldlion-order-intake-*.test.mjs", "exit_code": 0, "evidence": "# tests 94 # pass 86 # fail 0 "},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors"}
+  ],
+  "assumptions_resolved": ["Applied on the PostgreSQL 17 fixture after the main repair: component:5 label becomes RS"],
+  "stop_conditions_hit": []
+}
