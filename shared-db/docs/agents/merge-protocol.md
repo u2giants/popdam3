@@ -178,7 +178,7 @@ docs PR. The correct permanent fix is a separate, tiny `domain-ownership` workfl
 
 ✅ **That fix IS BUILT and has been since 2026-08-05.** It was built
 as its own `domain-ownership.yml` workflow and, since #3746 (2026-09-28), is the `domain-ownership`
-job of [`.github/workflows/pr-guards.yml`](../../.github/workflows/pr-guards.yml): no `paths:`
+job of [`.github/workflows/pr-guards.yml`](https://github.com/popcre/shared-db/blob/main/.github/workflows/pr-guards.yml): no `paths:`
 filter, runs on `pull_request`, `merge_group` and `push` to `main`, and
 `scripts/check-domain-ownership.test.mjs` and then `scripts/check-domain-ownership.mjs`. Its
 check-run name is **`Domain ownership`** and it is one of the six required contexts on `main`

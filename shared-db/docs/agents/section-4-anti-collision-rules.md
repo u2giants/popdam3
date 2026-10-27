@@ -101,7 +101,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    **The abandonment record.** Before any lane is touched, open an abandonment
    audit issue using
-   [`.github/ISSUE_TEMPLATE/author-lane-abandonment.md`](../../.github/ISSUE_TEMPLATE/author-lane-abandonment.md).
+   [`.github/ISSUE_TEMPLATE/author-lane-abandonment.md`](https://github.com/popcre/shared-db/blob/main/.github/ISSUE_TEMPLATE/author-lane-abandonment.md).
    It must identify the claim, the pull request and its exact head, the recorded
    owner, the branch, the migration version, the last known worktree and
    machine, the expiry, the evidence that the author is terminal or unreachable,

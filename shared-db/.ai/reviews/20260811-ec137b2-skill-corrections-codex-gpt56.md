@@ -76,7 +76,7 @@ Yes. It is valid Git and does what fix 1 claims.
 - `--all` fetches every configured remote.
 - It still updates existing remote references and downloads objects. It only disables pruning.
 
-This matches the [official Git fetch documentation](https://git-scm.com/docs/git-fetch.html) and the corrected instruction at [SKILL.md:219](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:219).
+This matches the [official Git fetch documentation](https://git-scm.com/docs/git-fetch.html) and the corrected instruction at `SKILL.md:219`.
 
 A small wording issue remains: `--no-prune` protects remote-tracking references. It does not disable every kind of Git cleanup or maintenance.
 
@@ -88,15 +88,15 @@ The largest loophole is:
 
 > “Merge a docs-only handover PR it finds open, or its own.”
 
-That permission has no file or content boundary at [SKILL.md:153](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:153). A PR can contain a handover plus unrelated changes to `AGENTS.md`, plans, workflow docs, or other operating rules and still be called “docs-only handover.”
+That permission has no file or content boundary at `SKILL.md:153`. A PR can contain a handover plus unrelated changes to `AGENTS.md`, plans, workflow docs, or other operating rules and still be called “docs-only handover.”
 
-The handover skill now makes this worse. It tells the orchestrator to change stale standing documentation at [SKILL.md:332](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:332), including `AGENTS.md` at lines 337 through 343. Those edits are not one of the five exceptions. A strict reading forbids them. A loose reading lets the orchestrator author operating-rule changes that should be dispatched.
+The handover skill now makes this worse. It tells the orchestrator to change stale standing documentation at `SKILL.md:332`, including `AGENTS.md` at lines 337 through 343. Those edits are not one of the five exceptions. A strict reading forbids them. A loose reading lets the orchestrator author operating-rule changes that should be dispatched.
 
 Other scope problems:
 
-- Commit ec137b2 allowed unrestricted “queue seeding at handover.” It did not require short pointer-only entries. Today’s text finally adds that limit at [SKILL.md:261](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:261).
+- Commit ec137b2 allowed unrestricted “queue seeding at handover.” It did not require short pointer-only entries. Today’s text finally adds that limit at `SKILL.md:261`.
 - “The handoff files” is plural and does not itself say one new write-once file or forbid editing another session’s handoff.
-- “Read it, then merge it” at [SKILL.md:252](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:252) does not explicitly require checking the PR’s current head and required checks. The winning rulebook requires all six checks and current `head_sha` verification at [AGENTS.md:1342](C:/repos/shared-db/AGENTS.md:1342).
+- “Read it, then merge it” at `SKILL.md:252` does not explicitly require checking the PR’s current head and required checks. The winning rulebook requires all six checks and current `head_sha` verification at [AGENTS.md:1342](../../AGENTS.md).
 
 Safe wording would allow one newly created handoff file, tightly scoped issue comments, and merging a handover-only PR after its exact changed-file list and required checks are verified.
 
@@ -112,7 +112,7 @@ GitHub CLI returns:
 
 That is documented in the [GitHub CLI exit-code rules](https://cli.github.com/manual/gh_help_exit-codes).
 
-There is no pipeline in the skill to swallow the status. A direct command preserves it. However, the command at [SKILL.md:205](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:205) has no conditional check, capture, or forced stop. The failure handling is only prose at lines 206 through 208.
+There is no pipeline in the skill to swallow the status. A direct command preserves it. However, the command at `SKILL.md:205` has no conditional check, capture, or forced stop. The failure handling is only prose at lines 206 through 208.
 
 More seriously, the command omits:
 
@@ -128,8 +128,8 @@ Yes. It creates a marker-free window while the session remains live.
 
 Commit ec137b2 inserted marker closure as step 5b, followed by step 6’s documentation and secrets closers. Today the ordering remains:
 
-- Merge the handover PR at [SKILL.md:295](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:295).
-- Close the marker at [SKILL.md:307](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:307).
+- Merge the handover PR at `SKILL.md:295`.
+- Close the marker at `SKILL.md:307`.
 - Then run secrets work, documentation changes, cleanup confirmation, queue checks, and the final handover audit through line 372.
 
 There is also an impossible ordering today: line 354 says the documentation work from step 6b goes into the handover PR, but that PR was already merged and the marker closed in steps 5 and 5b.
@@ -142,7 +142,7 @@ The marker must remain open until every later step is complete. Closing it must 
 
 2. **Fix 4 is not fail-closed:** the command exposes an exit status, but nothing in the command forces the agent to test it before acting.
 
-3. **Fix 5 is still mostly prose:** `gh pr list --state open` does not request `headRefOid`, defaults to 30 results, and also lacks `--repo`. `git fetch --all` does not guarantee that GitHub PR synthetic refs or fork heads are fetched. The skill demands exact PR-head SHAs at [SKILL.md:299](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:299) without giving a reliable command to obtain and fetch them.
+3. **Fix 5 is still mostly prose:** `gh pr list --state open` does not request `headRefOid`, defaults to 30 results, and also lacks `--repo`. `git fetch --all` does not guarantee that GitHub PR synthetic refs or fork heads are fetched. The skill demands exact PR-head SHAs at `SKILL.md:299` without giving a reliable command to obtain and fetch them.
 
 4. **Marker closes too early:** this defeats the single-orchestrator lock during the remaining closeout work.
 
@@ -165,7 +165,7 @@ Yes. It is valid Git and does what fix 1 claims.
 - `--all` fetches every configured remote.
 - It still updates existing remote references and downloads objects. It only disables pruning.
 
-This matches the [official Git fetch documentation](https://git-scm.com/docs/git-fetch.html) and the corrected instruction at [SKILL.md:219](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:219).
+This matches the [official Git fetch documentation](https://git-scm.com/docs/git-fetch.html) and the corrected instruction at `SKILL.md:219`.
 
 A small wording issue remains: `--no-prune` protects remote-tracking references. It does not disable every kind of Git cleanup or maintenance.
 
@@ -177,15 +177,15 @@ The largest loophole is:
 
 > “Merge a docs-only handover PR it finds open, or its own.”
 
-That permission has no file or content boundary at [SKILL.md:153](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:153). A PR can contain a handover plus unrelated changes to `AGENTS.md`, plans, workflow docs, or other operating rules and still be called “docs-only handover.”
+That permission has no file or content boundary at `SKILL.md:153`. A PR can contain a handover plus unrelated changes to `AGENTS.md`, plans, workflow docs, or other operating rules and still be called “docs-only handover.”
 
-The handover skill now makes this worse. It tells the orchestrator to change stale standing documentation at [SKILL.md:332](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:332), including `AGENTS.md` at lines 337 through 343. Those edits are not one of the five exceptions. A strict reading forbids them. A loose reading lets the orchestrator author operating-rule changes that should be dispatched.
+The handover skill now makes this worse. It tells the orchestrator to change stale standing documentation at `SKILL.md:332`, including `AGENTS.md` at lines 337 through 343. Those edits are not one of the five exceptions. A strict reading forbids them. A loose reading lets the orchestrator author operating-rule changes that should be dispatched.
 
 Other scope problems:
 
-- Commit ec137b2 allowed unrestricted “queue seeding at handover.” It did not require short pointer-only entries. Today’s text finally adds that limit at [SKILL.md:261](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:261).
+- Commit ec137b2 allowed unrestricted “queue seeding at handover.” It did not require short pointer-only entries. Today’s text finally adds that limit at `SKILL.md:261`.
 - “The handoff files” is plural and does not itself say one new write-once file or forbid editing another session’s handoff.
-- “Read it, then merge it” at [SKILL.md:252](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:252) does not explicitly require checking the PR’s current head and required checks. The winning rulebook requires all six checks and current `head_sha` verification at [AGENTS.md:1342](C:/repos/shared-db/AGENTS.md:1342).
+- “Read it, then merge it” at `SKILL.md:252` does not explicitly require checking the PR’s current head and required checks. The winning rulebook requires all six checks and current `head_sha` verification at [AGENTS.md:1342](../../AGENTS.md).
 
 Safe wording would allow one newly created handoff file, tightly scoped issue comments, and merging a handover-only PR after its exact changed-file list and required checks are verified.
 
@@ -201,7 +201,7 @@ GitHub CLI returns:
 
 That is documented in the [GitHub CLI exit-code rules](https://cli.github.com/manual/gh_help_exit-codes).
 
-There is no pipeline in the skill to swallow the status. A direct command preserves it. However, the command at [SKILL.md:205](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:205) has no conditional check, capture, or forced stop. The failure handling is only prose at lines 206 through 208.
+There is no pipeline in the skill to swallow the status. A direct command preserves it. However, the command at `SKILL.md:205` has no conditional check, capture, or forced stop. The failure handling is only prose at lines 206 through 208.
 
 More seriously, the command omits:
 
@@ -217,8 +217,8 @@ Yes. It creates a marker-free window while the session remains live.
 
 Commit ec137b2 inserted marker closure as step 5b, followed by step 6’s documentation and secrets closers. Today the ordering remains:
 
-- Merge the handover PR at [SKILL.md:295](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:295).
-- Close the marker at [SKILL.md:307](C:/repos/ai-devops/skills/claude/shared-db-handover/SKILL.md:307).
+- Merge the handover PR at `SKILL.md:295`.
+- Close the marker at `SKILL.md:307`.
 - Then run secrets work, documentation changes, cleanup confirmation, queue checks, and the final handover audit through line 372.
 
 There is also an impossible ordering today: line 354 says the documentation work from step 6b goes into the handover PR, but that PR was already merged and the marker closed in steps 5 and 5b.
@@ -231,7 +231,7 @@ The marker must remain open until every later step is complete. Closing it must 
 
 2. **Fix 4 is not fail-closed:** the command exposes an exit status, but nothing in the command forces the agent to test it before acting.
 
-3. **Fix 5 is still mostly prose:** `gh pr list --state open` does not request `headRefOid`, defaults to 30 results, and also lacks `--repo`. `git fetch --all` does not guarantee that GitHub PR synthetic refs or fork heads are fetched. The skill demands exact PR-head SHAs at [SKILL.md:299](C:/repos/ai-devops/skills/claude/shared-db-orchestrator/SKILL.md:299) without giving a reliable command to obtain and fetch them.
+3. **Fix 5 is still mostly prose:** `gh pr list --state open` does not request `headRefOid`, defaults to 30 results, and also lacks `--repo`. `git fetch --all` does not guarantee that GitHub PR synthetic refs or fork heads are fetched. The skill demands exact PR-head SHAs at `SKILL.md:299` without giving a reliable command to obtain and fetch them.
 
 4. **Marker closes too early:** this defeats the single-orchestrator lock during the remaining closeout work.
 

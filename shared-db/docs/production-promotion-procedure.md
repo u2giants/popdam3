@@ -87,7 +87,7 @@ worked example, including the verification queries:
 
 **Everything in §5.1 above still describes the mechanics.** What changed is that you no longer
 perform them by hand. The workflow
-[`.github/workflows/shared-supabase-migrations.yml`](../.github/workflows/shared-supabase-migrations.yml)
+[`.github/workflows/shared-supabase-migrations.yml`](https://github.com/popcre/shared-db/blob/main/.github/workflows/shared-supabase-migrations.yml)
 now has an `apply` mode that does the whole bounded-temp-checkout recipe for you, under gates.
 Before 2026-08-10 that job opened with a step called `Refuse production apply`, so the lane could
 never run at all — which is why four licensor features queued up behind it.

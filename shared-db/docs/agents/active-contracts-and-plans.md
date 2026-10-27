@@ -107,14 +107,14 @@ AI sessions from breaking each other through the one database they all depend on
 > Exit 0 = no actionable drift (retired/held versions remain listed), 1 = actionable
 > drift, **2 = could not check, which is never "no drift"**. It also
 > runs on every push to `main`, daily, and on demand: workflow `Migration Ledger Drift`
-> ([`.github/workflows/migration-ledger-drift.yml`](../../.github/workflows/migration-ledger-drift.yml)).
+> ([`.github/workflows/migration-ledger-drift.yml`](https://github.com/popcre/shared-db/blob/main/.github/workflows/migration-ledger-drift.yml)).
 
 > ## ⚠️ A structural migration returning to shared-db carries its live-proof probe
 >
 > When a structural outcome's `db-work-scope` says `application_return_to: popcre/shared-db`,
 > its migration pull request must also commit `.github/live-proofs/<work_issue>.sql`: ONE
 > read-only `SELECT`/`WITH` statement returning one row with a boolean column aliased `passed`.
-> The `Shared DB Live Proof` workflow ([`.github/workflows/shared-db-live-proof.yml`](../../.github/workflows/shared-db-live-proof.yml))
+> The `Shared DB Live Proof` workflow ([`.github/workflows/shared-db-live-proof.yml`](https://github.com/popcre/shared-db/blob/main/.github/workflows/shared-db-live-proof.yml))
 > runs that committed file against production once it applies. The guarded migration merge runs
 > `node scripts/check-live-proof-probe.mjs` and refuses the pull request (exit `2`) if the probe is
 > absent from both the pull request and `main`, if the pull request deletes or renames it away, or
