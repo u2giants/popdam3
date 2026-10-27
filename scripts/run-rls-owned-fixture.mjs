@@ -24,15 +24,13 @@ try {
   for (const key of ['POPDAM_TEST_USER','POPDAM_TEST_PASSWORD','PROD_DB_PASSWORD','SUPABASE_PUBLISHABLE_KEY']) delete process.env[key];
   if (env.POPDAM_TEST_USER !== 'ai-admin@designflow.app' || !env.POPDAM_TEST_PASSWORD || !env.PROD_DB_PASSWORD || !env.SUPABASE_PUBLISHABLE_KEY?.startsWith('sb_publishable_')) throw new Error('protected environment');
   client = createClient(`https://${m.project}.supabase.co`,env.SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-  const auth = await client.auth.signInWithPassword({email:env.POPDAM_TEST_USER,password:env.POPDAM_TEST_PASSWORD});
-  if (auth.error) throw new Error('QA authentication');
-  protocol = createFixtureProtocol({client,manifest:m,counts:()=>protectedCounts({Client,password:env.PROD_DB_PASSWORD,ca,manifest:m})});
+  protocol = createFixtureProtocol({client,manifest:m,credentials:{email:env.POPDAM_TEST_USER,password:env.POPDAM_TEST_PASSWORD},counts:()=>protectedCounts({Client,password:env.PROD_DB_PASSWORD,ca,manifest:m})});
   const report = await run(env,protocol);
   for (const key of ['POPDAM_TEST_USER','POPDAM_TEST_PASSWORD','PROD_DB_PASSWORD','SUPABASE_PUBLISHABLE_KEY']) delete env[key];
   console.log(JSON.stringify(report)); if (!report.passed) process.exitCode = 1;
 } catch { console.error('FAIL: owned fixture qualification; inspect private receipt or pending fixture manifest'); process.exitCode = 1; }
 finally {
-  if (client && !protocol?.summary().sdk_signed_out) {
+  if (client && protocol?.summary().sdk_auth_attempted && !protocol.summary().sdk_signed_out) {
     try { const result = await client.auth.signOut({scope:'local'}); if (result.error) process.exitCode = 1; } catch { process.exitCode = 1; }
   }
 }

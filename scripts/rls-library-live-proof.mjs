@@ -2,13 +2,15 @@ import { createRequire } from 'node:module';
 import { mkdir, open, lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {BROWSER_PACKAGE,openQualifiedBlankBrowser,fixedBrowserEnvironment} from './rls-browser-custody.mjs';
 
 export const ORIGIN = 'https://dam.designflow.app';
 export const HOST = 'qsllyeztdwjgirsysgai.supabase.co';
 const GET_ORIGINS = new Set([ORIGIN, `https://${HOST}`, 'https://popdam.nyc3.digitaloceanspaces.com']);
 const FACETS = new Set(['get_filter_counts', 'get_path_facets', 'get_dam_material_facets', 'get_dam_customer_facets']);
 export function browserEnvironment(env) {
-  return {PATH:'/usr/bin:/bin',HOME:resolve(env.POPDAM_PLAYWRIGHT_PACKAGE,'..','..','home'),TMPDIR:'/tmp',PLAYWRIGHT_BROWSERS_PATH:env.PLAYWRIGHT_BROWSERS_PATH};
+  if(env.POPDAM_PLAYWRIGHT_PACKAGE!==BROWSER_PACKAGE)throw new Error('fixed browser package required');
+  return fixedBrowserEnvironment();
 }
 export function permittedRequest({ url, method, body }) {
   const u = new URL(url), verb = method.toUpperCase();
@@ -39,10 +41,10 @@ export async function run(env = process.env, fixture = null) {
   if (env.POPDAM_TEST_USER !== 'ai-admin@designflow.app' || !env.POPDAM_TEST_PASSWORD) throw new Error('existing dedicated identity');
   if (!/^[a-f0-9]{40}$/.test(env.DEPLOYED_FRONTEND_SHA || '')) throw new Error('build binding');
   if (!isAbsolute(env.POPDAM_PLAYWRIGHT_PACKAGE || '') || !isAbsolute(env.POPDAM_PROOF_FILE || '')) throw new Error('private paths');
+  browserEnvironment(env);
   const require = createRequire(import.meta.url);
   const runtime = require(resolve(env.POPDAM_PLAYWRIGHT_PACKAGE, 'package.json'));
   if (runtime.name !== 'playwright' || runtime.version !== '1.56.1') throw new Error('app runtime pin');
-  const { chromium } = require(env.POPDAM_PLAYWRIGHT_PACKAGE);
   const report = { schema_version: 1, issue: 4427, passed: false, target: ORIGIN, project: HOST.split('.')[0],
     deployed_frontend_sha: env.DEPLOYED_FRONTEND_SHA, password_login: false, library_read: false,
     library_reloaded: false, library_rendered: false, logout: false, context_closed: false, browser_closed: false, blocked_requests: 0, blocked_hostnames: [] };
@@ -55,9 +57,8 @@ export async function run(env = process.env, fixture = null) {
     const stat = await lstat(directory);
     if (stat.isSymbolicLink() || await realpath(directory) !== directory || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0) throw new Error('private directory');
     output = await open(env.POPDAM_PROOF_FILE, 'wx', 0o600);
-    if (fixture) await fixture.prepare();
-    browser = await chromium.launch({headless: true, env: browserEnvironment(env)});
-    context = await browser.newContext({viewport: {width: 1600, height: 1000}, serviceWorkers: 'block'});
+    const local = await openQualifiedBlankBrowser(process.env);
+    browser=local.browser;context=local.context;page=local.page;
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
       let body;
@@ -77,7 +78,10 @@ export async function run(env = process.env, fixture = null) {
       }
       return route.continue();
     });
-    page = await context.newPage();
+    await local.releaseProbeGuard();
+    // SDK authentication, PG checks and fixture INSERT start only after the
+    // fixed local browser/context/DOM capability succeeded and guards exist.
+    if (fixture) await fixture.prepare();
     page.on('response', response => {
       const u = new URL(response.url());
       if (u.hostname !== HOST) return;

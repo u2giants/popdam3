@@ -61,9 +61,9 @@ export async function protectedCounts({Client,password,ca,manifest}) {
     check(result.rows.length === 1); zeroReferences(result.rows[0]); return result.rows[0];
   } finally { try { if (begun) await db.query('ROLLBACK'); } finally { await db.end(); } }
 }
-export function createFixtureProtocol({client,counts,manifest}) {
+export function createFixtureProtocol({client,counts,manifest,credentials}) {
   const m = validateManifest(manifest);
-  const result = {created:false,ui_changed:false,ui_restored:false,deleted:false,derived_absent:false,sdk_signed_out:false,pending_fixture:false,passed:false};
+  const result = {created:false,ui_changed:false,ui_restored:false,deleted:false,derived_absent:false,sdk_auth_attempted:false,sdk_signed_out:false,pending_fixture:false,passed:false};
   let baseline, expected, nextStatus = null, changes = 0;
   const read = async () => { const r = await client.from('style_groups').select('*').eq('id',m.id); check(!r.error && Array.isArray(r.data) && r.data.length === 1); return r.data[0]; };
   const safeRead = async status => { const row = invariant(await read(),m,status); if (baseline) unchangedBusiness(row,baseline); return row; };
@@ -94,6 +94,9 @@ export function createFixtureProtocol({client,counts,manifest}) {
   }
   return {
     async prepare() {
+      check(credentials?.email==='ai-admin@designflow.app'&&typeof credentials.password==='string'&&credentials.password.length>0);
+      result.sdk_auth_attempted=true;
+      const auth=await client.auth.signInWithPassword(credentials);check(!auth.error);
       const before = await counts(); check(countKeys.every(k=>before[k]===0));
       const actor = await client.auth.getUser(); check(!actor.error && actor.data.user?.email === 'ai-admin@designflow.app');
       const roles = await client.from('user_roles').select('role').eq('user_id',actor.data.user.id).limit(10);
@@ -133,7 +136,7 @@ export function createFixtureProtocol({client,counts,manifest}) {
           const after = await counts(); check(countKeys.every(k=>after[k]===0)); result.derived_absent = true; result.pending_fixture = false;
         }
       } finally {
-        const signedOut = await client.auth.signOut({scope:'local'}); result.sdk_signed_out = !signedOut.error;
+        if(result.sdk_auth_attempted){const signedOut = await client.auth.signOut({scope:'local'}); result.sdk_signed_out = !signedOut.error;}
         result.passed = result.created && result.ui_changed && result.ui_restored && result.deleted && result.derived_absent && result.sdk_signed_out;
       }
     },

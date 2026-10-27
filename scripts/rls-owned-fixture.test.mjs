@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {FIXTURE_ID,FIXED_COUNTS,digest,fixturePayload,validateManifest,protectedCounts,createFixtureProtocol} from './rls-owned-fixture.mjs';
 import {browserEnvironment} from './rls-library-live-proof.mjs';
+import {BROWSER_PACKAGE} from './rls-browser-custody.mjs';
 const manifest = () => ({schema_version:1,issue:4427,id:FIXTURE_ID,sku:`AI-QA-4427-${FIXTURE_ID}`,folder_path:`__AI_QA_4427__/${FIXTURE_ID}`,original:'other',temporary:'product_ideas',latest_file_date:'2026-10-27T00:00:00.000Z',project:'qsllyeztdwjgirsysgai',host:'aws-1-us-east-1.pooler.supabase.com',port:6543,ca_sha256:digest('synthetic CA'),dependencies:{sdk:'2.97.0',pg:'8.23.1'}});
 const counts = n => ({groups:n,documents:n,keys:n,assets:0,tags:0,bridges:0});
 test('Chromium environment never inherits QA/DB secrets, proxy or Node injection',()=>{
-  const env=browserEnvironment({POPDAM_PLAYWRIGHT_PACKAGE:'/tmp/owned-runtime/node_modules/playwright',POPDAM_TEST_PASSWORD:'QA_CANARY',PROD_DB_PASSWORD:'DB_CANARY',NODE_OPTIONS:'NODE_CANARY',HTTP_PROXY:'PROXY_CANARY',PLAYWRIGHT_BROWSERS_PATH:'/tmp/fixed-browser'});
-  assert.deepEqual(Object.keys(env).sort(),['HOME','PATH','PLAYWRIGHT_BROWSERS_PATH','TMPDIR']);
+  const env=browserEnvironment({POPDAM_PLAYWRIGHT_PACKAGE:BROWSER_PACKAGE,POPDAM_TEST_PASSWORD:'QA_CANARY',PROD_DB_PASSWORD:'DB_CANARY',NODE_OPTIONS:'NODE_CANARY',HTTP_PROXY:'PROXY_CANARY',PLAYWRIGHT_BROWSERS_PATH:'/tmp/fixed-browser'});
+  assert.deepEqual(Object.keys(env).sort(),['HOME','PATH','TMPDIR']);
   assert.equal(JSON.stringify(env).includes('CANARY'),false);
 });
 test('fixed prospective identity refuses arbitrary fixtures, payload has no business references', () => {
@@ -37,7 +38,7 @@ for (const failure of ['none','identity','query','begin']) test(`protected PG ${
 function fixtureMock({insertThrows=false,patchBody=null,deleteBody=null}={}) {
   const m=manifest(); let row=null,deleted=0,signouts=0,clock=0,protectedRefs=0,protocol,countCalls=0;
   const deleteFilters=[];
-  const client={auth:{getUser:async()=>({data:{user:{email:'ai-admin@designflow.app',id:'synthetic-user'}}}),signOut:async options=>{assert.deepEqual(options,{scope:'local'});signouts++;return {}; }},from(table){
+  const client={auth:{signInWithPassword:async()=>({}),getUser:async()=>({data:{user:{email:'ai-admin@designflow.app',id:'synthetic-user'}}}),signOut:async options=>{assert.deepEqual(options,{scope:'local'});signouts++;return {}; }},from(table){
     let action='read',payload;
     const q={select(){return q;},eq(k,v){if(action==='delete')deleteFilters.push([k,v]);return q;},is(k,v){if(action==='delete')deleteFilters.push([k,v]);return q;},limit(){return q;},insert(value){action='insert';payload=value;return q;},delete(){action='delete';return q;},then(resolve,reject){
       if(table==='user_roles')return Promise.resolve({data:[{role:'admin'}]}).then(resolve,reject);
@@ -60,7 +61,7 @@ function fixtureMock({insertThrows=false,patchBody=null,deleteBody=null}={}) {
       }
     }};return handle;
   },waitForResponse:async(predicate)=>({json:async()=>String(predicate).includes("=== 'PATCH'")?(patchBody===null?[{id:m.id}]:patchBody):(row?[structuredClone(row)]:[])}),reload:async()=>{}};
-  protocol=createFixtureProtocol({client,manifest:m,counts:async()=>{countCalls++;return {...counts(row?1:0),assets:protectedRefs};}});
+  protocol=createFixtureProtocol({client,manifest:m,credentials:{email:'ai-admin@designflow.app',password:'UNIT_CANARY'},counts:async()=>{countCalls++;return {...counts(row?1:0),assets:protectedRefs};}});
   return {protocol,page,setRefs:n=>protectedRefs=n,mutate:()=>row.sku='FOREIGN',prune:()=>row=null,deleteFilters,get countCalls(){return countCalls;},get deleted(){return deleted;},get signouts(){return signouts;}};
 }
 test('normal UI change/restore plus exact fixture cleanup has three protected count phases', async()=>{
@@ -77,6 +78,9 @@ test('new inbound reference refuses delete and retains pending fixture', async()
 test('changed marker refuses delete and never overwrites foreign state', async()=>{
   const f=fixtureMock();await f.protocol.prepare();f.mutate();await assert.rejects(f.protocol.cleanup());
   assert.equal(f.deleted,0);assert.equal(f.protocol.summary().passed,false);assert.equal(f.protocol.summary().pending_fixture,true);
+});
+test('cleanup before local capability preparation performs no SDK authentication/signout',async()=>{
+  const f=fixtureMock();await f.protocol.cleanup();assert.equal(f.signouts,0);assert.equal(f.countCalls,0);assert.equal(f.protocol.summary().sdk_auth_attempted,false);
 });
 test('ambiguous INSERT throw preserves pending custody and cannot delete an unproved row',async()=>{
   const f=fixtureMock({insertThrows:true});await assert.rejects(f.protocol.prepare());
