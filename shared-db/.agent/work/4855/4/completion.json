@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "work_issue": 4855,
+  "contract_ref": "refs/db-contracts/4855/4",
+  "contract_sha256": "8119095d994c3fa5bc3ebbaa3d44d3e5fc2dcfba75a07b67961531b925bb8c16",
+  "base_sha": "dec59b92762f799997880dd3d24e5f05e29b57c4",
+  "head_sha": "9a9bf825c6144fade8e694fea3e81ce34371d241",
+  "files_changed": [
+    "scripts/test_orderlist_assortment_quantities.py",
+    "supabase/migrations/20261027155655_orderlist_assortment_quantities.sql"
+  ],
+  "db_reads": [
+    "table plm.production_order_line",
+    "table plm.production_order_line_source_ref",
+    "table coldlion.intake_order_line",
+    "table coldlion.intake_order_component",
+    "table coldlion.item_detail",
+    "table coldlion.prepack_detail"
+  ],
+  "db_writes": [
+    "function public.get_dam_order_assortment_quantities"
+  ],
+  "checks": [
+    {
+      "command": "scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed on reserved20261027155655; SQL body unchanged."
+    },
+    {
+      "command": "python3 scripts/test_orderlist_assortment_quantities.py",
+      "exit_code": 0,
+      "evidence": "PASS on isolated loopback PostgreSQL: actual reader quantities, ambiguity, nested/zero/missing inputs, exact source isolation, authentication and bounds."
+    }
+  ],
+  "assumptions_resolved": [
+    "Fresh native claim4914 and new permanent version acquired after parked4903; old reservations preserved",
+    "Exact published generation4 readback verified through native readPublishedContract plus both Git and API ref identity935be38839200587873e610172232f19adcdcd62 before implementation",
+    "Crosschat coordination explicitly authorized by Albert; blocking source owner has renewed its own claim",
+    "Prior reviewer histories retained; no reviewer implementation changes"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge",
+  "pr": 4857,
+  "migration_versions": [
+    "20261027155655"
+  ]
+}
