@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 4814,
+  "outcome": "ready-for-merge",
+  "pr": 4869,
+  "migration_versions": [
+    "20261027020503"
+  ],
+  "contract_ref": "refs/db-contracts/4814/3",
+  "contract_sha256": "fa9ca3c2a8d89609359e6d04248c9034035d469e0dd7974f67593d6208399319",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "head_sha": "83028fdb83edc91beb7c59911b0d9a800a3dd837",
+  "files_changed": [
+    "supabase/migrations/20261027020503_dam_image_embed_stale_scale.sql"
+  ],
+  "db_reads": [
+    "table public.admin_config",
+    "table public.assets",
+    "table dam.dam_asset_image_vectors"
+  ],
+  "db_writes": [
+    "function public.image_embed_stale_assets"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree at the implementation head (verify-cost, EOL-reference and derivation guards green; derived-from: 20261026155459 present)."
+    },
+    {
+      "command": "ephemeral-database contract tests pass on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "Database Contract Tests green on the PR head (pull_request check)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Production cold-walk measurements taken read-only 2026-10-26 over the pooler; the 120 s budget covers the measured >120 s joined worst case.",
+    "Generation 2 burned unused after PR #4866 landed the 4427 instrument repair on main; this generation carries the migration alone."
+  ],
+  "stop_conditions_hit": []
+}

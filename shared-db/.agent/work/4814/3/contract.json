@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 4814,
+    "generation": 2,
+    "contract_sha256": "0e876c0669af14ae3b0bda695bf38b18f24665ff8b827bbe0177184762f3b9c1"
+  },
+  "work_issue": 4814,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Fix-forward #4814 public.image_embed_stale_assets for production scale (120 s budget, index-friendly coalesce cursor; semantics unchanged) under claim #4868 migration 20261027020503. Generation 2 burned unused: while its pull request was being rebuilt, the 4427 instrument repair riding it landed on main via PR #4866 (work issue #4865), so this generation carries only the migration. Covering-index headroom is filed separately as #4870.",
+  "base_sha": "91d4ff65fb600e20aa62cfc00fa22a3c94bc4a11",
+  "dispatcher": "zcode-hetz-486-step4b on hetz (claim #4868 owner)",
+  "worker": "Same session.",
+  "branch": "zcode/4814-embed-stale-scale",
+  "worktree": "/worksp/shared-db/.wt-4814b",
+  "allowed_paths": [
+    "supabase/migrations/20261027020503_dam_image_embed_stale_scale.sql",
+    ".agent/work/4814/3/contract.json",
+    ".agent/work/4814/3/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261027020503_dam_image_embed_stale_scale.sql",
+    ".agent/work/4814/3/contract.json",
+    ".agent/work/4814/3/completion.json"
+  ],
+  "db_reads": [
+    "table public.admin_config",
+    "table public.assets",
+    "table dam.dam_asset_image_vectors"
+  ],
+  "db_writes": [
+    "function public.image_embed_stale_assets"
+  ],
+  "prohibited_actions": [
+    "No semantic change to the staleness legs, stamp-window derivation, raster/is_deleted filters, ordering or grant posture; this is a performance fix-forward only.",
+    "No new database objects; the covering-index follow-up is issue #4870.",
+    "No production or preview apply from this session; promotion follows the automatic workflow (OWNER-OVERRIDE path per workstream owner ruling if the business-risk gate demands reviewer evidence)."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "ephemeral-database contract tests pass on the PR head in CI"
+  ],
+  "assumptions": [
+    "Cold-cache production walks measured read-only 2026-10-26: assets side 51-59 s for ~139.5k raster assets; joined walk >120 s; 55 stale ids scattered across the whole id range. The 120 s budget is sized to that measured worst case."
+  ],
+  "stop_conditions": [
+    "Stop if claim #4868 cannot be renewed or reports a collision.",
+    "Stop if the ephemeral contract tests find a semantic change in the wrapper."
+  ]
+}
