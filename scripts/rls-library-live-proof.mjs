@@ -51,7 +51,7 @@ export function diagnosticRoute(raw) {
 }
 export function successfulLibraryResponse(response) {
   const u = new URL(response.url());
-  return u.origin === `https://${HOST}` && u.pathname === '/rest/v1/style_groups' &&
+  return !u.username && !u.password && u.origin === `https://${HOST}` && u.pathname === '/rest/v1/style_groups' &&
     response.request().method() === 'GET' && [200,206].includes(response.status());
 }
 export function errorClass(error) {

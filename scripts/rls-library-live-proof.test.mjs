@@ -91,7 +91,7 @@ test('actual shared library response predicate accepts only exact GET 200 or 206
   assert.equal(successfulLibraryResponse(response(206)),true);
   for(const status of [201,202,204,205,207,301,302,304,400,401,403,404,429,500,503]) assert.equal(successfulLibraryResponse(response(status)),false);
   for(const method of ['POST','PATCH','DELETE','HEAD']) assert.equal(successfulLibraryResponse(response(206,method)),false);
-  for(const url of [`https://other.supabase.co/rest/v1/style_groups`,`https://${HOST}/rest/v1/assets`,`https://${HOST}/rest/v1/style_groups/extra`,`http://${HOST}/rest/v1/style_groups`,`https://${HOST}:8443/rest/v1/style_groups`]) assert.equal(successfulLibraryResponse(response(206,'GET',url)),false);
+  for(const url of [`https://other.supabase.co/rest/v1/style_groups`,`https://${HOST}/rest/v1/assets`,`https://${HOST}/rest/v1/style_groups/extra`,`http://${HOST}/rest/v1/style_groups`,`https://${HOST}:8443/rest/v1/style_groups`,`https://PRIVATE_CANARY:SECRET_CANARY@${HOST}/rest/v1/style_groups`]) assert.equal(successfulLibraryResponse(response(206,'GET',url)),false);
 });
 test('facet diagnostics expose only four fixed admitted names and no private URL or query', async () => {
   const {diagnosticRoute,incrementStatus} = await import('./rls-library-live-proof.mjs');
