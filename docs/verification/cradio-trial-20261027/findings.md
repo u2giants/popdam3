@@ -95,3 +95,33 @@ The requested20 extra queries from real customer search logs could not be obtain
 The handoff copy remains separately preserved and unpublished under the temporary handoff-path freeze; this publication contains the scientific findings and evidence only.
 
 Posted by Codex chat 01a17d9d-d1c2-7680-af0f-76ba48b18bcf on hetz
+
+---
+
+# Part 2 — Bake-off on the #486 production acceptance task (separate session)
+
+Everything above this rule is the #538 text/neighbour/containment trial by the Codex session. **Everything below is a different experiment by a different session** (ZCode, posted 12:20 PM EDT on 2026-10-27 as [#486 issuecomment-6447258246](https://github.com/u2giants/popdam3/issues/486#issuecomment-6447258246)); it answers a different question — does C-RADIOv4-H match or beat the live dual-tower blend on the exact 20-pair acceptance set (bordered crops, white-ground art, degraded uploads) that locked the current bands?
+
+**Method.** The 40 production acceptance uploads were recovered exactly rather than resampled: completed query jobs retain their production fp16 dual vectors (read-only Management API, `read_only`), each job was re-scored through a replica of `search_dam_image_similarity` (fingerprint-matched the recorded acceptance rows 40/40 on rank and score), and each pair's anchor was re-identified by JPEG-q90 re-encode at cosine **1.000000 (40/40 as-is)** — so the candidate embedded byte-identical recreations of the original as-is uploads. Degraded variants were recreated from the documented recipe (resize 50 % / double recompress q55 / +12 px white border; dual re-score within ~0.5 pt of recorded). Scoring pool: **3,240 library thumbnails** = the 20-pair assets + hard negatives (the production top matches of all 40 uploads) + 3,000 random vectorized assets. RADIO recipe: production border-crop verbatim, long-edge 512 snapped to /16, autocast, batch 1, `backbone` (summary) head, single-vector cosine.
+
+**Results.**
+
+| Metric | Live dual-tower (recorded / same-pool) | C-RADIOv4-H backbone |
+|---|---|---|
+| Counterpart found | 40/40 in live matches, all ≥ 90.2 | 40/40, all scores 95.1–100; rank-1 on 31/40, rank ≤ 4 on 38/40, worst rank 7 |
+| Counterpart rank-1, same pool and same input bytes | 33/40 | 31/40 |
+| As-is min / median score | 92.2 / 98.6 | **95.2 / 99.5** |
+| Degraded-variant min / median | 90.2 / 95.3 | **95.1 / 98.1** |
+| Bordered uploads (20/20) min | 90.2 | **96.3** |
+| White-ground (28/28) min | 90.2 | **96.3** |
+| Top-distractor interleaving | 3/40 uploads (worst −1.8) | 5/40 uploads (worst −2.9, pair 11); best-distractor median 94.5, max 99.6 |
+| Same-export band equivalent | near-duplicates cluster 99.8–100 | no clean gap (same-artwork floor 95.1 vs distractor max 99.6) — bands need recalibration; a RADIO-space floor near 0.95 matches today's selectivity |
+| Speed, RTX 3060 Ti, batch 1, live poller resident | 23.8 img/s, 1.78 GB (#538 trial, same method) | bf16 15.0 img/s (61.4 ms median); fp16 clean, no NaN, 15.8 img/s |
+| Peak VRAM | 1.78 GiB alloc | 4.21 GiB alloc / 4.50 GiB reserved — the H model fits the 8 GB card beside the live poller; no smaller fallback needed |
+| Vector storage per asset | 3,072 B (halfvec 768×2) | 5,120 B (halfvec 2,560) = ×1.67; fits the pgvector 0.8.0 HNSW half-vector limit (4,000) |
+
+**Recommendation (decision is the owner's): stay on the dual tower.** C-RADIOv4-H lifts the floor on the hardest uploads — minimum matched score 90.2 → 95.1, bordered minimum 90.2 → 96.3, more graceful degradation on recompress/resize/border variants — but it does not improve counterpart retrieval rank (31 vs 33 rank-1 of 40 on identical inputs), and the swap cost is real: full band recalibration plus a whole-library re-embed, ~1.5× slower embedding, ~2.4× GPU memory, 1.67× vector storage. Combined with Part 1's no-text-gain result and the research-licensed reference inference stack (a shipping proposal still needs a commercially cleared inference implementation), the robustness gain is real but marginal against the cost.
+
+Artifacts (private, licensed thumbnails — edge-dev only): `D:\ai\cradio-bakeoff-486\` — per-pair `scoring_rows.json`, recovered production vectors and match lists (`recover/`), RADIO + dual arrays, `radio_metrics.json`, upload recreations (`uploads/`), pool thumbnails (`thumbs/`), `bakeoff_summary.json`. Read-only production access only; no writes, no schema changes, no flag flips; the live poller heartbeat stayed fresh throughout (12:17 PM EDT).
+
+Posted by ZCode chat unknown on hetz
