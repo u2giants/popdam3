@@ -60,6 +60,16 @@ export async function assessRelease({ repository, head, manifest, policy, branch
     if (!evidence) {
       if (branch === 'main') return { ...identity, status: 'waiting', requirement: requirement.work_issue,
         progress: { state: 'develop-database-promotion-required' } };
+      // Closed work is never reopened or re-admitted. Completed work becomes ready
+      // only through the production evidence above; until a current-live receipt
+      // verifies on today's main it waits, and unfinished closed work still refuses.
+      const issue = await io.workIssue(requirement.work_issue);
+      if (String(issue?.state ?? '').toLowerCase() === 'closed') {
+        if (String(issue?.state_reason ?? '').toLowerCase() !== 'completed')
+          throw Error(`issue #${requirement.work_issue} is closed and cannot be admitted`);
+        return { ...identity, status: 'waiting', requirement: requirement.work_issue,
+          progress: { state: 'current-live-reverification-required', source_pr: requirement.source_pr } };
+      }
       if (await current() !== head) throw Error('Application develop head changed before promotion');
       const companions = m.requirements.filter(r => r.work_issue === requirement.work_issue);
       if (companions.length > 1) {
@@ -787,6 +797,7 @@ export async function main() {
     manifest: (repo, head) => JSON.parse(content(repo, policy.manifest_path, head)),
     sourceFacts: requirement => memo(factsCache, requirement.source_pr, () => sourceFacts(requirement)),
     productionEvidence: (requirement, facts) => memo(evidenceCache, requirement.source_pr, () => productionEvidence(requirement, facts)),
+    workIssue: number => api(`repos/${CANONICAL}/issues/${number}`),
     promote,
     catalog,
     status: (repo, head, state, description) => publishAppStatus(repo, head, { state, context: policy.status_context, description, target_url: url }, process.env.DFLOW_READINESS_STATUS_TOKEN),
