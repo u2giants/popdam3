@@ -260,6 +260,27 @@ export async function fetchOrderListCount(request: OrderListBlockRequest): Promi
   return count;
 }
 
+/** Keeps each `in.(...)` request URL well under proxy limits (100 UUIDs ≈ 3.7 KB). */
+const ORDER_LIST_ID_CHUNK = 100;
+
+/** Full grid rows for exact line IDs, returned in the order the IDs were given. */
+async function fetchOrderListRowsById(ids: string[]): Promise<OrderListRow[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += ORDER_LIST_ID_CHUNK) chunks.push(ids.slice(i, i + ORDER_LIST_ID_CHUNK));
+  const results = await Promise.all(chunks.map((chunk) => orderListTable().select(ORDER_LIST_SELECT).in("order_line_id", chunk)));
+  const byId = new Map<string, OrderListRow>();
+  for (const { data, error } of results as Array<{ data: OrderListRow[] | null; error: unknown }>) {
+    if (error) throw error;
+    for (const row of data ?? []) byId.set(row.order_line_id, row);
+  }
+  // A line deleted between the two requests simply drops out of this block.
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
+}
+
 /**
  * One bounded block of the view. Sorting, filtering and search all run in the
  * database, so results cover every matching row, not only the loaded ones.
@@ -270,11 +291,14 @@ export async function fetchOrderListCount(request: OrderListBlockRequest): Promi
  * AG Grid discovers the exact end when a bounded block returns fewer rows.
  */
 export async function fetchOrderListBlock(request: OrderListBlockRequest): Promise<OrderListBlock> {
-  const rowQuery = applyOrderListShape(orderListTable().select(ORDER_LIST_SELECT), request, true);
-  const { data, error } = await rowQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
-  if (error) throw error;
-
-  const sourceRows = (data ?? []) as OrderListRow[];
+  // Two steps on purpose. Sorting the view with every grid column built for
+  // every line cost ~2s warm and exceeded the 8s statement_timeout on a cold
+  // first load (production 2026-10-27). Ranking only line IDs is ~0.6s, and
+  // fetching the chosen lines by primary key is ~30ms per 100.
+  const idQuery = applyOrderListShape(orderListTable().select("order_line_id"), request, true);
+  const { data: idData, error: idError } = await idQuery.range(request.startRow, Math.max(request.endRow - 1, request.startRow));
+  if (idError) throw idError;
+  const sourceRows = await fetchOrderListRowsById(((idData ?? []) as Array<{ order_line_id: string }>).map((row) => row.order_line_id));
   const baseRows: OrderListRow[] = sourceRows.map((row) => ({
     ...row,
     sales_order_date: null,
