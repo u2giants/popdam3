@@ -1,4 +1,4 @@
-# Rotation plan v5 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
+# Rotation plan v6 — leaked Supabase sb_secret key + broken AI tester logins (qsllyeztdwjgirsysgai)
 
 ## Incident summary
 
@@ -133,18 +133,20 @@ is what makes this stage safe.
 5. Update the edge function secret `SUPABASE_SERVICE_ROLE_KEY` to the new key
    (`PUT /v1/projects/qsllyeztdwjgirsysgai/secrets`). This is the proven
    consumer of the leaked value.
-6. Verify with probes against every service-role-gated edge function that
-   accepts this key class — `admin-api`, `agent-api`, `helper-api`,
-   `verify-app-access`, `dam-search-ai`: the NEW key authenticates (an
+6. Verify with probes against the exact set of edge functions whose AUTH
+   accepts this key class as a bearer token — `admin-api` and
+   `dam-search-ai` (both `allowServiceRole`): the NEW key authenticates (an
    app-level error reply, never 401/403) and the leaked key is refused
-   (401/403). The export functions are excluded from the legacy-verified
-   path by design (`export-sql-dump`, `export-table`,
-   `export-thumbnail-manifest` accept only the exact-match key), which this
-   probe matrix exercises through the exact-match arm. The worker's
-   `reprocess-metadata` operation enters through the same `admin-api` gate
-   and code path as the admin-api probe, so its behavior follows that probe
-   result; it is additionally confirmed by the operator on the next natural
-   use rather than by triggering a bulk job for testing.
+   (401/403). Every other function never accepted this key class and is
+   unchanged by construction: `agent-api` authenticates bridge/Windows
+   agents with `x-agent-key` only; `helper-api` and `verify-app-access`
+   validate end-user JWTs; the export functions and `agent-api` use the
+   edge-held service key server-side (via `service-client`), never as a
+   caller credential. The worker's `reprocess-metadata` operation enters
+   through the same `admin-api` gate and code path as the admin-api probe,
+   so its behavior follows that probe result; it is additionally confirmed
+   by the operator on the next natural use rather than by triggering a bulk
+   job for testing.
 7. Update the 1P item notes with the rotation record and open item.
 
 Stage A risk: only the on-demand admin `reprocess-metadata` operation can
