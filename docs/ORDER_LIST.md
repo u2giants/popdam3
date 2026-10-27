@@ -61,6 +61,9 @@ both changes inserts nothing.
 
 ## ColdLion pack-variant reference
 
+Unfinished correction work and the superseded cancellation interpretation are
+recorded in the [current continuation handoff](https://github.com/popcre/shared-db/blob/codex/dim-code-business-meaning/HANDOFF.d/2026-10-27T1823Z-hetz-codex-coldlion-casepack-closeout.md).
+
 Business meaning and the EDI multiplier caution are maintained in the canonical
 [ERP source-meaning topic: Dim Codes, pack variants, and possible EDI multipliers](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md#dim-codes-pack-variants-and-possible-edi-multipliers).
 For implementation, the current item-detail landing projection omits Dim Code,
