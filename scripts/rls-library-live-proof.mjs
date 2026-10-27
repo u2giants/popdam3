@@ -7,6 +7,9 @@ export const ORIGIN = 'https://dam.designflow.app';
 export const HOST = 'qsllyeztdwjgirsysgai.supabase.co';
 const GET_ORIGINS = new Set([ORIGIN, `https://${HOST}`, 'https://popdam.nyc3.digitaloceanspaces.com']);
 const FACETS = new Set(['get_filter_counts', 'get_path_facets', 'get_dam_material_facets', 'get_dam_customer_facets']);
+export function browserEnvironment(env) {
+  return {PATH:'/usr/bin:/bin',HOME:resolve(env.POPDAM_PLAYWRIGHT_PACKAGE,'..','..','home'),TMPDIR:'/tmp',PLAYWRIGHT_BROWSERS_PATH:env.PLAYWRIGHT_BROWSERS_PATH};
+}
 export function permittedRequest({ url, method, body }) {
   const u = new URL(url), verb = method.toUpperCase();
   // The app's exact src/index.css font import; no Google auth or arbitrary API.
@@ -31,7 +34,7 @@ export function permittedRequest({ url, method, body }) {
   return Boolean(verb === 'POST' && rpc && FACETS.has(rpc[1]));
 }
 
-export async function run(env = process.env) {
+export async function run(env = process.env, fixture = null) {
   if (env.POPDAM_ACCEPTANCE_BASE_URL !== ORIGIN || env.SUPABASE_PROJECT_ID !== HOST.split('.')[0]) throw new Error('target');
   if (env.POPDAM_TEST_USER !== 'ai-admin@designflow.app' || !env.POPDAM_TEST_PASSWORD) throw new Error('existing dedicated identity');
   if (!/^[a-f0-9]{40}$/.test(env.DEPLOYED_FRONTEND_SHA || '')) throw new Error('build binding');
@@ -52,7 +55,8 @@ export async function run(env = process.env) {
     const stat = await lstat(directory);
     if (stat.isSymbolicLink() || await realpath(directory) !== directory || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0) throw new Error('private directory');
     output = await open(env.POPDAM_PROOF_FILE, 'wx', 0o600);
-    browser = await chromium.launch({headless: true});
+    if (fixture) await fixture.prepare();
+    browser = await chromium.launch({headless: true, env: browserEnvironment(env)});
     context = await browser.newContext({viewport: {width: 1600, height: 1000}, serviceWorkers: 'block'});
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
@@ -61,6 +65,9 @@ export async function run(env = process.env) {
         try { body = request.postDataJSON(); } catch { /* malformed is refused */ }
       }
       let allowed = permittedRequest({url: request.url(), method: request.method(), body});
+      if (fixture && url.hostname === HOST && request.method() === 'PATCH' && url.pathname === '/rest/v1/style_groups') {
+        try { allowed = fixture.permitPatch(url, request.postDataJSON()); } catch { allowed = false; }
+      }
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/token') allowed &&= ++tokenCalls === 1;
       if (url.hostname === HOST && request.method() === 'POST' && url.pathname === '/auth/v1/logout') allowed &&= ++logoutCalls === 1;
       if (!allowed) {
@@ -105,8 +112,13 @@ export async function run(env = process.env) {
       if (reads.size <= before) throw new Error('library reload');
     });
     report.library_reloaded = reads.size > before;
+    if (fixture) await fixture.exercise(page);
   } catch { /* No provider error, credential, account name or licensed row is emitted. */ }
   finally {
+    if (fixture) {
+      try { await fixture.cleanup(); } catch { /* preserve pending fixture truth */ }
+      report.fixture = fixture.summary();
+    }
     if (page && tokenIssued) {
       try {
         const userMenu = page.locator('header button.rounded-full[aria-haspopup="menu"]');
@@ -118,7 +130,7 @@ export async function run(env = process.env) {
     }
     if (context) { try { await context.close(); report.context_closed = true; } catch {} }
     if (browser) { try { await browser.close(); report.browser_closed = true; } catch {} }
-    report.passed = report.password_login && report.library_read && report.library_rendered && report.library_reloaded && report.logout && report.context_closed && report.browser_closed && report.blocked_requests === 0;
+    report.passed = report.password_login && report.library_read && report.library_rendered && report.library_reloaded && report.logout && report.context_closed && report.browser_closed && report.blocked_requests === 0 && (!fixture || report.fixture.passed);
     if (output) { try { await output.writeFile(JSON.stringify(report) + '\n'); await output.sync(); } finally { await output.close(); } }
   }
   return report;
