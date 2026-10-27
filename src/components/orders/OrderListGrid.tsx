@@ -185,18 +185,12 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           valueFormatter: valueFormatterFor(column),
           editable: Boolean(column.editable),
           headerTooltip: column.headerTooltip ?? `${sourceLabel}. ${column.editable ? "Double-click to edit." : "Read-only."}`,
-          headerClass:
-            source === "input"
-              ? "bg-blue-200 text-blue-950 dark:bg-blue-900/70 dark:text-blue-100"
-              : source === "helper"
-                ? "bg-slate-300 text-slate-900 dark:bg-slate-700 dark:text-slate-100"
-                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
-          cellClass:
-            source === "input"
-              ? "bg-blue-50/60 dark:bg-blue-950/30"
-              : source === "helper"
-                ? "bg-slate-200/70 dark:bg-slate-700/45"
-                : "bg-slate-50/70 dark:bg-slate-800/35",
+          headerClass: theme === "dark"
+            ? (source === "input" ? "bg-blue-900/70 text-blue-100" : source === "helper" ? "bg-slate-700 text-slate-100" : "bg-slate-800 text-slate-200")
+            : (source === "input" ? "bg-blue-200 text-blue-950" : source === "helper" ? "bg-slate-300 text-slate-900" : "bg-slate-100 text-slate-700"),
+          cellClass: theme === "dark"
+            ? (source === "input" ? "bg-blue-950/30" : source === "helper" ? "bg-slate-700/45" : "bg-slate-800/35")
+            : (source === "input" ? "bg-blue-50/60" : source === "helper" ? "bg-slate-200/70" : "bg-slate-50/70"),
         };
 
         if (column.kind === "link") {
@@ -215,7 +209,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
             ...base,
             editable: false,
             headerTooltip: "Automatic / linked. Read-only; comes from PopDAM Master Data through the linked item.",
-            cellClass: "bg-slate-50/70 italic dark:bg-slate-800/35",
+            cellClass: theme === "dark" ? "bg-slate-800/35 italic" : "bg-slate-50/70 italic",
             cellRenderer: masterDataRenderer(column.field),
           };
         }
@@ -223,7 +217,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
         return base;
       }),
     ],
-    [onEditOrder, onRelink],
+    [onEditOrder, onRelink, theme],
   );
 
   const getRowStyle = useCallback((params: RowClassParams<OrderListRow>): RowStyle => {
