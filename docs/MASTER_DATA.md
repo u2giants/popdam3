@@ -122,10 +122,12 @@ canonical item links. A pre-refresh database backup was taken before replacement
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
-- The current deployed Master Data page requests four 1,000-row ranges per
-  first wave. Licensed ranges load sequentially, each GET followed by its
-  computed-status request; Generic ranges remain parallel. Later pages append
-  in the background. The UI reports the number of rows actually received,
+- The current deployed Master Data page requests a 1,500-row first wave (a
+  1,000-row range followed by a 500-row range, matching one visible grid page)
+  so the grid renders sooner; Licensed ranges load sequentially, each GET
+  followed by its computed-status request; Generic ranges remain parallel.
+  Later pages append in the background as four 1,000-row ranges each. The UI
+  reports the number of rows actually received,
   distinguishes initial and next-page failures from loading/completion, and
   offers retry for an initial failure or the failed later page. A displayed
   total does not imply that those rows have loaded. During partial loading,

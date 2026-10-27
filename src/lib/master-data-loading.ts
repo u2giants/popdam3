@@ -1,5 +1,12 @@
 export const MASTER_DATA_FETCH_BATCH_SIZE = 1000;
 export const MASTER_DATA_RANGES_PER_PAGE = 4;
+// The first wave renders only this many rows (one visible grid page); later
+// pages load the rest in the background. PostgREST caps one GET at 1,000
+// rows, so a first wave that is not a multiple of the batch size ends with
+// one shorter range.
+export const MASTER_DATA_FIRST_PAINT_ROWS = 1500;
+
+export type MasterDataBatchRange = { offset: number; expectedRows: number };
 
 // Keep this projection explicit. The page needs these values for its cells,
 // editing, link/match indicators, and RFQ history; unrelated view additions
@@ -43,10 +50,20 @@ export const STYLE_TRACKER_ROW_SELECT = [
   "rfq_groups",
 ].join(",");
 
-export function masterDataPageOffsets(pageOffset: number) {
+export function masterDataBatchRanges(pageOffset: number): MasterDataBatchRange[] {
+  if (pageOffset === 0) {
+    const fullRanges = Math.floor(MASTER_DATA_FIRST_PAINT_ROWS / MASTER_DATA_FETCH_BATCH_SIZE);
+    const remainder = MASTER_DATA_FIRST_PAINT_ROWS % MASTER_DATA_FETCH_BATCH_SIZE;
+    const ranges = Array.from(
+      { length: fullRanges },
+      (_, index) => ({ offset: index * MASTER_DATA_FETCH_BATCH_SIZE, expectedRows: MASTER_DATA_FETCH_BATCH_SIZE }),
+    );
+    if (remainder > 0) ranges.push({ offset: fullRanges * MASTER_DATA_FETCH_BATCH_SIZE, expectedRows: remainder });
+    return ranges;
+  }
   return Array.from(
     { length: MASTER_DATA_RANGES_PER_PAGE },
-    (_, index) => pageOffset + index * MASTER_DATA_FETCH_BATCH_SIZE,
+    (_, index) => ({ offset: pageOffset + index * MASTER_DATA_FETCH_BATCH_SIZE, expectedRows: MASTER_DATA_FETCH_BATCH_SIZE }),
   );
 }
 
@@ -56,21 +73,23 @@ export function masterDataPageSchedule(sourceSheet: string) {
 
 export async function fetchMasterDataPageRanges<T>(
   pageOffset: number,
-  fetchBatch: (offset: number) => Promise<T>,
+  fetchBatch: (range: MasterDataBatchRange) => Promise<T>,
   sourceSheet: string,
 ) {
-  const offsets = masterDataPageOffsets(pageOffset);
+  const ranges = masterDataBatchRanges(pageOffset);
   if (masterDataPageSchedule(sourceSheet) === "parallel") {
-    return Promise.all(offsets.map(fetchBatch));
+    return Promise.all(ranges.map(fetchBatch));
   }
 
   const results: T[] = [];
-  for (const offset of offsets) results.push(await fetchBatch(offset));
+  for (const range of ranges) results.push(await fetchBatch(range));
   return results;
 }
 
 export function nextMasterDataPageOffset(pageOffset: number) {
-  return pageOffset + MASTER_DATA_FETCH_BATCH_SIZE * MASTER_DATA_RANGES_PER_PAGE;
+  return pageOffset === 0
+    ? MASTER_DATA_FIRST_PAINT_ROWS
+    : pageOffset + MASTER_DATA_FETCH_BATCH_SIZE * MASTER_DATA_RANGES_PER_PAGE;
 }
 
 export function flattenMasterDataPages<T extends { id: string }>(pages: Array<{ rows: T[] }>) {
@@ -82,8 +101,8 @@ export function flattenMasterDataPages<T extends { id: string }>(pages: Array<{ 
   }));
 }
 
-export function shouldFetchNextMasterDataBatch(batchLength: number) {
-  return batchLength === MASTER_DATA_FETCH_BATCH_SIZE;
+export function shouldFetchNextMasterDataBatch(batchLength: number, expectedRows: number = MASTER_DATA_FETCH_BATCH_SIZE) {
+  return batchLength === expectedRows;
 }
 
 export type MasterDataLoadStatusInput = {
