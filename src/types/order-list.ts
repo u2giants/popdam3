@@ -31,6 +31,9 @@ export type OrderListRow = {
   order_date: string | null;
   /** Bounded per-block RPC output; not a field on `api.dam_order_list`. */
   sales_order_date?: string | null;
+  /** Bounded per-block assortment recipe sidecar; not a field on `api.dam_order_list`. */
+  assortment_sku_quantity?: number | null;
+  assortment_quantity_source?: "order_recipe" | "current_recipe" | null;
   sent_po_date: string | null;
   seal_container_date: string | null;
   vendor_delivery_date: string | null;

@@ -204,6 +204,26 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
           };
         }
 
+        if (column.field === "assortment_sku_quantity") {
+          return {
+            ...base,
+            editable: false,
+            sortable: false,
+            filter: false,
+            cellRenderer: (params: CustomCellRendererProps<OrderListRow>) => {
+              const row = params.data;
+              if (!row || row.assortment_sku_quantity == null) return null;
+              if (row.assortment_quantity_source !== "current_recipe") return <span>{row.assortment_sku_quantity}</span>;
+              return (
+                <span className="inline-flex items-center gap-1.5" title="Quantity comes from today's ColdLion recipe.">
+                  <span>{row.assortment_sku_quantity}</span>
+                  <span className="text-[10px] text-muted-foreground">{" "}current recipe</span>
+                </span>
+              );
+            },
+          };
+        }
+
         if (column.kind === "masterData") {
           return {
             ...base,

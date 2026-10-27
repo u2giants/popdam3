@@ -30,7 +30,7 @@ function row(overrides: Partial<OrderListRow>): OrderListRow {
   } as unknown as OrderListRow;
 }
 
-function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn()) {
+function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn(), width = 720) {
   // Stands in for the database: the grid asks for a bounded block of rows.
   // Call the success callback asynchronously, the way the Orders page does --
   // a synchronous callback can race AG Grid's infinite-row setup and leave
@@ -44,7 +44,7 @@ function renderGrid(rows: OrderListRow[], onEditOrder = vi.fn()) {
   // host in jsdom makes that measurement timing-dependent, so give the grid
   // the same explicit size the stable OrderList grid tests use.
   const utils = render(
-    <div style={{ height: 360, width: 720 }}>
+    <div style={{ height: 360, width }}>
       <OrderListGrid
         datasource={datasource}
         onCellEdited={vi.fn()}
@@ -85,6 +85,19 @@ describe("OrderList grid", () => {
     for (const header of ["Import PO #", "Vendor", "Customer", "Style #", "Master Data Link", "Quantity"]) {
       expect(screen.getAllByText(header).length).toBeGreaterThan(0);
     }
+  });
+
+  it("labels current recipe quantities and explains the live source", async () => {
+    renderGrid([row({ assortment_sku_quantity: 6, assortment_quantity_source: "current_recipe" })], vi.fn(), 5000);
+    const annotation = await screen.findByText("current recipe", {}, { timeout: 10_000 });
+    expect(annotation.closest("[title]")).toHaveAttribute("title", "Quantity comes from today's ColdLion recipe.");
+    expect(screen.getByText("6")).toBeTruthy();
+  });
+
+  it("shows recorded recipe quantities without a current-recipe annotation", async () => {
+    renderGrid([row({ assortment_sku_quantity: 8, assortment_quantity_source: "order_recipe" })], vi.fn(), 5000);
+    await waitFor(() => expect(screen.getByText("8")).toBeTruthy(), { timeout: 10_000 });
+    expect(screen.queryByText("current recipe")).toBeNull();
   });
 });
 

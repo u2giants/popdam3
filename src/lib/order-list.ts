@@ -525,6 +525,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "master_data_licensor", header: "Licensor (Master Data)", kind: "masterData", type: "text", width: 170 },
   { field: "source_style_type", header: "Licensed / Generic", kind: "line", type: "text", width: 150 },
   { field: "quantity_ordered", header: "Quantity", kind: "line", source: "input", type: "number", editable: true, width: 120 },
+  { field: "assortment_sku_quantity", header: "SKU Qty in Assortment", headerTooltip: "Pieces of this SKU in one assortment. Current recipe quantities use today's ColdLion recipe.", kind: "line", type: "number", width: 190, queryable: false, virtual: true },
   { field: "case_pack", header: "Case Pack", kind: "line", source: "input", type: "number", editable: true, width: 120 },
   { field: "start_ship_date", header: "Start Ship", kind: "line", source: "input", type: "date", editable: true, width: 130 },
   { field: "cancel_date", header: "Cancel", kind: "line", source: "input", type: "date", editable: true, width: 130 },
@@ -619,6 +620,15 @@ export function ensureSalesOrderDateInSavedColumnState(state: unknown): unknown 
   const sentPoDateIndex = next.findIndex((entry) => entry?.colId === "sent_po_date");
   const insertAt = orderDateIndex >= 0 ? orderDateIndex + 1 : sentPoDateIndex >= 0 ? sentPoDateIndex : next.length;
   next.splice(insertAt, 0, { colId: "sales_order_date", hide: false });
+  return next;
+}
+
+/** Inserts the default-visible virtual quantity column into older saved layouts. */
+export function ensureAssortmentQuantityInSavedColumnState(state: unknown): unknown {
+  if (!Array.isArray(state) || state.some((entry) => entry?.colId === "assortment_sku_quantity")) return state;
+  const next = state.map((entry) => ({ ...entry }));
+  const quantityIndex = next.findIndex((entry) => entry?.colId === "quantity_ordered");
+  next.splice(quantityIndex >= 0 ? quantityIndex + 1 : next.length, 0, { colId: "assortment_sku_quantity", hide: false });
   return next;
 }
 
