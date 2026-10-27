@@ -99,3 +99,16 @@ test('worker prune does not become our successful DELETE permission proof',async
   const f=fixtureMock();await f.protocol.prepare();await f.protocol.exercise(f.page);f.prune();await assert.rejects(f.protocol.cleanup());
   assert.equal(f.deleted,0);assert.equal(f.protocol.summary().passed,false);assert.equal(f.protocol.summary().pending_fixture,true);
 });
+
+test('group3 refuses both spent identities and uses fixed non-inspection entry',async()=>{
+ const {readFileSync}=await import('node:fs');
+ for(const id of ['acfe841c-e9ab-4e37-a064-ad77fe83583b','e542ea4e-9bf2-4bc0-8b7c-c6e2b1441792']){const m=manifest();m.id=id;m.sku=`AI-QA-4427-${id}`;m.folder_path=`__AI_QA_4427__/${id}`;assert.throws(()=>validateManifest(m));}
+ const entry=readFileSync(new URL('./run-rls-owned-group3.mjs',import.meta.url),'utf8');
+ assert(entry.includes('/tmp/4427-prospective-group3-01a17b07.json'));
+ assert(entry.includes('/tmp/popdam-4427-owned-group3-private-01a17a03/fixture-proof.json'));
+ assert(entry.includes('await run(env,protocol,false)'));
+ assert(entry.includes("m.owner_session !== '01a17a03-63b6-7081-ab54-29fa144bf678'"));
+ assert(entry.includes("m.deployed_sha !== 'eb405c02479f1d76b319f2f2e89150493bcade45'"));
+ assert(entry.indexOf('digest(bytes) !== MANIFEST_SHA256')<entry.indexOf('createFixtureProtocol({'));
+ assert.equal(entry.includes('inspectVisibleAssetCandidate'),false);
+});
