@@ -13,6 +13,7 @@ export function permittedRequest({ url, method, body }) {
   if (u.origin === 'https://fonts.googleapis.com') return verb === 'GET' && u.pathname === '/css2' && !u.username && !u.password;
   if (u.origin === 'https://fonts.gstatic.com') return verb === 'GET' && u.pathname.startsWith('/s/') && !u.username && !u.password;
   if (u.protocol !== 'https:' || u.username || u.password || !GET_ORIGINS.has(u.origin)) return false;
+  if (u.hostname === HOST && verb === 'OPTIONS' && u.pathname === '/functions/v1/admin-api' && u.search === '') return true;
   if (['GET', 'HEAD', 'OPTIONS'].includes(verb)) {
     if (u.origin === ORIGIN) return !u.pathname.startsWith('/auth/');
     if (u.hostname === HOST) return u.pathname === '/auth/v1/user' || u.pathname.startsWith('/rest/v1/') || u.pathname.startsWith('/storage/v1/object/public/');

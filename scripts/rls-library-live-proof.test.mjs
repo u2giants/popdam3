@@ -48,6 +48,8 @@ test('only app-declared Google font GET paths are allowed', () => {
 test('default filter lookup permits exactly its read-only action, never admin writes', () => {
   const url = `https://${HOST}/functions/v1/admin-api`;
   assert.equal(permittedRequest({url,method:'POST',body:{action:'get-filter-options'}}), true);
+  assert.equal(permittedRequest({url,method:'OPTIONS'}), true);
+  assert.equal(permittedRequest({url,method:'GET'}), false);
   for (const body of [undefined,{},[],{action:'set-config'},{action:'get-filter-options',value:'extra'},{action:'get-filter-options',licensor_id:'synthetic'}]) {
     assert.equal(permittedRequest({url,method:'POST',body}), false);
   }
