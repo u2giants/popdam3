@@ -339,8 +339,9 @@ test('zero-byte added file supplies no surviving source byte witness',t=>{
  assert.throws(()=>derivePaidContentProof(f.before,after,f.base,f.git),/surviving author source edit unavailable/)
 })
 
-import {contractHash} from '../../agent-work-contract.mjs'
-import {verifiedEvidencePaths} from '../pr-content-equivalence.mjs'
+import {contractHash,validateCompletionReport} from '../../agent-work-contract.mjs'
+import {validateCompletionRecord} from '../work-dependencies.mjs'
+import {verifiedEvidencePaths,prContentDigest} from '../pr-content-equivalence.mjs'
 function generationsFixture(t,{repair=true,revert=false,bad=null,publishedOnly=false,ordinaryRetirement=false,checkPrefix=false,prefixFailure=null,startAdvance=false}={}){
  const f=realGitFixture(t),sha=()=>f.git(['rev-parse','HEAD']).trim()
  const contract=(generation,parent)=>({schema_version:2,generation,work_issue:3536,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Fixture source proof',base_sha:f.base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:f.dir,allowed_paths:['app.txt','.agent/work/3536/**'],file_writes:['app.txt','.agent/work/3536/**'],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown'],evidence_parent:parent})
@@ -1036,4 +1037,55 @@ test('#4397 a conflicted protected-rename replay reports the merge gap, not a ha
  git(['switch','feature']);try{git(['merge','-q','main'])}catch{}
  writeFileSync(path.join(dir,'app.txt'),'context\nfeature edit\nmain edit\nend\n');git(['add','app.txt']);git(['commit','-qm','resolved main refresh']);const after=git(['rev-parse','HEAD']).trim()
  assert.throws(()=>derivePaidContentProof(before,after,main,git),/protected rename merge gap/)
+})
+
+// #4889: legacy paid starts preceded any contract files. Transient records
+// authenticate identity only; their results/tails never become approval evidence.
+function preEvidenceRetirementFixture(t,{bad=null}={}){
+ const f=realGitFixture(t),sha=()=>f.git(['rev-parse','HEAD']).trim()
+ const issue=3536,pr=3999,dir=g=>path.join(f.dir,`.agent/work/${issue}/${g}`)
+ const root={schema_version:1,work_issue:issue,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Pre-evidence recovery fixture',base_sha:f.base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:f.dir,allowed_paths:['app.txt',`.agent/work/${issue}/**`],file_writes:['app.txt',`.agent/work/${issue}/**`],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown']}
+ const current={...root,schema_version:2,generation:2,evidence_parent:{work_issue:issue,generation:1,contract_sha256:contractHash(root)}}
+ const published=new Map([[1,structuredClone(root)],[2,structuredClone(current)]])
+ const pair=(c,implementation,variant)=>{
+  const g=c.generation??1,d=dir(g);mkdirSync(d,{recursive:true})
+  const r={schema_version:1,work_issue:issue,outcome:'ready-for-merge',pr,migration_versions:[],contract_ref:`refs/db-contracts/${issue}/${g}`,contract_sha256:contractHash(c),head_sha:implementation,base_sha:f.base,files_changed:f.git(['diff','--name-only',f.base,implementation]).trim().split('\n').filter(Boolean),db_reads:[],db_writes:[],checks:[{command:'fixture',exit_code:0,evidence:'Controlled fixture; not review approval'}],assumptions_resolved:[],stop_conditions_hit:[]}
+  if(g===2&&bad?.startsWith('outcome-')){r.outcome=bad.slice('outcome-'.length);r.reason='Controlled unsuccessful endpoint outcome'}
+  if(g===2&&bad?.startsWith('outcome-'))assert.doesNotThrow(()=>validateCompletionReport(r,{validateCompletionRecord}))
+  if(variant==='foreign-pr')r.pr++
+  if(variant==='foreign-issue')r.work_issue++
+  if(variant==='hash')r.contract_sha256='f'.repeat(64)
+  if(variant==='contract')c={...c,goal:'forged retained contract'}
+  writeFileSync(path.join(d,'contract.json'),JSON.stringify(c))
+  if(variant!=='partial')writeFileSync(path.join(d,'completion.json'),variant==='json'?'unreadable JSON':JSON.stringify(r))
+  f.git(['add','.agent']);if(variant==='mode')f.git(['update-index','--chmod=+x',`.agent/work/${issue}/${g}/completion.json`])
+  f.git(['commit','-qm','retained paired metadata'])
+ }
+ pair(root,f.before,bad)
+ f.git(['rm','-r',`.agent/work/${issue}/1`]);f.git(['commit','-qm','retire ordinary transient metadata'])
+ if(bad==='present')pair(root,f.before,null)
+ if(bad==='foreign-merge'){
+  f.git(['switch','-qc','foreign',f.base]);f.commit('foreign.txt','unapproved branch\n');f.git(['switch','feature']);f.git(['merge','-qm','foreign merge','foreign'])
+ }
+ const implementation=f.commit('app.txt','a genuine surviving product repair\n')
+ pair(current,implementation,null)
+ const after=sha()
+ const read=ref=>{const m=/^refs\/db-contracts\/3536\/(\d+)$/.exec(ref);if(!m)throw Error('foreign published ref');if(bad==='unreadable-published')throw Error('published contract transport failed');return structuredClone(published.get(Number(m[1])))}
+ const git=args=>{if(bad==='unreadable-source'&&args[0]==='ls-tree'&&args.includes(f.before)&&args.includes(`.agent/work/${issue}`))throw Error('source tree unreadable');return f.git(args)}
+ return {...f,after,implementation,proof:()=>derivePaidContentProof(f.before,after,f.base,git,verifiedEvidencePaths(f.before,after,{gitRunner:git}),pr,read)}
+}
+test('#4889 pre-evidence transient retirement recovers conservatively without approval equivalence',t=>{
+ const f=preEvidenceRetirementFixture(t),proof=f.proof()
+ assert.equal(proof.kind,'unchanged');assert.equal(proof.witness,undefined)
+ assert.deepEqual(proof.preEvidenceRetirements[0].generations,[1])
+ // A real product edit remains in the strict content digest. Budget recovery
+ // cannot carry an old review, and both original unknown starts stay charged.
+ assert.notEqual(prContentDigest(f.before,f.base,{gitRunner:f.git}),prContentDigest(f.after,f.base,{gitRunner:f.git}))
+ const starts=[1,2].map(n=>({...row(n,f.before),commit:{message:message(n,f.before)}}))
+ const result=assertPaidReviewCapacity({...request,headSha:f.after},{...io(starts),reviewContentComparison:()=>({before:digest,after:'d'.repeat(64),budgetProof:proof})})
+ assert.equal(result.paidAttempts,2);assert.equal(result.reinstated??0,0)
+})
+for(const bad of ['foreign-pr','foreign-issue','hash','contract','partial','json','mode','present','unreadable-published','unreadable-source','foreign-merge','outcome-failed','outcome-cancelled','outcome-returned'])test(`#4889 pre-evidence transient retirement refuses ${bad}`,t=>{
+ const f=preEvidenceRetirementFixture(t,{bad})
+ assert.throws(()=>f.proof())
 })

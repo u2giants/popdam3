@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 4889,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore review allocation only for authenticated wholly transient evidence after pre-evidence paid start; conservatively retain charges.",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "dispatcher": "Codex chat 01a17ac8-b42b-7530-846a-1b621b549448 on hetz",
+  "worker": "Codex subagent finish_assortment_column",
+  "branch": "codex/4855-provenance-recovery",
+  "worktree": "/tmp/shared-db-4855-provenance-recovery",
+  "allowed_paths": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/agents/review-recovery-policy.md",
+    ".agent/work/4889/1/contract.json",
+    ".agent/work/4889/1/completion.json"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "docs/agents/review-recovery-policy.md",
+    ".agent/work/4889/1/contract.json",
+    ".agent/work/4889/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No schema, database, toolkit installer or window change",
+    "No immutable record rewrite, review import, refund or foreign evidence exclusion"
+  ],
+  "required_checks": [
+    "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Albert explicitly requested clearing this blocker after its observation restriction was explained; coordinator narrowly authorizes this repair"
+  ],
+  "stop_conditions": [
+    "Forged, foreign, partial or unreadable historical evidence",
+    "Unreviewed source or production action"
+  ]
+}

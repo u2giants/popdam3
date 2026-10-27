@@ -52,3 +52,24 @@ An authored edit accidentally included in an upstream merge is not an authored-c
 Every crossed merge still has exactly two parents and a second parent in protected main. Foreign ancestry, multiple mixed merges, ambiguous ancestry, unsupported conflicts, and unverified metadata remain hard refusals even when later source was restored. The derived proof records the actual anchor, mixed merge, checkpoint and incorporated main identities.
 
 The mixed merge and every commit in its neutralized segment are excluded from authored witnesses. Valid earlier author edits and later standalone edits still need the existing surviving-source witness against the final source. A restoration, empty commit, evidence-only follow-up or net revert cannot itself create a substantive-content proof. Original starts, negative decisions, slot identities and failure history are unchanged: spend remains uncapped (owner 2026-10-16). The checkpoint is a source-equivalence proof, not a review, budget reset, source-history rewrite, or authorization to apply anything.
+
+## Paid starts before wholly transient evidence (#4889)
+
+A historical paid start may precede every work-evidence file of its issue.
+An ordinary later retirement of a complete evidence pair that is absent at both
+comparison endpoints does not require inventing a trusted start pair. Recovery
+first proves that start-side absence, authenticates the current complete Git
+evidence against its actual immutable published contract chain, and authenticates
+every retained transient pair's regular JSON identity, schema and contract hash
+against that same bounded chain. Foreign issues or PRs, partial/unreadable pairs,
+forged hashes/contracts, unavailable published contracts and endpoint-present
+records retain refusal.
+
+The transient reports' claimed checks and implementation tails are not accepted
+as approval or source proof. No transient path is excluded from the source/merge
+comparison; ordinary source ancestry, protected-main merge validation and the
+ban on metadata source witnesses remain unchanged. The diagnostic result lists
+`preEvidenceRetirements` and classifies that legacy start conservatively as
+unchanged, even when genuine product edits survive. All unknown/nonterminal
+starts remain charged; no history, negative verdict, review equivalence rule or
+production gate is rewritten. A new independent exact-head review is required.

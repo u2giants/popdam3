@@ -4,6 +4,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 // Owner: reviewer assignment lane. Immutable start records bound paid rounds.
 import { readStoredHashRegistry, normalizedStoredHashFile } from '../pr-content-equivalence.mjs'
+import { verifyGitEvidence } from '../../agent-work-contract-git-evidence.mjs'
 import { contractHash, validateContract, validateCompletionReport, reconcileReportWithContract } from '../../agent-work-contract.mjs'
 import { validateCompletionRecord } from '../work-dependencies.mjs'
 import { LaneError } from './claims.mjs'
@@ -66,7 +67,7 @@ export function paidStart(row, commit) {
 
 
 // Budget-only historical normalization. Strict review equivalence is unchanged.
-function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[]) {
+function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,neededFiles,supersededCheckPrefixes=[],preEvidenceRetirements=[]) {
   const run=args=>String(git(args)).trim(),raw=args=>String(git(args))
   const ancestor=(a,b)=>{try{run(['merge-base','--is-ancestor',a,b]);return true}catch(e){if(e.status===1)return false;throw e}}
   const pairPaths=(issue,generation)=>['contract','completion'].map(kind=>`.agent/work/${issue}/${generation}/${kind}.json`)
@@ -119,7 +120,61 @@ function verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract
   return endpoints[0]
   }
   const endpoint=findEndpoint(after);if(!endpoint)return []
-  const baseline=findEndpoint(before);if(!baseline)throw new LaneError('review budget historical evidence trusted start pair unavailable')
+  const baseline=findEndpoint(before)
+  if(!baseline){
+    // A paid start can precede ALL of this issue's evidence. Wholly transient
+    // records then need no normalization: they are absent at both endpoints,
+    // remain in raw source/merge history, and can never witness source capacity.
+    // Authenticate their identity/immutable lineage, not their claimed results.
+    const issue=endpoint.contract.work_issue,pr=endpoint.report.pr
+    const refuse=()=>{throw new LaneError('review budget historical evidence trusted start pair unavailable')}
+    if(!Number.isSafeInteger(issue)||issue<1||pr!==expectedPr||typeof readContract!=='function')refuse()
+    const own=`.agent/work/${issue}`
+    if(run(['ls-tree','-r','--name-only',before,'--',own]))refuse()
+    const boundary=rows.indexOf(before);if(boundary<0||boundary>=1000)refuse()
+    const lineage=new Map(),visiting=new Set()
+    const published=generation=>{
+      if(lineage.has(generation))return lineage.get(generation)
+      if(visiting.has(generation)||lineage.size+visiting.size>=1000)refuse()
+      visiting.add(generation)
+      const c=readContract(`refs/db-contracts/${issue}/${generation}`);validateContract(c)
+      if(c.work_issue!==issue||(c.generation??1)!==generation)refuse()
+      if(c.evidence_parent){const parent=c.evidence_parent
+        if(parent.work_issue!==issue||parent.generation>=generation||contractHash(published(parent.generation))!==parent.contract_sha256)refuse()
+      }
+      visiting.delete(generation);lineage.set(generation,c);return c
+    }
+    published(endpoint.contract.generation??1)
+    validateCompletionReport(endpoint.report,{validateCompletionRecord})
+    if(endpoint.report.outcome!=='ready-for-merge'||!reconcileReportWithContract(endpoint.report,endpoint.contract).satisfied)refuse()
+    verifyGitEvidence({contract:endpoint.contract,report:endpoint.report,prBaseSha:endpoint.report.base_sha??endpoint.contract.base_sha,prHeadSha:after},{
+      isAncestor:ancestor,mergeBase:(a,b)=>run(['merge-base',a,b]),
+      changedFiles:(a,b)=>run(['diff','--name-only',a,b]).split('\n').filter(Boolean),
+      readPublishedContract:ref=>{const match=new RegExp(`^refs/db-contracts/${issue}/([1-9][0-9]*)$`).exec(ref);if(!match)refuse();return published(Number(match[1]))}
+    })
+    const generations=new Set()
+    for(const file of neededFiles){
+      const m=/^\.agent\/work\/(\d+)\/(\d+)\/(contract|completion)\.json$/.exec(file)
+      if(!m||Number(m[1])!==issue||!lineage.has(Number(m[2])))refuse()
+      if(run(['ls-tree','-z',before,'--',file])||run(['ls-tree','-z',after,'--',file]))refuse()
+      generations.add(Number(m[2]))
+    }
+    if(generations.size*boundary>1000)refuse()
+    const seen=new Set()
+    for(const commit of rows.slice(0,boundary))for(const generation of generations){
+      const paths=pairPaths(issue,generation)
+      const listed=run(['ls-tree','--name-only',commit,'--',...paths]).split('\n').filter(Boolean)
+      if(!listed.length)continue
+      if(listed.length!==2)refuse()
+      const record=read(commit,issue,generation);if(!record)refuse()
+      validateContract(record.contract);validateCompletionReport(record.report,{validateCompletionRecord})
+      if(contractHash(record.contract)!==contractHash(lineage.get(generation))||record.report.work_issue!==issue||record.report.pr!==pr||record.report.contract_ref!==`refs/db-contracts/${issue}/${generation}`||!reconcileReportWithContract(record.report,record.contract).satisfied)refuse()
+      seen.add(generation)
+    }
+    if(seen.size!==generations.size)refuse()
+    preEvidenceRetirements.push({issue,pr,before,after,generations:[...generations].sort((a,b)=>a-b)})
+    return [] // No metadata exclusions and no trusted-baseline fiction.
+  }
   const baselineGeneration=baseline.contract.generation??1
   const requiredPairs=new Set([baselineGeneration,endpoint.contract.generation??1])
   for(const file of neededFiles){const m=/^\.agent\/work\/(\d+)\/(\d+)\/(contract|completion)\.json$/.exec(file);if(!m || Number(m[1])!==endpoint.contract.work_issue)throw new LaneError('review budget foreign or unknown merge evidence refused');requiredPairs.add(Number(m[2]))}
@@ -227,7 +282,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
   const ancestor = (a,b) => { try { run(['merge-base','--is-ancestor',a,b]); return true } catch (error) { if(error?.status===1)return false;throw error } }
   const registry=readStoredHashRegistry(protectedMain,{gitRunner:git})
   const stored=[...new Set(registry.map(entry=>entry.file))]
-  const canonicalAppends=[],supersededCheckPrefixes=[]
+  const canonicalAppends=[],supersededCheckPrefixes=[],preEvidenceRetirements=[]
   const canonicalPinOverlaps=[]
   const canonicalImportUnions=[]
   const canonicalRegistryUnions=[]
@@ -481,7 +536,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     for(const file of run(['diff','--name-only',tree(expected),after,'--',...paths]).split('\n').filter(Boolean)){
       if(file.startsWith('.agent/'))neededFiles.add(file)
     }
-    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes):[]
+    const intermediate = neededFiles.size?verifiedIntermediatePairs(before,after,rows,git,expectedPr,readContract,[...neededFiles],supersededCheckPrefixes,preEvidenceRetirements):[]
     if(intermediate.length)paths=[...paths,...intermediate.map(p=>`:(top,literal,exclude)${p}`)]
     // Recompute with the exact authenticated historical pair paths. They can
     // explain evidence retirement but can never serve as an author witness.
@@ -577,6 +632,9 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
         if(survives && byteDelta){authored=true;witness={commit,path:file,mode:original?.mode??'absent',blob:original?.blob??'absent',baselineBlob:baseline?.blob??'absent'}}
       }
     }
+    // Recovery proves no extra paid capacity: every legacy start stays charged,
+    // even when real source changed. All source/merge checks above still run.
+    if(preEvidenceRetirements.length)return {schema:1,before,after,protectedMain,kind:'unchanged',preEvidenceRetirements,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions}
     if (!authored) throw new LaneError('review budget surviving author source edit unavailable')
     return {schema:1,before,after,protectedMain,kind:'substantive',historyCount:index,witness,canonicalAppends,canonicalPinOverlaps,canonicalImportUnions,canonicalRegistryUnions,...(canonicalRecovery?{canonicalRecovery}:{}),...(supersededCheckPrefixes.length?{supersededCheckPrefixes}:{})}
   } catch (error) {

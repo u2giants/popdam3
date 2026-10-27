@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 4889,
+  "outcome": "ready-for-merge",
+  "pr": 4891,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4889/1",
+  "contract_sha256": "20bc7149cc4b1c9203f15625ea9534e3e50c96170034b0a222cdf0b5eb1584dd",
+  "head_sha": "553eb49a4f88903c088661be94cb3769ca99b1e1",
+  "base_sha": "9c24d1ffe393db6c8e756b00ca1ef0c3432d9bb6",
+  "files_changed": [
+    "docs/agents/review-recovery-policy.md",
+    "scripts/lib/lanes/review-circuit-breaker.mjs",
+    "scripts/lib/lanes/review-circuit-breaker.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/lib/lanes/review-circuit-breaker.test.mjs",
+      "exit_code": 0,
+      "evidence": "215/215 pass, no skipped cases,86.8seconds.15 new real-Git cases include schema-valid unsuccessful endpoints. Actual4855 replay also passes against9c24d1ffe with real published4855 contracts."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Passed on final source553eb49a4f88903c088661be94cb3769ca99b1e1"
+    }
+  ],
+  "assumptions_resolved": [
+    "Current endpoint failed/cancelled/returned outcomes refuse even with valid completion reasons.",
+    "Actual f2cc437\u21928f453d classifies conservatively unchanged without excluding transient paths or trusting old claimed check results."
+  ],
+  "stop_conditions_hit": []
+}
