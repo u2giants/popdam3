@@ -4,7 +4,9 @@
 -- exercise p_step='search' (no REFRESH CONCURRENTLY) live, and asserts the
 -- matview steps by function-body shape exactly like popsg_bounded_crawl_and_search_contracts.
 -- Proves: change-night work is split so each RPC statement is independently
--- callable and bounded by p_search_batch_size; the legacy2-arg body is intact.
+-- callable and bounded by p_search_batch_size; the legacy2-arg body is the
+-- #4437 delegating wrapper pinned by the catalog contract (the concurrent
+-- refreshes, queue scan and reactivation clause live in the stepping body).
 
 begin;
 
@@ -148,25 +150,32 @@ begin
   end if;
 
   -- =========================================================================
-  -- 2. legacy2-arg body unchanged: still all-in-one, still queue-based, and
-  --    byte-identical (md5(prosrc) pinned by
-  --    scripts/production_catalog_verification.py popsg_refresh_search_sync_queue_v1)
+  -- 2. legacy2-arg body: still the scheduler entry point, now a byte-pinned
+  --    DELEGATION to the stepping overload (md5(prosrc) pinned by
+  --    scripts/production_catalog_verification.py popsg_refresh_search_sync_queue_v1
+  --    and by await_style_guide_matview_refresh; #4437 review round 2, B1: one
+  --    implementation of the content-identity invariant on both live paths).
+  --    The concurrent refreshes, queue scan and reactivation clause live in
+  --    the stepping body the delegation hands control to.
   -- =========================================================================
   if not exists (
     select 1 from pg_proc p
      where p.oid = to_regprocedure('public.refresh_style_guide_matviews(uuid,integer)')
        and p.prosecdef
-       and md5(p.prosrc) = '52b676f90e4500dc323c2f9e6e6f3c97') then
+       and md5(p.prosrc) = '044a40244377bb9b64dc65efbc7ccf6a') then
     raise exception 'test 2: legacy 2-arg prosrc md5 or definer posture drifted from the pinned catalog contract';
   end if;
-  if position('refresh materialized view concurrently public.style_guide_file_groups' in v_def2) = 0
-     or position('refresh materialized view concurrently public.style_guide_folders' in v_def2) = 0 then
+  if position('p_step => ''all''' in v_def2) = 0 then
+    raise exception 'test 2: legacy overload no longer delegates to the stepping overload';
+  end if;
+  if position('refresh materialized view concurrently public.style_guide_file_groups' in v_def3) = 0
+     or position('refresh materialized view concurrently public.style_guide_folders' in v_def3) = 0 then
     raise exception 'test 2: legacy overload lost its concurrent refreshes';
   end if;
-  if position('from public.style_guide_search_sync_queue q' in v_def2) = 0 then
+  if position('from public.style_guide_search_sync_queue q' in v_def3) = 0 then
     raise exception 'test 2: legacy overload lost its queue scan';
   end if;
-  if position('d.is_active is distinct from f.is_active' in v_def2) = 0 then
+  if position('d.is_active is distinct from f.is_active' in v_def3) = 0 then
     raise exception 'test 2: legacy overload lost the reactivation clause';
   end if;
 

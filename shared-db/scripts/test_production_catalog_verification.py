@@ -1810,8 +1810,18 @@ class BehavioralSidecarTests(unittest.TestCase):
         import hashlib
         body = forward.read_bytes().replace(b"\r\n", b"\n").decode().split("$function$")
         self.assertEqual(len(body), 5, "forward migration must define exactly two $function$ bodies")
-        for index in (1, 3):
-            self.assertIn("md5(p.prosrc)='" + hashlib.md5(body[index].encode()).hexdigest() + "'", sql)
+        # #4437 re-derived the queue trigger function (thumbnail_url joined the
+        # skip comparison) and, in review round 2 (B1), the scheduled 2-arg
+        # refresh overload (it now delegates to the stepping overload so the
+        # hourly cron path carries the content-identity invariant). The newest
+        # body wins for each pin: trigger = rederived body 1, 2-arg refresh =
+        # rederived body 3 (the delegating wrapper).
+        rederived = Path(__file__).resolve().parents[1] / "supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql"
+        rederived_body = rederived.read_bytes().replace(b"\r\n", b"\n").decode().split("$function$")
+        self.assertEqual(len(rederived_body), 9, "#4437 migration must define exactly four $function$ bodies (trigger, 3-arg, scheduled 2-arg, await re-pin)")
+        self.assertIn("md5(p.prosrc)='" + hashlib.md5(rederived_body[1].encode()).hexdigest() + "'", sql)
+        self.assertIn("md5(p.prosrc)='" + hashlib.md5(rederived_body[5].encode()).hexdigest() + "'", sql)
+        self.assertNotIn("md5(p.prosrc)='" + hashlib.md5(body[3].encode()).hexdigest() + "'", sql)
         for term in ["style_guide_search_sync_queue", "c.relrowsecurity", "trg_style_guide_files_queue_search_sync", "not has_table_privilege('authenticated'", "has_function_privilege('service_role'"]:
             self.assertIn(term, sql)
         self.assertTrue(sql.lower().startswith("select "))

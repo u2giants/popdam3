@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "generation": 16,
+  "evidence_parent": {
+    "work_issue": 4437,
+    "generation": 15,
+    "contract_sha256": "3da8ed3162e62fdf9f8ee0eb205bdc74c75e7c67bc48a69dff1d75e69f285a0d"
+  },
+  "work_issue": 4437,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "PopSG semantic-plus-keyword search stage 1 (claim #4820, reissued version 20261026162917; 20261025180137 stays permanently reserved and is never reused): SigLIP2/768 embedding storage, lease/retry state, cosine HNSW and pending-claim indexes on public.style_guide_search_documents; refresh_style_guide_matviews and the sync-queue trigger maintain content_sha256 (identity + thumbnail_url) and invalidate embeddings on any content change including thumbnail-only re-renders; existing corpus backfilled at apply; service-role-only worker RPCs claim (live-thumbnail, freshness-guarded), upsert, mark, meter and reset. Additive only: no query result changes. Round-1 governed review fixes and all round-2 fixes are incorporated: the scheduled two-default-argument refresh overload now delegates to the stepping overload so the hourly cron path maintains the same content-identity invariant (B1), await_style_guide_matview_refresh re-pins the reviewed scheduled body md5 044a40244377bb9b64dc65efbc7ccf6a, the claim excludes documents without a thumbnail and the meter reports them in a waiting_for_thumbnail bucket (M1), the reissued RPCs use create or replace so the preview replay of the parked version cannot abort (L6), all twelve state columns are asserted at apply (L5), the full five-RPC grant matrix is contract-tested (L2), the stale claim number in the header is corrected to #4820 (L7), and the detector baseline keeps its trailing newline (L9). Round-3 fixes: the transient-error backoff is computed with power(2, attempts-1) and contract-tested for the exponential progression, the meter's oldest_pending_updated_at counts only claimable work, contract 12 exercises the stepping search step instead of invoking the matview refresh from the CI transaction wrapper, and the 3023 live proof re-pins the scheduled body.",
+  "base_sha": "f07920dd65e76add7da74362f03b597a489da4a6",
+  "dispatcher": "claim-first (claim #4820, owner zcode-chat-unknown@hetz)",
+  "worker": "ZCode chat unknown on hetz",
+  "branch": "zcode/popsg-4437-semantic-search",
+  "worktree": "/worksp/shared-db/.claude/worktrees/popsg-4437-semantic-search",
+  "allowed_paths": [
+    ".agent/work/4437/16/completion.json",
+    ".agent/work/4437/16/contract.json",
+    ".agent/work/4437/7/completion.json",
+    ".agent/work/4437/7/contract.json",
+    ".github/live-proofs/3023.sql",
+    ".github/live-proofs/3458.sql",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    "supabase/tests/popsg_bounded_crawl_and_search_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4437/16/completion.json",
+    ".agent/work/4437/16/contract.json",
+    ".agent/work/4437/7/completion.json",
+    ".agent/work/4437/7/contract.json",
+    ".github/live-proofs/3023.sql",
+    ".github/live-proofs/3458.sql",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    "supabase/tests/popsg_bounded_crawl_and_search_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_files",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_crawl_runs"
+  ],
+  "db_writes": [
+    "table public.style_guide_search_documents",
+    "column public.style_guide_search_documents.embedding",
+    "index public.idx_sg_search_documents_embedding_hnsw",
+    "index public.idx_sg_search_documents_embedding_pending",
+    "function public.refresh_style_guide_matviews",
+    "function public.style_guide_files_queue_search_sync",
+    "function public.await_style_guide_matview_refresh",
+    "function public.claim_sg_search_embedding_documents",
+    "function public.upsert_sg_search_embedding",
+    "function public.mark_sg_search_embedding_error",
+    "function public.get_sg_search_embedding_status",
+    "function public.reset_sg_search_embedding_errors"
+  ],
+  "prohibited_actions": [
+    "Do not change any query result: search_style_guide_library_v2 is not touched in stage 1.",
+    "Do not grant any embedding RPC to anon or authenticated.",
+    "Do not edit an existing migration.",
+    "Do not reuse reserved version 20261025180137; the stage-1 migration file is 20261026162917."
+  ],
+  "required_checks": [
+    "database-contract-tests popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "assumptions": [
+    "google/siglip2-base-patch16-naflex/768 is the one embedding mechanism across DAM and PopSG (#4664, owner decision 2026-10-22); the issue's gte-small/384 line predates it.",
+    "The worker (service_role) is the sole embedding claimer and writer.",
+    "A one-time full-table backfill UPDATE (about 217k rows) at apply is acceptable under the 15-minute migration timeout.",
+    "The hourly cron command `select public.refresh_style_guide_matviews()` keeps resolving to the two-default-argument overload; only its body changed, to a delegation of the stepping overload's 'all' step."
+  ],
+  "stop_conditions": [
+    "Stop and hand off if the round-3 governed review returns a verdict that is not APPROVE.",
+    "Stop if the claim reservation, the author check-in, or the exact-head review binding can no longer be proved at the pushed head."
+  ]
+}

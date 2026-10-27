@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "work_issue": 4437,
+  "outcome": "ready-for-merge",
+  "pr": 4849,
+  "migration_versions": [
+    "20261027012301"
+  ],
+  "contract_ref": "refs/db-contracts/4437/16",
+  "contract_sha256": "6be275ef84355f364245af6dad77ccdb4316211217899a37a93f5f91be58c9c2",
+  "head_sha": "fc0e981eef9c0ee1f0ee1753e5899e2f67f7fa85",
+  "base_sha": "f07920dd65e76add7da74362f03b597a489da4a6",
+  "files_changed": [
+    ".github/live-proofs/3023.sql",
+    ".github/live-proofs/3458.sql",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql",
+    "supabase/tests/issue_3458_steppable_refresh_ephemeral.sql",
+    "supabase/tests/popsg_bounded_crawl_and_search_contracts.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_files",
+    "table public.style_guide_pdf_text",
+    "table public.style_guide_search_sync_queue",
+    "table public.style_guide_crawl_runs"
+  ],
+  "db_writes": [
+    "table public.style_guide_search_documents",
+    "column public.style_guide_search_documents.embedding",
+    "index public.idx_sg_search_documents_embedding_hnsw",
+    "index public.idx_sg_search_documents_embedding_pending",
+    "function public.refresh_style_guide_matviews",
+    "function public.style_guide_files_queue_search_sync",
+    "function public.await_style_guide_matview_refresh",
+    "function public.claim_sg_search_embedding_documents",
+    "function public.upsert_sg_search_embedding",
+    "function public.mark_sg_search_embedding_error",
+    "function public.get_sg_search_embedding_status",
+    "function public.reset_sg_search_embedding_errors"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests popsg_semantic_search_foundation_contracts.sql",
+      "exit_code": 0,
+      "evidence": "CI run 40432370310 at this branch's code head 21b814f57f56abd4816bd7eed9fb2f723ec8e04d (identical code; the re-reservation rename and the pair commits change only the version identity and .agent evidence paths): full migration replay plus the suite green in the ephemeral database; all 12 contracts pass."
+    },
+    {
+      "command": "database-contract-tests popsg_bounded_crawl_and_search_contracts.sql issue_3458_steppable_refresh_ephemeral.sql",
+      "exit_code": 0,
+      "evidence": "Same CI run 40432370310: all 16 bounded contracts and all 6 steppable-refresh checks pass, pinning the delegating scheduled body md5 044a40244377bb9b64dc65efbc7ccf6a."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Sidecar status OK (92 sidecars) against the current main tip at the code head."
+    },
+    {
+      "command": "python3 -m pytest -q scripts/test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "262 passed, 89 subtests passed at the re-reserved filename 20261027012301_popsg_semantic_search_foundation.sql; the four $function$ bodies pinned by the catalog are unchanged (trigger abddc252..., wrapper 044a4024..., 3-arg 4596abd1..., await 0f9bfff1...)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Round-2 blocking finding B1 resolved by delegation, not duplication: the scheduled (uuid,integer) overload is now a byte-pinned wrapper that calls the stepping overload with p_step 'all', so the hourly cron path computes content_sha256, re-syncs thumbnail-only re-renders and invalidates stale vectors through the same body the crawl path uses; await_style_guide_matview_refresh and the catalog/live-proof pins bind the wrapper md5.",
+    "Round-2 medium M1 resolved: claim excludes documents with no live thumbnail; the meter reports them in waiting_for_thumbnail_documents and pending_documents counts only claimable work.",
+    "Low findings addressed: L2 full five-RPC grant matrix, L5 all twelve state columns asserted at apply, L6 create or replace for preview replay of the parked version, L7 claim number corrected to #4820, L8 this pair records the exact green head 367d86063 (all 32 check-runs green there), L9 baseline JSON trailing newline restored with the detector hash re-recorded.",
+    "Sibling suites updated to the delegation shape: bounded contracts 14/16 and 3458 test 2 now assert the reactivation, queue-scan and concurrent-refresh shapes on the stepping overload plus the delegation itself; the two earlier ephemeral failures (port-bind stall, pass-1 replay flake) were re-run green on this head.",
+    "Round-3 blocking finding re-examined against the green CI artifact: run 40400159544's log shows contract 12's final DO block completed with exit 0 under the wrapper, so the claimed deterministic 25001 failure did not occur; the suite was hardened anyway so no test ever depends on executing REFRESH ... CONCURRENTLY inside the CI transaction wrapper.",
+    "Round-3 medium: backoff now uses power(2, n) with an explicit progression contract at attempts=2 (~60s), removing any operator-reading ambiguity.",
+    "Round-3 lows: oldest_pending_updated_at narrowed to claimable work, 3023 live-proof re-pinned with its comment corrected, claim comment now describes the stored-snapshot-equals-live-freshness design.",
+    "Migration version re-reserved from 20261026162917 to 20261027012301 through the claim-version supersession (durable evidence d492a8c17d8634d8b869e2891d7ae01374d11932) after main advanced to migrations sorting past the old reservation; the SQL bytes are identical except the version identity line.",
+    "The prior governed APPROVE (muse, at head b28c505f5) does not carry to the renamed head; a fresh review is drawn at the new head.",
+    "The pin test and the preview-ledger orphan reconciliation follow the re-reserved version.",
+    "Generation 15 fixes the generation-14 report's file list (a duplicated live-proof path and the missing preview-ledger orphan-reconciliation config, which the re-reservation follow-up commit changed).",
+    "Generation 16 adds the preview-ledger orphan-reconciliation config to the contract's allowed paths (the re-reservation follow-up commit changed it)."
+  ],
+  "stop_conditions_hit": []
+}
