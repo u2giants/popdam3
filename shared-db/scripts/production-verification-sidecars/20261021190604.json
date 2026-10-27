@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261021190604",
+  "migration_sha256": "436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300",
+  "checks": [
+    {
+      "id": "rls_public_admin_install",
+      "kind": "catalog_contract",
+      "contract": "rls_public_admin_install_v1",
+      "expected_count": 1
+    }
+  ]
+}

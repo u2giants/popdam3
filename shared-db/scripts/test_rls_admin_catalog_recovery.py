@@ -61,7 +61,7 @@ class AdminCatalogRecoveryTests(unittest.TestCase):
         (folder / (VERSION + '.json')).write_text(json.dumps(value))
         return value
 
-    def test_synthetic_sidecar_exercises_existing_boolean_assertion_without_activation(self):
+    def test_synthetic_fixture_exercises_existing_boolean_assertion_in_isolation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.synthetic_sidecar(root)
@@ -82,10 +82,18 @@ class AdminCatalogRecoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(GuardError, 'migration hash mismatch'):
                 load_behavior_sidecars(root, {VERSION: altered}, [VERSION])
 
-    def test_bootstrap_has_no_active_sidecar_or_registry_declaration(self):
-        self.assertFalse((ROOT / 'scripts/production-verification-sidecars' / (VERSION + '.json')).exists())
+    def test_active_sidecar_is_exactly_registered_to_merged_bootstrap_contract(self):
+        sidecar = json.loads((ROOT / 'scripts/production-verification-sidecars' / (VERSION + '.json')).read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(sidecar, self.synthetic_sidecar(Path(directory)))
+        checks = load_behavior_sidecars(ROOT, {VERSION: MIGRATION}, [VERSION])
+        self.assertEqual(len(checks), 1)
+        self.assertEqual(checks[0]['contract'], 'rls_public_admin_install_v1')
+        self.assertEqual(checks[0]['expected_count'], 1)
+        self.assertIn('case when (' + CONTRACT + ') then 1 else 0 end', build_behavior_sql(checks))
         registry = json.loads((ROOT / 'config/production-verification-sidecar-registry.json').read_text())
-        self.assertNotIn(VERSION, [item['version'] for item in registry['sidecars']])
+        self.assertEqual([item for item in registry['sidecars'] if item['version'] == VERSION],
+            [dict(version=VERSION, issue=4867)])
 
     def test_old_proof_and_applied_migration_are_not_rewritten(self):
         self.assertEqual(hashlib.sha256(MIGRATION.read_bytes()).hexdigest(), '436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300')

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4867,
+  "outcome": "ready-for-merge",
+  "pr": 4877,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4867/5",
+  "contract_sha256": "24788bad3a74d126d801e349c166e30f7b931cf640612c55cff2d079fbedc31b",
+  "head_sha": "c7fff3b59042d4f09975114bef18cd29c00c19ec",
+  "base_sha": "d3c3cd0f5f18ff954a3e7b3fa531392529f8b8db",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/rls-initplan/4427/catalog-recovery.md",
+    "scripts/production-verification-sidecars/20261021190604.json",
+    "scripts/test_rls_admin_catalog_recovery.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m unittest discover -s scripts -p test_rls_admin_catalog_recovery.py",
+      "exit_code": 0,
+      "evidence": "Six focused actual activation and synthetic mutation assertions passed"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_production_catalog_verification.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 a636055e05cb020cd38a9a8635476641b0fa0b064721d9c1c09867a2e13b4efe"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_production_catalog_recovery_evidence.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 5d6a2ed72d8a1044039f59b095e83dd79012334938689baf3ff6307d63217d0d"
+    },
+    {
+      "command": "python -m unittest discover -s scripts -p test_check_production_verification_sidecars.py",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 e99e9dcfb2cc454775d532dee5cf99ea85295938e649de72c869726bdde1dbef"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 9e6b25acbd00554008f7baea697795aad6c388425f5980f41fe05ba1066da4a5"
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs",
+      "exit_code": 0,
+      "evidence": "Passing local check; log SHA256 e6aa841389ffc7f89ef36a4ca176d1dd506b4b8c276ad7999bd9724a289139db"
+    }
+  ],
+  "assumptions_resolved": [
+    "Bootstrap4871 is actually merged; protected verifier recognizes fixed contract",
+    "Actual active sidecar/registry are exactly bound to immutable migration and existing fixed contract; no verifier source or migration change"
+  ],
+  "stop_conditions_hit": []
+}

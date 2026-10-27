@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 4867,
+    "generation": 4,
+    "contract_sha256": "559af23b39ed62321fae44b2b164115638a7b37467841fc6f39c10f1d2269934"
+  },
+  "work_issue": 4867,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "After actual bootstrap4871 merge, activate its already-protected fixed catalog contract with the exact immutable migration-hash-bound sidecar and declaration; verify actual loader/registry activation. No migration, reapply, catalog drift allowance or recovery dispatch.",
+  "base_sha": "d3c3cd0f5f18ff954a3e7b3fa531392529f8b8db",
+  "dispatcher": "Codex parent chat 01a17a03-63b6-7081-ab54-29fa144bf678 on edge-dev3",
+  "worker": "Codex chat 01a17b07-70ee-7ac0-9858-228ecb038db2 on edge-dev3",
+  "branch": "codex/4427-catalog-activation",
+  "worktree": "/tmp/shared-db-4427-catalog-activation",
+  "allowed_paths": [
+    "scripts/production-verification-sidecars/20261021190604.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    "docs/verification/rls-initplan/4427/catalog-recovery.md"
+  ],
+  "file_writes": [
+    "scripts/production-verification-sidecars/20261021190604.json",
+    "config/production-verification-sidecar-registry.json",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    "docs/verification/rls-initplan/4427/catalog-recovery.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration edits, reservation, reapply, shared database writes or recovery dispatch",
+    "No new catalog definition/expectation, generic gate relaxation or code installation",
+    "No closure of4427 from catalog-only evidence"
+  ],
+  "required_checks": [
+    "python -m unittest discover -s scripts -p test_rls_admin_catalog_recovery.py",
+    "python -m unittest discover -s scripts -p test_production_catalog_verification.py",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Bootstrap4871 actually merged atd3c3cd0f5f18ff954a3e7b3fa531392529f8b8db with fixedcontract",
+    "Already-applied migration20261021190604 remains immutable"
+  ],
+  "stop_conditions": [
+    "Trusted main does not recognize exact fixed contract or hash",
+    "Any unaccounted production drift or gate refusal"
+  ]
+}
