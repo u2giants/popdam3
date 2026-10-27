@@ -4680,6 +4680,10 @@ export type Database = {
         Returns: string
       }
       image_embed_query_status: { Args: { p_id: string }; Returns: Json }
+      image_embed_stale_assets: {
+        Args: { p_after_asset_id?: string; p_limit?: number }
+        Returns: string[]
+      }
       image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       is_style_guide_source_pdf: {
