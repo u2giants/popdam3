@@ -17,3 +17,24 @@ export function parseSemanticFloor(raw: unknown): number | null {
   if (!Number.isFinite(n) || n < 0 || n > 1) return null;
   return n;
 }
+
+/**
+ * Picture matches are kept only within this distance of the query's best
+ * picture match. SigLIP2 text→image cosine is low and flat (~0.14-0.23), so
+ * an absolute floor cannot fit every query: "spiderman coir" mats score
+ * 0.16-0.22 while unrelated Spider-Man wall art follows at 0.15-0.16.
+ */
+export const RELATIVE_SEMANTIC_MARGIN = 0.045;
+
+/**
+ * Combine the admin floor with the per-query relative floor. Keyword matches
+ * are unaffected: the RPC applies p_min_semantic_score to the picture leg only.
+ */
+export function effectiveSemanticFloor(adminFloor: number | null, bestSemanticScore: number | null): number | null {
+  const relative = bestSemanticScore !== null && Number.isFinite(bestSemanticScore) && bestSemanticScore > 0
+    ? Math.max(0, bestSemanticScore - RELATIVE_SEMANTIC_MARGIN)
+    : null;
+  if (adminFloor === null) return relative;
+  if (relative === null) return adminFloor;
+  return Math.max(adminFloor, relative);
+}

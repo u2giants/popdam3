@@ -31,3 +31,12 @@ describe("expandProductPhrases", () => {
     expect(expandProductPhrases("   ")).toEqual([]);
   });
 });
+
+describe("expandProductPhrases coir", () => {
+  it("treats bare coir as a coir mat", () => {
+    expect(expandProductPhrases("spiderman coir")).toEqual(["spiderman coir", "spiderman coir mat"]);
+  });
+  it("leaves coir mat to the existing rule", () => {
+    expect(expandProductPhrases("spiderman coir mat")).toEqual(["spiderman coir mat", "spiderman mat"]);
+  });
+});

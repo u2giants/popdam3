@@ -1,4 +1,4 @@
-import { parseSemanticFloor } from "./semantic-floor.ts";
+import { effectiveSemanticFloor, parseSemanticFloor } from "./semantic-floor.ts";
 
 describe("parseSemanticFloor", () => {
   it("returns null when unset", () => {
@@ -21,5 +21,18 @@ describe("parseSemanticFloor", () => {
     expect(parseSemanticFloor("abc")).toBeNull();
     expect(parseSemanticFloor(true)).toBeNull();
     expect(parseSemanticFloor({ value: [0.3] })).toBeNull();
+  });
+});
+
+describe("effectiveSemanticFloor", () => {
+  it("keeps only near-best picture matches", () => {
+    expect(effectiveSemanticFloor(null, 0.217)).toBeCloseTo(0.172);
+  });
+  it("never lowers the admin floor", () => {
+    expect(effectiveSemanticFloor(0.2, 0.217)).toBe(0.2);
+    expect(effectiveSemanticFloor(0.1, null)).toBe(0.1);
+  });
+  it("is null when there is nothing to anchor on", () => {
+    expect(effectiveSemanticFloor(null, null)).toBeNull();
   });
 });
