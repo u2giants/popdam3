@@ -2,6 +2,16 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## Resolved 2026-10-27: OrderList assortment Case Pack blank or 0 (ColdLion orders)
+
+What happened: Yuchen reported assortment designs on OrderList with an empty Case Pack (PO 62011865) or 0 (PO 62011483). About 600 live ColdLion assortment member lines were affected.
+
+Root cause: the ColdLion order import filled each assortment member's Case Pack from the item master (`coldlion.item_detail.carton_qty`) looked up by that design's own SKU. The order's own carton total (`prepackQty` on the parent line) was ignored. Design-level item records are unreliable for this. Some have `carton_qty` 0, which became 0 (e.g. CAC62MVDP01, CRM62MVSP01). Others have two conflicting records or none, so the lookup abstained and left it blank (e.g. CAC62DCJK01, HSD68DYLS04). A first fix (2026-10-26) also used the wrong meaning, "pieces of that design per carton"; it was stopped before merge.
+
+Fix: shared-db PR #4859 (migration `20261027185328`, issue #4858). For every assortment member, Case Pack is now the parent line's ColdLion `prepackQty`, the whole carton's piece count (owner ruling 2026-10-27, relaying Yuchen). Tracking counts cartons once per physical parent. 601 live lines were corrected and read back. Fully cancelled lines keep their saved history. Missing or conflicting totals stay blank and are never guessed. The signed-in live proof passed: popdam3 run 40619858294.
+
+Rule added to prevent recurrence: for assortment members, never take Case Pack from per-design item-master data. Use the order's parent carton total. If an assortment design shows blank or 0 again, compare the line with `coldlion.intake_order_line.prepack_qty` and `line_cancelled_qty` first. A remaining blank on a fully cancelled line (e.g. SO 7128132, 7128133) is expected.
+
 ## Resolved 2026-10-27: one production Supabase sb_secret key printed into an AI transcript
 
 What happened: during the Master Data first-paint session (PR #541 live proof), the full value of the new-format Supabase API secret (`SUPABASE_SECRET_KEY`, sb_secret class) was printed into the ZCode chat transcript while inspecting the 1Password item "Supabase Runtime Keys - shared POP database (production)". Per standing rules the key is treated as compromised.
