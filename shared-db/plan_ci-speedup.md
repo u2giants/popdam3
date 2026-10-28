@@ -4,13 +4,19 @@
 
 | Step | Status | Evidence |
 |---|---|---|
-| 1. Widen author check-in freshness window | ⬜ open | — |
-| 2. Auto-rerun Migration author lease after check-in | ⬜ open | — |
-| 3. Fold production risk assessment into the first review | ⬜ open | — |
-| 4. Auto-fill PR number in evidence completion | ⬜ open | — |
-| 5. Rebind migration version without a new review generation | ⬜ open | — |
-| 6. Auto-trigger required CI on PR open | ⬜ open | — |
-| 7. Speed up check-in / lease claim commands | ⬜ open | — |
+| 1. Widen author check-in freshness window | done 2026-10-23 | landed with the first batch (A1) |
+| 2. Auto-rerun Migration author lease after check-in | done 2026-10-25 | #4742 lane watchdog auto-restarts stuck lane checks |
+| 3. Fold production risk assessment into the first review | done 2026-10-25 | #4741 |
+| 4. Auto-fill PR number in evidence completion | done 2026-10-23 | landed with the first batch (B1 tooling) |
+| 5. Rebind migration version without a new review generation | done 2026-10-25 | #4736 |
+| 6. Auto-trigger required CI on PR open | done 2026-10-23 | landed with the first batch (D1) |
+| 7. Speed up check-in / lease claim commands | done 2026-10-25 | #4736 (quota sleeps 900s to 120s, aggregate patience 50m to 15m) |
+
+Verified 2026-10-28 via gh: #4736, #4741 and #4742 are all MERGED. Still open elsewhere:
+the merge-queue timeout paired PR and the rls ephemeral flake live on their own issues.
+Related and landed after this plan: the pure-prose fast CI route now covers the
+merge-queue and push events too (#4960, PR #4970), so a prose-only change skips the
+engineering suites on every event.
 
 Fresh session starts at Step 1. Read this STATUS table first — do not re-derive or re-plan.
 
