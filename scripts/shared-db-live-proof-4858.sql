@@ -1,14 +1,16 @@
--- Read-only expectation sample for #4858. Raw rows stay inside this query;
--- only opaque IDs and numeric expectations are returned to the proof runner.
+-- Read-only expectation sample for #4858 (owner 2026-10-27: an assortment
+-- component's Case Pack is the WHOLE carton's piece count). Raw rows stay inside
+-- this query; only opaque IDs and numeric expectations are returned.
 with migration as (
-  select pg_get_viewdef('api.dam_order_list'::regclass,true) ~ 'jsonb_build_array\(''coldlion'''
-     and pg_get_viewdef('dam.dam_order_tracking'::regclass,true) ~ 'min\([^)]*assortment_parent_cases\)' as applied
+  select exists (select 1 from supabase_migrations.schema_migrations where version='20261027185328')
+     and pg_get_viewdef('api.dam_order_list'::regclass,true) ~ 'jsonb_build_array\(''coldlion'''
+     and pg_get_viewdef('api.dam_order_list'::regclass,true) ~ 'THEN NULL::numeric\s+ELSE\s+CASE\s+WHEN pol\.case_pack > 0'
+     as applied
 ), order_lines as (
   select po.id order_id,po.production_order_number,pol.id order_line_id,pol.source_id,
-         pol.sku,pol.quantity_ordered,pol.case_pack direct_case_pack,pol.order_type,
+         pol.sku,pol.quantity_ordered,pol.case_pack direct_case_pack,
          pol.assortment_component_ordinal is not null is_assortment,
-         pol.metadata->>'master_item_no' master_item_no,
-         pol.metadata->>'component_source_hash' component_hash
+         pol.metadata->>'master_item_no' master_item_no
   from plm.production_order po join plm.production_order_line pol on pol.production_order_id=po.id
   where po.source_system='coldlion'
     and not exists (select 1 from plm.production_order_line excluded
@@ -20,76 +22,67 @@ with migration as (
   select s.*,split_part(s.source_id,':',3)::bigint sales_order_no,
          split_part(s.source_id,':',5)::integer sales_order_line_no
   from order_lines s
-  where s.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
-), component_versions as (
-  select s.order_id,s.production_order_number,s.order_line_id,s.source_id,s.sku,
-         s.quantity_ordered,s.sales_order_no,s.sales_order_line_no,s.master_item_no,
-         l.company_code,l.division_code,c.quantity component_pack,c.order_qty
+  where s.source_id ~ '^coldlion:so:[1-9][0-9]*:line:[0-9]+:component:[1-9][0-9]*$'
+), parent_versions as (
+  -- The latest ColdLion observation of each physical parent line, the same
+  -- source the writer and the 2026-10-28 fill-in use.
+  select s.order_line_id,l.prepack_qty,l.line_qty,l.line_cancelled_qty,
+         rank() over (partition by s.order_line_id order by r.started_at desc nulls last,l.last_seen_run desc) rk
   from source_lines s
   join coldlion.intake_order_line l on l.sales_order_no=s.sales_order_no
     and l.sales_order_line_no=s.sales_order_line_no and l.master_item_no=s.master_item_no
-  join coldlion.intake_order_component c on c.line_id=l.id
-    and c.component_source_hash=s.component_hash
-    and coalesce(nullif(btrim(c.sub_item_no),''),l.master_item_no)=s.sku
-  where s.is_assortment and nullif(btrim(c.sub_item_no),'')=s.sku
-), resolved_components as (
-  -- Collapse versions only when company, division, quantity and ordered units agree.
-  select order_id,production_order_number,order_line_id,source_id,sku,quantity_ordered,
-         sales_order_no,sales_order_line_no,master_item_no,
-         min(component_pack) component_pack,min(order_qty) source_order_qty,
-         count(distinct company_code) company_versions,count(distinct division_code) division_versions,
-         count(distinct component_pack) pack_versions,count(distinct order_qty) unit_versions,
-         bool_and(component_pack is not null and order_qty is not null) all_source_values_present
-  from component_versions
-  group by order_id,production_order_number,order_line_id,source_id,sku,quantity_ordered,
-           sales_order_no,sales_order_line_no,master_item_no
+  left join coldlion.sync_run r on r.id=l.last_seen_run
+  where s.is_assortment
+), parents as (
+  select order_line_id,min(prepack_qty) carton_total,min(line_qty) line_qty,
+         count(distinct prepack_qty)=1 and count(prepack_qty)=count(*)
+           and count(distinct line_qty)=1 and count(line_qty)=count(*)
+           and bool_and(coalesce(line_cancelled_qty,0)<line_qty) consistent
+  from parent_versions where rk=1 group by order_line_id
 ), line_expectations as (
   select s.order_id,s.production_order_number,s.order_line_id,
-         case when s.is_assortment then r.component_pack else s.direct_case_pack end case_pack,
-         case when s.is_assortment then s.quantity_ordered/nullif(r.component_pack,0)
-              when s.direct_case_pack>0 then s.quantity_ordered/s.direct_case_pack end cases_reported,
+         case when s.is_assortment then p.carton_total else s.direct_case_pack end case_pack,
+         case when not s.is_assortment and s.direct_case_pack>0 then s.quantity_ordered/s.direct_case_pack end cases_reported,
+         case when s.is_assortment then p.line_qty/nullif(p.carton_total,0) end parent_cases,
          case when s.is_assortment then concat_ws(':',sl.sales_order_no,sl.sales_order_line_no,sl.master_item_no) end group_key,
          s.is_assortment,
-         (sl.order_line_id is not null and r.order_line_id is not null
-          and r.company_versions=1 and r.division_versions=1 and r.pack_versions=1 and r.unit_versions=1
-          and r.all_source_values_present and r.component_pack>0 and r.source_order_qty=s.quantity_ordered
-          and s.quantity_ordered>=r.component_pack and nullif(btrim(sl.master_item_no),'') is not null) source_consistent,
+         (sl.order_line_id is not null and p.consistent and p.carton_total>0
+          and p.line_qty>=p.carton_total and mod(p.line_qty,p.carton_total)=0
+          and nullif(btrim(sl.master_item_no),'') is not null) source_consistent,
          (sl.order_line_id is not null and not s.is_assortment
           and s.direct_case_pack>0 and s.quantity_ordered>=s.direct_case_pack) direct_consistent
   from order_lines s
   left join source_lines sl on sl.order_line_id=s.order_line_id
-  left join resolved_components r on r.order_line_id=s.order_line_id
-), group_quality as (
-  select order_id,group_key,count(distinct cases_reported) carton_counts
-  from line_expectations where is_assortment group by order_id,group_key
+  left join parents p on p.order_line_id=s.order_line_id
 ), order_quality as (
   select order_id,production_order_number,
          count(*) filter(where is_assortment) assortment_count,
          count(*) filter(where (is_assortment and not coalesce(source_consistent,false))
-                           or (not is_assortment and not coalesce(direct_consistent,false))) unknown_count,
-         count(*) filter(where cases_reported is null or case_pack is null) null_count,
-         count(distinct group_key) filter(where is_assortment) groups_count,
-         (select count(*) from group_quality g where g.order_id=e.order_id and g.carton_counts<>1) inconsistent_group_count
-  from line_expectations e group by order_id,production_order_number
+                           or (not is_assortment and not coalesce(direct_consistent,false))) unknown_count
+  from line_expectations group by order_id,production_order_number
 ), chosen as (
   select e.* from line_expectations e join order_quality q using(order_id,production_order_number)
-  where q.assortment_count>0 and q.unknown_count=0 and q.null_count=0 and q.inconsistent_group_count=0
+  where q.assortment_count>0 and q.unknown_count=0
 ), totals as (
-  select order_id,sum(cases_reported) order_cases from (
-    select order_id,coalesce(group_key,order_line_id::text) physical_group,max(cases_reported) cases_reported
+  select order_id,sum(cartons) order_cases from (
+    select order_id,coalesce(group_key,order_line_id::text) physical_group,
+           max(coalesce(parent_cases,cases_reported)) cartons
     from chosen group by order_id,coalesce(group_key,order_line_id::text)
   ) g group by order_id
 ), limited_orders as (
-  select c.order_id,c.production_order_number from chosen c
-  join order_quality q using(order_id,production_order_number)
-  group by c.order_id,c.production_order_number,q.groups_count order by c.order_id limit 3
+  -- The two orders named in the owner's report first, then the lowest IDs.
+  select order_id,production_order_number from (
+    select distinct order_id,production_order_number,
+           production_order_number in ('COLDLION-SO-7128124','COLDLION-SO-7128126') named
+    from chosen) o
+  order by named desc,order_id limit 4
 )
 select json_build_object(
   'migration_applied',(select applied from migration),
   'orders',case when (select applied from migration) then coalesce((
     select json_agg(json_build_object('order_id',c.order_id,'production_order_number',c.production_order_number,
       'order_line_id',c.order_line_id,'case_pack',c.case_pack,'cases_reported',c.cases_reported,
-      'group_key',c.group_key,'order_cases',t.order_cases) order by c.order_id,c.order_line_id)
+      'parent_cases',c.parent_cases,'group_key',c.group_key,'order_cases',t.order_cases) order by c.order_id,c.order_line_id)
     from chosen c join limited_orders lo using(order_id,production_order_number) join totals t using(order_id)
   ),'[]'::json) else '[]'::json end
 ) proof;
