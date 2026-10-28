@@ -71,8 +71,9 @@ rule and implementation: shared-db
 [#4858](https://github.com/popcre/shared-db/issues/4858) /
 [PR 4859](https://github.com/popcre/shared-db/pull/4859).
 
-Unfinished correction work and the superseded cancellation interpretation are
-recorded in the [current continuation handoff](https://github.com/popcre/shared-db/blob/codex/dim-code-business-meaning/HANDOFF.d/2026-10-27T1823Z-hetz-codex-coldlion-casepack-closeout.md).
+The whole-carton correction is complete and live-verified (2026-10-27): see
+shared-db [#4858](https://github.com/popcre/shared-db/issues/4858) and the
+[live proof run](https://github.com/u2giants/popdam3/actions/runs/40619858294).
 
 Business meaning and the EDI multiplier caution are maintained in the canonical
 [ERP source-meaning topic: Dim Codes, pack variants, and possible EDI multipliers](https://github.com/popcre/shared-db/blob/main/docs/business-rules/erp-orders-and-source-meaning.md#dim-codes-pack-variants-and-possible-edi-multipliers).
