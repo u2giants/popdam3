@@ -19,7 +19,9 @@ POP does not use one generic Company category. The kind of relationship matters:
 
 A Potential Customer and the Active Customer it later becomes are the same business identity. Activation adds authoritative ERP/PLM evidence to the existing Customer; it must not create a duplicate Customer and repoint every relationship.
 
-An ingested email domain has no promotion path into Customer Master Data. Email workers and triage screens must never create, link, source-reference, or silently promote a Customer from domain noise.
+An ingested email domain has no promotion path into Customer Master Data. Email workers and triage screens must never create, source-reference, or silently promote a Customer from domain noise.
+
+An ingested email domain is linked to an **existing** Customer when its domain equals that Customer's domain or is a subdomain of it, and exactly one Customer matches (Albert Hazan, 2026-10-27: "they need to be linked", issue #4936). The link never changes the domain's triage status and never creates a Customer.
 
 Customer status has two separate meanings that must not be conflated:
 
@@ -101,7 +103,7 @@ rules, and do not treat their outliers as a companywide data rule.
 
 `core.factory` is specifically for merchandise vendors that make products. Freight providers, government bodies, banks, couriers, real-estate firms, and other service providers are not Factories merely because an ERP endpoint once returned them together.
 
-The rule that ingested email domains never promote into Customer Master Data is Settled. The ColdLion sections above ("What the ColdLion customer list is and is not", "Linking CRM customers to ColdLion") are Settled by Albert Hazan on 2026-08-25. The broader organization and contact model above is a consolidated proposal until Albert confirms it as the companywide model.
+The rule that ingested email domains never promote into Customer Master Data is Settled; linking a domain to an existing matching Customer is Settled by Albert Hazan on 2026-10-27. The ColdLion sections above ("What the ColdLion customer list is and is not", "Linking CRM customers to ColdLion") are Settled by Albert Hazan on 2026-08-25. The broader organization and contact model above is a consolidated proposal until Albert confirms it as the companywide model.
 
 ## Implementation and evidence
 
