@@ -284,3 +284,10 @@ October 11 live origin comparison disproved treating every such 404 as a capacit
 **Actually:** two independent test-harness traps. (1) Git stores LF but `core.autocrlf=true` rewrites Windows working trees to CRLF, so source-shape assertions that hardcode `\n` never match — normalize with `.replace(/\r\n/g, "\n")` when reading files for contract checks (`operation-registry-sync.test.ts` already does). (2) AG Grid measures its host for column virtualization; a 0×0 jsdom host makes that timing-dependent. OrderList AG Grid tests must wrap the grid in an explicit `height`/`width` (see `order-list-grid-refresh.test.tsx`) and deliver infinite-row data asynchronously.
 
 **Do not change because:** raising timeouts, retrying, or skipping the tests hides the race and leaves Windows checkouts and loaded CI still failing. Fixed in PR #443.
+
+## The prose-merge lane runs a repo-wide public-boundary gate with a reviewed allowlist
+
+**Looks like:** A docs-only PR can fail `ai-doc-safety` on files the PR never touched.
+**Actually:** Prose-only merges require `/worksp/ai-devops/bin/ai-doc-safety <worktree>` to pass on the whole tree: no credential-shaped strings, no RFC1918/CGNAT/tailnet addresses, no unexplained 20-letter lowercase runs (the shape of a Supabase project ref). 20-letter words that are legitimate are cleared per-word in `tools/public-boundary-allowlist.txt` (grouped justifications; never widen the pattern). Canonical shared-db mirror content is fixed in `popcre/shared-db` first, then the sync bot brings the fix here.
+**Why:** This repo is public; the boundary keeps credentials, Albert's network topology, and live infrastructure identifiers out of it. The lane was jammed repo-wide from 2026-10 until the #526 closeout remediation (PR #548, popcre/shared-db#4919) cleared it on 2026-10-27.
+**Do not change because:** Re-adding an IP or project ref to a doc re-fails the gate for every prose PR until another allowlist/redaction pass lands. Write hostnames or vault pointers instead of addresses; never edit another session's `HANDOFF.d/` file to remove one — retire the file per the ai-devops #2009 precedent with its unique facts migrated.
