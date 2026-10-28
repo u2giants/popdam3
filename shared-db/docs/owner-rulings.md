@@ -45,6 +45,7 @@
 | [6.24](#624-owner-ruling-documentation-only-changes-skip-checks-albert-hazan-2026-10-02) | OWNER RULING — documentation-only changes skip checks (Albert Hazan, 2026-10-02) |
 | [6.25](#625-owner-ruling-ai-sessions-launch-the-merged-preview-run-that-starts-automatic-promotion-albert-hazan-2026-10-02) | OWNER RULING — AI sessions launch the merged-preview run that starts automatic promotion (Albert Hazan, 2026-10-02) |
 | [6.26](#626-owner-ruling-one-reviewer-may-be-used-twice-and-merges-pause-during-production-runs-albert-hazan-2026-10-02) | OWNER RULING — one reviewer may be used twice, and merges pause during production runs (Albert Hazan, 2026-10-02) |
+| [6.33](#633-owner-ruling-user-administration-lives-in-designflow-plm-albert-hazan-2026-10-28) | OWNER RULING — user administration lives in DesignFlow PLM (Albert Hazan, 2026-10-28) |
 
 ---
 
@@ -2209,3 +2210,13 @@ Verbatim from Albert's chat (2026-10-26, to ZCode on hetz):
 **Effect.** When governed reviewer machinery errors again (draw refusal, engine failure, or API outage blocking the draw — as on #4772/#4797), the dispatcher stops bounded retries and proceeds: merge the pull request on green CI with the owner override recorded, and confirm the production apply via the standing §6.30 `OWNER-OVERRIDE <sha>` typed confirmation with its evidence trail. This is the owner accepting business risk during a reviewer-tooling outage, never a substitute technical review; every other gate still binds (exact target pin, exclusive production lock, ordered allowlist, hard blocks, post-apply live verification), and the automated reviewer gate returns the moment a reviewer is drawable. A substantive reviewer VERDICT (e.g. REJECT findings) is not a reviewer error and still must be fixed and re-reviewed.
 
 Posted by ZCode chat unknown on hetz
+
+### 6.33 OWNER RULING — user administration lives in DesignFlow PLM (Albert Hazan, 2026-10-28)
+
+Verbatim from Albert's chat (2026-10-28):
+
+> "this should be pulled from the roles set in designflow plm. there should be one place that holds all the user data/permissions/roles. transfer over user settings in all apps (crm, Poppim, DAM) to designflow's. Keep user info in the settings of each app, but it's just a frontend to the true user permissions/roles functionality in dflow"
+
+**Effect.** DesignFlow PLM is the single source of truth for user data, permissions, and roles across all POP applications (CRM, PopPIM, PopDAM/PopSG). Each app's Settings keeps its user card, but that card is only a frontend to DesignFlow's user administration — no application owns a separate role or permission authority. Login does not move: Microsoft SSO through Supabase Auth stays; this ruling is about who owns authorization data, not how anyone authenticates. Whatever DesignFlow's canonical model turns out to be, its authority must land in the shared rows row-level security already evaluates (`app.profile`, `app.user_role`, `app.app_access`) or every app's RLS breaks; *how* it lands there is the Phase-1 ownership contract recorded on the master issue. Master tracking issue: popcre/designflow-backend#250. Cutover plan (read its STATUS table first): u2giants/popdam3 `plan_user_permissions_designflow_cutover.md`. Business-map row: [application-map.md](business-rules/application-map.md).
+
+Posted by MiMo chat unknown on edge-dev
