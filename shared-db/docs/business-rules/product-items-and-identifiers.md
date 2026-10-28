@@ -57,7 +57,7 @@ should re-implement it:
 | Source | Marks |
 |---|---|
 | `coldlion.prod_history_component.prepack_item_no` | prepack **heads** — the orderable assortment carton, transaction-attested |
-| `coldlion.item_detail.pre_pack_code` | prepack **members** — the real single-property Items inside a carton |
+| `coldlion.item_detail.pre_pack_code` | prepack **heads/parents** — the orderable set itself; its components are enumerated in `coldlion.prepack_detail` under that code (verified on live data 2026-10-28, issue #4956: BRG6206 → PPK2943 with its four single-brand components in `prepack_detail` and no marker on the components; 2,542 marked items, effectively disjoint from the component list). The earlier reading of this row as a member marker is superseded by the 2026-09-28 `/itemDetails → prePackCode` correction below. Note `plm.prepack_role` (issue #2611) still labels `item_detail`-marked items `member`; for its exclusion purpose that is harmless (both roles are excluded from missing-attribution counting) but the label is inverted. |
 
 Head codes and member codes are disjoint. Note the grain of the component
 table: rows carrying a head are self-referencing (`sub_item_no =
