@@ -48,8 +48,11 @@ begin
   -- MULTI A/B: two items sharing one normalized SKU (dedupe pair).
   insert into plm.item (item_number, source_system, source_id, raw, created_at)
   values (v_sku_old, 'zztest4941', 'old', '{}', v_old);
-  insert into plm.item (item_number, source_system, source_id, raw, created_at)
-  values (v_sku_new, 'zztest4941', 'new', '{}', v_new)
+  insert into plm.item (item_number, source_system, source_id, description, raw, created_at)
+  values (v_sku_new, 'zztest4941', 'new', 'zztest 4951 fallback description',
+          jsonb_build_object('itemDesc','zztest 4951 coldlion description',
+                             'itemDiscontinued','Y','createdUser','ZZTEST','divisionCode','ZZ'),
+          v_new)
   returning id into v_item_new;
   insert into plm.item (item_number, source_system, source_id, raw, created_at)
   values ('ZZ4941DIR-DUP', 'zztest4941', 'dup', '{}', v_new);
@@ -94,6 +97,14 @@ begin
      and source_sheet = 'License.Style'
      and row_data ->> 'origin' = 'plm_item_autoflow';
   if v_rows <> 1 then raise exception 'auto row missing or malformed'; end if;
+  if not exists (select 1 from public.style_tracker_rows
+                  where sku = v_sku_new
+                    and description = 'zztest 4951 coldlion description'
+                    and discontinued is true
+                    and row_data ->> 'coldlion_created_by' = 'ZZTEST'
+                    and row_data ->> 'coldlion_division' = 'ZZ') then
+    raise exception 'auto row must be pre-filled from the ColdLion payload';
+  end if;
 
   -- Cross-statement dedupe: a third item with the MULTI pair's SKU adds no row.
   insert into plm.item (item_number, source_system, source_id, raw, created_at)
@@ -156,6 +167,11 @@ begin
                   join plm.item i on i.id = b.plm_item_id
                   where i.item_number = v_sku_imp and r.sku = v_sku_imp) then
     raise exception 'import must link the new row to its plm.item';
+  end if;
+  if not exists (select 1 from public.style_tracker_rows
+                  where sku = v_sku_imp
+                    and coalesce(description, '') = 'zztest 4941 live import') then
+    raise exception 'live import row must carry the ColdLion description';
   end if;
   -- Within-statement dedupe on the live path: two same-normalized-SKU items in
   -- ONE import statement yield exactly one tracker row.
