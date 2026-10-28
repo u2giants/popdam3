@@ -5225,6 +5225,7 @@ export type Database = {
           p_extensions?: string[]
           p_licensors?: string[]
           p_limit?: number
+          p_min_semantic_score?: number
           p_modified_after?: string
           p_modified_before?: string
           p_offset?: number
@@ -5232,6 +5233,7 @@ export type Database = {
           p_preview_states?: string[]
           p_properties?: string[]
           p_query?: string
+          p_query_embedding?: string
           p_render_exception_states?: string[]
           p_result_mode?: string
           p_sort?: string
@@ -5323,6 +5325,14 @@ export type Database = {
           rows_skipped: number
           rows_updated: number
           sync_run_id: string
+        }[]
+      }
+      sync_new_items_into_style_tracker: {
+        Args: { p_cutoff?: string; p_dry_run?: boolean }
+        Returns: {
+          deferred_count: number
+          eligible_count: number
+          inserted_count: number
         }[]
       }
       sync_opa_property_character: {
