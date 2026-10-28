@@ -1,0 +1,44 @@
+{
+"schema_version": 1,
+"work_issue": 4905,
+"outcome": "ready-for-merge",
+"migration_versions": [
+"20261027185208"
+],
+"contract_ref": "refs/db-contracts/4905/1",
+"contract_sha256": "769906bce67c8687460b357bfd24510d56d2694c0d03325097029dd8021c4fb8",
+"base_sha": "38385768c364680361b140548dcae96c8a6f7b71",
+"head_sha": "90736da3c703c104520d618c8883e95b7342c983",
+"files_changed": [
+"supabase/migrations/20261027185208_popdam_thumb_error_requeue_index.sql",
+"supabase/tests/popdam_thumb_error_requeue_index_contracts.sql"
+],
+"db_reads": [],
+"db_writes": [
+"index public.idx_assets_thumbnail_error_pattern",
+"table public.assets"
+],
+"checks": [
+{
+"command": "bash scripts/check-sql.sh",
+"exit_code": 0,
+"evidence": "Static checks passed in the worktree at the implementation head (Guard B version ordering vs 20261027172235, expected-count, verify-cost and EOL-reference guards green; derived-from: none present)."
+},
+{
+"command": "ephemeral-database contract tests pass on the PR head in CI",
+"exit_code": 0,
+"evidence": "supabase/tests against an ephemeral database green on PR 4928 head 90736da3c703c104520d618c8883e95b7342c983 (run 40564929372, 5m31s, 2026-10-27 ~3:10 PM EDT), including popdam_thumb_error_requeue_index_contracts.sql."
+},
+{
+"command": "disposable PG16 smoke test (local docker, port 55441)",
+"exit_code": 0,
+"evidence": "Migration applied in --single-transaction, post-apply verification block passed; contract test passed on a 50k-row probe (50 marker rows); EXPLAIN under default planner settings shows Bitmap Index Scan on idx_assets_thumbnail_error_pattern for the handler's filter; three mutations (index dropped / predicate removed / opclass replaced) each fail the suite."
+}
+],
+"assumptions_resolved": [
+"The partial predicate thumbnail_error IS NOT NULL also serves requeue-all-no-preview's thumbnail_error IS NOT NULL leg directly (issue 4905 body).",
+"pg_get_expr renders the predicate with parentheses; the verification blocks normalize parentheses and whitespace before comparing."
+],
+"stop_conditions_hit": [],
+"pr": 4928
+}
