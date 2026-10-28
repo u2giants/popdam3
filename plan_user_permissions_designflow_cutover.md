@@ -4,7 +4,8 @@
 with the owner ruling verbatim). Consumer issues: u2giants/popdam3#566 (DAM
 picker — now a frontend-in-waiting), CRM admin settings (#4811 lane),
 PopPIM consumer issue TBD.
-**Handoff:** `HANDOFF.d/2026-10-28T15Z-hetz-zcode-user-permissions-dflow-plan.md`
+**Handoff:** `HANDOFF.d/2026-10-28T1820Z-edge-dev-mimo-user-admin-dflow-phase1.md`
+(Phase 0 complete; supersedes the 2026-10-28T15Z zcode plan handoff, retired)
 
 ## STATUS — read this first
 
