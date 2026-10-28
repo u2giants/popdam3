@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4960,
+  "outcome": "ready-for-merge",
+  "pr": 4970,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4960/3",
+  "contract_sha256": "2663ffc4ed88107f2798752956f415289fe980a0d4a9de781f04ee517ee823e5",
+  "head_sha": "6625a71acf13b812a470d5358773d4a0e5359471",
+  "base_sha": "7dc99c93429d53a7f1982b9932d06f2c4dbb2c3c",
+  "files_changed": [
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/documents-fast-ci-workflow.test.mjs scripts/check-documents-ci-route.test.mjs scripts/lib/documents-only-change.test.mjs scripts/check-closeout-readiness.test.mjs",
+      "exit_code": 0,
+      "evidence": "102 pass, 0 fail locally; independently re-run by the governed reviewer (45/45 on the route suite after sandbox temp fix)"
+    },
+    {
+      "command": "gh pr checks 4963 --repo popcre/shared-db",
+      "exit_code": 0,
+      "evidence": "All 14 required contexts pass on the reviewed tree; the only failing check (Entire Gates) is a non-required external app report"
+    }
+  ],
+  "assumptions_resolved": [
+    "Live proof of the defect recorded on issue #4960: PR-side run 40706167282 skipped in 24s while merge_group run 40707387599 and the push run each ran the full contract suite for the pure-prose #4957 merge",
+    "Root cause verified from run logs: the queue wiring read merge_group.base.sha/head.sha, which are always empty, so the queue-side skip had never fired since #3383",
+    "Governed review at 75eaa7ac6 returned APPROVE with two non-blocking hardening suggestions; the AGENTS.md dated note was then split out to a follow-up PR so the change ships as plain code during the reviewer observation week, and the implementation tree of this head is byte-identical to that approved round on all six changed files",
+    "Superseded PR #4963 (closed): its history was rewritten to drop the AGENTS.md note so the change ships as plain code during the reviewer observation week, and the review circuit breaker correctly refused to carry that PR paid-start budget across the orphaning rewrite; this replacement PR pays for a fresh full governed review of the byte-identical implementation tree",
+    "Ship gate requires the exact-head approval to embed a passing local-tests run; a fresh governed round with --tests was dispatched from this evidence-tail head (implementation tree unchanged)",
+    "The first tests-carrying round at 3970fd9b1 could not record its verdict (dispatch pinned a replacement sequence that did not exist); that start was released as review_target_superseded and the round re-ran at the current head"
+  ],
+  "stop_conditions_hit": []
+}

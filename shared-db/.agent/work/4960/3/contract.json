@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "work_issue": 4960,
+  "generation": 3,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Make the trusted pure-prose fast CI route (issue #3383) decide on every event that can run the heavy suites, not only pull_request: fix the always-empty dotted merge_group SHA field references in tools-offline-tests.yml, coldlion-promotion-contract-tests.yml and documents-fast-ci.yml (queue-side skip had never fired), extend database-contract-tests.yml classification to merge_group (resolve the queued PR and ask the trusted policy) and push (prove the before..sha range with the trusted inventory classifier), add push fallbacks everywhere, and lock the wiring with shape tests so it cannot silently regress (issue #4960, PR #4963) Generation 3: identical implementation on the replacement pull request branch after the observation-week class escalation; no behavior difference.",
+  "base_sha": "7dc99c93429d53a7f1982b9932d06f2c4dbb2c3c",
+  "dispatcher": "ZCode session for owner Albert Hazan (owner direction, 2026-10-28: \"another session said 'this repo runs its full test suite on linux and windows for every change, even text-only ones' - WE STOPPED THAT ALONG TIME AGO! why is this still happening? fix it. and in a way that it can never come undone again.\")",
+  "worker": "ZCode (GLM) session on edge-dev",
+  "branch": "zcode/docs-fast-route-queue-push-v2",
+  "worktree": "D:/repos/shared-db-worktrees/ci-prose-queue-skip",
+  "allowed_paths": [
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    "AGENTS.md",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs",
+    ".agent/work/4960/3/contract.json",
+    ".agent/work/4960/3/completion.json"
+  ],
+  "file_writes": [
+    ".github/workflows/database-contract-tests.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    ".github/workflows/coldlion-promotion-contract-tests.yml",
+    ".github/workflows/documents-fast-ci.yml",
+    "AGENTS.md",
+    "scripts/check-closeout-readiness.test.mjs",
+    "scripts/documents-fast-ci-workflow.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database read or write of any kind",
+    "No migration, schema or production change",
+    "No branch-protection change and no rename or softening of any required status check",
+    "No new CI job or test suite (owner standing constraint 2026-10-18); new assertions go into existing suites"
+  ],
+  "required_checks": [
+    "node --test scripts/documents-fast-ci-workflow.test.mjs scripts/check-documents-ci-route.test.mjs scripts/lib/documents-only-change.test.mjs scripts/check-closeout-readiness.test.mjs"
+  ],
+  "assumptions": [
+    "The Windows claim in the owner's report was stale text: shared-db has no Windows runners at all; the real defect was the merge-queue and push events running the full suites, which is what this change fixes",
+    "AGENTS.md edit is a dated clarifying note on a historical observation, not a rule change; it receives full engineering review as part of this PR",
+    "Generation 1 bound branch zcode/docs-fast-route-queue-push and PR #4963 (closed); generation 2 was published for the first rebuild attempt before the branch was renamed; this generation binds the replacement branch and PR #4970."
+  ],
+  "stop_conditions": [
+    "A governed review REVISE/REJECT at the implementation head that requires changing the wiring rather than wording",
+    "A required check failing on the pull request for a reason caused by this change"
+  ],
+  "evidence_parent": {
+    "work_issue": 4960,
+    "generation": 2,
+    "contract_sha256": "d687fa8a87e5dca81beb2a6f56cda962f44e02c9a55483e8104a6fa19d94a3ef"
+  }
+}

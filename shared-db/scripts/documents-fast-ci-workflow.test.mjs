@@ -16,6 +16,20 @@ const read = (name) => readFileSync(fileURLToPath(new URL(`../.github/workflows/
 const route = read('documents-fast-ci.yml')
 const tools = read('tools-offline-tests.yml')
 const promotion = read('coldlion-promotion-contract-tests.yml')
+const dbtests = read('database-contract-tests.yml')
+
+test('no workflow references the always-empty dotted merge_group SHA fields', () => {
+  // github.event.merge_group carries base_sha and head_sha. The dotted forms
+  // (merge_group.base.sha / merge_group.head.sha) do not exist: they evaluate
+  // to the empty string, which is how every merge-queue entry silently took
+  // the full engineering path for prose-only changes -- and how the route
+  // workflow's "trusted base" checkout fell through to the untrusted group
+  // head (#4960). Ban the shape outright so it cannot come back by symmetry
+  // with pull_request.base.sha.
+  for (const [name, text] of [['documents-fast-ci.yml', route], ['tools-offline-tests.yml', tools], ['coldlion-promotion-contract-tests.yml', promotion], ['database-contract-tests.yml', dbtests]]) {
+    assert.doesNotMatch(text, /merge_group\.(?:base|head)\.sha\b/, `${name} must use merge_group.base_sha/head_sha, never the dotted always-empty forms`)
+  }
+})
 
 // ---------------------------------------------------------------------------
 // The route workflow itself
@@ -30,8 +44,10 @@ test('the route workflow runs trusted base code and never the pull request head'
   const proveBase = route.indexOf('name: Prove the protected base identity before checkout')
   const checkout = route.indexOf('name: Check out trusted base code only')
   assert.ok(proveBase >= 0 && proveBase < checkout, 'base identity must be proven before checkout')
-  // Checkout is pinned to the protected base, never the head.
-  assert.match(route, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.merge_group\.base\.sha \|\| github\.sha \}\}/)
+  // Checkout is pinned to the protected base, never the head. merge_group
+  // names its fields base_sha/head_sha; the dotted forms are always empty and
+  // once made this checkout fall through to the untrusted group head (#4960).
+  assert.match(route, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.merge_group\.base_sha \|\| github\.sha \}\}/)
   assert.doesNotMatch(route, /ref: \$\{\{ github\.event\.pull_request\.head/)
   // The head appears only as a fetch target and a diff argument.
   assert.doesNotMatch(route, /checkout@[\s\S]{0,200}head\.sha/)
@@ -139,6 +155,46 @@ test('the route-safety suites are invoked by a required workflow, not only by th
   assert.match(route, /scripts\/documents-fast-ci-workflow\.test\.mjs/)
   assert.match(route, /scripts\/check-documents-ci-route\.test\.mjs/)
 })
+
+// ---------------------------------------------------------------------------
+// Queue and post-merge coverage (#4960): the skip must not evaporate the
+// moment a proven pure-prose change leaves the pull-request event. A one-file
+// handoff note merged 2026-10-28 (#4957) skipped the PR-side suite in 24
+// seconds and then paid the FULL ephemeral-database suite twice -- once in the
+// merge queue and once on the push to main. These assertions keep every event
+// that can run a heavy suite deciding applicability first, and they run inside
+// a deliberately unskippable route-safety suite, so removing the coverage
+// again must fail a required check.
+// ---------------------------------------------------------------------------
+
+test('database-contract-tests.yml decides applicability on every event it runs on', () => {
+  const classifyBlock = dbtests.slice(dbtests.indexOf('  classify:'), dbtests.indexOf('  contract-tests:'))
+  // The classify job itself must carry no event guard: pull_request, merge_group,
+  // push and workflow_dispatch all get a decision.
+  assert.doesNotMatch(classifyBlock, /\bif:/, 'the classify job must run on every event; no event guard inside the job')
+  // merge_group resolves its one queued PR through the queue contract, exactly
+  // as pr-guards.yml does, and asks the same trusted policy.
+  assert.match(classifyBlock, /merge-queue-contract\.mjs --resolve-queue-pr/, 'merge_group must resolve its queued pull request before classifying')
+  // push has no pull request: it proves its own before..sha range with the
+  // trusted inventory classifier from the trusted pushed main tree.
+  assert.match(classifyBlock, /check-documents-ci-route\.mjs/, 'push must prove its range with the trusted inventory classifier')
+  assert.match(classifyBlock, /github\.event\.before/, 'the push range starts at the previous main tip')
+  // And no suite step may bypass the decision by event type: the decision alone
+  // gates the steps, and an unreadable decision refuses instead of skipping.
+  assert.doesNotMatch(dbtests, /github\.event_name != 'pull_request' \|\|/, 'no step may bypass the applicability decision by event type')
+  assert.match(dbtests, /if: needs\.classify\.result != 'success'/, 'an unreadable applicability decision must refuse, on every event')
+})
+
+for (const [name, text] of [['tools-offline-tests.yml', tools], ['coldlion-promotion-contract-tests.yml', promotion]]) {
+  test(`${name} classifies the merge queue and the push to main, not only pull requests`, () => {
+    // The queue fields are base_sha/head_sha (the dotted forms are banned
+    // above) and the push range is the previous main tip and the pushed
+    // commit, so a proven pure-prose change skips the engineering suites on
+    // every event that can run them.
+    assert.match(text, /BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.merge_group\.base_sha \|\| github\.event\.before \}\}/, `${name} must wire the queue base and the push previous tip`)
+    assert.match(text, /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.event\.merge_group\.head_sha \|\| github\.sha \}\}/, `${name} must wire the queue head and the pushed commit`)
+  })
+}
 
 // ---------------------------------------------------------------------------
 // The existing documents-only lane must not be weakened

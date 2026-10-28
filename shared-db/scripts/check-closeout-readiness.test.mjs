@@ -47,7 +47,10 @@ test('the command emits machine-readable result and refuses malformed identity',
 
 test('the contract workflow takes the classification only from protected base policy', () => {
   const workflow = readFileSync(fileURLToPath(new URL('../.github/workflows/database-contract-tests.yml', import.meta.url)), 'utf8')
-  assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/)
+  // The checkout is the protected base for every event: the PR base, the merge
+  // group's base (current main), or -- on push -- the pushed main itself,
+  // which already passed the merge queue (#4960).
+  assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.merge_group\.base_sha \|\| github\.sha \}\}/)
   assert.match(workflow, /pull-requests: read/)
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/)
   // Only a positive inapplicable answer skips; an undecidable read runs the full test.
@@ -59,10 +62,16 @@ test('the contract workflow takes the classification only from protected base po
   assert.match(workflow, /if: \$\{\{ always\(\) \}\}/)
   assert.match(workflow, /Refuse an unreadable applicability decision/)
   assert.match(workflow, /needs\.classify\.result != 'success'/)
-  assert.match(workflow, /Not run: the trusted base policy classified this pull request as prose-only/)
-  // Pushes and manual replays have no pull-request object, so they must retain
-  // the complete database test rather than becoming accidentally inapplicable.
-  assert.match(workflow, /github\.event_name != 'pull_request' \|\| needs\.classify\.outputs\.database_contract_tests == 'applicable'/)
+  assert.match(workflow, /Not run: the trusted policy classified this change as prose-only/)
+  // #4960: merge_group and push are decided too -- the queued pull request is
+  // resolved and asked the same trusted policy, and a push proves its own
+  // before..sha range with the trusted inventory classifier from the trusted
+  // pushed main tree. A manual replay still fails closed to the full suite
+  // (no pull request, no push range), and no step may bypass the decision by
+  // event type any more.
+  assert.match(workflow, /merge-queue-contract\.mjs --resolve-queue-pr/)
+  assert.match(workflow, /check-documents-ci-route\.mjs "\$BEFORE_SHA" "\$HEAD_SHA"/)
+  assert.doesNotMatch(workflow, /github\.event_name != 'pull_request' \|\|/)
 })
 
 test('every documents-only decision that can waive a safeguard uses protected policy', () => {
