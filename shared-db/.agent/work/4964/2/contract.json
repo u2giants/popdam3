@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "work_issue": 4964,
+  "generation": 2,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Close out session wrap-up for #4964: land the session handoff file (database work for the item retailer selling signal is complete and live; remaining app work documented). No code, tests, workflows or configuration change; no database read or write.",
+  "base_sha": "563724523bd2aa63731e646fb3043aa393035fe6",
+  "dispatcher": "MiMo chat ses_ffe5e7ce3d92fffeTPeI4wubCD on EDGE-DEV",
+  "worker": "MiMo chat ses_ffe5e7ce3d92fffeTPeI4wubCD on EDGE-DEV (wrap-up closeout; no sub-agents)",
+  "branch": "mimo/wrapup-4964-handoff",
+  "worktree": "C:/repos/shared-db/.ai/worktrees/item-retailer-selling",
+  "allowed_paths": [
+    "HANDOFF.d/2026-10-28T2003Z-edge-dev-mimo-item-retailer-selling.md",
+    ".agent/work/4964/2/contract.json",
+    ".agent/work/4964/2/completion.json"
+  ],
+  "file_writes": [
+    "HANDOFF.d/2026-10-28T2003Z-edge-dev-mimo-item-retailer-selling.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration, schema, workflow or configuration change",
+    "No database read or write of any kind",
+    "No edit to any file outside allowed_paths",
+    "No closing of issue #4964 (it stays open until the app works live)"
+  ],
+  "required_checks": [
+    "git diff --check 563724523bd2aa63731e646fb3043aa393035fe6...HEAD"
+  ],
+  "assumptions": [
+    "Issue #4964's database work (migration 20261028154414) is merged, preview-rehearsed and applied to production; this PR only lands the session handoff record.",
+    "The published generation-1 contract at refs/db-contracts/4964/1 recorded the structural work; this generation records only the closeout documentation change."
+  ],
+  "stop_conditions": [
+    "Any change outside allowed_paths",
+    "Any request to close issue #4964 or claim the application outcome complete"
+  ],
+  "evidence_parent": {
+    "work_issue": 4964,
+    "generation": 1,
+    "contract_sha256": "5bb4293a367bdb361c8fdb914234ab33a92d997d5bccfa8619a5ead7c367067f"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "work_issue": 4964,
+  "outcome": "ready-for-merge",
+  "pr": 4985,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4964/2",
+  "contract_sha256": "562b7d0baac02dc5a44f27274026825346d782d46cfcc9a0bc961097af1c4333",
+  "head_sha": "672876758cdbd857106d543141e456aa8a20c3aa",
+  "base_sha": "563724523bd2aa63731e646fb3043aa393035fe6",
+  "files_changed": [
+    "HANDOFF.d/2026-10-28T2003Z-edge-dev-mimo-item-retailer-selling.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "git diff --check 563724523bd2aa63731e646fb3043aa393035fe6...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in the handoff file."
+    }
+  ],
+  "assumptions_resolved": [
+    "Database work for #4964 is complete and live (migration 20261028154414 in production); this pair records only the closeout handoff file.",
+    "Issue #4964 remains open for the application-side work named in the handoff (color-entry screen, grants migration, generated types, outcome completion)."
+  ],
+  "stop_conditions_hit": []
+}
