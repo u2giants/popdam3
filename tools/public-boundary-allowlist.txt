@@ -749,6 +749,7 @@ xupnyeifmpsacrqahwwm
 # Deliberately non-secret strings (repeated letter blocks, alphabet runs) used
 # to assert credential-shape validation in shared-db's own tests. Not
 # credentials.
+zzzsemanticonlytoken
 
 aaaaaaaaaaaaaaaaaaaa
 
