@@ -50,6 +50,24 @@ records the completed nine-cell correction and the permanent converter behavior
 for Google dates beyond year 9999. Original recovery-v2 TSV is an error preimage;
 use the protected date-repair source snapshot for corrected equality checks.
 
+## Automatic item flow (live, 2026-10-28)
+
+New items no longer need a manual line. When the ColdLion item feed lands an item
+in the shared database (every 30 minutes at :05/:35 via the shared-db
+`coldlion-item-sweep` workflow), the import transaction itself creates the
+Licensed Master Data line and links it to the item — no scheduling gap on our
+side. Each auto line is pre-filled from the item payload: description, licensor
+(when the item's merch-group licensor resolved), the discontinued flag, notes,
+and provenance in `row_data` (`origin=plm_item_autoflow`, `coldlion_created_by`,
+`coldlion_created_at`, `coldlion_division`, `coldlion_vendor_code`,
+`coldlion_royalty_code`, `coldlion_size_range`). Fields with no ColdLion source
+(customer, designer, workflow statuses) stay blank for the team. A nightly
+05:50 UTC cron backstops the flow. Delivered in canonical `popcre/shared-db`
+(#4909, #4941, #4951); the cutoff is 2026-10-28T00:00Z — items first seen before
+it are not backfilled. Open defect as of 2026-10-28: assortments must be
+excluded and one assortment line (BRG6206) removed — tracked in shared-db
+#4956.
+
 ## Google Sheet Import Rules
 
 The import script is `scripts/import-style-tracker-xlsx.py`.
