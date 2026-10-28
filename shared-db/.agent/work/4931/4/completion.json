@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "outcome": "ready-for-merge",
+  "pr": 4972,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4931/4",
+  "contract_sha256": "955cd565e2a58b436b468cb0d1f58d58300c8c6c14da4c2d6e28ec75da68425a",
+  "head_sha": "db838a28f9fbb5a22b70ceb4fef3cf3ff780d81c",
+  "base_sha": "12dca5bfba0185c18919a7f1e1aa4ff3d30db818",
+  "files_changed": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 95 # fail 0 with COLDLION_WRITER_TEST_CONTAINER on PostgreSQL 17.11 (identity suite 9/9, including the ambiguity and newest-version cases)"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Merge refuses a different newest-version prod_reference_no on the line itself, a quantity conflict, a missing Google row, and an ambiguous (PO, SKU) on the PostgreSQL 17 fixture",
+    "Read-only production count at 12:50 PM EDT 2026-10-28: 509 mergeable lines across 79 orders"
+  ],
+  "stop_conditions_hit": []
+}

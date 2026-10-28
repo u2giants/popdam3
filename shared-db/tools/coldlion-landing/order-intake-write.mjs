@@ -31,6 +31,7 @@ import { isClientSpawnFault, isClientUriFault, proveTarget, queryRows, runSql } 
 import {
   buildWriteFailureSql,
   buildWriteSql,
+  buildAutoMergeSql,
   buildIdentityGuardSql,
   buildWriterObjectAssertionSql,
   parseWriteSummary,
@@ -119,6 +120,20 @@ async function main() {
       (options.order !== null ? ` (order ${options.order})` : "") +
       (options.limit !== null ? ` (limit ${options.limit})` : ""),
   );
+
+  // Owner ruling 2026-10-27: every unambiguous placeholder line merges onto
+  // its matching Google OrderList line (buildAutoMergeSql). Its own run id:
+  // the preimage rides a separate sync_run row from the write above.
+  let merged;
+  try {
+    [[merged] = []] = queryRows(buildAutoMergeSql({ runId: randomUUID(), write: options.write }), {});
+  } catch (error) {
+    if (options.write && !isClientSpawnFault(error) && !isClientUriFault(error)) {
+      runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
+    }
+    throw error;
+  }
+  console.log(`automatic merge onto Google OrderList lines ${options.write ? "" : "(dry run — nothing written) "}complete: linesMerged=${merged}`);
 
   // The recurring component-identity guard (SO 7128092, 2026-10-26): every
   // run re-proves that each staged component of every created order has

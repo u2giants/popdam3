@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "generation": 4,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Merge every unambiguous ColdLion placeholder line onto its matching Google OrderList line automatically on each intake writer run",
+  "base_sha": "12dca5bfba0185c18919a7f1e1aa4ff3d30db818",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan (chat 2026-10-27: \"ColdLion orders should merge automatically into matching Google rows for all orders\")",
+  "worker": "Claude Code session on hetz (landing session started 2026-10-28)",
+  "branch": "feat/coldlion-auto-merge-4931-g4",
+  "worktree": "/worksp/shared-db/.claude/worktrees/quizzical-borg-401abc",
+  "allowed_paths": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-landing/order-intake-write.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migrations or schema changes",
+    "No database write from this pull request or this session; the intake workflow's writer step performs the merge"
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Disclosure: generation 4 re-lands the generation 3 implementation of PR #4945 plus its GLM REVISE fixes as one commit on a clean branch, because PR #4945's evidence history holds a half-retired generation 3 pair that the review budget cannot authenticate; the implementation was written before this generation was published",
+    "Owner ruling 2026-10-28 relayed verbatim: \"Yes, automatically\" (ColdLion orders merge automatically into matching Google OrderList rows on the same Import PO, no per-row confirmation)",
+    "Production read-only scope 2026-10-28 12:50 PM EDT: 509 placeholder lines across 79 orders merge under the newest-version, own-line Import PO rule"
+  ],
+  "stop_conditions": [
+    "Any needed change outside allowed paths",
+    "Any schema change"
+  ]
+}
