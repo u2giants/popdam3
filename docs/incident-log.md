@@ -2,6 +2,16 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## Resolved 2026-10-27: OrderList first load "canceling statement due to statement timeout"
+
+What happened: opening OrderList failed with "Could not load OrderList: canceling statement due to statement timeout" (SQLSTATE 57014, 8s `authenticated` limit); a few hard refreshes made it load. The failing request was the first 500-row block sorted by `sales_order_received_date`.
+
+Root causes: (1) `plm.production_order_line_source_ref` had never been analyzed after ColdLion rows arrived, so the planner estimated 1 ColdLion row (actual 1,131) and chose a nested loop doing ~28.9M join checks (6.5s warm). (2) Even with a good plan, the block query built every grid column for all ~25k lines before taking the top 500 (~1.9s warm, over 8s cold).
+
+Fix: manual `ANALYZE` on the table (3:44 PM EDT); shared-db PR #4969 (issue #4930) set `autovacuum_analyze_scale_factor=0.02`, `autovacuum_analyze_threshold=50` on it, verified in production `pg_class.reloptions`. popdam3 PR #560 made `fetchOrderListBlock` rank line IDs first (~0.65s), then fetch those rows by primary key in 100-ID chunks (~30ms each). Albert confirmed a clean first load on 2026-10-27.
+
+Rule: when an OrderList request times out, read the failing URL in edge logs, then `EXPLAIN ANALYZE` it as `authenticated` with a real `sub`; compare estimated vs actual rows before changing code.
+
 ## Resolved 2026-10-27: OrderList assortment Case Pack blank or 0 (ColdLion orders)
 
 What happened: Yuchen reported assortment designs on OrderList with an empty Case Pack (PO 62011865) or 0 (PO 62011483). About 600 live ColdLion assortment member lines were affected.
