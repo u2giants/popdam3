@@ -3,33 +3,39 @@ import test from "node:test";
 import { evaluateColumn2911, evaluateDrop2934, evaluateLikenessRead2802, NotYetApplied, ProofFailure } from "./shared-db-live-proof.mjs";
 import { evaluateCasePacks4858 } from "./shared-db-live-proof.mjs";
 
-test("4858 counts two physical assortments once each plus a direct line", () => {
+const toRows4858 = (expected) => expected.map(({ order_id, order_line_id, case_pack, cases_reported, parent_cases, group_key }) => ({
+  order_id, order_line_id, case_pack, cases_reported: group_key ? null : cases_reported,
+  assortment_parent_key: group_key, assortment_parent_cases: group_key ? parent_cases : null,
+}));
+
+test("4858 whole-carton pack on every member; two physical assortments counted once each plus a direct line", () => {
   const expected = [
-    { order_id: "o", order_line_id: "a", case_pack: 6, cases_reported: 2, group_key: "carton-1", order_cases: 9 },
-    { order_id: "o", order_line_id: "b", case_pack: 12, cases_reported: 2, group_key: "carton-1", order_cases: 9 },
-    { order_id: "o", order_line_id: "c", case_pack: 4, cases_reported: 3, group_key: "carton-2", order_cases: 9 },
-    { order_id: "o", order_line_id: "d", case_pack: 8, cases_reported: 3, group_key: "carton-2", order_cases: 9 },
-    { order_id: "o", order_line_id: "e", case_pack: 5, cases_reported: 4, group_key: null, order_cases: 9 },
+    { order_id: "o", order_line_id: "a", case_pack: 4, cases_reported: null, parent_cases: 1000, group_key: "carton-1", order_cases: 1803 },
+    { order_id: "o", order_line_id: "b", case_pack: 4, cases_reported: null, parent_cases: 1000, group_key: "carton-1", order_cases: 1803 },
+    { order_id: "o", order_line_id: "c", case_pack: 4, cases_reported: null, parent_cases: 800, group_key: "carton-2", order_cases: 1803 },
+    { order_id: "o", order_line_id: "d", case_pack: 4, cases_reported: null, parent_cases: 800, group_key: "carton-2", order_cases: 1803 },
+    { order_id: "o", order_line_id: "e", case_pack: 5, cases_reported: 3, parent_cases: null, group_key: null, order_cases: 1803 },
   ];
-  const rows = expected.map(({ order_id, order_line_id, case_pack, cases_reported, group_key }) => ({ order_id, order_line_id, case_pack, cases_reported, assortment_parent_key: group_key }));
-  assert.deepEqual(evaluateCasePacks4858(expected, rows, [{ order_id: "o", total_cases: 9, unknown_case_groups: 0 }]),
+  assert.deepEqual(evaluateCasePacks4858(expected, toRows4858(expected), [{ order_id: "o", total_cases: 1803, unknown_case_groups: 0 }]),
     { orders_checked: 1, designs_checked: 5, assortment_designs: 4 });
 });
 
-test("4858 rejects wrong packs, missing or duplicate rows, wrong totals and absent group keys", () => {
+test("4858 rejects per-design packs or cases, wrong parent cartons, missing or duplicate rows, wrong totals and absent group keys", () => {
   const expected = [
-    { order_id: "o", order_line_id: "a", case_pack: 6, cases_reported: 2, group_key: "carton", order_cases: 2 },
-    { order_id: "o", order_line_id: "b", case_pack: 12, cases_reported: 2, group_key: "carton", order_cases: 2 },
+    { order_id: "o", order_line_id: "a", case_pack: 4, cases_reported: null, parent_cases: 1000, group_key: "carton", order_cases: 1000 },
+    { order_id: "o", order_line_id: "b", case_pack: 4, cases_reported: null, parent_cases: 1000, group_key: "carton", order_cases: 1000 },
   ];
-  const rows = expected.map(({ order_id, order_line_id, case_pack, cases_reported, group_key }) => ({ order_id, order_line_id, case_pack, cases_reported, assortment_parent_key: group_key }));
-  const tracking = [{ order_id: "o", total_cases: 2, unknown_case_groups: 0 }];
-  assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], case_pack: 99 }, rows[1]], tracking), ProofFailure);
+  const rows = toRows4858(expected);
+  const tracking = [{ order_id: "o", total_cases: 1000, unknown_case_groups: 0 }];
+  assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], case_pack: 1 }, rows[1]], tracking), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], cases_reported: 250 }, rows[1]], tracking), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], assortment_parent_cases: 4000 }, rows[1]], tracking), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858([expected[0], { ...expected[1], case_pack: 2 }], [rows[0], { ...rows[1], case_pack: 2 }], tracking), ProofFailure);
   assert.throws(() => evaluateCasePacks4858(expected, rows.slice(0, 1), tracking), ProofFailure);
   assert.throws(() => evaluateCasePacks4858(expected, [...rows, rows[0]], tracking), ProofFailure);
-  assert.throws(() => evaluateCasePacks4858(expected, rows, [{ ...tracking[0], total_cases: 4 }]), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, rows, [{ ...tracking[0], total_cases: 2000 }]), ProofFailure);
   assert.throws(() => evaluateCasePacks4858(expected, [{ ...rows[0], assortment_parent_key: null }, rows[1]], tracking), ProofFailure);
-  assert.throws(() => evaluateCasePacks4858(expected, [rows[0], { ...rows[1], cases_reported: 3 }], tracking), ProofFailure);
-  assert.throws(() => evaluateCasePacks4858(expected, expected.map((r) => ({ order_id: r.order_id, order_line_id: r.order_line_id, case_pack: r.case_pack, cases_reported: r.cases_reported, assortment_parent_key: r.group_key })), [{ order_id: "o", total_cases: 2, unknown_case_groups: 1 }]), ProofFailure);
+  assert.throws(() => evaluateCasePacks4858(expected, rows, [{ order_id: "o", total_cases: 1000, unknown_case_groups: 1 }]), ProofFailure);
 });
 
 import { evaluateAssortmentQuantities4855, evaluateRawDenial4855 } from "./shared-db-live-proof.mjs";

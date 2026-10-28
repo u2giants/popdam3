@@ -39,7 +39,7 @@ const ASSERTIONS = {
   4190: "production cron.job 'refresh-style-guide-matviews' schedule is '7 * * * *' and 'refresh-style-guide-library-default-snapshot' schedule is '*/15 * * * *', both active, with succeeded runs after the change",
   4257: "Existing orders remain readable and editable; all writers reject reused production PO numbers and preserve permanent reservations; historical exceptions require sealed exact-order admissions.",
   4268: "Authenticated OrderList users see the correct New York SO received date for exactly linked lines; missing or conflicting dates remain blank; anon and oversized requests are rejected without raw ColdLion access.",
-  4858: "Signed-in OrderList returns per-design case packs and tracking counts each physical assortment carton once",
+  4858: "Signed-in OrderList returns the whole-carton Case Pack on every assortment member and tracking counts each physical assortment carton once",
   4855: "Authenticated bounded reader returns exact recipe quantities and NULL for unavailable or conflicting sources, and rejects anonymous or oversized requests.",
   2934: "From the application's production service-role connection, read-only: public.deactivate_stale_sg_files no longer exists, and the application's stale-file deactivation path (public.preview_stale_sg_files guard ahead of public.reconcile_stale_sg_files_batch) is still exposed and its read-only guard call succeeds.",
 };
@@ -69,8 +69,15 @@ export function evaluateCasePacks4858(expected, orderRows, trackingRows) {
   for (const line of expected) {
     const row = byLine.get(line.order_line_id);
     if (!row) fail("OrderList omitted an expected design");
-    if (Number(row.case_pack) !== Number(line.case_pack)) fail("OrderList returned an incorrect per-design case pack");
-    if (Number(row.cases_reported) !== Number(line.cases_reported)) fail("OrderList returned incorrect per-design cases");
+    if (Number(row.case_pack) !== Number(line.case_pack)) fail("OrderList returned an incorrect case pack");
+    if (line.group_key) {
+      // Owner 2026-10-27: every member carries the whole carton's piece count;
+      // the parent's cartons are published once, never per design.
+      if (row.cases_reported !== null && row.cases_reported !== undefined) fail("assortment member published per-design cases");
+      if (Number(row.assortment_parent_cases) !== Number(line.parent_cases)) fail("OrderList returned incorrect physical-parent cartons");
+    } else if (Number(row.cases_reported) !== Number(line.cases_reported)) {
+      fail("OrderList returned incorrect direct-line cases");
+    }
     if (line.group_key) {
       const actual = row.assortment_parent_key;
       if (!actual) fail("assortment group key is missing");
@@ -88,8 +95,14 @@ export function evaluateCasePacks4858(expected, orderRows, trackingRows) {
     const g = grouped.get(key);
     if (g.declaredTotal !== Number(line.order_cases)) fail("source expectations disagree on the order total");
     const carton = line.group_key || line.order_line_id;
-    if (g.cartons.has(carton) && g.cartons.get(carton) !== Number(line.cases_reported)) fail("source assortment group has conflicting carton counts");
-    g.cartons.set(carton, Number(line.cases_reported));
+    const cartons = Number(line.group_key ? line.parent_cases : line.cases_reported);
+    if (g.cartons.has(carton) && g.cartons.get(carton) !== cartons) fail("source assortment group has conflicting carton counts");
+    if (line.group_key) {
+      if (!g.packs) g.packs = new Map();
+      if (g.packs.has(carton) && g.packs.get(carton) !== Number(line.case_pack)) fail("assortment members disagree on the whole-carton pack");
+      g.packs.set(carton, Number(line.case_pack));
+    }
+    g.cartons.set(carton, cartons);
   }
   if (byLine.size !== expected.length) fail("OrderList returned unexpected lines");
   for (const [orderId, want] of grouped) {
@@ -845,7 +858,7 @@ async function proveCasePacks4858() {
   const sampled = await managementQuery(await proofSql("shared-db-live-proof-4858.sql"));
   if (sampled.status >= 400) fail(`4858 sample query returned HTTP ${sampled.status}`);
   const sourceProof = sampled.json?.[0]?.proof;
-  if (sourceProof?.migration_applied !== true) throw new NotYetApplied("production migration 20261027010036 is not installed");
+  if (sourceProof?.migration_applied !== true) throw new NotYetApplied("production migration 20261027185328 is not installed");
   const expected = sourceProof.orders ?? [];
   if (!expected.length) fail("no consistent source-only ColdLion order sample with an assortment is available");
   const signIn = await userPost("/auth/v1/token?grant_type=password", { email, password }, { apikey: anonKey });
@@ -854,7 +867,7 @@ async function proveCasePacks4858() {
   const ids = [...new Set(expected.map((r) => r.order_id))];
   const start = Date.now();
   const listUrl = new URL("/rest/v1/dam_order_list", url);
-  listUrl.searchParams.set("select", "order_id,order_line_id,case_pack,cases_reported,assortment_parent_key");
+  listUrl.searchParams.set("select", "order_id,order_line_id,case_pack,cases_reported,assortment_parent_key,assortment_parent_cases");
   listUrl.searchParams.set("order_id", `in.(${ids.join(",")})`);
   listUrl.searchParams.set("limit", "500");
   listUrl.searchParams.set("order_voided_at", "is.null");
