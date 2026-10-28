@@ -582,7 +582,12 @@ $contracts$;
 --     oldest identified unembedded document with a live thumbnail).
 -- claim_sg_search_embedding_documents keeps its reviewed body byte-for-byte
 -- (md5 pinned below); idx_sg_search_documents_meter_pending gives it the
--- document_updated_at-ordered partial path.
+-- document_updated_at-ordered partial path. Plan-stability follow-up
+-- (2026-10-27 evening flapping): idx_style_guide_files_thumbnail_live makes
+-- the files-side liveness lookup index-only (meter pending EXISTS probe and
+-- waiting anti-join inner) and idx_sg_search_documents_claim_pending covers
+-- the claim's ordered candidate walk (d-side filters + freshness value
+-- in-index); neither function body changes.
 do $contracts$
 begin
   if not exists (
@@ -617,7 +622,11 @@ begin
       ('idx_sg_search_documents_meter_lease',
        'CREATE INDEX idx_sg_search_documents_meter_lease ON public.style_guide_search_documents USING btree (embedding_lease_expires_at)'),
       ('idx_sg_search_documents_meter_updated_at',
-       'CREATE INDEX idx_sg_search_documents_meter_updated_at ON public.style_guide_search_documents USING btree (document_updated_at)')
+       'CREATE INDEX idx_sg_search_documents_meter_updated_at ON public.style_guide_search_documents USING btree (document_updated_at)'),
+      ('idx_style_guide_files_thumbnail_live',
+       $defix$CREATE INDEX idx_style_guide_files_thumbnail_live ON public.style_guide_files USING btree (id) INCLUDE (is_active) WHERE (thumbnail_url IS NOT NULL)$defix$),
+      ('idx_sg_search_documents_claim_pending',
+       $defix$CREATE INDEX idx_sg_search_documents_claim_pending ON public.style_guide_search_documents USING btree (document_updated_at, style_guide_file_id) INCLUDE (thumbnail_url, embedding_next_retry_at, embedding_lease_expires_at) WHERE (is_active AND (content_sha256 IS NOT NULL) AND (embedding IS NULL) AND (embedding_attempts < embedding_max_attempts) AND (embedding_error_category IS DISTINCT FROM 'permanent'::text))$defix$)
     ) wanted(name, def) where (select pg_get_indexdef(c.oid)
                                   from pg_class c join pg_namespace n on n.oid = c.relnamespace
                                  where c.relname = wanted.name and n.nspname = 'public'

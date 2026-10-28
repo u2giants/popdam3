@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "generation": 25,
+  "evidence_parent": {
+    "work_issue": 4437,
+    "generation": 24,
+    "contract_sha256": "4ac7308d537d6710e4b3e0f5918ae686bf954afe4b90cb026a7cfe680167583e"
+  },
+  "work_issue": 4437,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Plan-stability follow-up to the 2026-10-27 evening flapping incident (claim #4820, version 20261028013854 via merged-claim reissue of PR #4908, retirement 717757e7e7f17a94535ccfdfcb4f8f2e371961c1). Production EXPLAIN proved the mechanism: the meter's pending bucket nested-loops ~146k per-row heap probes into style_guide_files (thumbnail_url in no index), the waiting bucket plans a full seq scan of style_guide_files per call, and the claim's candidates CTE hash-joins 113k wide files heap rows against 146k wide document heap rows then fully sorts for the ordered LIMIT. Fix: two covering indexes with ZERO function-body changes (meter md5 0366a4d0bddee2c5a8b8f2d4ba73c69a and claim md5 1c6af615af8ecc225cbc57638bd4fd9c stay byte-identical, re-asserted by the migration's own guard and by foundation contract 13): idx_style_guide_files_thumbnail_live (id INCLUDE is_active WHERE thumbnail_url IS NOT NULL) makes every files-side liveness lookup index-only; idx_sg_search_documents_claim_pending (document_updated_at, style_guide_file_id INCLUDE thumbnail_url, embedding_next_retry_at, embedding_lease_expires_at, same predicate as meter_pending) covers the claim's ordered candidate walk so neither plan shape reads either heap, cold or warm. Contract 13 pins both new index definitions.",
+  "base_sha": "8cbb7e1318f00567a40910b52fe76d666ef2e345",
+  "dispatcher": "claim-first (claim #4820, owner zcode-chat-unknown@hetz)",
+  "worker": "ZCode chat unknown on hetz",
+  "branch": "zcode/popsg-4437-meter-stability",
+  "worktree": "/worksp/shared-db/.wt-4437-meter",
+  "allowed_paths": [
+    ".agent/work/4437/25/completion.json",
+    ".agent/work/4437/25/contract.json",
+    "supabase/migrations/20261028013854_popsg_meter_claim_plan_stability.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/4437/25/completion.json",
+    ".agent/work/4437/25/contract.json",
+    "supabase/migrations/20261028013854_popsg_meter_claim_plan_stability.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_files",
+    "table public.style_guide_search_documents"
+  ],
+  "db_writes": [
+    "index public.idx_sg_search_documents_claim_pending",
+    "index public.idx_style_guide_files_thumbnail_live",
+    "table public.style_guide_files",
+    "table public.style_guide_search_documents"
+  ],
+  "prohibited_actions": [
+    "Do not change get_sg_search_embedding_status or claim_sg_search_embedding_documents semantics or bytes; both md5 pins must stand.",
+    "Do not add a second migration version to this pull request.",
+    "Do not modify any applied migration.",
+    "Do not bypass, weaken or retry around the exact-head review, the guarded merge, the preview rehearsal or the production promotion gates.",
+    "Do not rebase; merge main instead."
+  ],
+  "required_checks": [
+    "database-contract-tests popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "assumptions": [
+    "The flapping is plan/IO-shape, not contention: production was quiet at both failure moments and all seven meter indexes were valid.",
+    "Non-concurrent CREATE INDEX inside the migration transaction is acceptable (brief ShareLock; readers unaffected; the backfill restarts absorb the write pause).",
+    "The meter's pending EXISTS and waiting NOT EXISTS semantics, including orphan left-join behavior, are untouched because the function bodies are untouched; only the plans change."
+  ],
+  "stop_conditions": [
+    "Stop if either function body's md5 changes.",
+    "Stop if a governed review returns a substantive REJECT; fix on a new head and re-review.",
+    "Stop if any gate refuses; never work around it.",
+    "Stop if main advances past the version; supersede through the lane tool."
+  ]
+}

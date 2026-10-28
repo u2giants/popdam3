@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 4437,
+  "outcome": "ready-for-merge",
+  "pr": 4940,
+  "migration_versions": [
+    "20261028013854"
+  ],
+  "contract_ref": "refs/db-contracts/4437/25",
+  "contract_sha256": "cce678b3024093a053c864d4d15d1e9a934b0aed65c6f62596e2d82d761918c0",
+  "head_sha": "14c32a56d4d26ad7f51d49adaf6cdd07a2eea498",
+  "base_sha": "8cbb7e1318f00567a40910b52fe76d666ef2e345",
+  "files_changed": [
+    "supabase/migrations/20261028013854_popsg_meter_claim_plan_stability.sql",
+    "supabase/tests/popsg_semantic_search_foundation_contracts.sql"
+  ],
+  "db_reads": [
+    "table public.style_guide_files",
+    "table public.style_guide_search_documents"
+  ],
+  "db_writes": [
+    "index public.idx_sg_search_documents_claim_pending",
+    "index public.idx_style_guide_files_thumbnail_live",
+    "table public.style_guide_files",
+    "table public.style_guide_search_documents"
+  ],
+  "checks": [
+    {
+      "command": "database-contract-tests popsg_semantic_search_foundation_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Contracts 1-13 green in this PR's CI at the final head (contract 13 now also pins idx_style_guide_files_thumbnail_live and idx_sg_search_documents_claim_pending with exact pg_get_indexdef strings, verified locally against a disposable postgres:17 container: the INCLUDE/predicate rendering matches byte-for-byte)."
+    },
+    {
+      "command": "local plan verification on production (read-only pooler EXPLAIN, no ANALYZE)",
+      "exit_code": 0,
+      "evidence": "Before the fix: pending bucket = Parallel IOS on meter_pending + Nested Loop with per-row style_guide_files PK probes FILTER (thumbnail_url IS NOT NULL); waiting bucket = Parallel Hash Anti Join with inner Parallel Seq Scan on style_guide_files (est 156k rows); claim candidates = Parallel Hash Join over 113k wide files heap rows (width 114) against 146k wide document heap rows (width 122) + full Sort for the ordered LIMIT 100 (planner est 29,983 pending rows vs 146,384 actual). The two covering indexes remove the heap dependency of every one of these shapes; post-apply EXPLAIN verification is recorded in the follow-up live-verification comment."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_production_catalog_verification.py scripts/test_check_production_verification_sidecars.py",
+      "exit_code": 0,
+      "evidence": "278 tests OK locally on this branch (index-only migration; no sidecar needed, matching the 20261027143718/185208/185328 index-only precedent)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #4820 reissued for merged PR #4908 via --reissue-merged-stranded-claim (fresh branch zcode/popsg-4437-meter-stability, fresh worktree /worksp/shared-db/.wt-4437-meter, version 20261027061216→20261027150858→20261027183509→20261028013854; retirement 717757e7e7f17a94535ccfdfcb4f8f2e371961c1); lease active from 02:38Z.",
+    "Issue #4437 db-work-scope writes moved to exactly PR #4940's parsed objects (two indexes + both host tables) with an audit comment; the claim still protects the full superset.",
+    "Function bodies are untouched: meter md5 0366a4d0bddee2c5a8b8f2d4ba73c69a and claim md5 1c6af615af8ecc225cbc57638bd4fd9c re-asserted at apply time by the migration's own guard, so semantic parity is by construction."
+  ],
+  "stop_conditions_hit": []
+}
