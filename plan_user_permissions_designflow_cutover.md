@@ -10,11 +10,11 @@ PopPIM consumer issue TBD.
 
 | Step | State | Evidence / next session starts here |
 |---|---|---|
-| 0. Ruling recorded + DesignFlow inventory | ⬜ open | This plan + master issue; inventory unstarted |
-| 1. Ownership contract decision (sole-writer vs sync) | ⬜ open | Needs Phase-0 inventory first |
-| 2. DesignFlow canonical model + admin API | ⬜ open | Depends on 1 |
-| 3. DesignFlow admin UI for users/roles | ⬜ open | Depends on 2 |
-| 4. App cutovers (DAM, CRM, PIM settings → dflow frontends) | ⬜ open | Depends on 3 |
+| 0. Ruling recorded + DesignFlow + PopPIM/CRM inventory | ✅ done 2026-10-28 | Ruling §6.33 + application-map row: popcre/shared-db#4967; inventories (auth/roles/service shape, settings surfaces) posted on popcre/designflow-backend#250 (comments of 2026-10-28) |
+| 1. Ownership contract decision (sole-writer vs sync) | ✅ done 2026-10-28 — LOCKED | **(a) sole-writer on the existing `app.*` rows** (DesignFlow-only writer of `app.user_role` + `app.app_access`, adopting 20261026155023 semantics; `app.profile` creation stays with the Supabase Auth signup hook). Recorded on popcre/designflow-backend#250 with the Phase-0 evidence |
+| 2. DesignFlow canonical model + admin API | ⬜ open | Depends on 1 (now unblocked). First steps: shared-db grant for the DesignFlow runtime role to write `app.user_role`/`app.app_access` (production runtime currently reads only `dflow_prod`), populate the `users.app_profile_id` bridge, then the admin API (directory / set-roles / set-app-access / status, `administrator`-gated, audit history) adopting the 20261026155023 semantics |
+| 3. DesignFlow admin UI for users/roles | ⬜ open | Depends on 2. Note (Phase 0): dflow-frontend already has *Manage users* (`src/app/pages/manage_users/`) and *Roles & Access* (`src/app/pages/roles_access/`) — extend with the cross-app role + app-access picker; do not rebuild |
+| 4. App cutovers (DAM, CRM, PIM settings → dflow frontends) | ⬜ open | Depends on 3. Phase-0 shape: DAM/PopSG repoint the existing picker; CRM repoint its read-only directory dialog into a user card; PIM builds the card into SettingsPage placeholder cards (findings on popcre/designflow-backend#250) |
 | 5. Decommission duplicate write paths + docs rewrite | ⬜ open | Depends on 4 |
 
 A fresh session starts at Phase 0 and must re-read this plan (not memory).
@@ -139,13 +139,7 @@ per-app feature permissions beyond the existing `app.app_role` tiers and
   authority must land in `app.profile`/`app.user_role`/`app.app_access`
   (whether by owning writes to them or syncing into them is the OPEN
   contract question).
-- **OPEN (Phase 1 decides, with evidence from Phase 0):**
-  (a) *Sole-writer:* DesignFlow backend becomes the only writer of the
-  existing `app.*` tables through its own API (fewest moving parts; the
-  shared RPCs get deprecated in favor of DesignFlow's). Recommended default.
-  (b) *Owned-store + materialization:* DesignFlow keeps users in its own
-  database and syncs into `app.*` for RLS (needed only if Phase 0 shows
-  DesignFlow's platform requires its own store).
+- **DECIDED 2026-10-28 — LOCKED (Phase 0 evidence, recorded on popcre/designflow-backend#250): (a) sole-writer.** DesignFlow backend is the only writer of the existing `app.*` role/access rows (`app.user_role`, `app.app_access`) through its own API, adopting the 20261026155023 semantics (directory, single-role set, last-administrator invariant, revoked-history preservation). `app.profile` row creation stays with the Supabase Auth signup hook; DesignFlow may update profile attributes. Rejected (b): Phase 0 showed DesignFlow's platform does not require its own store — it already co-resides on `qsllyeztdwjgirsysgai` (schema `dflow_prod` since 2026-10-17) with shipped `users.app_profile_id` / `Roles.app_role_id` bridges, and (b) would add a sync path with a stale-roles outage failure mode. DesignFlow's own `users`/`Roles`/`user_roles` store stays for PLM-internal features (out of scope, §4); the integer-PK↔UUID mapping runs through `users.app_profile_id`.
 - **OPEN:** whether per-app `public.*` legacy axes fold into the canonical
   model or stay as DAM-internal chrome (provisioning doc's three-axis trap
   must not survive the migration for NEW writes).
