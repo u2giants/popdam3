@@ -383,9 +383,10 @@ repairs, parked source and unrestricted sandbox/develop commits.
 |---|---|---|
 | Dependency locks in Backend, Item Master, Tracking and Data Syncing | Done in the prepared source: unchanged locks recovered from successful production images, frozen installs and both environment suites passed | Do not regenerate or upgrade these dependencies as part of notification rollout |
 | Central completion notification | Done: [PR #4847](https://github.com/popcre/shared-db/pull/4847), merged as `d1b88949f17c6c53087b997bfa6c45b3cf5c5439` | Preserve every existing readiness decision, status publisher and production check |
-| Six consumer workflow updates | Source prepared; all six PRs remained open at 8:12 PM EDT on October 26 | Uma merges the source PRs below through the existing application process |
-| Production delivery of this follow-up | Open; sandbox evidence is not production delivery | Uma performs normal develop-to-main promotion with all existing checks; coordinator records subsequent runtime proof on #4655 |
-| Active consumer filtering | Open until the consumer workflows reach their default/release branches | Coordinator proves a real mirror-only push is suppressed and a real/mixed application change still notifies; keep live proof open on #4655 |
+| Six consumer workflow updates | Done: all six source PRs and production PRs (backend #243, Item Master #146, Tracking #160, data-syncing #84, BFF #66, frontend #388) merged by October 27 | Do not ask Uma to merge them again |
+| Production delivery of this follow-up | Done October 27: all six main builds succeeded and the latest Cloud Run revisions serve 100% of traffic | Evidence on #4655 closeout checkpoint |
+| Active consumer filtering | Done October 27: real develop mirror-only runs emitted the skip result and real main runs still notified | Run IDs on #4655 |
+| Milestone persistence live proof (#4646, backend#232) | Open: `dflow_prod.prod_order_milestone_schedule` is delivered but had 0 rows and 0/0/0 lifetime insert/update/delete at 2:55 PM EDT October 27; tracking logs show no production grid load since delivery | After the first real production tracking grid load, recheck row count and `pg_stat_user_tables` counters and confirm no `[milestoneSchedule]` error in `popcre-tracking-prod` logs; never create a synthetic production write |
 
 The complete source PR list is [Backend #241](https://github.com/popcre/designflow-backend/pull/241),
 [Item Master #144](https://github.com/popcre/designflow-item-master/pull/144),
