@@ -199,10 +199,18 @@ defect):
   are per-customer label/program codes — neither is order type.
 - CONTRACTUAL SAMPLE / DAVID SAMPLE / C STOCK / STOCK sheet order types correspond to the
   settled `COS` and stock-order rules and are recognised separately, not via this field.
-- **Case Pack** stays item-grain: `/itemDetails` returns `cartonQty`, `innerPackQty`,
+- **Direct-item Case Pack defaults** stay item-grain: `/itemDetails` returns `cartonQty`, `innerPackQty`,
   `cartonPackType` and carton dimensions/weight, with real varying values (1, 4, 7 observed).
   Auto-fill as the item default; the sheet's line-level exceptions (380 text/multiline cells in
   the historical profile) stay human.
+  **Settled — Albert Hazan, 2026-10-27 (relaying Yuchen), superseding the
+  2026-10-26 per-design reading:** "It Should show the total total pieces in the
+  whole carton." For every component of an assortment, Case Pack is the whole
+  physical carton's piece count (the parent line's ColdLion `prepackQty`), the
+  same value on every member. Cartons are the parent line quantity divided by
+  that total, counted once per physical parent. Missing or conflicting totals
+  stay unknown; fully cancelled lines keep their saved history. Existing
+  explicit line-level exceptions remain inputs.
 
 - **FOB point is a production-order detail (Albert, 2026-09-17), and `/prodtracking` is where
   the ERP keeps it — but the specific port is not populated today.** `/prodtracking` is the

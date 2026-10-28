@@ -347,17 +347,30 @@ test("customer resolution: company_source_ref FIRST then erp_customer (active), 
   assert.doesNotMatch(sql, /insert into core\.company_source_ref/);
 });
 
-test("case pack default: full item_detail predicate with the item_pkey uniqueness assertion before use", () => {
-  // Plan A2: item_detail's primary key is (company_code, division_code,
-  // item_no, item_pkey); the lookup names the full predicate and asserts one
-  // item_pkey per item_no BEFORE using carton_qty — ambiguous or missing
-  // lookups leave case_pack NULL, never a silent pick.
+test("case pack default: exact source label before unanimous non-null variant defaults", () => {
+  // Several item variants can prove a quantity without selecting an identity.
+  // Disagreement or even one missing quantity must leave the default unknown.
   const casePack = sql.slice(sql.indexOf("case_pack as ("), sql.indexOf("customer_ref as ("));
   assert.match(casePack, /join coldlion\.item_detail d/);
   assert.match(casePack, /d\.company_code = l\.company_code/);
   assert.match(casePack, /d\.division_code = l\.division_code/);
   assert.match(casePack, /d\.item_no = coalesce\(nullif\(btrim\(c\.sub_item_no\), ''\), l\.master_item_no\)/);
-  assert.match(casePack, /having count\(distinct d\.item_pkey\) = 1/);
+  assert.match(casePack, /d\.label_code = case when nullif\(btrim\(c\.sub_item_no\)/);
+  assert.match(casePack, /then nullif\(btrim\(l\.label_code\)/);
+  assert.match(casePack, /else nullif\(btrim\(c\.sub_label_code\)/);
+  assert.match(casePack, /not exists \([\s\S]*exact_label\.company_code = l\.company_code[\s\S]*exact_label\.division_code = l\.division_code/);
+  assert.match(casePack, /having count\(distinct d\.carton_qty\) = 1/);
+  assert.match(casePack, /and count\(d\.carton_qty\) = count\(\*\)/);
+  assert.doesNotMatch(casePack, /limit 1|distinct on|d\.carton_qty > 0/i);
+  assert.match(casePack, /where nullif\(btrim\(c\.sub_item_no\), ''\) is null[\s\S]*union all/);
+  // Owner 2026-10-27: an assortment component's Case Pack is the WHOLE
+  // carton's piece count (parent prepackQty), never the per-design quantity.
+  assert.match(casePack, /min\(l\.prepack_qty\) as carton_qty/);
+  assert.match(casePack, /and l\.prepack_qty > 0/);
+  assert.doesNotMatch(casePack, /c\.quantity/);
+  assert.match(casePack, /m\.item_no = l\.master_item_no[\s\S]*m\.pre_pack_code is not distinct from[\s\S]*m\.carton_qty is distinct from l\.prepack_qty/);
+  assert.match(casePack, /coalesce\(l\.line_cancelled_qty, 0\) >= l\.line_qty/);
+  assert.match(sql, /case_pack = case when cl\.line_fully_cancelled then pl\.case_pack else cl\.case_pack end/);
   // order_depth_inches stays NULL: Albert's 2026-09-17 input-column list
   // omits col 18 and the writer must not "complete" it.
   assert.doesNotMatch(sql, /order_depth_inches/);

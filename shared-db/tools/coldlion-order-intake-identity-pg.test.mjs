@@ -37,10 +37,12 @@ create table coldlion.intake_quarantine (id uuid primary key default gen_random_
 create table coldlion.intake_order_line (id uuid primary key default gen_random_uuid(), sales_order_no bigint,
   sales_order_line_no int, master_item_no text, last_seen_run uuid, company_code text, division_code text,
   customer_code text, po_number text, sales_person_code1 text, start_date date, cancel_date date,
-  line_qty numeric, warehouse_code text, line_source_hash text);
+  line_qty numeric, warehouse_code text, line_source_hash text,
+  label_code text, pre_pack_code text, prepack_qty numeric, line_cancelled_qty numeric);
 create table coldlion.intake_order_component (id uuid primary key default gen_random_uuid(), line_id uuid,
   sub_item_no text, sub_label_code text, order_qty numeric, component_source_hash text, last_seen_run uuid);
-create table coldlion.item_detail (company_code text, division_code text, item_no text, item_pkey text, carton_qty numeric);
+create table coldlion.item_detail (company_code text, division_code text, item_no text, item_pkey text, carton_qty numeric,
+  label_code text, pre_pack_code text);
 create table core.company_source_ref (company_id uuid, source_system text, source_table text, source_id text);
 create table plm.erp_customer (customer_code text primary key, customer_id uuid, active boolean);
 create table plm.production_order (id uuid primary key default gen_random_uuid(), production_order_number text,

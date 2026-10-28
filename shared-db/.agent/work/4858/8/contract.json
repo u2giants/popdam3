@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "work_issue": 4858,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Owner ruling 2026-10-27: an assortment component Case Pack is the whole physical carton piece count (parent ColdLion prepackQty). Writer fills it on every component (abstain when missing/conflicting; fully cancelled history untouched); api.dam_order_list gives source-only ColdLion components their physical parent so cartons count once. Preserve Google/manual exceptions.",
+  "base_sha": "299aea3f8bd59660b29a2a3959547092e88ba73f",
+  "dispatcher": "Claude chat a1205515-2d23-4688-837d-79814b10d5b0 on hetz (successor of Codex chat 01a17ac7)",
+  "worker": "same session",
+  "branch": "codex/coldlion-case-pack",
+  "worktree": "/worksp/shared-db-case-pack",
+  "allowed_paths": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-landing/README.md",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261027185328_coldlion_component_case_packs.sql",
+    "supabase/tests/coldlion_component_case_packs.sql",
+    ".agent/work/4858/8/contract.json",
+    ".agent/work/4858/8/completion.json",
+    ".agent/work/4858/3/contract.json",
+    ".agent/work/4858/3/completion.json",
+    ".agent/work/4858/4/contract.json",
+    ".agent/work/4858/4/completion.json",
+    ".agent/work/4858/5/contract.json",
+    ".agent/work/4858/5/completion.json",
+    ".agent/work/4858/6/contract.json",
+    ".agent/work/4858/6/completion.json",
+    ".agent/work/4858/7/contract.json",
+    ".agent/work/4858/7/completion.json",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "file_writes": [
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-landing/README.md",
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261027185328_coldlion_component_case_packs.sql",
+    "supabase/tests/coldlion_component_case_packs.sql",
+    ".agent/work/4858/8/contract.json",
+    ".agent/work/4858/8/completion.json",
+    ".agent/work/4858/3/contract.json",
+    ".agent/work/4858/3/completion.json",
+    ".agent/work/4858/4/contract.json",
+    ".agent/work/4858/4/completion.json",
+    ".agent/work/4858/5/contract.json",
+    ".agent/work/4858/5/completion.json",
+    ".agent/work/4858/6/contract.json",
+    ".agent/work/4858/6/completion.json",
+    ".agent/work/4858/7/contract.json",
+    ".agent/work/4858/7/completion.json",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view api.dam_order_list",
+    "view dam.dam_order_tracking"
+  ],
+  "prohibited_actions": [
+    "No manual production schema apply; use governed promotion.",
+    "No Google/manual row correction or source identity changes."
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "bash scripts/check-sql.sh",
+    "supabase/tests/coldlion_component_case_packs.sql on an ephemeral database",
+    "git diff --check",
+    "COLDLION_WRITER_TEST_CONTAINER=<disposable postgres:17> node --test tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "assumptions": [
+    "Owner (Albert, relaying Yuchen) 2026-10-27: \"It Should show the total total pieces in the whole carton.\" Supersedes the 2026-10-26 per-design reading.",
+    "Claim #4927 reserves migration 20261027185328; dam.dam_order_tracking keeps its current body (claimed, not rewritten)."
+  ],
+  "stop_conditions": [
+    "Stop on claim collision, failing source identity, or failed governed promotion."
+  ],
+  "generation": 8,
+  "evidence_parent": {
+    "work_issue": 4858,
+    "generation": 7,
+    "contract_sha256": "208fc93d31f0ad00db597c07fdc3390e8c9d09b2105949239b7fb46e66c818e7"
+  }
+}

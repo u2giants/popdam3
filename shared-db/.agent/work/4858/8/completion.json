@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "work_issue": 4858,
+  "outcome": "ready-for-merge",
+  "pr": 4859,
+  "migration_versions": [
+    "20261027185328"
+  ],
+  "contract_ref": "refs/db-contracts/4858/8",
+  "contract_sha256": "b870c28095a76ee39d8555e052e0e8e37eecec0f9279074c3ce832c6683fc1c3",
+  "base_sha": "299aea3f8bd59660b29a2a3959547092e88ba73f",
+  "head_sha": "8721c71bc6586e46c1c657c1148e59ce80c18a66",
+  "files_changed": [
+    "docs/business-rules/erp-orders-and-source-meaning.md",
+    "supabase/migrations/20261027185328_coldlion_component_case_packs.sql",
+    "supabase/tests/coldlion_component_case_packs.sql",
+    "tools/coldlion-landing/README.md",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-claim.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view api.dam_order_list",
+    "view dam.dam_order_tracking"
+  ],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "86 passed, zero failed on 8721c71bc"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static migration checks passed"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    },
+    {
+      "command": "supabase/tests/coldlion_component_case_packs.sql on an ephemeral database",
+      "exit_code": 0,
+      "evidence": "Runs in the required Database Contract Tests check on this pull request head"
+    },
+    {
+      "command": "COLDLION_WRITER_TEST_CONTAINER=<disposable postgres:17> node --test tools/coldlion-order-intake-identity-pg.test.mjs",
+      "exit_code": 0,
+      "evidence": "7 passed, zero failed against a fresh postgres:17 container on 8721c71bc"
+    }
+  ],
+  "assumptions_resolved": [
+    "Owner 2026-10-27: whole-carton total per component; supersedes 2026-10-26.",
+    "Claim #4927 reserves 20261027185328; tracking view body unchanged."
+  ],
+  "stop_conditions_hit": []
+}
