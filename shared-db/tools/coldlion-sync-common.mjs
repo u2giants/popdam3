@@ -399,7 +399,7 @@ export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
     }
     const psql = spawn(
       "psql",
-      ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--single-transaction"],
+      ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "--single-transaction"],
       {
         input: sql,
         encoding: "utf8",

@@ -346,7 +346,7 @@ test("the psql branch carries the connection ONLY in PG* env, on a swept and flo
   assert.equal(seen.cmd, "psql");
   assert.deepEqual(
     seen.args,
-    ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--single-transaction"],
+    ["--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--quiet", "--single-transaction"],
     "the psql argv is pinned byte-exact: any new flag or any connection material fails here",
   );
   for (const a of seen.args) {

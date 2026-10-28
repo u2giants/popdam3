@@ -12,6 +12,8 @@
 -- deferred until a masters projection (max(item_detail.fetched_at)) has run
 -- past its landing, then flows; an item ColdLion never details flows once a
 -- projection has passed it.
+-- Cutoff parameter (#4974): the default cutoff is unchanged; a lowered p_cutoff
+-- sweeps pre-cutoff items through the same eligibility (assortment skip included).
 -- LOCAL THROWAWAY DATABASE ONLY; never execute against production. Rolled back.
 begin;
 
@@ -32,22 +34,31 @@ declare
   v_sku_defer text := 'ZZ4956DIR-DEFER';
   v_rows integer;
   v_run_id uuid := '00000000-0000-4000-8000-000000004956';
+  v_masters_run uuid := '00000000-0000-4000-8000-000000004974';
 begin
   -- Grants.
-  if has_function_privilege('authenticated', 'public.sync_new_items_into_style_tracker(boolean)', 'execute')
-     or has_function_privilege('anon', 'public.sync_new_items_into_style_tracker(boolean)', 'execute') then
+  if has_function_privilege('authenticated', 'public.sync_new_items_into_style_tracker(boolean, timestamptz)', 'execute')
+     or has_function_privilege('anon', 'public.sync_new_items_into_style_tracker(boolean, timestamptz)', 'execute') then
     raise exception 'sync_new_items_into_style_tracker must not be executable by anon/authenticated';
   end if;
-  if not has_function_privilege('service_role', 'public.sync_new_items_into_style_tracker(boolean)', 'execute') then
+  if not has_function_privilege('service_role', 'public.sync_new_items_into_style_tracker(boolean, timestamptz)', 'execute') then
     raise exception 'service_role must execute sync_new_items_into_style_tracker';
   end if;
 
   -- Recover the shipped cutoff from the sync function body so fixtures straddle it.
-  select (regexp_match(prosrc, 'v_cutoff[^:=]*:=[[:space:]]*''([^'']+)''', 'i'))[1]::timestamptz
+  -- Exactly one overload may exist (#4974): the (boolean) original is dropped by
+  -- 20261028183729; a survivor would make every 0/1-argument call ambiguous.
+  if to_regprocedure('public.sync_new_items_into_style_tracker(boolean)') is not null then
+    raise exception 'the shadowed (boolean) overload must not survive';
+  end if;
+  -- Parameter defaults live in proargdefaults/prosignature, not in prosrc; pin the
+  -- identity arguments so the lookup cannot drift onto another overload.
+  select (regexp_match(pg_get_function_arguments(p.oid), 'p_cutoff[^,]*DEFAULT ''([^'']+)''', 'i'))[1]::timestamptz
     into v_cutoff from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'sync_new_items_into_style_tracker';
+   where n.nspname = 'public' and p.proname = 'sync_new_items_into_style_tracker'
+     and pg_get_function_identity_arguments(p.oid) = 'p_dry_run boolean, p_cutoff timestamp with time zone';
   if v_cutoff is null then
-    raise exception 'could not read the cutoff constant from the function body';
+    raise exception 'could not read the cutoff default from the pinned signature';
   end if;
   v_old := least(v_old, v_cutoff - interval '1 day');
   v_new := greatest(v_new, v_cutoff + interval '1 day');
@@ -59,18 +70,25 @@ begin
   ---------------- Assortment evidence fixtures (#4956): one masters run plus
   ---------------- itemDetails rows — a marked head, an unmarked real item, a
   ---------------- clock row, and a marked head for the live import leg.
+  -- v_run_id parents the seeded rows (any requested_by); v_masters_run is the
+  -- evidence clock's only source (#4974): the gate reads itemDetails runs by
+  -- 'coldlion-landing sync-masters' alone, so a sweep delta can never advance it.
   insert into coldlion.sync_run (id, endpoint, company_code, division_code, requested_by)
-  values (v_run_id, '/itemDetails', 'ZZ', 'ZZ', 'zztest4956');
+  values (v_run_id, '/itemDetails', 'ZZ', 'ZZ', 'zztest4956'),
+         (v_masters_run, '/itemDetails', 'ZZ', null, 'coldlion-landing sync-masters');
+  update coldlion.sync_run set status = 'succeeded', started_at = v_land, finished_at = v_land, rows_fetched = 4
+   where id = v_masters_run;
 
   insert into coldlion.item_header (company_code, division_code, item_no, run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
   select 'ZZ', 'ZZ', x.item_no, v_run_id, v_land, repeat('0', 64), v_land, v_land
-  from (values (v_sku_new), (v_sku_asst), ('ZZ4956DIR-CLOCK'), (v_sku_imp_asst)) as x(item_no);
+  from (values (v_sku_new), (v_sku_asst), ('ZZ4956DIR-CLOCK'), (v_sku_imp_asst), ('ZZ4974DIR-OLD2')) as x(item_no);
 
   insert into coldlion.item_detail (company_code, division_code, item_no, item_pkey, pre_pack_code, run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
   values ('ZZ', 'ZZ', v_sku_new,       '1', null,                v_run_id, v_land, repeat('0', 64), v_land, v_land),
          ('ZZ', 'ZZ', v_sku_asst,      '1', 'PPK-ZZ4956',        v_run_id, v_land, repeat('0', 64), v_land, v_land),
          ('ZZ', 'ZZ', 'ZZ4956DIR-CLOCK', '1', null,              v_run_id, v_land, repeat('0', 64), v_land, v_land),
-         ('ZZ', 'ZZ', v_sku_imp_asst,  '1', 'PPK-ZZ4956-IMP',    v_run_id, v_land, repeat('0', 64), v_land, v_land);
+         ('ZZ', 'ZZ', v_sku_imp_asst,  '1', 'PPK-ZZ4956-IMP',    v_run_id, v_land, repeat('0', 64), v_land, v_land),
+         ('ZZ', 'ZZ', 'ZZ4974DIR-OLD2', '1', null,               v_run_id, v_land, repeat('0', 64), v_land, v_land);
 
   ---------------- Scheduled-leg fixtures (direct plm.item inserts; the live leg
   ---------------- is driven only by the import, so these do not auto-flow).
@@ -81,6 +99,11 @@ begin
   -- seeded projection with no itemDetails row.
   insert into plm.item (item_number, source_system, source_id, raw, created_at)
   values (v_sku_old, 'zztest4941', 'old', '{}', v_old);
+  -- OLD2 (#4974): pre-cutoff, itemDetails row unmarked — invisible to default-cutoff
+  -- runs, eligible for the one-time sweep call with a lowered p_cutoff.
+  insert into plm.item (item_number, source_system, source_id, raw, created_at)
+  values ('ZZ4974DIR-OLD2', 'zztest4974', 'old2',
+          jsonb_build_object('companyCode','ZZ','divisionCode','ZZ'), v_old - interval '1 day');
   insert into plm.item (item_number, source_system, source_id, description, raw, created_at)
   values (v_sku_new, 'zztest4941', 'new', 'zztest 4951 fallback description',
           jsonb_build_object('companyCode','ZZ','divisionCode','ZZ',
@@ -199,9 +222,9 @@ begin
   -- past its landing, the next sync flows it.
   select count(*) into v_rows from public.style_tracker_rows where sku = v_sku_defer;
   if v_rows <> 0 then raise exception 'item landed after the latest projection must stay deferred'; end if;
-  update coldlion.item_detail
-     set fetched_at = v_new + interval '3 days', last_seen_at = v_new + interval '3 days'
-   where item_no = 'ZZ4956DIR-CLOCK';
+  update coldlion.sync_run
+     set finished_at = v_new + interval '3 days'
+   where id = v_masters_run;
   select * into v_result from public.sync_new_items_into_style_tracker(p_dry_run => false);
   if v_result.inserted_count is distinct from 1 then
     raise exception 'expected the formerly deferred item to flow after the projection: %', v_result;
@@ -270,6 +293,23 @@ begin
   if v_rows <> 1 then
     raise exception 're-import must not duplicate the row, found %', v_rows;
   end if;
+
+  -- #4974: the pre-cutoff item stays invisible to default-cutoff runs, then the
+  -- one-time sweep call with a lowered p_cutoff flows it (assortments in the
+  -- widened window still get nothing).
+  select count(*) into v_rows from public.style_tracker_rows where sku = 'ZZ4974DIR-OLD2';
+  if v_rows <> 0 then raise exception 'pre-cutoff item must stay invisible at the default cutoff'; end if;
+  select * into v_result from public.sync_new_items_into_style_tracker(p_dry_run => false, p_cutoff => v_old - interval '2 days');
+  if v_result.inserted_count is distinct from 2 then
+    raise exception 'the lowered-cutoff sweep must flow both pre-cutoff items (OLD and OLD2): %', v_result;
+  end if;
+  select count(*) into v_rows from public.style_tracker_rows
+   where sku = 'ZZ4974DIR-OLD2' and row_data ->> 'origin' = 'plm_item_autoflow';
+  if v_rows <> 1 then raise exception 'swept pre-cutoff item must have exactly one auto row'; end if;
+  select count(*) into v_rows from public.style_tracker_rows where sku = v_sku_old;
+  if v_rows <> 1 then raise exception 'the swept window includes OLD; it must flow too'; end if;
+  select count(*) into v_rows from public.style_tracker_rows where upper(btrim(sku)) = v_sku_asst;
+  if v_rows <> 0 then raise exception 'the widened window must still not flow the assortment'; end if;
 
   -- After both legs handled everything, explicit runs are no-ops.
   select * into v_result from public.sync_new_items_into_style_tracker(p_dry_run => true);
