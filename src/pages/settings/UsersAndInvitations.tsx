@@ -11,6 +11,23 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+// App-schema roles (per-user picker). The write path is the administrator-gated
+// api.crm_admin_set_user_roles RPC (popcre/shared-db 20261026155023).
+const ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "designer", label: "Designer" },
+  { value: "licensing", label: "Licensing" },
+  { value: "sales", label: "Sales" },
+  { value: "administrator", label: "Administrator" },
+] as const;
+
+interface StaffRoleRecord {
+  id: string; // app.profile id
+  email: string;
+  roles: string[];
+  status: string;
+}
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -37,6 +54,50 @@ export function UsersSection() {
     queryFn: () => call("list-users").then((r) => r.users as UserRecord[]),
     staleTime: 60_000,
   });
+
+  // App-role axis: administrator-gated directory RPC. Absent or refused (e.g.
+  // the caller is a public admin without an app administrator role) simply
+  // hides the picker instead of breaking the tab.
+  const { data: staffRoles } = useQuery({
+    queryKey: ["admin-staff-roles"],
+    queryFn: async () => {
+      // No session (tests, logged-out render) -> nothing to fetch, no network.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return [] as StaffRoleRecord[];
+      const { data, error } = await (supabase as any)
+        .schema("api")
+        .rpc("crm_admin_user_directory");
+      if (error) throw error;
+      return (data ?? []) as StaffRoleRecord[];
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+  const rolesByEmail = new Map((staffRoles ?? []).map((r) => [r.email.toLowerCase(), r]));
+
+  const handleSetRole = async (u: UserRecord, role: string | null) => {
+    const staff = rolesByEmail.get(u.email.toLowerCase());
+    if (!staff) {
+      toast.error("No staff profile found for this user");
+      return;
+    }
+    setSavingUserId(u.id);
+    try {
+      const { error } = await (supabase as any)
+        .schema("api")
+        .rpc("crm_admin_set_user_roles", {
+          p_profile_id: staff.id,
+          p_roles: role ? [role] : [],
+        });
+      if (error) throw error;
+      toast.success(role ? `Set ${u.email} to ${role}` : `Cleared the role for ${u.email}`);
+      queryClient.invalidateQueries({ queryKey: ["admin-staff-roles"] });
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to update role");
+    } finally {
+      setSavingUserId(null);
+    }
+  };
 
   const handleImpersonate = (u: UserRecord) => {
     startImpersonation({ id: u.id, email: u.email, isAdmin: u.isAdmin });
@@ -98,6 +159,28 @@ export function UsersSection() {
                     </label>
                   );
                 })}
+                {staffRoles && rolesByEmail.get(u.email.toLowerCase()) && (
+                  <select
+                    value={(() => {
+                      const r = rolesByEmail.get(u.email.toLowerCase())!.roles;
+                      return r.length === 1 ? r[0] : r.length === 0 ? "" : "__multi";
+                    })()}
+                    disabled={savingUserId === u.id}
+                    onChange={(e) => handleSetRole(u, e.target.value === "" || e.target.value === "__multi" ? null : e.target.value)}
+                    className="bg-secondary text-secondary-foreground rounded-md px-2 py-1 text-xs border border-border shrink-0"
+                    title="App role (controls PopPIM/CRM data access). Picking a role replaces any current role."
+                  >
+                    <option value="">No role</option>
+                    {ROLE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                    {rolesByEmail.get(u.email.toLowerCase())!.roles.length > 1 && (
+                      <option value="__multi" disabled>
+                        Multiple ({rolesByEmail.get(u.email.toLowerCase())!.roles.join(", ")})
+                      </option>
+                    )}
+                  </select>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
