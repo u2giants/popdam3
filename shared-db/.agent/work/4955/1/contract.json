@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 4955,
+  "generation": 1,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Fix four product-type reader gaps from #3024 (work issue #4955) comment 6452506070 in tools/product_type_reader: fused rubbercoir and similar fused words, decorative LED mirror wall art, all stated treatments reported, stated multi-opening photo frames read as Collage (packs/sets and bare frames stay blank)",
+  "base_sha": "ceee0ca4713162a1f216d8be95b2c4c9d8fba6c2",
+  "dispatcher": "Coordinator session for owner Albert Hazan (owner direction: \"spin up subagents to make the four fixes\")",
+  "worker": "Claude Code subagent on this machine",
+  "branch": "fix/reader-3024-gaps",
+  "worktree": "/home/ahazan/repos/shared-db-3024-reader",
+  "allowed_paths": [
+    "tools/product_type_reader/construction_rules.py",
+    "tools/product_type_reader/reader.py",
+    "tools/product_type_reader/test_reader.py",
+    "tools/product_type_reader/treatment_rules.py",
+    ".agent/work/4955/1/contract.json",
+    ".agent/work/4955/1/completion.json"
+  ],
+  "file_writes": [
+    "tools/product_type_reader/construction_rules.py",
+    "tools/product_type_reader/reader.py",
+    "tools/product_type_reader/test_reader.py",
+    "tools/product_type_reader/treatment_rules.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database read or write of any kind",
+    "No migration, schema, workflow or configuration change",
+    "No edit to the frozen docs/verification/item-mg-reclassification-20260814 copy"
+  ],
+  "required_checks": [
+    "python -m pytest -q tools/product_type_reader",
+    "git diff --check ceee0ca4713162a1f216d8be95b2c4c9d8fba6c2...HEAD"
+  ],
+  "assumptions": [
+    "Disclosure: published after the reader change was drafted and reviewed (approved tree 1f0cb3d9; prior evidence under refs/db-contracts/3024/3); the implementation commit is re-created on base_sha after this publication with an identical tree, so scope was not widened to fit it",
+    "Work issue #4955 is the open repo-maintenance follow-up to closed #3024"
+  ],
+  "stop_conditions": [
+    "Any needed change outside allowed paths",
+    "Any database or schema change"
+  ]
+}

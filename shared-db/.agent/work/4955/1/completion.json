@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "work_issue": 4955,
+  "outcome": "ready-for-merge",
+  "pr": 4953,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4955/1",
+  "contract_sha256": "2a2f6b0654d77cb7a5b77310409ee7307d2cc303f35d582e486ad1213ade2f29",
+  "head_sha": "a2d7ed4271ca279ccb3de625ad096f59589c7d41",
+  "base_sha": "ceee0ca4713162a1f216d8be95b2c4c9d8fba6c2",
+  "files_changed": [
+    "tools/product_type_reader/construction_rules.py",
+    "tools/product_type_reader/reader.py",
+    "tools/product_type_reader/test_reader.py",
+    "tools/product_type_reader/treatment_rules.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python -m pytest -q tools/product_type_reader",
+      "exit_code": 0,
+      "evidence": "1326 passed, 1 skipped, 4 subtests passed"
+    },
+    {
+      "command": "git diff --check ceee0ca4713162a1f216d8be95b2c4c9d8fba6c2...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "assumptions_resolved": [
+    "Implementation commit has the identical tree to DeepSeek-approved head 1f0cb3d9 and was created after publication of refs/db-contracts/4955/1"
+  ],
+  "stop_conditions_hit": []
+}

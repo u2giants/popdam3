@@ -269,6 +269,15 @@ def refine_construction(description: object, product_type: str, current: str = "
         parts.discard("Die-Cut")
         parts.add("Die-Cut Attachment")
         parts.add("DIY")
+    # #3024: a stated multi-opening frame is a collage frame; a bare frame
+    # states no opening count and stays blank (never defaulted to Single).
+    if product_type == "Photo Frame" and physically_stated(
+            r"\b(?:collage|multi|multiple|double|twin|duo|triple|quad|hinged)(?:\s+(?:opening|photo|picture))?"
+            r"(?:\s+(?:mdf|wood|wooden|acrylic|metal|plastic|glass|resin|ceramic))?\s+(?:photo|picture|phto) frames?\b"
+            r"|\bcollage frames?\b"
+            r"|\b(?:[2-9]|[1-9]\d)\s*openings?(?:\s+(?:mdf|wood|wooden|acrylic|metal|plastic|glass|resin|ceramic))?\s+(?:(?:photo|picture)\s+)?frames?\b"
+            r"|\b(?:photo|picture) frames?\s+(?:with|w)\s+(?:[2-9]|[1-9]\d)\s+openings\b"):
+        parts.add("Collage")
     if product_type == "Photo Frame" and stated(r"\bdie cut mdf phto frme hrt shpe\b"):
         parts.add("Shaped")
     if product_type == "Clock" and stated(r"\b(?:with|w/?) step movement\b"):

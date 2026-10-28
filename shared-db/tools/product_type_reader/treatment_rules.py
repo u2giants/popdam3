@@ -129,6 +129,8 @@ def _normalize(value: str) -> str:
     text = re.sub(r"\bgrybrd\b", "greyboard", text)
     text = re.sub(r"\bdomd\b", "domed", text)
     text = re.sub(r"\bspt\b", "spot", text)
+    text = re.sub(r"\b(?:highgloss|higloss)\b", "high gloss", text)  # #3024
+    text = re.sub(r"\bledmirror\b", "led mirror", text)  # #3024
     text = re.sub(r"\bcrystl\b", "crystal", text)
     text = re.sub(r"\bgrvl\b", "gravel", text)
     text = re.sub(r"\b(?:mtallic|mettalic)\b", "metallic", text)

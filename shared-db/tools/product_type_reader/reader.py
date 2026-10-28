@@ -48,6 +48,9 @@ def normalize(value: object) -> str:
         "fx book": "faux book", "embossd": "embossed", "embss": "embossed", "embsd": "embossed", "floatingframe": "floating frame",
         "clck": "clock", "canv": "canvas", "pcture": "picture", "vrnish": "varnish",
         "clndr": "calendar",
+        "rubbercoirmat": "rubber coir mat", "rubbercoir": "rubber coir", "coirmat": "coir mat", "crumbrubber": "crumb rubber",  # #3024 fused words
+        "photoframe": "photo frame", "pictureframe": "picture frame", "wallart": "wall art",
+        "walldecor": "wall decor", "ledmirror": "led mirror", "highgloss": "high gloss", "higloss": "high gloss",
         "trnkt": "trinket",
         "cntdwn": "countdown", "calndr": "calendar",
         "stbck": "setback", "mntd": "mounted",
@@ -104,6 +107,8 @@ _FIXES = (
     ("Sequin Art", r"\bsequin art\b"),
     ("Sequin Art", r"\bsequin flip art\b"),
     ("Mat", r"\brubbermat\b"),
+    # #3024: LED mirror-finish wall art is wall art, not a looking-glass mirror.
+    ("Wall Art", r"\b(?:decorative )?led mirror wall art\b"),
     ("Calendar", r"\bcalandar\b"),
     ("Mug", r"\bmugs\b"),
     ("Stepping Stone", r"\b(?:cncrte|concrete) stppng (?:stne|stone)\b"),

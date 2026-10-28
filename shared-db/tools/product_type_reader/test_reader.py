@@ -1186,7 +1186,9 @@ def test_frm_abbreviation_preserves_physical_context():
 @pytest.mark.parametrize("description,product", [
     ("Button Art", "Button Art"),
     ("Dry erase easel with marker", "Easel"),
-    ("Decorative LED Mirror Wall Art", "Mirror"),
+    # #3024: LED mirror-finish wall art is wall art (stored Plaque > Plastic > LED).
+    ("Decorative LED Mirror Wall Art", "Wall Art"),
+    ("Decorative LED Mirror Vanity", "Mirror"),
     ("Metal alarm clock", "Alarm Clock"),
     ("Felt letterboard", "Letterboard"),
     ("Desk set organizer", "Desktop Organizer"),
@@ -2169,3 +2171,76 @@ def test_inline_caption_does_not_supply_construction():
         result = read_product_type(description)
         assert result["product_type"] == product
         assert "raised" not in (result["product_construction"] or "").lower()
+
+
+# popcre/shared-db#3024 failing rows (comment 6452506070).
+def test_3024_fused_rubbercoir_reads_coir_material():
+    result = read_product_type("Disney Mickey Mouse RubberCoir Mat Mickey Mouse WELCOME 16x32")
+    assert (result["product_type"], result["product_material"]) == ("Mat", "Coir; Rubber")
+
+
+def test_3024_decorative_led_mirror_wall_art_is_led_wall_art():
+    result = read_product_type("Disney Stitch Decorative LED Mirror Wall Art Blue Stitch laying down and name mu")
+    assert (result["product_type"], result["product_treatment"]) == ("Wall Art", "LED")
+
+
+def test_3024_every_stated_treatment_is_reported():
+    result = read_product_type("Marvel Spiderman Evergreen High Gloss Canvas w/ Crystal Gravel")
+    assert (result["product_type"], result["product_treatment"]) == ("Canvas", "Crystal Gravel; High Gloss")
+
+
+def test_3024_die_cut_photo_frame_is_shaped_not_collage():
+    result = read_product_type("Disney Mickey Mouse Die-Cut MDF shaped photo frame")
+    assert (result["product_type"], result["product_construction"]) == ("Photo Frame", "Die-Cut; Shaped")
+
+
+@pytest.mark.parametrize("description", [
+    "Mickey Collage Photo Frame", "Minnie Multi Photo Frame 4x6", "12 Opening Photo Frame",
+    "10 Opening Picture Frame", "Double Photo Frames", "Hinged Picture Frame", "Photo Collage Frame",
+])
+def test_3024_stated_multi_opening_frame_is_collage(description):
+    result = read_product_type(description)
+    assert (result["product_type"], result["product_construction"]) == ("Photo Frame", "Collage")
+
+
+def test_3024_bare_photo_frame_construction_stays_blank():
+    assert read_product_type("Minnie Picture Frame 4x6")["product_construction"] == ""
+
+
+@pytest.mark.parametrize("description", ["Multi Color Photo Frame", "Double Sided Photo Frame", "Twin Pack Photo Frame"])
+def test_3024_descriptor_multiplier_is_not_collage(description):
+    assert read_product_type(description)["product_construction"] == ""
+
+
+def test_3024_duo_photo_frame_is_collage():
+    assert read_product_type("Duo Photo Frame")["product_construction"] == "Collage"
+
+
+@pytest.mark.parametrize("description, field, expected", [
+    ("RubberCoirMat", "product_material", "Coir; Rubber"),
+    ("CoirMat", "product_material", "Coir"),
+    ("CrumbRubber Mat", "product_material", "Crumb Rubber"),
+    ("PhotoFrame", "product_type", "Photo Frame"),
+    ("PictureFrame", "product_type", "Photo Frame"),
+    ("WallArt", "product_type", "Wall Art"),
+    ("WallDecor", "product_type", "Wall Art"),
+    ("LEDMirror Wall Art", "product_type", "Wall Art"),
+    ("LEDMirror Wall Art", "product_treatment", "LED"),
+    ("HighGloss Canvas", "product_treatment", "High Gloss"),
+    ("HiGloss Canvas", "product_treatment", "High Gloss"),
+])
+def test_3024_fused_words_are_split(description, field, expected):
+    assert read_product_type(description)[field] == expected
+
+
+@pytest.mark.parametrize("description", [
+    "Multi Photo MDF Collage Frame", "Infant multi photo MDF collage frame",
+    "12 Opening Wooden Photo Frame", "Multi Opening MDF Photo Frame", "Photo Frame With 12 Openings",
+])
+def test_3024_collage_tolerates_material_and_post_noun_openings(description):
+    assert read_product_type(description)["product_construction"] == "Collage"
+
+
+@pytest.mark.parametrize("description", ["Pack of 2 Photo Frames", "Set of 3 Photo Frames", "2 Photo Frames"])
+def test_3024_pack_or_set_count_is_not_collage(description):
+    assert "Collage" not in read_product_type(description)["product_construction"]
