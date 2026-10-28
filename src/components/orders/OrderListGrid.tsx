@@ -106,6 +106,30 @@ function masterDataRenderer(field: keyof OrderListRow) {
   };
 }
 
+/**
+ * Owner ruling 2026-10-28 ("One row, both values"): when ColdLion disagrees with
+ * the merged Google OrderList line, show both values in red inside one shared
+ * box so they read as one associated pair. The Google value stays the row's own.
+ */
+const COLDLION_PAIR_FIELDS = {
+  quantity_ordered: "coldlion_quantity_ordered",
+  production_order_number: "coldlion_import_po",
+} as const;
+
+export function ColdLionPairCell({ google, coldlion }: { google: unknown; coldlion: unknown }) {
+  return (
+    <span
+      data-testid="coldlion-pair"
+      title={`Google: ${google ?? "blank"} | ColdLion: ${coldlion}`}
+      className="inline-flex items-center gap-1 rounded border-2 border-red-600 px-1 leading-4 font-semibold text-red-600 dark:border-red-400 dark:text-red-400"
+    >
+      <span><span className="text-[9px] font-normal uppercase">Google</span> {google == null ? "—" : String(google)}</span>
+      <span aria-hidden="true">|</span>
+      <span><span className="text-[9px] font-normal uppercase">ColdLion</span> {String(coldlion)}</span>
+    </span>
+  );
+}
+
 // Grid option objects MUST keep a stable identity across renders. A fresh
 // `defaultColDef` (or similar) on every parent re-render makes AG Grid rebuild
 // its columns from the column definitions, re-applying each `hide` default and
@@ -220,6 +244,18 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
                   <span className="text-[10px] text-muted-foreground">{" "}current recipe</span>
                 </span>
               );
+            },
+          };
+        }
+
+        if (column.field in COLDLION_PAIR_FIELDS) {
+          const pairField = COLDLION_PAIR_FIELDS[column.field as keyof typeof COLDLION_PAIR_FIELDS];
+          return {
+            ...base,
+            cellRenderer: (params: CustomCellRendererProps<OrderListRow>) => {
+              const coldlion = params.data?.[pairField];
+              if (coldlion == null) return params.valueFormatted ?? (params.value == null ? null : String(params.value));
+              return <ColdLionPairCell google={params.value} coldlion={coldlion} />;
             },
           };
         }

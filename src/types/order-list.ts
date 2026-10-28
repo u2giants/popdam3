@@ -60,6 +60,10 @@ export type OrderListRow = {
   sku: string | null;
   sku_normalized: string | null;
   quantity_ordered: number | null;
+  /** ColdLion's quantity, only when it differs from quantity_ordered (#4931). */
+  coldlion_quantity_ordered?: number | null;
+  /** ColdLion's Import PO, only when it differs from production_order_number (#4931). */
+  coldlion_import_po?: string | null;
   quantity_shipped: number | null;
   unit_cost: number | null;
   order_depth_inches: number | null;

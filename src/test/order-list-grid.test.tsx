@@ -79,6 +79,20 @@ describe("OrderList grid", () => {
     expect(screen.getByText("Not linked")).toBeTruthy();
   });
 
+  it("boxes a ColdLion disagreement in red beside the Google value, and leaves agreeing rows plain (#4931)", async () => {
+    renderGrid([
+      row({ quantity_ordered: 1000, coldlion_quantity_ordered: 500, production_order_number: "D3691", coldlion_import_po: "D9999" }),
+      row({ order_line_id: "line-2", production_order_number: "D4000", quantity_ordered: 12 }),
+    ], vi.fn(), 2400);
+    await waitFor(() => expect(screen.getAllByTestId("coldlion-pair").length).toBe(2), { timeout: 10_000 });
+    const [importPo, quantity] = screen.getAllByTestId("coldlion-pair");
+    expect(importPo.textContent).toBe("Google D3691|ColdLion D9999");
+    expect(quantity.textContent).toBe("Google 1000|ColdLion 500");
+    expect(quantity.className).toContain("border-red-600");
+    expect(quantity.className).toContain("text-red-600");
+    expect(screen.getByText("D4000")).toBeTruthy();
+  });
+
   it("renders the legacy column headers staff recognize", async () => {
     renderGrid([row({})]);
     await waitFor(() => expect(screen.getAllByText("PO Status").length).toBeGreaterThan(0), { timeout: 10_000 });

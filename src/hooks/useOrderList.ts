@@ -48,6 +48,9 @@ export const ORDER_LIST_SELECT = Array.from(
     // during the 2026-08-26 human pass).
     "order_voided_at",
     "line_voided_at",
+    // ColdLion's value where it disagrees with the merged Google line (#4931).
+    "coldlion_quantity_ordered",
+    "coldlion_import_po",
     ...ORDER_LIST_COLUMNS.filter((column) => !column.virtual).map((column) => column.field as string),
   ]),
 ).join(",");
