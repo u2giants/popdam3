@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_issue": 4931,
+  "outcome": "ready-for-merge",
+  "pr": 4989,
+  "migration_versions": [
+    "20261028224921"
+  ],
+  "contract_ref": "refs/db-contracts/4931/8",
+  "contract_sha256": "7efafb5734037b1615284d36b524529622cd13ee0de5214c3ea207f610b9c3ca",
+  "head_sha": "fd440d7dbae239e71c861a5cb2c6309d605b4976",
+  "base_sha": "4b70be6a458d308a24772b3bd48c74f4d3cfc6c6",
+  "files_changed": [
+    ".github/live-proofs/4931.sql",
+    "supabase/migrations/20261028224921_orderlist_coldlion_disagreement_values.sql",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view api.dam_order_list"
+  ],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 95 # fail 0 with COLDLION_WRITER_TEST_CONTAINER on PostgreSQL 17 (identity suite 9/9: disagreeing pairs merge, a zero-padded PO matches, values refresh every run)"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Read-only production check before authoring: api.dam_order_list has 92 columns, column 92 order_window_date, latest migration 20261028191645.",
+    "Read-only production count 2026-10-28 ~6:45 PM EDT: of 245 unmerged ColdLion lines, 100 match a Google line once the PO's leading zeros are ignored; none matched exactly one-to-one."
+  ],
+  "stop_conditions_hit": []
+}

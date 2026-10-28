@@ -246,12 +246,12 @@ test("automatic merge: unambiguous placeholder lines move onto the matching Goog
   psql(stage(run(), COMPONENTS));
   write();
   const G = "bbbbbbbb-0000-0000-0000-000000000001";
-  const gline = (id, sku, qty) => `('${id}', '${G}', '${sku}', ${qty}, '62004433')`;
+  const gline = (id, sku, qty, po = "62004433") => `('${id}', '${G}', '${sku}', ${qty}, '${po}')`;
   psql(`insert into plm.production_order (id, production_order_number) values ('${G}', 'D3691');
 insert into plm.production_order_line (id, production_order_id, sku, quantity_ordered, customer_po_number) values
   ${gline("bbbbbbbb-0000-0000-0000-000000000011", "AA0631P1P01", "null")},
   ${gline("bbbbbbbb-0000-0000-0000-000000000012", "AA0631P1P02", 24)},
-  ${gline("bbbbbbbb-0000-0000-0000-000000000013", "AA063PFPF01", 500)};
+  ${gline("bbbbbbbb-0000-0000-0000-000000000013", "AA063PFPF01", 500, " 0062004433")};
 insert into plm.production_order_line_source_ref (production_order_line_id, source_system, source_id, is_primary, metadata)
 select id, 'google_order_list', 'order:row:1:' || sku, true, '{}' from plm.production_order_line where production_order_id = '${G}';
 insert into dam.production_order_snapshot (production_order_line_id)
@@ -262,27 +262,44 @@ insert into coldlion.order_history_line (sales_order_no, sales_order_line_no, pr
   (${SO}, 1, 'D9999', now() - interval '1 day'),
   (${SO}, 2, 'D3691', now());`);
   const merge = (w = true) => psql(buildAutoMergeSql({ runId: run(), write: w }));
+  const values = (id) => psql(`select metadata -> 'coldlion_values' from plm.production_order_line where id = '${id}'`);
 
-  // ColdLion names a different Import PO: nothing merges.
-  // The newest version of the placeholder's own line names a different Import
-  // PO: nothing merges, though an older version and a sibling line say D3691.
-  assert.equal(merge(), "0");
-  psql(`update coldlion.order_history_line set prod_reference_no = ' d3691 ' where prod_reference_no = 'D9999'`);
   // A dry run reports the merge and writes nothing.
-  assert.equal(merge(false), "2");
+  assert.equal(merge(false), "3");
   assert.equal(psql(`select count(*) from coldlion.sync_run where request_params ->> 'step' = 'auto-merge'`), "0");
-  assert.equal(merge(), "2");
+  // Owner ruling 2026-10-28 ("One row, both values"): a one-to-one pair merges
+  // even when the quantity or the Import PO disagrees, and a PO padded with
+  // leading zeros still matches; only a SKU with no Google line stays a
+  // placeholder.
+  assert.equal(merge(), "3");
 
   assert.deepEqual(linesBySku(), [
     `AA0631P1P01@D3691#coldlion:so:${SO}:line:1:component:1`,
     `AA0631P1P02@D3691#coldlion:so:${SO}:line:1:component:2`,
-    `AA063PFPF01@COLDLION-SO-${SO}#coldlion:so:${SO}:line:1:component:3`,
+    `AA063PFPF01@D3691#coldlion:so:${SO}:line:1:component:3`,
     `AA063PFPF02@COLDLION-SO-${SO}#coldlion:so:${SO}:line:1:component:4`,
-  ], "a blank or equal quantity merges; a conflicting quantity or no Google row stays a placeholder");
+  ]);
+  // The Google values stay; a blank Google quantity takes ColdLion's.
   assert.equal(psql(`select quantity_ordered from plm.production_order_line where id = 'bbbbbbbb-0000-0000-0000-000000000011'`), "24");
+  assert.equal(psql(`select quantity_ordered from plm.production_order_line where id = 'bbbbbbbb-0000-0000-0000-000000000013'`), "500");
+  // ColdLion's current values ride every merged line: the newest version's
+  // Import PO (D9999), never an older one or a sibling line's.
+  assert.equal(values("bbbbbbbb-0000-0000-0000-000000000013"), '{"import_po": "D9999", "quantity_ordered": 24}');
+  assert.equal(values("bbbbbbbb-0000-0000-0000-000000000011"), '{"import_po": "D9999", "quantity_ordered": 24}');
   assert.equal(psql(`select count(*) from dam.production_order_snapshot where production_order_line_id = 'bbbbbbbb-0000-0000-0000-000000000011'`), "1");
-  assert.equal(psql(`select jsonb_array_length(request_params -> 'preimage' -> 'lines') from coldlion.sync_run where request_params ->> 'step' = 'auto-merge'`), "4");
-  assert.equal(psql(`select jsonb_array_length(request_params -> 'preimage' -> 'coldlion_refs') from coldlion.sync_run where request_params ->> 'step' = 'auto-merge'`), "2");
+  assert.equal(psql(`select jsonb_array_length(request_params -> 'preimage' -> 'lines') from coldlion.sync_run where request_params ->> 'step' = 'auto-merge'`), "6");
+  assert.equal(psql(`select jsonb_array_length(request_params -> 'preimage' -> 'coldlion_refs') from coldlion.sync_run where request_params ->> 'step' = 'auto-merge'`), "3");
+
+  // Every run refreshes the values, so they never go stale, and an unchanged
+  // value is never rewritten.
+  psql(`update coldlion.order_history_line set prod_reference_no = 'D3691' where prod_reference_no = 'D9999'`);
+  assert.equal(merge(), "0");
+  assert.equal(values("bbbbbbbb-0000-0000-0000-000000000013"), '{"import_po": "D3691", "quantity_ordered": 24}');
+  const stamp = psql(`select updated_at from plm.production_order_line where id = 'bbbbbbbb-0000-0000-0000-000000000013'`);
+  assert.equal(merge(), "0");
+  assert.equal(psql(`select updated_at from plm.production_order_line where id = 'bbbbbbbb-0000-0000-0000-000000000013'`), stamp);
+  assert.equal(psql(`select count(*) from plm.production_order_line where metadata ? 'coldlion_values' and production_order_id <> '${G}'`), "0",
+    "a placeholder line carries no comparison values");
 
   // Idempotent, and the hourly writer neither mints the lines back nor fails the guard.
   assert.equal(merge(), "0");

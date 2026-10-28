@@ -1005,11 +1005,12 @@ select (select count(*) from checked where refs = 0) as missing,
  * Google line keeps every value it has, a blank Google quantity takes the
  * ColdLion one, the coldlion refs and any snapshot move over, and the
  * placeholder line goes. Only an unambiguous pair merges: exactly one Google
- * line and exactly one placeholder line for the (PO, SKU), quantities that
- * agree or are blank, and the Google header equal to the prod_reference_no
- * on the NEWEST retained version of the placeholder's own ColdLion line
- * whenever that version names one (never a sibling line's or a superseded
- * version's). Anything else stays a placeholder, untouched. The full preimage,
+ * line and exactly one placeholder line for the (PO, SKU), the PO compared
+ * without surrounding spaces or leading zeros. A pair that
+ * disagrees on quantity or Import PO still merges (owner ruling, 2026-10-28:
+ * "One row, both values"): the Google values stay, and ColdLion's current
+ * values ride metadata.coldlion_values for the screen to show beside them.
+ * Anything ambiguous stays a placeholder, untouched. The full preimage,
  * including every moved coldlion ref row, rides the run's own sync_run row.
  */
 export function buildAutoMergeSql({ runId, write = false } = {}) {
@@ -1021,7 +1022,7 @@ export function buildAutoMergeSql({ runId, write = false } = {}) {
 create temporary table coldlion_auto_merge (placeholder_line uuid primary key, google_line uuid unique not null) on commit drop;
 
 with ph as (
-  select pl.id, pl.sku, pl.customer_po_number as po, pl.quantity_ordered as q,
+  select pl.id, pl.sku, nullif(ltrim(btrim(pl.customer_po_number), '0'), '') as po_key, pl.quantity_ordered as q,
          substr(p.production_order_number, 13)::bigint as sales_order_no,
          (select min(substring(r.source_id from '^coldlion:so:[0-9]+:line:([0-9]+):')::integer)
             from plm.production_order_line_source_ref r
@@ -1036,7 +1037,7 @@ with ph as (
                     where r.production_order_line_id = pl.id and r.source_system <> 'coldlion')
 ),
 g as (
-  select gl.id, gl.sku, gl.customer_po_number as po, gl.quantity_ordered as q,
+  select gl.id, gl.sku, nullif(ltrim(btrim(gl.customer_po_number), '0'), '') as po_key, gl.quantity_ordered as q,
          gp.production_order_number as import_po
   from plm.production_order_line gl
   join plm.production_order gp on gp.id = gl.production_order_id
@@ -1050,21 +1051,15 @@ pairs as (
   select ph.id as placeholder_line, g.id as google_line, ph.q as pq, g.q as gq, ph.sales_order_no, ph.sales_order_line_no, g.import_po,
          count(*) over (partition by ph.id) as google_matches,
          count(*) over (partition by g.id) as placeholder_matches
-  from ph join g on g.po = ph.po and g.sku = ph.sku
-),
-refs as (
-  select distinct on (sales_order_no, sales_order_line_no) sales_order_no, sales_order_line_no,
-         nullif(lower(btrim(prod_reference_no)), '') as import_po
-  from coldlion.order_history_line
-  order by sales_order_no, sales_order_line_no, fetched_at desc, created_at desc, id
+  -- ColdLion pads some customer POs with leading zeros (0001220303) that the
+  -- Google sheet does not (1220303): the PO compares trimmed and unpadded.
+  from ph join g on g.po_key = ph.po_key and g.sku = ph.sku
 )
 insert into pg_temp.coldlion_auto_merge (placeholder_line, google_line)
 select p.placeholder_line, p.google_line
-from pairs p left join refs r on r.sales_order_no = p.sales_order_no and r.sales_order_line_no = p.sales_order_line_no
+from pairs p
 where p.google_matches = 1 and p.placeholder_matches = 1
-  and p.sales_order_line_no is not null
-  and (p.pq is null or p.gq is null or p.pq = p.gq)
-  and (r.import_po is null or lower(btrim(p.import_po)) = r.import_po);
+  and p.sales_order_line_no is not null;
 
 insert into coldlion.sync_run (id, endpoint, company_code, request_params, status, requested_by, started_at, finished_at, notes)
 select ${sqlUuid(runId)}, '/orderHistory', 'POP',
@@ -1099,6 +1094,59 @@ update dam.production_order_snapshot s
  where s.production_order_line_id = m.placeholder_line;
 
 delete from plm.production_order_line where id in (select placeholder_line from pg_temp.coldlion_auto_merge);
+
+-- Owner ruling 2026-10-28 ("One row, both values"): every line whose coldlion
+-- ref sits on a non-placeholder header carries ColdLion's CURRENT quantity and
+-- Import PO in metadata.coldlion_values, refreshed every run so the screen can
+-- show a disagreement next to the Google value. The quantity is the newest
+-- staged version of the ref's own component identity; the Import PO is the
+-- newest retained prod_reference_no of its own line.
+with lv as (
+  select l.id, l.sales_order_no, l.sales_order_line_no, l.master_item_no,
+         rank() over (partition by l.sales_order_no, l.sales_order_line_no
+                      order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
+  from coldlion.intake_order_line l
+  left join coldlion.sync_run r on r.id = l.last_seen_run
+),
+staged as (
+  select lv.sales_order_no, lv.sales_order_line_no, lv.master_item_no,
+         nullif(c.sub_item_no, '') as sub_item_no, nullif(c.sub_label_code, '') as sub_label_code,
+         min(c.order_qty) as order_qty, count(distinct c.order_qty) as qtys
+  from lv join coldlion.intake_order_component c on c.line_id = lv.id
+  where lv.run_rank = 1
+  group by 1, 2, 3, 4, 5
+),
+oh as (
+  select distinct on (sales_order_no, sales_order_line_no) sales_order_no, sales_order_line_no,
+         nullif(btrim(prod_reference_no), '') as import_po
+  from coldlion.order_history_line
+  order by sales_order_no, sales_order_line_no, fetched_at desc, created_at desc, id
+),
+cur as (
+  select distinct on (r.production_order_line_id) r.production_order_line_id as id,
+         jsonb_build_object('quantity_ordered', case when s.qtys = 1 then s.order_qty end,
+                            'import_po', oh.import_po) as v
+  from plm.production_order_line_source_ref r
+  join plm.production_order_line pl on pl.id = r.production_order_line_id
+  join plm.production_order p on p.id = pl.production_order_id
+  left join staged s
+    on s.sales_order_no = split_part(r.source_id, ':', 3)::bigint
+   and s.sales_order_line_no = split_part(r.source_id, ':', 5)::integer
+   and s.master_item_no = r.metadata ->> 'master_item_no'
+   and s.sub_item_no is not distinct from nullif(r.metadata ->> 'sub_item_no', '')
+   and s.sub_label_code is not distinct from nullif(r.metadata ->> 'sub_label_code', '')
+  left join oh
+    on oh.sales_order_no = split_part(r.source_id, ':', 3)::bigint
+   and oh.sales_order_line_no = split_part(r.source_id, ':', 5)::integer
+  where r.source_system = 'coldlion'
+    and r.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
+    and coalesce(p.metadata ->> 'production_order_number_origin', '') <> 'coldlion_intake_placeholder'
+  order by r.production_order_line_id, r.source_id
+)
+update plm.production_order_line pl
+   set metadata = coalesce(pl.metadata, '{}'::jsonb) || jsonb_build_object('coldlion_values', cur.v)
+  from cur
+ where pl.id = cur.id and pl.metadata -> 'coldlion_values' is distinct from cur.v;
 
 select count(*) from pg_temp.coldlion_auto_merge;
 ${write ? "commit" : "rollback"};`;
