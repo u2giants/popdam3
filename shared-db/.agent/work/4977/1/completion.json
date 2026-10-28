@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "work_issue": 4977,
+  "outcome": "ready-for-merge",
+  "pr": 4979,
+  "migration_versions": [
+    "20261028185539"
+  ],
+  "contract_ref": "refs/db-contracts/4977/1",
+  "contract_sha256": "d4852d4ceb18f1f9c7ccaf513627118c84b05e94fa5838b3567579dac00594f0",
+  "base_sha": "563724523bd2aa63731e646fb3043aa393035fe6",
+  "head_sha": "3f89f59eed370bcbed2c8ead7ad5c7e8b6065159",
+  "files_changed": [
+    "supabase/migrations/20261028185539_dflow_admin_sole_writer_entrypoints.sql",
+    "supabase/tests/dflow_admin_sole_writer_entrypoints_contracts.sql"
+  ],
+  "db_reads": [
+    "function api.crm_admin_role_list",
+    "function api.crm_admin_user_directory",
+    "function api.crm_admin_set_user_roles",
+    "function api.crm_admin_set_app_access",
+    "function api.crm_admin_set_user_status",
+    "function api.crm_admin_access_history",
+    "table app.user_role",
+    "table app.app_access",
+    "table app.profile"
+  ],
+  "db_writes": [
+    "schema api",
+    "function api.dflow_admin_role_list",
+    "function api.dflow_admin_user_directory",
+    "function api.dflow_admin_set_user_roles",
+    "function api.dflow_admin_set_app_access",
+    "function api.dflow_admin_set_user_status",
+    "function api.dflow_admin_access_history",
+    "function api.dflow_admin_actor_profile_id",
+    "function app.dflow_admin_assume_actor",
+    "function app.dflow_admin_restore_claims"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree at the implementation head."
+    },
+    {
+      "command": "ephemeral-database contract tests pass on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "supabase/tests against an ephemeral database passed on identical-tree head 27200c86 (PR #4979)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Implementation commit has the identical migration/test tree to Muse-approved head 27200c86 and was created after publication of refs/db-contracts/4977/1."
+  ],
+  "stop_conditions_hit": []
+}

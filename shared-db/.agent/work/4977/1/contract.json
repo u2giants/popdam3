@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 4977,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add api.dflow_admin_* entry points (and two app helpers) under claim #4980 migration 20261028185539 so the DesignFlow backend runtime can write app.user_role/app.app_access as a named active database administrator through the unchanged 20261026155023 api.crm_admin_* functions (designflow-backend#250, ruling 6.33).",
+  "base_sha": "563724523bd2aa63731e646fb3043aa393035fe6",
+  "dispatcher": "Claude chat dc0f947b-a9d0-4dba-b446-a6b9efb6acca on hetz (claim #4980 owner)",
+  "worker": "Same session.",
+  "branch": "claude/250-dflow-sole-writer",
+  "worktree": "/worksp/shared-db-wt-250-dflow",
+  "allowed_paths": [
+    "supabase/migrations/20261028185539_dflow_admin_sole_writer_entrypoints.sql",
+    "supabase/tests/dflow_admin_sole_writer_entrypoints_contracts.sql",
+    ".agent/work/4977/1/contract.json",
+    ".agent/work/4977/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261028185539_dflow_admin_sole_writer_entrypoints.sql",
+    "supabase/tests/dflow_admin_sole_writer_entrypoints_contracts.sql",
+    ".agent/work/4977/1/contract.json",
+    ".agent/work/4977/1/completion.json"
+  ],
+  "db_reads": [
+    "function api.crm_admin_role_list",
+    "function api.crm_admin_user_directory",
+    "function api.crm_admin_set_user_roles",
+    "function api.crm_admin_set_app_access",
+    "function api.crm_admin_set_user_status",
+    "function api.crm_admin_access_history",
+    "table app.user_role",
+    "table app.app_access",
+    "table app.profile"
+  ],
+  "db_writes": [
+    "schema api",
+    "function api.dflow_admin_role_list",
+    "function api.dflow_admin_user_directory",
+    "function api.dflow_admin_set_user_roles",
+    "function api.dflow_admin_set_app_access",
+    "function api.dflow_admin_set_user_status",
+    "function api.dflow_admin_access_history",
+    "function api.dflow_admin_actor_profile_id",
+    "function app.dflow_admin_assume_actor",
+    "function app.dflow_admin_restore_claims"
+  ],
+  "prohibited_actions": [
+    "No change to existing functions, tables, policies or grants; additive only.",
+    "Never write auth.users.",
+    "No production or preview apply by hand; promotion follows the automatic workflow."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "ephemeral-database contract tests pass on the PR head in CI"
+  ],
+  "assumptions": [
+    "Disclosure: published after the migration and test were drafted and reviewed (Muse final-check APPROVE on 27200c86, PR #4979); the implementation commit is re-created on base_sha after this publication with an identical tree for the two files, so scope was not widened to fit it."
+  ],
+  "stop_conditions": [
+    "Stop if claim #4980 cannot be renewed or reports a collision.",
+    "Stop if the ephemeral contract tests fail."
+  ]
+}
