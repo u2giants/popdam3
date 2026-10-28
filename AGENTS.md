@@ -62,6 +62,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
 - plan_credential_rotation_20261027.md — CANCELLED by owner ruling 2026-10-27 (on-machine exposure → redact, not rotate); retained as reference for the next real rotation
+- plan_user_permissions_designflow_cutover.md — DesignFlow PLM becomes the single source of truth for users/permissions/roles; CRM/PopPIM/PopDAM settings become frontends; read STATUS first; master issue popcre/designflow-backend#250
 - plan_orderlist_sheets_full_integration.md — completed native Sheets integration; read STATUS for verified delivery and separate held source decisions; its completed session handoff is retired.
 
 Then load additional docs only when relevant — do **not** ingest every `.md` file:
