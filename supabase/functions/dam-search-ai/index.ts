@@ -92,7 +92,6 @@ async function embedQueryText(input: string): Promise<number[] | null> {
   return attempt();
 }
 
-
 corsServe(async (req) => {
   if (req.method !== "POST") return err("Method not allowed", 405);
 
