@@ -1,4 +1,4 @@
-// #4974: per-item /itemDetails delta for the 30-minute item sweep.
+// #4974: per-item /itemDetails delta for the item sweep (on-demand plus anchors).
 //
 // The nightly masters landing is the only full writer of coldlion.item_detail,
 // which left the Master Data auto-flow (#4956) deciding brand-new items on
