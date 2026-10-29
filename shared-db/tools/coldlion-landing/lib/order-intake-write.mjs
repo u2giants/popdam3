@@ -1035,6 +1035,8 @@ with ph as (
                 where r.production_order_line_id = pl.id and r.source_system = 'coldlion')
     and not exists (select 1 from plm.production_order_line_source_ref r
                     where r.production_order_line_id = pl.id and r.source_system <> 'coldlion')
+    -- A person chose "keep it as its own row" on the triage screen (#5004).
+    and coalesce(pl.metadata ->> 'coldlion_kept_separate', '') <> 'true'
 ),
 g as (
   select gl.id, gl.sku, nullif(ltrim(btrim(gl.customer_po_number), '0'), '') as po_key, gl.quantity_ordered as q,

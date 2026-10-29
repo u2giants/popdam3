@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_issue": 5004,
+  "outcome": "ready-for-merge",
+  "pr": 5006,
+  "migration_versions": [
+    "20261029023554"
+  ],
+  "contract_ref": "refs/db-contracts/5004/5",
+  "contract_sha256": "a86abb0f2cf1608ebea84ab4ff222d020cbcb08a81455e3b081bf4b4a05e40ad",
+  "head_sha": "7356780b233d7b4c7523ebacd2e468d3ed6d3675",
+  "base_sha": "c67bb2846f6755011c9e8fad34f98ab2420df4fd",
+  "files_changed": [
+    ".github/live-proofs/5004.sql",
+    "supabase/migrations/20261029023554_coldlion_reconciliation_triage.sql",
+    "tools/coldlion-landing/lib/order-intake-write.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    "tools/coldlion-triage-resolver-pg.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view api.dam_order_list",
+    "function public.resolve_coldlion_triage"
+  ],
+  "checks": [
+    {
+      "command": "node --test tools/coldlion-order-intake-*.test.mjs",
+      "exit_code": 0,
+      "evidence": "# pass 15 # fail 0 on PostgreSQL 17 (resolver 6/6 incl. history-checked Import PO move and forged-metadata refusal; automatic merge skips a kept-separate line); offline suites # pass 86 # fail 0"
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "Read-only production check before authoring: api.dam_order_list has 94 columns, last coldlion_import_po; 4 disagreements and 147 unmatched ColdLion lines live; no recurring Google import overwrites OrderList quantities (only coldlion and clickup sync runs in 7 days)."
+  ],
+  "stop_conditions_hit": []
+}

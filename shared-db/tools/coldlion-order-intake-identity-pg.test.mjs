@@ -307,6 +307,17 @@ insert into coldlion.order_history_line (sales_order_no, sales_order_line_no, pr
   write();
   assert.equal(linesBySku().length, 4);
   assert.deepEqual(psql(buildIdentityGuardSql()).split("|").slice(0, 5), ["0", "0", "0", "0", "4"]);
+
+  // A line a person kept as its own row (#5004 triage) never auto-merges,
+  // even once a one-to-one Google line appears for it.
+  psql(`update plm.production_order_line set metadata = coalesce(metadata, '{}') || '{"coldlion_kept_separate": true}'
+         where sku = 'AA063PFPF02' and production_order_id <> '${G}';
+insert into plm.production_order_line (id, production_order_id, sku, quantity_ordered, customer_po_number)
+  values ('bbbbbbbb-0000-0000-0000-000000000014', '${G}', 'AA063PFPF02', 24, '62004433');
+insert into plm.production_order_line_source_ref (production_order_line_id, source_system, source_id, is_primary, metadata)
+  values ('bbbbbbbb-0000-0000-0000-000000000014', 'google_order_list', 'order:row:1:AA063PFPF02', true, '{}');`);
+  assert.equal(merge(), "0");
+  assert.equal(linesBySku()[3], `AA063PFPF02@COLDLION-SO-${SO}#coldlion:so:${SO}:line:1:component:4`);
 });
 
 test("automatic merge: an ambiguous (PO, SKU) never merges", { skip: !container }, () => {
@@ -340,3 +351,6 @@ select pl.id, 'coldlion', 'coldlion:so:${SO}:line:1:component:9', true, '{}' fro
    and not exists (select 1 from plm.production_order_line_source_ref r where r.production_order_line_id = pl.id);`);
   assert.equal(psql(buildAutoMergeSql({ runId: run(), write: true })), "0");
 });
+
+// The #5004 guided resolver runs in the same isolated PostgreSQL step.
+import "./coldlion-triage-resolver-pg.test.mjs";

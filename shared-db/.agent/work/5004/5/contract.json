@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "work_issue": 5004,
+  "generation": 5,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Owner request 2026-10-28: a guided triage for Yuchen to reconcile ColdLion vs Google OrderList items \u2014 add public.resolve_coldlion_triage and make api.dam_order_list hide resolved disagreements and flag unmatched ColdLion lines (claim #5005, migration 20261029023554)",
+  "base_sha": "c67bb2846f6755011c9e8fad34f98ab2420df4fd",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan (request 2026-10-28: \"i need a triage section for yuchen to be able to easily see everything that needs to be reconciled and an easy way to reconcile it, being guided\")",
+  "worker": "Same session (claim #5005 owner, Claude chat 69a8cdbb-f0d1-4850-b229-d78cc6ec23db on hetz).",
+  "branch": "claude/coldlion-triage",
+  "worktree": "/worksp/shared-db-wt-coldlion-triage",
+  "allowed_paths": [
+    "supabase/migrations/20261029023554_coldlion_reconciliation_triage.sql",
+    "tools/coldlion-triage-resolver-pg.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    ".github/live-proofs/5004.sql",
+    ".agent/work/5004/5/contract.json",
+    ".agent/work/5004/5/completion.json",
+    "tools/coldlion-landing/lib/order-intake-write.mjs"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261029023554_coldlion_reconciliation_triage.sql",
+    "tools/coldlion-triage-resolver-pg.test.mjs",
+    "tools/coldlion-order-intake-identity-pg.test.mjs",
+    ".github/live-proofs/5004.sql",
+    ".agent/work/5004/5/contract.json",
+    ".agent/work/5004/5/completion.json",
+    "tools/coldlion-landing/lib/order-intake-write.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view api.dam_order_list",
+    "function public.resolve_coldlion_triage"
+  ],
+  "prohibited_actions": [
+    "No change to view grants, security mode or existing column meaning beyond hiding resolved disagreements; one column appended.",
+    "No production or preview apply by hand; promotion follows the automatic workflow.",
+    "No production data write from this session; resolutions are made by users through the screen."
+  ],
+  "required_checks": [
+    "node --test tools/coldlion-order-intake-*.test.mjs",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Disclosure: published after the implementation commit was pushed (PR #5006). A resolved disagreement means a person chose Google's value for ColdLion's current value; a later, different ColdLion value reports again.",
+    "Generation 2 adds the same-customer check on linking (Muse review medium finding) and succeeds generation 1.",
+    "Generation 3 makes the Import PO move pick the same customer's order among grandfathered duplicates (Muse review medium finding) and succeeds generation 2.",
+    "Generation 4 requires a ColdLion source ref for every resolver action and makes the writer's automatic merge skip kept-separate lines (Muse review H1/M1); it succeeds generation 3.",
+    "Generation 5 renames the live-proof column to passed and makes the Import PO move confirm ColdLion's order history (Muse review H1/M1); it succeeds generation 4."
+  ],
+  "stop_conditions": [
+    "Stop if claim #5005 reports a collision.",
+    "Stop if the PostgreSQL 17 resolver suite fails."
+  ],
+  "evidence_parent": {
+    "work_issue": 5004,
+    "generation": 4,
+    "contract_sha256": "0d8f20107134d1fe99f02ed080741e23a37a05bb74aabe42c3dd1a4c76210f7c"
+  }
+}
