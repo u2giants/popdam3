@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandProductPhrases } from "./search-query-expand.ts";
+import { expandProductPhrases, expandProductQueries } from "./search-query-expand.ts";
 
 describe("expandProductPhrases", () => {
   it("keeps the original query first", () => {
@@ -38,6 +38,13 @@ describe("expandProductPhrases coir", () => {
       "spiderman coir",
       "spiderman coir mat",
       "spiderman outdoor mat",
+    ]);
+  });
+  it("matches the outdoor mat variant by words only", () => {
+    expect(expandProductQueries("spiderman coir")).toEqual([
+      { query: "spiderman coir", semantic: true },
+      { query: "spiderman coir mat", semantic: true },
+      { query: "spiderman outdoor mat", semantic: false },
     ]);
   });
   it("leaves coir mat to the existing rule", () => {
