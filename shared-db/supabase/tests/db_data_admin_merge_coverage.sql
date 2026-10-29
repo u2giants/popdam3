@@ -54,7 +54,6 @@ begin
       ('core.customer', 'plm.customer_import(company_id)'),
       ('core.customer', 'plm.erp_customer(customer_id)'),
       ('core.customer', 'plm.item(company_id)'),
-      ('core.customer', 'plm.item_retailer_selling(retailer_id)'),
       ('core.customer', 'plm.production_order(company_id)'),
       ('core.customer', 'plm.rfq_group(company_id)'),
       ('core.customer', 'plm.style_tracker_item_bridge(company_id)'),
@@ -122,8 +121,7 @@ begin
       ('core.customer', 'pim.customer_order'), ('core.customer', 'pim.design_collection'),
       ('core.customer', 'pim.product'), ('core.customer', 'pim.project'),
       ('core.customer', 'plm.customer_import'), ('core.customer', 'plm.erp_customer'),
-      ('core.customer', 'plm.item'), ('core.customer', 'plm.item_retailer_selling'),
-      ('core.customer', 'plm.production_order'),
+      ('core.customer', 'plm.item'), ('core.customer', 'plm.production_order'),
       ('core.customer', 'plm.rfq_group'), ('core.customer', 'plm.style_tracker_item_bridge'),
       ('core.customer', 'public.assets'), ('core.customer', 'public.style_groups'),
       ('core.customer', 'public.style_tracker_rows'),
@@ -164,8 +162,6 @@ declare
   v_channel_shared uuid;
   v_channel_loser_only uuid;
   v_style_row uuid;
-  v_fixture_item uuid;
-  v_fixture_item_shared uuid;
   v_customer_source text := 'merge-fixture-customer-' || gen_random_uuid()::text;
   v_factory_source text := 'merge-fixture-factory-' || gen_random_uuid()::text;
 begin
@@ -209,21 +205,6 @@ begin
   ) values ('Merge Fixture ' || gen_random_uuid(), 1, 'other', v_customer_loser)
   returning id into v_style_row;
 
-  insert into plm.item (item_number, name, source_system, source_id)
-  values ('FIX-' || substr(gen_random_uuid()::text, 1, 12), 'Merge Fixture Item',
-          'merge_fixture', v_customer_source || '-item')
-  returning id into v_fixture_item;
-  insert into plm.item (item_number, name, source_system, source_id)
-  values ('FIX-' || substr(gen_random_uuid()::text, 1, 12), 'Merge Fixture Item Shared',
-          'merge_fixture', v_customer_source || '-item-shared')
-  returning id into v_fixture_item_shared;
-  insert into plm.item_retailer_selling (item_id, retailer_id, selling_signal)
-  values (v_fixture_item, v_customer_loser, 'green');
-  insert into plm.item_retailer_selling (item_id, retailer_id, selling_signal)
-  values
-    (v_fixture_item_shared, v_customer_loser, 'red'),
-    (v_fixture_item_shared, v_customer_survivor, 'green');
-
   perform core.merge_customer(
     p_loser => v_customer_loser,
     p_survivor => v_customer_survivor,
@@ -236,17 +217,6 @@ begin
   if (select customer_id from public.style_tracker_rows where id = v_style_row)
      is distinct from v_customer_survivor then
     raise exception 'style_tracker_rows.customer_id was not preserved';
-  end if;
-  if (select retailer_id from plm.item_retailer_selling where item_id = v_fixture_item)
-     is distinct from v_customer_survivor then
-    raise exception 'item_retailer_selling.retailer_id was not repointed to the survivor';
-  end if;
-  if (select count(*) from plm.item_retailer_selling where item_id = v_fixture_item_shared) <> 1
-     or (select retailer_id from plm.item_retailer_selling where item_id = v_fixture_item_shared)
-        is distinct from v_customer_survivor
-     or (select selling_signal from plm.item_retailer_selling where item_id = v_fixture_item_shared)
-        is distinct from 'green' then
-    raise exception 'item_retailer_selling shared pair was not collapsed onto the survivor signal';
   end if;
   if (select company_id from core.company_source_ref where source_id = v_customer_source)
      is distinct from v_customer_survivor then

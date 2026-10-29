@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "work_issue": 4991,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Re-key the #4964 selling signal to DesignFlow ids: drop empty plm.item_retailer_selling, restore core.merge_customer, create dflow_prod.item_customer_selling with backend and item-master grants.",
+  "base_sha": "4b70be6a458d308a24772b3bd48c74f4d3cfc6c6",
+  "dispatcher": "Claude chat ebfe7a83-6008-4e1d-9fd1-be96f5a2a8d5 on edge-dev3",
+  "worker": "Claude chat ebfe7a83-6008-4e1d-9fd1-be96f5a2a8d5 on edge-dev3 (no sub-agents)",
+  "branch": "claude/4964-dflow-selling-prod",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/wizardly-mclean-b07b5c",
+  "allowed_paths": [
+    "supabase/migrations/20261028230429_dflow_prod_item_customer_selling.sql",
+    "supabase/tests/db_data_admin_merge_coverage.sql",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_item_customer_selling_contracts.sql",
+    "supabase/tests/plm_item_retailer_selling_contracts.sql",
+    ".agent/work/4991/1/contract.json",
+    ".agent/work/4991/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261028230429_dflow_prod_item_customer_selling.sql",
+    "supabase/tests/db_data_admin_merge_coverage.sql",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_item_customer_selling_contracts.sql",
+    "supabase/tests/plm_item_retailer_selling_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function core.merge_customer",
+    "table dflow_prod.item_customer_selling",
+    "table plm.item_retailer_selling"
+  ],
+  "prohibited_actions": [
+    "No change outside allowed_paths",
+    "No manual production command"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Contract published 2026-10-28 after the implementation commits already existed (the merge queue required the pair late); it records the scope as built, not a pre-work declaration."
+  ],
+  "stop_conditions": [
+    "plm.item_retailer_selling holds any row"
+  ],
+  "evidence_parent": null
+}

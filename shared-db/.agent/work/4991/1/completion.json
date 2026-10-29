@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_issue": 4991,
+  "outcome": "ready-for-merge",
+  "pr": 4995,
+  "migration_versions": [
+    "20261028230429"
+  ],
+  "contract_ref": "refs/db-contracts/4991/1",
+  "contract_sha256": "8d92457147058f34e71b8547903ad17c45d27c40548d7fbd9cb92870ccbd1198",
+  "head_sha": "a956ad1b1a63b72d1f40312dddaffe41d4919ad0",
+  "base_sha": "4b70be6a458d308a24772b3bd48c74f4d3cfc6c6",
+  "files_changed": [
+    "supabase/migrations/20261028230429_dflow_prod_item_customer_selling.sql",
+    "supabase/tests/db_data_admin_merge_coverage.sql",
+    "supabase/tests/dflow_prod_contract.sql",
+    "supabase/tests/dflow_prod_item_customer_selling_contracts.sql",
+    "supabase/tests/plm_item_retailer_selling_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL checks passed; ephemeral database tests ran in CI."
+    }
+  ],
+  "assumptions_resolved": [
+    "Contract was published after implementation commits; scope matches what was built."
+  ],
+  "stop_conditions_hit": []
+}
