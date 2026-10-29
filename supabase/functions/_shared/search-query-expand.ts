@@ -22,8 +22,10 @@ const PRODUCT_PHRASES: ReadonlyArray<{ pattern: RegExp; replacements: readonly s
   { pattern: /\bthrow\s*rugs?\b/gi, replacements: ["rug"] },
   { pattern: /\bkitchen\s*mats?\b/gi, replacements: ["mat"] },
   { pattern: /\bcoir\s*mats?\b/gi, replacements: ["mat"] },
-  // Bare "coir" means a coir door mat; "coir mat" above wins when both appear.
-  { pattern: /\bcoir\b(?!\s*mats?\b)/gi, replacements: ["coir mat"] },
+  // Bare "coir" means a door mat; "coir mat" above wins when both appear.
+  // "outdoor mat" brings the printed outdoor door mats whose metadata never
+  // says coir; plain "mat" would also pull desk mats.
+  { pattern: /\bcoir\b(?!\s*mats?\b)/gi, replacements: ["coir mat", "outdoor mat"] },
   { pattern: /\bcarpet\b/gi, replacements: ["rug"] },
 ];
 
