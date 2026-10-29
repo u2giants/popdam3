@@ -16,6 +16,7 @@ const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const DownloadsPage = lazy(() => import("./pages/DownloadsPage"));
 const SetupPage = lazy(() => import("./pages/SetupPage"));
+const ReconcilePage = lazy(() => import("./pages/ReconcilePage"));
 const AiTaggingFailuresPage = lazy(() => import("./pages/AiTaggingFailuresPage"));
 const AiTaggingDetailPage = lazy(() => import("./pages/AiTaggingDetailPage"));
 const ScanDiagnosticsPage = lazy(() => import("./pages/ScanDiagnosticsPage"));
@@ -70,6 +71,7 @@ const App = () => (
                 <Route path="/files" element={<FileBrowserPage />} />
                 {!IS_POPSG && <Route path="/sell-through" element={<SellThroughExportPage />} />}
                 {!IS_POPSG && <Route path="/orders" element={<OrdersPage />} />}
+                {!IS_POPSG && <Route path="/reconcile" element={<ReconcilePage />} />}
                 <Route path="/styles" element={<StylesPage />} />
                 <Route path="/settings" element={IS_POPSG ? <PopSGSettingsPage /> : <SettingsPage />} />
                 {!IS_POPSG && (
