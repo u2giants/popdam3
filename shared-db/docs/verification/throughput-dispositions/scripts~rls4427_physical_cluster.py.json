@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "source": "scripts/rls4427_physical_cluster.py",
+  "sites": [
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:456",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:18aaaa7a6194a96b76ae20d9b95747bbffcd9c1eca4af93077990d1d6b322470:context-3611acad7d443494fa1cf076679b45f55dc2dd2cd49744f386b27882a57ce4cb",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:18aaaa7a6194a96b76ae20d9b95747bbffcd9c1eca4af93077990d1d6b322470:1",
+      "line_sha256": "18aaaa7a6194a96b76ae20d9b95747bbffcd9c1eca4af93077990d1d6b322470",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this rejects a physical snapshot without its actual private root key, preventing silent rekey or broken encryption capability; it says nothing about business data."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:458",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:310fb876d1e4491eecde82af1de8f249516d0a268aea27480b0a8689a296bc17:context-4929dc758d7d1905339f7767064455aebfe24a43f50f80343c94061a599394cf",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:310fb876d1e4491eecde82af1de8f249516d0a268aea27480b0a8689a296bc17:1",
+      "line_sha256": "310fb876d1e4491eecde82af1de8f249516d0a268aea27480b0a8689a296bc17",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires exact bounded configuration or image dependency closure before any owned target startup; it refuses incomplete test custody rather than claiming absent business records."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:182",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:49ff9d5391896a4e5c1a9fc3c348f9c5721e1498975781785968eca25bf2be11:context-3b571a1a167bf66cd0ee6d8e1d41007378eb57eb1944a67ae474251d77a45c9e",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:49ff9d5391896a4e5c1a9fc3c348f9c5721e1498975781785968eca25bf2be11:1",
+      "line_sha256": "49ff9d5391896a4e5c1a9fc3c348f9c5721e1498975781785968eca25bf2be11",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this admits only the positively observed absence of an existing Unix replication route under exact synthetic source custody, never overriding an existing rule or business permission."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:133",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:4a83bf1e4a693e1960680c176804e0699a11294e63617cc0daa35f73f5830270:context-20f8fb8146fb42eeab65dd00054a91e0a809c93ba5b7f068da98129ac0fd2e1c",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:4a83bf1e4a693e1960680c176804e0699a11294e63617cc0daa35f73f5830270:1",
+      "line_sha256": "4a83bf1e4a693e1960680c176804e0699a11294e63617cc0daa35f73f5830270",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this admits only the positively observed absence of an existing Unix replication route under exact synthetic source custody, never overriding an existing rule or business permission."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:474",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:4e6dde9014087f3560cf013c54eaa9cab14f025004fc62f2cbc62bf28504cb2e:context-c990276a34d48a74fa60493044086a90d381a45d44483c5cf4eb2efa659963dc",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:4e6dde9014087f3560cf013c54eaa9cab14f025004fc62f2cbc62bf28504cb2e:1",
+      "line_sha256": "4e6dde9014087f3560cf013c54eaa9cab14f025004fc62f2cbc62bf28504cb2e",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires exact bounded configuration or image dependency closure before any owned target startup; it refuses incomplete test custody rather than claiming absent business records."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:476",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:6febde1e27d47bac395db22b1ffcdee56cef3d504572a9ac83450803c270792d:context-79022dc82e9992dea9a23992f3b1f9d76ae1387bfd0ba87245b4d00e18cb6dc5",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:6febde1e27d47bac395db22b1ffcdee56cef3d504572a9ac83450803c270792d:1",
+      "line_sha256": "6febde1e27d47bac395db22b1ffcdee56cef3d504572a9ac83450803c270792d",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires exact bounded configuration or image dependency closure before any owned target startup; it refuses incomplete test custody rather than claiming absent business records."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:686",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1:context-8289eb81e719890c02d44938a21c0cb9d374ccee4cc8ba8b931007b88db8c7b0",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1:1",
+      "line_sha256": "72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires the positively admitted source data-directory mode before preserving owned physical fixture permissions; it asserts no business-data absence."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:694",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1:context-962de343982b2b953a3b9eda398169b214a433d4d008af11c8495ea3092cc4c1",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1:2",
+      "line_sha256": "72cf13ff36ae648a5621489eaf26f244f25dd71c606afbaa30c6ec91a40a19c1",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires the positively admitted source data-directory mode before preserving owned physical fixture permissions; it asserts no business-data absence."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:370",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:7525deed1622aadef907edb085b364e22303b57fdd4c6bc2e44959c403146970:context-39f0fb8277657d1b0933123dd10835f3fc50ddeee2f3ad1d1dc92313e989fba6",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:7525deed1622aadef907edb085b364e22303b57fdd4c6bc2e44959c403146970:1",
+      "line_sha256": "7525deed1622aadef907edb085b364e22303b57fdd4c6bc2e44959c403146970",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this rejects an absent or ambiguous scheduler identity in an owned synthetic test target; it never reports production delivery."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:421",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:a8ed04865cc772b707cc5382480efba726e87cf4a778c3a7a69f90cbc6e920df:context-7b5cd4401de7bf4546c1ca807a331d62d6020a18f3a9480fda39b7b4d09aedd4",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:a8ed04865cc772b707cc5382480efba726e87cf4a778c3a7a69f90cbc6e920df:1",
+      "line_sha256": "a8ed04865cc772b707cc5382480efba726e87cf4a778c3a7a69f90cbc6e920df",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires actual source-mode binding and preserves diagnostic refusal for unsupported synthetic physical archive metadata; it does not assert absent business records."
+    },
+    {
+      "source": "scripts/rls4427_physical_cluster.py",
+      "site": "scripts/rls4427_physical_cluster.py:479",
+      "semantic_key": "scripts/rls4427_physical_cluster.py:cc6d6df945e1ff932d4aaf92612d5fa271c63a9a957ced1225636b7d8efd532a:context-d19b14f803551bde437e792914a800928631413e74a916720b5f383a378ec64e",
+      "legacy_semantic_key": "scripts/rls4427_physical_cluster.py:cc6d6df945e1ff932d4aaf92612d5fa271c63a9a957ced1225636b7d8efd532a:1",
+      "line_sha256": "cc6d6df945e1ff932d4aaf92612d5fa271c63a9a957ced1225636b7d8efd532a",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this rejects an incomplete physical backup lacking its verification manifest before extraction or startup; it is a test-artifact completeness guard."
+    }
+  ]
+}

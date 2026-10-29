@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "work_issue": 4890,
+  "outcome": "ready-for-merge",
+  "pr": 4971,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4890/50",
+  "contract_sha256": "02765a6ab4804b612a4b0d468c1a4fae4b568ca01a8717f22b7771e665fffd2f",
+  "head_sha": "ad7c2c684b3d8bcbb247cd796a9ea20c52576614",
+  "base_sha": "f6b32f28b74b6d0b65b7906de6e34e96dd2cb4b7",
+  "files_changed": [
+    ".github/workflows/database-contract-tests.yml",
+    "docs/verification/rls-initplan/4427/actual-table-qualification.md",
+    "docs/verification/throughput-dispositions/scripts~qualify_rls4427_actual_tables.py.json",
+    "docs/verification/throughput-dispositions/scripts~rls4427_native_restore_regression.py.json",
+    "docs/verification/throughput-dispositions/scripts~rls4427_physical_cluster.py.json",
+    "scripts/qualify_rls4427_actual_tables.py",
+    "scripts/rls4427_native_restore_regression.py",
+    "scripts/rls4427_physical_cluster.py",
+    "scripts/test_qualify_rls4427_actual_tables.py",
+    "scripts/test_rls4427_native_restore_regression.py",
+    "scripts/test_rls4427_physical_cluster.py",
+    "supabase/tests/fixtures/rls4427_native_restore_fixture.sql",
+    "supabase/tests/rls_public_admin_actual_table_performance.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_qualify_rls4427_actual_tables scripts.test_rls4427_physical_cluster scripts.test_rls4427_native_restore_regression",
+      "exit_code": 0,
+      "evidence": "98focusedcontrols PASS and included bothfullglobs; originalSOURCE123s elapsed subtracted from native2700 beforecopy; helperdefault2100/explicit2700/maxinvalid/finitepositive bounds; globalremaining/refusal retained. Exactmanualpredicate60else45/defaultOFF pinned."
+    },
+    {
+      "command": "node --test scripts/rls-public-admin-initplan.test.mjs scripts/agent-work-contract-git-evidence.test.mjs scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "Part of actual147 Node tests all PASS; originalpolicy/sourcehash/2124/198 retained, nativeevidence and guardcatalog checks."
+    },
+    {
+      "command": "node --test scripts/check-workflow-yaml.test.mjs scripts/database-contract-authorization.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "Part of actual147-test combined Node suite, all PASS; existing workflow/auth/queue contracts."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards PASS; no ownmigration change or live database use."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites388 sources110 derived_digestfd6b11934eaa; exactchangedqualifier sites reviewed/updated."
+    },
+    {
+      "command": "node scripts/check-workflow-yaml.mjs",
+      "exit_code": 0,
+      "evidence": "51 workflow YAML files parse clean, no conflict markers."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Whitespace check PASS."
+    },
+    {
+      "command": "python3 -m py_compile scripts/qualify_rls4427_actual_tables.py scripts/rls4427_physical_cluster.py scripts/rls4427_native_restore_regression.py",
+      "exit_code": 0,
+      "evidence": "All3 source-specific Python files compile."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_*.py (complete ordinary offline glob in isolated credential/resource-free child environment)",
+      "exit_code": 0,
+      "evidence": "BothcompleteordinaryofflinePython1709/46skipsPASS;3.12=35.049s/3.14=31.912s. Logs/tmp/4427-gen50-py312.log and py314.log."
+    },
+    {
+      "command": "cached Python3.12.14 full ordinary scripts/test_*.py offline glob",
+      "exit_code": 0,
+      "evidence": "Actual1709PASS46skips35.049s cachedPython3.12."
+    },
+    {
+      "command": "local Python3.14.4 full ordinary scripts/test_*.py offline glob",
+      "exit_code": 0,
+      "evidence": "Actual1709PASS46skips31.912s localPython3.14."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective50 beforeedits; nofetch,currentqualificationbasef6 remains; parentknownmainc67 notintegrated. Current50pair only/old49private+refs preserved.",
+    "Actualnative49 costONLYrefused after34warmups/35cleanstops/removed:elapsed271.4008,sum112.37897,projection1986.4966>remaining1828.8371. Reaper/localdualcase actual49 PASS retained; no native374acceptance.",
+    "ROOTcapacitydecision requires explicitfreshAIreview: Nativeglobal2700 includesoriginalSOURCEsuite/allwallwaits; exact workflow_dispatch+true only60minjob, ordinary45min unchangedheavydefaultOFF. Helperdefault2100 retained but strictpositivefiniteexplicit<=2700. Local600/660 unchanged.",
+    "No optimization/skip/retry/PIDincrease/guardloosening: all374samples/375starts/187pairs/17workloads/330DML44SELECT/34warmups+340measured/30sSQL/cron5\u201340stop50/CPU1memory2GiBPID256/physical/roles/crypto/cleanup unchanged. Prediction10sum*60/35+60 unchanged.",
+    "Private /tmp/4890-gen50-unchanged-operation-closure.json proves helperoperationmethods exact49 exceptconstructorbudgetvalidation andprojectioncommentonly. Creation/custody/restore/start/reset/crypto/role/cleanup exact49; localdriver+fixture exact49. Actual49 proofs reused ONLYunchangedexecutedclosure; no extra localresource action.",
+    "BothPython1709/46skips35.049s/31.912s,98focused,Node147/staticSQL/YAML51/truth388sites110sourcesfd6b11934eaa/compile/whitespace PASS. Childnoresource/review/push/native/merge/prod. Freshclean50brief ONEFFremote74to50+ONEnative45/60 thenSTRICTconditionalguardedmergevalid374/allCI/flags/rootadoption; no newlocal/retry/prodapply."
+  ],
+  "stop_conditions_hit": []
+}

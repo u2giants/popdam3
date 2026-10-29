@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "source": "scripts/rls4427_native_restore_regression.py",
+  "sites": [
+    {
+      "source": "scripts/rls4427_native_restore_regression.py",
+      "site": "scripts/rls4427_native_restore_regression.py:409",
+      "semantic_key": "scripts/rls4427_native_restore_regression.py:634485f5009fca54d5eb1906d4c9499bdd1864d0e29a072823dee80fcf158c71:context-2b9cc0bd326c1008dd388bd074a535634839b77cc954b4d2d887856096477419",
+      "legacy_semantic_key": "scripts/rls4427_native_restore_regression.py:634485f5009fca54d5eb1906d4c9499bdd1864d0e29a072823dee80fcf158c71:1",
+      "line_sha256": "634485f5009fca54d5eb1906d4c9499bdd1864d0e29a072823dee80fcf158c71",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this rejects a synthetic EXPLAIN sample without a valid execution time, preventing incomplete local calibration evidence from being accepted."
+    },
+    {
+      "source": "scripts/rls4427_native_restore_regression.py",
+      "site": "scripts/rls4427_native_restore_regression.py:150",
+      "semantic_key": "scripts/rls4427_native_restore_regression.py:9cb5cbb8416ab5f55862265d63e23c52193aaefd4b97238006d941c922f4509b:context-095b103f70293a224d8eb44231692104ad4ce5184e7ab85a9a51c105cb4b80a9",
+      "legacy_semantic_key": "scripts/rls4427_native_restore_regression.py:9cb5cbb8416ab5f55862265d63e23c52193aaefd4b97238006d941c922f4509b:1",
+      "line_sha256": "9cb5cbb8416ab5f55862265d63e23c52193aaefd4b97238006d941c922f4509b",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires exact bounded configuration or image dependency closure before any owned target startup; it refuses incomplete test custody rather than claiming absent business records."
+    },
+    {
+      "source": "scripts/rls4427_native_restore_regression.py",
+      "site": "scripts/rls4427_native_restore_regression.py:136",
+      "semantic_key": "scripts/rls4427_native_restore_regression.py:aaf6f44efc1eee49441357c7a7584ef4805023b8a8467057d9335f5b6b10a12b:context-1026c06dd485c2921db892543b30725cca8effbff8887aa66880880220aadfe8",
+      "legacy_semantic_key": "scripts/rls4427_native_restore_regression.py:aaf6f44efc1eee49441357c7a7584ef4805023b8a8467057d9335f5b6b10a12b:1",
+      "line_sha256": "aaf6f44efc1eee49441357c7a7584ef4805023b8a8467057d9335f5b6b10a12b",
+      "disposition": "excluded",
+      "reason": "Excluded from delivery-absence claims: this requires exact bounded configuration or image dependency closure before any owned target startup; it refuses incomplete test custody rather than claiming absent business records."
+    }
+  ]
+}
