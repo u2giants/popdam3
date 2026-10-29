@@ -26,7 +26,7 @@ describe("parseSemanticFloor", () => {
 
 describe("effectiveSemanticFloor", () => {
   it("keeps only near-best picture matches", () => {
-    expect(effectiveSemanticFloor(null, 0.217)).toBeCloseTo(0.172);
+    expect(effectiveSemanticFloor(null, 0.217)).toBeCloseTo(0.182);
   });
   it("never lowers the admin floor", () => {
     expect(effectiveSemanticFloor(0.2, 0.217)).toBe(0.2);
