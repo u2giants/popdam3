@@ -13,6 +13,8 @@
 
 ## 0.0-R OWNER RULING — review is advisory, never a merge gate (Albert Hazan, 2026-10-29)
 
+Recorded by #5054; proven by #5056 (docs PR merged with no verdict).
+
 Verbatim: "this past week where i didn't have to deal with reviewer errors was the first time in
 10 months where things actually got done ... you need to find a way to cut more reviewer 'fat'."
 
