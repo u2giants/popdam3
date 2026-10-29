@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "work_issue": 4890,
+  "outcome": "ready-for-merge",
+  "pr": 5023,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/4890/56",
+  "contract_sha256": "f44c53def89bc8542da6a4926140ba72a5bdc5139c96a295f790f73e5f842055",
+  "head_sha": "50698519074a47170c2b265ccface0678ea0f390",
+  "base_sha": "aafdea08946b8465e6966bbf1cd7cdab765b999e",
+  "files_changed": [
+    ".github/live-proofs/4427.sql",
+    "docs/verification/rls-initplan/4427/acceptance.md",
+    "docs/verification/rls-initplan/4427/actual-table-runtime-evidence.json.gz",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "scripts/test_rls_admin_catalog_recovery.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "FullNode throughput-guard tests",
+      "exit_code": 0,
+      "evidence": "Fullnode --test scripts/throughput-guard/*.test.mjs72PASS8.009s; previouslyfailing27/30/31 detectorinventory controls nowPASS."
+    },
+    {
+      "command": "check-production-verification-sidecars --base origin/main",
+      "exit_code": 0,
+      "evidence": "node scripts/check-production-verification-sidecars.mjs --base origin/main PASS statusOK/95sidecars; no detectorregeneration/baselinechange."
+    },
+    {
+      "command": "check-throughput-truth-audit",
+      "exit_code": 0,
+      "evidence": "Truth auditPASS388sites110sourcesfd6b11934eaa."
+    },
+    {
+      "command": "309focusedPython and27affectedNode tests",
+      "exit_code": 0,
+      "evidence": "309PythonPASS0.521s;27NodePASS (family10/parser17), existingprivacy/integrity/closure/all72/39/2/44controls retained."
+    },
+    {
+      "command": "StaticSQL/actualparser/canonical/gzip/integrity/Markdownlinks",
+      "exit_code": 0,
+      "evidence": "StaticSQLPASS; exactverifierbytesaafdea/canonical99648/parser/approvedgzip/MarkdownlinksPASS."
+    },
+    {
+      "command": "git diff --check/nativecompletion/exactGit evidence",
+      "exit_code": 0,
+      "evidence": "Whitespace/completion/exactGit evidencePASS."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective56publishedbeforeedits sameactualPR5023/samebranch.55pairprivatepreservedandremovedfromPRdiff; only56pair current. No fetch/classreset/reviewinflightmutation.",
+    "production_catalog_verification.py restoredEXACTaafdea bytes, finaldiffexcludesit. Detectorinventorypreservedwithoutregeneration/guard/toolrepair/functionalchange. Historicalcommentleftlegacycontext; operativecanonical99648stripunchanged.",
+    "Finalsubstantivefiles5ONLY: exactcanonicalprobe/acceptance/approvedgzip/existingNodefamily+Pythonidentitytest; rootplan/workflows/flags/timeouts/DBstructure/migrations/runtimeunchanged.",
+    "Full72throughput+sidecars95/truth388/309Python27Node/static/parser/integrity/links/whitespace checks PASS. ActualCIpreviousfailures retained; newCI stillpendingpublication. No falselyclaimedremotechecks.",
+    "ReadycompletionactualPR5023, implementationhead506985190 plusmetadata-onlytail permittednativeevidence. Parentfreshreview exactfinalreadyhead beforepush; no childpush/paidreview/resources/query/GHcomments/merge/prod/issueclosure."
+  ],
+  "stop_conditions_hit": []
+}

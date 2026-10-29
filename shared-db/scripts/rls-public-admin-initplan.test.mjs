@@ -238,7 +238,11 @@ test('current batched 20261026 runtime evidence binds the complete current sourc
 test('automatic live probe binds the complete installed catalog without authorizing closure', () => {
   const probe = readFileSync(new URL('../.github/live-proofs/4427.sql', import.meta.url), 'utf8')
   assert.equal(probeShapeProblem(probe), null)
-  const snapshots = [...probe.matchAll(/\$baseline\$([\s\S]*?)\$baseline\$::jsonb/g)].map(match => JSON.parse(match[1]))
+  assert.equal(createHash('sha256').update(probe).digest('hex'), '99648c0a01fcba2001490a5f29e08f7a160e2fdc5fa31e593cdefa65accfe118')
+  // Same SQL-quoted JSON normalization as test_rls_admin_catalog_recovery.py.
+  const normalized = probe.replace(/'((?:''|[^'])*)'::jsonb/g, (whole, body) =>
+    body.startsWith('[{') ? '$baseline$' + body.replaceAll("''", "'") + '$baseline$::jsonb' : whole)
+  const snapshots = [...normalized.matchAll(/\$baseline\$([\s\S]*?)\$baseline\$::jsonb/g)].map(match => JSON.parse(match[1]))
   assert.equal(snapshots.length, 3)
   const [policies, tables, helpers] = snapshots
   assert.equal(policies.length, 72)
@@ -259,7 +263,51 @@ test('automatic live probe binds the complete installed catalog without authoriz
   for (const field of ['e.column_acl','c.relacl','c.relrowsecurity','c.relforcerowsecurity','p.proconfig','p.proacl','pg_get_functiondef','pg_has_role','has_schema_privilege','has_table_privilege']) assert.ok(probe.includes(field), field)
   assert.match(probe, /version='20261021190604'/)
   assert.match(probe, /r\.oid<>c\.relowner or c\.relforcerowsecurity/)
-  assert.match(probe, /Passing does not close4427 or release4428/)
+  const producer = readFileSync(new URL('shared_db_live_proof.py', import.meta.url), 'utf8')
+  assert.ok(producer.includes('production acceptance remains separate'))
+  const acceptance = readFileSync(new URL('../docs/verification/rls-initplan/4427/acceptance.md', import.meta.url), 'utf8')
+  const catalogOnlyDisclaimer = 'Passing does not close4427 or release4428: real-role plans, advisors, preview, production receipts and approved live consumer read/write proof remain required.'
+  assert.ok(acceptance.includes(catalogOnlyDisclaimer))
+  assert.match(acceptance, /not a claim of\s+causal production latency improvement/)
+  const producerWorkflow = readFileSync(new URL('../.github/workflows/shared-db-live-proof.yml', import.meta.url), 'utf8')
+  assert.match(producerWorkflow, /^  issues: read$/m)
+  assert.doesNotMatch(producerWorkflow, /issues: write/)
+
+})
+
+test('approved actual-table evidence has immutable integrity and a public synthetic envelope', () => {
+  const packed = readFileSync(new URL('../docs/verification/rls-initplan/4427/actual-table-runtime-evidence.json.gz', import.meta.url))
+  const raw = gunzipSync(packed)
+  const hash = value => createHash('sha256').update(value).digest('hex')
+  assert.equal(hash(packed), '84f6c3baf3967108940eaa4552c4266238f4dceb56e5382108a4974ea25f825b')
+  assert.equal(hash(raw), '10c96dc00e995b24a5268239d7289cbf3f9c417a7743659895f54b128843a797')
+  const evidence = JSON.parse(raw)
+  assert.equal(evidence.schema_version, 1)
+  assert.deepEqual(Object.keys(evidence).sort(), ['artifact','canonical_sha256','cost_event','crypto','executed_codehashes','issue','original_source198','owned_removed_absent','run','samples374','schema_version','source','startup375','stop375','summary17'].sort())
+  assert.equal(evidence.issue, 4427)
+  assert.equal(evidence.source, 'e7066e1e0950ca5c81312dc3690105f26a0c160c')
+  assert.equal(evidence.run, 40811517087)
+  assert.equal(evidence.samples374.length, 374)
+  assert.equal(evidence.summary17.length, 17)
+  assert.equal(evidence.original_source198.samples.length, 198)
+  assert.equal(evidence.startup375.length, 375)
+  assert.equal(evidence.stop375.length, 375)
+  assert.equal(evidence.owned_removed_absent, true)
+  assert.ok(evidence.stop375.every(row => row.clean_shutdown && row.pid_absent && row.minute_window_qualified))
+  assert.ok(evidence.summary17.every(row => row.median_regression_over_10_percent === false))
+  const forbidden = new Set(['snapshot','template_snapshots','helpers','helper_bodies','db_settings','rolconfig','config','root_key','key_bytes','private_stderr_path','private_stdout_path','rowdata','environment','claim_context','analyze_facts','tool_versions'])
+  const inspect = value => {
+    if (Array.isArray(value)) return value.forEach(inspect)
+    if (value && typeof value === 'object') {
+      for (const [key, item] of Object.entries(value)) {
+        assert.equal(forbidden.has(key), false, key)
+        inspect(item)
+      }
+    } else if (typeof value === 'string') {
+      assert.doesNotMatch(value, /\/(?:tmp|home)\/|CREATE FUNCTION|BEGIN PRIVATE/)
+    }
+  }
+  inspect(evidence)
 })
 
 // The retained-evidence checks must run in the required offline CI context.

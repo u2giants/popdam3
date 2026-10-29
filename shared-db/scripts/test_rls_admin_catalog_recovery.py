@@ -19,8 +19,6 @@ CONTRACT = CATALOG_CONTRACTS['rls_public_admin_install_v1']
 
 class AdminCatalogRecoveryTests(unittest.TestCase):
     def test_complete_original_snapshot_and_all_existing_checks_are_preserved(self):
-        historical = (ROOT / '.github/live-proofs/4427.sql').read_text()
-        baseline = historical[historical.index('WITH expected_policies AS'):].rstrip().removesuffix(';')
         # Remove ONLY the narrowly inserted composition CTE; everything else
         # must equal the original immutable installed-catalog probe byte for byte.
         normalized = re.sub(r"'((?:''|[^'])*)'::jsonb", lambda m: '$baseline$' + m[1].replace("''", "'") + '$baseline$::jsonb' if m[1].startswith('[{') else m[0], CONTRACT)
@@ -28,7 +26,8 @@ class AdminCatalogRecoveryTests(unittest.TestCase):
         end = normalized.index('), expected_tables AS (', start)
         restored = (normalized[:start] + normalized[end:]).strip().replace(
             'WITH original_expected_policies AS (', 'WITH expected_policies AS (', 1)
-        self.assertEqual(restored, baseline)
+        # Immutable original probe baseline remains independently pinned after repair.
+        self.assertEqual(hashlib.sha256(restored.encode()).hexdigest(), '32fa4afed5690359d851fd6588c881871345669afc65b8fc4f27429cddd7d2fd')
         snapshots = [json.loads(x) for x in re.findall(r'\$baseline\$([\s\S]*?)\$baseline\$::jsonb', normalized)]
         self.assertEqual([len(x) for x in snapshots], [72, 39, 2])
         self.assertIn('where version=\'20261021190604\'', CONTRACT)
@@ -95,11 +94,12 @@ class AdminCatalogRecoveryTests(unittest.TestCase):
         self.assertEqual([item for item in registry['sidecars'] if item['version'] == VERSION],
             [dict(version=VERSION, issue=4867)])
 
-    def test_old_proof_and_applied_migration_are_not_rewritten(self):
+    def test_native_producer_probe_is_exact_existing_canonical_and_migration_unchanged(self):
         self.assertEqual(hashlib.sha256(MIGRATION.read_bytes()).hexdigest(), '436f304ae74922d3543f7da2f9b1127abf5e4050ab267314636bb5bdd9220300')
-        historical = (ROOT / '.github/live-proofs/4427.sql').read_text()
-        self.assertNotIn("version='20261023122936'", historical)
-        self.assertIn('Passing does not close4427', historical)
+        probe = (ROOT / '.github/live-proofs/4427.sql').read_bytes()
+        self.assertEqual(probe, CONTRACT.strip().encode())
+        self.assertEqual(hashlib.sha256(probe).hexdigest(), '99648c0a01fcba2001490a5f29e08f7a160e2fdc5fa31e593cdefa65accfe118')
+        self.assertIn("version='20261023122936'", probe.decode())
 
 
 if __name__ == '__main__':

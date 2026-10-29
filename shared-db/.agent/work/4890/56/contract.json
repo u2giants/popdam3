@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "work_issue": 4890,
+  "generation": 56,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Restore exact baseline verifier bytes to preserve detector inventory while delivering canonical proof and integrity evidence",
+  "base_sha": "a728f7ca10dce8c5691f1fa08e2a39d49fcf9b0d",
+  "dispatcher": "Root chat: actualCI5023 detectorhash fails solelycommentedit; prospective56samebranch/PR5023 restoreEXACTaafdea production_catalog_verification.py, no baseline regeneration; remove55pair, ready56actualPR, runspecifiedchecks; no push/review/resources.",
+  "worker": "Codex child01a1834a-813e-7b12-b17a-3e8c3aaedfb8",
+  "branch": "codex/4427-final-proof-integrity55",
+  "worktree": "/tmp/shared-db-4427-closeout54",
+  "allowed_paths": [
+    ".github/live-proofs/4427.sql",
+    "docs/verification/rls-initplan/4427/acceptance.md",
+    "docs/verification/rls-initplan/4427/actual-table-runtime-evidence.json.gz",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    ".agent/work/4890/55/contract.json",
+    ".agent/work/4890/55/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No push/paidreview/GH/merge/resource/database/production/fetch/issueclosure action by child",
+    "No rootplan update or unrelated file changes",
+    "No gate bypass/modification; root must obtain supported publication route"
+  ],
+  "required_checks": [
+    "FullNode throughput-guard tests",
+    "check-production-verification-sidecars --base origin/main",
+    "check-throughput-truth-audit",
+    "309focusedPython and27affectedNode tests",
+    "StaticSQL/actualparser/canonical/gzip/integrity/Markdownlinks",
+    "git diff --check/nativecompletion/exactGit evidence"
+  ],
+  "assumptions": [
+    "ActualCI5023 at55a728 failed detectorinventory dueunnecessarycommentedit production_catalog_verification.py; restoreEXACTaafdea bytes no detectorbaseline/guard/tool changes. Priorcomment retainedaslegacycontext, functionalcanonical unchanged.",
+    "SAMEbranchcodex/4427-final-proof-integrity55 andactualPR5023. Prospective56beforeedit; preserve55pair privately/refs thenremovePR-owned55pair fromfinaldiff. New56readycompletionactualPR5023 implementationhead+evidencetail; substantivefinaldiff5paths only.",
+    "Productionclass alreadydeclaredbyroot; no childclassreset/fetch/push/paidreview/resources/query/GHcomments/merge. Parentfreshreview exactreadyhead beforepublication.",
+    "Fullspecifiedofflinechecks only; ifnewfailure diagnoseactualsource/log withoutunrelatedpatch. Canonical99648/gzip84f6/closureboundary/all72/39/2/44controls unchanged."
+  ],
+  "stop_conditions": [
+    "Any native scope/gate refusal",
+    "Unknown config/include/key/ownership/archive/dependency or source quiescence",
+    "Any cron/clock/worker/physical/capability/cleanup violation",
+    "Any need for source mutation, scheduler suppression, unowned resource or shared target"
+  ],
+  "evidence_parent": {
+    "work_issue": 4890,
+    "generation": 55,
+    "contract_sha256": "c8629fbae9c2319ff30a2f4cf3f9dbd9ab168ecf94cfbc58fada2a9ff289c2fc"
+  },
+  "file_writes": [
+    ".github/live-proofs/4427.sql",
+    "docs/verification/rls-initplan/4427/acceptance.md",
+    "docs/verification/rls-initplan/4427/actual-table-runtime-evidence.json.gz",
+    "scripts/rls-public-admin-initplan.test.mjs",
+    "scripts/test_rls_admin_catalog_recovery.py",
+    "scripts/production_catalog_verification.py",
+    ".agent/work/4890/55/contract.json",
+    ".agent/work/4890/55/completion.json"
+  ]
+}
