@@ -3,7 +3,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
-import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
+import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductPhrases } from "../_shared/search-query-expand.ts";
 
@@ -242,6 +242,17 @@ corsServe(async (req) => {
     const variantPages = await Promise.all(
       queryVariants.map(async (variant) => {
         const variantEmbedding = variantEmbeddings.get(variant) ?? null;
+        // Keep only picture matches near this query's best one. The anchor
+        // read fails open to the admin floor alone.
+        let bestSemanticScore: number | null = null;
+        if (variantEmbedding) {
+          const anchor = await auth.client.rpc("dam_search_semantic_anchor", {
+            p_query_embedding: variantEmbedding,
+            p_document_types: documentTypes,
+          });
+          if (anchor.error) console.error("dam_search_semantic_anchor failed; using admin floor", anchor.error.message);
+          else if (typeof anchor.data === "number") bestSemanticScore = anchor.data;
+        }
         const { data, error } = await auth.client.rpc("search_dam_documents", {
           p_query: variant,
           p_filters: filters,
@@ -250,7 +261,7 @@ corsServe(async (req) => {
           p_document_types: documentTypes,
           p_query_embedding: variantEmbedding,
           p_min_rank: minRank,
-          p_min_semantic_score: minSemanticScore,
+          p_min_semantic_score: effectiveSemanticFloor(minSemanticScore, bestSemanticScore),
         });
         if (error) return { error, page: null };
         const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
