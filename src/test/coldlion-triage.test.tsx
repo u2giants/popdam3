@@ -48,6 +48,7 @@ describe("triage items", () => {
       row({ order_line_id: "b", production_order_number: "D2", customer_po_number: "1220303", coldlion_source_id: null }),
       row({ order_line_id: "c", coldlion_source_id: "coldlion:so:1:line:1:component:1" }),
       row({ order_line_id: "d", coldlion_source_id: null, line_voided_at: "2026-10-01" }),
+      row({ order_line_id: "e", coldlion_source_id: null, customer_name: "Walmart" }),
     ]);
     expect(ranked.map((r) => [r.order_line_id, r.samePo])).toEqual([["b", true], ["a", false]]);
   });

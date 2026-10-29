@@ -99,7 +99,7 @@ function UnmatchedStep({ item, resolve, busy }: { item: TriageItem; resolve: (ac
     <div className="space-y-4">
       <p>
         This ColdLion line did not match exactly one Google OrderList line, so it shows as its own row.
-        {candidates.length ? " Is it one of these Google lines with the same SKU?" : " No open Google line has this SKU."}
+        {candidates.length ? " Is it one of these Google lines for the same customer and SKU?" : " No open Google line has this customer and SKU."}
       </p>
       {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />

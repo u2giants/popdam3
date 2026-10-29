@@ -84,16 +84,20 @@ export function describeColdLionSource(sourceId: string | null): string | null {
   return match ? `ColdLion order ${match[1]}, line ${match[2]}` : null;
 }
 
+const sameCustomer = (a: string | null, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
 const poKey = (po: string | null) => (po ?? "").trim().replace(/^0+/, "").toLowerCase();
 
 /**
- * Google lines that could be the unmatched ColdLion line: same SKU, still open,
- * and not already carrying a ColdLion line. The same customer PO (ignoring
+ * Google lines that could be the unmatched ColdLion line: same SKU and customer,
+ * still open, and not already carrying a ColdLion line (the resolver refuses
+ * any other). The same customer PO (ignoring
  * leading zeros, as the automatic merge does) comes first.
  */
 export function rankLinkCandidates(item: TriageRow, rows: TriageRow[]): Array<TriageRow & { samePo: boolean }> {
   return rows
     .filter((row) => row.google_source_id && !row.coldlion_source_id && !row.line_voided_at && row.order_line_id !== item.order_line_id)
+    .filter((row) => sameCustomer(row.customer_name, item.customer_name))
     .map((row) => ({ ...row, samePo: poKey(row.customer_po_number) !== "" && poKey(row.customer_po_number) === poKey(item.customer_po_number) }))
     .sort(
       (a, b) =>
