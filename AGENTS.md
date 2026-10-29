@@ -426,7 +426,7 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 ## Deployment
 
-Application changes use a dedicated feature branch and pull request targeting protected `main`. Never push application changes directly to `main`; pass the required reviews/checks and merge through the normal protected path. `main` remains the release branch. Verify the GitHub remote before pushing.
+Application changes use a dedicated feature branch and pull request targeting protected `main`. Never push application changes directly to `main`; pass the required checks (AI review is advice only and never blocks; owner ruling 2026-10-29, popcre/ai-devops#2041) and merge through the normal protected path. `main` remains the release branch. Verify the GitHub remote before pushing.
 
 Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md).
 
