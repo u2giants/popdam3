@@ -4386,6 +4386,10 @@ export type Database = {
         Returns: string
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
+      dam_search_semantic_anchor: {
+        Args: { p_document_types?: string[]; p_query_embedding: string }
+        Returns: number
+      }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       expand_dam_search_queries: {
         Args: { p_query: string }
@@ -5127,6 +5131,10 @@ export type Database = {
       reset_taxonomy_circuit_breaker: {
         Args: { p_authorization: Json; p_lane?: string }
         Returns: Json
+      }
+      resolve_coldlion_triage: {
+        Args: { p_action: string; p_line: string; p_target?: string }
+        Returns: string
       }
       resolve_licensor_alias: { Args: { p_observed: string }; Returns: string }
       resolve_sku_files_used: { Args: never; Returns: number }
