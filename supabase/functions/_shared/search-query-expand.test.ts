@@ -33,8 +33,12 @@ describe("expandProductPhrases", () => {
 });
 
 describe("expandProductPhrases coir", () => {
-  it("treats bare coir as a coir mat", () => {
-    expect(expandProductPhrases("spiderman coir")).toEqual(["spiderman coir", "spiderman coir mat"]);
+  it("treats bare coir as a coir or outdoor door mat", () => {
+    expect(expandProductPhrases("spiderman coir")).toEqual([
+      "spiderman coir",
+      "spiderman coir mat",
+      "spiderman outdoor mat",
+    ]);
   });
   it("leaves coir mat to the existing rule", () => {
     expect(expandProductPhrases("spiderman coir mat")).toEqual(["spiderman coir mat", "spiderman mat"]);
