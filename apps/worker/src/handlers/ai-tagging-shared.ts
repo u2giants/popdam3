@@ -269,6 +269,51 @@ export async function resolveLicensingNames(
   return { licensorName: licensor?.data?.name ?? null, propertyName: property?.data?.name ?? null };
 }
 
+/**
+ * Character catalog scope follows the same licensing source as the prompt:
+ * grouped assets use their Style Group, ungrouped assets their own columns.
+ */
+export async function resolveCharacterScope(
+  client: ReturnType<typeof db>,
+  asset: Pick<TaggingPromptAsset, "licensor_id" | "property_id" | "style_group_id" | "sku">,
+  checkedQuery: <T>(query: PromiseLike<T>) => Promise<T>,
+  checkedCharacterRead: (error: { code?: string } | null, data: unknown) => void,
+): Promise<{ licensor_id: string | null; property_id: string | null; unlicensed: boolean }> {
+  let scope = { licensor_id: asset.licensor_id, property_id: asset.property_id, unlicensed: false };
+  let sku = asset.sku;
+  if (asset.style_group_id) {
+    const { data, error } = await checkedQuery(client
+      .from("style_groups")
+      .select("sku, licensor_id, property_id, is_licensed")
+      .eq("id", asset.style_group_id)
+      .maybeSingle());
+    if (error) checkedCharacterRead(error, null);
+    const group = data as { sku: string | null; licensor_id: string | null; property_id: string | null; is_licensed: boolean | null } | null;
+    if (group) {
+      scope = {
+        licensor_id: group.licensor_id ?? asset.licensor_id,
+        property_id: group.property_id ?? asset.property_id,
+        unlicensed: group.is_licensed === false,
+      };
+      sku = group.sku ?? sku;
+    }
+  }
+  // No licensing ids: the SKU's licensor code (characters 6-7, e.g. VSM22MVDP01 → MV)
+  // still scopes characters, so a Disney or DC product is never offered Marvel's list.
+  const code = skuLicensorCode(sku);
+  if (!scope.unlicensed && !scope.licensor_id && !scope.property_id && code) {
+    const { data, error } = await checkedQuery(client.schema("core").from("licensor").select("id").eq("code", code).limit(2));
+    checkedCharacterRead(error, data);
+    if (data?.length === 1) scope.licensor_id = (data[0] as { id: string }).id;
+  }
+  return scope;
+}
+
+export function skuLicensorCode(sku: string | null | undefined): string | null {
+  const match = sku?.trim().toUpperCase().match(/^[A-Z0-9]{5}([A-Z0-9]{2})/);
+  return match ? match[1] : null;
+}
+
 export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options: TaggingPromptOptions = {}): Promise<string> {
   const client = options.client ?? db();
   const checkedCharacterRead = (error: { code?: string } | null, data: unknown) => { if (options.requireCharacterReadSuccess && (error || !Array.isArray(data))) throw new CharacterCatalogDependencyError(error?.code ?? "catalog_contract"); };
@@ -294,12 +339,17 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
 
   let characters: { id: string; name: string }[] = [];
   let usingPriorityOnly = false;
+  const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
-  if (asset.property_id) {
+  if (scope.unlicensed) {
+    // Unlicensed products have no licensed characters; offering the global list
+    // let the model attach Spider-Man to spider webs, red costumes, etc.
+    characters = [];
+  } else if (scope.property_id) {
     const { data: priorityChars, error: priorityError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
-      .eq("core_property_id", asset.property_id)
+      .eq("core_property_id", scope.property_id)
       .eq("is_priority", true)
       .order("usage_count", { ascending: false }));
 
@@ -311,17 +361,17 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
       const { data: allChars, error: allError } = await checkedQuery(client
         .from("dam_character_catalog")
         .select("id, name")
-        .eq("core_property_id", asset.property_id)
+        .eq("core_property_id", scope.property_id)
         .order("name"));
       checkedCharacterRead(allError, allChars);
       characters = allChars ?? [];
     }
-  } else if (asset.licensor_id) {
+  } else if (scope.licensor_id) {
     const { data: propIds, error: propertyIdsError } = await checkedQuery(client
       .schema("core")
       .from("property")
       .select("id")
-      .eq("licensor_id", asset.licensor_id));
+      .eq("licensor_id", scope.licensor_id));
     checkedCharacterRead(propertyIdsError, propIds);
     const ids = (propIds ?? []).map((p: { id: string }) => p.id);
 
