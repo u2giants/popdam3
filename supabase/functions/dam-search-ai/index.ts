@@ -6,6 +6,7 @@ import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
+import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -89,65 +90,6 @@ async function embedQueryText(input: string): Promise<number[] | null> {
   const first = await attempt();
   if (first) return first;
   return attempt();
-}
-
-type SearchHit = {
-  document_type: string;
-  entity_id: string;
-  asset_id: string | null;
-  style_group_id: string | null;
-  keyword_rank: number | null;
-  semantic_rank: number | null;
-  rank: number;
-};
-
-type SearchPage = {
-  results: SearchHit[];
-  total_count: number;
-  has_more: boolean;
-  facets: Record<string, unknown>;
-};
-
-function mergeSearchPages(pages: SearchPage[]): SearchPage {
-  const byKey = new Map<string, SearchHit>();
-  let totalCount = 0;
-  let hasMore = false;
-  let facets: Record<string, unknown> = {};
-  for (const page of pages) {
-    if (page.total_count > totalCount) {
-      totalCount = page.total_count;
-      facets = page.facets;
-    }
-    hasMore = hasMore || page.has_more;
-    for (const hit of page.results) {
-      const key = `${hit.document_type}:${hit.entity_id}`;
-      const prev = byKey.get(key);
-      if (!prev) {
-        byKey.set(key, { ...hit });
-        continue;
-      }
-      // Keep the best score from any product-type variant (mat vs rug vs original).
-      byKey.set(key, {
-        ...prev,
-        keyword_rank: Math.max(prev.keyword_rank ?? 0, hit.keyword_rank ?? 0),
-        semantic_rank: Math.max(prev.semantic_rank ?? 0, hit.semantic_rank ?? 0),
-        rank: Math.max(prev.rank ?? 0, hit.rank ?? 0),
-      });
-    }
-  }
-  // Picture match leads: greatest(keyword, semantic + 0.35*keyword).
-  // Exact-title keyword stays 1.0+ so SKU search still wins on identifiers.
-  const pictureLeadRank = (hit: SearchHit) => {
-    const kw = hit.keyword_rank ?? 0;
-    const sem = hit.semantic_rank ?? 0;
-    return Math.max(kw, sem + 0.35 * kw);
-  };
-  const results = [...byKey.values()]
-    .map((hit) => ({ ...hit, rank: pictureLeadRank(hit) }))
-    .sort(
-      (a, b) => (b.rank ?? 0) - (a.rank ?? 0) || a.document_type.localeCompare(b.document_type) || a.entity_id.localeCompare(b.entity_id),
-    );
-  return { results, total_count: totalCount, has_more: hasMore, facets };
 }
 
 corsServe(async (req) => {
