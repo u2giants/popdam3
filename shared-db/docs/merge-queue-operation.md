@@ -114,6 +114,13 @@ was reverted within minutes. A parameter change therefore lands as ONE PR, in th
 - The gate's preview hold waits 25 minutes (`PREVIEW_HOLD_MAX_SECONDS`), inside the ruleset's
   90-minute check-response timeout. A group that times out is removed by GitHub and can be
   re-queued after the hold clears; nothing is merged partially.
+- **Merge-lane contention waits instead of ejecting** (2026-10-28). When another PR's queue run or
+  guarded merge holds `refs/db-coordination/merge`, the `Queue interlock` acquisition retries every
+  15 seconds for up to 900 seconds (`scripts/acquire-merge-lane-waiting.mjs`), logging each wait with
+  the current holder. Every retry is a complete, fresh `--acquire-merge` (all proofs re-run, atomic
+  create-only ref); only the "merge is occupied" refusal is retried — production active, promotion
+  freeze, moved head or a stuck author mutex still fail on the first attempt. Past the budget the job
+  fails closed and posts the failure status as before. Do not time dispatches around other merges.
 - A failed rehearsal means the next group stays blocked. Recover preview through the existing
   governed procedures; never post the status manually and never bypass with `--admin`.
 - If the queue mutation does not land within the `authorize` job's hold budget, the job revokes the
