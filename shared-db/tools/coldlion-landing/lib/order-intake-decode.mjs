@@ -39,6 +39,17 @@ export function buildDecodeSql({ runIds, quarantineRunId }) {
   const quarantineRun = sqlUuid(quarantineRunId ?? runIds[runIds.length - 1]);
   return `begin;
 
+-- Release first: an order this step quarantined for its routing code goes back
+-- to pending once its CURRENT code decodes — a code added to the map later, or
+-- a blank code ColdLion has since filled in (SOs 7127994/7128108, 2026-10-28).
+-- Without this a decode quarantine was permanent. Writer quarantines carry a
+-- claim_evidence quarantine_reason and are never released here.
+update coldlion.intake_new_order n
+   set state = 'pending', state_changed_at = now()
+ where n.state = 'quarantined'
+   and n.claim_evidence ->> 'quarantine_reason' is null
+   and exists (select 1 from coldlion.routing_code_map m where m.code = n.warehouse_code);
+
 with zero_so as (
   insert into coldlion.intake_quarantine
     (reason, sales_order_no, routing_code, detail, first_seen_run)

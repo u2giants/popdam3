@@ -112,3 +112,10 @@ test("the unknown-code guard is correlated per order AND code, so a NEW code on 
   assert.match(sql, /q\.sales_order_no = n\.sales_order_no/);
   assert.match(sql, /q\.routing_code is not distinct from n\.warehouse_code/);
 });
+
+test("a routing-code quarantine releases once the order's current code decodes", () => {
+  // Release runs before the quarantine CTEs and never touches a writer
+  // quarantine (those carry claim_evidence.quarantine_reason).
+  assert.ok(sql.indexOf("set state = 'pending'") < sql.indexOf("with zero_so as"));
+  assert.match(sql, /where n\.state = 'quarantined'\s+and n\.claim_evidence ->> 'quarantine_reason' is null\s+and exists \(select 1 from coldlion\.routing_code_map m where m\.code = n\.warehouse_code\)/);
+});

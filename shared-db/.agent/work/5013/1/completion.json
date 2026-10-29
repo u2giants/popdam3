@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "work_issue": 5013,
+  "outcome": "ready-for-merge",
+  "pr": 5008,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5013/1",
+  "contract_sha256": "6a746bf5b5deedd8d379d6b8124108153b28a8ae3fb1c0c1cf0d5308f5bc52fa",
+  "head_sha": "75e3f745ca34579cc171af3c48d5c6cecaf9e9ed",
+  "base_sha": "c67bb2846f6755011c9e8fad34f98ab2420df4fd",
+  "files_changed": [
+    "tools/coldlion-landing/lib/order-intake-decode.mjs",
+    "tools/coldlion-landing/repairs/20261028-routing-code-ddpva.sql",
+    "tools/coldlion-order-intake-decode.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {"command": "node --test tools/coldlion-order-intake-*.test.mjs", "exit_code": 0, "evidence": "# pass 87 # fail 0"},
+    {"command": "git diff --check", "exit_code": 0, "evidence": "No whitespace errors"}
+  ],
+  "assumptions_resolved": [
+    "ColdLion live read 2026-10-28 confirms DDPVA = 'DDP Virginia' and FOB on both Burlington orders; DeepSeek diff-review APPROVE at 75e3f74"
+  ],
+  "stop_conditions_hit": []
+}
