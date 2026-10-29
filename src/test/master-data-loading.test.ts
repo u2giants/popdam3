@@ -8,6 +8,8 @@ import {
   fetchMasterDataPageRanges,
   flattenMasterDataPages,
   masterDataBatchRanges,
+  masterDataLoadRetry,
+  masterDataLoadRetryDelay,
   masterDataLoadStatus,
   masterDataPageSchedule,
   retryMasterDataLoad,
@@ -165,5 +167,18 @@ describe("Master Data loading", () => {
     ]) {
       expect(STYLE_TRACKER_ROW_SELECT.split(",")).not.toContain(field);
     }
+  });
+
+  it("retries a cold first load several times before surfacing the load error", () => {
+    expect(masterDataLoadRetry(0)).toBe(true);
+    expect(masterDataLoadRetry(2)).toBe(true);
+    expect(masterDataLoadRetry(3)).toBe(false);
+  });
+
+  it("spaces load retries with capped exponential delays", () => {
+    expect(masterDataLoadRetryDelay(0)).toBe(1000);
+    expect(masterDataLoadRetryDelay(1)).toBe(2000);
+    expect(masterDataLoadRetryDelay(2)).toBe(4000);
+    expect(masterDataLoadRetryDelay(5)).toBe(4000);
   });
 });

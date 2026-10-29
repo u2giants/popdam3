@@ -145,3 +145,17 @@ export async function retryMasterDataLoad(
 export function shouldAutoFetchMasterDataNextPage(hasNextPage: boolean, fetching: boolean, hasError: boolean) {
   return hasNextPage && !fetching && !hasError;
 }
+
+// The first Master Data load can exceed the shared database's 8-second
+// statement cap once while caches are cold; the same request then succeeds on
+// retry. Keep retrying so a cold start shows "Loading…" instead of dead-ending
+// in "Master Data could not be loaded.".
+export const MASTER_DATA_LOAD_RETRIES = 3;
+
+export function masterDataLoadRetry(failureCount: number) {
+  return failureCount < MASTER_DATA_LOAD_RETRIES;
+}
+
+export function masterDataLoadRetryDelay(attempt: number) {
+  return Math.min(1000 * 2 ** attempt, 4000);
+}
