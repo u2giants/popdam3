@@ -63,6 +63,15 @@ export function fieldLabel(field: FieldKey) {
   return "Vendor";
 }
 
+/**
+ * A line linked to a ColdLion item shows ColdLion's full description, which the
+ * database re-asserts on every sync. Editing it here would not change the item
+ * anywhere else, so the cell is read-only for linked lines.
+ */
+export function isColdLionDescription(row: StyleRow | undefined, column: SheetColumn) {
+  return column.typedField === "description" && Boolean(row?.plm_item_id);
+}
+
 export function hasFieldMatch(row: StyleRow, field: FieldKey) {
   if (field === "sku") return Boolean(row.erp_item_id || row.style_group_id || row.plm_item_id);
   if (field === "customer") return Boolean(row.customer_id || row.company_id);
