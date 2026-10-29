@@ -137,7 +137,7 @@ describe("DAM hybrid search", () => {
     await expect(getSearchMode()).resolves.toBe("keyword");
   });
 
-  it("cancels a stalled semantic request after 30 seconds before keyword fallback", async () => {
+  it("cancels a stalled semantic request after 30 seconds, retries once, then falls back to keyword", async () => {
     vi.useFakeTimers();
     try {
       invoke.mockImplementation((_name, options) => new Promise((_resolve, reject) => {
@@ -148,8 +148,32 @@ describe("DAM hybrid search", () => {
       await vi.advanceTimersByTimeAsync(29_999);
       expect(keyword).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
+      // First attempt aborted; the immediate retry also stalls for 30 seconds.
+      await vi.advanceTimersByTimeAsync(30_000);
       await expect(pending).resolves.toEqual(["retained-keyword"]);
       expect(keyword).toHaveBeenCalledOnce();
+      expect(invoke).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("recovers when only the first hybrid attempt stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      invoke.mockImplementation((_name: unknown, options: { signal: AbortSignal }) => {
+        calls += 1;
+        if (calls === 1) {
+          return new Promise((_resolve, reject) => {
+            options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          });
+        }
+        return Promise.resolve({ data: { results: [{ document_type: "asset", entity_id: "second-try" }], total_count: 1 }, error: null });
+      });
+      const keyword = vi.fn().mockResolvedValue(["keyword"]);
+      const pending = fetchSearchIds("hybrid", "snowman", "asset", 50, keyword);
+      await vi.advanceTimersByTimeAsync(30_001);
+      await expect(pending).resolves.toEqual(["second-try"]);
+      expect(keyword).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
 

@@ -21,10 +21,15 @@ export function parseSemanticFloor(raw: unknown): number | null {
 /**
  * Picture matches are kept only within this distance of the query's best
  * picture match. SigLIP2 text→image cosine is low and flat (~0.14-0.23), so
- * an absolute floor cannot fit every query: "spiderman coir" mats score
- * 0.16-0.22 while unrelated Spider-Man wall art follows at 0.15-0.16.
+ * an absolute floor cannot fit every query. Measured on production
+ * (2026-10-29, "spiderman coir"): real coir mats score 0.173-0.201, the
+ * first off-topic Spider-Man product (tin sign) follows at 0.151. A 0.045
+ * margin left only 0.005 between the floor and that junk cliff, so normal
+ * anchor drift let junk in and out between refreshes; 0.035 keeps every
+ * measured mat (lowest 0.173 = anchor 0.201 - 0.028) while pushing the
+ * junk gap to 0.015. Keyword matches are unaffected by this floor.
  */
-export const RELATIVE_SEMANTIC_MARGIN = 0.045;
+export const RELATIVE_SEMANTIC_MARGIN = 0.035;
 
 /**
  * Combine the admin floor with the per-query relative floor. Keyword matches

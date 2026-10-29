@@ -40,48 +40,55 @@ async function authenticateCaller(req: Request) {
 /**
  * Embed typed query words with SigLIP2 text tower via apps/text-embed.
  * Returns null when the service is not configured or unavailable so the
- * search call can still run the keyword leg.
+ * search call can still run the keyword leg. One immediate retry: a single
+ * slow embed must not silently downgrade a search to keyword-only (that
+ * downgrade is itself a result-set change users see between refreshes).
  */
 async function embedQueryText(input: string): Promise<number[] | null> {
-  const base = Deno.env.get("TEXT_EMBED_URL");
-  if (!base) {
-    console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
-    return null;
-  }
-  const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
-  try {
-    const res = await fetch(new URL("/embed-text", base), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(key ? { "X-Embed-Key": key } : {}),
-      },
-      body: JSON.stringify({ text: input.slice(0, 8000) }),
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!res.ok) {
-      console.error(`text-embed failed: HTTP ${res.status}`);
+  const attempt = async (): Promise<number[] | null> => {
+    const base = Deno.env.get("TEXT_EMBED_URL");
+    if (!base) {
+      console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
       return null;
     }
-    const payload = await res.json() as {
-      ok?: boolean;
-      dim?: number;
-      model?: string;
-      vector?: number[];
-    };
-    if (!payload.ok || !Array.isArray(payload.vector) || payload.vector.length !== SIGLIP2_DIM) {
-      console.error(`text-embed returned bad vector dim=${payload.vector?.length ?? 0}`);
+    const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
+    try {
+      const res = await fetch(new URL("/embed-text", base), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(key ? { "X-Embed-Key": key } : {}),
+        },
+        body: JSON.stringify({ text: input.slice(0, 8000) }),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!res.ok) {
+        console.error(`text-embed failed: HTTP ${res.status}`);
+        return null;
+      }
+      const payload = await res.json() as {
+        ok?: boolean;
+        dim?: number;
+        model?: string;
+        vector?: number[];
+      };
+      if (!payload.ok || !Array.isArray(payload.vector) || payload.vector.length !== SIGLIP2_DIM) {
+        console.error(`text-embed returned bad vector dim=${payload.vector?.length ?? 0}`);
+        return null;
+      }
+      if (payload.model && payload.model !== SIGLIP2_MODEL) {
+        console.error(`text-embed model mismatch: ${payload.model}`);
+        return null;
+      }
+      return payload.vector;
+    } catch (e) {
+      console.error("text-embed call failed", e instanceof Error ? e.message : e);
       return null;
     }
-    if (payload.model && payload.model !== SIGLIP2_MODEL) {
-      console.error(`text-embed model mismatch: ${payload.model}`);
-      return null;
-    }
-    return payload.vector;
-  } catch (e) {
-    console.error("text-embed call failed", e instanceof Error ? e.message : e);
-    return null;
-  }
+  };
+  const first = await attempt();
+  if (first) return first;
+  return attempt();
 }
 
 type SearchHit = {
@@ -237,23 +244,26 @@ corsServe(async (req) => {
       }),
     );
 
-    const pages: SearchPage[] = [];
-    let lastError: unknown = null;
-    const variantPages = await Promise.all(
-      queryVariants.map(async (variant) => {
-        const variantEmbedding = variantEmbeddings.get(variant) ?? null;
-        // Keep only picture matches near this query's best one. The anchor
-        // read fails open to the admin floor alone.
-        let bestSemanticScore: number | null = null;
-        if (variantEmbedding) {
-          const anchor = await auth.client.rpc("dam_search_semantic_anchor", {
-            p_query_embedding: variantEmbedding,
-            p_document_types: documentTypes,
-          });
-          if (anchor.error) console.error("dam_search_semantic_anchor failed; using admin floor", anchor.error.message);
-          else if (typeof anchor.data === "number") bestSemanticScore = anchor.data;
-        }
-        const { data, error } = await auth.client.rpc("search_dam_documents", {
+    // One immediate retry per RPC call: statement timeouts under load are
+    // transient. After the retry, ANY failed variant fails the whole search —
+    // merging only the variants that happened to survive produced silently
+    // different result sets between refreshes ("13 groups" vs "140+").
+    const callSearch = async (variant: string) => {
+      const variantEmbedding = variantEmbeddings.get(variant) ?? null;
+      // Keep only picture matches near this query's best one. The anchor
+      // read fails open to the admin floor alone.
+      let bestSemanticScore: number | null = null;
+      if (variantEmbedding) {
+        const anchor = await auth.client.rpc("dam_search_semantic_anchor", {
+          p_query_embedding: variantEmbedding,
+          p_document_types: documentTypes,
+        });
+        if (anchor.error) console.error("dam_search_semantic_anchor failed; using admin floor", anchor.error.message);
+        else if (typeof anchor.data === "number") bestSemanticScore = anchor.data;
+      }
+      const floor = effectiveSemanticFloor(minSemanticScore, bestSemanticScore);
+      const invoke = () =>
+        auth.client.rpc("search_dam_documents", {
           p_query: variant,
           p_filters: filters,
           p_limit: limit,
@@ -261,43 +271,46 @@ corsServe(async (req) => {
           p_document_types: documentTypes,
           p_query_embedding: variantEmbedding,
           p_min_rank: minRank,
-          p_min_semantic_score: effectiveSemanticFloor(minSemanticScore, bestSemanticScore),
+          p_min_semantic_score: floor,
         });
-        if (error) return { error, page: null };
-        const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-        const results: SearchHit[] = rows
-          .filter((row) => typeof row.entity_id === "string" && row.entity_id)
-          .map((row) => ({
-            document_type: String(row.document_type ?? ""),
-            entity_id: String(row.entity_id),
-            asset_id: (row.asset_id as string | null) ?? null,
-            style_group_id: (row.style_group_id as string | null) ?? null,
-            keyword_rank: (row.keyword_rank as number | null) ?? null,
-            semantic_rank: (row.semantic_rank as number | null) ?? null,
-            rank: Number(row.rank ?? 0),
-          }));
-        const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
-        return {
-          error: null,
-          page: {
-            results,
-            total_count: typeof first?.total_count === "number" ? first.total_count : 0,
-            has_more: first?.has_more === true,
-            facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
-          } satisfies SearchPage,
-        };
-      }),
-    );
-    for (const { error, page } of variantPages) {
+      let { data, error } = await invoke();
       if (error) {
-        lastError = error;
-        continue;
+        console.error(`search_dam_documents variant "${variant}" failed; retrying once`, error.message);
+        ({ data, error } = await invoke());
       }
-      if (page) pages.push(page);
+      return { data, error };
+    };
+
+    const variantResults = await Promise.all(
+      queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) })),
+    );
+    const failed = variantResults.find(({ result }) => result.error);
+    if (failed) {
+      // Fail loud: a partial merge is a wrong answer, not a degraded one.
+      return err("Search unavailable", searchAccessStatus(failed.result.error) ?? 503);
     }
-    if (pages.length === 0) {
-      return err("Search unavailable", searchAccessStatus(lastError) ?? 503);
-    }
+
+    const pages: SearchPage[] = variantResults.map(({ result }) => {
+      const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+      const results: SearchHit[] = rows
+        .filter((row) => typeof row.entity_id === "string" && row.entity_id)
+        .map((row) => ({
+          document_type: String(row.document_type ?? ""),
+          entity_id: String(row.entity_id),
+          asset_id: (row.asset_id as string | null) ?? null,
+          style_group_id: (row.style_group_id as string | null) ?? null,
+          keyword_rank: (row.keyword_rank as number | null) ?? null,
+          semantic_rank: (row.semantic_rank as number | null) ?? null,
+          rank: Number(row.rank ?? 0),
+        }));
+      const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
+      return {
+        results,
+        total_count: typeof first?.total_count === "number" ? first.total_count : 0,
+        has_more: first?.has_more === true,
+        facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
+      } satisfies SearchPage;
+    });
     const merged = mergeSearchPages(pages);
     return json({
       ok: true,

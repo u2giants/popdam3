@@ -88,6 +88,7 @@ export function parseDamSearchFacets(value: Record<string, unknown>): FacetCount
 
 let searchModePromise: Promise<SearchMode> | null = null;
 let searchModeExpiresAt = 0;
+let lastKnownGoodMode: SearchMode | null = null;
 const SEARCH_MODE_TTL_MS = 30_000;
 
 export function parseSearchMode(value: unknown): SearchMode {
@@ -101,10 +102,14 @@ export function getSearchMode(): Promise<SearchMode> {
       try {
         const { data, error } = await invokeSearch({ action: "search-modes" });
         if (error) throw error;
-        return parseSearchMode(data?.modes?.dam);
+        lastKnownGoodMode = parseSearchMode(data?.modes?.dam);
+        return lastKnownGoodMode;
       } catch (error) {
         if (searchAccessStatus(error)) throw error;
-        return "keyword";
+        // A transient failure must not flip the whole library between hybrid
+        // and keyword result sets every TTL window: sticky-return the last
+        // mode that actually loaded (keyword before the first success).
+        return lastKnownGoodMode ?? "keyword";
       }
     })();
   }
@@ -114,6 +119,7 @@ export function getSearchMode(): Promise<SearchMode> {
 export function invalidateSearchMode(): void {
   searchModePromise = null;
   searchModeExpiresAt = 0;
+  lastKnownGoodMode = null;
 }
 
 export async function fetchHybridSearchPage({
@@ -171,11 +177,18 @@ export async function fetchSearchIds(
   fetchKeywordIds: () => Promise<string[] | undefined>,
 ): Promise<string[] | undefined> {
   if (mode === "hybrid") {
-    try {
-      return await fetchHybridSearchIds(query, documentType, limit);
-    } catch (error) {
-      if (searchAccessStatus(error)) throw error;
-      // A cold or unavailable edge function must degrade to keyword search.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await fetchHybridSearchIds(query, documentType, limit);
+      } catch (error) {
+        if (searchAccessStatus(error)) throw error;
+        // One immediate retry: a single cold start or timeout must not flip
+        // the result set to the keyword fallback between refreshes.
+        if (attempt === 1) {
+          // A persistently unavailable edge function still degrades to keyword search.
+          return fetchKeywordIds();
+        }
+      }
     }
   }
   return fetchKeywordIds();
