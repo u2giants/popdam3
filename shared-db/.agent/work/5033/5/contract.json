@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 5033,
+    "generation": 4,
+    "contract_sha256": "6ffd769eacff00b899e542094b41d5750576a56563ada733b499473c58ddded0"
+  },
+  "work_issue": 5033,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Finish the preserved administrator performance documentation closeout without new implementation",
+  "base_sha": "67b23af69ab759031fe3b90fc93df5577d38c6b9",
+  "dispatcher": "Albert explicit wrap-up request in Codex chat01a18349",
+  "worker": "Codex chat01a18349",
+  "branch": "codex/session-closeout-4427-record",
+  "worktree": "/home/ahazan/.codex/worktrees/testing-delivery-process/shared-db",
+  "allowed_paths": [
+    "docs/development.md",
+    "plan_rls_request_constant_checks.md",
+    "docs/verification/rls-initplan/4427/acceptance.md"
+  ],
+  "file_writes": [
+    "docs/development.md",
+    "plan_rls_request_constant_checks.md",
+    "docs/verification/rls-initplan/4427/acceptance.md"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No runtime, database, reviewer toolkit, policy or later-family acceptance change",
+    "No weakening guards or historical evidence, no foreign ownership operation",
+    "No edit to source while exact-head review is active"
+  ],
+  "required_checks": [
+    "git diff --check",
+    "node --test scripts/check-review-parallelism-brief.test.mjs scripts/check-current-workflow-policy.test.mjs",
+    "node scripts/check-production-verification-sidecars.mjs --base 67b23af69ab759031fe3b90fc93df5577d38c6b9"
+  ],
+  "assumptions": [
+    "Initial legitimate prose-only evidence pointer91121f9 opened actualdraftPR5042 before engineering-class rootplan update. Full engineeringCI/review applies to final candidate.",
+    "Preserved51 plan changes are unfinished documentation from original4427scope. Update only administratorfamily based on mergedPR4971/5023, productioncertificate40826924347 and closed4427; later4428-4430 and4421/2326 remain independent OPEN.",
+    "Existing5033 nativecompletion5034 remains immutable and authoritative for delivered processfix. This supplemental closeoutPR references5033 without replacing its canonical completion or reopening application outcomes."
+  ],
+  "stop_conditions": [
+    "Any need for new implementation or production/database mutation",
+    "Unverifiable closure evidence or source ownership",
+    "Any claim of later-family completion or causal production latency improvement"
+  ]
+}

@@ -33,6 +33,11 @@ Declare the task class first: `ai-task-gates start --class <class>`
 
 ## What to run locally
 
+Completed administrator performance work is recorded in the
+[scoped acceptance record](verification/rls-initplan/4427/acceptance.md).
+Use that evidence when reconciling dated programme plans; retained historical
+production timing flags are separate from completed synthetic measurements.
+
 ### Catch failures before expensive review (#5033)
 
 Run `node scripts/check-delivery-local.mjs --base <full-base-sha>` before paid

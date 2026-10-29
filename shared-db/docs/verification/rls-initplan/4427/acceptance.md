@@ -365,3 +365,21 @@ refused missing Refs; the body was corrected to the single #4890 binding before
 the successful protected delivery. No direct-main bypass or production apply
 was used. Parent retains issue closure and wider programme reconciliation;
 this record does not claim those issues have already been closed.
+
+
+## Final scoped closure — October 29, 2026 EDT
+
+The earlier parent-owned closure statement above records the state at source
+publication. It is superseded for this administrator family by
+[final proof PR #5023](https://github.com/popcre/shared-db/pull/5023), merged as
+`da271bfa11e3681969ec37429f27d96a8c844b48`, and successful
+[production certificate run 40826924347](https://github.com/popcre/shared-db/actions/runs/40826924347)
+on that exact merged source. [Issue #4427](https://github.com/popcre/shared-db/issues/4427)
+and [maintenance #4890](https://github.com/popcre/shared-db/issues/4890) have closed
+native accepted completion. This is a record of already verified delivery;
+this documentation closeout applies no migration and performs no database write.
+
+Do not redo this accepted administrator slice or infer causal production timing
+improvement from synthetic results. Historical timing flags and advisor
+qualifications above remain unchanged. Later families #4428–#4430 and wider
+programmes #4421/#2326 retain their own open acceptance and ownership.

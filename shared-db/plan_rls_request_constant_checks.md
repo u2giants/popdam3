@@ -2,18 +2,18 @@
 
 ## STATUS — read first
 
-Execution snapshot: October 18, 2026, 2:23 PM EDT. Publication/inventory prerequisites are merged. The administrator family is under source qualification; no preview or production repair has been accepted. Later families remain dependency-gated.
-Fresh session starts at Step 1; refresh upstream, this table and live issue before editing. Update this table and §5 after every executed step. A done row must cite immutable file/commit/run evidence, not a count or issue number alone.
+Execution snapshot: October 29, 2026, 12:13 PM EDT. Administrator family #4427 has accepted installed-migration, production/application, preview rollback and complete synthetic performance evidence; its source maintenance merged through PR #4971 at `aafdea08946b8465e6966bbf1cd7cdab765b999e`. [Final acceptance](docs/verification/rls-initplan/4427/acceptance.md) records the exact scopes and retained historical flags. [Final proof PR #5023](https://github.com/popcre/shared-db/pull/5023) merged as `da271bfa11e3681969ec37429f27d96a8c844b48`; [production certificate 40826924347](https://github.com/popcre/shared-db/actions/runs/40826924347) passed on that exact source. #4427 and its maintenance #4890 are CLOSED with accepted native completion. Wider programme reconciliation remains separately owned. Later families #4428–#4430 remain OPEN and dependency-gated; their work is not accepted by this record.
+Fresh sessions must not redo accepted #4427 work. Start at the actual owning issue for #4428 or another unaccepted family; refresh upstream, this table and that live issue before editing. Update this table and §5 after every executed step. A done row must cite immutable file/commit/run evidence, not a count or issue number alone.
 
 | Step | Deliverable | Status / date | Evidence required to mark done |
 |---|---|---|---|
-| 1 | Refresh full inventory, contracts and custody | ⬜ open — October 18, 2026 EDT | New catalog/claims snapshot and classified manifest |
-| 2 | Baseline access and performance fixtures | ⬜ open — October 18, 2026 EDT | Role-enforced before-tests and raw timing plans |
-| 3 | Forward migrations and contract tests | ⬜ open — October 18, 2026 EDT | Migration commit, exact metadata delta, focused test run |
-| 4 | Preview rehearsal and independent review | ⬜ open — October 18, 2026 EDT | Preview run, role matrix, durable exact-head APPROVE |
-| 5 | Guarded merge and governed production apply | ⬜ open — October 18, 2026 EDT | Merged commit plus immutable promotion/ledger/catalog evidence |
-| 6 | Production live proof and consumer acceptance | ⬜ open — October 18, 2026 EDT | Rescan, representative plans, permission/consumer proof |
-| 7 | Final reconciliation and retirement | ⬜ open — October 18, 2026 EDT | Acceptance record, updated plan/program and handoff retirement |
+| 1 | Refresh full inventory, contracts and custody | ✅ #4427 accepted | [39-table/72-policy acceptance](docs/verification/rls-initplan/4427/acceptance.md) |
+| 2 | Baseline access and performance fixtures | ✅ #4427 accepted | [374 matched synthetic plans plus original SOURCE2124/198](docs/verification/rls-initplan/4427/acceptance.md#actual-native50-qualification-and-independent-adoption) |
+| 3 | Forward migrations and contract tests | ✅ #4427 accepted | Installed20261021190604 via PR4565 / `253a72365f48e229cb068ef84d5edfba0b8b1751` |
+| 4 | Preview rehearsal and independent review | ✅ #4427 accepted | [Shared-preview rehearsal/rollback and exact reviews](docs/verification/rls-initplan/4427/acceptance.md#shared-preview-acceptance) |
+| 5 | Guarded merge and governed production apply | ✅ #4427 accepted | [Installed source/production verification and PR4971 merge](docs/verification/rls-initplan/4427/acceptance.md#installed-source-and-current-production-verification) |
+| 6 | Production live proof and consumer acceptance | ✅ #4427 scoped acceptance | [Application/production evidence and retained warning dispositions](docs/verification/rls-initplan/4427/acceptance.md) |
+| 7 | Final reconciliation and retirement | ✅ #4427 scoped closeout accepted October 29, 2026 EDT; wider programme open | [PR #5023](https://github.com/popcre/shared-db/pull/5023), [production certificate](https://github.com/popcre/shared-db/actions/runs/40826924347), closed [#4427](https://github.com/popcre/shared-db/issues/4427) / [#4890](https://github.com/popcre/shared-db/issues/4890); #4421/#2326 and later families remain OPEN |
 
 Owning outcome: [issue #4421](https://github.com/popcre/shared-db/issues/4421).
 Parent program: [#2326](https://github.com/popcre/shared-db/issues/2326), specifically the RLS initialization-performance slice of [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) Step 6.
@@ -21,9 +21,9 @@ Handoff: [HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md](HA
 Evidence: [baseline inventory and measured timings](docs/verification/rls-initplan/2026-10-18-baseline.md).
 This is a planning deliverable. It does not begin implementation, claim objects, reserve versions, or authorize a production write.
 
-### Execution issue map — updated October 18, 2026 EDT
+### Execution issue map — updated October 29, 2026 EDT
 
-Parent #4421 now has six verified native sub-issues and native blocked-by links. Publication #4425 and inventory #4426 are closed with native merged prerequisite records. Implementation #4427–#4430 remains open; preparation and isolated CI are not live repair.
+Parent #4421 now has six verified native sub-issues and native blocked-by links. Publication #4425 and inventory #4426 are closed with native merged prerequisite records. Administrator #4427 now has accepted scoped evidence and merged source; its native accepted issue closure is complete. #4428–#4430 remain OPEN. Preparation and isolated CI alone are not live repair.
 
 | Child | Responsibility | Prerequisites |
 |---|---|---|
@@ -71,15 +71,21 @@ New matching policies discovered at execution must be recorded and individually 
 
 ## 5. Current state and code evidence
 
+Administrator #4427 accepted source is migration `20261021190604`, delivered through [PR #4565](https://github.com/popcre/shared-db/pull/4565) at `253a72365f48e229cb068ef84d5edfba0b8b1751`. It wraps44 administrator expressions across37 tables, retains both inactive archive predicates, and has accepted source-bound installed/production/app/preview evidence in [acceptance.md](docs/verification/rls-initplan/4427/acceptance.md). All46 warnings retain individual dispositions (44 narrow semantic false positives,2 inactive), global count52 observed unchanged. Historical88 production timing flags remain RETAINED_UNATTRIBUTED; no causal production-latency improvement is inferred.
+
+Maintenance source50 `e7066e1e0950ca5c81312dc3690105f26a0c160c` passed [native40811517087](https://github.com/popcre/shared-db/actions/runs/40811517087) with374 samples/187 physical pairs/17 workloads,375 clean starts/stops and removal; all17 median-regression flagsFALSE and231 candidate InitPlan nodes all loops1. The original2124-outcome/198-plan SOURCE suite is separately scoped, not the matched physical-pair causal control. The source maintenance merged through [PR #4971](https://github.com/popcre/shared-db/pull/4971) at `aafdea08946b8465e6966bbf1cd7cdab765b999e`. The linked acceptance record and [sanitized raw evidence](docs/verification/rls-initplan/4427/actual-table-runtime-evidence.json.gz) bind exact hashes, cryptoABSENT752checks/0canaries/root-key-config equality, reviewed45-minute native/60-minute opt-in job capacity and cleanup. Final proof PR #5023 and production certificate 40826924347 completed the #4427 closure; do not rerun an installed migration to recreate this evidence. Later families #4428–#4430 remain OPEN and require their own custody and complete live acceptance.
+
+**HISTORICAL — superseded October18 source/claim notes below.** Claim #4502, reserved20261019192822 and draftPR4444 are historical, not the installed migration or current delivery authority. Earlier isolated outcomes and review refusals remain preserved records, not current pending #4427 steps.
+
 October 18, 2026, 2:23 PM EDT: original PR #4423 was superseded without changing its five candidate files; #4425 merged through PR #4433. #4426 baseline preparation merged through PR #4434. Each has its native merged prerequisite record.
 
 Claim #4158’s stopped source was independently preserved in its original clean checkout, a separate clean clone and a verified Git bundle. Supported recovery capability PR #4438 was independently reviewed and merged; its live adoption receipts were verified, then the new owner released the old source claim normally. Original application issue #2421 remains OPEN for its separate runtime acceptance. No migration/history was discarded.
 
-Administrator repair #4427 uses new claim #4502 and reserved version 20261019192822, draft PR #4444. Fresh qualification retains all46 baseline dispositions/39tables/72overlapping policies;44 policy expressions across37tables are candidates. Two retired archive policies have zero current effective nonbypass callers and stay unchanged, with final live requalification required. claim #4502 retains its original stronger85 object locks.
+HISTORICAL administrator repair #4427 used claim #4502 and reserved version 20261019192822, draft PR #4444. Fresh qualification retains all46 baseline dispositions/39tables/72overlapping policies;44 policy expressions across37tables are candidates. Two retired archive policies have zero current effective nonbypass callers and stay unchanged, with final live requalification required. claim #4502 retains its original stronger85 object locks.
 
 Isolated CI [39152564172](https://github.com/popcre/shared-db/actions/runs/39152564172) passed migration replay,1932 authenticated before/after results and exact errors, metadata/ACL/union checks and198 actual write plans at source d771ef8cb6eb19fe24d6feccc588d858180593ca. Representative administrator-configuration candidate checks executed once per statement. Eight of nine measured cases improved; single-row INSERT was5.75percent slower, below the10percent investigation threshold. This is synthetic isolated evidence, not shared-preview, production, UI or all-policy performance acceptance. Expanded CI39154055887 at2fbc889e50ccc59090742531e049a1c3232b1778 subsequently passed2124 outcomes and198 raw plans; median single-row INSERT was7.39percent slower, still below10percent. Durable source-bound raw evidence is in docs/verification/rls-initplan/4427/source-runtime-evidence.json.gz with its readable digest/measurement summary.
 
-Muse approved source5d03a81a862fec937cb057929ef6db0eeee001cb, but guarded merge39154975427 correctly refused a missing automatic installed-catalog probe. Generation6 prospectively adds that read-only proof; fresh exact-head review is required for the updated source. Preview rehearsal, source delivery, guarded merge, governed production promotion and live consumer read/write proof remain OPEN on #4427. #4428–#4430 have private preparations only; they must independently recheck custody and execute after predecessor live acceptance. No shared-preview or production SQL write has occurred in this continuation.
+Muse approved source5d03a81a862fec937cb057929ef6db0eeee001cb, but guarded merge39154975427 correctly refused a missing automatic installed-catalog probe. Generation6 prospectively adds that read-only proof; fresh exact-head review is required for the updated source. At that historical checkpoint, preview rehearsal, source delivery, guarded merge, governed production promotion and live consumer read/write proof remained OPEN on #4427; the accepted current record above supersedes that status. #4428–#4430 have private preparations only; they must independently recheck custody and execute after predecessor live acceptance. No shared-preview or production SQL write has occurred in this continuation.
 
 Repository anchors at the planning base:
 - supabase/ci-bootstrap/010_pre_adoption_baseline.sql:5170–5180 defines the adopted public.has_role helper. Line 6635 contains the legacy assets insert policy; nearby policies establish legacy context. This file supports clean CI setup; it is NOT a migration to edit or run against production.
