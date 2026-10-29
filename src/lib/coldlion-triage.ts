@@ -12,6 +12,7 @@ export type TriageRow = {
   order_id: string;
   production_order_number: string | null;
   customer_name: string | null;
+  company_id: string | null;
   customer_po_number: string | null;
   sku: string | null;
   quantity_ordered: number | null;
@@ -44,6 +45,7 @@ export const TRIAGE_SELECT = [
   "order_id",
   "production_order_number",
   "customer_name",
+  "company_id",
   "customer_po_number",
   "sku",
   "quantity_ordered",
@@ -89,7 +91,8 @@ const sameCustomer = (a: string | null, b: string | null) => (a ?? "").trim().to
 const poKey = (po: string | null) => (po ?? "").trim().replace(/^0+/, "").toLowerCase();
 
 /**
- * Google lines that could be the unmatched ColdLion line: same SKU and customer,
+ * Google lines that could be the unmatched ColdLion line: same SKU and customer
+ * (or, for a Google line imported without a customer, the same customer PO),
  * still open, and not already carrying a ColdLion line (the resolver refuses
  * any other). The same customer PO (ignoring
  * leading zeros, as the automatic merge does) comes first.
@@ -97,8 +100,8 @@ const poKey = (po: string | null) => (po ?? "").trim().replace(/^0+/, "").toLowe
 export function rankLinkCandidates(item: TriageRow, rows: TriageRow[]): Array<TriageRow & { samePo: boolean }> {
   return rows
     .filter((row) => row.google_source_id && !row.coldlion_source_id && !row.line_voided_at && row.order_line_id !== item.order_line_id)
-    .filter((row) => sameCustomer(row.customer_name, item.customer_name))
     .map((row) => ({ ...row, samePo: poKey(row.customer_po_number) !== "" && poKey(row.customer_po_number) === poKey(item.customer_po_number) }))
+    .filter((row) => sameCustomer(row.customer_name, item.customer_name) || (row.company_id == null && row.samePo))
     .sort(
       (a, b) =>
         Number(b.samePo) - Number(a.samePo) ||

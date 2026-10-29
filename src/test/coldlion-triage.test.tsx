@@ -26,7 +26,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/useOrderList", () => ({ ORDER_LIST_SUMMARY_QUERY_KEY: ["order-list-summary"] }));
 
 const row = (over: Partial<TriageRow>): TriageRow => ({
-  order_line_id: "l1", order_id: "o1", production_order_number: "D3708", customer_name: "Ross",
+  order_line_id: "l1", order_id: "o1", production_order_number: "D3708", customer_name: "Ross", company_id: "c1",
   customer_po_number: "7310597", sku: "HSD88DYWP02", quantity_ordered: 1603,
   coldlion_quantity_ordered: null, coldlion_import_po: null, coldlion_unmatched: false,
   coldlion_source_id: "coldlion:so:7128092:line:3:component:1", google_source_id: "g1", line_voided_at: null, ...over,
@@ -49,8 +49,10 @@ describe("triage items", () => {
       row({ order_line_id: "c", coldlion_source_id: "coldlion:so:1:line:1:component:1" }),
       row({ order_line_id: "d", coldlion_source_id: null, line_voided_at: "2026-10-01" }),
       row({ order_line_id: "e", coldlion_source_id: null, customer_name: "Walmart" }),
+      row({ order_line_id: "f", production_order_number: "D0", coldlion_source_id: null, customer_name: "Rosss", company_id: null, customer_po_number: "1220303" }),
+      row({ order_line_id: "g", coldlion_source_id: null, customer_name: "Rosss", company_id: null, customer_po_number: "5" }),
     ]);
-    expect(ranked.map((r) => [r.order_line_id, r.samePo])).toEqual([["b", true], ["a", false]]);
+    expect(ranked.map((r) => [r.order_line_id, r.samePo])).toEqual([["f", true], ["b", true], ["a", false]]);
   });
 });
 
