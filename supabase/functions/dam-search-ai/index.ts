@@ -252,17 +252,28 @@ corsServe(async (req) => {
     // different result sets between refreshes ("13 groups" vs "140+").
     const callSearch = async (variant: string) => {
       const variantEmbedding = variantEmbeddings.get(variant) ?? null;
-      // Keep only picture matches near this query's best one. The anchor
-      // read fails open to the admin floor alone.
+      // Keep only picture matches near this query's best one. When the semantic
+      // leg is active the anchor is REQUIRED: failing open to no floor floods
+      // the result set with weak picture matches (measured live: 288 groups for
+      // "spiderman coir"), so an anchor that fails twice fails the search.
       let bestSemanticScore: number | null = null;
+      let anchorError: unknown = null;
       if (variantEmbedding) {
-        const anchor = await auth.client.rpc("dam_search_semantic_anchor", {
-          p_query_embedding: variantEmbedding,
-          p_document_types: documentTypes,
-        });
-        if (anchor.error) console.error("dam_search_semantic_anchor failed; using admin floor", anchor.error.message);
-        else if (typeof anchor.data === "number") bestSemanticScore = anchor.data;
+        const anchorCall = () =>
+          auth.client.rpc("dam_search_semantic_anchor", {
+            p_query_embedding: variantEmbedding,
+            p_document_types: documentTypes,
+          });
+        let anchor = await anchorCall();
+        if (anchor.error) {
+          console.error("dam_search_semantic_anchor failed; retrying once", anchor.error.message);
+          anchor = await anchorCall();
+        }
+        if (anchor.error) anchorError = anchor.error;
+        else if (typeof anchor.data !== "number") anchorError = new Error("dam_search_semantic_anchor returned no score");
+        else bestSemanticScore = anchor.data;
       }
+      if (anchorError !== null) return { data: null, error: anchorError };
       const floor = effectiveSemanticFloor(minSemanticScore, bestSemanticScore);
       const invoke = () =>
         auth.client.rpc("search_dam_documents", {
