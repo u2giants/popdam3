@@ -21,7 +21,7 @@ import { applyStyleTrackerJevRanking } from "@/lib/style-tracker-candidates";
 import { approvalHighlightForRow } from "@/lib/style-tracker-row-highlighting";
 import { navigateToStyleTrackerMatch } from "@/lib/style-tracker-find-navigation";
 import { MASTER_DATA_DEFAULT_PAGE_SIZE, MASTER_DATA_PAGE_SIZE_OPTIONS } from "@/lib/master-data-pagination";
-import { flattenMasterDataPages, masterDataLoadStatus, retryMasterDataLoad, shouldAutoFetchMasterDataNextPage } from "@/lib/master-data-loading";
+import { flattenMasterDataPages, masterDataLoadStatus, masterDataLoadRetry, masterDataLoadRetryDelay, retryMasterDataLoad, shouldAutoFetchMasterDataNextPage } from "@/lib/master-data-loading";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,8 @@ export default function StylesPage() {
     initialPageParam: 0,
     queryFn: ({ pageParam }) => fetchRowsPage(active.name, pageParam),
     getNextPageParam: (lastPage) => lastPage.hasNextPage ? lastPage.nextOffset : undefined,
+    retry: (failureCount) => masterDataLoadRetry(failureCount),
+    retryDelay: (attempt) => masterDataLoadRetryDelay(attempt),
   });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
   const cellAuditQuery = useQuery({
