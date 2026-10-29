@@ -511,7 +511,7 @@ export type OrderListColumn = {
  */
 export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "order_status", header: "PO Status", kind: "order", source: "automatic", type: "text", width: 130, pinned: "left" },
-  { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 150, pinned: "left" },
+  { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 240, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
   { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
   { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true, sortField: "sales_order_received_date" },
@@ -524,7 +524,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "master_data_license_status", header: "License Status (Master Data)", kind: "masterData", type: "text", width: 180 },
   { field: "master_data_licensor", header: "Licensor (Master Data)", kind: "masterData", type: "text", width: 170 },
   { field: "source_style_type", header: "Licensed / Generic", kind: "line", type: "text", width: 150 },
-  { field: "quantity_ordered", header: "Quantity", kind: "line", source: "input", type: "number", editable: true, width: 120 },
+  { field: "quantity_ordered", header: "Quantity", kind: "line", source: "input", type: "number", editable: true, width: 210 },
   { field: "assortment_sku_quantity", header: "SKU Qty in Assortment", headerTooltip: "Pieces of this SKU in one assortment. Current recipe quantities use today's ColdLion recipe.", kind: "line", type: "number", width: 190, queryable: false, virtual: true },
   { field: "case_pack", header: "Case Pack", kind: "line", source: "input", type: "number", editable: true, width: 120 },
   { field: "start_ship_date", header: "Start Ship", kind: "line", source: "input", type: "date", editable: true, width: 130 },
