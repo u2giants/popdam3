@@ -85,12 +85,8 @@ test('every documents-only decision that can waive a safeguard uses protected po
   assert.match(agent, /node trusted-policy\/scripts\/check-documents-only-pull-request\.mjs/)
   assert.match(agent, /steps\.documents_only\.outputs\.value/)
   assert.match(merge, /ref: main\n          path: trusted-policy/)
-  // Both the first pass and the lock-held re-proof run protected main's copy.
-  assert.equal(merge.match(/trusted-policy\/scripts\/check-exact-head-approval\.mjs/g).length, 3)
-  const retryProof=merge.indexOf('prove_retained_all14()')
-  const finalApproval=merge.indexOf('trusted-policy/scripts/check-exact-head-approval.mjs',retryProof)
-  assert.ok(finalApproval>retryProof)
-  assert.ok(finalApproval<merge.indexOf('gh pr merge',retryProof))
+  // Owner 2026-10-29: review is advisory; no pass calls the approval gate.
+  assert.doesNotMatch(merge, /check-exact-head-approval\.mjs/)
   assert.match(merge,/for attempt in 1 2 3 4 5; do\n\s+prove_retained_all14/)
   assert.doesNotMatch(merge, /^\s*node scripts\/check-exact-head-approval\.mjs/m)
 })

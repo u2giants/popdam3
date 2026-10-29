@@ -142,7 +142,7 @@ test('pending_group_job_is_not_a_durable_fifo_and_authorizes_nothing', () => {
     assert.ok(merge.indexOf(`      - name: ${name}`) > lockIdx, `${name} must run under the lease, after acquisition`)
   }
   const underLock = merge.slice(lockIdx)
-  for (const proof of ['check-required-checks-preflight.mjs', 'check-main-tip-freshness.mjs" --contains', 'check-pr-object-collisions.mjs', 'check-migration-pr-lease.mjs', 'check-exact-head-approval.mjs', '--queue-mode', 'matching-refs/db-coordination/promotion-freeze']) {
+  for (const proof of ['check-required-checks-preflight.mjs', 'check-main-tip-freshness.mjs" --contains', 'check-pr-object-collisions.mjs', 'check-migration-pr-lease.mjs', '--queue-mode', 'matching-refs/db-coordination/promotion-freeze']) {
     assert.ok(underLock.includes(proof), `${proof} is re-proven under the lease`)
   }
 })

@@ -182,7 +182,7 @@ class WorkflowInvariantTests(unittest.TestCase):
         self.assertIn("sandbox_migration_preflight.py identity", WORKFLOW)
 
     def test_apply_requires_prior_dry_run_and_post_apply_proofs(self) -> None:
-        for needle in ("dry_run_run_id", "check-exact-head-approval.mjs", "sandbox-migration-binding.mjs --source-pr", "sandbox-migration-binding.mjs --dry-run-run", "sandbox_migration_preflight.py collisions",
+        for needle in ("dry_run_run_id", "sandbox-migration-binding.mjs --source-pr", "sandbox-migration-binding.mjs --dry-run-run", "sandbox_migration_preflight.py collisions",
                        "sandbox_migration_preflight.py identity", "verify-ledger", "production_catalog_verification.py",
                        "--ledger-name sandbox"):
             self.assertIn(needle, WORKFLOW)

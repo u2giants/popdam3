@@ -561,7 +561,6 @@ test('every base-ref consumer resolves through the one shared resolver (#3280 ro
     'check-production-verification-sidecars.mjs',
     // Found by my own round-2 sweep, not by the review: its 'origin/main' feeds
     // local git merge-base/show and it runs on the queue path.
-    'check-exact-head-approval.mjs',
     'check-sql.sh',
   ]) {
     assert.ok(consumers.includes(required), `${required} no longer resolves its base ref through the shared resolver`)

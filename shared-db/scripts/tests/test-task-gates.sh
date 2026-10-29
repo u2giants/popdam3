@@ -18,7 +18,7 @@ expect_class(){
 
 expect_class README.md prose 'ordinary documentation uses the prose fast path'
 expect_class scripts/example.py code 'ordinary source uses the code path'
-expect_class AGENTS.md reviewer-safety 'agent rulebook receives protected full treatment'
+expect_class AGENTS.md code 'agent rulebook is code (review advisory since 2026-10-29)'
 expect_class supabase/config.toml shared-db 'Supabase configuration is protected shared-db work'
 expect_class supabase/migrations/20990101000000_fixture.sql shared-db 'migration is protected shared-db work'
 

@@ -13,8 +13,7 @@ Merge a `shared-db` PR **only when every item is true**:
 4. Every app that depends on the change has been tested against preview and the
    AI has verified the behavior is correct (Albert is asked only about business
    meaning, never for technical approval — owner ruling 2026-09-28).
-5. The change is additive, or any removal is recoverable and was approved by the
-   allocator-assigned AI reviewer's exact-head APPROVE.
+5. The change is additive, or any removal is recoverable.
 
 Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) and
 run the governed merged-main preview rehearsal. For one source PR, a successful
@@ -22,7 +21,7 @@ rehearsal automatically qualifies and dispatches the existing serial production
 lane. No session or owner names migration versions or artifact IDs for that
 ordinary path. Missing, stale, multi-source, failed, or ambiguous evidence stops
 before dispatch with **ENGINEER ACTION REQUIRED**. The production job still
-re-proves current main, the durable exact-head verdict, guarded merge, immutable
+re-proves current main, guarded merge, immutable
 preview evidence, the one open independently admitted structural work issue linked
 by GitHub to the source PR, exact target, bounded allowlist, fresh dry-run,
 all five machine-derived business-risk conclusions clear, exclusive lock, and
@@ -31,24 +30,14 @@ production command, manual workflow dispatch, other repository, or bypass.
 Docs-only PRs (no schema change) need just items 1 and "it reads correctly" —
 merge them promptly.
 
-### Review slots and carried reviews (owner 2026-10-14)
+### Review is advisory (owner 2026-10-29)
 
-`scripts/check-exact-head-approval.mjs` is the single authority for how many
-independent exact-head APPROVEs a pull request needs. **Owner ruling (Albert
-Hazan, 2026-10-14: "change the rules so that we don't need 2 reviews"): one
-independent exact-head APPROVE is enough for every change, including
-migrations.** No gate, test or helper may demand two slots. Branch protection
-is never disabled.
-
-A **tree-identical re-push** — same git tree, or same pull request diff ignoring
-`.agent/` — keeps valid existing reviews. Slot 1 is not re-drawn and no paid
-attempt is burned to re-pin the same bytes. For equivalent content, the newest
-valid historical slot-1 assignment may carry forward; a replacement must have
-its exact failure binding verified. A returned or refused slot cannot be
-revived from an older assignment. The newest valid assignment controls; a
-return or refusal blocks that slot until a newer valid assignment resolves
-it. An ancestor approval never fills a returned or refused new-head slot.
-Carried reviews do not consume another paid attempt.
+**Owner ruling (Albert Hazan, 2026-10-29): review is advisory and never a merge
+gate, shared-db included.** No workflow, ruleset context or helper requires an
+AI verdict before merge or production promotion. An AI review may still be run
+and read as advice. Lease, migration ordering, collision checks, tests, preview
+rehearsal and production owner authorization still bind. This supersedes the
+2026-10-14 review-slot rules (one exact-head APPROVE per change).
 
 **Owner-quoted allowlist widening**: a fresh later draw may widen the earliest
 live peer's policy only with a recorded verbatim owner quote and a strict

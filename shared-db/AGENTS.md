@@ -135,7 +135,7 @@ Everything else requires justification before touching.
 | Change database shape (table/column/view/function/RLS/index) | New `supabase/migrations/<timestamp>_<name>.sql` only | Any migration already on a ledger; consumer-repo schema copies |
 | Change shared API contract / browser view | New migration + `docs/architecture.md` / schema map if ownership changes | Ad-hoc SQL against production |
 | Change CI, merge, promotion, or task gates | Relevant `.github/workflows/*.yml`, `scripts/` guards + tests | Live production settings except via reviewed workflow |
-| Change author-lane / claim / review mechanics | `scripts/manage-migration-author-lanes.mjs`, `scripts/lib/lanes/**`, tests | Bypassing `check-exact-head-approval.mjs` |
+| Change author-lane / claim / review mechanics | `scripts/manage-migration-author-lanes.mjs`, `scripts/lib/lanes/**`, tests | Bypassing lease, ordering, or production authorization checks |
 | Change business meaning / permissions / workflows | `docs/business-rules/` topic file via the business-rules process | Competing copies inside app repos |
 | Change operating rules / owner rulings | `AGENTS.md` and the matching `docs/agents/` chapter **together** | Silent edits that contradict `scripts/check-*.mjs` guards |
 | Add or change a tool/loader | `tools/**` + its `*.test.mjs` | Hand-built Windows direct-invocation guards without testing |
@@ -281,13 +281,13 @@ Looks like:
 A PR that only touches `AGENTS.md`, `CLAUDE.md`, `skills/`, or `plan_*.md` looks like a docs PR.
 
 Actually:
-`scripts/lib/documents-only-change.mjs` excludes those paths. They get full engineering treatment (branch, checks, independent review).
+`scripts/lib/documents-only-change.mjs` excludes those paths. They get full engineering treatment (branch, checks; review is advisory since 2026-10-29).
 
 Why:
 Agent instructions change behavior. Treating them as prose would skip the review that keeps instructions from drifting from enforcement.
 
 Do not change because:
-The merge lane and `check-exact-head-approval.mjs` depend on this classification.
+The documents-only merge lane depends on this classification.
 
 ### Migration history is not a clean replay
 
@@ -415,6 +415,12 @@ The withdrawal-confirmation question is **settled** in [`docs/business-rules/lic
 
 ### The owner rulings, one line each (full text in the linked file)
 
+- **Review is advisory, never a merge gate (Albert Hazan, 2026-10-29, verbatim: "this past week
+  where i didn't have to deal with reviewer errors was the first time in 10 months where things
+  actually got done ... you need to find a way to cut more reviewer 'fat'.").** No PR here, migrations
+  included, waits for or needs an AI verdict to merge. Lease, migration ordering, collision checks,
+  tests, preview rehearsal and production owner authorization still bind. Supersedes the review
+  parts of the three rulings below. Full text: [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md).
 - **Never ask a human to approve (Albert Hazan, 2026-09-28).** Allocator-assigned AI review
   gates technical actions; the AI performs every manual step itself. Full text: §1 below.
 - **Albert is not a technical reviewer, now or in the future (Albert Hazan, 2026-09-30).**
@@ -430,8 +436,8 @@ The withdrawal-confirmation question is **settled** in [`docs/business-rules/lic
   dispatch, or label tickets orchestrator / non-orchestrator. A session needing a SHAPE change
   claims the exact objects on the existing issue and starts, doing the change itself: own
   worktree and branch, migration version via the lane tool, pull request, the assigned AI
-  reviewer's APPROVE of the exact apply, and proof of the target before every write. Every
-  safety rule (exact-object claims, version reservation, review, guarded merge, serial
+  and proof of the target before every write. Every
+  safety rule (exact-object claims, version reservation, guarded merge, serial
   production lane, live proof) still binds. Where older text below says "the orchestrator",
   read "the session doing the structural work"; marker and dispatch steps are historical.
   Tooling follows (#3874): new structural issues use `route: claim-first`
