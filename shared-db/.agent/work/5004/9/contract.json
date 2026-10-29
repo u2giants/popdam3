@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "work_issue": 5004,
+  "generation": 9,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Owner ruling 2026-10-29 (ambiguous ColdLion/Google matches go to Triage): let public.resolve_coldlion_triage link a ColdLion line to a Google line whose order has no customer when customer PO and SKU match exactly (claim #5031, migration 20261029093309)",
+  "base_sha": "7497322493592557d888f10f2f0630fa710eb645",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan (ruling 2026-10-29: \"if one ColdLion line matches two Google lines that's a problem and has to go into the Triage section.\")",
+  "worker": "Same session (claim #5031 owner, Claude chat 69a8cdbb-f0d1-4850-b229-d78cc6ec23db on hetz).",
+  "branch": "claude/5004-link-no-customer",
+  "worktree": "/worksp/shared-db-wt-link-nocust",
+  "allowed_paths": [
+    "supabase/migrations/20261029093309_coldlion_triage_link_without_customer.sql",
+    "tools/coldlion-triage-resolver-pg.test.mjs",
+    ".github/live-proofs/5004.sql",
+    ".agent/work/5004/9/contract.json",
+    ".agent/work/5004/9/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261029093309_coldlion_triage_link_without_customer.sql",
+    "tools/coldlion-triage-resolver-pg.test.mjs",
+    ".github/live-proofs/5004.sql",
+    ".agent/work/5004/9/contract.json",
+    ".agent/work/5004/9/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.resolve_coldlion_triage"
+  ],
+  "prohibited_actions": [
+    "No change to the view, grants or any other resolver action.",
+    "No production or preview apply by hand; promotion follows the automatic workflow.",
+    "No production data write from this session."
+  ],
+  "required_checks": [
+    "COLDLION_WRITER_TEST_CONTAINER=<pg17> node --test tools/coldlion-order-intake-identity-pg.test.mjs (imports the resolver suite)",
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Generation 6 succeeds generation 5 (merged in PR #5006).",
+    "Generation 7 succeeds generation 6 only to keep generation 5 (merged) untouched, so the PR carries one evidence pair.",
+    "Disclosure: published after the implementation commit was pushed (PR #5032).",
+    "Generation 8 narrows db_writes to the function this migration changes, matching issue #5004's updated scope; it succeeds generation 7.",
+    "Generation 9 makes the customerless link check NULL-safe (a blank PO or SKU never matches; Muse review) and succeeds generation 8."
+  ],
+  "stop_conditions": [
+    "Stop if claim #5031 reports a collision.",
+    "Stop if the PostgreSQL 17 resolver suite fails."
+  ],
+  "evidence_parent": {
+    "work_issue": 5004,
+    "generation": 8,
+    "contract_sha256": "0ce0c372639148123082b1fa3d903be32aa118e423515802b13048729e4c51bd"
+  }
+}

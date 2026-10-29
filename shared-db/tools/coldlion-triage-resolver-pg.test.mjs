@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 const container = process.env.COLDLION_WRITER_TEST_CONTAINER;
 const DB = "coldlion_triage_test";
-const MIGRATION = new URL("../supabase/migrations/20261029023554_coldlion_reconciliation_triage.sql", import.meta.url);
+const MIGRATION = new URL("../supabase/migrations/20261029093309_coldlion_triage_link_without_customer.sql", import.meta.url);
 
 function psql(sql, db = DB) {
   const r = spawnSync("docker", ["exec", "-i", container, "psql", "-U", "postgres", "-d", db,
@@ -21,7 +21,7 @@ function psql(sql, db = DB) {
 
 const resolverSql = () => {
   const src = readFileSync(MIGRATION, "utf8");
-  return src.slice(src.indexOf("create function public.resolve_coldlion_triage"), src.lastIndexOf("revoke all on function public.resolve_coldlion_triage"));
+  return src.slice(src.indexOf("create or replace function public.resolve_coldlion_triage"), src.lastIndexOf("\ncommit;"));
 };
 
 const ACTOR = "00000000-0000-0000-0000-00000000a11c";
@@ -34,7 +34,7 @@ create function auth.uid() returns uuid language sql as $$select id from auth.ac
 create table plm.production_order (id uuid primary key default gen_random_uuid(), production_order_number text,
   company_id uuid, metadata jsonb not null default '{}', voided_at timestamptz, updated_at timestamptz default now());
 create table plm.production_order_line (id uuid primary key default gen_random_uuid(), production_order_id uuid,
-  sku text, quantity_ordered numeric, metadata jsonb not null default '{}', voided_at timestamptz, updated_at timestamptz default now());
+  sku text, customer_po_number text, quantity_ordered numeric, metadata jsonb not null default '{}', voided_at timestamptz, updated_at timestamptz default now());
 create table plm.production_order_line_source_ref (id uuid primary key default gen_random_uuid(),
   production_order_line_id uuid references plm.production_order_line (id) on delete cascade, source_system text, source_id text, is_primary boolean default true);
 create table dam.production_order_snapshot (id uuid primary key default gen_random_uuid(), production_order_line_id uuid);
@@ -44,6 +44,7 @@ insert into plm.production_order (id, production_order_number, company_id, metad
   ('00000000-0000-0000-0000-0000000000d2', 'D3526', '00000000-0000-0000-0000-0000000000c1', '{}'),
   ('00000000-0000-0000-0000-0000000000d3', 'D2616', '00000000-0000-0000-0000-0000000000c2', '{}'),
   ('00000000-0000-0000-0000-0000000000d4', 'D3526', '00000000-0000-0000-0000-0000000000c2', '{}'),
+  ('00000000-0000-0000-0000-0000000000d5', 'D3435', null, '{}'),
   ('00000000-0000-0000-0000-0000000000f1', 'COLDLION-SO-7000001', '00000000-0000-0000-0000-0000000000c1', '{"production_order_number_origin":"coldlion_intake_placeholder"}');
 insert into plm.production_order_line (id, production_order_id, sku, quantity_ordered, metadata) values
   ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-0000000000d1', 'QTY1', 1603, '{"coldlion_values":{"quantity_ordered":1610,"import_po":"D3708"}}'),
@@ -55,6 +56,12 @@ insert into plm.production_order_line (id, production_order_id, sku, quantity_or
   ('00000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-0000000000d3', 'LINKME', null, '{}'),
   ('00000000-0000-0000-0000-000000000031', '00000000-0000-0000-0000-0000000000f1', 'LINKME', 144, '{}'),
   ('00000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-0000000000f1', 'ALONE', 12, '{}');
+insert into plm.production_order_line (id, production_order_id, sku, customer_po_number, quantity_ordered) values
+  ('00000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-0000000000d5', 'NOCUST', '315063', null),
+  ('00000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-0000000000d5', 'NOCUST', '999', null),
+  ('00000000-0000-0000-0000-000000000025', '00000000-0000-0000-0000-0000000000d5', 'NOCUST', null, null),
+  ('00000000-0000-0000-0000-000000000026', '00000000-0000-0000-0000-0000000000d5', null, '315063', null),
+  ('00000000-0000-0000-0000-000000000033', '00000000-0000-0000-0000-0000000000f1', 'NOCUST', '0315063', 75);
 insert into plm.production_order_line_source_ref (production_order_line_id, source_system, source_id) values
   ('00000000-0000-0000-0000-000000000011', 'google_order_list', 'g11'),
   ('00000000-0000-0000-0000-000000000011', 'coldlion', 'coldlion:so:1:line:1:component:1'),
@@ -65,7 +72,12 @@ insert into plm.production_order_line_source_ref (production_order_line_id, sour
   ('00000000-0000-0000-0000-000000000021', 'google_order_list', 'g21'),
   ('00000000-0000-0000-0000-000000000022', 'google_order_list', 'g22'),
   ('00000000-0000-0000-0000-000000000031', 'coldlion', 'coldlion:so:7000001:line:1:component:1'),
-  ('00000000-0000-0000-0000-000000000032', 'coldlion', 'coldlion:so:7000001:line:2:component:1');
+  ('00000000-0000-0000-0000-000000000032', 'coldlion', 'coldlion:so:7000001:line:2:component:1'),
+  ('00000000-0000-0000-0000-000000000023', 'google_order_list', 'g23'),
+  ('00000000-0000-0000-0000-000000000024', 'google_order_list', 'g24'),
+  ('00000000-0000-0000-0000-000000000025', 'google_order_list', 'g25'),
+  ('00000000-0000-0000-0000-000000000026', 'google_order_list', 'g26'),
+  ('00000000-0000-0000-0000-000000000033', 'coldlion', 'coldlion:so:7000001:line:3:component:1');
 insert into coldlion.order_history_line (sales_order_no, sales_order_line_no, prod_reference_no, fetched_at) values
   (1, 3, 'D3708', now() - interval '1 day'), (1, 3, 'D3526', now()), (1, 4, 'D2616', now()), (1, 5, 'D9999', now());
 insert into dam.production_order_snapshot (production_order_line_id) values ('00000000-0000-0000-0000-000000000031');
@@ -116,6 +128,14 @@ test("unmatched ColdLion line: link moves refs and snapshots onto the Google lin
   refused(11, "keep_separate", null, /no longer needs a decision/);
   assert.equal(resolve(32, "keep_separate"), "Kept as its own ColdLion row.");
   refused(32, "keep_separate", null, /no longer needs a decision/);
+});
+
+test("a Google line with no customer links only on the same customer PO and SKU", { skip: !container }, () => {
+  refused(33, "link_google_line", 24, /different customer/);
+  refused(33, "link_google_line", 25, /different customer/);
+  refused(33, "link_google_line", 26, /different customer/);
+  assert.equal(resolve(33, "link_google_line", 23), "Linked to the Google line.");
+  assert.equal(psql(`select quantity_ordered from plm.production_order_line where id='${L(23)}'`), "75");
 });
 
 test("an Import PO move needs ColdLion's own history to agree with the value on screen", { skip: !container }, () => {
