@@ -5,7 +5,7 @@ import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
-import { expandProductPhrases } from "../_shared/search-query-expand.ts";
+import { expandProductQueries } from "../_shared/search-query-expand.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -229,11 +229,13 @@ corsServe(async (req) => {
     // keyword leg still answers (hybrid degrades, never mixes models).
     // Product-type phrases ("floor covering") also run as catalog nouns
     // ("mat", "rug") so compound queries do not drop real mats.
-    const queryVariants = expandProductPhrases(query);
+    // Keyword-only variants skip the picture leg (no embedding).
+    const expanded = expandProductQueries(query);
+    const queryVariants = expanded.map((v) => v.query);
     const variantEmbeddings = new Map<string, number[] | null>();
     await Promise.all(
-      queryVariants.map(async (variant) => {
-        variantEmbeddings.set(variant, variant === query ? embedding : await embedQueryText(variant));
+      expanded.map(async ({ query: variant, semantic }) => {
+        variantEmbeddings.set(variant, !semantic ? null : variant === query ? embedding : await embedQueryText(variant));
       }),
     );
 
