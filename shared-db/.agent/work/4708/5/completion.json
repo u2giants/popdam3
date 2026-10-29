@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "work_issue": 4708,
+  "outcome": "ready-for-merge",
+  "pr": 5018,
+  "migration_versions": [
+    "20261029041610"
+  ],
+  "contract_ref": "refs/db-contracts/4708/5",
+  "contract_sha256": "a7ce97529e69b73c0de150d7ae6a2da316abf030720df8408173b710dc917804",
+  "head_sha": "394e7a6ec370f87381e7c59aed1473ebcb19cb64",
+  "base_sha": "00ebac33dba2f4c6014e02cacf96cf73f932289d",
+  "files_changed": [
+    ".github/live-proofs/4708.sql",
+    "supabase/migrations/20261029041610_dflow_factory_area.sql",
+    "supabase/tests/db_data_admin_merge_coverage.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column core.factory.designflow_vendor_id",
+    "column core.factory.orders_completed",
+    "column core.factory.orders_with_problem",
+    "column core.factory.party_type",
+    "column core.factory.trade_name",
+    "function core.merge_factory",
+    "index core.factory_designflow_vendor_id_key",
+    "index core.factory_representation_factory_idx",
+    "index core.factory_vendor_login_factory_idx",
+    "policy admin_write on core.factory_product_category",
+    "policy admin_write on core.factory_rep",
+    "policy admin_write on core.factory_representation",
+    "policy admin_write on core.factory_vendor_login",
+    "policy admin_write on core.product_category",
+    "policy shared_read on core.factory_product_category",
+    "policy shared_read on core.factory_rep",
+    "policy shared_read on core.factory_representation",
+    "policy shared_read on core.product_category",
+    "table core.factory",
+    "table core.factory_product_category",
+    "table core.factory_rep",
+    "table core.factory_representation",
+    "table core.factory_vendor_login",
+    "table core.product_category",
+    "trigger set_updated_at on core.factory_rep",
+    "trigger set_updated_at on core.factory_vendor_login",
+    "trigger set_updated_at on core.product_category"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "The row load is a separate curated Master Data step after promotion."
+  ],
+  "stop_conditions_hit": []
+}
