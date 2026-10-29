@@ -27,7 +27,7 @@ import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } f
 import { cn } from "@/lib/utils";
 import { type FieldKey, type StyleRow, type SheetColumn, type ReviewItem, type LinkCandidate, type JevRankingResponse, type DescriptionEditorOptions, type AuditCell, type SavedView } from "./styles/types";
 import { JEV_MATCH_FIELDS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
-import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection } from "./styles/helpers";
+import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription } from "./styles/helpers";
 import { refreshBridgeWithMeasurement, fetchRowsPage, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
 import { DescriptionBuilderEditor, RowNumberCell, RowNumberHeader, RfqGroupCell } from "./styles/cells";
 
@@ -557,7 +557,7 @@ export default function StylesPage() {
         width: column.width ?? 140,
         pinned: column.pinned,
         hide: column.hide,
-        editable: isAdmin && column.typedField !== "license_status",
+        editable: (params) => isAdmin && column.typedField !== "license_status" && !isColdLionDescription(params.data, column),
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
@@ -726,8 +726,10 @@ export default function StylesPage() {
       const validationError = validateDescriptionSelection(value, descriptionOptions);
       if (validationError) throw new Error(validationError);
     }
-    for (let index = 0; index < selectedRows.length; index += 10) {
-      await Promise.all(selectedRows.slice(index, index + 10).map(async (row) => {
+    const editableRows = selectedRows.filter((row) => !isColdLionDescription(row, column));
+    if (!editableRows.length) throw new Error("Description comes from ColdLion for linked lines and cannot be edited here.");
+    for (let index = 0; index < editableRows.length; index += 10) {
+      await Promise.all(editableRows.slice(index, index + 10).map(async (row) => {
         const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
         if (error) throw error;
       }));
