@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "source": "scripts/check-delivery-local.mjs",
+  "sites": [
+    {
+      "source": "scripts/check-delivery-local.mjs",
+      "site": "scripts/check-delivery-local.mjs:79",
+      "semantic_key": "scripts/check-delivery-local.mjs:0475bff2cbbdbe8c112b42b5eff153d79228b160fa7525688b5877867e04b47c:context-6786a1790c4c03cefb894d4fad64eac5dfbe3a4468b9e5cfad2de6a4e121afe0",
+      "legacy_semantic_key": "scripts/check-delivery-local.mjs:0475bff2cbbdbe8c112b42b5eff153d79228b160fa7525688b5877867e04b47c:1",
+      "line_sha256": "0475bff2cbbdbe8c112b42b5eff153d79228b160fa7525688b5877867e04b47c",
+      "disposition": "excluded",
+      "reason": "Excluded from business-delivery absence claims: validates the installed native source identity before accepting local results; absent identity stops testing rather than asserting any delivered outcome."
+    },
+    {
+      "source": "scripts/check-delivery-local.mjs",
+      "site": "scripts/check-delivery-local.mjs:33",
+      "semantic_key": "scripts/check-delivery-local.mjs:89e0bbf7d3324434d925fd49707c5946642438e79814a331a4c8d40d136badfe:context-028d959ec2e4341ce1244a81484cd8f4de44d3081c9e48e0ce6374d61e723a87",
+      "legacy_semantic_key": "scripts/check-delivery-local.mjs:89e0bbf7d3324434d925fd49707c5946642438e79814a331a4c8d40d136badfe:1",
+      "line_sha256": "89e0bbf7d3324434d925fd49707c5946642438e79814a331a4c8d40d136badfe",
+      "disposition": "excluded",
+      "reason": "Excluded from business-delivery absence claims: refuses an empty throughput test discovery so the local preflight cannot silently omit the full existing guard family."
+    },
+    {
+      "source": "scripts/check-delivery-local.mjs",
+      "site": "scripts/check-delivery-local.mjs:67",
+      "semantic_key": "scripts/check-delivery-local.mjs:93f39d83067cd42d496b81bcb4a4250c0c8190106f489ed52c9c4204aa836f38:context-9501ccc539b4c6f38eca6d4deb63e2767a57137c32181790229d8adc837df21f",
+      "legacy_semantic_key": "scripts/check-delivery-local.mjs:93f39d83067cd42d496b81bcb4a4250c0c8190106f489ed52c9c4204aa836f38:1",
+      "line_sha256": "93f39d83067cd42d496b81bcb4a4250c0c8190106f489ed52c9c4204aa836f38",
+      "disposition": "excluded",
+      "reason": "Excluded from business-delivery absence claims: reports an unavailable executable with a nonzero result and stops immediately; this is a local tooling dependency, not a claim about application records."
+    }
+  ]
+}

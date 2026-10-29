@@ -1,3 +1,4 @@
+import { HOLD_SECONDS, POLL_SECONDS } from './merge-queue-hold.mjs'
 // Merge-queue workflow coverage (issue #2530 Phase C Step 7;
 // plan_shared_db_popcre_transfer_merge_queue.md).
 //
@@ -360,7 +361,9 @@ test('the authorize job owns the mutation: merge lane before status, re-check un
 
   // Ownership is the lane hold, not the status write: the hold step must poll
   // for the live PR state and refuse a non-merge terminal state.
-  assert.ok(authorizeBlock.includes("state = 'MERGED'") || authorizeBlock.includes('MERGED'), 'the hold step must observe the actual merge')
+  assert.ok(authorizeBlock.includes('node scripts/merge-queue-hold.mjs'), 'the hold uses the bounded read-only monitor')
+  const holdSource = readFileSync(new URL('merge-queue-hold.mjs', import.meta.url), 'utf8')
+  assert.ok(holdSource.includes("state === 'MERGED'"), 'the hold observes actual merge')
   assert.ok(authorizeBlock.includes('Refusing') || authorizeBlock.includes('REFUSED') || authorizeBlock.includes('revok'),
     'the hold path must fail closed and revoke when the mutation does not land')
 
@@ -464,7 +467,7 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(protectedClassifier, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/check-self-service-additive-lane\.mjs" --pr/)
   assert.match(protectedQuota, /working-directory: trusted-policy/)
   assert.match(protectedLock, /working-directory: trusted-policy/)
-  assert.match(protectedLock, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --acquire-merge/)
+  assert.match(protectedLock, /node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/acquire-merge-lane-waiting\.mjs" --wait-seconds 900 --poll-seconds 15 -- --acquire-merge/)
   // #3669: the lock's "main moved independently" re-check needs the merge base
   // of the head and the main tip, so protected main must carry full history and
   // both commits must be fetched before acquisition.
@@ -472,7 +475,7 @@ test('both authority reads precede every pull-request script and run from protec
   assert.match(trustedCheckout, /path: trusted-policy[\s\S]*fetch-depth: 0/, 'a shallow trusted-policy checkout has no merge base, so main moving independently is always refused')
   assert.doesNotMatch(trustedCheckout, /fetch-depth: 1/)
   assert.match(protectedLock, /HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/)
-  assert.match(protectedLock, /git fetch --no-tags --quiet origin main "\$HEAD_SHA"\n\s*node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/manage-migration-author-lanes\.mjs" --acquire-merge/, 'the head and main tip must be fetched immediately before acquisition')
+  assert.match(protectedLock, /git fetch --no-tags --quiet origin main "\$HEAD_SHA"\n\s*node "\$GITHUB_WORKSPACE\/trusted-policy\/scripts\/acquire-merge-lane-waiting\.mjs" --wait-seconds 900 --poll-seconds 15 -- --acquire-merge/, 'the head and main tip must be fetched immediately before acquisition')
   assert.match(preflight, /GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS: '900'/)
   assert.match(preflight, /id: trusted_preflight/)
   assert.match(preflight, /echo "sha=\$\(git rev-parse HEAD\)" >> "\$GITHUB_OUTPUT"/)
@@ -702,10 +705,12 @@ test('all job executable scripts use protected source before any credential and 
 // (supabase/tests, ~7 minutes) and stay inside its job timeout.
 test('Queue interlock hold budget outlasts the slowest required check', () => {
   const src = readFileSync(new URL('../.github/workflows/merge-queue-gate.yml', import.meta.url), 'utf8')
-  const attempts = Number(src.match(/for attempt in \$\(seq 1 (\d+)\); do/)?.[1])
+  const budget = HOLD_SECONDS
   const jobTimeout = Number(src.match(/name: Queue interlock[\s\S]*?timeout-minutes: (\d+)/)?.[1])
-  assert.ok(attempts * 5 >= 15 * 60, `hold budget ${attempts * 5}s must be at least 15 minutes`)
-  assert.ok(jobTimeout * 60 >= attempts * 5 + 8 * 60, `job timeout ${jobTimeout}m must leave margin over the hold`)
+  assert.equal(budget, 15 * 60, 'healthy hold retains the entire 15-minute budget')
+  assert.equal(POLL_SECONDS, 15)
+  assert.match(src, /node scripts\/merge-queue-hold\.mjs/)
+  assert.ok(jobTimeout * 60 >= budget + 8 * 60, `job timeout ${jobTimeout}m must leave margin over the hold`)
 })
 
 
@@ -731,4 +736,26 @@ test('guarded merge admits to the queue with the merge-queue admission app token
   // Exactly the two permissions GitHub's enqueue needs, nothing broader.
   assert.deepEqual(mint.match(/permission-[a-z-]+: \w+/g), ['permission-contents: write', 'permission-merge-queues: write'])
   assert.doesNotMatch(mint, /SYNC_TOKEN|AUTHORITY_TOKEN/)
+})
+
+test('queue hold is read-only exact-group monitoring and preserves write-token cleanup', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/merge-queue-gate.yml', import.meta.url), 'utf8')
+  const hold = workflow.slice(workflow.indexOf('      - name: Hold the merge lane through the actual merge'), workflow.indexOf('      - name: Revoke group authorization'))
+  assert.match(hold, /GH_TOKEN: \$\{\{ steps\.read_token\.outputs\.token \|\| github\.token \}\}/)
+  for (const binding of ['PR_HEAD_SHA: ${{ steps.queue.outputs.head }}','MERGE_GROUP_SHA: ${{ github.event.merge_group.head_sha }}','MERGE_GROUP_REF: ${{ github.event.merge_group.head_ref }}']) assert.ok(hold.includes(binding))
+  assert.doesNotMatch(hold, /SYNC_TOKEN|AUTHORITY_TOKEN|permission-administration|--release-merge|statuses\//)
+  const cleanup = workflow.slice(workflow.indexOf('      - name: Revoke group authorization'))
+  assert.match(cleanup, /GH_TOKEN: \$\{\{ github\.token \}\}/)
+  assert.match(cleanup, /if: always\(\) && steps\.merge_lock\.outputs\.owner_sha != ''/)
+  assert.match(cleanup, /--release-merge --owner-sha "\$OWNER_SHA"/)
+})
+
+// A full pre-acquisition wait must retain the original post-acquisition margin.
+test('guarded merge preserves twenty minutes after its busy-lane wait', () => {
+  const src = readWorkflow('guarded-migration-merge.yml')
+  const job = src.slice(src.indexOf('  merge:\n'))
+  const minutes = Number(job.match(/timeout-minutes: (\d+)/)?.[1])
+  const seconds = Number(job.match(/acquire-merge-lane-waiting\.mjs" --wait-seconds (\d+)/)?.[1])
+  assert.equal(seconds, 900)
+  assert.ok(minutes * 60 >= seconds + 20 * 60)
 })

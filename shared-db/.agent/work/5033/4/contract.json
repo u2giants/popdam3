@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 5033,
+    "generation": 3,
+    "contract_sha256": "8f706162ee34d7776e2e7203b00d851f9e9c0ee4506fd681387b401a6499b2a8"
+  },
+  "work_issue": 5033,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Catch testing and delivery failures before expensive review and release failed merge holds promptly",
+  "base_sha": "7497322493592557d888f10f2f0630fa710eb645",
+  "dispatcher": "Albert request in Codex chat01a18349: fix the testing and delivery process so this does not take 11 hours again",
+  "worker": "Codex chat01a18349 and scoped subagents",
+  "branch": "codex/testing-delivery-process",
+  "worktree": "/home/ahazan/.codex/worktrees/testing-delivery-process/shared-db",
+  "allowed_paths": [
+    "scripts/check-delivery-local.mjs",
+    "scripts/check-delivery-local.test.mjs",
+    "scripts/merge-queue-hold.mjs",
+    "scripts/merge-queue-hold.test.mjs",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "docs/development.md",
+    "docs/verification/testing-delivery/5033.md",
+    "docs/verification/throughput-dispositions/scripts~check-delivery-local.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~merge-queue-hold.mjs.json",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/check-delivery-local.mjs",
+    "scripts/check-delivery-local.test.mjs",
+    "scripts/merge-queue-hold.mjs",
+    "scripts/merge-queue-hold.test.mjs",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "docs/development.md",
+    "docs/verification/testing-delivery/5033.md",
+    "docs/verification/throughput-dispositions/scripts~check-delivery-local.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~merge-queue-hold.mjs.json",
+    "scripts/manage-migration-author-lanes.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database/production writes or application changes",
+    "No reviewer-code or toolkit installation/repair; no guard or baseline bypass",
+    "No foreign claim/lease cancellation or release; only existing ownership-proven cleanup",
+    "No edit to paid-review inputs until terminal adoption"
+  ],
+  "required_checks": [
+    "node --test scripts/check-delivery-local.test.mjs scripts/merge-queue-hold.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+    "node scripts/check-delivery-local.mjs --base 7497322493592557d888f10f2f0630fa710eb645",
+    "node scripts/check-production-verification-sidecars.mjs --base 7497322493592557d888f10f2f0630fa710eb645",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Prose-only incident/acceptance record d56b34f37 preceded code; actual draft PR5034 exists before code so final ready evidence can be reviewed once",
+    "Existing full CI remains authoritative; local preflight is early failure detection, not equivalent full acceptance",
+    "Healthy pending checks retain original15minute hold; exact-group server isRequired flags only detect aborts, never authorize merging; full administrative required-check preflight remains unchanged.",
+    "Generation2 prospectively adds required per-source truth dispositions discovered by the actual early guard; generation1 implementation remains authorized by its published predecessor.",
+    "Generation3 prospectively addresses terminal GLM review: retain shared-transport transient retries for fixed query-only POSTs and preserve the original20minute post-acquisition job margin. Reported non-null cursor defect is disproved by exact-source live read: cursor already nullable.",
+    "Generation4 prospectively covers actual parallel CI feedback after gen3 terminalAPPROVE: update acquisition-inventory test to recognize existing trusted waiting wrapper while retaining all4 assertions; add native coordination family to earlypreflight so this failure is caught before paidreview."
+  ],
+  "stop_conditions": [
+    "Unverifiable check authority, group/head or owned lane identity",
+    "Any need to weaken required checks, proof, baseline or production exclusion",
+    "Any scope or source change while exact-head review is running"
+  ]
+}

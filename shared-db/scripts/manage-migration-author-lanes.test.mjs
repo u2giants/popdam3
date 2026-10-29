@@ -4149,7 +4149,7 @@ test('database-only workflow acquisitions supply admission while guarded merge r
     const source=readFileSync(fileURLToPath(new URL(`../.github/workflows/${file}`,import.meta.url)),'utf8')
     const lines=source.split(/\r?\n/)
     for(let index=0;index<lines.length;index++){
-      if(!/manage-migration-author-lanes\.mjs["']?\s+--acquire-/.test(lines[index]))continue
+      if(!/(?:manage-migration-author-lanes\.mjs["']?\s+--acquire-|acquire-merge-lane-waiting\.mjs["']?[^\n]*\s--\s+--acquire-merge\b)/.test(lines[index]))continue
       let command=lines[index].trim()
       while(command.endsWith('\\'))command+=`\n${lines[++index].trim()}`
       commands.push(`${file}: ${command}`)
@@ -4159,6 +4159,7 @@ test('database-only workflow acquisitions supply admission while guarded merge r
   for(const command of commands){
     assert.match(command,/--pr\s+\S+/,command)
     if(command.startsWith('guarded-migration-merge.yml:')){
+      assert.match(command,/acquire-merge-lane-waiting\.mjs["']?\s+--wait-seconds 900 --poll-seconds 15 -- --acquire-merge/,command)
       assert.doesNotMatch(command,/--admit-issue\s+\S+/,command)
       assert.match(command,/--head-sha\s+\S+/,command)
     }else assert.match(command,/--admit-issue\s+\S+/,command)

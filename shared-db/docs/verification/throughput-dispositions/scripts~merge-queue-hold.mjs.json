@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source": "scripts/merge-queue-hold.mjs",
+  "sites": [
+    {
+      "source": "scripts/merge-queue-hold.mjs",
+      "site": "scripts/merge-queue-hold.mjs:109",
+      "semantic_key": "scripts/merge-queue-hold.mjs:36528e7269098a24c8ea4ca514d7e2fe5c493cf6d57a2b969ddd118a815c0cdd:context-9a9a42da979d19b74bf6793c768fbfb16ad57720dc8a7a45456b5a8b56ab4487",
+      "legacy_semantic_key": "scripts/merge-queue-hold.mjs:36528e7269098a24c8ea4ca514d7e2fe5c493cf6d57a2b969ddd118a815c0cdd:1",
+      "line_sha256": "36528e7269098a24c8ea4ca514d7e2fe5c493cf6d57a2b969ddd118a815c0cdd",
+      "disposition": "excluded",
+      "reason": "Excluded from business-delivery absence claims: this diagnostic reports incomplete CI observations while preserving the wait and ownership-proven cleanup; it asserts no missing application data or delivered outcome."
+    },
+    {
+      "source": "scripts/merge-queue-hold.mjs",
+      "site": "scripts/merge-queue-hold.mjs:47",
+      "semantic_key": "scripts/merge-queue-hold.mjs:3a40a30904b5c21d6390a91c4bfb58b5371b7607b8cf1000c88d831fee159c04:context-053f72fcebf30333e2a35c454451fe3ba89328f461be4972128a4e9c4d90d30d",
+      "legacy_semantic_key": "scripts/merge-queue-hold.mjs:3a40a30904b5c21d6390a91c4bfb58b5371b7607b8cf1000c88d831fee159c04:1",
+      "line_sha256": "3a40a30904b5c21d6390a91c4bfb58b5371b7607b8cf1000c88d831fee159c04",
+      "disposition": "excluded",
+      "reason": "Excluded from business-delivery absence claims: an empty server-reported required-check inventory is explicitly pending and keeps the full healthy hold budget; it never declares all required checks green."
+    }
+  ]
+}

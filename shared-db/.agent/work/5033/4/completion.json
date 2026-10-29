@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "work_issue": 5033,
+  "outcome": "ready-for-merge",
+  "pr": 5034,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5033/4",
+  "contract_sha256": "6ffd769eacff00b899e542094b41d5750576a56563ada733b499473c58ddded0",
+  "head_sha": "34dd9d4212f34123b576aece94f877439d0be7db",
+  "base_sha": "7497322493592557d888f10f2f0630fa710eb645",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/development.md",
+    "docs/verification/testing-delivery/5033.md",
+    "docs/verification/throughput-dispositions/scripts~check-delivery-local.mjs.json",
+    "docs/verification/throughput-dispositions/scripts~merge-queue-hold.mjs.json",
+    "scripts/check-delivery-local.mjs",
+    "scripts/check-delivery-local.test.mjs",
+    "scripts/check-merge-queue-workflows.test.mjs",
+    "scripts/manage-migration-author-lanes.test.mjs",
+    "scripts/merge-queue-hold.mjs",
+    "scripts/merge-queue-hold.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/check-delivery-local.test.mjs scripts/merge-queue-hold.test.mjs scripts/check-merge-queue-workflows.test.mjs",
+      "exit_code": 0,
+      "evidence": "71 integrated regressions PASS, including new coordination-failure first-stop ordering."
+    },
+    {
+      "command": "node scripts/check-delivery-local.mjs --base 7497322493592557d888f10f2f0630fa710eb645",
+      "exit_code": 0,
+      "evidence": "Actual6guard run PASS: native980coordination +72throughput+39RLS/parser+309Python=1400 tests; sidecars95/truth393sites112sources/native identity stable. Eachstep60s/global180s budgets retained."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base 7497322493592557d888f10f2f0630fa710eb645",
+      "exit_code": 0,
+      "evidence": "Sidecars and pinned detector baseline PASS; no baseline regeneration."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Whitespace PASS."
+    }
+  ],
+  "assumptions_resolved": [
+    "Prospective generation4 binds generation3 after terminal independentAPPROVE on37c40c6; actualparallelCI found only one shared required failure: direct-only acquisition inventory omitted new existingtrustedwrapper. Previouspair privatelypreserved/publishedrefs immutable; onlygeneration4 pair in finaldiff.",
+    "Nativeinventory discovery recognizes direct and boundedwrapper calls, stillrequiresall4acquisitions withoriginalPR/head/admissionassertions. Earlypreflight nowruns980nativecoordination/workflow/hold/waitertests so this actualfailure is caught beforepaidreview; explicit negative test stops latercostly suites.",
+    "Both required CI failures Migrationauthorlease andCrossPRcollision were same inventoryassertion; native980suite nowPASS. OptionalEntire/proseauthorizations remain unchanged. ActualnewCI/guardedmerge notclaimedlocally.",
+    "71focusedregressions plus actual1400test6guard runner,52YAML/464filetransport/sidecars95/truth393sites/whitespace PASS. No further runtime behavior, credential, policy, timeout or production changes beyond independently approved37c candidate.",
+    "ExactoriginalreviewedGitobject ee8e776 line55 confirmednullableString andnon-nullfalse; initialcriticalquotation wasnotpresent in actualGit object. Firstpage livequery30contexts/requiredSQLfailure andcurrentPRidentity previouslyPASS.",
+    "ActualPR5034/newimplementationhead bound before final independentreview; sourceheldimmutablethroughterminaladoption."
+  ],
+  "stop_conditions_hit": []
+}

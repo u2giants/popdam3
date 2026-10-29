@@ -33,6 +33,51 @@ Declare the task class first: `ai-task-gates start --class <class>`
 
 ## What to run locally
 
+### Catch failures before expensive review (#5033)
+
+Run `node scripts/check-delivery-local.mjs --base <full-base-sha>` before paid
+review or a full performance qualification. `--plan` prints its exact existing
+CI guards without executing them. The offline run checks sidecars and pinned
+detector baseline first, then the truth audit, native merge-coordination/workflow tests, the complete throughput guard
+family, all four RLS families and the live-proof parser, and focused Python
+catalogue/proof tests. It stops at the first failure, at 60 seconds per step or
+180 seconds overall; it never retries, fetches, reviews, or accesses a database.
+It requires the installed native source-identity helper and refuses changed
+inputs. This early check does not replace the full CI matrix below.
+
+Before a large physical performance run, use the existing harness's small
+capability/cost smoke first. Prove its dependencies, target custody and first
+measurement before scheduling the full case matrix. Keep real fixture cleanup
+and application acceptance on the original work issue.
+
+Prepare native completion prerequisites early: the actual work issue and PR,
+prospective contract publication, producer workflow/artifact availability,
+required live-proof shape and issue linkage. A genuine prose-only incident or
+acceptance draft may open the actual draft PR before implementation; publish
+no code under a prose exemption. Commit the final ready completion pair before
+the finished candidate's independent review so PR-number bookkeeping does not
+create an avoidable extra source-review cycle.
+
+A detached review request ID alone does not prove a worker started. In the same
+parent shell that launches `ai-review ... --detach`, immediately read its native
+`ai-review outcome <id> --wait 5` and verify a worker acknowledgement/PID or a
+terminal result. An empty log plus no worker acknowledgement is an unstarted
+request: diagnose and use the documented supported fallback immediately instead
+of waiting on it. Never retry a failed/skipped provider during observation week.
+Keep the reviewed worktree, HEAD, branch and files unchanged until the terminal
+result is adopted; do not swap its branch while the paid worker runs.
+
+For delivery, distinguish queue admission from an actual merged PR. Check the
+fresh effective required contexts through the native required-check preflight;
+an optional integration failure does not become a required failure. The queue
+hold monitors the exact group's server-reported required flags with read-only
+credentials only to abort a failed, ejected or replaced group. Missing/pending
+checks retain the healthy 15-minute budget. This monitor never authorizes a
+merge: the existing full required-check preflight, review and owned-lane checks
+remain mandatory. Busy owned-lane acquisition uses the existing bounded waiter;
+all non-occupancy refusals still stop immediately. The guarded job preserves
+its original 20-minute post-acquisition execution margin after that wait.
+
 ### Node tool tests (primary)
 
 ```bash
