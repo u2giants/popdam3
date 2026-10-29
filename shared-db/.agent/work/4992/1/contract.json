@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "work_issue": 4992,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Create dflow.item_customer_selling on the DesignFlow sandbox, same shape as the production table.",
+  "base_sha": "4b70be6a458d308a24772b3bd48c74f4d3cfc6c6",
+  "dispatcher": "Claude chat ebfe7a83-6008-4e1d-9fd1-be96f5a2a8d5 on edge-dev3",
+  "worker": "Claude chat ebfe7a83-6008-4e1d-9fd1-be96f5a2a8d5 on edge-dev3 (no sub-agents)",
+  "branch": "claude/4964-dflow-selling-sandbox",
+  "worktree": "/home/ahazan/repos/shared-db/.claude/worktrees/4964-dflow-selling-sandbox",
+  "allowed_paths": [
+    "supabase/migrations/20261028230411_dflow_item_customer_selling.sql",
+    ".agent/work/4992/1/contract.json",
+    ".agent/work/4992/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261028230411_dflow_item_customer_selling.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table dflow.item_customer_selling"
+  ],
+  "prohibited_actions": [
+    "No change outside allowed_paths",
+    "No manual production command"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Contract published 2026-10-28 after the implementation commits already existed (the merge queue required the pair late); it records the scope as built, not a pre-work declaration."
+  ],
+  "stop_conditions": [
+    "Any target other than the DesignFlow sandbox"
+  ],
+  "evidence_parent": null
+}

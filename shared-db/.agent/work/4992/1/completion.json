@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "work_issue": 4992,
+  "outcome": "ready-for-merge",
+  "pr": 4996,
+  "migration_versions": [
+    "20261028230411"
+  ],
+  "contract_ref": "refs/db-contracts/4992/1",
+  "contract_sha256": "ff6afe409af9ad12cb953a994b348ebd1b5833de19970f2273331684ec96d0b5",
+  "head_sha": "895d095b4cd7ee30c2b6b58574274fae38bcf921",
+  "base_sha": "4b70be6a458d308a24772b3bd48c74f4d3cfc6c6",
+  "files_changed": [
+    "supabase/migrations/20261028230411_dflow_item_customer_selling.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL checks passed; ephemeral database tests ran in CI."
+    }
+  ],
+  "assumptions_resolved": [
+    "Contract was published after implementation commits; scope matches what was built."
+  ],
+  "stop_conditions_hit": []
+}
