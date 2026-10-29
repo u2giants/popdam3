@@ -230,6 +230,30 @@ The categorization method changed after business closed on May 13, 2025. Items c
 
 Do not infer current product meaning from historical single-letter ERP values without the approved remediation method.
 
+## Product description per merchandise-group combination ("Core Product Type")
+
+**Settled — owner answers by Albert Hazan, 2026-10-29 (DesignFlow work issue
+`popcre/designflow-item-master#150`).**
+
+Every item created on or after **2025-05-01** carries one written product description,
+generated **once per MG01+MG02+MG03 combination** from **all** of that combination's item
+descriptions (no sampling): it states the physical product the items have in common and
+omits Licensor, Property/character, size, and artwork wording. The bar is **≥95% correct
+per item overall, and each combination must also pass on its own**; a combination that
+cannot reach the bar is not published — its items stay **blank** and go to a review list.
+A wrong description is worse than none.
+
+- A person may override the description on an item; a machine never overwrites a human
+  correction.
+- The screen label is **"Core Product Type"** — distinct from MG01, which this topic also
+  calls Product Type (§ Business hierarchy). The code name is `product_description`.
+- Items created before 2025-05-01 receive their combination's *published* description
+  later, under the same verification; their wording is not used to regenerate anything.
+- A combination of one or two items is published only if every item in it passes.
+
+The 2025-05-01 boundary above is the product-description population boundary. It is a
+different date and purpose from the May 14, 2025 item-learning boundary in this topic.
+
 ## Authority boundary
 
 This taxonomy governs product and merchandise meaning only. Licensing names, ownership, Characters, Style Guides, Assets, Franchises, and Property Active/Inactive status follow [`licensing-master-data.md`](licensing-master-data.md).
