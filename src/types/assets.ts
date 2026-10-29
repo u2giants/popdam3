@@ -69,8 +69,6 @@ export interface FacetCounts {
   workflowStatus: Record<string, number>;
   isLicensed: { true: number; false: number };
   stage: Record<string, number>;
-  /** Counts cover only the first 1,000 matches checked; show as "N+". */
-  lowerBound?: boolean;
 }
 
 export function hasActiveFilters(filters: AssetFilters): boolean {

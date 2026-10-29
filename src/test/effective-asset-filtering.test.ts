@@ -84,7 +84,7 @@ describe("active grouped library requests", () => {
     const fetch = installClient();
     const options = useAssets(filters({ tagFilter: "blue", stage: ["dev"], productCategory: ["Wall"] }), "modified_at", "desc", 1) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<any> };
     const result = await options.queryFn({ signal: new AbortController().signal });
-    expect(result).toEqual({ assets: [{ id: "a1", filename: "full.psd", relative_path: "art/full.psd", file_size: 123 }], totalCount: 401, totalIsLowerBound: false, pageSize: 200, page: 1 });
+    expect(result).toEqual({ assets: [{ id: "a1", filename: "full.psd", relative_path: "art/full.psd", file_size: 123 }], totalCount: 401, pageSize: 200, page: 1 });
     const page = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     const head = fetch.mock.calls.find(([, init]) => init?.method === "HEAD")!;
     const pageParams = new URL(String(page[0])).searchParams;

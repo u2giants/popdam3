@@ -15,13 +15,12 @@ interface PaginationBarProps {
   page: number;
   totalCount: number;
   /** Total is a lower bound from search; shown as "N+". */
-  totalIsLowerBound?: boolean;
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }
 
-export default function PaginationBar({ page, totalCount, totalIsLowerBound = false, pageSize, onPageChange, onPageSizeChange }: PaginationBarProps) {
+export default function PaginationBar({ page, totalCount, pageSize, onPageChange, onPageSizeChange }: PaginationBarProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const from = page * pageSize + 1;
   const to = Math.min((page + 1) * pageSize, totalCount);
@@ -31,7 +30,7 @@ export default function PaginationBar({ page, totalCount, totalIsLowerBound = fa
   return (
     <div className="flex items-center justify-between border-t border-border px-4 py-2">
       <span className="text-xs text-muted-foreground">
-        {from}–{to} of {formatCount(totalCount, totalIsLowerBound)}
+        {from}–{to} of {formatCount(totalCount)}
       </span>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
