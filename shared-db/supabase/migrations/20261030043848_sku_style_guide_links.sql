@@ -713,8 +713,16 @@ grant execute on function public.is_plausible_source_file_name(text) to service_
 grant execute on function public.file_name_norm(text) to service_role, postgres, authenticated;
 
 -- ---------------------------------------------------------------------------
--- Parse historical samples once as part of installing the improved parsers.
-select public.backfill_pdf_files_used_v2();
+-- Historical parse deliberately NOT run inline (#5141): the per-row normalized
+-- filename lookups overrun this migration's own statement budget on real data
+-- (run 41067960648 rolled back at the 120s cap). The migration installs the
+-- parsers and the nightly resolver; the one-time historical parse runs as
+-- service_role after promotion, per HANDOFF.d/20261030T0640Z-EDGE-DEV section 4:
+--   select public.backfill_pdf_files_used_v2();
+--   select public.resolve_sku_style_guide_links();
+-- Root-cause guard for wherever that parse is run from: the function carries
+-- its own statement budget so it can never again inherit a caller's short cap.
+alter function public.backfill_pdf_files_used_v2() set statement_timeout = '30min';
 
 -- ---------------------------------------------------------------------------
 -- 7. Nightly refresh
