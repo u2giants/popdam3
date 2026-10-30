@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { type CustomCellRendererProps, type CustomHeaderProps } from "ag-grid-react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { cn } from "@/lib/utils";
 import { type StyleRow, type DescriptionSectionKey, type DescriptionParts, type DescriptionEditorProps } from "./types";
 import { APPROVED_LICENSOR_PROPERTY_OPTIONS, COMMON_SIZE_OPTIONS } from "./columns";
-import { normalized, parseDescriptionParts, assembleDescription } from "./helpers";
+import { isUserCreatedRow, normalized, parseDescriptionParts, assembleDescription } from "./helpers";
 
 export function DescriptionBuilderEditor(props: DescriptionEditorProps) {
   const options = props.options ?? {
@@ -136,7 +136,12 @@ export function DescriptionBuilderEditor(props: DescriptionEditorProps) {
   );
 }
 
-export function RowNumberCell(params: CustomCellRendererProps<StyleRow, number | null>) {
+type RowNumberCellProps = CustomCellRendererProps<StyleRow, number | null> & {
+  canDeleteRow?: boolean;
+  onDeleteRow?: (row: StyleRow) => void;
+};
+
+export function RowNumberCell(params: RowNumberCellProps) {
   const { node, value } = params;
   const [selected, setSelected] = useState(() => node.isSelected() ?? false);
 
@@ -145,6 +150,8 @@ export function RowNumberCell(params: CustomCellRendererProps<StyleRow, number |
     node.addEventListener("rowSelected", listener);
     return () => node.removeEventListener("rowSelected", listener);
   }, [node]);
+
+  const deletable = Boolean(params.canDeleteRow && params.onDeleteRow && node.data && isUserCreatedRow(node.data));
 
   return (
     <div className="flex h-full items-center gap-2">
@@ -155,6 +162,20 @@ export function RowNumberCell(params: CustomCellRendererProps<StyleRow, number |
         aria-label="Select row"
       />
       <span className="font-mono text-muted-foreground">{value ?? ""}</span>
+      {deletable && (
+        <button
+          type="button"
+          className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 opacity-60 transition-colors hover:bg-destructive/15 hover:text-destructive hover:opacity-100"
+          title="Delete this row (user-created rows only)"
+          aria-label="Delete row"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (node.data && params.onDeleteRow) params.onDeleteRow(node.data);
+          }}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }

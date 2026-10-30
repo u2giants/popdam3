@@ -27,7 +27,7 @@ import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } f
 import { cn } from "@/lib/utils";
 import { type FieldKey, type StyleRow, type SheetColumn, type ReviewItem, type LinkCandidate, type JevRankingResponse, type DescriptionEditorOptions, type AuditCell, type SavedView } from "./styles/types";
 import { JEV_MATCH_FIELDS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
-import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation } from "./styles/helpers";
+import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation, isUserCreatedRow } from "./styles/helpers";
 import { refreshBridgeWithMeasurement, fetchRowsPage, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
 import { DescriptionBuilderEditor, RowNumberCell, RowNumberHeader, RfqGroupCell } from "./styles/cells";
 
@@ -283,6 +283,35 @@ export default function StylesPage() {
     onError: (error) => toast.error("Could not add row", { description: error.message }),
   });
 
+  const deleteRow = useMutation({
+    mutationFn: async (row: StyleRow) => {
+      const { data, error } = await (supabase as any).rpc("delete_style_tracker_rows", { p_row_ids: [row.id] });
+      if (error) throw error;
+      return (data ?? [{ deleted_count: 0, skipped_count: 0 }])[0] as { deleted_count: number; skipped_count: number };
+    },
+    onSuccess: (result) => {
+      if (result.skipped_count > 0) {
+        toast.warning("Row was not deleted", { description: "Only rows created here in Master Data can be deleted." });
+        return;
+      }
+      toast.success("Row deleted");
+      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
+      queryClient.invalidateQueries({ queryKey: ["style-row-count"] });
+    },
+    onError: (error) => toast.error("Could not delete row", { description: error.message }),
+  });
+
+  const requestDeleteRow = useCallback(
+    (row: StyleRow) => {
+      if (deleteRow.isPending) return;
+      const sku = String(row.sku ?? "").trim();
+      if (!confirm(`Delete this Master Data row${sku ? ` (${sku})` : ""}? This cannot be undone.`)) return;
+      deleteRow.mutate(row);
+    },
+    [deleteRow],
+  );
+
   const resolveCanonical = useMutation({
     mutationFn: async ({ item, candidate }: { item: ReviewItem; candidate: LinkCandidate }) => {
       const { error } = await (supabase as any).rpc("upsert_style_tracker_value_resolution", {
@@ -513,6 +542,7 @@ export default function StylesPage() {
         filter: "agNumberColumnFilter",
         suppressFillHandle: true,
         cellRenderer: RowNumberCell,
+        cellRendererParams: { canDeleteRow: isAdmin, onDeleteRow: requestDeleteRow },
         headerComponent: RowNumberHeader,
       },
       {
@@ -693,7 +723,21 @@ export default function StylesPage() {
     const colId = params.column?.getColId();
     const column = active.columns.find((item) => item.letter === colId);
     const row = params.node?.data;
-    if (!row || !column) return defaultItems;
+    if (!row) return defaultItems;
+
+    const rowDeleteItem: MenuItemDef<StyleRow> | null =
+      isAdmin && isUserCreatedRow(row)
+        ? {
+            name: "Delete row",
+            action: () => requestDeleteRow(row),
+          }
+        : null;
+
+    if (!column) {
+      const items: (DefaultMenuItem | MenuItemDef<StyleRow>)[] = [];
+      if (rowDeleteItem) items.push(rowDeleteItem, "separator");
+      return [...items, ...defaultItems];
+    }
 
     return [
       {
@@ -705,6 +749,7 @@ export default function StylesPage() {
           },
         ],
       },
+      ...(rowDeleteItem ? ([rowDeleteItem] as (DefaultMenuItem | MenuItemDef<StyleRow>)[]) : []),
       "separator",
       ...defaultItems,
     ];
