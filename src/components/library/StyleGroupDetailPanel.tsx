@@ -38,6 +38,17 @@ interface StyleGroupDetailPanelProps {
 /** Above this width the overview content reflows into two columns. */
 const WIDE_THRESHOLD = 620;
 
+const MATCH_METHOD_LABELS: Record<string, string> = {
+  filename_exact: "portal file match",
+  filename_normalized: "portal file match (normalized name)",
+  sheet_declared: "declared on licensing sheet",
+  sheet_label_match: "sheet label matched to a portal guide",
+};
+
+function matchMethodLabel(method: string): string {
+  return MATCH_METHOD_LABELS[method] ?? method;
+}
+
 /* ── Tab type ─────────────────────────────────────────────── */
 type Tab = "overview" | "files" | "activity";
 
@@ -123,20 +134,38 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: styleGuideSources } = useQuery({
+  const { data: sourceFiles } = useQuery({
     queryKey: ["sku-files-used", group.sku],
     enabled: !!group.sku && group.is_licensed,
     queryFn: async () => {
       const { data } = await supabase
         .from("sku_files_used")
-        .select("id, file_name, style_guide_file_id, style_guide_files(filename, licensor_name, property_folder)")
+        .select("id, file_name")
         .eq("sku", group.sku)
         .order("file_name");
-      return (data ?? []) as unknown as Array<{
+      return (data ?? []) as Array<{ id: string; file_name: string }>;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: styleGuideLinks } = useQuery({
+    queryKey: ["sku-style-guide-links", group.sku],
+    enabled: !!group.sku && group.is_licensed,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("sku_style_guide_links")
+        .select("id, file_name, source_system, style_guide_label, match_method, match_confidence, matched_asset_count")
+        .eq("sku", group.sku)
+        .order("match_confidence", { ascending: false })
+        .order("style_guide_label");
+      return (data ?? []) as Array<{
         id: string;
-        file_name: string;
-        style_guide_file_id: string | null;
-        style_guide_files: { filename: string; licensor_name: string | null; property_folder: string | null } | null;
+        file_name: string | null;
+        source_system: string;
+        style_guide_label: string;
+        match_method: string;
+        match_confidence: number;
+        matched_asset_count: number;
       }>;
     },
     staleTime: 2 * 60 * 1000,
@@ -954,29 +983,52 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     <SectionLabel>
                       <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" /> Style Guide Sources</span>
                     </SectionLabel>
-                    {!styleGuideSources || styleGuideSources.length === 0 ? (
-                      <p className="text-[12px] text-muted-foreground/50">No style guide files recorded for this SKU</p>
+                    {(!sourceFiles || sourceFiles.length === 0) && (!styleGuideLinks || styleGuideLinks.length === 0) ? (
+                      <p className="text-[12px] text-muted-foreground/50">No source-art files or style guides recorded for this SKU</p>
                     ) : (
-                      <div className="space-y-2">
-                        {styleGuideSources.map((row) => (
-                          <div key={row.id} className="text-[12px]">
-                            {row.style_guide_file_id && row.style_guide_files ? (
-                              <div>
-                                <p className="text-foreground font-medium break-all">{row.style_guide_files.filename}</p>
-                                {(row.style_guide_files.licensor_name || row.style_guide_files.property_folder) && (
-                                  <p className="text-muted-foreground/70 mt-0.5">
-                                    {[row.style_guide_files.licensor_name, row.style_guide_files.property_folder].filter(Boolean).join(" / ")}
-                                  </p>
-                                )}
+                      <div className="space-y-3">
+                        {sourceFiles && sourceFiles.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Source art files</p>
+                            {sourceFiles.map((row) => (
+                              <div key={row.id} className="text-[12px] font-mono text-muted-foreground/70 break-all">
+                                {row.file_name}
                               </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-muted-foreground/60 font-mono break-all">{row.file_name}</span>
-                                <Badge variant="outline" className="text-[10px] h-4 shrink-0 text-muted-foreground/60">unresolved</Badge>
-                              </div>
-                            )}
+                            ))}
                           </div>
-                        ))}
+                        )}
+                        {styleGuideLinks && styleGuideLinks.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Licensor style guides</p>
+                            {styleGuideLinks.map((row) => {
+                              const ambiguous = row.matched_asset_count > 1;
+                              return (
+                                <div key={row.id} className="text-[12px]">
+                                  <p className="text-foreground font-medium break-all">{row.style_guide_label}</p>
+                                  <p className="text-muted-foreground/70 mt-0.5">
+                                    {[row.source_system, matchMethodLabel(row.match_method), row.file_name ? `via ${row.file_name}` : null]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </p>
+                                  {(ambiguous || row.match_confidence < 1) && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {ambiguous && (
+                                        <Badge variant="outline" className="text-[10px] h-4 text-muted-foreground/60">
+                                          ambiguous — {row.matched_asset_count} portal matches
+                                        </Badge>
+                                      )}
+                                      {row.match_confidence < 1 && (
+                                        <Badge variant="outline" className="text-[10px] h-4 text-muted-foreground/60">
+                                          {Math.round(row.match_confidence * 100)}% confidence
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
