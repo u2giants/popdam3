@@ -328,85 +328,33 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .maybeSingle();
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
-  const [licensorsRes, propertiesRes] = await checkedQuery(Promise.all([
-    client.schema("core").from("licensor").select("id, name").limit(50),
-    client.schema("core").from("property").select("id, name, licensor_id").limit(200),
-  ]));
-  checkedCharacterRead(licensorsRes.error, licensorsRes.data);
-  checkedCharacterRead(propertiesRes.error, propertiesRes.data);
-  const licensors = licensorsRes.data ?? [];
-  const properties = propertiesRes.data ?? [];
-
   let characters: { id: string; name: string }[] = [];
-  let usingPriorityOnly = false;
   const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
-  if (scope.unlicensed) {
-    // Unlicensed products have no licensed characters; offering the global list
-    // let the model attach Spider-Man to spider webs, red costumes, etc.
-    characters = [];
-  } else if (scope.property_id) {
-    const { data: priorityChars, error: priorityError } = await checkedQuery(client
-      .from("dam_character_catalog")
-      .select("id, name")
-      .eq("core_property_id", scope.property_id)
-      .eq("is_priority", true)
-      .order("usage_count", { ascending: false }));
-
-    checkedCharacterRead(priorityError, priorityChars);
-    if (priorityChars && priorityChars.length > 0) {
-      characters = priorityChars;
-      usingPriorityOnly = true;
-    } else {
-      const { data: allChars, error: allError } = await checkedQuery(client
-        .from("dam_character_catalog")
-        .select("id, name")
-        .eq("core_property_id", scope.property_id)
-        .order("name"));
-      checkedCharacterRead(allError, allChars);
-      characters = allChars ?? [];
-    }
-  } else if (scope.licensor_id) {
+  // Characters come only from the product's own property or licensor. With no
+  // licensing context (or an unlicensed group) the model gets no characters:
+  // a store-wide list let it attach Spider-Man to spider webs, Deadpool, etc.
+  let propertyIds: string[] = [];
+  if (!scope.unlicensed && scope.property_id) {
+    propertyIds = [scope.property_id];
+  } else if (!scope.unlicensed && scope.licensor_id) {
     const { data: propIds, error: propertyIdsError } = await checkedQuery(client
       .schema("core")
       .from("property")
       .select("id")
       .eq("licensor_id", scope.licensor_id));
     checkedCharacterRead(propertyIdsError, propIds);
-    const ids = (propIds ?? []).map((p: { id: string }) => p.id);
-
-    if (ids.length > 0) {
-      const { data: priorityChars, error: priorityError } = await checkedQuery(client
-        .from("dam_character_catalog")
-        .select("id, name")
-        .in("core_property_id", ids)
-        .eq("is_priority", true)
-        .order("usage_count", { ascending: false })
-        .limit(200));
-
-      checkedCharacterRead(priorityError, priorityChars);
-      if (priorityChars && priorityChars.length > 0) {
-        characters = priorityChars;
-        usingPriorityOnly = true;
-      } else {
-        const { data: allChars, error: allError } = await checkedQuery(client
-          .from("dam_character_catalog")
-          .select("id, name")
-          .in("core_property_id", ids)
-          .limit(300));
-        checkedCharacterRead(allError, allChars);
-        characters = allChars ?? [];
-      }
-    }
-  } else {
-    const { data: priorityChars, error: priorityError } = await checkedQuery(client
+    propertyIds = (propIds ?? []).map((p: { id: string }) => p.id);
+  }
+  if (propertyIds.length > 0) {
+    const { data: scopedChars, error: scopedError } = await checkedQuery(client
       .from("dam_character_catalog")
       .select("id, name")
-      .eq("is_priority", true)
-      .order("usage_count", { ascending: false })
-      .limit(150));
-    checkedCharacterRead(priorityError, priorityChars);
-    characters = priorityChars ?? [];
+      .in("core_property_id", propertyIds)
+      .order("is_priority", { ascending: false })
+      .order("name"));
+    checkedCharacterRead(scopedError, scopedChars);
+    characters = scopedChars ?? [];
   }
 
   if (options.onCharacterCatalog) {
@@ -414,15 +362,9 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     try { ids = normalizeCharacterIds(characters.map(character => character.id)); } catch { throw new CharacterCatalogDependencyError("catalog_contract"); }
     options.onCharacterCatalog(ids);
   }
-  const charContext = usingPriorityOnly
-    ? "Priority characters for this property/licensor (match from this list first):\n"
-    : "Characters (full list for this property):\n";
-
-  const taxonomyContext = [
-    `Licensors: ${licensors.map((l) => `${l.name} (${l.id})`).join(", ")}`,
-    `Properties: ${properties.map((p) => `${p.name} (${p.id})`).join(", ")}`,
-    `${charContext}${characters.map((c) => `${c.name} (${c.id})`).join(", ")}`,
-  ].join("\n");
+  const taxonomyContext = characters.length
+    ? `Characters for this product's property/licensor:\n${characters.map((c) => `${c.name} (${c.id})`).join(", ")}`
+    : "Characters: none available for this product. Return character_ids as an empty array.";
 
   let erpDescription: string | null = null;
   let itemDescription: string | null = null;
@@ -448,10 +390,12 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     if (humanDescriptionError && asset.style_group_id) {
       const { data: styleGroup } = await client
         .from("style_groups")
-        .select("item_description")
+        .select("sku, item_description")
         .eq("id", asset.style_group_id)
         .maybeSingle();
-      itemDescription = styleGroup?.item_description ?? null;
+      // Only this file's own product: a group holding another SKU would hand it
+      // a different product's description as "authoritative" context.
+      itemDescription = styleGroup?.sku === asset.sku ? styleGroup?.item_description ?? null : null;
     }
   }
 
@@ -473,7 +417,6 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     itemDescription,
     extractedPdfText,
     customInstructions,
-    usingPriorityOnly,
   });
 }
 
