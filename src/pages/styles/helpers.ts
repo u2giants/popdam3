@@ -361,8 +361,8 @@ const MATCH_CANDIDATE_LABELS: Array<[string, string]> = [
   ["erp_candidates", "item-master items"],
   ["style_group_candidates", "style groups"],
   ["company_candidates", "customers"],
-  ["public_licensor_candidates", "licensors"],
-  ["core_licensor_candidates", "licensors"],
+  ["public_licensor_candidates", "public licensors"],
+  ["core_licensor_candidates", "core licensors"],
   ["factory_candidates", "vendors"],
 ];
 const MATCH_FUZZY_LABELS: Record<string, [string, keyof StyleRow]> = {
@@ -382,10 +382,8 @@ export function matchStatusExplanation(row: StyleRow | undefined): string | null
   const reasons: string[] = [];
 
   if (status === "needs_review") {
-    const seen = new Set<string>();
     for (const [key, label] of MATCH_CANDIDATE_LABELS) {
-      if (count(key) > 1 && !seen.has(label)) {
-        seen.add(label);
+      if (count(key) > 1) {
         reasons.push(`${count(key)} possible ${label} match this line; pick the right one.`);
       }
     }
@@ -401,14 +399,15 @@ export function matchStatusExplanation(row: StyleRow | undefined): string | null
   }
 
   const found: string[] = [];
-  if (row.company_id) found.push("customer");
-  if (row.public_licensor_id || row.core_licensor_id) found.push("licensor");
-  if (row.factory_id) found.push("vendor");
-  const noItem = row.sku ? `${sku} was not found in ColdLion or the item master` : `${sku} cannot be looked up in ColdLion`;
+  if (hasFieldMatch(row, "customer")) found.push("customer");
+  if (hasFieldMatch(row, "licensor")) found.push("licensor");
+  if (hasFieldMatch(row, "designer")) found.push("designer");
+  if (hasFieldMatch(row, "factory")) found.push("vendor");
+  const noItem = hasFieldMatch(row, "sku") ? "An item or style group is linked" : row.sku ? `${sku} was not found in ColdLion or the item master` : `${sku} cannot be looked up in ColdLion`;
   if (status === "partial") {
     return found.length
       ? `Partial: ${noItem}. Only the ${found.join(", ")} matched.`
       : `Partial: ${noItem}. Only values entered by hand were recognized.`;
   }
-  return `Unlinked: ${noItem}, and no customer, licensor or vendor matched either.`;
+  return "Unlinked: This line has not been fully linked. Review its fields to confirm any existing matches.";
 }
