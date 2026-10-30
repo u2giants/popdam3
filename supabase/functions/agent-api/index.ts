@@ -893,13 +893,19 @@ async function assignToStyleGroup(
     const groupFields: Record<string, unknown> = {
       sku,
       folder_path: folderPath,
-      is_licensed: derived.is_licensed,
-      licensor_id: licensing.licensor_id,
-      licensor_code: skuFields.licensor_code ?? null,
-      licensor_name: skuFields.licensor_name ?? null,
-      property_id: licensing.property_id,
-      property_code: skuFields.property_code ?? null,
-      property_name: skuFields.property_name ?? null,
+      // Licensing is written only when ERP answered for this file; a file whose
+      // name has no style number (e.g. a tech-pack PDF) must not blank its group.
+      ...(licensing.is_licensed != null
+        ? {
+          is_licensed: licensing.is_licensed,
+          licensor_id: licensing.licensor_id,
+          licensor_code: skuFields.licensor_code ?? null,
+          licensor_name: skuFields.licensor_name ?? null,
+          property_id: licensing.property_id,
+          property_code: skuFields.property_code ?? null,
+          property_name: skuFields.property_name ?? null,
+        }
+        : {}),
       division_code: skuFields.division_code ?? null,
       division_name: skuFields.division_name ?? null,
       mg01_code: skuFields.mg01_code ?? null,

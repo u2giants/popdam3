@@ -31,6 +31,8 @@ export interface LicensingResolution {
 
 export interface LicensingMaps {
   erpByStyleAndDivision: Map<string, ErpLicensing>;
+  /** Style numbers that exist in exactly one ERP division. */
+  erpByStyle: Map<string, ErpLicensing>;
   licensorsBySourceId: Map<string, SourceIdentity>;
   propertiesBySourceId: Map<string, SourceIdentity & { licensor_id: string }>;
   licensorsByCode: Map<string, SourceIdentity>;
@@ -108,6 +110,7 @@ export async function loadAuthoritativeLicensingMaps(
   const propertyParents = new Map((properties ?? []).map((row) => [row.id, row.licensor_id]));
   return {
     erpByStyleAndDivision: new Map((erpRows ?? []).map((row) => [itemKey(row.style_number, row.division_code), row])),
+    erpByStyle: uniqueByKey((erpRows ?? []).map((row) => [row.style_number, row])),
     licensorsBySourceId: new Map(
       (refs ?? []).filter((row) => row.entity_table === "licensor")
         .map((row) => [row.source_id, { id: row.entity_id, name: row.source_name }]),
@@ -147,6 +150,19 @@ export async function resolveAuthoritativeLicensing(
       .maybeSingle();
     if (error) throw new Error(`Authoritative ColdLion item lookup failed: ${error.message}`);
     erp = data;
+  }
+  // The filename parser guesses the division; when that guess misses, a style
+  // number that exists in only one ERP division is still an exact match.
+  if (!erp) {
+    if (maps) erp = maps.erpByStyle.get(parsed.sku) ?? null;
+    else {
+      const { data, error } = await canonicalItems(db)
+        .select("division_code, licensor_code, property_code")
+        .eq("style_number", parsed.sku)
+        .limit(2);
+      if (error) throw new Error(`Authoritative ColdLion item lookup failed: ${error.message}`);
+      erp = data?.length === 1 ? data[0] : null;
+    }
   }
   if (!erp) return isLicensed ? emptyResolution("sku_not_in_coldlion_item_mirror", true) : emptyResolution(null, false);
   if (!erp.licensor_code) return { ...emptyResolution(null, false), is_licensed: false };
