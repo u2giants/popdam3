@@ -108,6 +108,15 @@ was reverted within minutes. A parameter change therefore lands as ONE PR, in th
   merges advanced `main` past it), dispatch the rehearsal against the current tip instead; the gate
   releases the next group on the success status posted on the exact SHA or on any later `main`
   commit that contains it.
+- If the merged-main apply is REFUSED because preview already holds every allowlisted version
+  (the claim lane applied it pre-merge; the hard guard's own directive), dispatch the
+  historical-recovery lane instead — `mode=apply`, `historical_preview_source_pr` (single version)
+  or `historical_preview_source_pr_map` (several), `historical_preview_original_run_map` naming the
+  run that originally applied each version, and `commit_sha` = the merge commit or a later tip.
+  Since #5086 the successful recovery posts the same exact-SHA `Post-merge preview rehearsal`
+  status (description marked "historical recovery … already applied; no database write"), so the
+  hold releases and, in the single-PR form, automatic production qualification still runs. Never
+  hand-record the status.
 
 ## Bounded failures
 
