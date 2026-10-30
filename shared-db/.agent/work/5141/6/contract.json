@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "work_issue": 5141,
+  "generation": 6,
+  "evidence_parent": {
+    "work_issue": 5141,
+    "generation": 5,
+    "contract_sha256": "aa826370550a59431f408f92ee3ad461342ae5b8083aae428071c6085717d1cf"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Complete 20261030125352's atomic allowlist entry with strip_outer_transaction so its owed merged-main rehearsal can run: the atomic apply refused the migration's own begin/commit wrapper",
+  "base_sha": "9bdcd84ef4f63ecff340fc304f48daf066e1adeb",
+  "branch": "zcode/5141-atomic-strip-125352",
+  "worktree": "/worksp/shared-db/.wt-5141-cfg2",
+  "dispatcher": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz (coordinator delivery, continuing owner-authorized #5141 recovery)",
+  "worker": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "file_writes": [],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file changes",
+    "No database writes; the rehearsal and promotion run through the governed workflow only",
+    "Never bypass or roll back the merge queue ruleset; a refusal stays a stop-and-report"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "The flag's semantics are fixed by the atomic lane implementation (precedent entry 20261009073649): strip the migration's outer begin/commit and run inside the lane's own transaction",
+    "Refusal being cured (run 41109420315): REFUSED: migration contains forbidden transaction-control statements"
+  ],
+  "stop_conditions": [
+    "The merged-main rehearsal of 20261030125352 still refuses after the flag"
+  ]
+}

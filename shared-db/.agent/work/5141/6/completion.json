@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 5141,
+  "pr": 5170,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/5141/6",
+  "contract_sha256": "8894026c8b325b7e99bd9c63e0751eb9a92ad2507cda16eaa96f0f21e71ad601",
+  "head_sha": "187b35711f44240d3653fcb2b243d3989f850fd4",
+  "base_sha": "9bdcd84ef4f63ecff340fc304f48daf066e1adeb",
+  "files_changed": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "migration_versions": [],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "evidence": "Static checks pass with the flag added.",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "The pinned sha256 still matches the migration on main; only the flag changed."
+  ],
+  "stop_conditions_hit": []
+}

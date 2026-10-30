@@ -42,7 +42,8 @@
       "targets": [
         "preview",
         "production"
-      ]
+      ],
+      "strip_outer_transaction": true
     }
   }
 }
