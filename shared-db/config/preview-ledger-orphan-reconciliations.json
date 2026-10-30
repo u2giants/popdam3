@@ -258,7 +258,8 @@
       "merged_source": true,
       "issue_state": "open",
       "claim_state": "closed",
-      "preview_job_success": true
+      "preview_job_success": true,
+      "orphan_source_commit": "2a0f16d2f4152374d10acd972c07b799fdfcee4a"
     }
   ]
 }

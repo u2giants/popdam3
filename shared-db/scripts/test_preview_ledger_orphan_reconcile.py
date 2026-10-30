@@ -618,4 +618,10 @@ class AtomicApplyEvidenceTests(unittest.TestCase):
         src=P.read_text(encoding='utf-8')
         self.assertIn('ATOMIC APPLY OK: target=preview version={evidence_version} ledger_row=1 ',src)
 
+class OrphanSourceCommitTests(unittest.TestCase):
+    def test_issue_4508_orphan_is_read_from_its_own_commit(self):
+        case=[c for c in M.SUPPORTED_CASES.values() if c.get('orphan_version')=='20261030014205'][0]
+        self.assertEqual(case['orphan_source_commit'],'2a0f16d2f4152374d10acd972c07b799fdfcee4a')
+        with self.assertRaisesRegex(M.Refusal,'full commit sha'): M.load_orphan_at_commit(P.parent.parent,'abc','20261030014205')
+
 if __name__=='__main__': unittest.main()
