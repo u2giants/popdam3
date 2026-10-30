@@ -355,3 +355,60 @@ export function validateDescriptionSelection(value: unknown, options: Descriptio
   if (!optionSet(options.size).has(normalized(parts.size))) missing.push("Size");
   return missing.length ? `Choose approved values for ${missing.join(", ")}.` : null;
 }
+
+const MATCH_CANDIDATE_LABELS: Array<[string, string]> = [
+  ["plm_item_candidates", "ColdLion items"],
+  ["erp_candidates", "item-master items"],
+  ["style_group_candidates", "style groups"],
+  ["company_candidates", "customers"],
+  ["public_licensor_candidates", "licensors"],
+  ["core_licensor_candidates", "licensors"],
+  ["factory_candidates", "vendors"],
+];
+const MATCH_FUZZY_LABELS: Record<string, [string, keyof StyleRow]> = {
+  customer: ["Customer", "customer"],
+  licensor: ["Licensor", "licensor"],
+  factory: ["Vendor", "default_vendor"],
+};
+
+// Plain-English reason a Master Data line is not "Linked", derived from the
+// same notes the bridge refresh uses to choose the status.
+export function matchStatusExplanation(row: StyleRow | undefined): string | null {
+  const status = row?.match_status ?? "unmatched";
+  if (!row || status === "matched") return null;
+  const notes = (row.match_notes ?? {}) as RowData;
+  const count = (key: string) => Number(notes[key] ?? 0);
+  const sku = row.sku ? `SKU "${row.sku}"` : "This line has no SKU, so it";
+  const reasons: string[] = [];
+
+  if (status === "needs_review") {
+    const seen = new Set<string>();
+    for (const [key, label] of MATCH_CANDIDATE_LABELS) {
+      if (count(key) > 1 && !seen.has(label)) {
+        seen.add(label);
+        reasons.push(`${count(key)} possible ${label} match this line; pick the right one.`);
+      }
+    }
+    const fuzzy = (notes.fuzzy ?? {}) as Record<string, { score?: number; target_label?: string }>;
+    for (const [key, suggestion] of Object.entries(fuzzy)) {
+      const [label, field] = MATCH_FUZZY_LABELS[key] ?? [key, key as keyof StyleRow];
+      const value = row[field];
+      const score = typeof suggestion?.score === "number" ? ` (${Math.round(suggestion.score * 100)}% similar)` : "";
+      reasons.push(`${label} "${value ?? ""}" is not an exact match; closest is "${suggestion?.target_label ?? "unknown"}"${score}. Confirm or correct it.`);
+    }
+    if (!reasons.length) reasons.push("The automatic match was uncertain; confirm the link.");
+    return `Needs review: ${reasons.join(" ")}`;
+  }
+
+  const found: string[] = [];
+  if (row.company_id) found.push("customer");
+  if (row.public_licensor_id || row.core_licensor_id) found.push("licensor");
+  if (row.factory_id) found.push("vendor");
+  const noItem = row.sku ? `${sku} was not found in ColdLion or the item master` : `${sku} cannot be looked up in ColdLion`;
+  if (status === "partial") {
+    return found.length
+      ? `Partial: ${noItem}. Only the ${found.join(", ")} matched.`
+      : `Partial: ${noItem}. Only values entered by hand were recognized.`;
+  }
+  return `Unlinked: ${noItem}, and no customer, licensor or vendor matched either.`;
+}
