@@ -87,7 +87,12 @@ export async function loadAuthoritativeLicensingMaps(
     ? canonicalItems(db).select("style_number, division_code, licensor_code, property_code")
       .in("style_number", [...new Set(styleNumbers)])
     : Promise.resolve({ data: [], error: null });
-  const [{ data: erpRows, error: erpError }, { data: refs, error: refError }, { data: properties, error: propertyError }, { data: licensors, error: licensorError }] = await Promise.all([
+  const [
+    { data: erpRows, error: erpError },
+    { data: refs, error: refError },
+    { data: properties, error: propertyError },
+    { data: licensors, error: licensorError },
+  ] = await Promise.all([
     erpPromise,
     db.schema("core").from("taxonomy_source_ref").select("entity_table, entity_id, source_id, source_name")
       .eq("source_system", "coldlion").eq("source_table", "merchGroupDetails")
