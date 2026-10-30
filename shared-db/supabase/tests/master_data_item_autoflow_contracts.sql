@@ -14,6 +14,9 @@
 -- projection has passed it.
 -- Cutoff parameter (#4974): the default cutoff is unchanged; a lowered p_cutoff
 -- sweeps pre-cutoff items through the same eligibility (assortment skip included).
+-- Full description (#5058): the pre-fill prefers itemDesc over the short
+-- itemDisplayDesc, and every run re-asserts ColdLion's full description on a
+-- ColdLion-linked line, keeping the first overwritten local value in row_data.
 -- LOCAL THROWAWAY DATABASE ONLY; never execute against production. Rolled back.
 begin;
 
@@ -108,6 +111,7 @@ begin
   values (v_sku_new, 'zztest4941', 'new', 'zztest 4951 fallback description',
           jsonb_build_object('companyCode','ZZ','divisionCode','ZZ',
                              'itemDesc','zztest 4951 coldlion description',
+                             'itemDisplayDesc','zztest 4951 short',
                              'itemDiscontinued','Y','createdUser','ZZTEST'),
           v_new)
   returning id into v_item_new;
@@ -310,6 +314,40 @@ begin
   if v_rows <> 1 then raise exception 'the swept window includes OLD; it must flow too'; end if;
   select count(*) into v_rows from public.style_tracker_rows where upper(btrim(sku)) = v_sku_asst;
   if v_rows <> 0 then raise exception 'the widened window must still not flow the assortment'; end if;
+
+  -- #5058: a ColdLion-linked line with a local description edit is brought back
+  -- to ColdLion's full description; the first local value is kept for recovery.
+  insert into public.style_tracker_rows (source_sheet, source_row_number, tracker_type, sku, description, row_data)
+  values ('License.Style', 9905058, 'licensed', 'ZZ5058-LINKED', 'zztest 5058 local edit', '{}');
+  insert into plm.item (item_number, source_system, source_id, raw, created_at)
+  values ('ZZ5058-LINKED', 'coldlion', 'zztest5058',
+          jsonb_build_object('companyCode','ZZ','divisionCode','ZZ',
+                             'itemDesc','zztest 5058 full', 'itemDisplayDesc','zztest 5058 short'),
+          v_old - interval '60 days');
+  insert into plm.style_tracker_item_bridge (
+    style_tracker_row_id, source_workbook_id, source_sheet, tracker_type, plm_item_id
+  )
+  select r.id, r.source_workbook_id, r.source_sheet, r.tracker_type, i.id
+  from public.style_tracker_rows r, plm.item i
+  where r.sku = 'ZZ5058-LINKED' and i.source_id = 'zztest5058';
+  perform public.sync_new_items_into_style_tracker(p_dry_run => false);
+  if not exists (select 1 from public.style_tracker_rows
+                  where sku = 'ZZ5058-LINKED' and description = 'zztest 5058 full'
+                    and row_data ->> 'pre_coldlion_description' = 'zztest 5058 local edit') then
+    raise exception '#5058: linked line must carry the full ColdLion description and keep the local value';
+  end if;
+  update public.style_tracker_rows set description = 'zztest 5058 second edit' where sku = 'ZZ5058-LINKED';
+  perform public.sync_new_items_into_style_tracker(p_dry_run => true);
+  if not exists (select 1 from public.style_tracker_rows
+                  where sku = 'ZZ5058-LINKED' and description = 'zztest 5058 second edit') then
+    raise exception '#5058: a dry run must not re-assert';
+  end if;
+  perform public.sync_new_items_into_style_tracker(p_dry_run => false);
+  if not exists (select 1 from public.style_tracker_rows
+                  where sku = 'ZZ5058-LINKED' and description = 'zztest 5058 full'
+                    and row_data ->> 'pre_coldlion_description' = 'zztest 5058 local edit') then
+    raise exception '#5058: re-assert must restore the full description and keep the first local value';
+  end if;
 
   -- After both legs handled everything, explicit runs are no-ops.
   select * into v_result from public.sync_new_items_into_style_tracker(p_dry_run => true);

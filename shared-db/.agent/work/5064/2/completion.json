@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_issue": 5064,
+  "outcome": "ready-for-merge",
+  "pr": 5066,
+  "migration_versions": [
+    "20261029213845"
+  ],
+  "contract_ref": "refs/db-contracts/5064/2",
+  "contract_sha256": "f44af870626ae4e731aecca3c34c1bac4c7f864618a7e8b315db9afb61909152",
+  "head_sha": "f173ff2ea60ac466bae2ae4c4e2ff7fccb3dbacc",
+  "base_sha": "1a33c67597fc50c39427b62314833ab0c1c94a77",
+  "files_changed": [
+    "config/atomic-migration-allowlist.json",
+    "supabase/migrations/20261029213845_master_data_coldlion_description_generic_division.sql",
+    "supabase/tests/master_data_autoflow_generic_division_contracts.sql",
+    "supabase/tests/master_data_item_autoflow_contracts.sql",
+    ".github/live-proofs/5064.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.sync_new_items_into_style_tracker"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed on this head (adopted)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original generation-1 work unchanged; only the atomic allowlist binding added by the adopter.",
+    "Claim #5065 transferred to the adopter per audit #5073 with current owner check-in."
+  ],
+  "stop_conditions_hit": []
+}

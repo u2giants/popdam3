@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "work_issue": 5064,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Owner direction 2026-10-29: Master Data description is ColdLion's full description and never locally edited (itemDesc first; re-asserted on every ColdLion-linked line each run, first local value kept in row_data.pre_coldlion_description), and EH001 items file in the Generic list with a one-time move of EH001 Licensed rows (claim #5065, migration 20261029213845)",
+  "base_sha": "69f81af9544c3ab7c010ec2d093aad3179e97ef1",
+  "dispatcher": "Claude Code session on hetz for owner Albert Hazan",
+  "worker": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz (adopted from Claude chat b7280b0b-8e13-484c-8608-fb3e64b46ef4 per audit #5073)",
+  "branch": "claude/masterdata-desc-generic",
+  "worktree": "/worksp/shared-db/.wt-5064-adopt",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json",
+    "supabase/migrations/20261029213845_master_data_coldlion_description_generic_division.sql",
+    "supabase/tests/master_data_autoflow_generic_division_contracts.sql",
+    "supabase/tests/master_data_item_autoflow_contracts.sql",
+    ".github/live-proofs/5064.sql"
+  ],
+  "file_writes": [
+    "config/atomic-migration-allowlist.json",
+    "supabase/migrations/20261029213845_master_data_coldlion_description_generic_division.sql",
+    "supabase/tests/master_data_autoflow_generic_division_contracts.sql",
+    "supabase/tests/master_data_item_autoflow_contracts.sql",
+    ".github/live-proofs/5064.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.sync_new_items_into_style_tracker"
+  ],
+  "prohibited_actions": [
+    "No change to signature, grants, cron or any other object.",
+    "No production or preview apply by hand; promotion follows the automatic workflow."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Clean resubmission of parked PR #5060 (#5058) with #5063 folded in at its author session's request; GLM REVISE findings on #5060 addressed (pre-image, restored verify assertions, contract tests, live proof).",
+    "Contents writes (owner-directed): description re-assert on ColdLion-linked lines and the one-time EH001 Licensed-to-Generic move in public.style_tracker_rows; the structural claim covers the function only.",
+    "Adopted after abandonment audit #5073; generation 2 adds only the atomic-apply allowlist binding so the governed preview lane can apply this single migration (a sibling's unmerged preview version would refuse the full-history push)."
+  ],
+  "stop_conditions": [
+    "Stop if claim #5065 reports a collision."
+  ],
+  "evidence_parent": {
+    "work_issue": 5064,
+    "generation": 1,
+    "contract_sha256": "dfe2b815c164a169c194c75527228926a7ffcd397ffe46bc299855dd283ef2ee"
+  }
+}
