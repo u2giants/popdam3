@@ -137,10 +137,10 @@ test('the approved rule is exactly one all-green PR built and merged at a time',
     min_entries_to_merge: 1,
     min_entries_to_merge_wait_minutes: 0,
   })
-  assert.equal(REQUIRED_STATUS_CHECK_CONTEXTS.length, 14)
-  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 14)
+  assert.equal(REQUIRED_STATUS_CHECK_CONTEXTS.length, 5)
+  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 5)
   assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Merge queue gate'))
-  assert.ok(REQUIRED_STATUS_CHECK_CONTEXTS.includes('Queue-sensitive checks (aggregate)'))
+  assert.ok(!REQUIRED_STATUS_CHECK_CONTEXTS.includes('Queue-sensitive checks (aggregate)'))
   assert.equal(queueRulesetMatches(approvedDetail), true)
   assert.equal(queueRulesetMatches({ ...approvedDetail, enforcement: 'evaluate' }), false)
   assert.equal(queueRulesetMatches({ ...approvedDetail, conditions: { ref_name: { include: ['refs/heads/develop'] } } }), false)
@@ -682,4 +682,12 @@ test('#4782 a failed rehearsal on the migration commit still refuses even if a d
 })
 test('#4782 malformed descendants refuse', async () => {
   await assert.rejects(awaitPreviewRehearsal({ sha: MIG, descendants: ['nope'], budgetMs: 10, readStatuses: async () => [], sleep: noWait }), /descendants must be/)
+})
+
+test('transition: both the lean and the legacy required lists are approved live shapes (ai-devops#2172)', async () => {
+  const m = await import('./merge-queue-contract.mjs')
+  const rows = (list) => ({ do_not_enforce_on_create: false, strict_required_status_checks_policy: false, required_status_checks: list.map((context) => ({ context, integration_id: 15368 })) })
+  assert.equal(m.requiredStatusChecksEqual(rows(m.REQUIRED_STATUS_CHECK_CONTEXTS)), true)
+  assert.equal(m.requiredStatusChecksEqual(rows(m.LEGACY_REQUIRED_STATUS_CHECK_CONTEXTS)), true)
+  assert.equal(m.requiredStatusChecksEqual(rows(m.REQUIRED_STATUS_CHECK_CONTEXTS.slice(1))), false)
 })

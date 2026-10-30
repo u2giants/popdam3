@@ -352,3 +352,11 @@ First use (2026-09-28): `Agent work contract` and `Orchestrator marker guard` we
 (the workflows still run and report; they no longer block merging). Evidence: 24/43 and 14/42
 failed in the 14 days to 2026-09-28, sampled failures being API-quota refusals or missing
 evidence files, not defects in the change (`docs/plans/plan_gate_cutback.md` §5–§6).
+
+### Lean required checks (2026-10-30, popcre/ai-devops#2172)
+
+Albert, verbatim: "can we bypass/eliminate some or all of the automatic checks?"
+then "yes. and do it in a permanent way in the ai-devops repo so that it hits all
+apps/harnesses on all machines". Only checks that stop production-data damage
+block a merge; everything else is advisory. The rule "one licensor per change"
+for curated Master Data loads is withdrawn permanently.

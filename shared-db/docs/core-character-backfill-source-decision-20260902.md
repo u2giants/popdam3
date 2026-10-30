@@ -210,8 +210,9 @@ None of these are satisfied by this document, and this route may not satisfy the
    control in the same statement. Both facts have already flipped once on this issue.
 3. **A structural migration is required for Tier 2** before those two licensors can
    be promoted. That is the migration-author route, not this one.
-4. **One licensor per change.** A single load across all Tier-1 licensors makes an
-   identity-key error unattributable and unrecoverable.
+4. ~~One licensor per change.~~ **Withdrawn by owner ruling 2026-10-30**
+   (popcre/ai-devops#2172): a curated Master Data load may cover any number of
+   licensors in one change.
 5. **AI sessions are read-only against production.** This proposes the source; it
    does not run the load.
 
