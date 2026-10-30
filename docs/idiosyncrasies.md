@@ -86,6 +86,8 @@ Use this exact shape for every new quirk:
 
 **Looks like:** `.ai` files and ordinary PDFs should populate a SKU's "Style Guide Sources," and unresolved entries are garbage to delete.
 **Actually:** Only PDFs whose filename contains `licensing sheet`/`license sheet`/`tech pack`/`techpack` write `sku_files_used` (gate `is_style_guide_source_pdf()`, migration `20260610070731`). Resolution against the 214k-row `style_guide_files` is trigram-fuzzy (`resolve_sku_files_used_fuzzy`, nightly cron `resolve-sku-files-used-nightly` 04:00 UTC) and **quarantine-model — never auto-deletes/unlinks**. Full detail: `docs/POPSG.md` → "Style Guide Sources"; quirks #46–#48.
+
+> **SUPERSEDED 2026-10-30:** the nightly `resolve-sku-files-used-nightly` job is **unscheduled** and no longer self-links. The style-guide question is now answered by the licensor-scrape cross-reference (`public.sku_style_guide_links`, shared-db migration `20261030043848`); the fuzzy PopSG link remains only as a document pointer and is not a style-guide answer. Original text kept above as the audit trail.
 **Do not change because:** Do NOT bulk-delete unresolved `sku_files_used` rows that look like filenames — PopSG is not a comprehensive ground truth (a stale crawl can mark real files inactive; see quirk #46), so "no match" ≠ "garbage." Only categorical non-filenames (style-guide titles, a SKU used as its own filename) are safe to delete. Files-used live in PopSG `style_guide_files`, **not** PopDAM `assets` — don't reconcile against `assets`.
 
 ## Master Data style tracker is temporary; companywide business rules own source authority
