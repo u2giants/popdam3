@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
@@ -53,17 +54,49 @@ def holds(issues: Iterable[dict[str, Any]], repository: str, pr: int, now: datet
     return [i for i in issues if references(i.get("body"), repository, pr) and blocking(i, now)]
 
 
-def gh_issues(repository: str) -> list[dict[str, Any]]:
+def _gh(endpoint: str) -> list[Any]:
     out = subprocess.run(
-        ["gh", "api", "--paginate", "--slurp",
-         f"repos/{repository}/issues?labels={LABEL}&state=all&per_page=100"],
+        ["gh", "api", "--paginate", "--slurp", endpoint],
         check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8",
     ).stdout
-    pages = json.loads(out)
-    return [issue for page in pages for issue in page]
+    return [item for page in json.loads(out) for item in page]
 
 
-def main(argv: list[str] | None = None, fetch: Callable[[str], list[dict[str, Any]]] = gh_issues,
+def labelled_issues(repository: str, pr: int, api: Callable[[str], list[Any]] = _gh) -> list[dict[str, Any]]:
+    return api(f"repos/{repository}/issues?labels={LABEL}&state=all&per_page=100")
+
+
+def cross_referenced_issues(repository: str, pr: int, api: Callable[[str], list[Any]] = _gh) -> list[dict[str, Any]]:
+    """Issues that mention the PR, from the PR's own timeline. This index is
+    separate from the label listing, so one lagging does not hide a finding."""
+    found = []
+    for event in api(f"repos/{repository}/issues/{pr}/timeline?per_page=100"):
+        source = (event.get("source") or {}).get("issue") if event.get("event") == "cross-referenced" else None
+        if source and not source.get("pull_request") and any(
+            (label.get("name") if isinstance(label, dict) else label) == LABEL for label in source.get("labels", [])
+        ):
+            found.append(source)
+    return found
+
+
+SOURCES = (labelled_issues, cross_referenced_issues)
+SETTLE_SECONDS = 20
+
+
+def gh_issues(repository: str, pr: int, sources=SOURCES, settle: float = SETTLE_SECONDS,
+              sleep: Callable[[float], None] = time.sleep) -> list[dict[str, Any]]:
+    """Union of both indexes, read twice with a settle between, newest state wins
+    per issue except that any blocking read is kept (fail toward holding)."""
+    reads: list[dict[str, Any]] = []
+    for attempt in range(2):
+        if attempt:
+            sleep(settle)
+        for source in sources:
+            reads.extend(source(repository, pr))
+    return reads
+
+
+def main(argv: list[str] | None = None, fetch: Callable[[str, int], list[dict[str, Any]]] = gh_issues,
          now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--pr", required=True, type=int)
@@ -73,7 +106,7 @@ def main(argv: list[str] | None = None, fetch: Callable[[str], list[dict[str, An
         print("::error::review-finding hold: repository and a positive PR number are required", file=sys.stderr)
         return 2
     try:
-        issues = fetch(args.repo)
+        issues = fetch(args.repo, args.pr)
     except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as exc:
         print(f"::error::review-finding hold: could not query issues ({exc}); treating as held", file=sys.stderr)
         return 2

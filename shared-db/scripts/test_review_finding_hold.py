@@ -33,7 +33,7 @@ def issue(number, state="open", reason=None, closed=None, pr=5100):
 
 
 def run(issues, pr=5100):
-    return hold.main(["--pr", str(pr), "--repo", REPO], fetch=lambda _repo: issues, now=NOW)
+    return hold.main(["--pr", str(pr), "--repo", REPO], fetch=lambda _repo, _pr: issues, now=NOW)
 
 
 def job_block(text: str, job: str) -> str:
@@ -60,9 +60,37 @@ class HoldRule(unittest.TestCase):
         self.assertEqual(run([issue(5, pr=51000), issue(6, pr=510)]), 0)
 
     def test_query_failure_is_not_clear(self):
-        def broken(_repo):
+        def broken(_repo, _pr):
             raise OSError("network")
         self.assertEqual(hold.main(["--pr", "1", "--repo", REPO], fetch=broken, now=NOW), 2)
+
+
+class ListingLag(unittest.TestCase):
+    def test_finding_missing_from_label_listing_is_found_on_the_pr_timeline(self):
+        open_issue = issue(9)
+        open_issue["labels"] = [{"name": "review-finding"}]
+        timeline = [{"event": "cross-referenced", "source": {"issue": open_issue}},
+                     {"event": "cross-referenced", "source": {"issue": {**issue(10), "labels": []}}}]
+        def api(endpoint):
+            return timeline if "/timeline" in endpoint else []
+        sources = (lambda r, p: hold.labelled_issues(r, p, api), lambda r, p: hold.cross_referenced_issues(r, p, api))
+        found = hold.gh_issues(REPO, 5100, sources=sources, sleep=lambda _s: None)
+        self.assertEqual(hold.holds(found, REPO, 5100, NOW)[0]["number"], 9)
+        self.assertNotIn(10, [i["number"] for i in hold.holds(found, REPO, 5100, NOW)])
+
+    def test_second_read_after_settle_catches_a_late_finding(self):
+        calls = []
+        def late(_r, _p):
+            calls.append(1)
+            return [issue(11)] if len(calls) > 1 else []
+        slept = []
+        found = hold.gh_issues(REPO, 5100, sources=(late,), settle=20, sleep=slept.append)
+        self.assertEqual(slept, [20])
+        self.assertEqual(hold.holds(found, REPO, 5100, NOW)[0]["number"], 11)
+
+    def test_a_blocking_read_wins_over_a_later_clear_read(self):
+        stale_open, closed = issue(12), issue(12, "closed", "completed", "2026-10-30T11:00:00Z")
+        self.assertTrue(hold.holds([closed, stale_open], REPO, 5100, NOW))
 
 
 class WorkflowShape(unittest.TestCase):
