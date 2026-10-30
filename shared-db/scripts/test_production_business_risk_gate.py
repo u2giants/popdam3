@@ -2487,41 +2487,35 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 self.assertFalse(result["automaticPromotionAllowed"])
                 self.assertEqual(len(result["ownerDecisionReasons"]), 1)
 
-    def test_automatic_v2_blocks_every_derived_risk_but_legacy_recovery_is_unchanged(self):
+    def test_automatic_v2_blocks_non_sql_risks_but_legacy_recovery_is_unchanged(self):
         automatic = {"schema_version": "shared-db-production-apply-review/v2"}
         legacy = {"schema_version": "shared-db-production-apply-review/v1"}
         clear = decide_business_risk([], recovery_proven=True, review_approved=True)
         enforce_automatic_risk_decision(automatic, clear)
-        for reason in RISK_TEXT.values():
+        import production_business_risk_gate as gate
+        for key, reason in RISK_TEXT.items():
             decision = {"automaticPromotionAllowed": False, "ownerDecisionReasons": [reason]}
-            with self.subTest(reason=reason), self.assertRaisesRegex(
-                RiskGateError, "ENGINEER ACTION REQUIRED"
-            ):
-                enforce_automatic_risk_decision(automatic, decision)
+            if key in gate.AI_ACCEPTABLE_RISKS:
+                self.assertEqual(enforce_automatic_risk_decision(automatic, decision)["disclosedSqlRisks"], [key])
+            else:
+                with self.subTest(reason=reason), self.assertRaisesRegex(
+                    RiskGateError, "ENGINEER ACTION REQUIRED"
+                ):
+                    enforce_automatic_risk_decision(automatic, decision)
             enforce_automatic_risk_decision(legacy, decision)
 
-    def test_ai_reviewer_assessment_accepts_flagged_sql_risks_never_a_human(self):
-        # Owner ruling 2026-09-30: Albert is not a technical reviewer. A flagged SQL
-        # risk class is accepted only by the durable exact-head AI reviewer assessment.
+    def test_flagged_sql_risks_are_disclosed_not_blocking_under_rule_8_6(self):
+        # plan_skinny-review.md rule 8.6 (#2075): AI review is advisory, so no stored
+        # verdict accepts a flagged SQL class; it is disclosed and promotion proceeds.
         automatic = {"schema_version": "shared-db-production-apply-review/v2"}
         flagged = decide_business_risk(
             [RISK_TEXT["material_access_change"], RISK_TEXT["permanent_data_rewrite_or_loss"]],
             recovery_proven=True, review_approved=True,
         )
-        seen = []
-        evidence = {"verdictRef": "refs/db-review-verdicts/1-2-" + "a" * 40 + "-slot3"}
-        self.assertEqual(
-            enforce_automatic_risk_decision(automatic, flagged, lambda keys: seen.append(keys) or evidence),
-            evidence,
-        )
-        self.assertEqual(seen, [["material_access_change", "permanent_data_rewrite_or_loss"]])
-        with self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED.*never by a human: no durable"):
-            enforce_automatic_risk_decision(
-                automatic, flagged,
-                lambda keys: (_ for _ in ()).throw(RiskGateError("no durable APPROVE")),
-            )
-        with self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED"):
-            enforce_automatic_risk_decision(automatic, flagged)
+        result = enforce_automatic_risk_decision(automatic, flagged, lambda keys: self.fail("must not ask"))
+        self.assertEqual(result["disclosedSqlRisks"], ["material_access_change", "permanent_data_rewrite_or_loss"])
+        self.assertEqual(enforce_automatic_risk_decision(automatic, flagged)["disclosedSqlRisks"],
+                         result["disclosedSqlRisks"])
         for key in ("recovery_unproven", "unresolved_material_objection"):
             decision = {"automaticPromotionAllowed": False, "ownerDecisionReasons": [RISK_TEXT[key]]}
             with self.subTest(key=key), self.assertRaisesRegex(RiskGateError, "ENGINEER ACTION REQUIRED"):

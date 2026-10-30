@@ -3562,8 +3562,17 @@ def prove_ai_risk_acceptance(
 def enforce_automatic_risk_decision(
     review: dict[str, Any], decision: dict[str, Any], acceptance: Callable[[list[str]], dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """An automatic v2 verdict proceeds when every risk class is clear, or when every
-    flagged class is accepted by the durable exact-head AI reviewer assessment."""
+    """An automatic v2 promotion proceeds when every risk class is clear, or when every
+    flagged class is one of the SQL-derived classes.
+
+    popcre/ai-devops plan_skinny-review.md rule 8.6 (stage G, #2075): production
+    promotion is automatic once the change merged, its preview rehearsal passed,
+    its tests passed and no blocking review-finding issue references it. AI review
+    is advisory, so no stored reviewer verdict is read here any more; flagged SQL
+    classes are disclosed in the evidence instead of blocking. An unproven
+    recovery or an unresolved objection still refuses. `acceptance` is ignored and
+    kept only for call compatibility.
+    """
     if (
         review.get("schema_version") == "shared-db-production-apply-review/v2"
         and decision.get("automaticPromotionAllowed") is not True
@@ -3577,15 +3586,9 @@ def enforce_automatic_risk_decision(
             keys = derived_risk_keys(decision)
         except RiskGateError as exc:
             raise RiskGateError(f"{prefix} ({exc})") from exc
-        if acceptance is None or not keys or any(key not in AI_ACCEPTABLE_RISKS for key in keys):
+        if not keys or any(key not in AI_ACCEPTABLE_RISKS for key in keys):
             raise RiskGateError(prefix)
-        try:
-            return acceptance(keys)
-        except RiskGateError as exc:
-            raise RiskGateError(
-                f"{prefix}. These classes are accepted only by the allocator-assigned AI reviewer's durable "
-                f"exact-head APPROVE assessing each of them at this exact main SHA, never by a human: {exc}"
-            ) from exc
+        return {"disclosedSqlRisks": keys, "acceptedBy": "plan_skinny-review rule 8.6 (advisory review)"}
     return None
 
 
