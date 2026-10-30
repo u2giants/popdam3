@@ -358,6 +358,7 @@ def reconcile(url: str, env: dict[str, str], args, expected_orphan: list[str], e
     if args.mode == "check":
         return before, before
     expected_json = json.dumps(expected_orphan, separators=(",", ":"))
+    replacement_json = json.dumps(expected_replacement, separators=(",", ":"))
     if case_mode == "byte_identical_rename":
         replacement_name = args.replacement_migration.stem.split("_", 1)[1].replace("'", "''")
         sql = rf"""\set ON_ERROR_STOP on
@@ -396,7 +397,7 @@ begin
     raise exception 'ledger ownership changed before reconciliation';
   end if;
   if (select to_jsonb(statements) from supabase_migrations.schema_migrations where version='{args.orphan_version}') <> $expected${expected_json}$expected$::jsonb
-     or (select to_jsonb(statements) from supabase_migrations.schema_migrations where version='{args.replacement_version}') <> $expected${expected_json}$expected$::jsonb then
+     or (select to_jsonb(statements) from supabase_migrations.schema_migrations where version='{args.replacement_version}') <> $expected${replacement_json}$expected$::jsonb then
     raise exception 'ledger statements changed before reconciliation';
   end if;
   delete from supabase_migrations.schema_migrations where version='{args.orphan_version}';
