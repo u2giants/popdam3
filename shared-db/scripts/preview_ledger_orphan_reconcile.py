@@ -211,7 +211,8 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
     evidence_version = args.replacement_version if case["mode"] in {"replacement_already_applied", "rehearsal_reset"} else args.orphan_version
     if evidence_version in before_versions or evidence_version not in after_versions or after_versions - before_versions != {evidence_version}:
         raise Refusal("preview artifact does not prove the exact one-version ledger addition")
-    if f"Applying migration {evidence_version}_" not in apply:
+    # The atomic apply path (atomic_migration_apply.py) logs one exact OK line per version.
+    if f"Applying migration {evidence_version}_" not in apply and not re.search(rf"^ATOMIC APPLY OK: target=preview version={evidence_version} ledger_row=1 ", apply, re.M):
         raise Refusal("preview artifact does not prove the exact migration application")
     return {"case_mode": case["mode"], "orphan_statement_count": len(orphan_statements), "replacement_statement_count": len(replacement_statements), "orphan_sha256": hashlib.sha256(args.orphan_migration.read_bytes()).hexdigest(), "replacement_sha256": hashlib.sha256(args.replacement_migration.read_bytes()).hexdigest()}
 

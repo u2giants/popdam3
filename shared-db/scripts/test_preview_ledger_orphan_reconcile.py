@@ -613,4 +613,9 @@ class PreviewJobSuccessTests(unittest.TestCase):
         case=M.SUPPORTED_CASES[(4508,5090,5075,'20261030014205','20261030042314')] if (4508,5090,5075,'20261030014205','20261030042314') in M.SUPPORTED_CASES else M.SUPPORTED_CASES[(4508,5090,5075)]
         self.assertEqual((case['mode'],case['preview_run_id'],case['preview_job_success']),('replacement_already_applied',41012458156,True))
 
+class AtomicApplyEvidenceTests(unittest.TestCase):
+    def test_atomic_apply_line_is_exact_version_bound(self):
+        src=P.read_text(encoding='utf-8')
+        self.assertIn('ATOMIC APPLY OK: target=preview version={evidence_version} ledger_row=1 ',src)
+
 if __name__=='__main__': unittest.main()
