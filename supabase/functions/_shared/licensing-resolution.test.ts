@@ -4,6 +4,7 @@ import { type LicensingMaps, resolveAuthoritativeLicensing } from "./licensing-r
 const parsed = (sku: string) => ({ sku, division_code: "CW001" }) as never;
 const maps = (erp: { licensor_code: string | null; property_code: string | null }): LicensingMaps => ({
   erpByStyleAndDivision: new Map([["CW001|SKU1", { division_code: "CW001", ...erp }]]),
+  erpByStyle: new Map([["SKU1", { division_code: "CW001", ...erp }]]),
   licensorsBySourceId: new Map(),
   propertiesBySourceId: new Map(),
   licensorsByCode: new Map([["MV", { id: "marvel", name: "MARVEL" }]]),
@@ -25,5 +26,11 @@ describe("resolveAuthoritativeLicensing", () => {
     const r = await resolveAuthoritativeLicensing(null as never, false, parsed("OTHER"), maps({ licensor_code: "MV", property_code: "SP" }));
     expect(r.is_licensed ?? null).toBeNull();
     expect(r.licensor_id).toBeNull();
+  });
+
+  it("matches by style number alone when the parsed division is wrong", async () => {
+    const wrongDivision = { sku: "SKU1", division_code: "EH001" } as never;
+    const r = await resolveAuthoritativeLicensing(null as never, true, wrongDivision, maps({ licensor_code: "MV", property_code: "SP" }));
+    expect(r).toMatchObject({ is_licensed: true, licensor_id: "marvel", property_id: "spidey" });
   });
 });
