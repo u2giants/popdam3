@@ -3,9 +3,15 @@ name: review-fixer
 # Automatic fixer for `review-finding` issues (popcre/ai-devops
 # plan_skinny-review.md, stage G, #2075). The trusted fixer code comes from
 # popcre/ai-devops main; it fixes real findings on review-fix/<issue> or closes
-# the issue as not planned.
+# the issue as not planned with evidence. Branch/PR updates only retire stale
+# automatic fix PRs; they never start another model run (#2171).
 
 on:
+  push:
+    branches: ['**']
+  delete:
+  pull_request_target:
+    types: [synchronize, closed]
   issues:
     types: [labeled]
   schedule:
