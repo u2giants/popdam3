@@ -4080,16 +4080,19 @@ function iccWorkerPart(){
     const u16 = o => (p[o] << 8) | p[o + 1], u32 = o => ((p[o] << 24) | (p[o + 1] << 16) | (p[o + 2] << 8) | p[o + 3]) >>> 0;
     const str = (o, n) => String.fromCharCode(...p.subarray(o, o + n));
     if(p.length < 132 || str(36, 4) !== "acsp" || str(16, 4) !== "CMYK") return null;
+    if(u32(128) > Math.floor((p.length - 132) / 12)) return null;
     const pcs = str(20, 4), tags = {};
     for(let i = 0, n = u32(128); i < n; i++){ const o = 132 + 12*i; tags[str(o, 4)] = u32(o + 4); }
     // a lut8 / lut16 table (mft1 / mft2): input curves, an N-dimensional grid, output curves; values 0..1
     function readLut(at){
       if(at == null) return null;
+      if(at < 0 || at + 52 > p.length) return null;
       const type = str(at, 4); if(type !== "mft2" && type !== "mft1") return null;
       const sixteen = type === "mft2", inC = p[at + 8], outC = p[at + 9], g = p[at + 10];
-      if(g < 2 || inC < 1 || inC > 4) return null;
+      if(g < 2 || inC < 1 || inC > 4 || outC < 1 || outC > 4) return null;
       const inN = sixteen ? u16(at + 48) : 256, outN = sixteen ? u16(at + 50) : 256;
       let o = at + (sixteen ? 52 : 48);
+      if(inN < 2 || outN < 2 || o + (inC*inN + Math.pow(g,inC)*outC + outC*outN)*(sixteen ? 2 : 1) > p.length) return null;
       const rd = sixteen ? (k => u16(k) / 65535) : (k => p[k] / 255), sz = sixteen ? 2 : 1;
       const table = (len) => { const t = new Float32Array(len); for(let i = 0; i < len; i++){ t[i] = rd(o); o += sz; } return t; };
       const inT = []; for(let c = 0; c < inC; c++) inT.push(table(inN));
@@ -4181,7 +4184,8 @@ function iccWorkerPart(){
     try{
       const bytes = stream.getBytes(); if(stream.reset) stream.reset();
       if(!bytes || bytes.length < 132) return null;
-      let h = bytes.length; for(let i = 0; i < bytes.length; i += 97) h = (h*31 + bytes[i]) | 0;
+      // Exact byte keys prevent two distinct profiles from sharing a transform.
+      let h = ""; for(let i = 0; i < bytes.length; i += 8192) h += String.fromCharCode(...bytes.subarray(i, i + 8192));
       let L = cache.get(h);
       if(L === undefined){ L = build(bytes); cache.set(h, L); }
       if(!L) return null;
@@ -4467,6 +4471,8 @@ function makeCropper(el, frame, onChange){
    Illustrator keeps its own copy of the artwork (AIPrivateData) compressed with zstd. Browsers can't
    decompress zstd yet, so this does it. No dictionaries (Illustrator doesn't use them). */
 function zstdDecode(src){
+  const check = (p, n) => { if(!Number.isSafeInteger(p) || !Number.isSafeInteger(n) || p < 0 || n < 0 || p+n > src.length) throw new Error("zstd: truncated input"); };
+  const byte = p => { check(p,1); return src[p]; };
   const LL_BASE=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,20,22,24,28,32,40,48,64,128,256,512,1024,2048,4096,8192,16384,32768,65536];
   const LL_BITS=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,2,2,3,3,4,6,7,8,9,10,11,12,13,14,15,16];
   const ML_BASE=[]; for(let i=0;i<32;i++) ML_BASE.push(i+3);
@@ -4483,6 +4489,7 @@ function zstdDecode(src){
 
   // backward bit reader over src[start,end): the last byte holds a 1-bit end marker
   function BR(start,end){
+    check(start,end-start); if(end<=start) throw new Error("zstd: empty bitstream");
     const last=src[end-1]; if(!last) throw new Error("zstd: bad bitstream");
     this.s=start; this.pos=(end-1-start)*8+hb(last);
   }
@@ -4506,9 +4513,9 @@ function zstdDecode(src){
     for(let u=0;u<size;u++){ const s=sym[u], ns=next[s]++, b=AL-hb(ns); nb[u]=b; base[u]=(ns<<b)-size; }
     return {AL,sym,nb,base};
   }
-  // FSE table description: forward bit stream at src[p]; returns {t, p}
+  // FSE table description: forward bit stream at byte(p); returns {t, p}
   function readFSE(p, maxSym, maxAL){
-    let bit=0; const rd=n=>{ let v=0; for(let i=0;i<n;i++){ const b=bit+i; v|=((src[p+(b>>3)]>>(b&7))&1)<<i; } bit+=n; return v; };
+    let bit=0; const rd=n=>{ let v=0; for(let i=0;i<n;i++){ const b=bit+i; v|=((byte(p+(b>>3))>>(b&7))&1)<<i; } bit+=n; return v; };
     const AL=rd(4)+5; if(AL>maxAL) throw new Error("zstd: FSE accuracy too big");
     let remaining=1<<AL, s=0; const norm=[];
     while(remaining>0 && s<=maxSym){
@@ -4527,7 +4534,7 @@ function zstdDecode(src){
   let huf=null; const prev={ll:null,of:null,ml:null}; let reps=[1,4,8];
 
   function readHuffTable(p){
-    const h=src[p++]; let w=[];
+    const h=byte(p++); let w=[];
     if(h<128){
       const {t,p:q}=readFSE(p,255,6), end=p+h, br=new BR(q,end);
       let s1=br.read(t.AL), s2=br.read(t.AL);
@@ -4540,7 +4547,7 @@ function zstdDecode(src){
       }
       p=end;
     }else{
-      const n=h-127; for(let i=0;i<n;i++){ const b=src[p+(i>>1)]; w.push(i&1? b&15 : b>>4); } p+=(n+1)>>1;
+      const n=h-127; for(let i=0;i<n;i++){ const b=byte(p+(i>>1)); w.push(i&1? b&15 : b>>4); } p+=(n+1)>>1;
     }
     let tot=0; for(const x of w) if(x) tot+=1<<(x-1);
     const maxBits=hb(tot)+1, left=(1<<maxBits)-tot; w.push(hb(left)+1);
@@ -4558,37 +4565,38 @@ function zstdDecode(src){
   }
 
   function block(p,end){
+    check(p,end-p);
     // literals
-    const b0=src[p], lt=b0&3, sf=(b0>>2)&3; let lits, regen;
+    const b0=byte(p), lt=b0&3, sf=(b0>>2)&3; let lits, regen;
     if(lt<2){
-      let hl; if(sf===0||sf===2){ regen=b0>>3; hl=1; } else if(sf===1){ regen=(b0>>4)+(src[p+1]<<4); hl=2; } else { regen=(b0>>4)+(src[p+1]<<4)+(src[p+2]<<12); hl=3; }
+      let hl; if(sf===0||sf===2){ regen=b0>>3; hl=1; } else if(sf===1){ regen=(b0>>4)+(byte(p+1)<<4); hl=2; } else { regen=(b0>>4)+(byte(p+1)<<4)+(byte(p+2)<<12); hl=3; }
       p+=hl;
-      if(lt===0){ lits=src.subarray(p,p+regen); p+=regen; } else { lits=new Uint8Array(regen).fill(src[p]); p+=1; }
+      if(lt===0){ check(p,regen); lits=src.subarray(p,p+regen); p+=regen; } else { lits=new Uint8Array(regen).fill(byte(p)); p+=1; }
     }else{
       let hl, bits, streams=sf===0?1:4;
       if(sf<2){ hl=3; bits=10; } else if(sf===2){ hl=4; bits=14; } else { hl=5; bits=18; }
-      let v=0; for(let i=hl-1;i>=0;i--) v=v*256+src[p+i];
+      let v=0; for(let i=hl-1;i>=0;i--) v=v*256+byte(p+i);
       v=Math.floor(v/16); regen=v%(1<<bits); const comp=Math.floor(v/(1<<bits))%(1<<bits);
       p+=hl; const cend=p+comp;
       if(lt===2) p=readHuffTable(p); else if(!huf) throw new Error("zstd: no Huffman table");
       lits=new Uint8Array(regen);
       if(streams===1) decodeHuff(p,cend,regen,lits,0);
       else{
-        const s1=src[p]|src[p+1]<<8, s2=src[p+2]|src[p+3]<<8, s3=src[p+4]|src[p+5]<<8, q=(regen+3)>>2;
+        const s1=byte(p)|byte(p+1)<<8, s2=byte(p+2)|byte(p+3)<<8, s3=byte(p+4)|byte(p+5)<<8, q=(regen+3)>>2;
         let a=p+6; const ends=[a+s1,a+s1+s2,a+s1+s2+s3,cend];
         for(let k=0;k<4;k++){ const n=k<3?q:regen-3*q; decodeHuff(a,ends[k],n,lits,k*q); a=ends[k]; }
       }
       p=cend;
     }
     // sequences
-    let nseq=src[p++];
-    if(nseq>=128){ if(nseq<255) nseq=((nseq-128)<<8)+src[p++]; else { nseq=src[p]+(src[p+1]<<8)+0x7F00; p+=2; } }
+    let nseq=byte(p++);
+    if(nseq>=128){ if(nseq<255) nseq=((nseq-128)<<8)+byte(p++); else { nseq=byte(p)+(byte(p+1)<<8)+0x7F00; p+=2; } }
     let li=0;
     if(nseq){
-      const modes=src[p++]; const tabs={};
+      const modes=byte(p++); const tabs={};
       for(const [k,m,maxS,maxAL] of [["ll",modes>>6,35,9],["of",(modes>>4)&3,31,8],["ml",(modes>>2)&3,52,9]]){
         if(m===0) tabs[k]=DEF[k];
-        else if(m===1) tabs[k]=rleTable(src[p++]);
+        else if(m===1) tabs[k]=rleTable(byte(p++));
         else if(m===2){ const r=readFSE(p,maxS,maxAL); tabs[k]=r.t; p=r.p; }
         else { if(!prev[k]) throw new Error("zstd: no previous table"); tabs[k]=prev[k]; }
         prev[k]=tabs[k];
@@ -4609,6 +4617,7 @@ function zstdDecode(src){
           else { off=reps[2]; reps=[off,reps[0],reps[1]]; }
         }
         if(i<nseq-1){ sl=L.base[sl]+br.read(L.nb[sl]); sm=M.base[sm]+br.read(M.nb[sm]); so=O.base[so]+br.read(O.nb[so]); }
+        if(!Number.isSafeInteger(ll+ml) || li+ll>lits.length || off<=0) throw new Error("zstd: invalid sequence");
         need(ll+ml);
         out.set(lits.subarray(li,li+ll),op); op+=ll; li+=ll;
         let from=op-off; if(from<0) throw new Error("zstd: bad offset");
@@ -4621,25 +4630,26 @@ function zstdDecode(src){
 
   let p=0;
   while(p+4<=src.length){
-    const magic=(src[p]|src[p+1]<<8|src[p+2]<<16|src[p+3]<<24)>>>0; p+=4;
-    if((magic&0xFFFFFFF0)===0x184D2A50){ const n=src[p]|src[p+1]<<8|src[p+2]<<16|src[p+3]<<24; p+=4+n; continue; }
-    if(magic!==0xFD2FB528) break;
-    const d=src[p++], fcsF=d>>6, single=(d>>5)&1, ck=(d>>2)&1, did=d&3;
+    const magic=(byte(p)|byte(p+1)<<8|byte(p+2)<<16|byte(p+3)<<24)>>>0; p+=4;
+    if((magic&0xFFFFFFF0)===0x184D2A50){ const n=byte(p)|byte(p+1)<<8|byte(p+2)<<16|byte(p+3)<<24; p+=4+n; continue; }
+    if(magic!==0xFD2FB528) throw new Error("zstd: invalid frame");
+    const d=byte(p++), fcsF=d>>6, single=(d>>5)&1, ck=(d>>2)&1, did=d&3;
     if(!single) p++;
     p+=[0,1,2,4][did];
     p+=[single?1:0,2,4,8][fcsF];
     huf=null; prev.ll=prev.of=prev.ml=null; reps=[1,4,8];
     for(;;){
-      const h=src[p]|src[p+1]<<8|src[p+2]<<16; p+=3;
+      const h=byte(p)|byte(p+1)<<8|byte(p+2)<<16; p+=3;
       const last=h&1, type=(h>>1)&3, size=h>>3;
-      if(type===0){ need(size); out.set(src.subarray(p,p+size),op); op+=size; p+=size; }
-      else if(type===1){ need(size); out.fill(src[p],op,op+size); op+=size; p+=1; }
+      if(type===0){ check(p,size); need(size); out.set(src.subarray(p,p+size),op); op+=size; p+=size; }
+      else if(type===1){ need(size); out.fill(byte(p),op,op+size); op+=size; p+=1; }
       else if(type===2){ block(p,p+size); p+=size; }
       else throw new Error("zstd: reserved block");
       if(last) break;
     }
-    if(ck) p+=4;
+    if(ck){ check(p,4); p+=4; }
   }
+  if(p!==src.length || !p) throw new Error("zstd: truncated frame");
   return out.subarray(0,op);
 }
 
@@ -4665,11 +4675,12 @@ const AINative = (() => {
       const n = refs[i]; if(n == null) continue;
       const at = objAt.get(n);
       if(at == null) return null;
-      const st = s.indexOf("stream", at), hdr = s.slice(at, st);
+      const st = s.indexOf("stream", at); if(st < 0) return null; const hdr = s.slice(at, st);
       let len; const lm = hdr.match(/\/Length (\d+)( 0 R)?/);
       if(!lm) return null;
-      if(lm[2]){ const k = objAt.get(+lm[1]); len = +s.slice(k, k + 40).match(/obj\s*(\d+)/)[1]; } else len = +lm[1];
+      if(lm[2]){ const k = objAt.get(+lm[1]); const value = k == null ? null : s.slice(k, k + 40).match(/obj\s*(\d+)/); if(!value) return null; len = +value[1]; } else len = +lm[1];
       let p = st + 6; if(s[p] === "\r") p++; if(s[p] === "\n") p++;
+      if(!Number.isSafeInteger(len) || len < 0 || p + len > u8.length) return null;
       out.push({data: u8.subarray(p, p + len), flate: /FlateDecode/.test(hdr)});
     }
     return out;
@@ -4684,11 +4695,12 @@ const AINative = (() => {
     while((m = re.exec(s))){
       const n = +m[1]; if(seen.has(n)) continue; seen.add(n);
       const at = objAt.get(n); if(at == null) continue;
-      const st = s.indexOf("stream", at), hdr = s.slice(at, st);
+      const st = s.indexOf("stream", at); if(st < 0) return null; const hdr = s.slice(at, st);
       if(!/\/N 4\b/.test(hdr)) continue;
       const lm = hdr.match(/\/Length (\d+)( 0 R)?/); if(!lm) continue;
-      let len = +lm[1]; if(lm[2]){ const k = objAt.get(+lm[1]); len = +s.slice(k, k + 40).match(/obj\s*(\d+)/)[1]; }
+      let len = +lm[1]; if(lm[2]){ const k = objAt.get(+lm[1]); const value = k == null ? null : s.slice(k, k + 40).match(/obj\s*(\d+)/); if(!value) return null; len = +value[1]; }
       let p = st + 6; if(s[p] === "\r") p++; if(s[p] === "\n") p++;
+      if(!Number.isSafeInteger(len) || len < 0 || p + len > u8.length) return false;
       let bytes = u8.subarray(p, p + len); if(/FlateDecode/.test(hdr)) bytes = await inflate(bytes);
       profile = self.__iccBuild(bytes); return !!profile;
     }
@@ -4789,7 +4801,7 @@ const AINative = (() => {
       }
       if(skipDepth){ if(/\bTO$/.test(line)) skipDepth--; else if(/\bTo$/.test(line)) skipDepth++; continue; }
       const sp = line.lastIndexOf(" "); const op = sp < 0 ? line : line.slice(sp + 1);
-      const A = sp < 0 ? [] : line.slice(0, sp).split(" ");
+      const A = sp < 0 ? [] : line.slice(0, sp).trim().split(/\s+/);
       const N = k => +A[k];
       switch(op){
         case "Lb": layer = layers.length; layers.push({name: "", visible: A[0] !== "0"}); layerOff = false; break;
@@ -4894,23 +4906,35 @@ const AINative = (() => {
      draw() paints into a bitmap there. Everything here is optional: when anything fails, the tool keeps the
      PDF copy as before. */
   function open(u8){
-    let w;
-    try{
-      const icc = typeof iccWorkerPart === "function" ? "\n(" + iccWorkerPart.toString() + ")();\n" : "";   // same color profile reading as the PDF copy
-      w = new Worker(URL.createObjectURL(new Blob([icc + document.getElementById("aiNativeSrc").textContent], {type: "text/javascript"})));
-    }
-    catch(e){ return null; }
-    let seq = 0; const waiting = new Map();
-    w.onmessage = e => { const f = waiting.get(e.data.id); if(f){ waiting.delete(e.data.id); f(e.data); } };
-    w.onerror = () => { waiting.forEach(f => f({error: "worker"})); waiting.clear(); };
-    const ask = (msg, transfer) => new Promise(res => { const id = ++seq; waiting.set(id, res); w.postMessage(Object.assign({id}, msg), transfer || []); });
-    const copy = u8.slice();
-    return {
-      ready: ask({cmd: "open", bytes: copy}, [copy.buffer]).then(d => d.error ? null : d),
-      // w, h: bitmap size; m: transform from Illustrator coordinates; hide: layer names to leave out
-      draw: (o) => ask({cmd: "draw", o}).then(d => d.error ? null : d.bitmap),
-      close: () => w.terminate(),
+    // Native parsing also expands bytes into text; keep large files on the tiled PDF path.
+    if(u8.byteLength > 64 * 1024 * 1024) return null;
+    let w, url, seq = 0, closed = false;
+    const waiting = new Map();
+    const close = () => {
+      closed = true;
+      if(w) w.terminate();
+      if(url){ URL.revokeObjectURL(url); url = null; }
+      waiting.forEach(f => f({error: "worker"})); waiting.clear();
     };
+    try{
+      const copy = u8.slice();
+      const icc = typeof iccWorkerPart === "function" ? "\n(" + iccWorkerPart.toString() + ")();\n" : "";
+      url = URL.createObjectURL(new Blob([icc + document.getElementById("aiNativeSrc").textContent], {type: "text/javascript"}));
+      w = new Worker(url);
+      w.onmessage = e => { const f = waiting.get(e.data.id); if(f){ waiting.delete(e.data.id); f(e.data); } else if(e.data.bitmap) e.data.bitmap.close(); };
+      w.onerror = close;
+      const ask = (msg, transfer) => new Promise(res => {
+        if(closed){ res({error: "worker"}); return; }
+        const id = ++seq; waiting.set(id, res);
+        try{ w.postMessage(Object.assign({id}, msg), transfer || []); }
+        catch(e){ close(); }
+      });
+      return {
+        ready: ask({cmd: "open", bytes: copy}, [copy.buffer]).then(d => d.error ? null : d),
+        draw: o => ask({cmd: "draw", o}).then(d => d.error ? null : d.bitmap),
+        close,
+      };
+    }catch(e){ close(); return null; }
   }
   return {extract, compile, draw, artboard, open, useFileProfile};
 })();
@@ -5868,6 +5892,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -6435,7 +6460,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -6755,8 +6780,8 @@ async function nativeDraws(x0, y0, x1, y1, mp, ppi, cw, ch, fileVis, groups){
   const hide=info.layers.filter(n=>isNoPrint(n) || hiddenNames.has(n));
   const k=480/Math.max(ab.x1-ab.x0, ab.y1-ab.y0), sw=Math.max(1,Math.round((ab.x1-ab.x0)*k)), sh=Math.max(1,Math.round((ab.y1-ab.y0)*k));
   const small=job.draw({w:sw*4, h:sh*4, m:[4*k,0,0,-4*k,-ab.x0*4*k,ab.y1*4*k], hide});
-  // the sides are drawn at up to 150 ppi (they are narrow on screen) and scaled up
-  const f=Math.min(1,150/ppi), s=ppi*f/72;
+  // Render sides at the requested export resolution.
+  const f=1, s=ppi*f/72;
   const big={w:Math.round(cw*f), h:Math.round(ch*f), m:[s,0,0,-s,(mp-ab.x0)*s,(mp+ab.y1)*s], hide};
   const full=job.draw(big);
   return {key, sw, sh, small:await small, full:await full, outside:()=>job.draw(Object.assign({outsideOnly:true}, big))};
@@ -6783,7 +6808,7 @@ async function withNativeBleed(r, nd, fileVis){
   S.nativeOK=S.nativeOK||{};
   if(!(nd.key in S.nativeOK)){
     const m=frontMismatch(r, nd);
-    S.nativeOK[nd.key] = m.all<=0.04 ? "all" : {l:m.l<=0.02, r:m.r<=0.02, t:m.t<=0.02, b:m.b<=0.02};
+    S.nativeOK[nd.key] = m.all<=0.04 && [m.l,m.r,m.t,m.b].every(v=>v<=0.02) ? "all" : {l:m.l<=0.02, r:m.r<=0.02, t:m.t<=0.02, b:m.b<=0.02};
     S.nativeDiff=m;
   }
   const ok=S.nativeOK[nd.key], {c, ppi, pageW, pageH}=r;
@@ -7227,6 +7252,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -7673,7 +7699,7 @@ function defaultPanels(W,H){
 /* A file prepared with the Canvas Bleeding script: the artboard holds the art and all its bleed, and a rectangle on the
    "BLEED - DO NOT PRINT" layer marks the canvas front. Returns that rectangle in PDF points [x0, y0, x1, y1], or null. */
 async function readFrontRect(pdf, groups){
-  const g=groups.find(x=>/bleed/i.test(x.name)); if(!g) return null;
+  const g=groups.find(x=>/^BLEED\s*-\s*DO NOT PRINT$/i.test(x.name.trim())); if(!g) return null;
   try{
     const page=await pdf.getPage(1), ol=await page.getOperatorList(), O=pdfjsLib.OPS, [vx0,vy0,vx1,vy1]=page.view;
     let inside=0, ctm=[1,0,0,1,0,0], best=null; const stack=[];
@@ -7988,7 +8014,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -8307,8 +8333,8 @@ async function nativeDraws(x0, y0, x1, y1, mp, ppi, cw, ch, fileVis, groups){
   const hide=info.layers.filter(n=>isNoPrint(n) || hiddenNames.has(n));
   const k=480/Math.max(ab.x1-ab.x0, ab.y1-ab.y0), sw=Math.max(1,Math.round((ab.x1-ab.x0)*k)), sh=Math.max(1,Math.round((ab.y1-ab.y0)*k));
   const small=job.draw({w:sw*4, h:sh*4, m:[4*k,0,0,-4*k,-ab.x0*4*k,ab.y1*4*k], hide});
-  // the sides are drawn at up to 150 ppi (they are narrow on screen) and scaled up
-  const f=Math.min(1,150/ppi), s=ppi*f/72;
+  // Render sides at the requested export resolution.
+  const f=1, s=ppi*f/72;
   const big={w:Math.round(cw*f), h:Math.round(ch*f), m:[s,0,0,-s,(mp-ab.x0)*s,(mp+ab.y1)*s], hide};
   const full=job.draw(big);
   return {key, sw, sh, small:await small, full:await full, outside:()=>job.draw(Object.assign({outsideOnly:true}, big))};
@@ -8335,7 +8361,7 @@ async function withNativeBleed(r, nd, fileVis){
   S.nativeOK=S.nativeOK||{};
   if(!(nd.key in S.nativeOK)){
     const m=frontMismatch(r, nd);
-    S.nativeOK[nd.key] = m.all<=0.04 ? "all" : {l:m.l<=0.02, r:m.r<=0.02, t:m.t<=0.02, b:m.b<=0.02};
+    S.nativeOK[nd.key] = m.all<=0.04 && [m.l,m.r,m.t,m.b].every(v=>v<=0.02) ? "all" : {l:m.l<=0.02, r:m.r<=0.02, t:m.t<=0.02, b:m.b<=0.02};
     S.nativeDiff=m;
   }
   const ok=S.nativeOK[nd.key], {c, ppi, pageW, pageH}=r;
@@ -8779,6 +8805,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -9225,7 +9252,7 @@ function defaultPanels(W,H){
 /* A file prepared with the Canvas Bleeding script: the artboard holds the art and all its bleed, and a rectangle on the
    "BLEED - DO NOT PRINT" layer marks the canvas front. Returns that rectangle in PDF points [x0, y0, x1, y1], or null. */
 async function readFrontRect(pdf, groups){
-  const g=groups.find(x=>/bleed/i.test(x.name)); if(!g) return null;
+  const g=groups.find(x=>/^BLEED\s*-\s*DO NOT PRINT$/i.test(x.name.trim())); if(!g) return null;
   try{
     const page=await pdf.getPage(1), ol=await page.getOperatorList(), O=pdfjsLib.OPS, [vx0,vy0,vx1,vy1]=page.view;
     let inside=0, ctm=[1,0,0,1,0,0], best=null; const stack=[];
@@ -9540,7 +9567,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -10807,6 +10834,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -11435,7 +11463,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -11735,7 +11763,7 @@ async function exportGIF(){
     const {frames,W,H}=wobbleFrames(size, solid);
     const blob=new Blob([encodeGIF(frames,W,H,GIF_DELAY,!solid)],{type:"image/gif"});
     if(handle){ const w=await handle.createWritable(); await w.write(blob); await w.close(); setSaved(`Saved ${handle.name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
-    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
+    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setSaved(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
   }catch(e){ console.error(e); setStatus("The GIF could not be made: "+(e.message||e)); }
   finally{ $("busy").hidden=true; $("busy").textContent="Reading file…"; setWobble(was); }
 }
@@ -12796,6 +12824,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -13424,7 +13453,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -13724,7 +13753,7 @@ async function exportGIF(){
     const {frames,W,H}=wobbleFrames(size, solid);
     const blob=new Blob([encodeGIF(frames,W,H,GIF_DELAY,!solid)],{type:"image/gif"});
     if(handle){ const w=await handle.createWritable(); await w.write(blob); await w.close(); setSaved(`Saved ${handle.name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
-    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
+    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setSaved(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
   }catch(e){ console.error(e); setStatus("The GIF could not be made: "+(e.message||e)); }
   finally{ $("busy").hidden=true; $("busy").textContent="Reading file…"; setWobble(was); }
 }
@@ -14785,6 +14814,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -15413,7 +15443,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -15713,7 +15743,7 @@ async function exportGIF(){
     const {frames,W,H}=wobbleFrames(size, solid);
     const blob=new Blob([encodeGIF(frames,W,H,GIF_DELAY,!solid)],{type:"image/gif"});
     if(handle){ const w=await handle.createWritable(); await w.write(blob); await w.close(); setSaved(`Saved ${handle.name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
-    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
+    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setSaved(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
   }catch(e){ console.error(e); setStatus("The GIF could not be made: "+(e.message||e)); }
   finally{ $("busy").hidden=true; $("busy").textContent="Reading file…"; setWobble(was); }
 }
@@ -16774,6 +16804,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -17402,7 +17433,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -17702,7 +17733,7 @@ async function exportGIF(){
     const {frames,W,H}=wobbleFrames(size, solid);
     const blob=new Blob([encodeGIF(frames,W,H,GIF_DELAY,!solid)],{type:"image/gif"});
     if(handle){ const w=await handle.createWritable(); await w.write(blob); await w.close(); setSaved(`Saved ${handle.name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
-    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
+    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setSaved(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
   }catch(e){ console.error(e); setStatus("The GIF could not be made: "+(e.message||e)); }
   finally{ $("busy").hidden=true; $("busy").textContent="Reading file…"; setWobble(was); }
 }
@@ -18763,6 +18794,7 @@ api.saveMockup=()=>{
   return {ctl, st, crops, src, fileName:fn?fn.textContent:"", tex:tn?tn.textContent:"", link:$("whLink")?$("whLink").getAttribute("aria-pressed"):null};
 };
 api.loadMockup=d=>{
+  if(S.nativeJob) S.nativeJob.close();
   const keep={fileHandle:null, reload:null, reArt:null};
   for(const k in S) if(!(k in keep) && typeof S[k]!=="function") S[k]=null;
   Object.assign(S, d.st, keep);
@@ -19391,7 +19423,7 @@ async function exportPNG(){
   a.download=name;
   document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  setStatus(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
+  setSaved(`Exported ${a.download} (${out.width} × ${out.height} px, ${fmtBytes(blob.size)})`);
 }
 
 /* ---------- UI wiring ---------- */
@@ -19691,7 +19723,7 @@ async function exportGIF(){
     const {frames,W,H}=wobbleFrames(size, solid);
     const blob=new Blob([encodeGIF(frames,W,H,GIF_DELAY,!solid)],{type:"image/gif"});
     if(handle){ const w=await handle.createWritable(); await w.write(blob); await w.close(); setSaved(`Saved ${handle.name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
-    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
+    else{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setSaved(`Exported ${name} (${W} × ${H} px, ${fmtBytes(blob.size)})`); }
   }catch(e){ console.error(e); setStatus("The GIF could not be made: "+(e.message||e)); }
   finally{ $("busy").hidden=true; $("busy").textContent="Reading file…"; setWobble(was); }
 }
@@ -19853,6 +19885,7 @@ const TOOLS={
 /* contributed products (products/<id>/, see CONTRIBUTING.md): the build lists them in PLUGIN_PRODUCTS.
    A contributed product takes the place of the "coming soon" entry with the same name. */
 (typeof PLUGIN_PRODUCTS!=="undefined" ? PLUGIN_PRODUCTS : []).forEach(p=>{
+  if(typeof window[p.init]!=="function"){ console.warn("Skipping product with missing initializer", p.id); return; }
   const i=PRODUCTS.findIndex(x=>!x.ready && x.name===p.replaces); if(i>=0) PRODUCTS.splice(i,1);
   PRODUCTS.push(p); TOOLS[p.id]={init:window[p.init], api:{active:false}};
   // side panel cards: the product's own "layout", or the one of the tool it started from
@@ -20005,7 +20038,7 @@ document.getElementById("e3Legal").addEventListener("input",e=>e.target.dataset.
 document.getElementById("e3Go").addEventListener("click",runExport3D);
 document.getElementById("topVer").textContent="v"+APP_VERSION+" · What changed";
 document.getElementById("topVer").addEventListener("click",()=>{ clDlg.showModal(); document.getElementById("clBody").scrollTop=0; });
-document.querySelector(".rail-mockups").addEventListener("click",()=>go(""));
+document.querySelector(".rail-mockups")?.addEventListener("click",()=>go(""));
 setTimeout(()=>document.getElementById("home").classList.remove("intro"),2400); // later visits to the home don't replay it
 // the logo plays with the pointer: letters close to it lift and tilt toward it; entering spins the flower O and the symbol
 (function(){
@@ -20554,8 +20587,8 @@ function pickMockupFile(){
   const bar = document.createElement("header"); bar.className = "tb"; bar.id = "topBar";
   const left = document.createElement("div"); left.className = "tb-left";
   left.append(btn("tb-side", ic("i-sidebar"), () => document.getElementById("railToggle").click(), "Show or hide the product list"));
-  const logo = document.querySelector(".rail-mockups").cloneNode(true); logo.setAttribute("class", "tb-logo"); logo.onclick = () => go("");
-  const pc = document.querySelector("#home .topbar .top-logo").cloneNode(true); pc.setAttribute("class", "tb-pc"); pc.onclick = () => go("");
+  const logo = (document.querySelector(".rail-mockups")?.cloneNode(true) || document.createElement("span")); logo.setAttribute("class", "tb-logo"); logo.onclick = () => go("");
+  const pc = (document.querySelector("#home .topbar .top-logo")?.cloneNode(true) || document.createElement("span")); pc.setAttribute("class", "tb-pc"); pc.onclick = () => go("");
   const crumb = document.createElement("nav"); crumb.className = "tb-crumb"; crumb.setAttribute("aria-label", "You are here");
   left.append(logo, pc, crumb);
 
