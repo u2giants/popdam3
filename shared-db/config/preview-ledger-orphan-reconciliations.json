@@ -255,8 +255,10 @@
       "preview_run_id": 41012458156,
       "preview_artifact_id": 12958590525,
       "preview_artifact_digest": "sha256:254880bc0e3679ccaaece3cee956a731a07babe56ebb3159a45123b0bd87a76e",
+      "merged_source": true,
       "issue_state": "open",
-      "claim_state": "closed"
+      "claim_state": "closed",
+      "preview_job_success": true
     }
   ]
 }

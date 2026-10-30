@@ -126,6 +126,30 @@ def assert_case_statement_contract(case: dict, orphan_statements: list[str], rep
         raise Refusal("byte-identical ledger rename requires exact migration statement identity")
 
 
+# A post-merge rehearsal run whose preview job succeeded can still conclude
+# "failure" because a later PRODUCTION job failed (for example a production
+# qualification hold). Its preview evidence is unaffected. Only a case that pins
+# preview_job_success may use it, and only when every non-production job
+# succeeded and the sole failures are production jobs.
+PRODUCTION_JOB_PREFIXES = ("production", "automatic production")
+
+
+def assert_preview_jobs_succeeded(case: dict, args) -> None:
+    if case.get("preview_job_success") is not True or not args.run_jobs_json:
+        raise Refusal("preview run is not the exact successful run")
+    jobs = read_json(args.run_jobs_json)
+    jobs = jobs.get("jobs", []) if isinstance(jobs, dict) else [j for page in jobs for j in page.get("jobs", [])]
+    if any(j.get("run_id") != args.preview_run_id for j in jobs):
+        raise Refusal("preview run jobs do not belong to the exact run")
+    preview = [j for j in jobs if j.get("name") == "preview"]
+    if len(preview) != 1 or preview[0].get("status") != "completed" or preview[0].get("conclusion") != "success":
+        raise Refusal("preview run's preview job did not succeed")
+    for job in jobs:
+        production = str(job.get("name", "")).lower().startswith(PRODUCTION_JOB_PREFIXES)
+        if job.get("conclusion") not in ({"success", "skipped", "failure", "cancelled"} if production else {"success", "skipped"}):
+            raise Refusal(f"preview run has a failed non-production job: {job.get('name')}")
+
+
 def validate_governance(args, orphan_statements: list[str], replacement_statements: list[str]) -> dict:
     repo = args.repo.resolve()
     if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
@@ -162,8 +186,10 @@ def validate_governance(args, orphan_statements: list[str], replacement_statemen
         raise Refusal("source PR does not uniquely author the replacement migration")
     if case["mode"] != "rehearsal_reset" and any(str(row.get("filename", "")).startswith(f"supabase/migrations/{args.orphan_version}_") for row in pr_files):
         raise Refusal("source PR still exposes the orphan version")
-    if run.get("id") != args.preview_run_id or run.get("status") != "completed" or run.get("conclusion") != "success":
+    if run.get("id") != args.preview_run_id or run.get("status") != "completed":
         raise Refusal("preview run is not the exact successful run")
+    if run.get("conclusion") != "success":
+        assert_preview_jobs_succeeded(case, args)
     validate_pinned_evidence(case, args)
     if run.get("event") != "workflow_dispatch" or not str(run.get("path", "")).startswith(".github/workflows/shared-supabase-migrations.yml"):
         raise Refusal("preview run is not the governed shared migration workflow")
@@ -388,7 +414,7 @@ def parse_args():
     p.add_argument("--issue", type=int, required=True); p.add_argument("--claim", type=int); p.add_argument("--source-pr", type=int)
     p.add_argument("--preview-run-id", type=int); p.add_argument("--preview-artifact-id", type=int); p.add_argument("--preview-artifact-digest")
     p.add_argument("--issue-json", type=Path); p.add_argument("--claim-json", type=Path); p.add_argument("--pr-json", type=Path); p.add_argument("--pr-files-json", type=Path)
-    p.add_argument("--run-json", type=Path); p.add_argument("--artifact-json", type=Path); p.add_argument("--preview-evidence-dir", type=Path)
+    p.add_argument("--run-json", type=Path); p.add_argument("--run-jobs-json", type=Path); p.add_argument("--artifact-json", type=Path); p.add_argument("--preview-evidence-dir", type=Path)
     p.add_argument("--remote-ledger", type=Path)
     p.add_argument("--evidence-out", type=Path, required=True)
     args = p.parse_args()
