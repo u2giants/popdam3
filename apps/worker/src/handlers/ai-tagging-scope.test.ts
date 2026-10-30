@@ -114,6 +114,8 @@ function recordingSupabase() {
           tableCalls.push({ table, op: "update", payload });
           return chain;
         },
+        delete: () => { tableCalls.push({ table, op: "delete" }); return chain; },
+        not: () => chain,
         upsert: async (payload: unknown) => {
           tableCalls.push({ table, op: "upsert", payload });
           return { error: null };
@@ -271,6 +273,8 @@ test("the batch writer marks the asset tagged only after its tags are written", 
         select: () => chain,
         single: async () => ({ data: { id: "a", filename: "photo.jpg", file_type: "jpg", sku: null }, error: null }),
         update: () => { order.push(`update:${table}`); return chain; },
+        delete: () => chain,
+        not: () => chain,
         upsert: async () => ({ error: null }),
       };
       chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
@@ -297,6 +301,8 @@ test("a file_sources save failure does not block the metadata save and is report
           error: null,
         }),
         update: () => { order.push(`update:${table}`); return chain; },
+        delete: () => chain,
+        not: () => chain,
         upsert: async (payload: unknown) => {
           order.push(`upsert:${table}`);
           if (table === "sku_files_used") return { error: { code: "57014", message: "statement timeout" } };
@@ -329,6 +335,8 @@ test("a successful file_sources save reports no gap", async () => {
           error: null,
         }),
         update: () => chain,
+        delete: () => chain,
+        not: () => chain,
         upsert: async () => ({ error: null }),
       };
       chain.eq = () => ({ ...chain, then: (resolve: (v: unknown) => void) => resolve({ error: null }) });
@@ -356,6 +364,8 @@ test("file_sources retry that succeeds reports no gap", async () => {
           error: null,
         }),
         update: () => chain,
+        delete: () => chain,
+        not: () => chain,
         upsert: async () => {
           if (table === "sku_files_used") {
             calls++;
@@ -390,6 +400,8 @@ test("a thrown file_sources error is caught and still allows metadata", async ()
           error: null,
         }),
         update: () => { order.push(`update:${table}`); return chain; },
+        delete: () => chain,
+        not: () => chain,
         upsert: async () => {
           if (table === "sku_files_used") throw new Error("network down");
           return { error: null };

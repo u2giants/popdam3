@@ -238,6 +238,8 @@ async function buildBatchAssetRequest(
   };
 }
 
+const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);
+
 export async function applyBatchTagResult(
   assetId: string,
   tagData: Record<string, unknown>,
@@ -256,12 +258,17 @@ export async function applyBatchTagResult(
   // metadata save — see file_sources note below.
   try { await writeAssetAiTags(client, assetId, model, tagData); }
   catch (error) { throw new AssetTagApplyError("asset_tags", (error as { code?: string }).code); }
+  // A re-tag replaces the asset's character links. Every link is machine-made
+  // (no UI writes asset_characters), so stale ones from older prompts or the
+  // retired group propagation must not survive a new result.
+  let staleLinks = client.from("asset_characters").delete().eq("asset_id", assetId);
+  if (characterIds.length) staleLinks = staleLinks.not("character_id", "in", `(${characterIds.join(",")})`);
+  const removedCharacters = await staleLinks;
+  if (removedCharacters.error) throw new AssetTagApplyError("character_links", removedCharacters.error.code);
   if (characterIds.length) {
     const rows = characterIds.map((character_id) => ({ asset_id: assetId, character_id }));
-    if (rows.length) {
-      const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
-      if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
-    }
+    const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
+    if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
   }
   let fileSourcesFailed = false;
   if (asset && isStyleGuideSourcePdf(asset) && asset.sku && Array.isArray(tagData.files_used)) {
@@ -289,6 +296,8 @@ export async function applyBatchTagResult(
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
   for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
     if (tagData[key]) updates[key] = tagData[key];
+    // AI-only text: an empty result must not leave an older run's value behind.
+    else if (AI_ONLY_TEXT_FIELDS.has(key)) updates[key] = null;
   }
   const { error } = await client.from("assets").update(updates).eq("id", assetId);
   if (error) throw new AssetTagApplyError("asset_metadata", error.code);

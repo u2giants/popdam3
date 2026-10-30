@@ -21,7 +21,6 @@ export interface TaggingPromptContext {
   itemDescription?: string | null;
   extractedPdfText?: string | null;
   customInstructions?: string | null;
-  usingPriorityOnly?: boolean;
   licensorName?: string | null;
   propertyName?: string | null;
 }

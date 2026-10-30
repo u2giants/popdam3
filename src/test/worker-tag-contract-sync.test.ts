@@ -24,7 +24,6 @@ describe.skipIf(canonicalIsDirty)("Railway worker tagging-contract mirror", () =
       erpDescription: "Fixture product",
       extractedPdfText: "Fixture PDF text",
       customInstructions: "Fixture instruction",
-      usingPriorityOnly: true,
     };
     expect(workerVendor.buildTaggingSystemPrompt(context)).toBe(canonical.buildTaggingSystemPrompt(context));
     expect(workerVendor.toGeminiSchema(workerVendor.TAG_ASSET_SCHEMA)).toEqual(
