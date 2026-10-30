@@ -178,7 +178,7 @@ export const REVIEW_LEASE_SUSPECT_HOURS = 24 // Advisory visibility only. Age ne
 export const SILENCE_MIN_AGE_HOURS = 2
 export const SILENCE_CONFIRM_HOURS = 2
 // ISSUE #3027 STEP 7 -- the reviewer START watcher. A lease whose review never
-// started (no durable review-started marker written by run-governed-review.mjs and
+// started (no durable review-started marker written by the retired run governed review (deleted #2074) and
 // no PR activity after the draw) is returned through this same silence path after
 // the 10-minute start SLO instead of the 2-hour silence window. A lease with ANY
 // start marker newer than its draw is never eligible here: a healthy running review

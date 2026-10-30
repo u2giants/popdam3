@@ -13,8 +13,8 @@ It documents existing authority; it does not activate a new release route.
 | ordinary-rows | application-owner | AGENTS.md section 0.0-B |
 | authors | unlimited | Owner ruling 2026-09-16 |
 | reviewer-concurrency | unlimited | Owner ruling 2026-09-16 |
-| migration-reviews | 1 | scripts/check-exact-head-approval.mjs |
-| governed-code-reviews | 1 | scripts/check-exact-head-approval.mjs |
+| migration-reviews | advisory | .github/workflows/ai-review.yml (owner ruling 2026-10-29, ai-devops #2104) |
+| governed-code-reviews | advisory | .github/workflows/ai-review.yml (owner ruling 2026-10-29, ai-devops #2104) |
 | standalone-plans | documentation | scripts/lib/documents-only-change.mjs |
 | agent-instructions | guarded | scripts/lib/documents-only-change.mjs |
 | automatic-production-policy | active | config/production-risk-policy-activation.json |

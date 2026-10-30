@@ -4,7 +4,7 @@
 // `VERDICT: APPROVE|REVISE|REJECT <40-hex head sha>`. A wrapper that cannot be run in a
 // way that ends with that line can be drawn, leased and never satisfied. The allocator
 // (`scripts/manage-migration-author-lanes.mjs`) and the runner
-// (`scripts/run-governed-review.mjs`) both read this module, so the capability fact and
+// (the retired governed-review runner) both read this module, so the capability fact and
 // the runner's behaviour cannot drift apart.
 
 // Every wrapper the governed runner will launch. A roster row whose wrapper is not here

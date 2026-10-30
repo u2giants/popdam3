@@ -110,9 +110,15 @@ export function validateCurrentLiveBinding(binding,{source,ledger,catalog,produc
 
 // GitHub-only native acceptance. Live ledger/catalogue contact belongs exclusively
 // to the trusted read-only certificate producer and the central readiness observer.
+// Advisory review (popcre/ai-devops plan_skinny-review.md rule 8.6, #2074): the
+// source PR must be merged and no blocking review-finding issue may reference it.
 export function proveCurrentLiveAssignedSource(pr){
- const program=`import {gatherApprovalInput,requireDurableVerdictInput,evaluateExactHeadApproval} from './scripts/check-exact-head-approval.mjs';const input=requireDurableVerdictInput(gatherApprovalInput({...process.env,PR_NUMBER:process.env.CURRENT_LIVE_SOURCE_PR,APPROVAL_AUDIT:''}));const result=evaluateExactHeadApproval(input);if(result.approved!==true||result.owner_no_reviewer||result.documents_only)throw Error('Actual assigned approval required');console.log(JSON.stringify({result,verdicts:input.verdicts.map(({ref,sha,assignment_sha,findings_digest,reviewer,head_sha,verdict})=>({ref,sha,assignment_sha,findings_digest,reviewer,head_sha,verdict})).sort((a,b)=>a.ref.localeCompare(b.ref))}));`;
- return execFileSync(process.execPath,['--input-type=module','-e',program],{encoding:'utf8',env:{...process.env,CURRENT_LIVE_SOURCE_PR:String(pr)},timeout:180000,maxBuffer:4*1024*1024});
+ const n=Number(pr);if(!Number.isSafeInteger(n)||n<1)throw Error('Current-live source PR is malformed')
+ const repo=process.env.GITHUB_REPOSITORY||'popcre/shared-db'
+ const view=ghJson(['api',`repos/${repo}/pulls/${n}`])
+ if(view?.number!==n||view.merged!==true||!SHA.test(view.merge_commit_sha??'')||!SHA.test(view.head?.sha??''))throw Error('Merged source PR required')
+ execFileSync('python3',['scripts/review_finding_hold.py','--pr',String(n),'--repo',repo],{encoding:'utf8',timeout:180000,maxBuffer:1024*1024})
+ return JSON.stringify({source_pr:n,merge_sha:view.merge_commit_sha,head_sha:view.head.sha,review_finding_hold:'clear'})+'\n'
 }
 const currentLiveApproval=e=>proveCurrentLiveAssignedSource(e.merge_pr)
 export const CURRENT_LIVE_RECEIPT_PREFIX='designflow-db-current-live-receipt '
@@ -180,7 +186,7 @@ export function verifyCurrentLiveEvidence(e,io,read=ghJson,repository=currentRep
   if(run.id!==id||run.status!=='completed'||run.conclusion!=='success'||run.event!=='workflow_dispatch'||run.path!==RECOVERY_PATH||run.head_branch!=='main'||run.head_sha!==e.production_reverification_commit_sha||!io.mergeCommitInMain(run.head_sha))return false
   const main=get('commits/main').sha
   if(!SHA.test(main))return false
-  for(const path of ['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/check-exact-head-approval.mjs','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']){
+  for(const path of ['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']){
    const producer=get(`contents/${path}?ref=${run.head_sha}`),current=get(`contents/${path}?ref=${main}`)
    if(producer.encoding!=='base64'||current.encoding!=='base64'||producer.content!==current.content)return false
   }

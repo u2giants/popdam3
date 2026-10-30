@@ -703,7 +703,6 @@ PREVIEW_PRODUCER_PATHS = (
     # Existing explicit PR-data boundary now executes transitively from protected source.
     "scripts/lib/agent-evidence-paths.mjs",
     "scripts/refresh-code-pr-branch.mjs",
-    "scripts/run-governed-review.mjs",
     # The manager's cohesive modules, split out of it without behavior change.
     # They are statically imported and run inside the same process, so each is
     # pinned exactly like the manager itself.
@@ -1166,7 +1165,6 @@ PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
     "scripts/db-flow/requalified-preview-runs.mjs",
     # Owner-authorized 2026-10-14 ("i authorize loosening that rule"):
     # review tooling and sidecar registry shipped after a pre-merge preview.
-    "scripts/run-governed-review.mjs",
     "config/production-verification-sidecar-registry.json",
     "scripts/lib/lanes/admission.mjs",
     "scripts/lib/lanes/claim-maintenance.mjs",
@@ -3835,10 +3833,6 @@ PREVIEW_PRODUCER_PATHS += (
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
     "scripts/check-migration-verify-cost.mjs",
-    # Read by scripts/check-exact-head-approval.mjs (owner no-reviewer policy,
-    # docs/owner-rulings.md §6.28). That gate runs in the preview/merge jobs,
-    # so the policy file is a producer input and is pinned like the gate itself.
-    "config/owner-no-reviewer-policy.json",
 )
 
 # THE SINGLE SIDECAR DECLARATION REGISTRY (#3028, popcre/ai-devops#401 Step 5).

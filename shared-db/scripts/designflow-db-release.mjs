@@ -718,7 +718,7 @@ async function currentLiveEvidence(requirement,facts,ledger) {
     const proofJobs=api(`repos/${CANONICAL}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`);
     if(!Array.isArray(proofJobs.jobs)||proofJobs.total_count!==proofJobs.jobs.length||proofJobs.total_count>100||proofJobs.jobs.filter(j=>j.name==='Current live reverification'&&j.run_attempt===run.run_attempt&&j.run_id===run.id&&j.conclusion==='success'&&j.status==='completed').length!==1)continue;
     const currentMain=api(`repos/${CANONICAL}/commits/main`).sha;
-    const trustedPaths=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/check-exact-head-approval.mjs','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py'];
+    const trustedPaths=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py'];
     if(trustedPaths.some(path=>content(CANONICAL,path,run.head_sha)!==content(CANONICAL,path,currentMain)))continue;
     const retained=retainedRows.filter(r=>r.ref===`${prefix}${run.id}`);if(retained.length>1)throw Error('Ambiguous retained certificate ref');
     const candidates=[];

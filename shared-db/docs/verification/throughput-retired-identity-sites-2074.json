@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "retired_by_issue": 2074,
+  "note": "popcre/ai-devops#2074 (skinny review stage F): the governed-review runner and its exact-head approval gate were deleted.",
+  "sites": [
+    {
+      "site": "scripts/run-governed-review.mjs:151",
+      "semantic_key": "scripts/run-governed-review.mjs:adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932:1",
+      "line_sha256": "adc27317ab55f760c19af233e4abe0dcc73f007cc7e3057b83464ff32c845932",
+      "disposition": "excluded",
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "state": "retired"
+    },
+    {
+      "site": "scripts/run-governed-review.mjs:223",
+      "semantic_key": "scripts/run-governed-review.mjs:b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786:1",
+      "line_sha256": "b99ce9a8e05f62b9e00b14d176f8e4459f3d377b83d491d6a0054b9457bcc786",
+      "disposition": "excluded",
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "state": "retired"
+    },
+    {
+      "site": "scripts/run-governed-review.mjs:168",
+      "semantic_key": "scripts/run-governed-review.mjs:bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a:1",
+      "line_sha256": "bb92bc5b9fd22cdbfc81691e20913f382e6aed481a89d5eca417950694375d0a",
+      "disposition": "excluded",
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "state": "retired"
+    },
+    {
+      "site": "scripts/run-governed-review.mjs:369",
+      "semantic_key": "scripts/run-governed-review.mjs:cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260:1",
+      "line_sha256": "cdfdffef2201e7c3b5985ec28b75de846cf7c3d911aef01c34dd8c03169a8260",
+      "disposition": "excluded",
+      "reason": "This wording classifies a private reviewer startup diagnostic; it does not assert that a database object or migration is missing.",
+      "state": "retired"
+    },
+    {
+      "site": "scripts/run-governed-review.mjs:133",
+      "semantic_key": "scripts/run-governed-review.mjs:f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505:1",
+      "line_sha256": "f32e4ef8d1861700b407607d9427f4267523fe2200eb79f1a71168b5f3c06505",
+      "disposition": "excluded",
+      "reason": "This line rejects incomplete reviewer source or receipt evidence; it does not assert that a database object or migration is missing.",
+      "state": "retired"
+    },
+    {
+      "site": ".github/workflows/reviewer-start-watch.yml:147",
+      "semantic_key": ".github/workflows/reviewer-start-watch.yml:5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d:1",
+      "line_sha256": "5b1a8f45ec173737602ee8a2c2491cf721d2a3dd9a69240a43f9db7822471a8d",
+      "disposition": "excluded",
+      "reason": "Workflow-local guard (#3271): when the watcher pass wrote no pass.json, the step writes an error object so the summary and relay still report a failed pass. It is a statement about a CI scratch file, not about any database object, so no truth enrichment applies.",
+      "state": "retired"
+    }
+  ]
+}

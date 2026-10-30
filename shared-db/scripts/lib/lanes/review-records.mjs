@@ -126,7 +126,7 @@ export function recordReviewVerdict(options,io=githubIo){
   const existing=io.readRef(ref)
   // #2710. IDEMPOTENCY OUTLIVES THE LEASE, SO THE STANDING ARTIFACT IS READ
   // FIRST. A verdict releases its own lease on the way out (see
-  // `releaseRecordedVerdictLease`), and `run-governed-review.mjs` re-runs the
+  // `releaseRecordedVerdictLease`), and the retired run governed review (deleted #2074) re-runs the
   // whole recording with no existing-verdict pre-check. With the lease gate
   // ahead of this read, the SECOND identical run of a review that had already
   // succeeded was refused as a "late or conflicting verdict" for a verdict whose
@@ -293,7 +293,7 @@ export function nonReadingReviewerReplacementCommand({issue,pr,headSha,slot=1},f
 // all -- a disregarded APPROVE still authorized there, and a disregarded REVISE
 // still blocked the head permanently, which is exactly the deadlock this
 // treat-as-absent choice exists to avoid. `evaluateExactHeadApproval` in
-// `check-exact-head-approval.mjs` now disregards both directions the same way,
+// the retired check exact head approval (deleted #2074) now disregards both directions the same way,
 // so the two gates agree. Do not remove it there on the assumption that this
 // function covers it.
 //

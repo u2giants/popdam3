@@ -3,14 +3,14 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { checkPolicy, checkRouting, expectedPolicy } from './check-current-workflow-policy.mjs'
 
-const source = readFileSync(new URL('./check-exact-head-approval.mjs', import.meta.url), 'utf8')
+const source = readFileSync(new URL('../.github/workflows/ai-review.yml', import.meta.url), 'utf8')
 const document = readFileSync(new URL('../docs/agents/current-workflow.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const documentsOnly = (paths) => paths.every((path) => path.startsWith('plan_'))
 const expected = expectedPolicy({ activation: { active: true }, approvalSource: source, documentsOnly })
 
 test('current procedure records the current review counts and owner rulings', () => assert.equal(checkPolicy(document, expected), true))
 test('current_policy_matrix_mismatch_refuses', () => {
-  for (const [before, after] of [['| authors | unlimited |', '| authors | 8 |'], ['| reviewer-concurrency | unlimited |', '| reviewer-concurrency | one-per-provider |'], ['| migration-reviews | 1 |', '| migration-reviews | 2 |'], ['| automatic-production-policy | active |', '| automatic-production-policy | inactive |'], ['| standalone-plans | documentation |', '| standalone-plans | guarded |']]) {
+  for (const [before, after] of [['| authors | unlimited |', '| authors | 8 |'], ['| reviewer-concurrency | unlimited |', '| reviewer-concurrency | one-per-provider |'], ['| migration-reviews | advisory |', '| migration-reviews | 1 |'], ['| automatic-production-policy | active |', '| automatic-production-policy | inactive |'], ['| standalone-plans | documentation |', '| standalone-plans | guarded |']]) {
     assert.throws(() => checkPolicy(document.replace(before, after), expected), /matrix mismatch/)
   }
 })
@@ -27,7 +27,7 @@ test('matrix rows cannot be duplicated, omitted or expanded silently', () => {
 })
 test('unknown authority or omitted lock refuses instead of adopting a policy', () => {
   assert.throws(() => expectedPolicy({ activation: {}, approvalSource: source }), /activation authority/)
-  assert.throws(() => expectedPolicy({ activation: { active: true }, approvalSource: 'new gate implementation' }), /derive review counts/)
+  assert.throws(() => expectedPolicy({ activation: { active: true }, approvalSource: 'no advisory workflow' }), /derive review counts/)
   assert.throws(() => expectedPolicy({ activation: { active: true }, approvalSource: source, exclusiveRefs: { preview: 'x', merge: 'y' } }), /lane authority/)
 })
 test('current procedure is discoverable through both active instruction routers', () => {

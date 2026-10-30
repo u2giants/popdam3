@@ -4785,7 +4785,6 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
     def test_review_tooling_and_sidecar_registry_are_custody_only(self):
         # Owner-authorized 2026-10-14 ("i authorize loosening that rule").
         self.prove(self.api(changed=(
-            "scripts/run-governed-review.mjs",
             "config/production-verification-sidecar-registry.json",
         )))
 

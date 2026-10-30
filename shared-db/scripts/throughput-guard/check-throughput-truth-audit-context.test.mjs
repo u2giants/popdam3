@@ -101,10 +101,12 @@ test('context migration preserves every historical identity hash verdict and rea
   assert.equal(reconciliationRetirements.schema_version, 1);
   assert.equal(reconciliationRetirements.retired_by_issue, 4348);
   // #4524: the retired orchestrator skill's claim-first requirement loop was deleted with the skill.
+  const stageFRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-2074.json'), 'utf8'));
+  assert.equal(stageFRetirements.retired_by_issue, 2074);
   const skillDriftRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-4524.json'), 'utf8'));
   assert.equal(skillDriftRetirements.schema_version, 1);
   assert.equal(skillDriftRetirements.retired_by_issue, 4524);
-  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites]);
+  assertHistoricalDispositions(historical, current, [...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites, ...stageFRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

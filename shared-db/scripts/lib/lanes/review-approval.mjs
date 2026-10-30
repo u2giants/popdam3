@@ -152,7 +152,7 @@ export function gateAuthorizes(evidence,headSha,bundleId,readAssignments){
 // text remains evidence for a human; it is no longer an input to any decision.
 //
 // ONE REQUEST, NOT ONE PER LEASE. `git/matching-refs` is a plain string-prefix
-// match (measured 2026-08-30, see check-exact-head-approval.mjs), and both
+// match (measured 2026-08-30, see the retired check exact head approval (deleted #2074)), and both
 // namespaces share the prefix `refs/db-review-verdict`, so a single listing
 // answers for every (issue, pr, head) tuple an operation asks about and
 // `reviewOperationIo` caches it for the rest of that operation.

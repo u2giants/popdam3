@@ -553,7 +553,7 @@ export const githubIo = {
   },
   // The changed-file list a documents-only classification is made from (#2102).
   // Fetched through `ghPaginated` so this side and the merge gate
-  // (`check-exact-head-approval.mjs`) build the list the SAME way: paginate,
+  // (the retired exact-head approval gate, deleted #2074) build the list the SAME way: paginate,
   // slurp, verify every page is an array, flatten. One classifier with two
   // fetchers is how the two enforcement points come to disagree, and a
   // disagreement here is a permanently stuck pull request -- the draw refusing

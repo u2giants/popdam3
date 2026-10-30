@@ -187,7 +187,7 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
     assigned = `"reviewer": "${recorded[1]}"`
   }
   const reviewer = (assigned.match(/"reviewer":\s*"([^"]+)"/) ?? [])[1], wrapper = (assigned.match(/"wrapper":\s*"([^"]+)"/) ?? [])[1] ?? REVIEWERS.find((row) => row.name === reviewer)?.wrapper
-  log(`Reviewer assigned at ${tip}: ${reviewer ?? 'see output'} (${wrapper ?? '?'}). Next: node scripts/run-governed-review.mjs --issue ${options.issue} --pr ${options.pr} --reviewer ${reviewer} --wrapper ${wrapper ?? '<wrapper>'} --worktree ${cwd} -- new <session> --prompt-file <brief>`)
+  log(`Reviewer assigned at ${tip}: ${reviewer ?? 'see output'} (${wrapper ?? '?'}). Next: (advisory review runs in CI; no governed runner, #2074) issue ${options.issue} pr ${options.pr} --reviewer ${reviewer} --wrapper ${wrapper ?? '<wrapper>'} --worktree ${cwd} -- new <session> --prompt-file <brief>`)
   return { head, tip, pushed: true, reviewer, wrapper }
 }
 

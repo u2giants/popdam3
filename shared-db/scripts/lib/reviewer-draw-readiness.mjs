@@ -82,7 +82,7 @@ function refuse(message) {
 // reviewer by the draw and is not bound to the assignment; the governed runner
 // still receives its own brief at start time, and it -- not this check --
 // injects the terminal head-bound VERDICT instruction (promptHeadContract in
-// run-governed-review.mjs). So a brief without a decision line is fine here:
+// the retired run governed review (deleted #2074)). So a brief without a decision line is fine here:
 // the runner supplies it. What this removes is the draw spent on a brief the
 // runner would refuse at start for a stale head or an unreadable file.
 //

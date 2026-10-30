@@ -7,10 +7,9 @@ import { isDocumentsOnlyChange } from './lib/documents-only-change.mjs'
 import { EXCLUSIVE_REFS } from './manage-migration-author-lanes.mjs'
 
 export function expectedPolicy({ activation, approvalSource, documentsOnly = isDocumentsOnlyChange, exclusiveRefs = EXCLUSIVE_REFS }) {
-  // Owner ruling 2026-10-14: one independent review for every change.
-  // The gate is `const requiredSlots = 1`; both policy rows are 1.
-  const slots = approvalSource.match(/const requiredSlots\s*=\s*1\b/)
-  if (!slots) throw new Error('Policy authority changed: derive review counts from the current gate before updating this check')
+  // Owner ruling 2026-10-29 (ai-devops #2104): review is advice only. The
+  // advisory workflow must exist and must never be a failing gate.
+  if (!/popcre\/ai-devops\/.github\/workflows\/ai-review.yml@/.test(approvalSource) || /merge_group/.test(approvalSource)) throw new Error('Policy authority changed: derive review counts from the advisory review workflow before updating this check')
   if (typeof activation?.active !== 'boolean') throw new Error('Production activation authority is not a boolean')
   if (!['preview', 'merge', 'production'].every((key) => typeof exclusiveRefs[key] === 'string' && exclusiveRefs[key])) throw new Error('Exclusive mutation lane authority changed')
   return {
@@ -18,8 +17,8 @@ export function expectedPolicy({ activation, approvalSource, documentsOnly = isD
     'ordinary-rows': 'application-owner',
     authors: 'unlimited',
     'reviewer-concurrency': 'unlimited',
-    'migration-reviews': '1',
-    'governed-code-reviews': '1',
+    'migration-reviews': 'advisory',
+    'governed-code-reviews': 'advisory',
     'standalone-plans': documentsOnly(['plan_policy_example.md']) ? 'documentation' : 'guarded',
     'agent-instructions': ['AGENTS.md', 'CLAUDE.md', 'skills/example/SKILL.md', '.claude/agents/example.md'].every((path) => !documentsOnly([path])) ? 'guarded' : 'unguarded',
     'automatic-production-policy': activation.active ? 'active' : 'inactive',
@@ -62,7 +61,7 @@ export function main() {
   try {
     const document = readFileSync(new URL('../docs/agents/current-workflow.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
     const activation = JSON.parse(readFileSync(new URL('../config/production-risk-policy-activation.json', import.meta.url), 'utf8'))
-    const approvalSource = readFileSync(new URL('./check-exact-head-approval.mjs', import.meta.url), 'utf8')
+    const approvalSource = readFileSync(new URL('../.github/workflows/ai-review.yml', import.meta.url), 'utf8')
     checkPolicy(document, expectedPolicy({ activation, approvalSource }))
     checkRouting({ agents: readFileSync(new URL('../AGENTS.md', import.meta.url), 'utf8'), coordination: readFileSync(new URL('../docs/agents/section-4-anti-collision-rules.md', import.meta.url), 'utf8') })
     console.log('Current workflow policy matrix matches implementation and cited owner rulings.')
