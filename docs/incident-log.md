@@ -2,6 +2,16 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## Resolved 2026-10-29: Master Data first load slow, then a false "could not be loaded"
+
+What happened: the first Master Data load (Licensed tab) took a long time and often ended in "Master Data could not be loaded."; waiting triggered an automatic reload that succeeded. Users navigated away believing it failed.
+
+Root causes: (1) `style_tracker_rows_with_bridge` joined `api.plm_item_list` per row; the item list exposes its id through a window function, so the planner rescanned all ~19.9k item rows per tracker row — ~19.9M join-filter comparisons per 1,000-row page (measured 3.7–6.8 s warm; cold runs over the shared 8 s statement cap → HTTP 500/57014). (2) The app retried once, then dead-ended in the error state even though the next (warm) attempt always succeeded.
+
+Fix: shared-db popcre/shared-db#5045 (issue #5037, migration `20261029162652`) rewrote that join as an indexed lateral over base tables (value-preserving: full-view comparison on production returned 0 differences) — the 1,000-row first wave executes in ~0.13 s in-database and the page's signed-in first-wave requests measured 1.06 s / 0.55 s live. popdam3 PR #581 made the `style-rows` query retry up to 3 times with capped backoff so a cold timeout keeps showing "Loading…" and recovers by itself.
+
+Rule: library-scale queries must stay far under the 8 s `authenticated` cap cold; measure with `EXPLAIN (ANALYZE)` as production sees it (see the 2026-10-27 OrderList entry) and fix the plan, not the timeout.
+
 ## Resolved 2026-10-27: OrderList first load "canceling statement due to statement timeout"
 
 What happened: opening OrderList failed with "Could not load OrderList: canceling statement due to statement timeout" (SQLSTATE 57014, 8s `authenticated` limit); a few hard refreshes made it load. The failing request was the first 500-row block sorted by `sales_order_received_date`.

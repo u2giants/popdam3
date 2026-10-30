@@ -150,6 +150,13 @@ canonical item links. A pre-refresh database backup was taken before replacement
   offers retry for an initial failure or the failed later page. A displayed
   total does not imply that those rows have loaded. During partial loading,
   Find and filters apply only to loaded rows.
+- Since 2026-10-29 the Licensed first wave runs well under the 8-second
+  database cap: shared-db migration `20261029162652` (issue #5037) resolves the
+  view's ERP identity join through indexed base tables instead of rescanning the
+  whole item list per row, and the app (PR #581) retries a cold first load up to
+  3 times with capped backoff instead of dead-ending in "Master Data could not be
+  loaded.". Signed-in first-wave requests measured 1.06 s / 0.55 s live on
+  2026-10-30; the details are in the incident log entry of that date.
 - This behavior first shipped in PR #287 as frontend token `f901017`; those
   read/timing/retry results are historical. The editor-safe interrupted-refresh
   repair is now live in PR #289 as token `9883315`. Focused production checks
