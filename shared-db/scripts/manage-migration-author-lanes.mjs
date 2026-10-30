@@ -3111,26 +3111,11 @@ function historicalDiagnosticHeader(file,{pr,headSha}){
   return {read,text,fields,at:new Date(Date.parse(stamp)).toISOString(),pathTime:fileTime}
 }
 
-function parseHistoricalWrapperDiagnostic(file,{pr,headSha,reviewer,startedAt}){
-  const {read,text,fields,at,pathTime}=historicalDiagnosticHeader(file,{pr,headSha})
-  const stamp=fields.get('time')
-  if(!stamp||!Number.isFinite(Date.parse(stamp))||fields.get('wrapper')!=='ai-deepseek-agent'||Number(fields.get('pr'))!==pr||fields.get('head')!==headSha||fields.get('exit_status')!=='1'||fields.get('signal')!=='none'||fields.get('spawn_error')!=='none')throw new LaneError('original wrapper diagnostic identity or terminal status is not the required preparation failure')
-  if(reviewer!=='deepseek-v4.1-flash'||Date.parse(stamp)<Date.parse(startedAt)||Date.parse(stamp)-Date.parse(startedAt)>30*60*1000)throw new LaneError('original wrapper diagnostic is not temporally bound to the exact reviewer start')
-  const tailMarker='stderr_tail (last 8192 chars, redacted):\n',markerAt=text.indexOf(tailMarker)
-  if(markerAt<0||fields.get('recognized_reason')!=='wrapper stderr was present but its reason was not recognized; inspect the exact wrapper session')throw new LaneError('original wrapper diagnostic lacks its retained complete preparation stderr')
-  let stderr=text.slice(markerAt+tailMarker.length)
-  if(stderr.endsWith('\n'))stderr=stderr.slice(0,-1)
-  const stderrBytes=Number(fields.get('stderr_bytes'))
-  if(!Number.isSafeInteger(stderrBytes)||stderrBytes<1||stderrBytes>8192||Buffer.byteLength(stderr,'utf8')!==stderrBytes)throw new LaneError('original wrapper diagnostic stderr is truncated or inconsistent')
-  const steps=[...stderr.matchAll(/^ai-review-engine: step ([a-z-]+)$/gm)].map(m=>m[1])
-  const required=['task-gate','identity','lifecycle-begin','sandbox','packet-build']
-  const allowed=['reviewer event recording: sandbox evidence requirement is missing; cleanup refused','ai-review-sandbox: sandbox evidence is not reconciled; retained for local recovery']
-  const lines=stderr.endsWith('\n')?stderr.slice(0,-1).split('\n'):stderr.split('\n'),other=lines.filter(line=>!allowed.includes(line)&&!/^ai-review-sandbox: [1-9]\d* orphan examination cap reached; remaining orphans wait for the next parent run$/.test(line)&&!/^ai-review-engine: step [a-z-]+$/.test(line)&&line!=='ai-review-packet: error: source-receipt-conflict'&&line!=='ai-review-engine: error: source evidence verification failed.')
-  if(JSON.stringify(steps)!==JSON.stringify(required)||other.length!==0||lines.filter(line=>line===allowed[0]).length<1||lines.filter(line=>line===allowed[1]).length<1||
-     (stderr.match(/^ai-review-packet: error: source-receipt-conflict$/gm)??[]).length!==1||
-     (stderr.match(/^ai-review-engine: error: source evidence verification failed\.$/gm)??[]).length!==1||
-     /\b(?:VERDICT\s*:|APPROVE|REVISE|REJECT)\b/i.test(stderr))throw new LaneError('original wrapper diagnostic does not prove a verdict-less packet-build source-receipt-conflict')
-  return {read,at,pathTime}
+// The old review engine that wrote these wrapper diagnostics was deleted with
+// the governed-review runner (popcre/ai-devops#2074) and its refs were removed,
+// so historical wrapper-failure evidence can no longer be proven. Fail closed.
+function parseHistoricalWrapperDiagnostic(){
+  throw new LaneError('historical wrapper diagnostics are retired with the old review engine (ai-devops#2074); no historical failure can be proven')
 }
 
 function historicalStartBinding({request,original,sourceReceipt,diagnostic,starts}){

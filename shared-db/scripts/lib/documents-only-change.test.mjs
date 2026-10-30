@@ -47,7 +47,7 @@ test('standalone implementation plans are documents', () => {
 for (const path of [
   'supabase/migrations/20260902120000_add_thing.sql',
   'scripts/manage-migration-author-lanes.mjs',
-  'scripts/check-exact-head-approval.test.mjs',
+  'scripts/check-applied-migration-edit.test.mjs',
   '.github/workflows/guarded-migration-merge.yml',
   'scripts/check-sql.sh',
   'tools/load.py',
