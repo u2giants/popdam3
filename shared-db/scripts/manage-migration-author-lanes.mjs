@@ -4094,6 +4094,18 @@ function requireAdmission(options, io, args = {}) {
   if (io.enforceAdmission !== true) return null
   return withoutReviewRequestBudget(()=>requireAdmissionGate(options,io,args))
 }
+// #2599: a curated Master Data issue declares no db-work-scope objects (its admission
+// returns writes: []), yet its data-only migration still needs a lane, a reserved
+// version and an exact claim that preview preparation checks against the migration's
+// row writes. The claim may therefore name only curated tables (core.*, plus
+// plm.source_resolution written through plm.set_source_resolution()); preview
+// admission still proves every row write is covered.
+export function requireCuratedClaimObjects(requested,issue){
+  if(!requested.length)throw new LaneError(`curated issue #${issue} claim requires at least one exact core.* table`)
+  const bad=requested.filter((object)=>!/^table core\.[a-z_][a-z0-9_]*$/.test(object)&&object!=='table plm.source_resolution')
+  if(bad.length)throw new LaneError(`curated issue #${issue} claim may name only curated core.* tables and table plm.source_resolution: ${bad.join(', ')}`)
+  if(!requested.some((object)=>/^table core\.[a-z_][a-z0-9_]*$/.test(object)))throw new LaneError(`curated issue #${issue} claim requires at least one exact core.* table`)
+}
 function requireAdmissionGate(options, io, { pr = null, timestamp, mutexOwner = null } = {}) {
   if(mutexOwner)requireOwnedRef(MUTEX_REF,mutexOwner,io)
   const admitted=mutexOwner
@@ -4101,8 +4113,11 @@ function requireAdmissionGate(options, io, { pr = null, timestamp, mutexOwner = 
     : admitIssueSerialized(Number(options.admitIssue), io, { pr, allowLegacy:pr!==null, timestamp })
   if(options.claim){
     const requested=validateClaimObjects(options.objects??[]).sort()
+    if(admitted?.curated===true)requireCuratedClaimObjects(requested,options.admitIssue)
+    else{
     const authorized=[...(admitted.writes??[])].sort()
     if(requested.length!==authorized.length||requested.some((value,index)=>value!==authorized[index]))throw new LaneError(`--claim objects must exactly match admitted issue #${options.admitIssue} writes`)
+    }
   }
   return admitted
 }
@@ -4126,7 +4141,8 @@ export function acquireAuthorLane(options, now = new Date(), io = githubIo) {
       // re-proof did not, so the refusal landed here instead. Set semantics only:
       // an absent, extra or different object still refuses exactly as before.
       const requested=[...options.objects].sort()
-      if(requested.length!==authorized.length||requested.some((value,index)=>value!==authorized[index]))throw new LaneError(`--claim objects must exactly match admitted issue #${options.admitIssue} writes`)
+      if(admitted?.curated===true)requireCuratedClaimObjects(requested,options.admitIssue)
+      else if(requested.length!==authorized.length||requested.some((value,index)=>value!==authorized[index]))throw new LaneError(`--claim objects must exactly match admitted issue #${options.admitIssue} writes`)
     }
     const claims = io.openClaims()
     const prSources = io.prSources()

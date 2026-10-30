@@ -151,7 +151,7 @@ export function evaluateAdmission(issue, scope, impact = null) {
 export const CURATED_ROUTE = 'curated-master-data-governance'
 export const CURATED_EVIDENCE = Object.freeze([
   'work_type curated-master-data, route curated-master-data-governance, change_type migration, status ready, no claimed objects, a live_assertion and generated_types',
-  'a newly added migration whose only effect is bounded row writes into curated Master Data (core.*, with plm.licensing_write_authorization)',
+  'a newly added migration whose only effect is bounded row writes into curated Master Data (core.*, with plm.licensing_write_authorization, and plm.source_resolution through plm.set_source_resolution())',
 ])
 
 function curatedRefusal(issue, scope, reason) {

@@ -12869,3 +12869,26 @@ test('real flowAdapter admits only qualified closed merged proof selectors witho
   const undeclared=fixture();delete process.env.SHARED_DB_SESSION_ID;assert.equal(undeclared.adapter().resolveMarker().live,false);
  } finally {if(prior===undefined)delete process.env.SHARED_DB_SESSION_ID;else process.env.SHARED_DB_SESSION_ID=prior;}
 });
+
+test('curated claim objects are limited to exact core tables (#2599)',async()=>{
+  const {requireCuratedClaimObjects}=await import('./manage-migration-author-lanes.mjs')
+  assert.doesNotThrow(()=>requireCuratedClaimObjects(['table core.property','table core.taxonomy_source_ref'],2599))
+  assert.throws(()=>requireCuratedClaimObjects([],2599),/at least one exact core/)
+  assert.throws(()=>requireCuratedClaimObjects(['table plm.item'],2599),/only curated core/)
+  assert.throws(()=>requireCuratedClaimObjects(['function core.f()'],2599),/only curated core/)
+  // #5079: the resolution home written through plm.set_source_resolution() may be claimed; no other plm table
+  assert.doesNotThrow(()=>requireCuratedClaimObjects(['table core.character','table plm.source_resolution'],5079))
+  assert.throws(()=>requireCuratedClaimObjects(['table plm.opa_character'],5079),/only curated core/)
+  assert.throws(()=>requireCuratedClaimObjects(['table plm.source_resolution'],5079),/at least one exact core/)
+})
+
+test('curated SQL reports plm.set_source_resolution calls as plm.source_resolution writes (#5079)',async()=>{
+  const {inspectCuratedSql}=await import('./db-flow/curated-admission.mjs')
+  const call="do $x$ begin perform plm.set_source_resolution('nbcu','character',c.code,'matched',null,c.id,null,null,'r',null) from core.character c; end $x$;"
+  assert.deepEqual([...inspectCuratedSql(call).writes].sort(),['table plm.source_resolution'])
+  assert.throws(()=>inspectCuratedSql("select plm.other_setter('a');"),/not an allowed side-effect-free builtin/)
+  assert.throws(()=>inspectCuratedSql("select plm.\"set_source_resolution\"('a','character','1','unresolved');"),/bare name/)
+  assert.throws(()=>inspectCuratedSql("select \"plm\".set_source_resolution('a','character','1','unresolved');"),/not an allowed side-effect-free builtin/)
+  assert.throws(()=>inspectCuratedSql("update plm.opa_character set core_character_id = null where character_id = 1;"),/outside curated Master Data/)
+  assert.throws(()=>inspectCuratedSql("insert into plm.source_resolution (source_id) values ('x');"),/outside curated Master Data/)
+})
