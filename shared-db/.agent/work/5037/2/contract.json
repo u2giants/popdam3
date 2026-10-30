@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "work_issue": 5037,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Cut DAM Master Data first-load timeouts by resolving the erp identity join in style_tracker_rows_with_bridge through indexed base tables (value-preserving; view is the only write)",
+  "base_sha": "67b23af69ab759031fe3b90fc93df5577d38c6b9",
+  "dispatcher": "Albert request in ZCode chat f7649499-d8dd-400f-9d63-a25abe73d70f: Master Data first load is slow and then says it could not be loaded",
+  "worker": "ZCode chat f7649499-d8dd-400f-9d63-a25abe73d70f on hetz",
+  "branch": "zcode/5037-masterdata-view",
+  "worktree": "/worksp/shared-db/.wt-5037-masterdata-view",
+  "allowed_paths": [
+    "supabase/migrations/20261029162652_masterdata_view_indexed_erp_identity.sql",
+    ".agent/work/5037/2/contract.json",
+    ".agent/work/5037/2/completion.json"
+  ],
+  "db_reads": [
+    "table plm.item",
+    "table plm.legacy_erp_item_identity",
+    "view api.plm_item_list"
+  ],
+  "db_writes": [
+    "view public.style_tracker_rows_with_bridge"
+  ],
+  "prohibited_actions": [
+    "no DDL outside the named migration file",
+    "no new database objects; the view is the only write",
+    "do not touch another session's claim, branch, worktree, or files"
+  ],
+  "required_checks": [
+    "scripts/check-sql.sh",
+    "read-only production full-view equivalence proof (0 differences)",
+    "preview apply rehearsal with timing"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261029162652_masterdata_view_indexed_erp_identity.sql",
+    ".agent/work/5037/2/contract.json",
+    ".agent/work/5037/2/completion.json"
+  ],
+  "assumptions": [
+    "api.plm_item_list identity rule (legacy_id when rank-1) stays as defined in 20260911210844",
+    "item_upper_trim_item_number_idx remains a non-partial expression index on plm.item"
+  ],
+  "stop_conditions": [
+    "equivalence proof against production returns any difference",
+    "preview apply or timing proof fails"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 5037,
+    "generation": 1,
+    "contract_sha256": "14c45f68a932fe3778d2262cc328a1b35cf051b11e1058203e55414a53f96320"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_issue": 5037,
+  "outcome": "ready-for-merge",
+  "pr": 5045,
+  "migration_versions": [
+    "20261029162652"
+  ],
+  "contract_ref": "refs/db-contracts/5037/2",
+  "contract_sha256": "9879779e614cbf19e8f1f6a318e946c546aa9db0dc61bcf8142c36e9a4bcc2eb",
+  "base_sha": "67b23af69ab759031fe3b90fc93df5577d38c6b9",
+  "head_sha": "3802ce88617afc0200750af9d3c547e1f5670b8e",
+  "files_changed": [
+    "supabase/migrations/20261029162652_masterdata_view_indexed_erp_identity.sql"
+  ],
+  "db_reads": [
+    "table plm.item",
+    "table plm.legacy_erp_item_identity",
+    "view api.plm_item_list"
+  ],
+  "db_writes": [
+    "view public.style_tracker_rows_with_bridge"
+  ],
+  "assumptions_resolved": [
+    "api.plm_item_list identity rule (legacy_id when rank-1) unchanged from 20260911210844; full-view comparison on production returned 0 differences across all rows of both sheets",
+    "item_upper_trim_item_number_idx is a non-partial expression index on plm.item and serves every lateral probe (EXPLAIN index scans, zero join-filter rescans)"
+  ],
+  "stop_conditions_hit": [],
+  "checks": [
+    {
+      "command": "scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "static checks passed in the claim worktree; Verify-cost guard passed: no prohibited verification read"
+    },
+    {
+      "command": "read-only production full-view equivalence proof (0 differences)",
+      "exit_code": 0,
+      "evidence": "candidate vs live view full outer join: 0 differences on (id, canonical_description, erp_style_number) over every row of both sheets, 2026-10-29, recorded on work issue #5037"
+    },
+    {
+      "command": "preview apply rehearsal with timing",
+      "exit_code": 0,
+      "evidence": "pruned-checkout supabase db push on preview mvpkijzfmfcxhnzqogzs passed the migration assertions (earlier variant incl. data-equivalence assert); wave reads 0.262s/0.094s on preview; final shape measured read-only on production 0.654s/0.297s vs 3.7-6.8s/6.2s before"
+    }
+  ]
+}
