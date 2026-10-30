@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 5128,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Let PopDAM admins delete user-created Master Data rows: stamp add_style_tracker_rows output with row_data origin=user_added, add admin-gated delete_style_tracker_rows that deletes only those rows and writes row_deleted audit events, extend the audit event CHECK, and one-time backfill the 3 audit-proven user-created rows (claim #5138, migration 20261030125352).",
+  "base_sha": "318d89c23129e4ef1ba2bac0adcc849d58323741",
+  "dispatcher": "ZCode chat adcae4fc-0e48-40e7-b492-4571e18b50aa on hetz (claim #5138 owner)",
+  "worker": "Same session.",
+  "branch": "zcode/5128-master-data-user-row-delete",
+  "worktree": "/worksp/shared-db/.wt-5128-user-row-delete",
+  "allowed_paths": [
+    "supabase/migrations/20261030125352_master_data_user_row_delete.sql",
+    "supabase/tests/master_data_user_row_delete_contracts.sql",
+    ".agent/work/5128/1/contract.json",
+    ".agent/work/5128/1/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261030125352_master_data_user_row_delete.sql",
+    "supabase/tests/master_data_user_row_delete_contracts.sql",
+    ".agent/work/5128/1/contract.json",
+    ".agent/work/5128/1/completion.json"
+  ],
+  "db_reads": [
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_audit_log",
+    "table public.style_tracker_rows"
+  ],
+  "db_writes": [
+    "function public.add_style_tracker_rows",
+    "function public.delete_style_tracker_rows",
+    "table public.style_tracker_audit_log"
+  ],
+  "prohibited_actions": [
+    "No schema or data change outside the claimed objects.",
+    "No manual production command; production promotion only through the existing automatic workflow.",
+    "Never delete sheet-synced or plm_item_autoflow rows through the new RPC."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "supabase/tests against an ephemeral database passes on the PR head in CI",
+    "Migration guarded merge authorization published for the exact head"
+  ],
+  "assumptions": [
+    "The 3 backfill rows identified by row_added audit events with non-null changed_by are user-created (read-only production verification 2026-10-30 ~8:25 AM EST); no sheet-synced row has a user-authored row_added event.",
+    "PopDAM app UI changes land in u2giants/popdam3 only after this merge."
+  ],
+  "stop_conditions": [
+    "Stop and hand off if the shared preview stays blocked by a foreign preview-ledger orphan beyond this session's control.",
+    "Stop if any app-level test against preview fails after the apply."
+  ]
+}

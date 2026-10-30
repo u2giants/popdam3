@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "work_issue": 5128,
+  "outcome": "ready-for-merge",
+  "pr": 5129,
+  "migration_versions": [
+    "20261030125352"
+  ],
+  "contract_ref": "refs/db-contracts/5128/1",
+  "contract_sha256": "c7d26f13ee99dcb04336455c984aaf4d8838b786f9ad3c05eb5bccd9ba2cf282",
+  "base_sha": "318d89c23129e4ef1ba2bac0adcc849d58323741",
+  "head_sha": "6f4139f77a49c3a32eb052bf31d60f958dcb8136",
+  "files_changed": [
+    "supabase/migrations/20261030125352_master_data_user_row_delete.sql",
+    "supabase/tests/master_data_user_row_delete_contracts.sql"
+  ],
+  "db_reads": [
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_audit_log",
+    "table public.style_tracker_rows"
+  ],
+  "db_writes": [
+    "function public.add_style_tracker_rows",
+    "function public.delete_style_tracker_rows",
+    "table public.style_tracker_audit_log"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree at the implementation head."
+    },
+    {
+      "command": "supabase/tests against an ephemeral database passes on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "Local from-empty supabase replay applied the migration cleanly and master_data_user_row_delete_contracts.sql passed end-to-end; the same suite is green in CI on PR #5129's tree."
+    },
+    {
+      "command": "Migration guarded merge authorization published for the exact head",
+      "exit_code": 0,
+      "evidence": "Guarded Merge run 41062539248 published the authorization status for head 6f4139f77; the queue-time re-proof failed only on the then-missing evidence pair, which this generation-1 pair now provides."
+    }
+  ],
+  "assumptions_resolved": [
+    "Claim #5138 holds migration version 20261030125352 with an author check-in bound to head 6f4139f77 and then to the pair head.",
+    "refs/db-contracts/5128/1 published before the evidence-pair commit."
+  ],
+  "stop_conditions_hit": []
+}
