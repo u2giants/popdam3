@@ -244,6 +244,19 @@
         "20261002224215"
       ],
       "reconciliation_note": "live capture 2026-10-02; second of the two #2986 orphans; refuses until 20260904183000 is reconciled"
+    },
+    {
+      "issue": 4508,
+      "claim": 5090,
+      "source_pr": 5075,
+      "mode": "replacement_already_applied",
+      "orphan_version": "20261030014205",
+      "replacement_version": "20261030042314",
+      "preview_run_id": 41012458156,
+      "preview_artifact_id": 12958590525,
+      "preview_artifact_digest": "sha256:254880bc0e3679ccaaece3cee956a731a07babe56ebb3159a45123b0bd87a76e",
+      "issue_state": "open",
+      "claim_state": "closed"
     }
   ]
 }
