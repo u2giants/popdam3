@@ -16,7 +16,7 @@ A missing, malformed or stale consumer commit refuses the run.
 
 The producer checkout must still be the exact current canonical `main`; the
 production identity must still be proved through the bounded Management API read;
-the generated schema list stays exactly `public,dflow,plm,core,app`. The existing
+the generated schema list stays exactly `public,dflow,plm,core,app,hts_rag`. The existing
 cross-repository `SYNC_TOKEN` is used only for bounded read-only GitHub requests;
 no token or source payload is published. Lack of access fails closed.
 

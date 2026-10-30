@@ -151,7 +151,7 @@ test('workflow isolates the unchanged preview generator from the guarded product
   assert.match(production, /issues:\s*read/)
   assert.match(production, /SUPABASE_ACCESS_TOKEN:\s*\$\{\{\s*secrets\.SUPABASE_ACCESS_TOKEN\s*\}\}/)
   assert.match(production, /PRODUCTION_PROJECT_REF: qsllyeztdwjgirsysgai/)
-  assert.match(production, /SCHEMAS: public,dflow,plm,core,app/)
+  assert.match(production, /SCHEMAS: public,dflow,plm,core,app,hts_rag/)
   assert.match(production, /validate-issue/)
   assert.match(production, /validate-main/)
   assert.match(production, /validate-project/)

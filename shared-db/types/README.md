@@ -41,7 +41,7 @@ everything optional. Using `Row` for a write is the usual cause of a spurious
 
 ## Which schemas are covered
 
-`public`, `dflow`, `plm`, `core`, `app`.
+`public`, `dflow`, `plm`, `core`, `app`, `hts_rag`.
 
 If an application needs a schema not in that list, regenerate with it added
 rather than hand-writing the missing piece.
