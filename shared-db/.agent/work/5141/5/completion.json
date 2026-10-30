@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "work_issue": 5141,
+  "pr": 5155,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/5141/5",
+  "contract_sha256": "aa826370550a59431f408f92ee3ad461342ae5b8083aae428071c6085717d1cf",
+  "head_sha": "c1d1e273c8b2c9766ffd30edec139965050b8501",
+  "base_sha": "f493a5afac5520226bbeac2c0c6de796a27a25a4",
+  "files_changed": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "migration_versions": [],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "evidence": "Static checks pass with the new allowlist entry; the entry pins the sha256 of the file already on main.",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Ledger state re-verified at dispatch time."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "work_issue": 5141,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 5141,
+    "generation": 4,
+    "contract_sha256": "63871e8aafea666a26c87502a917cc2ab442b59a167559f57ff11c2f1a40777a"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Unblock the active merge queue's shared-preview hold: add 20261030125352's pinned sha256 to the atomic migration allowlist so #5129's owed merged-main rehearsal can run on the atomic lane and post the Post-merge preview rehearsal signal the next migration group (#5143) waits on",
+  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "branch": "zcode/5141-atomic-allowlist-125352",
+  "worktree": "/worksp/shared-db/.wt-5141-cfg",
+  "dispatcher": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz (coordinator delivery, continuing owner-authorized #5141 recovery): the queue hold on b4fa655ae blocks every migration PR; rehearsing 125352 first is the governed unblock",
+  "worker": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "file_writes": [],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file changes; the pinned sha256 is the file already merged on main",
+    "No database writes; the rehearsal and promotion run through the governed workflow only",
+    "Never bypass or roll back the merge queue ruleset; a refusal stays a stop-and-report"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "20261030125352 is applied nowhere (production 820 rows top 20261030042314; preview 853 rows top 20261030042314, verified 2026-10-30 ~16:20Z)",
+    "A plain bounded apply cannot be used while main still carries the broken 20261030043848, so the atomic lane with this pinned entry is the only rehearsal that can succeed",
+    "Same entry shape as PR #5139 (20261030043848) and #5143's in-flight sha update"
+  ],
+  "stop_conditions": [
+    "The merged-main rehearsal of 20261030125352 fails on the allowlist entry"
+  ]
+}
