@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 5141,
+  "pr": 5151,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/5141/4",
+  "contract_sha256": "63871e8aafea666a26c87502a917cc2ab442b59a167559f57ff11c2f1a40777a",
+  "head_sha": "c268438c1458fcb2fdc717e305d89f09a068321b",
+  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "files_changed": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/agents/orchestrator.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/db-flow/admission.mjs",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/unapplied-edit-subset.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/queue-hygiene-report.test.mjs"
+  ],
+  "migration_versions": [],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "node --test scripts/db-flow/admission-outcome.test.mjs",
+      "evidence": "100 tests pass including the three new unapplied-migration-edit subset tests (subset admitted; applied/unheld/unknown refused; admitIssue wiring incl. fail-closed ledger).",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test scripts/db-flow/evidence-bundle.test.mjs",
+      "evidence": "6 tests pass after registering the new import-closure files in the invalidator inventory.",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test scripts/queue-hygiene-report.test.mjs",
+      "evidence": "16 tests pass after classifying the three new read-only ledger hooks.",
+      "exit_code": 0
+    },
+    {
+      "command": "node --test scripts/manage-migration-author-lanes.test.mjs",
+      "evidence": "909 tests pass on the lane manager with the new io hooks and admission wiring.",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "bash scripts/check-sql.sh, scripts/check-throughput-truth-audit.mjs and the adjacent guard suites also pass green in the worktree.",
+    "Live proof on PR #5143 data: exact-match fails, the subset path activates, ledgers prove 20261030043848 absent from both production (820 rows, top 20261030042314) and preview, and the only remaining refusal names the expired claim lease \u2014 cured by the pre-merge check-in."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "work_issue": 5141,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 5141,
+    "generation": 3,
+    "contract_sha256": "67c7473e72040c4d555dc666a891db22c098eb46e2727552644d40506885788e"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Cure the admission gap named by #5141: a pull request that edits an everywhere-unapplied migration can pass structural admission as a claim-held subset of the issue writes (exact equality is unsatisfiable for a patch fragment), so the merged-but-unapplied 20261030043848 fix (#5143) and every queued migration behind it can land",
+  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "branch": "zcode/5141-unapplied-edit-subset-admission",
+  "worktree": "/worksp/shared-db/.wt-5141",
+  "dispatcher": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz (coordinator delivery, continuing owner-authorized #5141 recovery): implement + merge the #5141 admission cure PR",
+  "worker": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz",
+  "allowed_paths": [
+    ".github/workflows/guarded-migration-merge.yml",
+    ".github/workflows/merge-queue-gate.yml",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/orchestrator-global-invalidators-v1.json",
+    "docs/agents/orchestrator.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "scripts/db-flow/admission-outcome.test.mjs",
+    "scripts/db-flow/admission.mjs",
+    "scripts/lib/lanes/admission.mjs",
+    "scripts/lib/lanes/unapplied-edit-subset.mjs",
+    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/queue-hygiene-report.test.mjs"
+  ],
+  "file_writes": [
+    "scripts/lib/lanes/unapplied-edit-subset.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No change to the exact-equality rule for added-migration pull requests; no relaxation that does not prove ledger absence, claim coverage, and issue-declared writes together",
+    "No database writes; the ledger reads are read-only SELECTs through the same library code the edit guard runs",
+    "Never bypass or roll back the merge queue ruleset; a refusal stays a stop-and-report"
+  ],
+  "required_checks": [
+    "node --test scripts/db-flow/admission-outcome.test.mjs",
+    "node --test scripts/db-flow/evidence-bundle.test.mjs",
+    "node --test scripts/manage-migration-author-lanes.test.mjs",
+    "node --test scripts/queue-hygiene-report.test.mjs"
+  ],
+  "assumptions": [
+    "The design posted on #5141 (subset admission under everywhere-unapplied + branch-bound active claim + issue-declared writes) is the chosen cure and is not re-decided here",
+    "Admission re-runs at promotion after this same pull request's rehearsal applied the edited body, so preview presence is excused only by the edit guard's byte-exact statements match (PR #2933 rule); production presence is never excused",
+    "The outcome-completion gate still demands exact match; closing the work issue of an edited migration needs its own governed rule and is out of scope here",
+    "Generation 2 was superseded before merge: CI's invalidator-inventory test requires the manager import closure to be registered in config/orchestrator-global-invalidators-v1.json, which generation 2's allowed_paths did not cover",
+    "Generation 3 was superseded before merge: CI's githubIo hook-classification test requires new io hooks to be classified in scripts/queue-hygiene-report.test.mjs, which generation 3's allowed_paths did not cover"
+  ],
+  "stop_conditions": [
+    "Any existing admission or merge test fails after the change",
+    "The guarded merge of #5143 still refuses after the cure lands"
+  ]
+}

@@ -158,6 +158,21 @@ only actual shared-database structure work proceeds. A sender's label never admi
 application code or data, CI, reviewer/workflow work, or repository maintenance. Rejection is
 recorded as a typed `rejected_non_structural` event without consuming any lane or shared stage.
 
+**Edited-migration admission (issue #5141).** A pull request that EDITS a migration file can
+never satisfy the ordinary rule that the PR's actual structural objects exactly match the issue's
+`writes:` — for a modified file admission reads only the patch's added lines, a fragment of the
+migration's whole object set. The one governed lane through: when every migration file in the PR
+carries a version ABSENT from both the preview and production ledgers (everywhere-unapplied), and
+every patch-derived object is declared in the issue's `writes:` AND held by the PR's branch-bound
+active claim, the fragment is admitted as a SUBSET of the admitted writes. The preview ledger
+excuses a version only when its recorded statements are reproduced exactly by the file at the PR
+head (the edit guard's own byte-exact rule, PR #2933), because admission re-runs at this same PR's
+promotion after its own rehearsal applied the edited body. Production presence is never excused.
+Every unknown fact — unreadable ledger, absent token, zero or several matching claims, an object
+nobody declared or claimed — refuses (fail closed). Added-migration pull requests keep exact
+equality unchanged. The outcome-completion gate (`--complete-outcome`) still demands exact match;
+closing the work issue of an edited migration needs its own governed rule.
+
 ### Queue priority
 
 Among eligible structural issues, service class orders urgent application work before standard

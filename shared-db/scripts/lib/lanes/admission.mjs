@@ -1,7 +1,8 @@
 // Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { isTrustedOperatorComment } from '../../lib/repository-identity.mjs'
-import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, NON_STRUCTURAL_CHANGE_TYPES } from '../../db-flow/admission.mjs'
+import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, structuralWritesMatchUnappliedEdit, unappliedEditMigrationFiles, NON_STRUCTURAL_CHANGE_TYPES } from '../../db-flow/admission.mjs'
+import { appliedLedgerVersions, branchBoundClaimWrites, previewVerifiedIdentical } from './unapplied-edit-subset.mjs'
 import { findCompletionRecord } from '../../lib/work-dependencies.mjs'
 import { outcomeHistory, OutcomeError, OUTCOME_STATES, advanceOutcome } from '../../db-flow/outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
@@ -69,8 +70,26 @@ export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-m
       }else{
       const inspection=inspectPrStructuralChange(files)
       const declared=[...scope.writes].sort()
-      if(!structuralWritesMatch(inspection,declared))throw new AdmissionError(`pull request #${pr} structural objects must exactly match admitted issue #${number} writes`)
-      admitted={...admitted,actual_objects:inspection.objects,migrations:inspection.migrations}
+      if(!structuralWritesMatch(inspection,declared)){
+        // #5141: an EDITED migration's patch holds a fragment of the migration's
+        // objects, so exact equality is unsatisfiable by construction. The subset
+        // lane runs ONLY for a modified migration file; every other pull request
+        // keeps the exact-match refusal verbatim.
+        const editFiles=unappliedEditMigrationFiles(files)
+        if(!editFiles.some((row)=>row.status==='modified'))throw new AdmissionError(`pull request #${pr} structural objects must exactly match admitted issue #${number} writes`)
+        let claim,ledgers
+        try{
+          claim=branchBoundClaimWrites(livePr?.head?.ref,io)
+          ledgers=appliedLedgerVersions(io)
+          ledgers.previewIdentical=previewVerifiedIdentical(editFiles,ledgers,io,{readFileAt:(name)=>io.getFileAt(name,head)})
+        }catch(error){
+          throw error instanceof AdmissionError?error:new AdmissionError(`pull request #${pr} cannot prove the unapplied-migration-edit subset conditions: ${error.message}`)
+        }
+        structuralWritesMatchUnappliedEdit(inspection,declared,editFiles,ledgers,claim.writes)
+        admitted={...admitted,actual_objects:inspection.objects,migrations:inspection.migrations,unapplied_edit_subset:{claim:claim.claimNumber,versions:editFiles.map((row)=>row.version)}}
+      }else{
+        admitted={...admitted,actual_objects:inspection.objects,migrations:inspection.migrations}
+      }
       }
     }
     if(reopenAfterValidation){

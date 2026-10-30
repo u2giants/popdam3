@@ -327,6 +327,71 @@ export function structuralWritesMatch(inspection, declared) {
   return actual.length===compared.length&&actual.every((value,index)=>value===compared[index])
 }
 
+// #5141 — the unapplied-migration-edit subset proof. A pull request that EDITS
+// a migration file can never satisfy the exact equality above: for a modified
+// file `inspectPrStructuralChange` reads only the PATCH's added lines, so the
+// inspection holds a fragment of the migration's full object set while the
+// admitted issue's `writes:` describe the whole migration. A merged-but-
+// unapplied version (its own rehearsal rolled back) could therefore never be
+// fixed: the fix pull request edits the migration, admission compares the
+// fragment against the whole, and no edit can pass — while the same absent
+// rehearsal signal holds every later migration group. The one governed lane
+// through, exactly as designed on issue #5141: when EVERY migration file in
+// the pull request carries a version that NO ledger has applied anywhere
+// (preview-applied is excused only when the preview row's recorded statements
+// are reproduced exactly by the file at the pull request head — the edit
+// guard's own sanctioned rule from PR #2933 — because admission re-runs at
+// this same pull request's promotion, after its own rehearsal applied the
+// edited body), and EVERY patch-derived object is both declared in the
+// admitted issue's `writes:` and held by the pull request's branch-bound
+// active claim, the fragment is accepted as a SUBSET of the admitted writes.
+// Exact equality for added-migration pull requests is unchanged, and every
+// unknown fact here refuses (fail closed), so this can never widen into a
+// general subset lane.
+export function unappliedEditMigrationFiles(prFiles = []) {
+  if (!Array.isArray(prFiles)) throw new AdmissionError('pull request files are unreadable, so an unapplied-migration edit cannot be subset-admitted')
+  const rows=[]
+  for(const file of prFiles){
+    const name=String(file?.filename??file?.path??'')
+    const match=/^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(name)
+    if(!match||file?.status==='removed')continue
+    rows.push({name,status:String(file?.status??''),version:match[1]})
+  }
+  return rows
+}
+
+export function structuralWritesMatchUnappliedEdit(inspection, declared, migrationFiles, ledgers, claimWrites) {
+  const refuse=(reason)=>{throw new AdmissionError(`unapplied-migration-edit subset admission refused: ${reason}`)}
+  if(!Array.isArray(migrationFiles)||!migrationFiles.length)refuse('the pull request names no migration file')
+  if(!migrationFiles.some((row)=>row.status==='modified'))return false
+  for(const row of migrationFiles){
+    if(row.status!=='added'&&row.status!=='modified')refuse(`migration ${row.name} has unknown status ${JSON.stringify(row.status)}; only added or modified migrations can be subset-admitted`)
+    if(!/^\d{14}$/.test(String(row.version??''))||!/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(row.name))refuse(`migration ${row.name} has an unreadable version`)
+  }
+  if(!ledgers||!['preview','production','previewIdentical'].every((name)=>ledgers[name] instanceof Set))refuse('the applied-migration ledgers are unreadable')
+  for(const name of ['preview','production'])if(!ledgers[name].size)refuse(`the ${name} ledger came back empty, so nothing was compared`)
+  // The everywhere-unapplied rule, with the one sanctioned continuation: after
+  // this same pull request's own preview rehearsal applied the EDITED body, the
+  // version legitimately sits in the preview ledger at promotion-time admission.
+  // That presence is excused only when the caller proved the preview row's
+  // recorded statements are reproduced exactly by the file at the pull request
+  // head — the edit-guard's own byte-exact rule (PR #2933). Production presence
+  // is never excused: an applied production version is immutable, full stop.
+  for(const row of migrationFiles){
+    if(ledgers.production.has(row.version))refuse(`migration ${row.version} is already applied on production; an applied production version is immutable and its edits stay refused`)
+    if(ledgers.preview.has(row.version)&&!ledgers.previewIdentical.has(row.version))refuse(`migration ${row.version} is already applied on preview with a body this pull request does not reproduce exactly`)
+  }
+  if(!Array.isArray(inspection?.objects)||!inspection.objects.length)refuse('the edited migration patch carries no structural object')
+  if(!Array.isArray(declared)||!declared.length)refuse('the admitted issue declares no writes')
+  if(!Array.isArray(claimWrites)||!claimWrites.length)refuse('the branch-bound active claim holds no writes')
+  const held=new Set(claimWrites)
+  const undeclared=inspection.objects.filter((key)=>!declared.includes(key))
+  if(undeclared.length)refuse(`patch objects not declared in the admitted issue writes: ${undeclared.join(', ')}`)
+  const unclaimed=inspection.objects.filter((key)=>!held.has(key))
+  if(unclaimed.length)refuse(`patch objects not held by the pull request's branch-bound active claim: ${unclaimed.join(', ')}`)
+  return true
+}
+
 // Preview preparation (issue #3418): a claim may OVER-declare. Its object locks were
 // broader than the migration needed, which only ever excluded other writers, so a
 // migration writing a non-empty SUBSET of the claim is safe to rehearse. Every object

@@ -17,7 +17,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { constants as fsConstants, closeSync, existsSync, fstatSync, openSync, readFileSync, renameSync, writeFileSync, lstatSync, realpathSync, readdirSync } from 'node:fs'
 import { readZipEntries } from './lib/zip-entries.mjs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
 import { dependencyIssue, parseDependencyDeclarations, classifyDependencies, findCompletionRecord, findDependencyCycles, validateCompletionRecord, validateDependencyDeclaration, COMPLETION_FENCE, DependencyError } from './lib/work-dependencies.mjs'
 import { assertLease, evaluateRecovery, formatLeaseMessage, parseLeaseMessage, recoveredLeaseMetadata, LeaseError } from './lib/exclusive-lease.mjs'
@@ -895,6 +895,55 @@ export const githubIo = {
     const files=this.getPrFiles(Number(number)).map((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(String(file?.filename??file?.path??''))&&file?.status!=='removed'
       ?{...file,content:this.getFileAt(file.filename??file.path,headSha)}:file)
     return inspectPrStructuralChange(files)
+  },
+  // #5141 — the two read-only ledger reads behind the unapplied-migration-edit
+  // subset proof in db-flow/admission.mjs. They run in a child node process
+  // because admission (and every lane command that runs it) is synchronous
+  // while the Supabase Management API client is async fetch; the child runs the
+  // SAME library code (db-flow/read-preview-ledger.mjs and the edit guard's
+  // fetchLedgerStatements), so there is no second HTTP implementation, and any
+  // failure — absent token, unreachable API, malformed row — is rethrown so
+  // the subset proof fails closed exactly like every other ledger guard.
+  appliedMigrationVersions(){
+    const out=this.runLedgerQuery([
+      'const out={}',
+      'for(const [name,ref] of Object.entries(PROJECT_REFS)){',
+      '  try{out[name]=await fetchAppliedVersions(ref)}catch(error){fail(error)}',
+      '}',
+      'process.stdout.write(JSON.stringify(out))',
+    ].join('\n'))
+    const ledgers={}
+    for(const name of ['preview','production']){
+      if(!Array.isArray(out[name])||!out[name].length)throw new LaneError(`the ${name} applied-migration ledger came back unreadable or empty`)
+      ledgers[name]=new Set(out[name].map(String))
+    }
+    return ledgers
+  },
+  previewLedgerStatements(version){
+    if(!/^\d{14}$/.test(String(version??'')))throw new LaneError('preview ledger statements require an exact 14-digit migration version')
+    const out=this.runLedgerQuery([
+      `const version=${JSON.stringify(String(version))}`,
+      'let statements',
+      'try{statements=await fetchLedgerStatements(PROJECT_REFS.preview,version)}catch(error){fail(error)}',
+      'process.stdout.write(JSON.stringify(statements))',
+    ].join('\n'))
+    if(!Array.isArray(out))throw new LaneError(`preview ledger statements for ${version} came back unreadable`)
+    return out
+  },
+  runLedgerQuery(script){
+    const here=path.dirname(fileURLToPath(import.meta.url))
+    const importer=[
+      `import {fetchAppliedVersions,PROJECT_REFS} from ${JSON.stringify(pathToFileURL(path.join(here,'db-flow','read-preview-ledger.mjs')).href)}`,
+      `import {fetchLedgerStatements} from ${JSON.stringify(pathToFileURL(path.join(here,'check-applied-migration-edit.mjs')).href)}`,
+      'const fail=(error)=>{process.stderr.write(String((error&&error.message)||error));process.exit(3)}',
+    ].join('\n')
+    let stdout
+    try{
+      stdout=execFileSync(process.execPath,['--input-type=module','--eval',`${importer}\n${script}`],{encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:8*1024*1024,env:process.env})
+    }catch(error){
+      throw new LaneError(`the applied-migration ledger read failed: ${String(error.stderr||error.message).slice(0,400)}`)
+    }
+    try{return JSON.parse(stdout)}catch{throw new LaneError('the applied-migration ledger read returned malformed JSON')}
   },
   // Issue #2342: the caller reads a whole SET of files at one ref, which used to
   // be a Contents call each. One recursive tree read now answers every path, and

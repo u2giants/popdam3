@@ -1241,7 +1241,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    2026-09-28: never ask a human to approve).
 4. **New timestamped migration files only.** Each change is a new
    `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
-   applied anywhere — that is how two sessions silently clobber each other.
+   applied anywhere — that is how two sessions silently clobber each other. The
+   one sanctioned exception (issue #5141): a pull request MAY edit a migration
+   whose version no ledger has applied anywhere, admitted as a claim-held subset
+   proof (see orchestrator.md §admission); everywhere-unapplied is proven live
+   from both ledgers at admission, never assumed.
 5. **Never reuse a timestamp — a duplicate SILENTLY SKIPS a migration.**
    Supabase's ledger (`supabase_migrations.schema_migrations`) keys on the
    **version (the timestamp) alone — not the filename**. If two migrations share

@@ -3,7 +3,7 @@ import { currentRepository, expectedOperatorAssociation } from '../lib/repositor
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
-import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, structuralWritesMatch, inspectPrCuratedDataChange } from './admission.mjs'
+import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, structuralWritesMatch, inspectPrCuratedDataChange, structuralWritesMatchUnappliedEdit, unappliedEditMigrationFiles } from './admission.mjs'
 import { OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES, parseOutcomeEvidence } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
 import { githubIo, admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
@@ -353,6 +353,74 @@ test('an admitted issue cannot authorize a claim for different objects',()=>{
     assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.unrelated'],new Date('2026-09-11T00:00:00Z'),io),2)
   }finally{console.error=old}
   assert.match(message,/must exactly match admitted issue/);assert.equal(claims,0)
+})
+
+
+// #5141 — the unapplied-migration-edit subset proof. A pull request that EDITS
+// a migration can never satisfy exact equality (the inspection reads only the
+// patch's added lines), so without this lane a merged-but-unapplied migration
+// whose rehearsal rolled back could never be fixed: the fix edits the file,
+// admission compares the fragment against the whole, and no edit can pass.
+const editPatch=(added)=>`@@ -1,2 +1,${2+added.split('\n').length} @@\n-create function public.old_one() returns void;\n+${added.split('\n').join('\n+')}`
+const modifiedMigrationFile=(version,added)=>({filename:`supabase/migrations/${version}_recovery.sql`,status:'modified',patch:editPatch(added)})
+// Background rows every real ledger has; the fail-closed empty-ledger refusal
+// is exercised separately below.
+const subsetLedgers=({preview=['20260101000000'],production=['20260101000000'],previewIdentical=[]}={})=>({preview:new Set(preview),production:new Set(production),previewIdentical:new Set(previewIdentical)})
+
+test('an edited everywhere-unapplied migration admits as a claim-held subset of the issue writes',()=>{
+  const inspected=inspectPrStructuralChange([modifiedMigrationFile('20261030043848','alter function public.backfill_pdf_files_used_v2() set statement_timeout = \'30min\';')])
+  const declared=['function public.backfill_pdf_files_used_v2','table public.sku_style_guide_links'].sort()
+  const files=unappliedEditMigrationFiles([{filename:'supabase/migrations/20261030043848_recovery.sql',status:'modified'},{filename:'config/atomic-migration-allowlist.json',status:'modified'}])
+  assert.equal(structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers(),['function public.backfill_pdf_files_used_v2']),true)
+  assert.equal(structuralWritesMatch(inspected,declared),false,'the ordinary exact-match comparator still refuses the fragment')
+})
+
+test('the subset lane refuses applied versions, unheld objects and unknown facts',()=>{
+  const inspected=inspectPrStructuralChange([modifiedMigrationFile('20261030043848','alter function public.backfill_pdf_files_used_v2() set statement_timeout = \'30min\';')])
+  const declared=['function public.backfill_pdf_files_used_v2']
+  const files=unappliedEditMigrationFiles([{filename:'supabase/migrations/20261030043848_recovery.sql',status:'modified'}])
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers({production:['20261030043848']}),declared),/already applied on production/)
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers({preview:['20261030043848']}),declared),/already applied on preview with a body this pull request does not reproduce exactly/)
+  assert.equal(structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers({preview:['20261030043848'],previewIdentical:['20261030043848']}),declared),true,'the byte-exact preview continuation of this same pull request is excused')
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers(),[]),/branch-bound active claim holds no writes/)
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,['table public.sku_style_guide_links'],files,subsetLedgers(),['table public.sku_style_guide_links']),/not declared in the admitted issue writes/)
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers(),['table public.sku_style_guide_links']),/not held by the pull request's branch-bound active claim/)
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,files,subsetLedgers({preview:[]}),declared),/preview ledger came back empty/)
+  assert.throws(()=>structuralWritesMatchUnappliedEdit(inspected,declared,[...files,{filename:'supabase/migrations/20261030043848b_recovery.sql',status:'modified'}],subsetLedgers(),declared),/unreadable version/)
+  assert.equal(structuralWritesMatchUnappliedEdit(inspected,declared,unappliedEditMigrationFiles([{filename:'supabase/migrations/20261030043848_recovery.sql',status:'added'}]),subsetLedgers(),declared),false,'an added-only pull request never enters the subset lane')
+})
+
+test('admitIssue accepts a modified-migration pull request only through the proven subset lane',()=>{
+  // The issue declares the migration's WHOLE object set; the edit's patch holds
+  // a fragment of it — exactly the shape exact equality can never accept.
+  const body=scopeBody({object:'function public.backfill_pdf_files_used_v2'}).replace('writes:\n  - function public.backfill_pdf_files_used_v2','writes:\n  - function public.backfill_pdf_files_used_v2\n  - table public.sku_style_guide_links')
+  const claim=claimBody({version:'20261030043848',objects:['function public.backfill_pdf_files_used_v2'],owner:'ZCode chat test on hetz',branch:'zcode/recovery-5141',worktree:'/worksp/shared-db/.wt-test',expiresAt:new Date(Date.now()+3600*1000)})
+  const files=[{filename:'supabase/migrations/20261030043848_recovery.sql',status:'modified',patch:editPatch('alter function public.backfill_pdf_files_used_v2() set statement_timeout = \'30min\';')}]
+  const io=(extra={})=>{
+    const comments=[]
+    return {
+    closingIssuesForPr:()=>[{number:41,state:'open'}],getIssue:()=>issue(body),issueComments:()=>comments,commentIssue:(_n,value)=>comments.push(ownerComment(value)),
+    getPr:()=>({head:{sha:'a'.repeat(40),ref:'zcode/recovery-5141'}}),
+    getPrFiles:()=>files,getFileAt:()=>'alter function public.backfill_pdf_files_used_v2() set statement_timeout = \'30min\';',
+    openClaims:()=>[{number:12,body:claim}],
+    appliedMigrationVersions:()=>({preview:new Set(['20260101000000']),production:new Set(['20260101000000'])}),
+    previewLedgerStatements:()=>{throw new Error('must not be read while preview holds no version')},
+    ...extra,
+  }}
+  const admitted=admitIssue(41,io(),{pr:7})
+  assert.equal(admitted.admitted,true)
+  assert.deepEqual(admitted.unapplied_edit_subset,{claim:12,versions:['20261030043848']})
+  assert.deepEqual(admitted.actual_objects,['function public.backfill_pdf_files_used_v2'])
+  // The claim must be the pull request branch's own active claim: another
+  // branch's claim, an expired lease, or several matches all refuse.
+  assert.throws(()=>admitIssue(41,io({openClaims:()=>[{number:13,body:claimBody({version:'20261030043848',objects:['function public.backfill_pdf_files_used_v2'],owner:'o',branch:'other/branch',worktree:'w',expiresAt:new Date(Date.now()+3600*1000)})}]}),{pr:7}),/exactly one active branch-bound claim is required for branch zcode\/recovery-5141; found 0/)
+  assert.throws(()=>admitIssue(41,io({openClaims:()=>[{number:12,body:claimBody({version:'20261030043848',objects:['function public.backfill_pdf_files_used_v2'],owner:'o',branch:'zcode/recovery-5141',worktree:'w',expiresAt:new Date(Date.now()-1000)})}]}),{pr:7}),/found 0/)
+  // A version already applied on production stays refused even with the claim.
+  assert.throws(()=>admitIssue(41,io({appliedMigrationVersions:()=>({preview:new Set(['20260101000000']),production:new Set(['20260101000000','20261030043848'])})}),{pr:7}),/already applied on production/)
+  // An unreadable ledger fails closed into a refusal, never a silent pass.
+  assert.throws(()=>admitIssue(41,io({appliedMigrationVersions:()=>{throw new Error('SUPABASE_ACCESS_TOKEN is not set')}}),{pr:7}),/ledger read failed \(fail closed\)/)
+  // An added-only migration pull request keeps the exact-match refusal verbatim.
+  assert.throws(()=>admitIssue(41,io({getPrFiles:()=>[{filename:'supabase/migrations/20261030043848_recovery.sql',status:'added'}]}),{pr:7}),/structural objects must exactly match admitted issue #41 writes/)
 })
 
 test('source PR resolves exactly one linked open issue and independently admits its files', () => {
