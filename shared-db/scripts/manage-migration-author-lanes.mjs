@@ -917,11 +917,15 @@ export const githubIo = {
     const byName=new Map(checks.map((row)=>[row.name,String(row.state).toUpperCase()]))
     const failed=pendingRequiredContexts(protectedContexts,byName)
     if(failed.length)throw new LaneError(`required full CI is not successful on the current head: ${failed.join(', ')}`)
-    // #3806: the post-merge rehearsal route judges a merged PR whose verdict may be archived.
-    assertDurableReviewApproval(issue,pr,head,this,{includeArchived:true})
+    // Review is advice only (owner ruling 2026-10-29, ai-devops#2074 stage F
+    // deleted the durable verdict refs). Preview admission instead holds while
+    // a blocking review-finding issue references this PR -- the same rule 8.6
+    // query production promotion uses (scripts/review_finding_hold.py).
+    try{execFileSync('python3',['scripts/review_finding_hold.py','--pr',String(pr),'--repo',REPO],{encoding:'utf8',timeout:180000,maxBuffer:1024*1024})}
+    catch(error){throw new LaneError(error?.status===3?`a blocking review-finding issue references PR #${pr}`:`review-finding hold query failed: ${error?.message??error}`)}
     const states=dependencies.length?this.dependencyStates(dependencies):{},closure=classifyDependencies(issue,dependencies,states)
     if(!closure.satisfied)throw new LaneError(`migration dependency closure is incomplete: ${closure.blocked.map((row)=>`#${row.number}`).join(', ')}`)
-    return {full_ci_success:true,review_approved:true,dependency_closure_complete:true}
+    return {full_ci_success:true,review_approved:true,review_finding_hold:'clear',dependency_closure_complete:true}
   },
   getIssue(number) { return ghJson(['api', `repos/${REPO}/issues/${number}`]) },
   getIssueComments(number) { return ghPaginated(`repos/${REPO}/issues/${number}/comments?per_page=100`) },

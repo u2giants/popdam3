@@ -697,6 +697,8 @@ PREVIEW_PRODUCER_PATHS = (
     # admission (#4464/#4486); unpinned, an edited pin table would be trusted.
     "scripts/db-flow/requalified-preview-runs.mjs",
     "scripts/generated-types-proof.mjs",
+    # Run by the manager's preview gate (#5130): the review-finding hold.
+    "scripts/review_finding_hold.py",
     # Existing normal canonical validators now used by authenticated nonclosing routing.
     "scripts/agent-work-contract-git-evidence.mjs",
     "scripts/agent-work-contract.mjs",
