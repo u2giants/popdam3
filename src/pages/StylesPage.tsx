@@ -27,7 +27,7 @@ import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } f
 import { cn } from "@/lib/utils";
 import { type FieldKey, type StyleRow, type SheetColumn, type ReviewItem, type LinkCandidate, type JevRankingResponse, type DescriptionEditorOptions, type AuditCell, type SavedView } from "./styles/types";
 import { JEV_MATCH_FIELDS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
-import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription } from "./styles/helpers";
+import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation } from "./styles/helpers";
 import { refreshBridgeWithMeasurement, fetchRowsPage, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
 import { DescriptionBuilderEditor, RowNumberCell, RowNumberHeader, RfqGroupCell } from "./styles/cells";
 
@@ -526,6 +526,7 @@ export default function StylesPage() {
         valueGetter: (params) => params.data?.match_status ?? "unmatched",
         cellRenderer: (params: { data?: StyleRow }) => (
           <span
+            title={matchStatusExplanation(params.data) ?? undefined}
             className={cn(
               "inline-flex max-w-full items-center rounded px-1.5 py-0.5 text-[10px] font-medium",
               params.data?.match_status === "matched" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
