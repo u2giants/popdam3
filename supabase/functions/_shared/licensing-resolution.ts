@@ -25,12 +25,16 @@ export interface LicensingResolution {
   unresolved_licensor: boolean;
   unresolved_property: boolean;
   reason: string | null;
+  /** ERP's answer when the item is in the mirror; null leaves the folder rule in charge. */
+  is_licensed?: boolean | null;
 }
 
 export interface LicensingMaps {
   erpByStyleAndDivision: Map<string, ErpLicensing>;
   licensorsBySourceId: Map<string, SourceIdentity>;
   propertiesBySourceId: Map<string, SourceIdentity & { licensor_id: string }>;
+  licensorsByCode: Map<string, SourceIdentity>;
+  propertiesByLicensorAndCode: Map<string, SourceIdentity>;
 }
 
 function itemKey(styleNumber: string, divisionCode: string | null): string {
@@ -53,6 +57,28 @@ function coldLionSourceId(divisionCode: string, mgTypeCode: "05" | "06", mgCode:
   return `EDGEHOME/${divisionCode}/${mgTypeCode}/${mgCode}`;
 }
 
+/** Map of key → value keeping only keys that occur exactly once (a duplicated code is ambiguous). */
+function uniqueByKey<T>(entries: Array<[string | null, T]>): Map<string, T> {
+  const counts = new Map<string, number>();
+  for (const [key] of entries) if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return new Map(entries.filter(([key]) => key && counts.get(key) === 1) as Array<[string, T]>);
+}
+
+async function licensorByCode(db: ServiceClient, code: string, maps?: LicensingMaps): Promise<SourceIdentity | null> {
+  if (maps) return maps.licensorsByCode.get(code) ?? null;
+  const { data, error } = await db.schema("core").from("licensor").select("id, name").eq("code", code).limit(2);
+  if (error) throw new Error(`Licensor code lookup failed: ${error.message}`);
+  return data?.length === 1 ? { id: data[0].id, name: data[0].name } : null;
+}
+
+async function propertyByCode(db: ServiceClient, licensorId: string, code: string, maps?: LicensingMaps): Promise<SourceIdentity | null> {
+  if (maps) return maps.propertiesByLicensorAndCode.get(`${licensorId}|${code}`) ?? null;
+  const { data, error } = await db.schema("core").from("property").select("id, name")
+    .eq("licensor_id", licensorId).eq("code", code).limit(2);
+  if (error) throw new Error(`Property code lookup failed: ${error.message}`);
+  return data?.length === 1 ? { id: data[0].id, name: data[0].name } : null;
+}
+
 export async function loadAuthoritativeLicensingMaps(
   db: ServiceClient,
   styleNumbers: string[],
@@ -61,16 +87,23 @@ export async function loadAuthoritativeLicensingMaps(
     ? canonicalItems(db).select("style_number, division_code, licensor_code, property_code")
       .in("style_number", [...new Set(styleNumbers)])
     : Promise.resolve({ data: [], error: null });
-  const [{ data: erpRows, error: erpError }, { data: refs, error: refError }, { data: properties, error: propertyError }] = await Promise.all([
+  const [
+    { data: erpRows, error: erpError },
+    { data: refs, error: refError },
+    { data: properties, error: propertyError },
+    { data: licensors, error: licensorError },
+  ] = await Promise.all([
     erpPromise,
     db.schema("core").from("taxonomy_source_ref").select("entity_table, entity_id, source_id, source_name")
       .eq("source_system", "coldlion").eq("source_table", "merchGroupDetails")
       .in("entity_table", ["licensor", "property"]),
-    db.schema("core").from("property").select("id, licensor_id"),
+    db.schema("core").from("property").select("id, licensor_id, code, name"),
+    db.schema("core").from("licensor").select("id, code, name"),
   ]);
   if (erpError) throw new Error(`Authoritative ColdLion item mirror failed: ${erpError.message}`);
   if (refError) throw new Error(`Authoritative licensing source references failed: ${refError.message}`);
   if (propertyError) throw new Error(`Authoritative property catalog failed: ${propertyError.message}`);
+  if (licensorError) throw new Error(`Authoritative licensor catalog failed: ${licensorError.message}`);
 
   const propertyParents = new Map((properties ?? []).map((row) => [row.id, row.licensor_id]));
   return {
@@ -87,6 +120,10 @@ export async function loadAuthoritativeLicensingMaps(
           licensor_id: propertyParents.get(row.entity_id) ?? "",
         }]),
     ),
+    licensorsByCode: uniqueByKey((licensors ?? []).map((row) => [row.code, { id: row.id, name: row.name }])),
+    propertiesByLicensorAndCode: uniqueByKey(
+      (properties ?? []).map((row) => [row.code ? `${row.licensor_id}|${row.code}` : null, { id: row.id, name: row.name }]),
+    ),
   };
 }
 
@@ -96,8 +133,9 @@ export async function resolveAuthoritativeLicensing(
   parsed: ParsedSku | null,
   maps?: LicensingMaps,
 ): Promise<LicensingResolution> {
-  if (!isLicensed) return emptyResolution(null, false);
-  if (!parsed) return emptyResolution("licensed_asset_has_no_parseable_sku", true);
+  // ERP (the ColdLion item mirror) decides licensing whenever it knows the
+  // style number; the folder-derived flag only applies to items ERP lacks.
+  if (!parsed) return isLicensed ? emptyResolution("licensed_asset_has_no_parseable_sku", true) : emptyResolution(null, false);
 
   let erp: ErpLicensing | null = maps?.erpByStyleAndDivision.get(itemKey(parsed.sku, parsed.division_code)) ?? null;
   if (!maps) {
@@ -110,11 +148,11 @@ export async function resolveAuthoritativeLicensing(
     if (error) throw new Error(`Authoritative ColdLion item lookup failed: ${error.message}`);
     erp = data;
   }
-  if (!erp) return emptyResolution("sku_not_in_coldlion_item_mirror", true);
+  if (!erp) return isLicensed ? emptyResolution("sku_not_in_coldlion_item_mirror", true) : emptyResolution(null, false);
+  if (!erp.licensor_code) return { ...emptyResolution(null, false), is_licensed: false };
   if (!erp.division_code || !["CW001", "SP001"].includes(erp.division_code)) {
     return emptyResolution("coldlion_item_is_not_in_a_licensed_division", true);
   }
-  if (!erp.licensor_code) return emptyResolution("coldlion_item_has_no_licensor_code", true);
 
   const licensorSourceId = coldLionSourceId(erp.division_code, "05", erp.licensor_code);
   let licensor: SourceIdentity | null = maps?.licensorsBySourceId.get(licensorSourceId) ?? null;
@@ -125,7 +163,9 @@ export async function resolveAuthoritativeLicensing(
     if (error) throw new Error(`Authoritative licensor lookup failed: ${error.message}`);
     licensor = data ? { id: data.entity_id, name: data.source_name } : null;
   }
-  if (!licensor) return { ...emptyResolution("licensor_source_key_not_in_curated_taxonomy", true), licensor_code: erp.licensor_code };
+  // The curated source map is sparse; core.licensor carries the same ColdLion code.
+  licensor ??= await licensorByCode(db, erp.licensor_code, maps);
+  if (!licensor) return { ...emptyResolution("licensor_code_not_in_taxonomy", true), licensor_code: erp.licensor_code, is_licensed: true };
 
   if (!erp.property_code) {
     return {
@@ -134,6 +174,7 @@ export async function resolveAuthoritativeLicensing(
       licensor_code: erp.licensor_code,
       licensor_name: licensor.name,
       unresolved_licensor: false,
+      is_licensed: true,
     };
   }
 
@@ -155,7 +196,10 @@ export async function resolveAuthoritativeLicensing(
     }
   }
 
+  property ??= await propertyByCode(db, licensor.id, erp.property_code, maps);
+
   return {
+    is_licensed: true,
     licensor_id: licensor.id,
     property_id: property?.id ?? null,
     licensor_code: erp.licensor_code,

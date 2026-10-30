@@ -1046,6 +1046,8 @@ async function handleIngest(
   // from filename character positions or folders. Explicit nulls clear stale
   // guesses when the source has no answer.
   const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed);
+  // ERP outranks the folder on whether the product is licensed.
+  if (licensing.is_licensed != null) derived.is_licensed = licensing.is_licensed;
   skuFields.licensor_id = licensing.licensor_id;
   skuFields.property_id = licensing.property_id;
   skuFields.licensor_code = licensing.licensor_code;
@@ -1106,6 +1108,7 @@ async function handleIngest(
   if (existingByHash) {
     const oldPath = existingByHash.relative_path;
     const reDerived = await deriveMetadataFromPath(relativePath, db);
+    if (licensing.is_licensed != null) reDerived.is_licensed = licensing.is_licensed;
 
     // Thumbnail logic: protect existing working thumbnails from being overwritten by errors
     const thumbMove: Record<string, unknown> = {};
@@ -1331,6 +1334,7 @@ async function handleMoveAsset(body: Record<string, unknown>) {
   const resolvedFilename = newFilename || asset.filename;
   const parsed = await parseSku(resolvedFilename);
   const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed);
+  if (licensing.is_licensed != null) derived.is_licensed = licensing.is_licensed;
 
   const moveUpdates: Record<string, unknown> = {
     relative_path: newRelativePath,
