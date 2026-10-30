@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "work_issue": 5175,
+  "outcome": "ready-for-merge",
+  "pr": 5178,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5175/3",
+  "contract_sha256": "c5c5eb7df903fb51f93a49e8f825643abc448f3db2b255f5f322de6a34a6a25a",
+  "base_sha": "9bdcd84ef4f63ecff340fc304f48daf066e1adeb",
+  "head_sha": "cb45e6b7b4eab9b25f47c601d0a68014db03acf2",
+  "files_changed": [
+    ".github/workflows/review-fixer.yml",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/verification/throughput-dispositions/scripts~review_finding_hold.py.json",
+    "scripts/review-fixer-lifecycle.mjs",
+    "scripts/review-fixer-lifecycle.test.mjs",
+    "scripts/review_finding_hold.py",
+    "scripts/test_review_finding_hold.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts.test_review_finding_hold",
+      "exit_code": 0,
+      "evidence": "scripts/test_review_finding_hold.py: 34 offline tests passed on implementation cb45e6b7b4eab9b25f47c601d0a68014db03acf2; includes exact target-job success despite unrelated failed branch and fail-closed wrong/missing proof cases."
+    },
+    {
+      "command": "node --test scripts/review-fixer-lifecycle.test.mjs",
+      "exit_code": 0,
+      "evidence": "scripts/review-fixer-lifecycle.test.mjs: 10 offline tests passed on implementation cb45e6b7b4eab9b25f47c601d0a68014db03acf2; includes exact claim owner deferral, stale PR occupancy release, hostile path and symlink refusal."
+    },
+    {
+      "command": "node scripts/check-github-transport-conformance.mjs",
+      "exit_code": 0,
+      "evidence": "454 files scanned; every governed GitHub call uses scripts/lib/github-transport.mjs."
+    },
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed; no added migration or database contact. Live-ledger check explicitly not configured and not claimed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors in the implementation diff."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+      "exit_code": 0,
+      "evidence": "24 throughput truth-audit tests passed, including current_repository_catalogues_follow_current_discovery; /tmp/shared-db-5175-truth-tests.log records the local run."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=380 sources=109 derived_digest=7eb231154a47; the only new source site is explicitly reviewed in docs/verification/throughput-dispositions/scripts~review_finding_hold.py.json."
+    }
+  ],
+  "assumptions_resolved": [
+    "Original implementation scope was published before code at refs/db-contracts/5175/1 (fa2eebbec9b4bcb42e014128e97be30e6525f0b4); generation 2 binds its digest and adds CI invocation scope before that workflow edit. No pre-work chronology is backdated.",
+    "The shared fixer marker contract binds repository, issue, source_pr, reviewed_head, target_branch/target_head, nonempty evidence, run_id/run_url, run_attempt and SHA256 target job_name.",
+    "Existing shared-db promotion callers already grant actions read/write; no permissions widened.",
+    "The stale fixer creates no structural claim itself: closing its exact PR removes prSources occupancy; any associated structural claim is preserved and blocks automatic cleanup.",
+    "Live proof is pending on shared-db #5175 and ai-devops #2171. This ready-for-merge record claims source/test readiness only, not merged delivery or live runtime acceptance.",
+    "Generation3 adds the required per-source throughput catalogue after CI run41114077582 named its absence; catalogue created only after refs/db-contracts/5175/3 readback and exact hash verification. Generation2 remains unchanged in published ref and Git history; the tip carries only current generation3 evidence per the existing refresh route."
+  ],
+  "stop_conditions_hit": []
+}

@@ -9,6 +9,8 @@ cannot be skipped, and no owner-override path remains.
 from __future__ import annotations
 
 import re
+import json
+import hashlib
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -91,6 +93,161 @@ class ListingLag(unittest.TestCase):
     def test_a_blocking_read_wins_over_a_later_clear_read(self):
         stale_open, closed = issue(12), issue(12, "closed", "completed", "2026-10-30T11:00:00Z")
         self.assertTrue(hold.holds([closed, stale_open], REPO, 5100, NOW))
+
+
+class InvalidEvidence(unittest.TestCase):
+    def setUp(self):
+        self.item = issue(20, "closed", "not_planned", "2026-10-30T11:00:00Z")
+        self.item["labels"] = [{"name": "review-finding"}, {"name": "fixer-invalid"}]
+        self.item["body"] = f"PR: https://github.com/{REPO}/pull/5100\nHead SHA: `{'a' * 40}`\n"
+        self.proof = {"repository": REPO, "issue": 20, "source_pr": 5100, "reviewed_head": "a" * 40,
+                      "target_branch": "owner-work", "target_head": "a" * 40, "owner": "u2giants",
+                      "evidence": "The guard already rejects this input; focused test passed.",
+                      "run_id": "123", "run_attempt": "1", "run_url": f"https://github.com/{REPO}/actions/runs/123",
+                      "job_name": "review-fixer-" + hashlib.sha256(b"owner-work").hexdigest()}
+        self.comment = {"user": {"login": "github-actions[bot]", "type": "Bot"},
+                        "created_at": "2026-10-30T10:59:00Z", "updated_at": "2026-10-30T10:59:00Z"}
+        self.detail = {"id": 123, "run_attempt": 1, "html_url": self.proof["run_url"], "repository": {"full_name": REPO},
+                       "path": ".github/workflows/review-fixer.yml", "status": "completed", "conclusion": "success",
+                       "run_started_at": "2026-10-30T10:50:00Z", "updated_at": "2026-10-30T11:01:00Z"}
+        self.job = {"name": "fix / " + self.proof["job_name"], "run_id": 123, "run_attempt": 1,
+                    "status": "completed", "conclusion": "success", "started_at": "2026-10-30T10:50:00Z",
+                    "completed_at": "2026-10-30T11:01:00Z"}
+        self.jobs = [self.job]
+        self.calls = []
+
+    def verify(self):
+        self.comment["body"] = "<!-- review-fixer-invalid:v1 " + json.dumps(self.proof) + " -->"
+        def comments(endpoint):
+            self.calls.append(endpoint)
+            return [self.comment]
+        def run_detail(endpoint):
+            self.calls.append(endpoint)
+            return self.detail
+        def jobs(endpoint):
+            self.calls.append(endpoint)
+            return self.jobs
+        return hold.verified_invalid(self.item, REPO, 5100, comments, run_detail, jobs)
+
+    def test_evidenced_invalid_has_no_24_hour_hold(self):
+        self.assertTrue(self.verify())
+        self.assertFalse(hold.holds([self.item], REPO, 5100, NOW, lambda _i: self.verify()))
+
+    def test_label_alone_never_exempts(self):
+        self.assertFalse(hold.verified_invalid(self.item, REPO, 5100, lambda _e: [], lambda _e: self.fail("unexpected run read")))
+
+    def test_open_or_unlabelled_invalid_is_never_exempt(self):
+        for changes in ({"state": "open"}, {"state_reason": "completed"}, {"labels": []}):
+            with self.subTest(changes=changes):
+                saved = self.item.copy()
+                self.item.update(changes)
+                self.assertFalse(self.verify())
+                self.assertFalse(self.calls)
+                self.item = saved
+
+    def test_wrong_source_issue_repo_head_and_empty_evidence_are_refused(self):
+        for key, value in (("repository", "other/repo"), ("issue", 21), ("source_pr", 5101),
+                           ("reviewed_head", "b" * 40), ("evidence", " "), ("target_head", "bad"),
+                           ("run_id", "../bad"), ("run_url", "https://example.com/123")):
+            with self.subTest(key=key):
+                old = self.proof[key]
+                self.proof[key] = value
+                self.assertFalse(self.verify())
+                self.proof[key] = old
+
+    def test_nonbot_comment_cannot_create_an_exemption(self):
+        self.comment["user"] = {"login": "u2giants", "type": "User"}
+        self.assertFalse(self.verify())
+
+    def test_wrong_attempt_or_other_workflow_run_is_refused(self):
+        for changes in ({"id": 124}, {"repository": {"full_name": "other/repo"}},
+                        {"path": ".github/workflows/other.yml"}, {"run_attempt": 2},
+                        {"html_url": "https://example.com/123"}):
+            with self.subTest(changes=changes):
+                old = self.detail.copy()
+                self.detail.update(changes)
+                self.assertFalse(self.verify())
+                self.detail = old
+
+    def test_successful_target_job_exempts_despite_unrelated_branch_failure(self):
+        self.detail.update(status="completed", conclusion="failure")
+        self.jobs.append({**self.job, "name": "fix / review-fixer-other", "conclusion": "failure"})
+        self.assertTrue(self.verify())
+        self.detail.update(status="in_progress", conclusion=None)
+        self.assertTrue(self.verify())
+
+    def test_only_exact_completed_successful_target_job_exempts(self):
+        for changes in ({"status": "in_progress"}, {"conclusion": "failure"}, {"conclusion": "cancelled"},
+                        {"run_attempt": 2}, {"run_id": 124}, {"completed_at": None},
+                        {"name": "x" + self.proof["job_name"]}, {"name": self.proof["job_name"] + "-other"}):
+            with self.subTest(changes=changes):
+                old = self.job.copy()
+                self.job.update(changes)
+                self.assertFalse(self.verify())
+                self.job.clear()
+                self.job.update(old)
+        self.jobs.append(self.job.copy())
+        self.assertFalse(self.verify())
+        self.jobs.clear()
+        self.assertFalse(self.verify())
+
+    def test_bare_job_name_is_valid_and_marker_job_cannot_target_another_branch(self):
+        self.job["name"] = self.proof["job_name"]
+        self.assertTrue(self.verify())
+        self.proof["job_name"] = "review-fixer-other"
+        self.assertFalse(self.verify())
+
+    def test_late_replayed_or_missing_time_is_refused(self):
+        for changes in ({"created_at": "2026-10-30T10:49:00Z"},
+                        {"updated_at": "2026-10-30T11:02:00Z"}, {"created_at": None}):
+            with self.subTest(changes=changes):
+                old = self.comment.copy()
+                self.comment.update(changes)
+                self.assertFalse(self.verify())
+                self.comment = old
+
+    def test_unreadable_proof_retains_hold(self):
+        def broken(_e):
+            raise OSError("network")
+        self.assertFalse(hold.verified_invalid(self.item, REPO, 5100, broken))
+
+    def test_duplicate_snapshots_reuse_candidate_proof(self):
+        calls = []
+        def verify(*_args):
+            calls.append(1)
+            return True
+        self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
+                                  fetch=lambda _r, _p: [self.item, self.item.copy()], now=NOW, verify_invalid=verify), 0)
+        self.assertEqual(calls, [1])
+
+    def test_referenced_run_and_candidate_comments_are_cached(self):
+        self.comment["body"] = "<!-- review-fixer-invalid:v1 " + json.dumps(self.proof) + " -->"
+        comments, runs, jobs = [], [], []
+        def read_comments(endpoint):
+            comments.append(endpoint)
+            return [self.comment]
+        def read_run(endpoint):
+            runs.append(endpoint)
+            return self.detail
+        def read_jobs(endpoint):
+            jobs.append(endpoint)
+            return self.jobs
+        verify = hold.invalid_verifier(read_comments, read_run, read_jobs)
+        self.assertTrue(verify(self.item, REPO, 5100))
+        self.assertTrue(verify(self.item.copy(), REPO, 5100))
+        self.assertEqual(len(comments), 1)
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(len(jobs), 1)
+        self.assertIn('/attempts/1/jobs?', jobs[0])
+
+    def test_stale_open_snapshot_still_holds_even_with_valid_closed_snapshot(self):
+        self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
+                                  fetch=lambda _r, _p: [self.item, {**self.item, "state": "open"}],
+                                  now=NOW, verify_invalid=lambda *_a: True), 3)
+
+    def test_no_evidence_calls_for_unlabelled_findings(self):
+        self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO], fetch=lambda _r, _p: [issue(1)],
+                                  now=NOW, verify_invalid=lambda *_a: self.fail("unexpected evidence read")), 3)
 
 
 class WorkflowShape(unittest.TestCase):

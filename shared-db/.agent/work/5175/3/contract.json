@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "work_issue": 5175,
+  "generation": 3,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Speed delivery by preventing stale competing fixer work and removing artificial holds only for evidenced invalid findings; ai-devops #2171 integration",
+  "base_sha": "9bdcd84ef4f63ecff340fc304f48daf066e1adeb",
+  "dispatcher": "Codex chat 01a18e22-cd0e-78e2-9cc3-67c161550d38 on edge-dev3",
+  "worker": "Codex subagent shared_integration",
+  "branch": "codex/2171-fixer-integration",
+  "worktree": "/tmp/shared-db-2171",
+  "allowed_paths": [
+    "scripts/review_finding_hold.py",
+    "scripts/test_review_finding_hold.py",
+    ".github/workflows/review-fixer.yml",
+    "scripts/review-fixer-lifecycle.mjs",
+    "scripts/review-fixer-lifecycle.test.mjs",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/verification/throughput-dispositions/scripts~review_finding_hold.py.json"
+  ],
+  "file_writes": [
+    "scripts/review_finding_hold.py",
+    "scripts/test_review_finding_hold.py",
+    ".github/workflows/review-fixer.yml",
+    "scripts/review-fixer-lifecycle.mjs",
+    "scripts/review-fixer-lifecycle.test.mjs",
+    ".github/workflows/tools-offline-tests.yml",
+    "docs/verification/throughput-dispositions/scripts~review_finding_hold.py.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database reads, writes, migrations, production commands, or schema changes",
+    "Never release foreign claims or permanent migration versions",
+    "Never exempt unresolved/skipped/failed findings based on a label alone",
+    "No merge or security decisions delegated to subagent"
+  ],
+  "required_checks": [
+    "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts.test_review_finding_hold",
+    "node --test scripts/review-fixer-lifecycle.test.mjs",
+    "node scripts/check-github-transport-conformance.mjs",
+    "bash scripts/check-sql.sh",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit.test.mjs scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "The trusted shared fixer emits review-fixer-invalid:v1 structured evidence only after fresh source/target checks",
+    "Closing an unclaimed stale fixer PR removes its prSources occupancy without deleting structural claims",
+    "Original hold, caller and adapter implementation began under generation 1; generation 2 expands only CI invocation scope before editing tools-offline-tests.yml and does not backdate the original work",
+    "Generation 3 adds only the required throughput disposition catalogue scope before that artifact is created; generation 1 original implementation and generation 2 CI expansion chronology remain in immutable published refs and Git history. CI failure run 41114077582 identified missing current-source catalogue, not faulty hold behavior."
+  ],
+  "stop_conditions": [
+    "Refuse stale PR cleanup when an associated structural claim lacks an explicit safe release contract",
+    "Stop if implementation requires paths outside the published scope",
+    "Never count offline tests as live proof"
+  ],
+  "evidence_parent": {
+    "work_issue": 5175,
+    "generation": 2,
+    "contract_sha256": "1ec7a64e1fd1a40510dcd1ef16c8e329eeb471b9774b26abd75a0efc2d03aa02"
+  }
+}

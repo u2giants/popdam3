@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/review_finding_hold.py",
+  "sites": [
+    {
+      "site": "scripts/review_finding_hold.py:96",
+      "semantic_key": "scripts/review_finding_hold.py:fa268a520680aa812b442c22ebbece28f3a0103df1edbf2d258cce4e7291527f:context-d6c8bfe00c7802c33807c6c550e22a4b68a645d1ffad29b506fad7d7fe27d4dc",
+      "line_sha256": "fa268a520680aa812b442c22ebbece28f3a0103df1edbf2d258cce4e7291527f",
+      "disposition": "excluded",
+      "reason": "This verified_invalid docstring describes unavailable or unreadable workflow evidence retaining the existing promotion hold. It makes no claim that a database object is missing, was never created, or was not applied; no database lookup is performed by this evidence verifier.",
+      "legacy_semantic_key": "scripts/review_finding_hold.py:fa268a520680aa812b442c22ebbece28f3a0103df1edbf2d258cce4e7291527f:1"
+    }
+  ]
+}
