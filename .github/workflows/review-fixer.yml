@@ -1,0 +1,33 @@
+name: review-fixer
+
+# Automatic fixer for `review-finding` issues (popcre/ai-devops
+# plan_skinny-review.md, stage G, #2075). The trusted fixer code comes from
+# popcre/ai-devops main; it fixes real findings on review-fix/<issue> or closes
+# the issue as not planned.
+
+on:
+  issues:
+    types: [labeled]
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: review-finding issue number (empty = every pending one)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    if: github.event_name != 'issues' || github.event.label.name == 'review-finding'
+    uses: popcre/ai-devops/.github/workflows/review-fixer.yml@main
+    with:
+      issue: ${{ github.event.issue.number || inputs.issue }}
+      runner_labels: '["self-hosted", "popdam3-linux"]'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
