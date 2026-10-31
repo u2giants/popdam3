@@ -711,13 +711,6 @@ export type Database = {
             referencedRelation: "UIElements"
             referencedColumns: ["Id"]
           },
-          {
-            foreignKeyName: "RolePermissions_UserId_fkey"
-            columns: ["UserId"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       UIElements: {
@@ -751,34 +744,43 @@ export type Database = {
       }
       user_notification: {
         Row: {
+          created_at: string
           created_date: string | null
           event: string | null
           id: number
+          idempotency_key: string | null
           message: string | null
           title: string | null
           type: string | null
           unread: boolean | null
           user_id_fk: number | null
+          workflow_action_id: number | null
         }
         Insert: {
+          created_at?: string
           created_date?: string | null
           event?: string | null
           id?: never
+          idempotency_key?: string | null
           message?: string | null
           title?: string | null
           type?: string | null
           unread?: boolean | null
           user_id_fk?: number | null
+          workflow_action_id?: number | null
         }
         Update: {
+          created_at?: string
           created_date?: string | null
           event?: string | null
           id?: never
+          idempotency_key?: string | null
           message?: string | null
           title?: string | null
           type?: string | null
           unread?: boolean | null
           user_id_fk?: number | null
+          workflow_action_id?: number | null
         }
         Relationships: []
       }
@@ -961,6 +963,14 @@ export type Database = {
         Returns: boolean
       }
       db_data_admin_vendor_row: { Args: { p_id: string }; Returns: Json }
+      dflow_admin_assume_actor: {
+        Args: { p_actor_profile_id: string }
+        Returns: undefined
+      }
+      dflow_admin_restore_claims: {
+        Args: { p_claims: string; p_sub: string }
+        Returns: undefined
+      }
       has_any_role: {
         Args: { required_roles: Database["app"]["Enums"]["app_role"][] }
         Returns: boolean
@@ -994,6 +1004,7 @@ export type Database = {
         | "designer"
         | "viewer"
         | "vendor"
+        | "sales_assistant"
       entity_status:
         | "active"
         | "inactive"
@@ -1019,512 +1030,6 @@ export type Database = {
   }
   core: {
     Tables: {
-      style_guide_character_source_edge: {
-        Row: {
-          id: string
-          style_guide_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          style_guide_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          style_guide_id?: string
-          character_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "character_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "style_guide_character_source_edge_character_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "character"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "style_guide_character_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "style_guide_character_source_edge_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
-        ]
-      }
-      property_style_guide_source_edge: {
-        Row: {
-          id: string
-          property_id: string
-          style_guide_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          property_id: string
-          style_guide_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          property_id?: string
-          style_guide_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_style_guide_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_style_guide_source_edge_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          },
-          {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_style_guide_source_edge_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
-        ]
-      }
-      property_style_guide: {
-        Row: {
-          property_id: string
-          style_guide_id: string
-          created_at: string
-          updated_at: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Insert: {
-          property_id: string
-          style_guide_id: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Update: {
-          property_id?: string
-          style_guide_id?: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_style_guide_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          },
-          {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_style_guide_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
-        ]
-      }
-      property_franchise_source_edge: {
-        Row: {
-          id: string
-          property_id: string
-          franchise_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          property_id: string
-          franchise_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          property_id?: string
-          franchise_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "franchise_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_franchise_source_edge_franchise_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "franchise"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_franchise_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_franchise_source_edge_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
-        ]
-      }
-      property_franchise: {
-        Row: {
-          property_id: string
-          franchise_id: string
-          created_at: string
-          updated_at: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Insert: {
-          property_id: string
-          franchise_id: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Update: {
-          property_id?: string
-          franchise_id?: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "franchise_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_franchise_franchise_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "franchise"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_franchise_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
-        ]
-      }
-      property_character_source_edge: {
-        Row: {
-          id: string
-          property_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          property_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          property_id?: string
-          character_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "character_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_character_source_edge_character_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "character"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_character_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_character_source_edge_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
-        ]
-      }
       age_group: {
         Row: {
           created_at: string
@@ -1692,9 +1197,9 @@ export type Database = {
           code: string | null
           created_at: string
           id: string
+          licensor_id: string | null
           metadata: Json
           name: string
-          property_id: string | null
           status: Database["app"]["Enums"]["entity_status"]
           updated_at: string
         }
@@ -1702,9 +1207,9 @@ export type Database = {
           code?: string | null
           created_at?: string
           id?: string
+          licensor_id?: string | null
           metadata?: Json
           name: string
-          property_id?: string | null
           status?: Database["app"]["Enums"]["entity_status"]
           updated_at?: string
         }
@@ -1712,19 +1217,86 @@ export type Database = {
           code?: string | null
           created_at?: string
           id?: string
+          licensor_id?: string | null
           metadata?: Json
           name?: string
-          property_id?: string | null
           status?: Database["app"]["Enums"]["entity_status"]
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "character_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "character_licensor_id_fkey"
+            columns: ["licensor_id"]
             isOneToOne: false
-            referencedRelation: "property"
+            referencedRelation: "licensor"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      character_alias: {
+        Row: {
+          alias: string
+          character_id: string
+          created_at: string
+          created_by: string | null
+          evidence_notes: string | null
+          id: string
+          licensor_id: string
+          normalized_alias: string | null
+          source_id: string | null
+          source_system: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alias: string
+          character_id: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          id?: string
+          licensor_id: string
+          normalized_alias?: string | null
+          source_id?: string | null
+          source_system: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alias?: string
+          character_id?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          id?: string
+          licensor_id?: string
+          normalized_alias?: string | null
+          source_id?: string | null
+          source_system?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "character_alias_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "character"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "character_alias_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "character_alias_parent_matches_character"
+            columns: ["character_id", "licensor_id"]
+            isOneToOne: false
+            referencedRelation: "character"
+            referencedColumns: ["id", "licensor_id"]
           },
         ]
       }
@@ -2334,11 +1906,16 @@ export type Database = {
           company_id: string | null
           country: string | null
           created_at: string
+          designflow_vendor_id: number | null
           display_name: string | null
           id: string
           metadata: Json
           name: string
+          orders_completed: number | null
+          orders_with_problem: number | null
+          party_type: string | null
           status: Database["app"]["Enums"]["entity_status"]
+          trade_name: string | null
           updated_at: string
           vendor_group: string | null
         }
@@ -2347,11 +1924,16 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string
+          designflow_vendor_id?: number | null
           display_name?: string | null
           id?: string
           metadata?: Json
           name: string
+          orders_completed?: number | null
+          orders_with_problem?: number | null
+          party_type?: string | null
           status?: Database["app"]["Enums"]["entity_status"]
+          trade_name?: string | null
           updated_at?: string
           vendor_group?: string | null
         }
@@ -2360,11 +1942,16 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string
+          designflow_vendor_id?: number | null
           display_name?: string | null
           id?: string
           metadata?: Json
           name?: string
+          orders_completed?: number | null
+          orders_with_problem?: number | null
+          party_type?: string | null
           status?: Database["app"]["Enums"]["entity_status"]
+          trade_name?: string | null
           updated_at?: string
           vendor_group?: string | null
         }
@@ -2422,6 +2009,107 @@ export type Database = {
           },
         ]
       }
+      factory_product_category: {
+        Row: {
+          created_at: string
+          factory_id: string
+          product_category_id: string
+          rank: number
+        }
+        Insert: {
+          created_at?: string
+          factory_id: string
+          product_category_id: string
+          rank: number
+        }
+        Update: {
+          created_at?: string
+          factory_id?: string
+          product_category_id?: string
+          rank?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_product_category_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "factory_product_category_product_category_id_fkey"
+            columns: ["product_category_id"]
+            isOneToOne: false
+            referencedRelation: "product_category"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      factory_rep: {
+        Row: {
+          created_at: string
+          factory_id: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          factory_id: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          factory_id?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_rep_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      factory_representation: {
+        Row: {
+          created_at: string
+          factory_id: string
+          trading_company_id: string
+        }
+        Insert: {
+          created_at?: string
+          factory_id: string
+          trading_company_id: string
+        }
+        Update: {
+          created_at?: string
+          factory_id?: string
+          trading_company_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_representation_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "factory_representation_trading_company_id_fkey"
+            columns: ["trading_company_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       factory_source_ref: {
         Row: {
           confidence: Database["app"]["Enums"]["source_confidence"]
@@ -2463,6 +2151,147 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "factory"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      factory_vendor_login: {
+        Row: {
+          created_at: string
+          designflow_login_id: number
+          email: string | null
+          factory_id: string
+          person: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          designflow_login_id: number
+          email?: string | null
+          factory_id: string
+          person?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          designflow_login_id?: number
+          email?: string | null
+          factory_id?: string
+          person?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_vendor_login_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      franchise: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          licensor_id: string
+          metadata: Json
+          name: string
+          source_evidence: string | null
+          source_id: string | null
+          source_system: string
+          status: Database["app"]["Enums"]["entity_status"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          licensor_id: string
+          metadata?: Json
+          name: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system: string
+          status?: Database["app"]["Enums"]["entity_status"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          licensor_id?: string
+          metadata?: Json
+          name?: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system?: string
+          status?: Database["app"]["Enums"]["entity_status"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "franchise_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      franchise_alias: {
+        Row: {
+          alias: string
+          created_at: string
+          created_by: string | null
+          evidence_notes: string | null
+          franchise_id: string
+          id: string
+          licensor_id: string
+          normalized_alias: string | null
+          source_system: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          franchise_id: string
+          id?: string
+          licensor_id: string
+          normalized_alias?: string | null
+          source_system?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          franchise_id?: string
+          id?: string
+          licensor_id?: string
+          normalized_alias?: string | null
+          source_system?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "franchise_alias_franchise_fkey"
+            columns: ["franchise_id", "licensor_id"]
+            isOneToOne: false
+            referencedRelation: "franchise"
+            referencedColumns: ["id", "licensor_id"]
           },
         ]
       }
@@ -3345,47 +3174,6 @@ export type Database = {
           },
         ]
       }
-      properties_and_characters: {
-        Row: {
-          created_at: string
-          id: number
-          licensor_id: number
-          name: string
-          source_character_id: string | null
-          source_licensed_property_id: string | null
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id: number
-          licensor_id: number
-          name: string
-          source_character_id?: string | null
-          source_licensed_property_id?: string | null
-          type: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          licensor_id?: number
-          name?: string
-          source_character_id?: string | null
-          source_licensed_property_id?: string | null
-          type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "properties_and_characters_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licenseList"
-            referencedColumns: ["licenseList_id"]
-          },
-        ]
-      }
       property: {
         Row: {
           code: string | null
@@ -3494,38 +3282,44 @@ export type Database = {
           },
         ]
       }
-      property_character: {
+      property_character_associations: {
         Row: {
           character_id: string
           created_at: string
-          is_primary: boolean
+          is_current: boolean
           property_id: string
-          source: string
+          retired_at: string | null
+          retired_reason: string | null
+          updated_at: string
         }
         Insert: {
           character_id: string
           created_at?: string
-          is_primary?: boolean
+          is_current?: boolean
           property_id: string
-          source?: string
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string
         }
         Update: {
           character_id?: string
           created_at?: string
-          is_primary?: boolean
+          is_current?: boolean
           property_id?: string
-          source?: string
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "property_character_character_id_fkey"
+            foreignKeyName: "property_character_associations_character_id_fkey"
             columns: ["character_id"]
             isOneToOne: false
             referencedRelation: "character"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "property_character_property_id_fkey"
+            foreignKeyName: "property_character_associations_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "property"
@@ -3533,57 +3327,358 @@ export type Database = {
           },
         ]
       }
-      property_character_associations: {
+      property_character_source_edge: {
         Row: {
-          property_id: string
           character_id: string
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id: string
           is_current: boolean
+          is_direct_source_relationship: boolean | null
+          licensor_id: string
+          metadata: Json
+          observation_count: number
+          property_id: string
+          source_evidence: string | null
+          source_id: string | null
+          source_system: string
+          superseded_at: string | null
+          superseded_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          character_id: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id: string
+          metadata?: Json
+          observation_count?: number
+          property_id: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          character_id?: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind?: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id?: string
+          metadata?: Json
+          observation_count?: number
+          property_id?: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_character_source_edge_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "character"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_character_source_edge_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_character_source_edge_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_franchise: {
+        Row: {
+          created_at: string
+          franchise_id: string
+          is_current: boolean
+          property_id: string
           retired_at: string | null
           retired_reason: string | null
-          created_at: string
           updated_at: string
         }
         Insert: {
-          property_id: string
-          character_id: string
+          created_at?: string
+          franchise_id: string
           is_current?: boolean
+          property_id: string
           retired_at?: string | null
           retired_reason?: string | null
-          created_at?: string
           updated_at?: string
         }
         Update: {
-          property_id?: string
-          character_id?: string
+          created_at?: string
+          franchise_id?: string
           is_current?: boolean
+          property_id?: string
           retired_at?: string | null
           retired_reason?: string | null
-          created_at?: string
           updated_at?: string
         }
         Relationships: [
           {
-            "columns": [
-              "character_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_character_associations_character_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "character"
+            foreignKeyName: "property_franchise_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "franchise"
+            referencedColumns: ["id"]
           },
           {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "property_character_associations_property_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
+            foreignKeyName: "property_franchise_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_franchise_source_edge: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          franchise_id: string
+          id: string
+          is_current: boolean
+          is_direct_source_relationship: boolean | null
+          licensor_id: string
+          metadata: Json
+          observation_count: number
+          property_id: string
+          source_evidence: string | null
+          source_id: string | null
+          source_system: string
+          superseded_at: string | null
+          superseded_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          franchise_id: string
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id: string
+          metadata?: Json
+          observation_count?: number
+          property_id: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind?: Database["core"]["Enums"]["relationship_evidence_kind"]
+          franchise_id?: string
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id?: string
+          metadata?: Json
+          observation_count?: number
+          property_id?: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_franchise_source_edge_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "franchise"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_franchise_source_edge_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_franchise_source_edge_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_style_guide: {
+        Row: {
+          created_at: string
+          is_current: boolean
+          property_id: string
+          retired_at: string | null
+          retired_reason: string | null
+          style_guide_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_current?: boolean
+          property_id: string
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_current?: boolean
+          property_id?: string
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_style_guide_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_style_guide_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_style_guide_source_edge: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id: string
+          is_current: boolean
+          is_direct_source_relationship: boolean | null
+          licensor_id: string
+          metadata: Json
+          observation_count: number
+          property_id: string
+          source_evidence: string | null
+          source_id: string | null
+          source_system: string
+          style_guide_id: string
+          superseded_at: string | null
+          superseded_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id: string
+          metadata?: Json
+          observation_count?: number
+          property_id: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system: string
+          style_guide_id: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind?: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id?: string
+          metadata?: Json
+          observation_count?: number
+          property_id?: string
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system?: string
+          style_guide_id?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_style_guide_source_edge_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_style_guide_source_edge_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_style_guide_source_edge_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sku_ref: {
@@ -3694,44 +3789,128 @@ export type Database = {
       }
       style_guide_character: {
         Row: {
-          style_guide_id: string
           character_id: string
+          created_at: string
           is_current: boolean
+          metadata: Json
           retired_at: string | null
           retired_reason: string | null
-          metadata: Json | null
-          created_at: string | null
+          style_guide_id: string
         }
         Insert: {
-          style_guide_id: string
           character_id: string
+          created_at?: string
           is_current?: boolean
+          metadata?: Json
           retired_at?: string | null
           retired_reason?: string | null
-          metadata?: Json | null
-          created_at?: string | null
+          style_guide_id: string
         }
         Update: {
-          style_guide_id?: string
           character_id?: string
+          created_at?: string
           is_current?: boolean
+          metadata?: Json
           retired_at?: string | null
           retired_reason?: string | null
-          metadata?: Json | null
-          created_at?: string | null
+          style_guide_id?: string
         }
         Relationships: [
           {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "style_guide_character_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
+            foreignKeyName: "style_guide_character_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_character_source_edge: {
+        Row: {
+          character_id: string
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id: string
+          is_current: boolean
+          is_direct_source_relationship: boolean | null
+          licensor_id: string
+          metadata: Json
+          observation_count: number
+          source_evidence: string | null
+          source_id: string | null
+          source_system: string
+          style_guide_id: string
+          superseded_at: string | null
+          superseded_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          character_id: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id: string
+          metadata?: Json
+          observation_count?: number
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system: string
+          style_guide_id: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          character_id?: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence_kind?: Database["core"]["Enums"]["relationship_evidence_kind"]
+          id?: string
+          is_current?: boolean
+          is_direct_source_relationship?: boolean | null
+          licensor_id?: string
+          metadata?: Json
+          observation_count?: number
+          source_evidence?: string | null
+          source_id?: string | null
+          source_system?: string
+          style_guide_id?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_character_source_edge_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "character"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_guide_character_source_edge_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_guide_character_source_edge_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
         ]
       }
       taxonomy_owner_ruling: {
@@ -3792,10 +3971,14 @@ export type Database = {
           entity_id: string
           entity_schema: string
           entity_table: string
+          first_seen_at: string | null
           id: string
+          last_seen_at: string | null
+          missing_since: string | null
           raw: Json
           source_code: string | null
           source_id: string
+          source_licensor_id: string | null
           source_name: string | null
           source_system: string
           source_table: string
@@ -3806,10 +3989,14 @@ export type Database = {
           entity_id: string
           entity_schema?: string
           entity_table: string
+          first_seen_at?: string | null
           id?: string
+          last_seen_at?: string | null
+          missing_since?: string | null
           raw?: Json
           source_code?: string | null
           source_id: string
+          source_licensor_id?: string | null
           source_name?: string | null
           source_system: string
           source_table: string
@@ -3820,15 +4007,27 @@ export type Database = {
           entity_id?: string
           entity_schema?: string
           entity_table?: string
+          first_seen_at?: string | null
           id?: string
+          last_seen_at?: string | null
+          missing_since?: string | null
           raw?: Json
           source_code?: string | null
           source_id?: string
+          source_licensor_id?: string | null
           source_name?: string | null
           source_system?: string
           source_table?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "taxonomy_source_ref_source_licensor_id_fkey"
+            columns: ["source_licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       technical_designer: {
         Row: {
@@ -3982,53 +4181,178 @@ export type Database = {
       }
     }
     Views: {
-      style_guide_character_current: {
+      property_character_associations_current: {
         Row: {
-          style_guide_id: string | null
           character_id: string | null
-          is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-          metadata: Json | null
           created_at: string | null
-        }
-        Relationships: []
-      }
-      property_style_guide_current: {
-        Row: {
+          is_current: boolean | null
           property_id: string | null
-          style_guide_id: string | null
-          created_at: string | null
-          updated_at: string | null
-          is_current: boolean | null
           retired_at: string | null
           retired_reason: string | null
+          updated_at: string | null
         }
-        Relationships: []
+        Insert: {
+          character_id?: string | null
+          created_at?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          character_id?: string | null
+          created_at?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_character_associations_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "character"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_character_associations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       property_franchise_current: {
         Row: {
-          property_id: string | null
+          created_at: string | null
           franchise_id: string | null
-          created_at: string | null
-          updated_at: string | null
           is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Relationships: []
-      }
-      property_character_associations_current: {
-        Row: {
           property_id: string | null
-          character_id: string | null
-          is_current: boolean | null
           retired_at: string | null
           retired_reason: string | null
-          created_at: string | null
           updated_at: string | null
         }
-        Relationships: []
+        Insert: {
+          created_at?: string | null
+          franchise_id?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          franchise_id?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_franchise_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "franchise"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_franchise_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_style_guide_current: {
+        Row: {
+          created_at: string | null
+          is_current: boolean | null
+          property_id: string | null
+          retired_at: string | null
+          retired_reason: string | null
+          style_guide_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          is_current?: boolean | null
+          property_id?: string | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_style_guide_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_style_guide_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_character_current: {
+        Row: {
+          character_id: string | null
+          created_at: string | null
+          is_current: boolean | null
+          metadata: Json | null
+          retired_at: string | null
+          retired_reason: string | null
+          style_guide_id: string | null
+        }
+        Insert: {
+          character_id?: string | null
+          created_at?: string | null
+          is_current?: boolean | null
+          metadata?: Json | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id?: string | null
+        }
+        Update: {
+          character_id?: string | null
+          created_at?: string | null
+          is_current?: boolean | null
+          metadata?: Json | null
+          retired_at?: string | null
+          retired_reason?: string | null
+          style_guide_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_character_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -4076,666 +4400,14 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      relationship_evidence_kind:
+        | "direct_source_assertion"
+        | "inferred"
+        | "co_occurrence"
     }
     CompositeTypes: {
       [_ in never]: never
     }
-  }
-  dam: {
-    Tables: {
-      asset_style_guide_source_edge: {
-        Row: {
-          id: string
-          asset_id: string
-          style_guide_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          asset_id: string
-          style_guide_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          asset_id?: string
-          style_guide_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_style_guide_source_edge_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_style_guide_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_style_guide_source_edge_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
-        ]
-      }
-      asset_style_guide: {
-        Row: {
-          asset_id: string
-          style_guide_id: string
-          created_at: string
-          updated_at: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Insert: {
-          asset_id: string
-          style_guide_id: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Update: {
-          asset_id?: string
-          style_guide_id?: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_style_guide_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "style_guide_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_style_guide_style_guide_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "style_guide"
-          }
-        ]
-      }
-      asset_property_source_edge: {
-        Row: {
-          id: string
-          asset_id: string
-          property_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          asset_id: string
-          property_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          asset_id?: string
-          property_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_property_source_edge_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_property_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_property_source_edge_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
-        ]
-      }
-      asset_property: {
-        Row: {
-          asset_id: string
-          property_id: string
-          created_at: string
-          updated_at: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Insert: {
-          asset_id: string
-          property_id: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Update: {
-          asset_id?: string
-          property_id?: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_property_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "property_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_property_property_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "property"
-          }
-        ]
-      }
-      asset_franchise_source_edge: {
-        Row: {
-          id: string
-          asset_id: string
-          franchise_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          asset_id: string
-          franchise_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          asset_id?: string
-          franchise_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_franchise_source_edge_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "franchise_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_franchise_source_edge_franchise_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "franchise"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_franchise_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          }
-        ]
-      }
-      asset_franchise: {
-        Row: {
-          asset_id: string
-          franchise_id: string
-          created_at: string
-          updated_at: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Insert: {
-          asset_id: string
-          franchise_id: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Update: {
-          asset_id?: string
-          franchise_id?: string
-          created_at?: string
-          updated_at?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_franchise_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "franchise_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_franchise_franchise_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "franchise"
-          }
-        ]
-      }
-      asset_character_source_edge: {
-        Row: {
-          id: string
-          asset_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id: string | null
-          source_evidence: string | null
-          evidence_kind: string
-          is_direct_source_relationship: boolean | null
-          observation_count: number
-          confidence: number | null
-          is_current: boolean
-          superseded_at: string | null
-          superseded_reason: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          asset_id: string
-          character_id: string
-          licensor_id: string
-          source_system: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          asset_id?: string
-          character_id?: string
-          licensor_id?: string
-          source_system?: string
-          source_id?: string | null
-          source_evidence?: string | null
-          evidence_kind?: string
-          is_direct_source_relationship?: boolean | null
-          observation_count?: number
-          confidence?: number | null
-          is_current?: boolean
-          superseded_at?: string | null
-          superseded_reason?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_character_source_edge_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          },
-          {
-            "columns": [
-              "character_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_character_source_edge_character_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "character"
-          },
-          {
-            "columns": [
-              "licensor_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_character_source_edge_licensor_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensor"
-          }
-        ]
-      }
-      asset_character: {
-        Row: {
-          asset_id: string
-          character_id: string
-          is_current: boolean
-          retired_at: string | null
-          retired_reason: string | null
-          id: string | null
-        }
-        Insert: {
-          asset_id: string
-          character_id: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-          id?: string | null
-        }
-        Update: {
-          asset_id?: string
-          character_id?: string
-          is_current?: boolean
-          retired_at?: string | null
-          retired_reason?: string | null
-          id?: string | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "asset_id"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "asset_character_asset_id_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "asset"
-          }
-        ]
-      }
-    }
-    Views: {
-      asset_style_guide_current: {
-        Row: {
-          asset_id: string | null
-          style_guide_id: string | null
-          created_at: string | null
-          updated_at: string | null
-          is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Relationships: []
-      }
-      asset_property_current: {
-        Row: {
-          asset_id: string | null
-          property_id: string | null
-          created_at: string | null
-          updated_at: string | null
-          is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Relationships: []
-      }
-      asset_franchise_current: {
-        Row: {
-          asset_id: string | null
-          franchise_id: string | null
-          created_at: string | null
-          updated_at: string | null
-          is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-        }
-        Relationships: []
-      }
-      asset_character_current: {
-        Row: {
-          asset_id: string | null
-          character_id: string | null
-          is_current: boolean | null
-          retired_at: string | null
-          retired_reason: string | null
-          id: string | null
-        }
-        Relationships: []
-      }
-    }
-    Functions: {
-    }
-    Enums: { [_ in never]: never }
-    CompositeTypes: { [_ in never]: never }
   }
   dflow: {
     Tables: {
@@ -4958,88 +4630,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "art_piece_age_group_id_fkey"
-            columns: ["age_group_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_art_source_id_fkey"
-            columns: ["art_source_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_art_type_id_fkey"
-            columns: ["art_type_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_artist_id_fkey"
-            columns: ["artist_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_big_theme_id_fkey"
-            columns: ["big_theme_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
             foreignKeyName: "art_piece_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "art_piece_divisioncode_id_fkey"
-            columns: ["divisioncode_id"]
-            isOneToOne: false
-            referencedRelation: "divisionCode"
-            referencedColumns: ["divCode_id"]
-          },
-          {
-            foreignKeyName: "art_piece_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_little_theme_id_fkey"
-            columns: ["little_theme_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "art_piece_season_code_id_fkey"
-            columns: ["season_code_id"]
-            isOneToOne: false
-            referencedRelation: "SeasonCode"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "art_piece_style_guide_id_fkey"
-            columns: ["style_guide_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
           },
           {
             foreignKeyName: "art_piece_updated_by_fkey"
@@ -5250,6 +4845,7 @@ export type Database = {
         Row: {
           art_source_id: number | null
           artist_type_id: number
+          core_artist_id: string | null
           created_at: string
           created_by: number
           divisioncode_id: number | null
@@ -5263,6 +4859,7 @@ export type Database = {
         Insert: {
           art_source_id?: number | null
           artist_type_id: number
+          core_artist_id?: string | null
           created_at?: string
           created_by: number
           divisioncode_id?: number | null
@@ -5276,6 +4873,7 @@ export type Database = {
         Update: {
           art_source_id?: number | null
           artist_type_id?: number
+          core_artist_id?: string | null
           created_at?: string
           created_by?: number
           divisioncode_id?: number | null
@@ -5288,32 +4886,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "artists_art_source_id_fkey"
-            columns: ["art_source_id"]
-            isOneToOne: false
-            referencedRelation: "merchGroup"
-            referencedColumns: ["mg_id"]
-          },
-          {
-            foreignKeyName: "artists_artist_type_id_fkey"
-            columns: ["artist_type_id"]
-            isOneToOne: false
-            referencedRelation: "artist_types"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "artists_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "artists_divisioncode_id_fkey"
-            columns: ["divisioncode_id"]
-            isOneToOne: false
-            referencedRelation: "divisionCode"
-            referencedColumns: ["divCode_id"]
           },
           {
             foreignKeyName: "artists_updated_by_fkey"
@@ -5386,6 +4963,7 @@ export type Database = {
       }
       comments: {
         Row: {
+          app_comment_id: string | null
           comment: string
           id: number
           inserted_date: string
@@ -5394,6 +4972,7 @@ export type Database = {
           user_id: number
         }
         Insert: {
+          app_comment_id?: string | null
           comment: string
           id?: number
           inserted_date: string
@@ -5402,6 +4981,7 @@ export type Database = {
           user_id: number
         }
         Update: {
+          app_comment_id?: string | null
           comment?: string
           id?: number
           inserted_date?: string
@@ -6482,14 +6062,37 @@ export type Database = {
             referencedRelation: "properties_and_characters"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "item_character_associations_item_header_id_fkey"
-            columns: ["item_header_id"]
-            isOneToOne: true
-            referencedRelation: "itemHeader"
-            referencedColumns: ["item_id_pk"]
-          },
         ]
+      }
+      item_customer_selling: {
+        Row: {
+          created_at: string
+          customer_id: number
+          id: number
+          item_id: number
+          selling_signal: string
+          updated_at: string
+          updated_by_user_id: number | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: number
+          id?: never
+          item_id: number
+          selling_signal: string
+          updated_at?: string
+          updated_by_user_id?: number | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: number
+          id?: never
+          item_id?: number
+          selling_signal?: string
+          updated_at?: string
+          updated_by_user_id?: number | null
+        }
+        Relationships: []
       }
       item_prod_order_detail_associations: {
         Row: {
@@ -6536,6 +6139,150 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ProdOrderDetail"
             referencedColumns: ["pkey"]
+          },
+        ]
+      }
+      item_user_assignment: {
+        Row: {
+          assigned_by_user_id: number
+          assignment_context: Json
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          function_key: string
+          id: number
+          rfq_item_id: number
+          user_id: number
+        }
+        Insert: {
+          assigned_by_user_id: number
+          assignment_context?: Json
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          function_key: string
+          id?: never
+          rfq_item_id: number
+          user_id: number
+        }
+        Update: {
+          assigned_by_user_id?: number
+          assignment_context?: Json
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          function_key?: string
+          id?: never
+          rfq_item_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_user_assignment_assigned_by_user_id_fkey"
+            columns: ["assigned_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_user_assignment_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      item_workflow_action: {
+        Row: {
+          action_key: string
+          actor_auth_user_id: string | null
+          actor_identity_email: string | null
+          actor_identity_source: string
+          actor_user_id: number
+          correlation_key: string
+          fallback_reason: string | null
+          fallback_recipient_user_id: number | null
+          id: number
+          new_step_id: number
+          occurred_at: string
+          prior_step_id: number | null
+          requires_admin_review: boolean
+          rfq_item_id: number
+          routing_context: Json
+          source_action_id: number | null
+        }
+        Insert: {
+          action_key: string
+          actor_auth_user_id?: string | null
+          actor_identity_email?: string | null
+          actor_identity_source?: string
+          actor_user_id: number
+          correlation_key: string
+          fallback_reason?: string | null
+          fallback_recipient_user_id?: number | null
+          id?: never
+          new_step_id: number
+          occurred_at?: string
+          prior_step_id?: number | null
+          requires_admin_review?: boolean
+          rfq_item_id: number
+          routing_context?: Json
+          source_action_id?: number | null
+        }
+        Update: {
+          action_key?: string
+          actor_auth_user_id?: string | null
+          actor_identity_email?: string | null
+          actor_identity_source?: string
+          actor_user_id?: number
+          correlation_key?: string
+          fallback_reason?: string | null
+          fallback_recipient_user_id?: number | null
+          id?: never
+          new_step_id?: number
+          occurred_at?: string
+          prior_step_id?: number | null
+          requires_admin_review?: boolean
+          rfq_item_id?: number
+          routing_context?: Json
+          source_action_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_workflow_action_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_fallback_recipient_fkey"
+            columns: ["fallback_recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_source_action_id_fkey"
+            columns: ["source_action_id", "rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_action"
+            referencedColumns: ["id", "rfq_item_id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_source_action_id_fkey"
+            columns: ["source_action_id", "rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_handoff"
+            referencedColumns: ["handoff_action_id", "rfq_item_id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_source_action_id_fkey"
+            columns: ["source_action_id", "rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_handoff"
+            referencedColumns: ["return_action_id", "rfq_item_id"]
           },
         ]
       }
@@ -9253,15 +9000,7 @@ export type Database = {
           type?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "properties_and_characters_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licenseList"
-            referencedColumns: ["licenseList_id"]
-          },
-        ]
+        Relationships: []
       }
       property_character_associations: {
         Row: {
@@ -9292,13 +9031,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties_and_characters"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_character_associations_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licenseList"
-            referencedColumns: ["licenseList_id"]
           },
           {
             foreignKeyName: "property_character_associations_property_id_fkey"
@@ -10013,18 +9745,38 @@ export type Database = {
       }
       Roles: {
         Row: {
+          app_role_id: string | null
           Id: number
+          is_active: boolean
+          kind: string
           Name: string
+          parent_id: number | null
         }
         Insert: {
+          app_role_id?: string | null
           Id?: never
+          is_active?: boolean
+          kind?: string
           Name: string
+          parent_id?: number | null
         }
         Update: {
+          app_role_id?: string | null
           Id?: never
+          is_active?: boolean
+          kind?: string
           Name?: string
+          parent_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "roles_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "Roles"
+            referencedColumns: ["Id"]
+          },
+        ]
       }
       sample: {
         Row: {
@@ -10122,6 +9874,79 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sample_factory_group"
             referencedColumns: ["factory_group_id_pk"]
+          },
+        ]
+      }
+      sample_approval_event: {
+        Row: {
+          actor_role: string
+          actor_user: string
+          approval_state: string
+          approval_type: string
+          created_at: string
+          destination_id: string | null
+          destination_type: string | null
+          idempotency_key: string
+          qc_required: boolean
+          reason: string | null
+          request_hash: string
+          sample_approval_event_id: number
+          sample_attachment_id: number | null
+          sample_id_fk: number
+        }
+        Insert: {
+          actor_role: string
+          actor_user: string
+          approval_state: string
+          approval_type: string
+          created_at?: string
+          destination_id?: string | null
+          destination_type?: string | null
+          idempotency_key: string
+          qc_required: boolean
+          reason?: string | null
+          request_hash: string
+          sample_approval_event_id?: number
+          sample_attachment_id?: number | null
+          sample_id_fk: number
+        }
+        Update: {
+          actor_role?: string
+          actor_user?: string
+          approval_state?: string
+          approval_type?: string
+          created_at?: string
+          destination_id?: string | null
+          destination_type?: string | null
+          idempotency_key?: string
+          qc_required?: boolean
+          reason?: string | null
+          request_hash?: string
+          sample_approval_event_id?: number
+          sample_attachment_id?: number | null
+          sample_id_fk?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_approval_event_sample_attachment_id_fkey"
+            columns: ["sample_attachment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_attachment"
+            referencedColumns: ["sample_attachment_id"]
+          },
+          {
+            foreignKeyName: "sample_approval_event_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_approval_event_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
           },
         ]
       }
@@ -10533,6 +10358,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sample_factory_visit_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory_canonical_identity"
+            referencedColumns: ["legacy_factory_id"]
+          },
+          {
             foreignKeyName: "sample_factory_visit_outbound_shipment_id_fkey"
             columns: ["outbound_shipment_id"]
             isOneToOne: false
@@ -10642,6 +10474,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "Factory"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_factory_visit_event_to_factory_id_fkey"
+            columns: ["to_factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory_canonical_identity"
+            referencedColumns: ["legacy_factory_id"]
           },
         ]
       }
@@ -10782,6 +10621,45 @@ export type Database = {
           {
             foreignKeyName: "sample_import_row_resulting_sample_id_fkey"
             columns: ["resulting_sample_id"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+        ]
+      }
+      sample_inventory_balance: {
+        Row: {
+          available_since: string
+          location_id: string
+          location_type: string
+          quantity: number
+          sample_id_fk: number
+        }
+        Insert: {
+          available_since: string
+          location_id: string
+          location_type: string
+          quantity: number
+          sample_id_fk: number
+        }
+        Update: {
+          available_since?: string
+          location_id?: string
+          location_type?: string
+          quantity?: number
+          sample_id_fk?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_inventory_balance_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_inventory_balance_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
             isOneToOne: false
             referencedRelation: "sample_global_status"
             referencedColumns: ["sample_id_pk"]
@@ -11045,6 +10923,266 @@ export type Database = {
           },
         ]
       }
+      sample_remote_request: {
+        Row: {
+          business_path: string
+          created_at: string
+          destination_id: string
+          destination_type: string
+          idempotency_key: string
+          request_hash: string
+          request_source: string
+          requested_by_role: string
+          requested_by_user: string
+          sample_remote_request_id: string
+        }
+        Insert: {
+          business_path: string
+          created_at?: string
+          destination_id: string
+          destination_type: string
+          idempotency_key: string
+          request_hash: string
+          request_source: string
+          requested_by_role: string
+          requested_by_user: string
+          sample_remote_request_id?: string
+        }
+        Update: {
+          business_path?: string
+          created_at?: string
+          destination_id?: string
+          destination_type?: string
+          idempotency_key?: string
+          request_hash?: string
+          request_source?: string
+          requested_by_role?: string
+          requested_by_user?: string
+          sample_remote_request_id?: string
+        }
+        Relationships: []
+      }
+      sample_remote_request_history: {
+        Row: {
+          actor_role: string
+          actor_user: string
+          event_payload: Json
+          from_state: string | null
+          idempotency_key: string
+          note: string | null
+          occurred_at: string
+          request_hash: string
+          sample_remote_request_history_id: number
+          sample_remote_request_item_id: string
+          to_state: string
+        }
+        Insert: {
+          actor_role: string
+          actor_user: string
+          event_payload?: Json
+          from_state?: string | null
+          idempotency_key: string
+          note?: string | null
+          occurred_at?: string
+          request_hash: string
+          sample_remote_request_history_id?: never
+          sample_remote_request_item_id: string
+          to_state: string
+        }
+        Update: {
+          actor_role?: string
+          actor_user?: string
+          event_payload?: Json
+          from_state?: string | null
+          idempotency_key?: string
+          note?: string | null
+          occurred_at?: string
+          request_hash?: string
+          sample_remote_request_history_id?: never
+          sample_remote_request_item_id?: string
+          to_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_remote_request_history_sample_remote_request_item_i_fkey"
+            columns: ["sample_remote_request_item_id"]
+            isOneToOne: false
+            referencedRelation: "sample_remote_request_item"
+            referencedColumns: ["sample_remote_request_item_id"]
+          },
+        ]
+      }
+      sample_remote_request_item: {
+        Row: {
+          business_path: string
+          created_at: string
+          created_by_role: string
+          created_by_user: string
+          current_state: string
+          idempotency_key: string
+          request_hash: string
+          sample_id_fk: number | null
+          sample_remote_request_id: string
+          sample_remote_request_item_id: string
+          source_reference: string | null
+          source_type: string
+          updated_at: string
+          workflow_id: number
+        }
+        Insert: {
+          business_path: string
+          created_at?: string
+          created_by_role: string
+          created_by_user: string
+          current_state?: string
+          idempotency_key: string
+          request_hash: string
+          sample_id_fk?: number | null
+          sample_remote_request_id: string
+          sample_remote_request_item_id?: string
+          source_reference?: string | null
+          source_type: string
+          updated_at?: string
+          workflow_id: number
+        }
+        Update: {
+          business_path?: string
+          created_at?: string
+          created_by_role?: string
+          created_by_user?: string
+          current_state?: string
+          idempotency_key?: string
+          request_hash?: string
+          sample_id_fk?: number | null
+          sample_remote_request_id?: string
+          sample_remote_request_item_id?: string
+          source_reference?: string | null
+          source_type?: string
+          updated_at?: string
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_remote_request_item_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_remote_request_item_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_remote_request_item_sample_remote_request_id_fkey"
+            columns: ["sample_remote_request_id"]
+            isOneToOne: false
+            referencedRelation: "sample_remote_request"
+            referencedColumns: ["sample_remote_request_id"]
+          },
+          {
+            foreignKeyName: "sample_remote_request_item_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "sample_workflow"
+            referencedColumns: ["sample_workflow_id"]
+          },
+        ]
+      }
+      sample_reservation: {
+        Row: {
+          idempotency_key: string
+          open_sample_id: number | null
+          packed_at: string | null
+          packed_box_id: number | null
+          packed_by_user: string | null
+          packed_shipment_line_id: number | null
+          request_hash: string
+          reservation_state: string
+          reserved_at: string
+          reserved_by_user: string
+          sample_id_fk: number
+          sample_remote_request_item_id: string
+          sample_reservation_id: string
+        }
+        Insert: {
+          idempotency_key: string
+          open_sample_id?: number | null
+          packed_at?: string | null
+          packed_box_id?: number | null
+          packed_by_user?: string | null
+          packed_shipment_line_id?: number | null
+          request_hash: string
+          reservation_state?: string
+          reserved_at?: string
+          reserved_by_user: string
+          sample_id_fk: number
+          sample_remote_request_item_id: string
+          sample_reservation_id?: string
+        }
+        Update: {
+          idempotency_key?: string
+          open_sample_id?: number | null
+          packed_at?: string | null
+          packed_box_id?: number | null
+          packed_by_user?: string | null
+          packed_shipment_line_id?: number | null
+          request_hash?: string
+          reservation_state?: string
+          reserved_at?: string
+          reserved_by_user?: string
+          sample_id_fk?: number
+          sample_remote_request_item_id?: string
+          sample_reservation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_reservation_packed_box_id_fkey"
+            columns: ["packed_box_id"]
+            isOneToOne: false
+            referencedRelation: "sample_box"
+            referencedColumns: ["box_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_reservation_packed_shipment_line_id_fkey"
+            columns: ["packed_shipment_line_id"]
+            isOneToOne: false
+            referencedRelation: "sample_receipt_discrepancy"
+            referencedColumns: ["shipment_line_id"]
+          },
+          {
+            foreignKeyName: "sample_reservation_packed_shipment_line_id_fkey"
+            columns: ["packed_shipment_line_id"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment_line"
+            referencedColumns: ["shipment_line_id"]
+          },
+          {
+            foreignKeyName: "sample_reservation_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_reservation_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_reservation_sample_remote_request_item_id_fkey"
+            columns: ["sample_remote_request_item_id"]
+            isOneToOne: false
+            referencedRelation: "sample_remote_request_item"
+            referencedColumns: ["sample_remote_request_item_id"]
+          },
+        ]
+      }
       sample_shipment: {
         Row: {
           actor_role: string
@@ -11251,6 +11389,123 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sample_shipment"
             referencedColumns: ["sample_shipment_id"]
+          },
+        ]
+      }
+      sample_shipment_notice: {
+        Row: {
+          attempt_count: number
+          body_html: string
+          body_text: string | null
+          created_at: string
+          created_by_user: string
+          created_by_user_id: number
+          last_attempt_at: string | null
+          last_error: string | null
+          next_attempt_at: string | null
+          provider_idempotency_key: string
+          provider_message_id: string | null
+          sample_shipment_id_fk: number
+          sample_shipment_notice_id: number
+          sent_at: string | null
+          state: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          body_html: string
+          body_text?: string | null
+          created_at?: string
+          created_by_user: string
+          created_by_user_id: number
+          last_attempt_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string | null
+          provider_idempotency_key?: string
+          provider_message_id?: string | null
+          sample_shipment_id_fk: number
+          sample_shipment_notice_id?: number
+          sent_at?: string | null
+          state?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          body_html?: string
+          body_text?: string | null
+          created_at?: string
+          created_by_user?: string
+          created_by_user_id?: number
+          last_attempt_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string | null
+          provider_idempotency_key?: string
+          provider_message_id?: string | null
+          sample_shipment_id_fk?: number
+          sample_shipment_notice_id?: number
+          sent_at?: string | null
+          state?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_shipment_notice_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sample_shipment_notice_sample_shipment_id_fk_fkey"
+            columns: ["sample_shipment_id_fk"]
+            isOneToOne: true
+            referencedRelation: "sample_shipment"
+            referencedColumns: ["sample_shipment_id"]
+          },
+        ]
+      }
+      sample_shipment_notice_recipient: {
+        Row: {
+          recipient_email_snapshot: string
+          recipient_function: string
+          recipient_name_snapshot: string
+          sample_shipment_notice_id_fk: number
+          sample_shipment_notice_recipient_id: number
+          user_id_fk: number
+        }
+        Insert: {
+          recipient_email_snapshot: string
+          recipient_function: string
+          recipient_name_snapshot: string
+          sample_shipment_notice_id_fk: number
+          sample_shipment_notice_recipient_id?: number
+          user_id_fk: number
+        }
+        Update: {
+          recipient_email_snapshot?: string
+          recipient_function?: string
+          recipient_name_snapshot?: string
+          sample_shipment_notice_id_fk?: number
+          sample_shipment_notice_recipient_id?: number
+          user_id_fk?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_shipment_notice_recipi_sample_shipment_notice_id_fk_fkey"
+            columns: ["sample_shipment_notice_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_shipment_notice"
+            referencedColumns: ["sample_shipment_notice_id"]
+          },
+          {
+            foreignKeyName: "sample_shipment_notice_recipient_user_id_fk_fkey"
+            columns: ["user_id_fk"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -11861,39 +12116,111 @@ export type Database = {
           created_date: string | null
           event: string | null
           id: number
+          idempotency_key: string | null
           message: string | null
           title: string | null
           type: string | null
           unread: boolean | null
           user_id_fk: number | null
+          workflow_action_id: number | null
         }
         Insert: {
           created_date?: string | null
           event?: string | null
           id?: never
+          idempotency_key?: string | null
           message?: string | null
           title?: string | null
           type?: string | null
           unread?: boolean | null
           user_id_fk?: number | null
+          workflow_action_id?: number | null
         }
         Update: {
           created_date?: string | null
           event?: string | null
           id?: never
+          idempotency_key?: string | null
           message?: string | null
           title?: string | null
           type?: string | null
           unread?: boolean | null
           user_id_fk?: number | null
+          workflow_action_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_notification_workflow_action_id_fkey"
+            columns: ["workflow_action_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_action"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_notification_workflow_action_id_fkey"
+            columns: ["workflow_action_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_handoff"
+            referencedColumns: ["handoff_action_id"]
+          },
+          {
+            foreignKeyName: "user_notification_workflow_action_id_fkey"
+            columns: ["workflow_action_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_handoff"
+            referencedColumns: ["return_action_id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          granted_at: string
+          granted_by: number | null
+          role_id: number
+          user_id: number
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: number | null
+          role_id: number
+          user_id: number
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: number | null
+          role_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "Roles"
+            referencedColumns: ["Id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
           _airbyte_emitted_at: string | null
           _airbyte_users_hashid: string | null
           adddate: string | null
+          app_profile_id: string | null
           auditlog: string | null
           email: string | null
           expire: string | null
@@ -11919,6 +12246,7 @@ export type Database = {
           _airbyte_emitted_at?: string | null
           _airbyte_users_hashid?: string | null
           adddate?: string | null
+          app_profile_id?: string | null
           auditlog?: string | null
           email?: string | null
           expire?: string | null
@@ -11944,6 +12272,7 @@ export type Database = {
           _airbyte_emitted_at?: string | null
           _airbyte_users_hashid?: string | null
           adddate?: string | null
+          app_profile_id?: string | null
           auditlog?: string | null
           email?: string | null
           expire?: string | null
@@ -12047,6 +12376,13 @@ export type Database = {
       }
     }
     Views: {
+      factory_canonical_identity: {
+        Row: {
+          core_factory_id: string | null
+          legacy_factory_id: number | null
+        }
+        Relationships: []
+      }
       item_detail_upc: {
         Row: {
           coldlion_synced_at: string | null
@@ -12094,6 +12430,87 @@ export type Database = {
           whse_sku_id?: string | null
         }
         Relationships: []
+      }
+      item_workflow_handoff: {
+        Row: {
+          fallback_reason: string | null
+          fallback_recipient_user_id: number | null
+          from_function_key: string | null
+          handed_off_at: string | null
+          handoff_action_id: number | null
+          is_open: boolean | null
+          original_actor_user_id: number | null
+          requires_admin_review: boolean | null
+          return_action_id: number | null
+          returned_at: string | null
+          returned_by_user_id: number | null
+          rfq_item_id: number | null
+          to_function_key: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_workflow_action_actor_user_id_fkey"
+            columns: ["original_actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_actor_user_id_fkey"
+            columns: ["returned_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_fallback_recipient_fkey"
+            columns: ["fallback_recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sample_approval_current: {
+        Row: {
+          actor_role: string | null
+          actor_user: string | null
+          approval_state: string | null
+          approval_type: string | null
+          created_at: string | null
+          destination_id: string | null
+          destination_type: string | null
+          idempotency_key: string | null
+          qc_required: boolean | null
+          reason: string | null
+          request_hash: string | null
+          sample_approval_event_id: number | null
+          sample_attachment_id: number | null
+          sample_id_fk: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_approval_event_sample_attachment_id_fkey"
+            columns: ["sample_attachment_id"]
+            isOneToOne: false
+            referencedRelation: "sample_attachment"
+            referencedColumns: ["sample_attachment_id"]
+          },
+          {
+            foreignKeyName: "sample_approval_event_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_approval_event_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+        ]
       }
       sample_balance_by_location: {
         Row: {
@@ -12145,7 +12562,46 @@ export type Database = {
           quantity: number | null
           sample_id_fk: number | null
         }
-        Relationships: []
+        Insert: {
+          available_since?: string | null
+          ineligibility_reason?: never
+          is_boxed?: never
+          is_eligible?: never
+          is_in_transit?: never
+          location_type?: string | null
+          product_location_id?: never
+          product_location_type?: never
+          quantity?: number | null
+          sample_id_fk?: number | null
+        }
+        Update: {
+          available_since?: string | null
+          ineligibility_reason?: never
+          is_boxed?: never
+          is_eligible?: never
+          is_in_transit?: never
+          location_type?: string | null
+          product_location_id?: never
+          product_location_type?: never
+          quantity?: number | null
+          sample_id_fk?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sample_inventory_balance_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample"
+            referencedColumns: ["sample_id_pk"]
+          },
+          {
+            foreignKeyName: "sample_inventory_balance_sample_id_fk_fkey"
+            columns: ["sample_id_fk"]
+            isOneToOne: false
+            referencedRelation: "sample_global_status"
+            referencedColumns: ["sample_id_pk"]
+          },
+        ]
       }
       sample_open_stop_work: {
         Row: {
@@ -12233,6 +12689,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sample_factory_visit_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory_canonical_identity"
+            referencedColumns: ["legacy_factory_id"]
+          },
+          {
             foreignKeyName: "sample_factory_visit_outbound_shipment_id_fkey"
             columns: ["outbound_shipment_id"]
             isOneToOne: false
@@ -12292,6 +12755,17 @@ export type Database = {
       }
     }
     Functions: {
+      claim_sample_shipment_notice: {
+        Args: { p_notice_id: number }
+        Returns: {
+          body_html: string
+          notice_id: number
+          provider_idempotency_key: string
+          recipient_emails: string[]
+          subject: string
+        }[]
+      }
+      current_designflow_user_id: { Args: never; Returns: number }
       get_child_id: {
         Args: {
           p_child_mg_code: string
@@ -12306,6 +12780,80 @@ export type Database = {
       get_parent_id: {
         Args: { p_division_id: number; p_mg_code: string; p_mg_desc: string }
         Returns: number
+      }
+      pack_sample_reservation: {
+        Args: {
+          p_actor_role: string
+          p_actor_user: string
+          p_box_id: number
+          p_destination_id: string
+          p_destination_type: string
+          p_idempotency_key: string
+          p_origin_location_id: string
+          p_request_hash: string
+          p_reservation_id: string
+          p_route_leg: string
+          p_sample_shipment_id: number
+        }
+        Returns: {
+          idempotency_key: string
+          open_sample_id: number | null
+          packed_at: string | null
+          packed_box_id: number | null
+          packed_by_user: string | null
+          packed_shipment_line_id: number | null
+          request_hash: string
+          reservation_state: string
+          reserved_at: string
+          reserved_by_user: string
+          sample_id_fk: number
+          sample_remote_request_item_id: string
+          sample_reservation_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sample_reservation"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_sample_approval_event: {
+        Args: {
+          p_actor_role: string
+          p_actor_user: string
+          p_approval_state: string
+          p_approval_type: string
+          p_destination_id?: string
+          p_destination_type?: string
+          p_idempotency_key: string
+          p_qc_required: boolean
+          p_reason?: string
+          p_request_hash: string
+          p_sample_attachment_id?: number
+          p_sample_id: number
+        }
+        Returns: {
+          actor_role: string
+          actor_user: string
+          approval_state: string
+          approval_type: string
+          created_at: string
+          destination_id: string | null
+          destination_type: string | null
+          idempotency_key: string
+          qc_required: boolean
+          reason: string | null
+          request_hash: string
+          sample_approval_event_id: number
+          sample_attachment_id: number | null
+          sample_id_fk: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sample_approval_event"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       post_sample_movement: {
         Args: {
@@ -12363,6 +12911,1543 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      post_sample_piece_split: {
+        Args: {
+          p_actor_role: string
+          p_actor_user: string
+          p_children: Json
+          p_idempotency_key: string
+          p_parent_sample_id: number
+          p_request_hash: string
+          p_source_location_id: string
+          p_source_location_type: string
+          p_split_reason: string
+        }
+        Returns: {
+          created_at: string
+          idempotency_key: string
+          parent_sample_id_fk: number
+          piece_quantity: number
+          request_hash: string
+          root_sample_id_fk: number
+          sample_id_fk: number
+          sample_piece_lineage_id: number
+          split_by_role: string
+          split_by_user: string
+          split_reason: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "sample_piece_lineage"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      post_sample_remote_request_event: {
+        Args: {
+          p_actor_role: string
+          p_actor_user: string
+          p_event_payload?: Json
+          p_idempotency_key: string
+          p_item_id: string
+          p_note?: string
+          p_request_hash: string
+          p_to_state: string
+        }
+        Returns: {
+          actor_role: string
+          actor_user: string
+          event_payload: Json
+          from_state: string | null
+          idempotency_key: string
+          note: string | null
+          occurred_at: string
+          request_hash: string
+          sample_remote_request_history_id: number
+          sample_remote_request_item_id: string
+          to_state: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sample_remote_request_history"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_item_workflow_action: {
+        Args: {
+          p_action_key: string
+          p_correlation_key: string
+          p_from_function_key?: string
+          p_new_step_id: number
+          p_notification_message?: string
+          p_notification_title?: string
+          p_notification_type?: string
+          p_return_to_original_handoff?: boolean
+          p_rfq_item_id: number
+          p_routing_context?: Json
+          p_to_function_key?: string
+        }
+        Returns: number
+      }
+      reserve_sample_remote_request_item: {
+        Args: {
+          p_actor_role: string
+          p_actor_user: string
+          p_idempotency_key: string
+          p_item_id: string
+          p_request_hash: string
+        }
+        Returns: {
+          idempotency_key: string
+          open_sample_id: number | null
+          packed_at: string | null
+          packed_box_id: number | null
+          packed_by_user: string | null
+          packed_shipment_line_id: number | null
+          request_hash: string
+          reservation_state: string
+          reserved_at: string
+          reserved_by_user: string
+          sample_id_fk: number
+          sample_remote_request_item_id: string
+          sample_reservation_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sample_reservation"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_item_user_assignment: {
+        Args: {
+          p_active: boolean
+          p_assignment_context?: Json
+          p_function_key: string
+          p_rfq_item_id: number
+          p_user_id: number
+        }
+        Returns: number
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  hts_rag: {
+    Tables: {
+      hts_rag_article_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          name_embedding: unknown
+          source_environment: string
+          synonyms: string[]
+          updated_at: string
+          vocab_version: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          name_embedding?: unknown
+          source_environment: string
+          synonyms?: string[]
+          updated_at?: string
+          vocab_version: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          name_embedding?: unknown
+          source_environment?: string
+          synonyms?: string[]
+          updated_at?: string
+          vocab_version?: string
+        }
+        Relationships: []
+      }
+      hts_rag_attribute_keys: {
+        Row: {
+          created_at: string
+          key: string
+          kind: string
+          source_environment: string
+          unit: string | null
+          updated_at: string
+          vocab_version: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          kind: string
+          source_environment: string
+          unit?: string | null
+          updated_at?: string
+          vocab_version: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          kind?: string
+          source_environment?: string
+          unit?: string | null
+          updated_at?: string
+          vocab_version?: string
+        }
+        Relationships: []
+      }
+      hts_rag_classification_jobs: {
+        Row: {
+          actual_cost_usd: number | null
+          applied_at: string | null
+          applied_by: Json | null
+          attempt_count: number
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: Json | null
+          determination_id: string
+          error_code: string | null
+          error_message: string | null
+          estimated_cost_usd: number | null
+          id: string
+          input: Json
+          kind: string
+          lease_expires_at: string | null
+          max_attempts: number
+          notified_at: string | null
+          owner_key: string
+          result: Json | null
+          rfq_id: number | null
+          rfq_item_id: number | null
+          session_id: string
+          source: string
+          source_environment: string
+          status: string
+          turn_index: number
+          updated_at: string
+        }
+        Insert: {
+          actual_cost_usd?: number | null
+          applied_at?: string | null
+          applied_by?: Json | null
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: Json | null
+          determination_id: string
+          error_code?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number | null
+          id?: string
+          input: Json
+          kind: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          notified_at?: string | null
+          owner_key: string
+          result?: Json | null
+          rfq_id?: number | null
+          rfq_item_id?: number | null
+          session_id: string
+          source?: string
+          source_environment: string
+          status?: string
+          turn_index: number
+          updated_at?: string
+        }
+        Update: {
+          actual_cost_usd?: number | null
+          applied_at?: string | null
+          applied_by?: Json | null
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: Json | null
+          determination_id?: string
+          error_code?: string | null
+          error_message?: string | null
+          estimated_cost_usd?: number | null
+          id?: string
+          input?: Json
+          kind?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          notified_at?: string | null
+          owner_key?: string
+          result?: Json | null
+          rfq_id?: number | null
+          rfq_item_id?: number | null
+          session_id?: string
+          source?: string
+          source_environment?: string
+          status?: string
+          turn_index?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_classification_jobs_determination_fkey"
+            columns: ["determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_debate_runs: {
+        Row: {
+          attempt_count: number
+          case_packet_hash: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          consensus_code: string | null
+          created_at: string
+          error_code: string | null
+          error_detail: string | null
+          evidence_expansion_count: number
+          evidence_result: Json
+          gate_result: Json
+          id: string
+          lease_expires_at: string | null
+          luna_final_code: string | null
+          luna_initial_code: string | null
+          max_attempts: number
+          policy_version: string
+          precedent_id: string | null
+          session_id: string
+          source_determination_id: string
+          source_environment: string
+          spark_final_code: string | null
+          spark_initial_code: string | null
+          status: string
+          stop_reason: string | null
+          turn_count: number
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          case_packet_hash: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version: string
+          precedent_id?: string | null
+          session_id: string
+          source_determination_id: string
+          source_environment: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          case_packet_hash?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version?: string
+          precedent_id?: string | null
+          session_id?: string
+          source_determination_id?: string
+          source_environment?: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_debate_runs_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_debate_runs_source_determination_id_fkey"
+            columns: ["source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_determinations: {
+        Row: {
+          classification_state: string
+          comparison_category: string
+          comparison_details: Json
+          comparison_key: string
+          comparison_review_state: string
+          completion_key: string | null
+          created_at: string
+          id: string
+          method: string
+          operative_eligible: boolean
+          precedent_id: string | null
+          product_example_id: string
+          proposed_hts: string | null
+          result_hash: string
+          session_id: string | null
+          source_environment: string
+        }
+        Insert: {
+          classification_state: string
+          comparison_category?: string
+          comparison_details?: Json
+          comparison_key: string
+          comparison_review_state?: string
+          completion_key?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id: string
+          proposed_hts?: string | null
+          result_hash: string
+          session_id?: string | null
+          source_environment: string
+        }
+        Update: {
+          classification_state?: string
+          comparison_category?: string
+          comparison_details?: Json
+          comparison_key?: string
+          comparison_review_state?: string
+          completion_key?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id?: string
+          proposed_hts?: string | null
+          result_hash?: string
+          session_id?: string | null
+          source_environment?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_determinations_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_determinations_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_extraction_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
+          error_code: string | null
+          extraction_version: string
+          id: string
+          input_hash: string
+          max_attempts: number
+          model_version: string
+          parse_error_code: string | null
+          parse_state: string
+          product_example_id: string
+          prompt_version: string
+          raw_extraction: Json | null
+          result_hash: string | null
+          review_needed: boolean
+          source_environment: string
+          status: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
+          error_code?: string | null
+          extraction_version: string
+          id?: string
+          input_hash: string
+          max_attempts?: number
+          model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
+          product_example_id: string
+          prompt_version: string
+          raw_extraction?: Json | null
+          result_hash?: string | null
+          review_needed?: boolean
+          source_environment: string
+          status?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
+          error_code?: string | null
+          extraction_version?: string
+          id?: string
+          input_hash?: string
+          max_attempts?: number
+          model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
+          product_example_id?: string
+          prompt_version?: string
+          raw_extraction?: Json | null
+          result_hash?: string | null
+          review_needed?: boolean
+          source_environment?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_extraction_jobs_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_heading_decisions: {
+        Row: {
+          created_at: string
+          decisive_keys: string[]
+          heading: string
+          id: string
+          legal_note_refs: string[]
+          outcome: string
+          product_id: string
+          reason_text: string | null
+          rule_used: string[]
+          source_environment: string
+          source_span: unknown
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decisive_keys?: string[]
+          heading: string
+          id?: string
+          legal_note_refs?: string[]
+          outcome: string
+          product_id: string
+          reason_text?: string | null
+          rule_used?: string[]
+          source_environment: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decisive_keys?: string[]
+          heading?: string
+          id?: string
+          legal_note_refs?: string[]
+          outcome?: string
+          product_id?: string
+          reason_text?: string | null
+          rule_used?: string[]
+          source_environment?: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_heading_decisions_product_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_ruling_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_hts_codes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          indent: number
+          parent_code: string | null
+          revision: string
+          source_environment: string
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description: string
+          id?: string
+          indent?: number
+          parent_code?: string | null
+          revision: string
+          source_environment: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          indent?: number
+          parent_code?: string | null
+          revision?: string
+          source_environment?: string
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
+      hts_rag_hts_renumbering: {
+        Row: {
+          created_at: string
+          id: string
+          new_code: string | null
+          old_code: string
+          revision: string
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_code?: string | null
+          old_code: string
+          revision: string
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_code?: string | null
+          old_code?: string
+          revision?: string
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hts_rag_materials: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          name_embedding: unknown
+          source_environment: string
+          synonyms: string[]
+          updated_at: string
+          vocab_version: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          name_embedding?: unknown
+          source_environment: string
+          synonyms?: string[]
+          updated_at?: string
+          vocab_version: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          name_embedding?: unknown
+          source_environment?: string
+          synonyms?: string[]
+          updated_at?: string
+          vocab_version?: string
+        }
+        Relationships: []
+      }
+      hts_rag_precedent_rulings: {
+        Row: {
+          created_at: string
+          final_relationship: string | null
+          id: string
+          precedent_id: string
+          provisional_claim: string | null
+          ruling_id: string
+          source_environment: string
+          source_status: string
+          verifier_relevance: string
+          verifier_result_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id: string
+          provisional_claim?: string | null
+          ruling_id: string
+          source_environment: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id?: string
+          provisional_claim?: string | null
+          ruling_id?: string
+          source_environment?: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_ruling_id_fkey"
+            columns: ["ruling_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_precedents: {
+        Row: {
+          classification_state: string
+          classifier_model: string
+          confidence_components: Json
+          conflicts: Json
+          created_at: string
+          decision_card_candidate: boolean
+          exclusions_checked: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          missing_critical_facts: Json
+          negative_attributes: Json
+          normalized_facts: Json
+          operative_eligible: boolean
+          plausible_headings: Json
+          positive_attributes: Json
+          product_family: string
+          promotion_basis: string
+          promotion_debate_run_id: string | null
+          promotion_gate_result: Json | null
+          promotion_policy_version: string | null
+          promotion_source_determination_id: string | null
+          prompt_version: string
+          proposed_hts: string | null
+          raw_result_hash: string
+          reasoning_summary: string | null
+          review_state: string
+          source_environment: string
+          verifier_model: string
+        }
+        Insert: {
+          classification_state: string
+          classifier_model: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
+          prompt_version: string
+          proposed_hts?: string | null
+          raw_result_hash: string
+          reasoning_summary?: string | null
+          review_state?: string
+          source_environment: string
+          verifier_model: string
+        }
+        Update: {
+          classification_state?: string
+          classifier_model?: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version?: string
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family?: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
+          prompt_version?: string
+          proposed_hts?: string | null
+          raw_result_hash?: string
+          reasoning_summary?: string | null
+          review_state?: string
+          source_environment?: string
+          verifier_model?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_debate_run_id_fkey"
+            columns: ["promotion_debate_run_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_debate_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_source_determination_id_fkey"
+            columns: ["promotion_source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_product_attributes: {
+        Row: {
+          basis: string | null
+          created_at: string
+          id: string
+          is_decisive: boolean
+          key: string
+          product_id: string
+          source_environment: string
+          source_span: unknown
+          unit: string | null
+          updated_at: string
+          value_num: number | null
+          value_text: string | null
+        }
+        Insert: {
+          basis?: string | null
+          created_at?: string
+          id?: string
+          is_decisive?: boolean
+          key: string
+          product_id: string
+          source_environment: string
+          source_span: unknown
+          unit?: string | null
+          updated_at?: string
+          value_num?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          basis?: string | null
+          created_at?: string
+          id?: string
+          is_decisive?: boolean
+          key?: string
+          product_id?: string
+          source_environment?: string
+          source_span?: unknown
+          unit?: string | null
+          updated_at?: string
+          value_num?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_product_attributes_key_fkey"
+            columns: ["key"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_attribute_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "hts_rag_product_attributes_product_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_ruling_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_product_components: {
+        Row: {
+          component: string
+          created_at: string
+          id: string
+          is_essential_character: boolean
+          material: string | null
+          own_code_if_stated: string | null
+          product_id: string
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          component: string
+          created_at?: string
+          id?: string
+          is_essential_character?: boolean
+          material?: string | null
+          own_code_if_stated?: string | null
+          product_id: string
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          component?: string
+          created_at?: string
+          id?: string
+          is_essential_character?: boolean
+          material?: string | null
+          own_code_if_stated?: string | null
+          product_id?: string
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_product_components_product_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_ruling_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_product_examples: {
+        Row: {
+          created_at: string
+          facts: Json
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          product_family: string
+          source_environment: string
+        }
+        Insert: {
+          created_at?: string
+          facts?: Json
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          product_family: string
+          source_environment: string
+        }
+        Update: {
+          created_at?: string
+          facts?: Json
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          product_family?: string
+          source_environment?: string
+        }
+        Relationships: []
+      }
+      hts_rag_product_family_allowlist: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          enabled_at: string | null
+          enabled_by: string | null
+          product_family: string
+          reason: string | null
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family: string
+          reason?: string | null
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family?: string
+          reason?: string | null
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hts_rag_provider_responses: {
+        Row: {
+          created_at: string
+          determination_id: string | null
+          enrichment_state: string
+          extraction_job_id: string | null
+          id: string
+          model_version: string
+          parse_error_code: string | null
+          parse_state: string
+          parsed_payload: Json | null
+          persisted_at: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at: string | null
+          request_hash: string
+          session_id: string
+          source_environment: string
+          turn_index: number
+          turn_role: string
+        }
+        Insert: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at?: string | null
+          request_hash: string
+          session_id: string
+          source_environment: string
+          turn_index: number
+          turn_role: string
+        }
+        Update: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version?: string
+          provider?: string
+          raw_response?: Json
+          raw_response_hash?: string
+          released_at?: string | null
+          request_hash?: string
+          session_id?: string
+          source_environment?: string
+          turn_index?: number
+          turn_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_provider_responses_determination_id_fkey"
+            columns: ["determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_provider_responses_extraction_job_id_fkey"
+            columns: ["extraction_job_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extraction_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_review_events: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_state: string | null
+          notes: string | null
+          prior_state: string | null
+          reviewed_by: string | null
+          source_environment: string
+          subject_id: string
+          subject_type: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          source_environment: string
+          subject_id: string
+          subject_type: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          source_environment?: string
+          subject_id?: string
+          subject_type?: string
+        }
+        Relationships: []
+      }
+      hts_rag_ruling_codes: {
+        Row: {
+          code: string
+          created_at: string
+          extract_version: string
+          id: string
+          role: string
+          ruling_number: string
+          source_environment: string
+          source_span: unknown
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          extract_version: string
+          id?: string
+          role: string
+          ruling_number: string
+          source_environment: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          extract_version?: string
+          id?: string
+          role?: string
+          ruling_number?: string
+          source_environment?: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_codes_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
+      hts_rag_ruling_ingest_jobs: {
+        Row: {
+          attempt_count: number
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          error_detail: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          ruling_number: string
+          source_determination_id: string | null
+          source_environment: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          ruling_number: string
+          source_determination_id?: string | null
+          source_environment: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          ruling_number?: string
+          source_determination_id?: string | null
+          source_environment?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_ingest_jobs_source_determination_fkey"
+            columns: ["source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_ruling_links: {
+        Row: {
+          created_at: string
+          from_ruling: string
+          kind: string
+          link_source: string
+          product_label: string | null
+          source_environment: string
+          to_ruling: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_ruling: string
+          kind: string
+          link_source: string
+          product_label?: string | null
+          source_environment: string
+          to_ruling: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_ruling?: string
+          kind?: string
+          link_source?: string
+          product_label?: string | null
+          source_environment?: string
+          to_ruling?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_links_from_fkey"
+            columns: ["from_ruling"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
+      hts_rag_ruling_products: {
+        Row: {
+          article_type_id: string | null
+          confidence_checks: Json
+          created_at: string
+          description_text: string | null
+          effective_status: string
+          extract_version: string
+          held_chapter: string | null
+          held_code: string | null
+          held_code_current: string[]
+          held_heading: string | null
+          id: string
+          is_composite: boolean
+          is_set: boolean
+          item_label: string
+          phrase_embedding: unknown
+          plain_phrase: string
+          primary_material_id: string | null
+          review_state: string
+          ruling_number: string
+          source_environment: string
+          source_span: unknown
+          updated_at: string
+        }
+        Insert: {
+          article_type_id?: string | null
+          confidence_checks?: Json
+          created_at?: string
+          description_text?: string | null
+          effective_status?: string
+          extract_version: string
+          held_chapter?: string | null
+          held_code?: string | null
+          held_code_current?: string[]
+          held_heading?: string | null
+          id?: string
+          is_composite?: boolean
+          is_set?: boolean
+          item_label: string
+          phrase_embedding?: unknown
+          plain_phrase: string
+          primary_material_id?: string | null
+          review_state?: string
+          ruling_number: string
+          source_environment: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Update: {
+          article_type_id?: string | null
+          confidence_checks?: Json
+          created_at?: string
+          description_text?: string | null
+          effective_status?: string
+          extract_version?: string
+          held_chapter?: string | null
+          held_code?: string | null
+          held_code_current?: string[]
+          held_heading?: string | null
+          id?: string
+          is_composite?: boolean
+          is_set?: boolean
+          item_label?: string
+          phrase_embedding?: unknown
+          plain_phrase?: string
+          primary_material_id?: string | null
+          review_state?: string
+          ruling_number?: string
+          source_environment?: string
+          source_span?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_products_article_type_fkey"
+            columns: ["article_type_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_article_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_ruling_products_material_fkey"
+            columns: ["primary_material_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_ruling_products_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
+      hts_rag_rulings: {
+        Row: {
+          category: string | null
+          collection: string | null
+          created_at: string
+          effective_status: string
+          extract_version: string | null
+          extracted_at: string | null
+          fetched_at: string
+          full_text: string
+          full_text_hash: string
+          hs_era: string | null
+          id: string
+          modified_by: Json
+          operationally_revoked: boolean
+          pdf_url: string | null
+          raw_json: Json | null
+          revoked_by: Json
+          ruling_date: string | null
+          ruling_number: string
+          source_environment: string
+          source_url: string | null
+          subject: string | null
+          tariffs: Json
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          collection?: string | null
+          created_at?: string
+          effective_status?: string
+          extract_version?: string | null
+          extracted_at?: string | null
+          fetched_at?: string
+          full_text: string
+          full_text_hash: string
+          hs_era?: string | null
+          id?: string
+          modified_by?: Json
+          operationally_revoked?: boolean
+          pdf_url?: string | null
+          raw_json?: Json | null
+          revoked_by?: Json
+          ruling_date?: string | null
+          ruling_number: string
+          source_environment: string
+          source_url?: string | null
+          subject?: string | null
+          tariffs?: Json
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          collection?: string | null
+          created_at?: string
+          effective_status?: string
+          extract_version?: string | null
+          extracted_at?: string | null
+          fetched_at?: string
+          full_text?: string
+          full_text_hash?: string
+          hs_era?: string | null
+          id?: string
+          modified_by?: Json
+          operationally_revoked?: boolean
+          pdf_url?: string | null
+          raw_json?: Json | null
+          revoked_by?: Json
+          ruling_date?: string | null
+          ruling_number?: string
+          source_environment?: string
+          source_url?: string | null
+          subject?: string | null
+          tariffs?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      hts_rag_type_heading_stats: {
+        Row: {
+          all_materials: boolean | null
+          article_type_id: string | null
+          chapter: string | null
+          heading: string | null
+          newest_ruling_date: string | null
+          outcome: string | null
+          primary_material_id: string | null
+          product_count: number | null
+          ruling_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_products_article_type_fkey"
+            columns: ["article_type_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_article_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_ruling_products_material_fkey"
+            columns: ["primary_material_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Functions: {
+      hts_rag_refresh_type_heading_stats: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
@@ -12373,96 +14458,6 @@ export type Database = {
   }
   plm: {
     Tables: {
-      licensing_consolidation_plan: {
-        Row: {
-          id: string
-          source_system: string
-          capture_id: string
-          plan_hash: string
-          plan_status: string
-          capture_complete: boolean
-          source_scope_checked: boolean
-          collision_count: number
-          entity_operation_count: number
-          relationship_operation_count: number
-          retire_operation_count: number
-          operations: Json
-          rollback_operations: Json
-          refusal_reason: string | null
-          planned_at: string
-          planned_by: string
-          applied_at: string | null
-          applied_by: string | null
-          rollback_of: string | null
-          created_at: string
-          plan_schema_version: number
-          capture_snapshot: Json
-          applied_state: Json | null
-        }
-        Insert: {
-          id?: string
-          source_system: string
-          capture_id: string
-          plan_hash: string
-          plan_status?: string
-          capture_complete: boolean
-          source_scope_checked: boolean
-          collision_count?: number
-          entity_operation_count?: number
-          relationship_operation_count?: number
-          retire_operation_count?: number
-          operations?: Json
-          rollback_operations?: Json
-          refusal_reason?: string | null
-          planned_at?: string
-          planned_by: string
-          applied_at?: string | null
-          applied_by?: string | null
-          rollback_of?: string | null
-          created_at?: string
-          plan_schema_version?: number
-          capture_snapshot?: Json
-          applied_state?: Json | null
-        }
-        Update: {
-          id?: string
-          source_system?: string
-          capture_id?: string
-          plan_hash?: string
-          plan_status?: string
-          capture_complete?: boolean
-          source_scope_checked?: boolean
-          collision_count?: number
-          entity_operation_count?: number
-          relationship_operation_count?: number
-          retire_operation_count?: number
-          operations?: Json
-          rollback_operations?: Json
-          refusal_reason?: string | null
-          planned_at?: string
-          planned_by?: string
-          applied_at?: string | null
-          applied_by?: string | null
-          rollback_of?: string | null
-          created_at?: string
-          plan_schema_version?: number
-          capture_snapshot?: Json
-          applied_state?: Json | null
-        }
-        Relationships: [
-          {
-            "columns": [
-              "rollback_of"
-            ],
-            "isOneToOne": false,
-            "foreignKeyName": "licensing_consolidation_plan_rollback_of_fkey",
-            "referencedColumns": [
-              "id"
-            ],
-            "referencedRelation": "licensing_consolidation_plan"
-          }
-        ]
-      }
       art_piece: {
         Row: {
           art_type: string | null
@@ -12512,6 +14507,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "art_piece_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
             referencedColumns: ["id"]
           },
         ]
@@ -12645,6 +14647,905 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "item"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "art_piece_item_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_approval_comment: {
+        Row: {
+          approval_route_id: string
+          author_label: string | null
+          body: string | null
+          capture_id: string
+          comment_source_key: string
+          identity_method: string
+          posted_at_text: string | null
+          raw: Json
+          source_sequence: number | null
+          visibility_label: string | null
+        }
+        Insert: {
+          approval_route_id: string
+          author_label?: string | null
+          body?: string | null
+          capture_id: string
+          comment_source_key: string
+          identity_method?: string
+          posted_at_text?: string | null
+          raw: Json
+          source_sequence?: number | null
+          visibility_label?: string | null
+        }
+        Update: {
+          approval_route_id?: string
+          author_label?: string | null
+          body?: string | null
+          capture_id?: string
+          comment_source_key?: string
+          identity_method?: string
+          posted_at_text?: string | null
+          raw?: Json
+          source_sequence?: number | null
+          visibility_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_comment_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: false
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+        ]
+      }
+      coke_approval_item: {
+        Row: {
+          approval_route_id: string
+          capture_id: string
+          company_label: string | null
+          current_stage: string | null
+          item_id: string
+          item_type: string | null
+          last_action_text: string | null
+          preview_path: string | null
+          raw: Json
+          source_url: string | null
+          status: string | null
+          submitted_text: string | null
+          title: string | null
+          version_count: number | null
+          view_count: number | null
+        }
+        Insert: {
+          approval_route_id: string
+          capture_id: string
+          company_label?: string | null
+          current_stage?: string | null
+          item_id: string
+          item_type?: string | null
+          last_action_text?: string | null
+          preview_path?: string | null
+          raw: Json
+          source_url?: string | null
+          status?: string | null
+          submitted_text?: string | null
+          title?: string | null
+          version_count?: number | null
+          view_count?: number | null
+        }
+        Update: {
+          approval_route_id?: string
+          capture_id?: string
+          company_label?: string | null
+          current_stage?: string | null
+          item_id?: string
+          item_type?: string | null
+          last_action_text?: string | null
+          preview_path?: string | null
+          raw?: Json
+          source_url?: string | null
+          status?: string | null
+          submitted_text?: string | null
+          title?: string | null
+          version_count?: number | null
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_item_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_approval_metadata_value: {
+        Row: {
+          approval_route_id: string
+          capture_id: string
+          field_key: string
+          field_value: string | null
+          ordinal: number
+          raw: Json
+          source_href: string | null
+          value_key: string | null
+        }
+        Insert: {
+          approval_route_id: string
+          capture_id: string
+          field_key: string
+          field_value?: string | null
+          ordinal: number
+          raw: Json
+          source_href?: string | null
+          value_key?: string | null
+        }
+        Update: {
+          approval_route_id?: string
+          capture_id?: string
+          field_key?: string
+          field_value?: string | null
+          ordinal?: number
+          raw?: Json
+          source_href?: string | null
+          value_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_metadata_value_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: false
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+        ]
+      }
+      coke_approval_related_item: {
+        Row: {
+          approval_route_id: string
+          capture_id: string
+          ordinal: number
+          raw: Json
+          related_href: string | null
+          related_label: string | null
+          related_route_id: string | null
+          relationship_truth: string
+        }
+        Insert: {
+          approval_route_id: string
+          capture_id: string
+          ordinal: number
+          raw: Json
+          related_href?: string | null
+          related_label?: string | null
+          related_route_id?: string | null
+          relationship_truth?: string
+        }
+        Update: {
+          approval_route_id?: string
+          capture_id?: string
+          ordinal?: number
+          raw?: Json
+          related_href?: string | null
+          related_label?: string | null
+          related_route_id?: string | null
+          relationship_truth?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_related_item_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: false
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+        ]
+      }
+      coke_approval_stage_snapshot: {
+        Row: {
+          approval_route_id: string
+          capture_id: string
+          raw: Json
+          stage_date_text: string | null
+          stage_label: string | null
+          stage_ordinal: number
+          stage_status: string | null
+          version_count: number | null
+          view_count: number | null
+        }
+        Insert: {
+          approval_route_id: string
+          capture_id: string
+          raw: Json
+          stage_date_text?: string | null
+          stage_label?: string | null
+          stage_ordinal: number
+          stage_status?: string | null
+          version_count?: number | null
+          view_count?: number | null
+        }
+        Update: {
+          approval_route_id?: string
+          capture_id?: string
+          raw?: Json
+          stage_date_text?: string | null
+          stage_label?: string | null
+          stage_ordinal?: number
+          stage_status?: string | null
+          version_count?: number | null
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_stage_snapshot_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: false
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+        ]
+      }
+      coke_approval_vocabulary_value: {
+        Row: {
+          approval_route_id: string
+          capture_id: string
+          field_key: string
+          ordinal: number
+          raw: Json
+          relationship_truth: string
+          value_key: string
+          vocabulary_kind: string
+        }
+        Insert: {
+          approval_route_id: string
+          capture_id: string
+          field_key: string
+          ordinal: number
+          raw: Json
+          relationship_truth?: string
+          value_key: string
+          vocabulary_kind: string
+        }
+        Update: {
+          approval_route_id?: string
+          capture_id?: string
+          field_key?: string
+          ordinal?: number
+          raw?: Json
+          relationship_truth?: string
+          value_key?: string
+          vocabulary_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_approval_vocabulary_valu_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: false
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+          {
+            foreignKeyName: "coke_approval_vocabulary_valu_capture_id_vocabulary_kind_v_fkey"
+            columns: ["capture_id", "vocabulary_kind", "value_key"]
+            isOneToOne: false
+            referencedRelation: "coke_vocabulary_value"
+            referencedColumns: ["capture_id", "vocabulary_kind", "value_key"]
+          },
+        ]
+      }
+      coke_asset: {
+        Row: {
+          asset_id: string
+          asset_name: string | null
+          capture_id: string
+          description: string | null
+          details_path: string | null
+          download_path: string | null
+          file_size_bytes: number | null
+          file_size_display: string | null
+          file_type: string | null
+          page_number: number | null
+          preview_path: string | null
+          raw: Json
+          raw_tag_string: string | null
+          thumbnail_path: string | null
+          uploaded_at_text: string | null
+          uploaded_by_label: string | null
+        }
+        Insert: {
+          asset_id: string
+          asset_name?: string | null
+          capture_id: string
+          description?: string | null
+          details_path?: string | null
+          download_path?: string | null
+          file_size_bytes?: number | null
+          file_size_display?: string | null
+          file_type?: string | null
+          page_number?: number | null
+          preview_path?: string | null
+          raw: Json
+          raw_tag_string?: string | null
+          thumbnail_path?: string | null
+          uploaded_at_text?: string | null
+          uploaded_by_label?: string | null
+        }
+        Update: {
+          asset_id?: string
+          asset_name?: string | null
+          capture_id?: string
+          description?: string | null
+          details_path?: string | null
+          download_path?: string | null
+          file_size_bytes?: number | null
+          file_size_display?: string | null
+          file_type?: string | null
+          page_number?: number | null
+          preview_path?: string | null
+          raw?: Json
+          raw_tag_string?: string | null
+          thumbnail_path?: string | null
+          uploaded_at_text?: string | null
+          uploaded_by_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_asset_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_asset_detail_value: {
+        Row: {
+          asset_id: string
+          capture_id: string
+          field_key: string
+          field_value: string | null
+          ordinal: number
+          raw: Json
+        }
+        Insert: {
+          asset_id: string
+          capture_id: string
+          field_key: string
+          field_value?: string | null
+          ordinal: number
+          raw: Json
+        }
+        Update: {
+          asset_id?: string
+          capture_id?: string
+          field_key?: string
+          field_value?: string | null
+          ordinal?: number
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_asset_detail_value_capture_id_asset_id_fkey"
+            columns: ["capture_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "coke_asset"
+            referencedColumns: ["capture_id", "asset_id"]
+          },
+        ]
+      }
+      coke_asset_property_option: {
+        Row: {
+          capture_id: string
+          classification: string | null
+          classification_status: string
+          exact_label: string
+          option_key: string
+          ordinal: number
+          raw: Json
+          source_field: string
+          source_value: string | null
+        }
+        Insert: {
+          capture_id: string
+          classification?: string | null
+          classification_status?: string
+          exact_label: string
+          option_key: string
+          ordinal: number
+          raw: Json
+          source_field: string
+          source_value?: string | null
+        }
+        Update: {
+          capture_id?: string
+          classification?: string | null
+          classification_status?: string
+          exact_label?: string
+          option_key?: string
+          ordinal?: number
+          raw?: Json
+          source_field?: string
+          source_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_asset_property_option_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_asset_tag: {
+        Row: {
+          asset_id: string
+          capture_id: string
+          raw: Json
+          relationship_truth: string
+          source_evidence: string
+          tag_key: string
+        }
+        Insert: {
+          asset_id: string
+          capture_id: string
+          raw: Json
+          relationship_truth?: string
+          source_evidence: string
+          tag_key: string
+        }
+        Update: {
+          asset_id?: string
+          capture_id?: string
+          raw?: Json
+          relationship_truth?: string
+          source_evidence?: string
+          tag_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_asset_tag_capture_id_asset_id_fkey"
+            columns: ["capture_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "coke_asset"
+            referencedColumns: ["capture_id", "asset_id"]
+          },
+          {
+            foreignKeyName: "coke_asset_tag_capture_id_tag_key_fkey"
+            columns: ["capture_id", "tag_key"]
+            isOneToOne: false
+            referencedRelation: "coke_tag"
+            referencedColumns: ["capture_id", "tag_key"]
+          },
+        ]
+      }
+      coke_capture: {
+        Row: {
+          account_scope: string
+          approval_index_complete: boolean
+          asset_details_complete: boolean
+          asset_index_complete: boolean
+          capture_key: string
+          created_by: string
+          errors: Json
+          expected_counts: Json
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          media_downloaded: number
+          observed_counts: Json
+          portal_base_url: string
+          raw_summary: Json
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          account_scope: string
+          approval_index_complete?: boolean
+          asset_details_complete?: boolean
+          asset_index_complete?: boolean
+          capture_key: string
+          created_by: string
+          errors?: Json
+          expected_counts: Json
+          id: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url: string
+          raw_summary: Json
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          account_scope?: string
+          approval_index_complete?: boolean
+          asset_details_complete?: boolean
+          asset_index_complete?: boolean
+          capture_key?: string
+          created_by?: string
+          errors?: Json
+          expected_counts?: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          media_downloaded?: number
+          observed_counts?: Json
+          portal_base_url?: string
+          raw_summary?: Json
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      coke_contract: {
+        Row: {
+          capture_id: string
+          contract_id: string
+          end_date: string | null
+          expiration_display: string | null
+          raw: Json
+          source_path: string | null
+          start_date: string | null
+          status: string | null
+        }
+        Insert: {
+          capture_id: string
+          contract_id: string
+          end_date?: string | null
+          expiration_display?: string | null
+          raw: Json
+          source_path?: string | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          capture_id?: string
+          contract_id?: string
+          end_date?: string | null
+          expiration_display?: string | null
+          raw?: Json
+          source_path?: string | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_contract_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_contract_manufacturer: {
+        Row: {
+          capture_id: string
+          contract_id: string
+          exact_name: string
+          expiration_display: string | null
+          manufacturer_id: string
+          raw: Json
+          source_path: string | null
+          status: string | null
+        }
+        Insert: {
+          capture_id: string
+          contract_id: string
+          exact_name: string
+          expiration_display?: string | null
+          manufacturer_id: string
+          raw: Json
+          source_path?: string | null
+          status?: string | null
+        }
+        Update: {
+          capture_id?: string
+          contract_id?: string
+          exact_name?: string
+          expiration_display?: string | null
+          manufacturer_id?: string
+          raw?: Json
+          source_path?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_contract_manufacturer_capture_id_contract_id_fkey"
+            columns: ["capture_id", "contract_id"]
+            isOneToOne: false
+            referencedRelation: "coke_contract"
+            referencedColumns: ["capture_id", "contract_id"]
+          },
+        ]
+      }
+      coke_manufacturer_profile: {
+        Row: {
+          address_line_1: string | null
+          address_line_2: string | null
+          annual_cost_response: string | null
+          approval_route_id: string
+          capture_id: string
+          city: string | null
+          commencement_text: string | null
+          comments: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          country: string | null
+          expiration_text: string | null
+          legal_name: string | null
+          licensed_products_text: string | null
+          postal_code: string | null
+          raw: Json
+          region: string | null
+          subcontractor_response: string | null
+          website: string | null
+        }
+        Insert: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          annual_cost_response?: string | null
+          approval_route_id: string
+          capture_id: string
+          city?: string | null
+          commencement_text?: string | null
+          comments?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          expiration_text?: string | null
+          legal_name?: string | null
+          licensed_products_text?: string | null
+          postal_code?: string | null
+          raw: Json
+          region?: string | null
+          subcontractor_response?: string | null
+          website?: string | null
+        }
+        Update: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          annual_cost_response?: string | null
+          approval_route_id?: string
+          capture_id?: string
+          city?: string | null
+          commencement_text?: string | null
+          comments?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          expiration_text?: string | null
+          legal_name?: string | null
+          licensed_products_text?: string | null
+          postal_code?: string | null
+          raw?: Json
+          region?: string | null
+          subcontractor_response?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_manufacturer_profile_capture_id_approval_route_id_fkey"
+            columns: ["capture_id", "approval_route_id"]
+            isOneToOne: true
+            referencedRelation: "coke_approval_item"
+            referencedColumns: ["capture_id", "approval_route_id"]
+          },
+        ]
+      }
+      coke_royalty_report: {
+        Row: {
+          capture_id: string
+          contract_id: string
+          currency_code: string | null
+          period_label: string | null
+          raw: Json
+          report_source_key: string
+          royalty_amount: number | null
+          royalty_amount_display: string | null
+          source_path: string | null
+          status: string | null
+        }
+        Insert: {
+          capture_id: string
+          contract_id: string
+          currency_code?: string | null
+          period_label?: string | null
+          raw: Json
+          report_source_key: string
+          royalty_amount?: number | null
+          royalty_amount_display?: string | null
+          source_path?: string | null
+          status?: string | null
+        }
+        Update: {
+          capture_id?: string
+          contract_id?: string
+          currency_code?: string | null
+          period_label?: string | null
+          raw?: Json
+          report_source_key?: string
+          royalty_amount?: number | null
+          royalty_amount_display?: string | null
+          source_path?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_royalty_report_capture_id_contract_id_fkey"
+            columns: ["capture_id", "contract_id"]
+            isOneToOne: false
+            referencedRelation: "coke_contract"
+            referencedColumns: ["capture_id", "contract_id"]
+          },
+        ]
+      }
+      coke_sku: {
+        Row: {
+          approval_item_id: string | null
+          capture_id: string
+          deactivation_date: string | null
+          deactivation_reason: string | null
+          primary_property_label: string | null
+          product_label: string | null
+          property_list_raw: string | null
+          raw: Json
+          sku: string | null
+          sku_source_id: string
+          sku_title: string | null
+          source_label: string | null
+        }
+        Insert: {
+          approval_item_id?: string | null
+          capture_id: string
+          deactivation_date?: string | null
+          deactivation_reason?: string | null
+          primary_property_label?: string | null
+          product_label?: string | null
+          property_list_raw?: string | null
+          raw: Json
+          sku?: string | null
+          sku_source_id: string
+          sku_title?: string | null
+          source_label?: string | null
+        }
+        Update: {
+          approval_item_id?: string | null
+          capture_id?: string
+          deactivation_date?: string | null
+          deactivation_reason?: string | null
+          primary_property_label?: string | null
+          product_label?: string | null
+          property_list_raw?: string | null
+          raw?: Json
+          sku?: string | null
+          sku_source_id?: string
+          sku_title?: string | null
+          source_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_sku_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_tag: {
+        Row: {
+          capture_id: string
+          exact_label: string
+          identity_method: string
+          raw: Json
+          tag_key: string
+        }
+        Insert: {
+          capture_id: string
+          exact_label: string
+          identity_method: string
+          raw: Json
+          tag_key: string
+        }
+        Update: {
+          capture_id?: string
+          exact_label?: string
+          identity_method?: string
+          raw?: Json
+          tag_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_tag_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coke_vocabulary_value: {
+        Row: {
+          canonical_id: string | null
+          canonical_schema: string | null
+          canonical_table: string | null
+          capture_id: string
+          exact_label: string
+          identity_method: string
+          parent_value_key: string | null
+          raw: Json
+          resolution_status: string
+          source_field: string
+          source_id: string | null
+          value_key: string
+          vocabulary_kind: string
+        }
+        Insert: {
+          canonical_id?: string | null
+          canonical_schema?: string | null
+          canonical_table?: string | null
+          capture_id: string
+          exact_label: string
+          identity_method: string
+          parent_value_key?: string | null
+          raw: Json
+          resolution_status?: string
+          source_field: string
+          source_id?: string | null
+          value_key: string
+          vocabulary_kind: string
+        }
+        Update: {
+          canonical_id?: string | null
+          canonical_schema?: string | null
+          canonical_table?: string | null
+          capture_id?: string
+          exact_label?: string
+          identity_method?: string
+          parent_value_key?: string | null
+          raw?: Json
+          resolution_status?: string
+          source_field?: string
+          source_id?: string | null
+          value_key?: string
+          vocabulary_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coke_vocabulary_value_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "coke_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coke_vocabulary_value_capture_id_vocabulary_kind_parent_va_fkey"
+            columns: ["capture_id", "vocabulary_kind", "parent_value_key"]
+            isOneToOne: false
+            referencedRelation: "coke_vocabulary_value"
+            referencedColumns: ["capture_id", "vocabulary_kind", "value_key"]
           },
         ]
       }
@@ -12879,6 +15780,303 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_property: {
+        Row: {
+          capture_id: string
+          exact_property_text: string
+          id: string
+          recorded_at: string
+        }
+        Insert: {
+          capture_id: string
+          exact_property_text: string
+          id?: string
+          recorded_at?: string
+        }
+        Update: {
+          capture_id?: string
+          exact_property_text?: string
+          id?: string
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_property_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_property_capture: {
+        Row: {
+          captured_at: string
+          controlling_chain_complete: boolean
+          decision_authority: string
+          evidence_date: string
+          id: string
+          licensor_id: string
+          source_identity: string
+        }
+        Insert: {
+          captured_at?: string
+          controlling_chain_complete: boolean
+          decision_authority: string
+          evidence_date: string
+          id?: string
+          licensor_id: string
+          source_identity: string
+        }
+        Update: {
+          captured_at?: string
+          controlling_chain_complete?: boolean
+          decision_authority?: string
+          evidence_date?: string
+          id?: string
+          licensor_id?: string
+          source_identity?: string
+        }
+        Relationships: []
+      }
+      contract_property_document: {
+        Row: {
+          capture_id: string
+          document_sha256: string
+          evidence_identity: string
+          id: string
+          recorded_at: string
+          signature_status: string
+        }
+        Insert: {
+          capture_id: string
+          document_sha256: string
+          evidence_identity: string
+          id?: string
+          recorded_at?: string
+          signature_status: string
+        }
+        Update: {
+          capture_id?: string
+          document_sha256?: string
+          evidence_identity?: string
+          id?: string
+          recorded_at?: string
+          signature_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_property_document_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_property_evidence: {
+        Row: {
+          capture_id: string
+          document_id: string
+          id: string
+          page_schedule_locator: string
+          property_id: string
+          recorded_at: string
+        }
+        Insert: {
+          capture_id: string
+          document_id: string
+          id?: string
+          page_schedule_locator: string
+          property_id: string
+          recorded_at?: string
+        }
+        Update: {
+          capture_id?: string
+          document_id?: string
+          id?: string
+          page_schedule_locator?: string
+          property_id?: string
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_property_evidence_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_property_evidence_document_fkey"
+            columns: ["capture_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property_document"
+            referencedColumns: ["capture_id", "id"]
+          },
+          {
+            foreignKeyName: "contract_property_evidence_property_fkey"
+            columns: ["capture_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property"
+            referencedColumns: ["capture_id", "id"]
+          },
+        ]
+      }
+      creative_submission_contract_resolution: {
+        Row: {
+          approval_actor_id: string
+          approved_at: string
+          contract_capture_id: string | null
+          contract_property_id: string | null
+          created_at: string
+          decision_state: string
+          decision_version: number
+          resolution_id: string
+          reviewed_batch_digest: string
+          reviewed_batch_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+          supersedes_resolution_id: string | null
+        }
+        Insert: {
+          approval_actor_id: string
+          approved_at: string
+          contract_capture_id?: string | null
+          contract_property_id?: string | null
+          created_at?: string
+          decision_state: string
+          decision_version: number
+          resolution_id?: string
+          reviewed_batch_digest: string
+          reviewed_batch_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+          supersedes_resolution_id?: string | null
+        }
+        Update: {
+          approval_actor_id?: string
+          approved_at?: string
+          contract_capture_id?: string | null
+          contract_property_id?: string | null
+          created_at?: string
+          decision_state?: string
+          decision_version?: number
+          resolution_id?: string
+          reviewed_batch_digest?: string
+          reviewed_batch_id?: string
+          submission_source_id?: string
+          submission_source_system?: string
+          submission_source_table?: string
+          supersedes_resolution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_submission_contract_reso_supersedes_resolution_id_fkey"
+            columns: ["supersedes_resolution_id"]
+            isOneToOne: true
+            referencedRelation: "creative_submission_contract_resolution"
+            referencedColumns: ["resolution_id"]
+          },
+          {
+            foreignKeyName: "creative_submission_contract_resolution_contract_fk"
+            columns: ["contract_capture_id", "contract_property_id"]
+            isOneToOne: false
+            referencedRelation: "contract_property"
+            referencedColumns: ["capture_id", "id"]
+          },
+        ]
+      }
+      creative_submission_property_resolution_archive: {
+        Row: {
+          approval_actor_id: string
+          approved_at: string
+          created_at: string
+          creative_source_id: string
+          creative_source_system: string
+          creative_source_table: string
+          decision_state: string
+          decision_version: number
+          resolution_id: string
+          reviewed_batch_digest: string
+          reviewed_batch_id: string
+          supersedes_resolution_id: string | null
+        }
+        Insert: {
+          approval_actor_id: string
+          approved_at: string
+          created_at?: string
+          creative_source_id: string
+          creative_source_system: string
+          creative_source_table: string
+          decision_state: string
+          decision_version: number
+          resolution_id: string
+          reviewed_batch_digest: string
+          reviewed_batch_id: string
+          supersedes_resolution_id?: string | null
+        }
+        Update: {
+          approval_actor_id?: string
+          approved_at?: string
+          created_at?: string
+          creative_source_id?: string
+          creative_source_system?: string
+          creative_source_table?: string
+          decision_state?: string
+          decision_version?: number
+          resolution_id?: string
+          reviewed_batch_digest?: string
+          reviewed_batch_id?: string
+          supersedes_resolution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_submission_property_reso_supersedes_resolution_id_fkey"
+            columns: ["supersedes_resolution_id"]
+            isOneToOne: false
+            referencedRelation: "creative_submission_property_resolution_archive"
+            referencedColumns: ["resolution_id"]
+          },
+        ]
+      }
+      creative_submission_property_resolution_member_archive: {
+        Row: {
+          created_at: string
+          resolution_id: string
+          resolution_member_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+        }
+        Insert: {
+          created_at?: string
+          resolution_id: string
+          resolution_member_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+        }
+        Update: {
+          created_at?: string
+          resolution_id?: string
+          resolution_member_id?: string
+          submission_source_id?: string
+          submission_source_system?: string
+          submission_source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_submission_property_resolution_memb_resolution_id_fkey"
+            columns: ["resolution_id"]
+            isOneToOne: false
+            referencedRelation: "creative_submission_property_resolution_archive"
+            referencedColumns: ["resolution_id"]
+          },
+        ]
+      }
       customer_import: {
         Row: {
           airbyte_customers_hashid: string | null
@@ -12942,8 +16140,10 @@ export type Database = {
           file_name: string
           file_size_bytes: number | null
           first_seen_crawl_id: string | null
+          first_withdrawn_at: string | null
           id: string
           last_seen_crawl_id: string | null
+          lifecycle_status: string
           raw: Json
           relative_folder_path: string | null
           source_asset_id: string | null
@@ -12951,6 +16151,7 @@ export type Database = {
           source_system: string
           style_guide_id: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           checksum?: string | null
@@ -12960,8 +16161,10 @@ export type Database = {
           file_name: string
           file_size_bytes?: number | null
           first_seen_crawl_id?: string | null
+          first_withdrawn_at?: string | null
           id?: string
           last_seen_crawl_id?: string | null
+          lifecycle_status?: string
           raw?: Json
           relative_folder_path?: string | null
           source_asset_id?: string | null
@@ -12969,6 +16172,7 @@ export type Database = {
           source_system?: string
           style_guide_id: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           checksum?: string | null
@@ -12978,8 +16182,10 @@ export type Database = {
           file_name?: string
           file_size_bytes?: number | null
           first_seen_crawl_id?: string | null
+          first_withdrawn_at?: string | null
           id?: string
           last_seen_crawl_id?: string | null
+          lifecycle_status?: string
           raw?: Json
           relative_folder_path?: string | null
           source_asset_id?: string | null
@@ -12987,6 +16193,7 @@ export type Database = {
           source_system?: string
           style_guide_id?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -13340,6 +16547,11 @@ export type Database = {
       dcp_crawl: {
         Row: {
           account_scope: string
+          assets_added_count: number | null
+          assets_reactivated_count: number | null
+          assets_withdrawn_count: number | null
+          baseline_crawl_id: string | null
+          baseline_required_status: string | null
           captured_by: string
           captured_on: string
           crawl_id: string
@@ -13354,13 +16566,22 @@ export type Database = {
           portal_base_url: string
           private_source_commit: string
           rows_received: number | null
+          run_kind: string
           source_system: string
           started_at: string
           status: string
+          style_guides_added_count: number | null
+          style_guides_reactivated_count: number | null
+          style_guides_withdrawn_count: number | null
           updated_at: string
         }
         Insert: {
           account_scope: string
+          assets_added_count?: number | null
+          assets_reactivated_count?: number | null
+          assets_withdrawn_count?: number | null
+          baseline_crawl_id?: string | null
+          baseline_required_status?: string | null
           captured_by: string
           captured_on: string
           crawl_id?: string
@@ -13375,13 +16596,22 @@ export type Database = {
           portal_base_url: string
           private_source_commit: string
           rows_received?: number | null
+          run_kind?: string
           source_system?: string
           started_at: string
           status?: string
+          style_guides_added_count?: number | null
+          style_guides_reactivated_count?: number | null
+          style_guides_withdrawn_count?: number | null
           updated_at?: string
         }
         Update: {
           account_scope?: string
+          assets_added_count?: number | null
+          assets_reactivated_count?: number | null
+          assets_withdrawn_count?: number | null
+          baseline_crawl_id?: string | null
+          baseline_required_status?: string | null
           captured_by?: string
           captured_on?: string
           crawl_id?: string
@@ -13396,12 +16626,31 @@ export type Database = {
           portal_base_url?: string
           private_source_commit?: string
           rows_received?: number | null
+          run_kind?: string
           source_system?: string
           started_at?: string
           status?: string
+          style_guides_added_count?: number | null
+          style_guides_reactivated_count?: number | null
+          style_guides_withdrawn_count?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "dcp_crawl_baseline_crawl_id_fkey"
+            columns: ["baseline_crawl_id"]
+            isOneToOne: false
+            referencedRelation: "dcp_crawl"
+            referencedColumns: ["crawl_id"]
+          },
+          {
+            foreignKeyName: "dcp_crawl_complete_baseline_fk"
+            columns: ["baseline_crawl_id", "baseline_required_status"]
+            isOneToOne: false
+            referencedRelation: "dcp_crawl"
+            referencedColumns: ["crawl_id", "status"]
+          },
+        ]
       }
       dcp_crawl_gap: {
         Row: {
@@ -13892,6 +17141,136 @@ export type Database = {
           },
         ]
       }
+      dcp_opa_property_resolution: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          contract_asserted_studio_code: string | null
+          contract_evidence_reference: string | null
+          contract_evidence_sha256: string | null
+          created_at: string
+          creative_decision_state: string | null
+          decision_reason: string
+          decision_version: number
+          evidence_reference: string
+          evidence_sha256: string
+          resolution_id: string
+          source_property_id: string
+          source_system: string
+          source_table: string
+          supersedes_resolution_id: string | null
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          contract_asserted_studio_code?: string | null
+          contract_evidence_reference?: string | null
+          contract_evidence_sha256?: string | null
+          created_at?: string
+          creative_decision_state?: string | null
+          decision_reason: string
+          decision_version: number
+          evidence_reference: string
+          evidence_sha256: string
+          resolution_id?: string
+          source_property_id: string
+          source_system: string
+          source_table: string
+          supersedes_resolution_id?: string | null
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          contract_asserted_studio_code?: string | null
+          contract_evidence_reference?: string | null
+          contract_evidence_sha256?: string | null
+          created_at?: string
+          creative_decision_state?: string | null
+          decision_reason?: string
+          decision_version?: number
+          evidence_reference?: string
+          evidence_sha256?: string
+          resolution_id?: string
+          source_property_id?: string
+          source_system?: string
+          source_table?: string
+          supersedes_resolution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcp_opa_property_resolution_same_identity_supersession_fk"
+            columns: [
+              "supersedes_resolution_id",
+              "source_system",
+              "source_table",
+              "source_property_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "dcp_opa_property_resolution"
+            referencedColumns: [
+              "resolution_id",
+              "source_system",
+              "source_table",
+              "source_property_id",
+            ]
+          },
+          {
+            foreignKeyName: "dcp_opa_property_resolution_supersedes_resolution_id_fkey"
+            columns: ["supersedes_resolution_id"]
+            isOneToOne: true
+            referencedRelation: "dcp_opa_property_resolution"
+            referencedColumns: ["resolution_id"]
+          },
+        ]
+      }
+      dcp_opa_property_resolution_member: {
+        Row: {
+          created_at: string
+          licensed_property_id: number | null
+          member_ordinal: number
+          resolution_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+        }
+        Insert: {
+          created_at?: string
+          licensed_property_id?: number | null
+          member_ordinal: number
+          resolution_id: string
+          submission_source_id: string
+          submission_source_system: string
+          submission_source_table: string
+        }
+        Update: {
+          created_at?: string
+          licensed_property_id?: number | null
+          member_ordinal?: number
+          resolution_id?: string
+          submission_source_id?: string
+          submission_source_system?: string
+          submission_source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcp_opa_property_resolution_member_ne_licensed_property_id_fkey"
+            columns: ["licensed_property_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property"
+            referencedColumns: ["licensed_property_id"]
+          },
+          {
+            foreignKeyName: "dcp_opa_property_resolution_member_new_resolution_id_fkey"
+            columns: ["resolution_id"]
+            isOneToOne: false
+            referencedRelation: "dcp_opa_property_resolution"
+            referencedColumns: ["resolution_id"]
+          },
+        ]
+      }
       dcp_portal_tile: {
         Row: {
           core_property_id: string | null
@@ -14024,14 +17403,98 @@ export type Database = {
           },
         ]
       }
+      dcp_property_licensor_resolution: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          authority_kind: string | null
+          authority_reference: string | null
+          created_at: string
+          decision_reason: string
+          decision_version: number
+          evidence_reference: string | null
+          presentation_licensor_key: string | null
+          presentation_licensor_name: string | null
+          resolution_id: string
+          resolution_status: string
+          resolved_at: string | null
+          source_hash: string
+          source_property_id: string
+          source_system: string
+          supersedes_resolution_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          authority_kind?: string | null
+          authority_reference?: string | null
+          created_at?: string
+          decision_reason: string
+          decision_version: number
+          evidence_reference?: string | null
+          presentation_licensor_key?: string | null
+          presentation_licensor_name?: string | null
+          resolution_id?: string
+          resolution_status: string
+          resolved_at?: string | null
+          source_hash: string
+          source_property_id: string
+          source_system: string
+          supersedes_resolution_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          authority_kind?: string | null
+          authority_reference?: string | null
+          created_at?: string
+          decision_reason?: string
+          decision_version?: number
+          evidence_reference?: string | null
+          presentation_licensor_key?: string | null
+          presentation_licensor_name?: string | null
+          resolution_id?: string
+          resolution_status?: string
+          resolved_at?: string | null
+          source_hash?: string
+          source_property_id?: string
+          source_system?: string
+          supersedes_resolution_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dcp_property_licensor_resolution_supersedes_fk"
+            columns: [
+              "source_system",
+              "source_property_id",
+              "supersedes_resolution_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "dcp_property_licensor_resolution"
+            referencedColumns: [
+              "source_system",
+              "source_property_id",
+              "resolution_id",
+            ]
+          },
+        ]
+      }
       dcp_style_guide: {
         Row: {
           core_style_guide_id: string | null
           created_at: string
           first_seen_crawl_id: string | null
+          first_withdrawn_at: string | null
           folder_name: string
           id: string
           last_seen_crawl_id: string | null
+          lifecycle_status: string
           parent_source_path: string | null
           raw: Json
           region: string
@@ -14043,15 +17506,18 @@ export type Database = {
           source_path: string
           source_system: string
           updated_at: string
+          withdrawn_at: string | null
           year_segment: string
         }
         Insert: {
           core_style_guide_id?: string | null
           created_at?: string
           first_seen_crawl_id?: string | null
+          first_withdrawn_at?: string | null
           folder_name: string
           id?: string
           last_seen_crawl_id?: string | null
+          lifecycle_status?: string
           parent_source_path?: string | null
           raw?: Json
           region: string
@@ -14063,15 +17529,18 @@ export type Database = {
           source_path: string
           source_system?: string
           updated_at?: string
+          withdrawn_at?: string | null
           year_segment: string
         }
         Update: {
           core_style_guide_id?: string | null
           created_at?: string
           first_seen_crawl_id?: string | null
+          first_withdrawn_at?: string | null
           folder_name?: string
           id?: string
           last_seen_crawl_id?: string | null
+          lifecycle_status?: string
           parent_source_path?: string | null
           raw?: Json
           region?: string
@@ -14083,6 +17552,7 @@ export type Database = {
           source_path?: string
           source_system?: string
           updated_at?: string
+          withdrawn_at?: string | null
           year_segment?: string
         }
         Relationships: [
@@ -14416,6 +17886,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          source_active: boolean | null
           source_hash: string
           updated_at: string
         }
@@ -14438,6 +17909,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          source_active?: boolean | null
           source_hash: string
           updated_at?: string
         }
@@ -14460,6 +17932,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          source_active?: boolean | null
           source_hash?: string
           updated_at?: string
         }
@@ -14503,6 +17976,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          source_active: boolean | null
           source_hash: string
           updated_at: string
         }
@@ -14525,6 +17999,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          source_active?: boolean | null
           source_hash: string
           updated_at?: string
         }
@@ -14547,6 +18022,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          source_active?: boolean | null
           source_hash?: string
           updated_at?: string
         }
@@ -14569,6 +18045,99 @@ export type Database = {
             ]
           },
         ]
+      }
+      erp_salesperson: {
+        Row: {
+          active: boolean | null
+          company_code: string
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          first_seen_at: string
+          imported_at: string
+          last_seen_at: string
+          name: string | null
+          raw: Json
+          salesperson_code: string
+          source_hash: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          company_code: string
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          name?: string | null
+          raw?: Json
+          salesperson_code: string
+          source_hash: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          company_code?: string
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          name?: string | null
+          raw?: Json
+          salesperson_code?: string
+          source_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      erp_season: {
+        Row: {
+          active: boolean | null
+          company_code: string
+          division_code: string
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          first_seen_at: string
+          imported_at: string
+          last_seen_at: string
+          name: string
+          raw: Json
+          season_code: string
+          source_hash: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          company_code: string
+          division_code: string
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          name: string
+          raw?: Json
+          season_code: string
+          source_hash: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          company_code?: string
+          division_code?: string
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          first_seen_at?: string
+          imported_at?: string
+          last_seen_at?: string
+          name?: string
+          raw?: Json
+          season_code?: string
+          source_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       erp_vendor: {
         Row: {
@@ -14663,33 +18232,45 @@ export type Database = {
       FactoryTime: {
         Row: {
           created_at: string
+          description: string | null
           id: number
           mass_production_days: number | null
+          name: string
           product_category: string | null
-          product_subtype: string
+          product_subtype: string | null
           resampling_days: number | null
           sampling_days: number | null
+          tags: string[]
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at: string
+          description?: string | null
           id?: number
           mass_production_days?: number | null
+          name: string
           product_category?: string | null
-          product_subtype: string
+          product_subtype?: string | null
           resampling_days?: number | null
           sampling_days?: number | null
+          tags?: string[]
           updated_at: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: number
           mass_production_days?: number | null
+          name?: string
           product_category?: string | null
-          product_subtype?: string
+          product_subtype?: string | null
           resampling_days?: number | null
           sampling_days?: number | null
+          tags?: string[]
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -15209,25 +18790,32 @@ export type Database = {
             referencedRelation: "item"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "item_attachment_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
+            referencedColumns: ["id"]
+          },
         ]
       }
       item_character_associations: {
         Row: {
-          character_id: number
+          character_id: string
           created_at: string
           id: number
           item_header_id: number
           updated_at: string
         }
         Insert: {
-          character_id: number
+          character_id: string
           created_at?: string
           id?: number
           item_header_id: number
           updated_at?: string
         }
         Update: {
-          character_id?: number
+          character_id?: string
           created_at?: string
           id?: number
           item_header_id?: number
@@ -15283,6 +18871,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_detail_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
             referencedColumns: ["id"]
           },
         ]
@@ -15354,6 +18949,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_import_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
             referencedColumns: ["id"]
           },
         ]
@@ -15572,6 +19174,136 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "item_import"
             referencedColumns: ["company_code", "division_code", "item_no"]
+          },
+        ]
+      }
+      item_user_assignment: {
+        Row: {
+          assigned_by_user_id: number
+          assignment_context: Json
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          function_key: string
+          id: number
+          rfq_item_id: number
+          user_id: number
+        }
+        Insert: {
+          assigned_by_user_id: number
+          assignment_context?: Json
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          function_key: string
+          id?: never
+          rfq_item_id: number
+          user_id: number
+        }
+        Update: {
+          assigned_by_user_id?: number
+          assignment_context?: Json
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          function_key?: string
+          id?: never
+          rfq_item_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_user_assignment_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "RFQItem"
+            referencedColumns: ["rfqItem_id"]
+          },
+        ]
+      }
+      item_workflow_action: {
+        Row: {
+          action_key: string
+          actor_auth_user_id: string | null
+          actor_identity_email: string | null
+          actor_identity_source: string
+          actor_user_id: number
+          correlation_key: string
+          fallback_reason: string | null
+          fallback_recipient_user_id: number | null
+          id: number
+          new_step_id: number
+          occurred_at: string
+          prior_step_id: number | null
+          requires_admin_review: boolean
+          rfq_item_id: number
+          routing_context: Json
+          source_action_id: number | null
+        }
+        Insert: {
+          action_key: string
+          actor_auth_user_id?: string | null
+          actor_identity_email?: string | null
+          actor_identity_source?: string
+          actor_user_id: number
+          correlation_key: string
+          fallback_reason?: string | null
+          fallback_recipient_user_id?: number | null
+          id?: never
+          new_step_id: number
+          occurred_at?: string
+          prior_step_id?: number | null
+          requires_admin_review?: boolean
+          rfq_item_id: number
+          routing_context?: Json
+          source_action_id?: number | null
+        }
+        Update: {
+          action_key?: string
+          actor_auth_user_id?: string | null
+          actor_identity_email?: string | null
+          actor_identity_source?: string
+          actor_user_id?: number
+          correlation_key?: string
+          fallback_reason?: string | null
+          fallback_recipient_user_id?: number | null
+          id?: never
+          new_step_id?: number
+          occurred_at?: string
+          prior_step_id?: number | null
+          requires_admin_review?: boolean
+          rfq_item_id?: number
+          routing_context?: Json
+          source_action_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_workflow_action_new_step_id_fkey"
+            columns: ["new_step_id"]
+            isOneToOne: false
+            referencedRelation: "RFQStep"
+            referencedColumns: ["RFQStep_id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_prior_step_id_fkey"
+            columns: ["prior_step_id"]
+            isOneToOne: false
+            referencedRelation: "RFQStep"
+            referencedColumns: ["RFQStep_id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "RFQItem"
+            referencedColumns: ["rfqItem_id"]
+          },
+          {
+            foreignKeyName: "item_workflow_action_source_action_id_fkey"
+            columns: ["source_action_id", "rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "item_workflow_action"
+            referencedColumns: ["id", "rfq_item_id"]
           },
         ]
       }
@@ -16209,6 +19941,9 @@ export type Database = {
           due_date: string | null
           giftwrap: string | null
           hts_num_ext_fk: string | null
+          hts_product_phrase: string | null
+          hts_product_phrase_at: string | null
+          hts_product_phrase_source: string | null
           hts2_num_ext_fk: string | null
           innerpack_qty: number | null
           is_item_active: boolean | null
@@ -16439,6 +20174,9 @@ export type Database = {
           due_date?: string | null
           giftwrap?: string | null
           hts_num_ext_fk?: string | null
+          hts_product_phrase?: string | null
+          hts_product_phrase_at?: string | null
+          hts_product_phrase_source?: string | null
           hts2_num_ext_fk?: string | null
           innerpack_qty?: number | null
           is_item_active?: boolean | null
@@ -16669,6 +20407,9 @@ export type Database = {
           due_date?: string | null
           giftwrap?: string | null
           hts_num_ext_fk?: string | null
+          hts_product_phrase?: string | null
+          hts_product_phrase_at?: string | null
+          hts_product_phrase_source?: string | null
           hts2_num_ext_fk?: string | null
           innerpack_qty?: number | null
           is_item_active?: boolean | null
@@ -16981,6 +20722,51 @@ export type Database = {
         }
         Relationships: []
       }
+      legacy_erp_item_identity: {
+        Row: {
+          division_code: string | null
+          external_id: string
+          frozen_at: string
+          id: string
+          item_description: string | null
+          mg01_code: string | null
+          mg02_code: string | null
+          mg03_code: string | null
+          mg04_code: string | null
+          mg05_code: string | null
+          mg06_code: string | null
+          style_number: string | null
+        }
+        Insert: {
+          division_code?: string | null
+          external_id: string
+          frozen_at?: string
+          id: string
+          item_description?: string | null
+          mg01_code?: string | null
+          mg02_code?: string | null
+          mg03_code?: string | null
+          mg04_code?: string | null
+          mg05_code?: string | null
+          mg06_code?: string | null
+          style_number?: string | null
+        }
+        Update: {
+          division_code?: string | null
+          external_id?: string
+          frozen_at?: string
+          id?: string
+          item_description?: string | null
+          mg01_code?: string | null
+          mg02_code?: string | null
+          mg03_code?: string | null
+          mg04_code?: string | null
+          mg05_code?: string | null
+          mg06_code?: string | null
+          style_number?: string | null
+        }
+        Relationships: []
+      }
       LicenseFeedBacks: {
         Row: {
           access: string | null
@@ -17013,6 +20799,151 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      licensing_canonical_change_history: {
+        Row: {
+          body: Json
+          duplicate_id: string
+          entity_kind: string
+          event_kind: string
+          id: string
+          plan_hash: string
+          plan_id: string | null
+          plan_status: string | null
+          recorded_at: string
+          recorded_by: string
+          refusal_reason: string | null
+          result: Json
+          rollback_hash: string | null
+          survivor_id: string
+        }
+        Insert: {
+          body: Json
+          duplicate_id: string
+          entity_kind: string
+          event_kind: string
+          id?: string
+          plan_hash: string
+          plan_id?: string | null
+          plan_status?: string | null
+          recorded_at?: string
+          recorded_by: string
+          refusal_reason?: string | null
+          result?: Json
+          rollback_hash?: string | null
+          survivor_id: string
+        }
+        Update: {
+          body?: Json
+          duplicate_id?: string
+          entity_kind?: string
+          event_kind?: string
+          id?: string
+          plan_hash?: string
+          plan_id?: string | null
+          plan_status?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          refusal_reason?: string | null
+          result?: Json
+          rollback_hash?: string | null
+          survivor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "licensing_canonical_change_history_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "licensing_canonical_change_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      licensing_consolidation_plan: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_state: Json | null
+          capture_complete: boolean
+          capture_id: string
+          capture_snapshot: Json
+          collision_count: number
+          created_at: string
+          entity_operation_count: number
+          id: string
+          operations: Json
+          plan_hash: string
+          plan_schema_version: number
+          plan_status: string
+          planned_at: string
+          planned_by: string
+          refusal_reason: string | null
+          relationship_operation_count: number
+          retire_operation_count: number
+          rollback_of: string | null
+          rollback_operations: Json
+          source_scope_checked: boolean
+          source_system: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          applied_state?: Json | null
+          capture_complete: boolean
+          capture_id: string
+          capture_snapshot?: Json
+          collision_count?: number
+          created_at?: string
+          entity_operation_count?: number
+          id?: string
+          operations?: Json
+          plan_hash: string
+          plan_schema_version?: number
+          plan_status?: string
+          planned_at?: string
+          planned_by: string
+          refusal_reason?: string | null
+          relationship_operation_count?: number
+          retire_operation_count?: number
+          rollback_of?: string | null
+          rollback_operations?: Json
+          source_scope_checked: boolean
+          source_system: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          applied_state?: Json | null
+          capture_complete?: boolean
+          capture_id?: string
+          capture_snapshot?: Json
+          collision_count?: number
+          created_at?: string
+          entity_operation_count?: number
+          id?: string
+          operations?: Json
+          plan_hash?: string
+          plan_schema_version?: number
+          plan_status?: string
+          planned_at?: string
+          planned_by?: string
+          refusal_reason?: string | null
+          relationship_operation_count?: number
+          retire_operation_count?: number
+          rollback_of?: string | null
+          rollback_operations?: Json
+          source_scope_checked?: boolean
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "licensing_consolidation_plan_rollback_of_fkey"
+            columns: ["rollback_of"]
+            isOneToOne: false
+            referencedRelation: "licensing_consolidation_plan"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       licensing_feedback: {
         Row: {
@@ -17061,6 +20992,111 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      licensing_relationship_resolution: {
+        Row: {
+          core_character_id: string | null
+          core_franchise_id: string | null
+          core_property_id: string | null
+          core_style_guide_id: string | null
+          created_at: string
+          dam_asset_id: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          is_direct_source_relationship: boolean | null
+          licensor_id: string
+          relationship_kind: string
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          source_evidence: string | null
+          source_left_id: string
+          source_right_id: string
+          source_system: string
+          updated_at: string
+        }
+        Insert: {
+          core_character_id?: string | null
+          core_franchise_id?: string | null
+          core_property_id?: string | null
+          core_style_guide_id?: string | null
+          created_at?: string
+          dam_asset_id?: string | null
+          evidence_kind: Database["core"]["Enums"]["relationship_evidence_kind"]
+          is_direct_source_relationship?: boolean | null
+          licensor_id: string
+          relationship_kind: string
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_evidence?: string | null
+          source_left_id: string
+          source_right_id: string
+          source_system: string
+          updated_at?: string
+        }
+        Update: {
+          core_character_id?: string | null
+          core_franchise_id?: string | null
+          core_property_id?: string | null
+          core_style_guide_id?: string | null
+          created_at?: string
+          dam_asset_id?: string | null
+          evidence_kind?: Database["core"]["Enums"]["relationship_evidence_kind"]
+          is_direct_source_relationship?: boolean | null
+          licensor_id?: string
+          relationship_kind?: string
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_evidence?: string | null
+          source_left_id?: string
+          source_right_id?: string
+          source_system?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      licensing_source_scope: {
+        Row: {
+          authorization_note: string | null
+          authorized_at: string | null
+          authorized_by: string | null
+          created_at: string
+          licensor_id: string
+          permitted_kind: string
+          scope_axis: string
+          source_purpose: string
+          source_system: string
+          updated_at: string
+        }
+        Insert: {
+          authorization_note?: string | null
+          authorized_at?: string | null
+          authorized_by?: string | null
+          created_at?: string
+          licensor_id: string
+          permitted_kind: string
+          scope_axis: string
+          source_purpose: string
+          source_system: string
+          updated_at?: string
+        }
+        Update: {
+          authorization_note?: string | null
+          authorized_at?: string | null
+          authorized_by?: string | null
+          created_at?: string
+          licensor_id?: string
+          permitted_kind?: string
+          scope_axis?: string
+          source_purpose?: string
+          source_system?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       licensing_status: {
         Row: {
@@ -17114,6 +21150,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "licensing_status_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
             referencedColumns: ["id"]
           },
         ]
@@ -17457,11 +21500,38 @@ export type Database = {
         }
         Relationships: []
       }
+      licensor_stage_option: {
+        Row: {
+          enabled: boolean
+          licensor_name: string
+          stage_id: number
+        }
+        Insert: {
+          enabled?: boolean
+          licensor_name: string
+          stage_id: number
+        }
+        Update: {
+          enabled?: boolean
+          licensor_name?: string
+          stage_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "licensor_stage_option_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lucasfilm_dcp_asset: {
         Row: {
           checksum: string | null
           content_type: string | null
           created_at: string
+          do_not_use_reason: string | null
           file_extension: string | null
           file_name: string
           file_size_bytes: number | null
@@ -17480,6 +21550,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name: string
           file_size_bytes?: number | null
@@ -17498,6 +21569,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name?: string
           file_size_bytes?: number | null
@@ -18689,11 +22761,851 @@ export type Database = {
           },
         ]
       }
+      marvel_asgard_asset: {
+        Row: {
+          asset_id: string | null
+          display_order: number | null
+          exact_filename: string | null
+          file_extension: string | null
+          file_size_bytes: number | null
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          original_file_id: string | null
+          raw_source: Json
+          source_identity_key: string
+          style_guide_asset_id: string | null
+        }
+        Insert: {
+          asset_id?: string | null
+          display_order?: number | null
+          exact_filename?: string | null
+          file_extension?: string | null
+          file_size_bytes?: number | null
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          original_file_id?: string | null
+          raw_source: Json
+          source_identity_key: string
+          style_guide_asset_id?: string | null
+        }
+        Update: {
+          asset_id?: string | null
+          display_order?: number | null
+          exact_filename?: string | null
+          file_extension?: string | null
+          file_size_bytes?: number | null
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          original_file_id?: string | null
+          raw_source?: Json
+          source_identity_key?: string
+          style_guide_asset_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_asset_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_asset_character_observation: {
+        Row: {
+          asset_id: string
+          capture_key: string
+          character_id: string
+          raw_observation: Json
+        }
+        Insert: {
+          asset_id: string
+          capture_key: string
+          character_id: string
+          raw_observation: Json
+        }
+        Update: {
+          asset_id?: string
+          capture_key?: string
+          character_id?: string
+          raw_observation?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_asset_character_observation_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_asset"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_character_observation_capture_key_fkey"
+            columns: ["capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_character_observation_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_character"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marvel_asgard_asset_likeness_observation: {
+        Row: {
+          asset_id: string
+          capture_key: string
+          likeness_state: string
+          raw_observation: Json
+          source_value: string | null
+        }
+        Insert: {
+          asset_id: string
+          capture_key: string
+          likeness_state: string
+          raw_observation: Json
+          source_value?: string | null
+        }
+        Update: {
+          asset_id?: string
+          capture_key?: string
+          likeness_state?: string
+          raw_observation?: Json
+          source_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_asset_likeness_observation_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_asset"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_likeness_observation_capture_key_fkey"
+            columns: ["capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_asset_term_observation: {
+        Row: {
+          asset_id: string
+          capture_key: string
+          raw_combined_value: string | null
+          raw_observation: Json
+          term_id: string
+          term_kind: string
+        }
+        Insert: {
+          asset_id: string
+          capture_key: string
+          raw_combined_value?: string | null
+          raw_observation: Json
+          term_id: string
+          term_kind: string
+        }
+        Update: {
+          asset_id?: string
+          capture_key?: string
+          raw_combined_value?: string | null
+          raw_observation?: Json
+          term_id?: string
+          term_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_asset_term_observation_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_asset"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_term_observation_capture_key_fkey"
+            columns: ["capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_asset_term_observation_term_id_term_kind_fkey"
+            columns: ["term_id", "term_kind"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_term"
+            referencedColumns: ["id", "term_kind"]
+          },
+        ]
+      }
+      marvel_asgard_capture: {
+        Row: {
+          account_scope_descriptor: string
+          capture_key: string
+          completed_at: string | null
+          error_summary: Json
+          expected_counts: Json
+          is_complete: boolean
+          is_current: boolean
+          observed_counts: Json
+          raw_summary: Json
+          scraper_version: string
+          source_captured_at: string
+          source_snapshot_sha256: string
+          source_system: string
+          source_url: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          account_scope_descriptor: string
+          capture_key: string
+          completed_at?: string | null
+          error_summary?: Json
+          expected_counts: Json
+          is_complete?: boolean
+          is_current?: boolean
+          observed_counts?: Json
+          raw_summary?: Json
+          scraper_version: string
+          source_captured_at: string
+          source_snapshot_sha256: string
+          source_system?: string
+          source_url: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          account_scope_descriptor?: string
+          capture_key?: string
+          completed_at?: string | null
+          error_summary?: Json
+          expected_counts?: Json
+          is_complete?: boolean
+          is_current?: boolean
+          observed_counts?: Json
+          raw_summary?: Json
+          scraper_version?: string
+          source_captured_at?: string
+          source_snapshot_sha256?: string
+          source_system?: string
+          source_url?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      marvel_asgard_capture_checkpoint: {
+        Row: {
+          capture_key: string
+          error_class: string | null
+          expected_asset_count: number
+          expected_page_count: number
+          first_attempted_at: string
+          guide_node_id: string
+          last_attempted_at: string
+          observed_asset_count: number
+          page_number: number
+          page_size: number
+          request_sha256: string
+          result_sha256: string | null
+          status: string
+          style_guide_id: string
+        }
+        Insert: {
+          capture_key: string
+          error_class?: string | null
+          expected_asset_count: number
+          expected_page_count: number
+          first_attempted_at?: string
+          guide_node_id: string
+          last_attempted_at?: string
+          observed_asset_count?: number
+          page_number: number
+          page_size: number
+          request_sha256: string
+          result_sha256?: string | null
+          status: string
+          style_guide_id: string
+        }
+        Update: {
+          capture_key?: string
+          error_class?: string | null
+          expected_asset_count?: number
+          expected_page_count?: number
+          first_attempted_at?: string
+          guide_node_id?: string
+          last_attempted_at?: string
+          observed_asset_count?: number
+          page_number?: number
+          page_size?: number
+          request_sha256?: string
+          result_sha256?: string | null
+          status?: string
+          style_guide_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_capture_checkpo_guide_node_id_style_guide_id_fkey"
+            columns: ["guide_node_id", "style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_guide_node"
+            referencedColumns: ["id", "style_guide_id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_capture_checkpoint_capture_key_fkey"
+            columns: ["capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_capture_checkpoint_guide_node_id_fkey"
+            columns: ["guide_node_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_guide_node"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_capture_checkpoint_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marvel_asgard_capture_gap: {
+        Row: {
+          capture_key: string
+          first_observed_at: string
+          gap_reason: string
+          id: number
+          is_blocking: boolean
+          last_observed_at: string
+          object_class: string
+          resolved_at: string | null
+          source_key_or_path: string
+        }
+        Insert: {
+          capture_key: string
+          first_observed_at?: string
+          gap_reason: string
+          id?: never
+          is_blocking?: boolean
+          last_observed_at?: string
+          object_class: string
+          resolved_at?: string | null
+          source_key_or_path: string
+        }
+        Update: {
+          capture_key?: string
+          first_observed_at?: string
+          gap_reason?: string
+          id?: never
+          is_blocking?: boolean
+          last_observed_at?: string
+          object_class?: string
+          resolved_at?: string | null
+          source_key_or_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_capture_gap_capture_key_fkey"
+            columns: ["capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_character: {
+        Row: {
+          exact_label: string
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          normalized_search_label: string
+          raw_source: Json
+          source_character_key: string | null
+          source_identity_key: string
+        }
+        Insert: {
+          exact_label: string
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          normalized_search_label: string
+          raw_source: Json
+          source_character_key?: string | null
+          source_identity_key: string
+        }
+        Update: {
+          exact_label?: string
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          normalized_search_label?: string
+          raw_source?: Json
+          source_character_key?: string | null
+          source_identity_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_character_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_character_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_character_opa_resolution: {
+        Row: {
+          asgard_character_id: string
+          decided_at: string | null
+          decision_authority: string | null
+          decision_evidence: string | null
+          id: string
+          opa_character_id: number | null
+          status: string
+          supersedes_resolution_id: string | null
+        }
+        Insert: {
+          asgard_character_id: string
+          decided_at?: string | null
+          decision_authority?: string | null
+          decision_evidence?: string | null
+          id?: string
+          opa_character_id?: number | null
+          status: string
+          supersedes_resolution_id?: string | null
+        }
+        Update: {
+          asgard_character_id?: string
+          decided_at?: string | null
+          decision_authority?: string | null
+          decision_evidence?: string | null
+          id?: string
+          opa_character_id?: number | null
+          status?: string
+          supersedes_resolution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_character_opa_resol_supersedes_resolution_id_fkey"
+            columns: ["supersedes_resolution_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_character_opa_resolution"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_character_opa_resolution_asgard_character_id_fkey"
+            columns: ["asgard_character_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_character"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_character_opa_resolution_opa_character_id_fkey"
+            columns: ["opa_character_id"]
+            isOneToOne: false
+            referencedRelation: "opa_character"
+            referencedColumns: ["character_id"]
+          },
+        ]
+      }
+      marvel_asgard_guide_category: {
+        Row: {
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          observed_meaning: string | null
+          raw_source: Json
+          source_category_key: string | null
+          source_identity_key: string
+        }
+        Insert: {
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          observed_meaning?: string | null
+          raw_source: Json
+          source_category_key?: string | null
+          source_identity_key: string
+        }
+        Update: {
+          display_order?: number
+          exact_label?: string
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          observed_meaning?: string | null
+          raw_source?: Json
+          source_category_key?: string | null
+          source_identity_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_guide_category_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_category_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_guide_node: {
+        Row: {
+          depth: number
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          materialized_source_path: string
+          parent_node_id: string | null
+          raw_source: Json
+          source_identity_key: string
+          source_node_key: string | null
+          style_guide_id: string
+        }
+        Insert: {
+          depth: number
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          materialized_source_path: string
+          parent_node_id?: string | null
+          raw_source: Json
+          source_identity_key: string
+          source_node_key?: string | null
+          style_guide_id: string
+        }
+        Update: {
+          depth?: number
+          display_order?: number
+          exact_label?: string
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          materialized_source_path?: string
+          parent_node_id?: string | null
+          raw_source?: Json
+          source_identity_key?: string
+          source_node_key?: string | null
+          style_guide_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_guide_node_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_node_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_node_parent_node_id_style_guide_id_fkey"
+            columns: ["parent_node_id", "style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_guide_node"
+            referencedColumns: ["id", "style_guide_id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_node_style_guide_id_fkey"
+            columns: ["style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_style_guide"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marvel_asgard_guide_opa_property_resolution: {
+        Row: {
+          asgard_style_guide_id: string
+          decided_at: string | null
+          decision_authority: string | null
+          decision_evidence: string | null
+          id: string
+          opa_property_id: number | null
+          status: string
+          supersedes_resolution_id: string | null
+        }
+        Insert: {
+          asgard_style_guide_id: string
+          decided_at?: string | null
+          decision_authority?: string | null
+          decision_evidence?: string | null
+          id?: string
+          opa_property_id?: number | null
+          status: string
+          supersedes_resolution_id?: string | null
+        }
+        Update: {
+          asgard_style_guide_id?: string
+          decided_at?: string | null
+          decision_authority?: string | null
+          decision_evidence?: string | null
+          id?: string
+          opa_property_id?: number | null
+          status?: string
+          supersedes_resolution_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_guide_opa_property__supersedes_resolution_id_fkey"
+            columns: ["supersedes_resolution_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_guide_opa_property_resolution"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_opa_property_res_asgard_style_guide_id_fkey"
+            columns: ["asgard_style_guide_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_style_guide"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_guide_opa_property_resolutio_opa_property_id_fkey"
+            columns: ["opa_property_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property"
+            referencedColumns: ["licensed_property_id"]
+          },
+        ]
+      }
+      marvel_asgard_node_asset_observation: {
+        Row: {
+          asset_id: string
+          capture_key: string
+          exact_filename: string
+          file_extension: string | null
+          file_observation_key: string
+          file_size_bytes: number | null
+          guide_node_id: string
+          page_number: number
+          raw_observation: Json
+          raw_observation_sha256: string
+          source_display_order: number | null
+        }
+        Insert: {
+          asset_id: string
+          capture_key: string
+          exact_filename: string
+          file_extension?: string | null
+          file_observation_key: string
+          file_size_bytes?: number | null
+          guide_node_id: string
+          page_number: number
+          raw_observation: Json
+          raw_observation_sha256: string
+          source_display_order?: number | null
+        }
+        Update: {
+          asset_id?: string
+          capture_key?: string
+          exact_filename?: string
+          file_extension?: string | null
+          file_observation_key?: string
+          file_size_bytes?: number | null
+          guide_node_id?: string
+          page_number?: number
+          raw_observation?: Json
+          raw_observation_sha256?: string
+          source_display_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_node_asset_obse_capture_key_guide_node_id_pa_fkey"
+            columns: ["capture_key", "guide_node_id", "page_number"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture_checkpoint"
+            referencedColumns: ["capture_key", "guide_node_id", "page_number"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_node_asset_observation_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marvel_asgard_style_guide: {
+        Row: {
+          category_id: string
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          raw_source: Json
+          source_guide_key: string | null
+          source_identity_key: string
+        }
+        Insert: {
+          category_id: string
+          display_order: number
+          exact_label: string
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          raw_source: Json
+          source_guide_key?: string | null
+          source_identity_key: string
+        }
+        Update: {
+          category_id?: string
+          display_order?: number
+          exact_label?: string
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          raw_source?: Json
+          source_guide_key?: string | null
+          source_identity_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_style_guide_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_guide_category"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_style_guide_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_style_guide_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
+      marvel_asgard_term: {
+        Row: {
+          exact_value: string
+          first_seen_capture_key: string
+          id: string
+          is_actively_observed: boolean
+          last_seen_capture_key: string
+          normalized_search_value: string
+          raw_source: Json
+          source_identity_key: string
+          source_term_key: string | null
+          term_kind: string
+        }
+        Insert: {
+          exact_value: string
+          first_seen_capture_key: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key: string
+          normalized_search_value: string
+          raw_source: Json
+          source_identity_key: string
+          source_term_key?: string | null
+          term_kind: string
+        }
+        Update: {
+          exact_value?: string
+          first_seen_capture_key?: string
+          id?: string
+          is_actively_observed?: boolean
+          last_seen_capture_key?: string
+          normalized_search_value?: string
+          raw_source?: Json
+          source_identity_key?: string
+          source_term_key?: string | null
+          term_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marvel_asgard_term_first_seen_capture_key_fkey"
+            columns: ["first_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+          {
+            foreignKeyName: "marvel_asgard_term_last_seen_capture_key_fkey"
+            columns: ["last_seen_capture_key"]
+            isOneToOne: false
+            referencedRelation: "marvel_asgard_capture"
+            referencedColumns: ["capture_key"]
+          },
+        ]
+      }
       marvel_dcp_asset: {
         Row: {
           checksum: string | null
           content_type: string | null
           created_at: string
+          do_not_use_reason: string | null
           file_extension: string | null
           file_name: string
           file_size_bytes: number | null
@@ -18712,6 +23624,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name: string
           file_size_bytes?: number | null
@@ -18730,6 +23643,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name?: string
           file_size_bytes?: number | null
@@ -20443,6 +25357,83 @@ export type Database = {
           },
         ]
       }
+      nbcu_entity_lifecycle: {
+        Row: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at: string | null
+          identity_basis: string
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          status: string
+          withdrawn_at: string | null
+          withdrawn_capture_id: string | null
+        }
+        Insert: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at?: string | null
+          identity_basis: string
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Update: {
+          change_signal?: string
+          entity_key?: string
+          entity_kind?: string
+          first_seen_at?: string
+          first_seen_capture_id?: string
+          first_withdrawn_at?: string | null
+          identity_basis?: string
+          last_changed_capture_id?: string
+          last_seen_at?: string
+          last_seen_capture_id?: string
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nbcu_entity_lifecycle_first_seen_capture_id_fkey"
+            columns: ["first_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "nbcu_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "nbcu_entity_lifecycle_last_changed_capture_id_fkey"
+            columns: ["last_changed_capture_id"]
+            isOneToOne: false
+            referencedRelation: "nbcu_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "nbcu_entity_lifecycle_last_seen_capture_id_fkey"
+            columns: ["last_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "nbcu_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "nbcu_entity_lifecycle_withdrawn_capture_id_fkey"
+            columns: ["withdrawn_capture_id"]
+            isOneToOne: false
+            referencedRelation: "nbcu_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+        ]
+      }
       nbcu_ip_family: {
         Row: {
           capture_id: string
@@ -20529,6 +25520,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "nbcu_property"
             referencedColumns: ["capture_id", "property_key"]
+          },
+        ]
+      }
+      nbcu_lifecycle_publication: {
+        Row: {
+          baseline_capture_id: string | null
+          counts: Json
+          derivation_contract: string
+          mode: string
+          published_at: string
+          published_capture_id: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Insert: {
+          baseline_capture_id?: string | null
+          counts?: Json
+          derivation_contract: string
+          mode: string
+          published_at?: string
+          published_capture_id: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Update: {
+          baseline_capture_id?: string | null
+          counts?: Json
+          derivation_contract?: string
+          mode?: string
+          published_at?: string
+          published_capture_id?: string
+          scope_sha256?: string
+          source_captured_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nbcu_lifecycle_publication_baseline_capture_id_fkey"
+            columns: ["baseline_capture_id"]
+            isOneToOne: false
+            referencedRelation: "nbcu_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "nbcu_lifecycle_publication_published_capture_id_fkey"
+            columns: ["published_capture_id"]
+            isOneToOne: true
+            referencedRelation: "nbcu_capture"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -20648,50 +25687,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "nbcu_property"
             referencedColumns: ["capture_id", "property_key"]
-          },
-        ]
-      }
-      nbcu_right: {
-        Row: {
-          business_title: string
-          capture_id: string
-          global_rule_applied: boolean
-          ordinal: number
-          raw: Json
-          restriction_text: string | null
-          right_key: string
-          rights_scope: string
-          source_document: string
-        }
-        Insert: {
-          business_title: string
-          capture_id: string
-          global_rule_applied?: boolean
-          ordinal: number
-          raw: Json
-          restriction_text?: string | null
-          right_key: string
-          rights_scope: string
-          source_document: string
-        }
-        Update: {
-          business_title?: string
-          capture_id?: string
-          global_rule_applied?: boolean
-          ordinal?: number
-          raw?: Json
-          restriction_text?: string | null
-          right_key?: string
-          rights_scope?: string
-          source_document?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nbcu_right_capture_id_fkey"
-            columns: ["capture_id"]
-            isOneToOne: false
-            referencedRelation: "nbcu_capture"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -20855,42 +25850,224 @@ export type Database = {
           },
         ]
       }
+      opa_capture: {
+        Row: {
+          capture_key: string
+          created_by: string
+          errors: Json
+          expected_cross_scope_property_count: number
+          expected_duplicate_pair_count: number
+          expected_relationship_count: number
+          expected_scope_count: number
+          expected_scope_membership_count: number
+          expected_unique_character_count: number
+          expected_unique_property_count: number
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          observed_cross_scope_property_count: number | null
+          observed_duplicate_pair_count: number | null
+          observed_relationship_count: number | null
+          observed_relationship_sha256: string | null
+          observed_scope_membership_count: number | null
+          observed_unique_character_count: number | null
+          observed_unique_property_count: number | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          capture_key: string
+          created_by: string
+          errors?: Json
+          expected_cross_scope_property_count: number
+          expected_duplicate_pair_count?: number
+          expected_relationship_count: number
+          expected_scope_count: number
+          expected_scope_membership_count: number
+          expected_unique_character_count: number
+          expected_unique_property_count: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_cross_scope_property_count?: number | null
+          observed_duplicate_pair_count?: number | null
+          observed_relationship_count?: number | null
+          observed_relationship_sha256?: string | null
+          observed_scope_membership_count?: number | null
+          observed_unique_character_count?: number | null
+          observed_unique_property_count?: number | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          capture_key?: string
+          created_by?: string
+          errors?: Json
+          expected_cross_scope_property_count?: number
+          expected_duplicate_pair_count?: number
+          expected_relationship_count?: number
+          expected_scope_count?: number
+          expected_scope_membership_count?: number
+          expected_unique_character_count?: number
+          expected_unique_property_count?: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_cross_scope_property_count?: number | null
+          observed_duplicate_pair_count?: number | null
+          observed_relationship_count?: number | null
+          observed_relationship_sha256?: string | null
+          observed_scope_membership_count?: number | null
+          observed_unique_character_count?: number | null
+          observed_unique_property_count?: number | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      opa_capture_scope: {
+        Row: {
+          authenticated_at: string | null
+          authentication_evidence_sha256: string | null
+          branch: string
+          capture_id: string
+          expected_character_count: number
+          expected_duplicate_pair_count: number
+          expected_property_count: number
+          expected_relationship_count: number
+          expected_relationship_sha256: string
+          failure: Json | null
+          finished_at: string | null
+          lob: string
+          observed_character_count: number | null
+          observed_duplicate_pair_count: number | null
+          observed_property_count: number | null
+          observed_relationship_count: number | null
+          observed_relationship_sha256: string | null
+          region: string
+          scope_key: string
+          source_sha256: string
+          status: string
+          submission_type: string
+          template_id: string
+          workflow_id: string
+        }
+        Insert: {
+          authenticated_at?: string | null
+          authentication_evidence_sha256?: string | null
+          branch: string
+          capture_id: string
+          expected_character_count: number
+          expected_duplicate_pair_count?: number
+          expected_property_count: number
+          expected_relationship_count: number
+          expected_relationship_sha256: string
+          failure?: Json | null
+          finished_at?: string | null
+          lob: string
+          observed_character_count?: number | null
+          observed_duplicate_pair_count?: number | null
+          observed_property_count?: number | null
+          observed_relationship_count?: number | null
+          observed_relationship_sha256?: string | null
+          region: string
+          scope_key: string
+          source_sha256: string
+          status?: string
+          submission_type: string
+          template_id: string
+          workflow_id: string
+        }
+        Update: {
+          authenticated_at?: string | null
+          authentication_evidence_sha256?: string | null
+          branch?: string
+          capture_id?: string
+          expected_character_count?: number
+          expected_duplicate_pair_count?: number
+          expected_property_count?: number
+          expected_relationship_count?: number
+          expected_relationship_sha256?: string
+          failure?: Json | null
+          finished_at?: string | null
+          lob?: string
+          observed_character_count?: number | null
+          observed_duplicate_pair_count?: number | null
+          observed_property_count?: number | null
+          observed_relationship_count?: number | null
+          observed_relationship_sha256?: string | null
+          region?: string
+          scope_key?: string
+          source_sha256?: string
+          status?: string
+          submission_type?: string
+          template_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opa_capture_scope_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "opa_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opa_character: {
         Row: {
           character_id: number
           character_name: string
           core_character_id: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           last_seen_at: string
           resolution_reason: string | null
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           character_id: number
           character_name: string
           core_character_id?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           last_seen_at?: string
           resolution_reason?: string | null
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           character_id?: number
           character_name?: string
           core_character_id?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           last_seen_at?: string
           resolution_reason?: string | null
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: []
       }
@@ -20898,6 +26075,7 @@ export type Database = {
         Row: {
           core_property_id: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           last_seen_at: string
           licensed_property_id: number
           property_name: string
@@ -20905,11 +26083,14 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           core_property_id?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           last_seen_at?: string
           licensed_property_id: number
           property_name: string
@@ -20917,11 +26098,14 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           core_property_id?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           last_seen_at?: string
           licensed_property_id?: number
           property_name?: string
@@ -20929,7 +26113,9 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: []
       }
@@ -21022,6 +26208,316 @@ export type Database = {
           },
           {
             foreignKeyName: "plm_opa_property_character_property_fk"
+            columns: ["licensed_property_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property"
+            referencedColumns: ["licensed_property_id"]
+          },
+        ]
+      }
+      opa_property_character_capture: {
+        Row: {
+          brand_property_id: number | null
+          capture_id: string
+          character_id: number | null
+          character_name: string | null
+          chunk_key: string
+          chunk_sha256: string
+          licensed_property_id: number
+          observation_id: string
+          observed_at: string
+          option_source_id: number
+          property_name: string
+          scope_key: string
+          source_row_sha256: string
+        }
+        Insert: {
+          brand_property_id?: number | null
+          capture_id: string
+          character_id?: number | null
+          character_name?: string | null
+          chunk_key: string
+          chunk_sha256: string
+          licensed_property_id: number
+          observation_id?: string
+          observed_at?: string
+          option_source_id: number
+          property_name: string
+          scope_key: string
+          source_row_sha256: string
+        }
+        Update: {
+          brand_property_id?: number | null
+          capture_id?: string
+          character_id?: number | null
+          character_name?: string | null
+          chunk_key?: string
+          chunk_sha256?: string
+          licensed_property_id?: number
+          observation_id?: string
+          observed_at?: string
+          option_source_id?: number
+          property_name?: string
+          scope_key?: string
+          source_row_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opa_property_character_capture_capture_id_scope_key_fkey"
+            columns: ["capture_id", "scope_key"]
+            isOneToOne: false
+            referencedRelation: "opa_capture_scope"
+            referencedColumns: ["capture_id", "scope_key"]
+          },
+        ]
+      }
+      opa_property_compliance_capture: {
+        Row: {
+          account_scope_sha256: string
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          authenticated_at: string
+          authentication_evidence_sha256: string
+          branch_code: string
+          capture_id: string
+          capture_key: string
+          capture_started_at: string
+          compliance_capture_id: string
+          compliant_file_sha256: string
+          created_by: string
+          duplicate_relationship_count: number
+          evidence_reference: string
+          expected_compliant_property_count: number
+          expected_compliant_relationship_count: number
+          expected_membership_sha256: string
+          expected_show_all_property_count: number
+          expected_show_all_relationship_count: number
+          line_of_business_id: number
+          load_completed_at: string | null
+          load_started_at: string
+          observed_compliant_relationship_count: number
+          observed_show_all_relationship_count: number
+          paired_validation_sha256: string
+          product_type_code: string
+          property_subset_verified: boolean
+          region_code: string
+          rejection_reason: string | null
+          relationship_subset_verified: boolean
+          show_all_file_sha256: string
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+          template_id: number
+          workflow_id: number
+        }
+        Insert: {
+          account_scope_sha256: string
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          authenticated_at: string
+          authentication_evidence_sha256: string
+          branch_code: string
+          capture_id: string
+          capture_key: string
+          capture_started_at: string
+          compliance_capture_id?: string
+          compliant_file_sha256: string
+          created_by: string
+          duplicate_relationship_count: number
+          evidence_reference: string
+          expected_compliant_property_count: number
+          expected_compliant_relationship_count: number
+          expected_membership_sha256: string
+          expected_show_all_property_count: number
+          expected_show_all_relationship_count: number
+          line_of_business_id: number
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_compliant_relationship_count: number
+          observed_show_all_relationship_count: number
+          paired_validation_sha256: string
+          product_type_code: string
+          property_subset_verified: boolean
+          region_code: string
+          rejection_reason?: string | null
+          relationship_subset_verified: boolean
+          show_all_file_sha256: string
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+          template_id: number
+          workflow_id: number
+        }
+        Update: {
+          account_scope_sha256?: string
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          authenticated_at?: string
+          authentication_evidence_sha256?: string
+          branch_code?: string
+          capture_id?: string
+          capture_key?: string
+          capture_started_at?: string
+          compliance_capture_id?: string
+          compliant_file_sha256?: string
+          created_by?: string
+          duplicate_relationship_count?: number
+          evidence_reference?: string
+          expected_compliant_property_count?: number
+          expected_compliant_relationship_count?: number
+          expected_membership_sha256?: string
+          expected_show_all_property_count?: number
+          expected_show_all_relationship_count?: number
+          line_of_business_id?: number
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_compliant_relationship_count?: number
+          observed_show_all_relationship_count?: number
+          paired_validation_sha256?: string
+          product_type_code?: string
+          property_subset_verified?: boolean
+          region_code?: string
+          rejection_reason?: string | null
+          relationship_subset_verified?: boolean
+          show_all_file_sha256?: string
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+          template_id?: number
+          workflow_id?: number
+        }
+        Relationships: []
+      }
+      opa_property_scope_membership: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          branch_code: string
+          capture_id: string
+          compliance_capture_id: string | null
+          compliance_status: string
+          created_at: string
+          evidence_reference: string
+          evidence_sha256: string
+          licensed_property_id: number
+          line_of_business_id: number
+          membership_id: string
+          product_type_code: string
+          region_code: string
+          source_captured_at: string
+          template_id: number
+          workflow_id: number
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_code: string
+          capture_id: string
+          compliance_capture_id?: string | null
+          compliance_status?: string
+          created_at?: string
+          evidence_reference: string
+          evidence_sha256: string
+          licensed_property_id: number
+          line_of_business_id: number
+          membership_id?: string
+          product_type_code: string
+          region_code: string
+          source_captured_at: string
+          template_id: number
+          workflow_id: number
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_code?: string
+          capture_id?: string
+          compliance_capture_id?: string | null
+          compliance_status?: string
+          created_at?: string
+          evidence_reference?: string
+          evidence_sha256?: string
+          licensed_property_id?: number
+          line_of_business_id?: number
+          membership_id?: string
+          product_type_code?: string
+          region_code?: string
+          source_captured_at?: string
+          template_id?: number
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opa_compliance_membership_capture_fk"
+            columns: ["compliance_capture_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property_compliance_capture"
+            referencedColumns: ["compliance_capture_id"]
+          },
+          {
+            foreignKeyName: "opa_property_scope_membership_licensed_property_id_fkey"
+            columns: ["licensed_property_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property"
+            referencedColumns: ["licensed_property_id"]
+          },
+        ]
+      }
+      opa_property_studio_resolution: {
+        Row: {
+          created_at: string
+          licensed_property_id: number
+          provenance_reference: string | null
+          provenance_type: string
+          resolution_id: string
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string
+          resolved_by: string
+          studio_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          licensed_property_id: number
+          provenance_reference?: string | null
+          provenance_type: string
+          resolution_id?: string
+          resolution_reason?: string | null
+          resolution_status: string
+          resolved_at?: string
+          resolved_by: string
+          studio_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          licensed_property_id?: number
+          provenance_reference?: string | null
+          provenance_type?: string
+          resolution_id?: string
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string
+          resolved_by?: string
+          studio_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opa_property_studio_resolution_licensed_property_id_fkey"
             columns: ["licensed_property_id"]
             isOneToOne: false
             referencedRelation: "opa_property"
@@ -21663,6 +27159,83 @@ export type Database = {
           },
         ]
       }
+      peanuts_entity_lifecycle: {
+        Row: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at: string | null
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          retired_at: string | null
+          status: string
+          withdrawn_at: string | null
+          withdrawn_capture_id: string | null
+        }
+        Insert: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at?: string | null
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          retired_at?: string | null
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Update: {
+          change_signal?: string
+          entity_key?: string
+          entity_kind?: string
+          first_seen_at?: string
+          first_seen_capture_id?: string
+          first_withdrawn_at?: string | null
+          last_changed_capture_id?: string
+          last_seen_at?: string
+          last_seen_capture_id?: string
+          retired_at?: string | null
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_entity_lifecycle_first_seen_capture_id_fkey"
+            columns: ["first_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "peanuts_entity_lifecycle_last_changed_capture_id_fkey"
+            columns: ["last_changed_capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "peanuts_entity_lifecycle_last_seen_capture_id_fkey"
+            columns: ["last_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "peanuts_entity_lifecycle_withdrawn_capture_id_fkey"
+            columns: ["withdrawn_capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+        ]
+      }
       peanuts_holiday: {
         Row: {
           asset_count: number
@@ -21790,6 +27363,54 @@ export type Database = {
             foreignKeyName: "peanuts_licensing_status_capture_fkey"
             columns: ["capture_id"]
             isOneToOne: false
+            referencedRelation: "peanuts_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peanuts_lifecycle_publication: {
+        Row: {
+          baseline_capture_id: string | null
+          counts: Json
+          derivation_contract: string
+          mode: string
+          published_at: string
+          published_capture_id: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Insert: {
+          baseline_capture_id?: string | null
+          counts?: Json
+          derivation_contract: string
+          mode: string
+          published_at?: string
+          published_capture_id: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Update: {
+          baseline_capture_id?: string | null
+          counts?: Json
+          derivation_contract?: string
+          mode?: string
+          published_at?: string
+          published_capture_id?: string
+          scope_sha256?: string
+          source_captured_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peanuts_lifecycle_publication_baseline_capture_id_fkey"
+            columns: ["baseline_capture_id"]
+            isOneToOne: false
+            referencedRelation: "peanuts_lifecycle_publication"
+            referencedColumns: ["published_capture_id"]
+          },
+          {
+            foreignKeyName: "peanuts_lifecycle_publication_published_capture_id_fkey"
+            columns: ["published_capture_id"]
+            isOneToOne: true
             referencedRelation: "peanuts_capture"
             referencedColumns: ["id"]
           },
@@ -21966,6 +27587,36 @@ export type Database = {
             referencedColumns: ["capture_id", "value_key"]
           },
         ]
+      }
+      peanuts_submission_property_option: {
+        Row: {
+          exact_label: string
+          loaded_at: string
+          option_key: string
+          ordinal: number
+          raw: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Insert: {
+          exact_label: string
+          loaded_at?: string
+          option_key: string
+          ordinal: number
+          raw?: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Update: {
+          exact_label?: string
+          loaded_at?: string
+          option_key?: string
+          ordinal?: number
+          raw?: Json
+          source_captured_at?: string
+          source_field?: string
+        }
+        Relationships: []
       }
       pmt_asset: {
         Row: {
@@ -22286,6 +27937,13 @@ export type Database = {
             referencedColumns: ["capture_id", "asset_id"]
           },
           {
+            foreignKeyName: "pmt_amv_element_fkey"
+            columns: ["capture_id", "metadata_element_id"]
+            isOneToOne: false
+            referencedRelation: "pmt_metadata_element"
+            referencedColumns: ["capture_id", "metadata_element_id"]
+          },
+          {
             foreignKeyName: "pmt_asset_metadata_value_capture_id_fkey"
             columns: ["capture_id"]
             isOneToOne: false
@@ -22446,7 +28104,7 @@ export type Database = {
           imported_at: string
           mapping_status: string
           notes: string | null
-          paramount_property_name: string
+          paramount_property_name: string | null
           property_source_id: string
           reported_asset_count: number
           source_evidence: string
@@ -22458,7 +28116,7 @@ export type Database = {
           imported_at?: string
           mapping_status?: string
           notes?: string | null
-          paramount_property_name: string
+          paramount_property_name?: string | null
           property_source_id: string
           reported_asset_count?: number
           source_evidence?: string
@@ -22470,7 +28128,7 @@ export type Database = {
           imported_at?: string
           mapping_status?: string
           notes?: string | null
-          paramount_property_name?: string
+          paramount_property_name?: string | null
           property_source_id?: string
           reported_asset_count?: number
           source_evidence?: string
@@ -22772,7 +28430,6 @@ export type Database = {
           collection_name: string
           collection_source_id: string
           imported_at: string
-          paramount_term: string
           raw: Json
           source_hash: string
         }
@@ -22781,7 +28438,6 @@ export type Database = {
           collection_name: string
           collection_source_id: string
           imported_at?: string
-          paramount_term: string
           raw?: Json
           source_hash: string
         }
@@ -22790,7 +28446,6 @@ export type Database = {
           collection_name?: string
           collection_source_id?: string
           imported_at?: string
-          paramount_term?: string
           raw?: Json
           source_hash?: string
         }
@@ -22832,6 +28487,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pmt_franchise_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "pmt_capture"
+            referencedColumns: ["capture_id"]
+          },
+        ]
+      }
+      pmt_metadata_element: {
+        Row: {
+          capture_id: string
+          domain_id: string | null
+          imported_at: string
+          metadata_category_id: string | null
+          metadata_category_name: string | null
+          metadata_element_id: string
+          metadata_element_name: string | null
+          source_column_name: string | null
+          source_hash: string
+          source_table_name: string | null
+        }
+        Insert: {
+          capture_id: string
+          domain_id?: string | null
+          imported_at?: string
+          metadata_category_id?: string | null
+          metadata_category_name?: string | null
+          metadata_element_id: string
+          metadata_element_name?: string | null
+          source_column_name?: string | null
+          source_hash: string
+          source_table_name?: string | null
+        }
+        Update: {
+          capture_id?: string
+          domain_id?: string | null
+          imported_at?: string
+          metadata_category_id?: string | null
+          metadata_category_name?: string | null
+          metadata_element_id?: string
+          metadata_element_name?: string | null
+          source_column_name?: string | null
+          source_hash?: string
+          source_table_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pmt_metadata_element_capture_id_fkey"
             columns: ["capture_id"]
             isOneToOne: false
             referencedRelation: "pmt_capture"
@@ -22900,7 +28602,7 @@ export type Database = {
           failure_message: string | null
           imported_at: string
           page_count: number
-          property_name: string
+          property_name: string | null
           property_source_id: string
           reported_asset_count: number
           source_hash: string
@@ -22912,7 +28614,7 @@ export type Database = {
           failure_message?: string | null
           imported_at?: string
           page_count: number
-          property_name: string
+          property_name?: string | null
           property_source_id: string
           reported_asset_count: number
           source_hash: string
@@ -22924,7 +28626,7 @@ export type Database = {
           failure_message?: string | null
           imported_at?: string
           page_count?: number
-          property_name?: string
+          property_name?: string | null
           property_source_id?: string
           reported_asset_count?: number
           source_hash?: string
@@ -23210,6 +28912,241 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pmt_capture"
             referencedColumns: ["capture_id"]
+          },
+        ]
+      }
+      pmt_trackerplus_submission_capture: {
+        Row: {
+          capture_key: string
+          chunk_ledger: Json
+          created_by: string
+          errors: Json
+          expected_property_count: number
+          expected_property_manifest_sha256: string
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          observed_property_count: number
+          observed_property_manifest_sha256: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          capture_key: string
+          chunk_ledger?: Json
+          created_by: string
+          errors?: Json
+          expected_property_count: number
+          expected_property_manifest_sha256: string
+          id: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_property_count?: number
+          observed_property_manifest_sha256?: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          capture_key?: string
+          chunk_ledger?: Json
+          created_by?: string
+          errors?: Json
+          expected_property_count?: number
+          expected_property_manifest_sha256?: string
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_property_count?: number
+          observed_property_manifest_sha256?: string | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      pmt_trackerplus_submission_property: {
+        Row: {
+          capture_id: string
+          exact_label: string
+          identity_method: string
+          ordinal: number
+          property_local_key: string
+          raw: Json
+          source_field: string
+        }
+        Insert: {
+          capture_id: string
+          exact_label: string
+          identity_method?: string
+          ordinal: number
+          property_local_key: string
+          raw: Json
+          source_field: string
+        }
+        Update: {
+          capture_id?: string
+          exact_label?: string
+          identity_method?: string
+          ordinal?: number
+          property_local_key?: string
+          raw?: Json
+          source_field?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pmt_trackerplus_submission_property_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "pmt_trackerplus_submission_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prod_order_milestone_schedule: {
+        Row: {
+          actual_date: string | null
+          anchor_date: string | null
+          anchor_type: string | null
+          computed_at: string
+          estimated_date: string | null
+          factory_time_id: number | null
+          first_past_due_at: string | null
+          id: number
+          mass_production_days: number | null
+          needed_date: string | null
+          prod_order_header_id: number
+          sampling_days: number | null
+          sku: string
+          stage_id: number | null
+          stage_name: string
+          status: string
+          template_source: string | null
+        }
+        Insert: {
+          actual_date?: string | null
+          anchor_date?: string | null
+          anchor_type?: string | null
+          computed_at?: string
+          estimated_date?: string | null
+          factory_time_id?: number | null
+          first_past_due_at?: string | null
+          id?: never
+          mass_production_days?: number | null
+          needed_date?: string | null
+          prod_order_header_id: number
+          sampling_days?: number | null
+          sku?: string
+          stage_id?: number | null
+          stage_name: string
+          status: string
+          template_source?: string | null
+        }
+        Update: {
+          actual_date?: string | null
+          anchor_date?: string | null
+          anchor_type?: string | null
+          computed_at?: string
+          estimated_date?: string | null
+          factory_time_id?: number | null
+          first_past_due_at?: string | null
+          id?: never
+          mass_production_days?: number | null
+          needed_date?: string | null
+          prod_order_header_id?: number
+          sampling_days?: number | null
+          sku?: string
+          stage_id?: number | null
+          stage_name?: string
+          status?: string
+          template_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prod_order_milestone_schedule_factory_time_id_fkey"
+            columns: ["factory_time_id"]
+            isOneToOne: false
+            referencedRelation: "FactoryTime"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prod_order_milestone_schedule_prod_order_header_id_fkey"
+            columns: ["prod_order_header_id"]
+            isOneToOne: false
+            referencedRelation: "ProdOrderHeader"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prod_stage_option: {
+        Row: {
+          needs_linesheet: boolean
+          prod_order_header_id: number
+          updated_at: string
+          updated_by: number | null
+        }
+        Insert: {
+          needs_linesheet?: boolean
+          prod_order_header_id: number
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Update: {
+          needs_linesheet?: boolean
+          prod_order_header_id?: number
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Relationships: []
+      }
+      prod_stage_progress: {
+        Row: {
+          done_at: string | null
+          failed: boolean
+          failed_reason: string | null
+          id: number
+          prod_order_header_id: number
+          sku: string | null
+          stage_id: number
+          updated_at: string
+          updated_by: number | null
+        }
+        Insert: {
+          done_at?: string | null
+          failed?: boolean
+          failed_reason?: string | null
+          id?: never
+          prod_order_header_id: number
+          sku?: string | null
+          stage_id: number
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Update: {
+          done_at?: string | null
+          failed?: boolean
+          failed_reason?: string | null
+          id?: never
+          prod_order_header_id?: number
+          sku?: string | null
+          stage_id?: number
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prod_stage_progress_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stage"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -23765,78 +29702,6 @@ export type Database = {
         }
         Relationships: []
       }
-      prod_order_milestone_schedule: {
-        Row: {
-          actual_date: string | null
-          anchor_date: string | null
-          anchor_type: string | null
-          computed_at: string
-          estimated_date: string | null
-          factory_time_id: number | null
-          first_past_due_at: string | null
-          id: number
-          mass_production_days: number | null
-          needed_date: string | null
-          prod_order_header_id: number
-          sampling_days: number | null
-          sku: string
-          stage_name: string
-          status: string
-          template_source: string | null
-        }
-        Insert: {
-          actual_date?: string | null
-          anchor_date?: string | null
-          anchor_type?: string | null
-          computed_at?: string
-          estimated_date?: string | null
-          factory_time_id?: number | null
-          first_past_due_at?: string | null
-          id?: never
-          mass_production_days?: number | null
-          needed_date?: string | null
-          prod_order_header_id: number
-          sampling_days?: number | null
-          sku?: string
-          stage_name: string
-          status: string
-          template_source?: string | null
-        }
-        Update: {
-          actual_date?: string | null
-          anchor_date?: string | null
-          anchor_type?: string | null
-          computed_at?: string
-          estimated_date?: string | null
-          factory_time_id?: number | null
-          first_past_due_at?: string | null
-          id?: never
-          mass_production_days?: number | null
-          needed_date?: string | null
-          prod_order_header_id?: number
-          sampling_days?: number | null
-          sku?: string
-          stage_name?: string
-          status?: string
-          template_source?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prod_order_milestone_schedule_factory_time_id_fkey"
-            columns: ["factory_time_id"]
-            isOneToOne: false
-            referencedRelation: "FactoryTime"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prod_order_milestone_schedule_prod_order_header_id_fkey"
-            columns: ["prod_order_header_id"]
-            isOneToOne: false
-            referencedRelation: "ProdOrderHeader"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ProdPaymentTerms: {
         Row: {
           CompanyCode: string | null
@@ -23903,24 +29768,74 @@ export type Database = {
         }
         Relationships: []
       }
+      product_type_factory_time: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          factory_time_id: number
+          id: number
+          mg_category: string
+          mg01_code: string
+          mg02_code: string
+          previous_factory_time_id: number | null
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          factory_time_id: number
+          id?: never
+          mg_category: string
+          mg01_code: string
+          mg02_code: string
+          previous_factory_time_id?: number | null
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          factory_time_id?: number
+          id?: never
+          mg_category?: string
+          mg01_code?: string
+          mg02_code?: string
+          previous_factory_time_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_type_factory_time_factory_time_id_fkey"
+            columns: ["factory_time_id"]
+            isOneToOne: false
+            referencedRelation: "FactoryTime"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_lane_canary: {
         Row: {
           applied_at: string
           applied_by: string
           id: number
           note: string
+          step1_acceptance_note: string | null
+          step6_train_note_a: string | null
+          step6_train_note_b: string | null
         }
         Insert: {
           applied_at?: string
           applied_by?: string
           id?: never
           note: string
+          step1_acceptance_note?: string | null
+          step6_train_note_a?: string | null
+          step6_train_note_b?: string | null
         }
         Update: {
           applied_at?: string
           applied_by?: string
           id?: never
           note?: string
+          step1_acceptance_note?: string | null
+          step6_train_note_a?: string | null
+          step6_train_note_b?: string | null
         }
         Relationships: []
       }
@@ -24144,6 +30059,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "production_order_line_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "production_order_line_production_order_id_fkey"
             columns: ["production_order_id"]
             isOneToOne: false
@@ -24233,6 +30155,56 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      production_po_legacy_admission: {
+        Row: {
+          admitted_at: string
+          normalized_po: string
+          order_id: string
+          review_receipt_sha256: string
+          source_evidence_sha256: string
+          used_at: string | null
+        }
+        Insert: {
+          admitted_at?: string
+          normalized_po: string
+          order_id: string
+          review_receipt_sha256: string
+          source_evidence_sha256: string
+          used_at?: string | null
+        }
+        Update: {
+          admitted_at?: string
+          normalized_po?: string
+          order_id?: string
+          review_receipt_sha256?: string
+          source_evidence_sha256?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_po_legacy_admission_normalized_po_fkey"
+            columns: ["normalized_po"]
+            isOneToOne: false
+            referencedRelation: "production_po_reservation"
+            referencedColumns: ["normalized_po"]
+          },
+        ]
+      }
+      production_po_reservation: {
+        Row: {
+          normalized_po: string
+          reserved_at: string
+        }
+        Insert: {
+          normalized_po: string
+          reserved_at?: string
+        }
+        Update: {
+          normalized_po?: string
+          reserved_at?: string
+        }
+        Relationships: []
       }
       ProductNickname: {
         Row: {
@@ -24495,6 +30467,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rfq_item_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rfq_item_rfq_group_id_fkey"
             columns: ["rfq_group_id"]
             isOneToOne: false
@@ -24594,6 +30573,9 @@ export type Database = {
       }
       RFQItem: {
         Row: {
+          hts_product_phrase: string | null
+          hts_product_phrase_at: string | null
+          hts_product_phrase_source: string | null
           rfq_container_id_fk: number | null
           rfqItem_active: number | null
           rfqItem_adam_fix: string | null
@@ -24711,6 +30693,9 @@ export type Database = {
           rfqItem_wholesale: string | null
         }
         Insert: {
+          hts_product_phrase?: string | null
+          hts_product_phrase_at?: string | null
+          hts_product_phrase_source?: string | null
           rfq_container_id_fk?: number | null
           rfqItem_active?: number | null
           rfqItem_adam_fix?: string | null
@@ -24828,6 +30813,9 @@ export type Database = {
           rfqItem_wholesale?: string | null
         }
         Update: {
+          hts_product_phrase?: string | null
+          hts_product_phrase_at?: string | null
+          hts_product_phrase_source?: string | null
           rfq_container_id_fk?: number | null
           rfqItem_active?: number | null
           rfqItem_adam_fix?: string | null
@@ -25697,6 +31685,80 @@ export type Database = {
           },
         ]
       }
+      sega_asset_property_inferred: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          catalog_source_id: string
+          confidence: number
+          evidence_key: string
+          match_method: string
+          matched_catalog_key: string
+          matched_property_key: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          catalog_source_id: string
+          confidence: number
+          evidence_key: string
+          match_method: string
+          matched_catalog_key: string
+          matched_property_key: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          catalog_source_id?: string
+          confidence?: number
+          evidence_key?: string
+          match_method?: string
+          matched_catalog_key?: string
+          matched_property_key?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_asset_property_inferred_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "sega_asset_property_inferred_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sega_asset_property_inferred_catalog_fkey"
+            columns: ["capture_id", "catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+          {
+            foreignKeyName: "sega_asset_property_inferred_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
       sega_asset_tag: {
         Row: {
           asset_source_id: string
@@ -25961,6 +32023,68 @@ export type Database = {
           },
         ]
       }
+      sega_character_property_inferred: {
+        Row: {
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          capture_id?: string
+          character_candidate_key?: string
+          confidence?: number
+          evidence_key?: string
+          match_method?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_character_property_inferred_candidate_fkey"
+            columns: ["capture_id", "character_candidate_key"]
+            isOneToOne: false
+            referencedRelation: "sega_character_candidate"
+            referencedColumns: ["capture_id", "character_candidate_key"]
+          },
+          {
+            foreignKeyName: "sega_character_property_inferred_evidence_fkey"
+            columns: ["capture_id", "character_candidate_key", "evidence_key"]
+            isOneToOne: false
+            referencedRelation: "sega_character_evidence"
+            referencedColumns: [
+              "capture_id",
+              "character_candidate_key",
+              "evidence_key",
+            ]
+          },
+          {
+            foreignKeyName: "sega_character_property_inferred_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
       sega_property: {
         Row: {
           capture_id: string
@@ -26087,6 +32211,171 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "sega_catalog"
             referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+        ]
+      }
+      sega_style_guide_property_inferred: {
+        Row: {
+          capture_id: string
+          catalog_source_id: string
+          confidence: number
+          evidence_catalog_source_id: string
+          evidence_key: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          capture_id: string
+          catalog_source_id: string
+          confidence: number
+          evidence_catalog_source_id: string
+          evidence_key: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          capture_id?: string
+          catalog_source_id?: string
+          confidence?: number
+          evidence_catalog_source_id?: string
+          evidence_key?: string
+          match_method?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_style_guide_property_inferred_candidate_fkey"
+            columns: ["capture_id", "catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_style_guide_candidate"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+          {
+            foreignKeyName: "sega_style_guide_property_inferred_catalog_fkey"
+            columns: ["capture_id", "evidence_catalog_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_catalog"
+            referencedColumns: ["capture_id", "catalog_source_id"]
+          },
+          {
+            foreignKeyName: "sega_style_guide_property_inferred_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "sega_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      sega_submission_capture: {
+        Row: {
+          capture_key: string
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          no_submission_created: boolean
+          observed_counts: Json
+          raw_summary: Json
+          save_clicked: boolean
+          selected_contract_source_id: string
+          source_captured_at: string
+          source_commit_sha: string
+          source_hash: string
+          source_repository: string
+          source_url: string
+          status: string
+          submission_list_after_hash: string
+          submission_list_before_hash: string
+        }
+        Insert: {
+          capture_key: string
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          no_submission_created: boolean
+          observed_counts?: Json
+          raw_summary: Json
+          save_clicked: boolean
+          selected_contract_source_id: string
+          source_captured_at: string
+          source_commit_sha: string
+          source_hash: string
+          source_repository: string
+          source_url: string
+          status?: string
+          submission_list_after_hash: string
+          submission_list_before_hash: string
+        }
+        Update: {
+          capture_key?: string
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          no_submission_created?: boolean
+          observed_counts?: Json
+          raw_summary?: Json
+          save_clicked?: boolean
+          selected_contract_source_id?: string
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_hash?: string
+          source_repository?: string
+          source_url?: string
+          status?: string
+          submission_list_after_hash?: string
+          submission_list_before_hash?: string
+        }
+        Relationships: []
+      }
+      sega_submission_property: {
+        Row: {
+          property_label: string
+          property_source_id: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          submission_capture_id: string
+        }
+        Insert: {
+          property_label: string
+          property_source_id: string
+          raw: Json
+          source_hash: string
+          source_url: string
+          submission_capture_id: string
+        }
+        Update: {
+          property_label?: string
+          property_source_id?: string
+          raw?: Json
+          source_hash?: string
+          source_url?: string
+          submission_capture_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sega_submission_property_capture_fkey"
+            columns: ["submission_capture_id"]
+            isOneToOne: false
+            referencedRelation: "sega_submission_capture"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -26968,6 +33257,36 @@ export type Database = {
           },
         ]
       }
+      sesame_submission_property_option: {
+        Row: {
+          exact_label: string
+          loaded_at: string
+          option_key: string
+          ordinal: number
+          raw: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Insert: {
+          exact_label: string
+          loaded_at?: string
+          option_key: string
+          ordinal: number
+          raw?: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Update: {
+          exact_label?: string
+          loaded_at?: string
+          option_key?: string
+          ordinal?: number
+          raw?: Json
+          source_captured_at?: string
+          source_field?: string
+        }
+        Relationships: []
+      }
       sesame_theme: {
         Row: {
           asset_count: number
@@ -27024,6 +33343,226 @@ export type Database = {
           PortCode?: string | null
           PortDesc?: string | null
           UNLcode?: string | null
+        }
+        Relationships: []
+      }
+      source_resolution: {
+        Row: {
+          core_character_id: string | null
+          core_franchise_id: string | null
+          core_licensor_id: string | null
+          core_property_id: string | null
+          core_style_guide_id: string | null
+          created_at: string
+          dam_asset_id: string | null
+          entity_kind: string
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          source_id: string
+          source_system: string
+          updated_at: string
+        }
+        Insert: {
+          core_character_id?: string | null
+          core_franchise_id?: string | null
+          core_licensor_id?: string | null
+          core_property_id?: string | null
+          core_style_guide_id?: string | null
+          created_at?: string
+          dam_asset_id?: string | null
+          entity_kind: string
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_id: string
+          source_system: string
+          updated_at?: string
+        }
+        Update: {
+          core_character_id?: string | null
+          core_franchise_id?: string | null
+          core_licensor_id?: string | null
+          core_property_id?: string | null
+          core_style_guide_id?: string | null
+          created_at?: string
+          dam_asset_id?: string | null
+          entity_kind?: string
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_id?: string
+          source_system?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stage: {
+        Row: {
+          active: boolean
+          applies_to: string
+          counts_toward_total: boolean
+          default_duration: number | null
+          done_signal: string | null
+          duration_varies_by: string | null
+          id: number
+          list_id: number
+          name: string
+          pending_label: string
+          position: number
+          shown_on_tracker: boolean
+          tracker_position: number | null
+          updated_at: string
+          updated_by: number | null
+        }
+        Insert: {
+          active?: boolean
+          applies_to?: string
+          counts_toward_total?: boolean
+          default_duration?: number | null
+          done_signal?: string | null
+          duration_varies_by?: string | null
+          id?: never
+          list_id: number
+          name: string
+          pending_label: string
+          position: number
+          shown_on_tracker?: boolean
+          tracker_position?: number | null
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Update: {
+          active?: boolean
+          applies_to?: string
+          counts_toward_total?: boolean
+          default_duration?: number | null
+          done_signal?: string | null
+          duration_varies_by?: string | null
+          id?: never
+          list_id?: number
+          name?: string
+          pending_label?: string
+          position?: number
+          shown_on_tracker?: boolean
+          tracker_position?: number | null
+          updated_at?: string
+          updated_by?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "stage_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_dependency: {
+        Row: {
+          allowed_early_days: number | null
+          depends_on_stage_id: number
+          kind: string
+          stage_id: number
+        }
+        Insert: {
+          allowed_early_days?: number | null
+          depends_on_stage_id: number
+          kind: string
+          stage_id: number
+        }
+        Update: {
+          allowed_early_days?: number | null
+          depends_on_stage_id?: number
+          kind?: string
+          stage_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_dependency_depends_on_stage_id_fkey"
+            columns: ["depends_on_stage_id"]
+            isOneToOne: false
+            referencedRelation: "stage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stage_dependency_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_duration: {
+        Row: {
+          duration: number | null
+          id: number
+          scope_kind: string
+          scope_value: string
+          stage_id: number
+        }
+        Insert: {
+          duration?: number | null
+          id?: never
+          scope_kind: string
+          scope_value: string
+          stage_id: number
+        }
+        Update: {
+          duration?: number | null
+          id?: never
+          scope_kind?: string
+          scope_value?: string
+          stage_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_duration_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_list: {
+        Row: {
+          created_at: string
+          duration_unit: string
+          id: number
+          key: string
+          maintainers: number[]
+          name: string
+          position: number
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          duration_unit: string
+          id?: never
+          key: string
+          maintainers?: number[]
+          name: string
+          position: number
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          duration_unit?: string
+          id?: never
+          key?: string
+          maintainers?: number[]
+          name?: string
+          position?: number
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }
@@ -27370,6 +33909,13 @@ export type Database = {
             columns: ["plm_item_id"]
             isOneToOne: false
             referencedRelation: "item"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_tracker_item_bridge_plm_item_id_fkey"
+            columns: ["plm_item_id"]
+            isOneToOne: false
+            referencedRelation: "item_missing_attribution"
             referencedColumns: ["id"]
           },
         ]
@@ -27907,6 +34453,7 @@ export type Database = {
           checksum: string | null
           content_type: string | null
           created_at: string
+          do_not_use_reason: string | null
           file_extension: string | null
           file_name: string
           file_size_bytes: number | null
@@ -27925,6 +34472,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name: string
           file_size_bytes?: number | null
@@ -27943,6 +34491,7 @@ export type Database = {
           checksum?: string | null
           content_type?: string | null
           created_at?: string
+          do_not_use_reason?: string | null
           file_extension?: string | null
           file_name?: string
           file_size_bytes?: number | null
@@ -29338,122 +35887,55 @@ export type Database = {
         }
         Relationships: []
       }
-      wb_asset: {
+      wb_asset_canonical_property_edge: {
         Row: {
-          asset_source_id: string
-          captured_date: string
-          character_labels: string
-          created_date: string | null
-          file_name: string
-          file_size_bytes: number | null
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at: string
-          franchise_labels: string
-          imported_at: string
           last_seen_at: string
-          modified_date: string | null
-          property_labels: string
-          raw: Json
-          season: string | null
-          source_hash: string
-          source_path: string
-          source_url: string
-          style_guide_natural_key: string | null
-          style_guide_source_id: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at: string
-          warner_asset_id: string | null
+          within_entitlement: boolean
         }
         Insert: {
-          asset_source_id: string
-          captured_date: string
-          character_labels: string
-          created_date?: string | null
-          file_name: string
-          file_size_bytes?: number | null
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at?: string
-          franchise_labels: string
-          imported_at?: string
           last_seen_at?: string
-          modified_date?: string | null
-          property_labels: string
-          raw: Json
-          season?: string | null
-          source_hash: string
-          source_path: string
-          source_url: string
-          style_guide_natural_key?: string | null
-          style_guide_source_id?: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at?: string
-          warner_asset_id?: string | null
+          within_entitlement: boolean
         }
         Update: {
-          asset_source_id?: string
-          captured_date?: string
-          character_labels?: string
-          created_date?: string | null
-          file_name?: string
-          file_size_bytes?: number | null
+          assertion_type?: string
+          canonical_property_id?: string
+          evidence_hash?: string
+          evidence_source?: string
           first_seen_at?: string
-          franchise_labels?: string
-          imported_at?: string
           last_seen_at?: string
-          modified_date?: string | null
-          property_labels?: string
-          raw?: Json
-          season?: string | null
-          source_hash?: string
-          source_path?: string
-          source_url?: string
-          style_guide_natural_key?: string | null
-          style_guide_source_id?: string
+          observed_at?: string
+          source_active?: boolean
+          source_entity_id?: string
           updated_at?: string
-          warner_asset_id?: string | null
+          within_entitlement?: boolean
         }
-        Relationships: []
-      }
-      wb_asset_character: {
-        Row: {
-          asset_source_id: string
-          captured_date: string
-          character_label: string
-          character_source_id: string
-          file_name: string
-          first_seen_at: string
-          imported_at: string
-          last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          updated_at: string
-        }
-        Insert: {
-          asset_source_id: string
-          captured_date: string
-          character_label: string
-          character_source_id: string
-          file_name: string
-          first_seen_at?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          updated_at?: string
-        }
-        Update: {
-          asset_source_id?: string
-          captured_date?: string
-          character_label?: string
-          character_source_id?: string
-          file_name?: string
-          first_seen_at?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_url?: string
-          updated_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wb_asset_canonical_property_edge_source_entity_id_fkey"
+            columns: ["source_entity_id"]
+            isOneToOne: false
+            referencedRelation: "wb_asset_normalized"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wb_asset_character_normalized: {
         Row: {
@@ -29577,58 +36059,15 @@ export type Database = {
           },
         ]
       }
-      wb_asset_franchise_property: {
-        Row: {
-          asset_source_id: string
-          captured_date: string
-          file_name: string
-          first_seen_at: string
-          franchise_property_label: string
-          franchise_property_source_id: string
-          imported_at: string
-          last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          updated_at: string
-        }
-        Insert: {
-          asset_source_id: string
-          captured_date: string
-          file_name: string
-          first_seen_at?: string
-          franchise_property_label: string
-          franchise_property_source_id?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          updated_at?: string
-        }
-        Update: {
-          asset_source_id?: string
-          captured_date?: string
-          file_name?: string
-          first_seen_at?: string
-          franchise_property_label?: string
-          franchise_property_source_id?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_url?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       wb_asset_normalized: {
         Row: {
           capture_chunk: number
           capture_id: string
+          change_signal: string | null
           file_name: string
           file_size_bytes: number | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           id: string
           imported_at: string
           last_seen_at: string
@@ -29641,15 +36080,19 @@ export type Database = {
           source_namespace: string
           source_path: string
           source_url: string
+          status: string
           updated_at: string
           warner_asset_id: string | null
+          withdrawn_at: string | null
         }
         Insert: {
           capture_chunk?: number
           capture_id: string
+          change_signal?: string | null
           file_name: string
           file_size_bytes?: number | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           imported_at?: string
           last_seen_at?: string
@@ -29662,15 +36105,19 @@ export type Database = {
           source_namespace: string
           source_path: string
           source_url: string
+          status?: string
           updated_at?: string
           warner_asset_id?: string | null
+          withdrawn_at?: string | null
         }
         Update: {
           capture_chunk?: number
           capture_id?: string
+          change_signal?: string | null
           file_name?: string
           file_size_bytes?: number | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           imported_at?: string
           last_seen_at?: string
@@ -29683,8 +36130,10 @@ export type Database = {
           source_namespace?: string
           source_path?: string
           source_url?: string
+          status?: string
           updated_at?: string
           warner_asset_id?: string | null
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -29756,51 +36205,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      wb_asset_style_guide: {
-        Row: {
-          asset_source_id: string
-          captured_date: string
-          file_name: string
-          first_seen_at: string
-          imported_at: string
-          last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          style_guide_natural_key: string
-          style_guide_source_id: string
-          updated_at: string
-        }
-        Insert: {
-          asset_source_id: string
-          captured_date: string
-          file_name: string
-          first_seen_at?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_url: string
-          style_guide_natural_key: string
-          style_guide_source_id?: string
-          updated_at?: string
-        }
-        Update: {
-          asset_source_id?: string
-          captured_date?: string
-          file_name?: string
-          first_seen_at?: string
-          imported_at?: string
-          last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_url?: string
-          style_guide_natural_key?: string
-          style_guide_source_id?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       wb_asset_style_guide_normalized: {
         Row: {
@@ -29932,105 +36336,137 @@ export type Database = {
         }
         Relationships: []
       }
-      wb_character: {
+      wb_character_canonical_property_edge: {
         Row: {
-          captured_date: string
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at: string
-          imported_at: string
-          label: string
           last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_id: string
-          source_term: string
-          source_url: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at: string
-          visible_asset_count: number | null
+          within_entitlement: boolean
         }
         Insert: {
-          captured_date: string
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at?: string
-          imported_at?: string
-          label: string
           last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_id?: string
-          source_term: string
-          source_url: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at?: string
-          visible_asset_count?: number | null
+          within_entitlement: boolean
         }
         Update: {
-          captured_date?: string
+          assertion_type?: string
+          canonical_property_id?: string
+          evidence_hash?: string
+          evidence_source?: string
           first_seen_at?: string
-          imported_at?: string
-          label?: string
           last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_id?: string
-          source_term?: string
-          source_url?: string
+          observed_at?: string
+          source_active?: boolean
+          source_entity_id?: string
           updated_at?: string
-          visible_asset_count?: number | null
+          within_entitlement?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wb_character_canonical_property_edge_source_entity_id_fkey"
+            columns: ["source_entity_id"]
+            isOneToOne: false
+            referencedRelation: "wb_character_normalized"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wb_character_normalized: {
         Row: {
           capture_chunk: number
           capture_id: string
+          change_signal: string | null
+          core_character_id: string | null
           fallback_key: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           id: string
           identity_method: string
           imported_at: string
           label: string
           last_seen_at: string
           raw: Json
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
           source_hash: string
           source_id: string | null
           source_namespace: string
           source_term: string
           source_url: string
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           capture_chunk?: number
           capture_id: string
+          change_signal?: string | null
+          core_character_id?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method: string
           imported_at?: string
           label: string
           last_seen_at?: string
           raw: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           source_hash: string
           source_id?: string | null
           source_namespace: string
           source_term?: string
           source_url: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           capture_chunk?: number
           capture_id?: string
+          change_signal?: string | null
+          core_character_id?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method?: string
           imported_at?: string
           label?: string
           last_seen_at?: string
           raw?: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           source_hash?: string
           source_id?: string | null
           source_namespace?: string
           source_term?: string
           source_url?: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -30046,8 +36482,10 @@ export type Database = {
         Row: {
           capture_chunk: number
           capture_id: string
+          change_signal: string | null
           fallback_key: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           id: string
           identity_method: string
           imported_at: string
@@ -30059,13 +36497,17 @@ export type Database = {
           source_namespace: string
           source_term: string
           source_url: string
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           capture_chunk?: number
           capture_id: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method: string
           imported_at?: string
@@ -30077,13 +36519,17 @@ export type Database = {
           source_namespace: string
           source_term?: string
           source_url: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           capture_chunk?: number
           capture_id?: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method?: string
           imported_at?: string
@@ -30095,7 +36541,9 @@ export type Database = {
           source_namespace?: string
           source_term?: string
           source_url?: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -30106,51 +36554,6 @@ export type Database = {
             referencedColumns: ["capture_id", "chunk_number"]
           },
         ]
-      }
-      wb_franchise_property: {
-        Row: {
-          captured_date: string
-          first_seen_at: string
-          imported_at: string
-          label: string
-          last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_id: string
-          source_term: string
-          source_url: string
-          updated_at: string
-          visible_asset_count: number | null
-        }
-        Insert: {
-          captured_date: string
-          first_seen_at?: string
-          imported_at?: string
-          label: string
-          last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_id?: string
-          source_term: string
-          source_url: string
-          updated_at?: string
-          visible_asset_count?: number | null
-        }
-        Update: {
-          captured_date?: string
-          first_seen_at?: string
-          imported_at?: string
-          label?: string
-          last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_id?: string
-          source_term?: string
-          source_url?: string
-          updated_at?: string
-          visible_asset_count?: number | null
-        }
-        Relationships: []
       }
       wb_franchise_property_evidence: {
         Row: {
@@ -30223,8 +36626,10 @@ export type Database = {
         Row: {
           capture_chunk: number
           capture_id: string
+          change_signal: string | null
           fallback_key: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           id: string
           identity_method: string
           imported_at: string
@@ -30236,13 +36641,17 @@ export type Database = {
           source_namespace: string
           source_term: string
           source_url: string
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           capture_chunk?: number
           capture_id: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method: string
           imported_at?: string
@@ -30254,13 +36663,17 @@ export type Database = {
           source_namespace: string
           source_term?: string
           source_url: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           capture_chunk?: number
           capture_id?: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method?: string
           imported_at?: string
@@ -30272,7 +36685,9 @@ export type Database = {
           source_namespace?: string
           source_term?: string
           source_url?: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -30283,69 +36698,6 @@ export type Database = {
             referencedColumns: ["capture_id", "chunk_number"]
           },
         ]
-      }
-      wb_property_character: {
-        Row: {
-          captured_at: string
-          character_label: string
-          character_source_id: string
-          first_seen_at: string
-          id_fallback: boolean
-          imported_at: string
-          last_seen_at: string
-          property_id: string | null
-          property_label: string
-          property_source_id: string
-          raw: Json
-          resolution_reason: string | null
-          resolution_status: string
-          resolved_at: string | null
-          resolved_by: string | null
-          source_hash: string
-          source_url: string
-          updated_at: string
-        }
-        Insert: {
-          captured_at: string
-          character_label: string
-          character_source_id: string
-          first_seen_at?: string
-          id_fallback: boolean
-          imported_at?: string
-          last_seen_at?: string
-          property_id?: string | null
-          property_label: string
-          property_source_id: string
-          raw: Json
-          resolution_reason?: string | null
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_hash: string
-          source_url: string
-          updated_at?: string
-        }
-        Update: {
-          captured_at?: string
-          character_label?: string
-          character_source_id?: string
-          first_seen_at?: string
-          id_fallback?: boolean
-          imported_at?: string
-          last_seen_at?: string
-          property_id?: string | null
-          property_label?: string
-          property_source_id?: string
-          raw?: Json
-          resolution_reason?: string | null
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_hash?: string
-          source_url?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       wb_property_character_normalized: {
         Row: {
@@ -30441,57 +36793,64 @@ export type Database = {
           },
         ]
       }
-      wb_style_guide: {
+      wb_style_guide_canonical_property_edge: {
         Row: {
-          captured_date: string
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at: string
-          imported_at: string
           last_seen_at: string
-          raw: Json
-          source_hash: string
-          source_id: string
-          source_term: string
-          source_url: string
-          style_guide_natural_key: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at: string
-          visible_asset_count: number | null
+          within_entitlement: boolean
         }
         Insert: {
-          captured_date: string
+          assertion_type: string
+          canonical_property_id: string
+          evidence_hash: string
+          evidence_source: string
           first_seen_at?: string
-          imported_at?: string
           last_seen_at?: string
-          raw: Json
-          source_hash: string
-          source_id?: string
-          source_term: string
-          source_url: string
-          style_guide_natural_key: string
+          observed_at: string
+          source_active: boolean
+          source_entity_id: string
           updated_at?: string
-          visible_asset_count?: number | null
+          within_entitlement: boolean
         }
         Update: {
-          captured_date?: string
+          assertion_type?: string
+          canonical_property_id?: string
+          evidence_hash?: string
+          evidence_source?: string
           first_seen_at?: string
-          imported_at?: string
           last_seen_at?: string
-          raw?: Json
-          source_hash?: string
-          source_id?: string
-          source_term?: string
-          source_url?: string
-          style_guide_natural_key?: string
+          observed_at?: string
+          source_active?: boolean
+          source_entity_id?: string
           updated_at?: string
-          visible_asset_count?: number | null
+          within_entitlement?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wb_style_guide_canonical_property_edge_source_entity_id_fkey"
+            columns: ["source_entity_id"]
+            isOneToOne: false
+            referencedRelation: "wb_style_guide_normalized"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wb_style_guide_normalized: {
         Row: {
           capture_chunk: number
           capture_id: string
+          change_signal: string | null
           fallback_key: string | null
           first_seen_at: string
+          first_withdrawn_at: string | null
           id: string
           identity_method: string
           imported_at: string
@@ -30503,13 +36862,17 @@ export type Database = {
           source_namespace: string
           source_term: string
           source_url: string
+          status: string
           updated_at: string
+          withdrawn_at: string | null
         }
         Insert: {
           capture_chunk?: number
           capture_id: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method: string
           imported_at?: string
@@ -30521,13 +36884,17 @@ export type Database = {
           source_namespace: string
           source_term?: string
           source_url: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Update: {
           capture_chunk?: number
           capture_id?: string
+          change_signal?: string | null
           fallback_key?: string | null
           first_seen_at?: string
+          first_withdrawn_at?: string | null
           id?: string
           identity_method?: string
           imported_at?: string
@@ -30539,7 +36906,9 @@ export type Database = {
           source_namespace?: string
           source_term?: string
           source_url?: string
+          status?: string
           updated_at?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -30887,25 +37256,40 @@ export type Database = {
           capture_id: string
           character_label: string
           character_source_id: string
+          core_character_id: string | null
           in_source_dictionary: boolean
           normalized_character_label: string
           raw: Json
+          resolution_reason: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
         }
         Insert: {
           capture_id: string
           character_label: string
           character_source_id: string
+          core_character_id?: string | null
           in_source_dictionary: boolean
           normalized_character_label: string
           raw: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
         }
         Update: {
           capture_id?: string
           character_label?: string
           character_source_id?: string
+          core_character_id?: string | null
           in_source_dictionary?: boolean
           normalized_character_label?: string
           raw?: Json
+          resolution_reason?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
         }
         Relationships: [
           {
@@ -30946,6 +37330,80 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wildbrain_capture"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_entity_lifecycle: {
+        Row: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at: string | null
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          status: string
+          withdrawn_at: string | null
+          withdrawn_capture_id: string | null
+        }
+        Insert: {
+          change_signal: string
+          entity_key: string
+          entity_kind: string
+          first_seen_at: string
+          first_seen_capture_id: string
+          first_withdrawn_at?: string | null
+          last_changed_capture_id: string
+          last_seen_at: string
+          last_seen_capture_id: string
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Update: {
+          change_signal?: string
+          entity_key?: string
+          entity_kind?: string
+          first_seen_at?: string
+          first_seen_capture_id?: string
+          first_withdrawn_at?: string | null
+          last_changed_capture_id?: string
+          last_seen_at?: string
+          last_seen_capture_id?: string
+          status?: string
+          withdrawn_at?: string | null
+          withdrawn_capture_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_entity_lifecycle_first_seen_capture_id_fkey"
+            columns: ["first_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_lifecycle_publication"
+            referencedColumns: ["capture_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_entity_lifecycle_last_changed_capture_id_fkey"
+            columns: ["last_changed_capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_lifecycle_publication"
+            referencedColumns: ["capture_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_entity_lifecycle_last_seen_capture_id_fkey"
+            columns: ["last_seen_capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_lifecycle_publication"
+            referencedColumns: ["capture_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_entity_lifecycle_withdrawn_capture_id_fkey"
+            columns: ["withdrawn_capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_lifecycle_publication"
+            referencedColumns: ["capture_id"]
           },
         ]
       }
@@ -31077,18 +37535,1845 @@ export type Database = {
           },
         ]
       }
+      wildbrain_lifecycle_publication: {
+        Row: {
+          baseline_capture_id: string | null
+          capture_id: string
+          counts: Json
+          derivation_contract: string
+          guide_rule_versions: string
+          mode: string
+          published_at: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Insert: {
+          baseline_capture_id?: string | null
+          capture_id: string
+          counts?: Json
+          derivation_contract: string
+          guide_rule_versions: string
+          mode: string
+          published_at?: string
+          scope_sha256: string
+          source_captured_at: string
+        }
+        Update: {
+          baseline_capture_id?: string | null
+          capture_id?: string
+          counts?: Json
+          derivation_contract?: string
+          guide_rule_versions?: string
+          mode?: string
+          published_at?: string
+          scope_sha256?: string
+          source_captured_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wildbrain_lifecycle_publication_baseline_capture_id_fkey"
+            columns: ["baseline_capture_id"]
+            isOneToOne: false
+            referencedRelation: "wildbrain_lifecycle_publication"
+            referencedColumns: ["capture_id"]
+          },
+          {
+            foreignKeyName: "wildbrain_lifecycle_publication_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: true
+            referencedRelation: "wildbrain_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wildbrain_submission_property_option: {
+        Row: {
+          exact_label: string
+          loaded_at: string
+          option_key: string
+          ordinal: number
+          raw: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Insert: {
+          exact_label: string
+          loaded_at?: string
+          option_key: string
+          ordinal: number
+          raw?: Json
+          source_captured_at: string
+          source_field: string
+        }
+        Update: {
+          exact_label?: string
+          loaded_at?: string
+          option_key?: string
+          ordinal?: number
+          raw?: Json
+          source_captured_at?: string
+          source_field?: string
+        }
+        Relationships: []
+      }
+      wwe_asset: {
+        Row: {
+          asset_kind: string | null
+          asset_source_id: string
+          capture_id: string
+          copyright_notice: string | null
+          copyright_status: string | null
+          creator_label: string | null
+          extension: string | null
+          file_name: string
+          height: number | null
+          library_source_id: string
+          raw: Json
+          source_created_at: string | null
+          source_hash: string
+          source_modified_at: string | null
+          source_status: string | null
+          title: string | null
+          width: number | null
+        }
+        Insert: {
+          asset_kind?: string | null
+          asset_source_id: string
+          capture_id: string
+          copyright_notice?: string | null
+          copyright_status?: string | null
+          creator_label?: string | null
+          extension?: string | null
+          file_name: string
+          height?: number | null
+          library_source_id: string
+          raw: Json
+          source_created_at?: string | null
+          source_hash: string
+          source_modified_at?: string | null
+          source_status?: string | null
+          title?: string | null
+          width?: number | null
+        }
+        Update: {
+          asset_kind?: string | null
+          asset_source_id?: string
+          capture_id?: string
+          copyright_notice?: string | null
+          copyright_status?: string | null
+          creator_label?: string | null
+          extension?: string | null
+          file_name?: string
+          height?: number | null
+          library_source_id?: string
+          raw?: Json
+          source_created_at?: string | null
+          source_hash?: string
+          source_modified_at?: string | null
+          source_status?: string | null
+          title?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_library_fkey"
+            columns: ["capture_id", "library_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset_library"
+            referencedColumns: ["capture_id", "library_source_id"]
+          },
+        ]
+      }
+      wwe_asset_folder: {
+        Row: {
+          capture_id: string
+          folder_depth: number
+          folder_label: string
+          folder_path: string
+          folder_source_id: string
+          parent_folder_source_id: string | null
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          folder_depth: number
+          folder_label: string
+          folder_path: string
+          folder_source_id: string
+          parent_folder_source_id?: string | null
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          folder_depth?: number
+          folder_label?: string
+          folder_path?: string
+          folder_source_id?: string
+          parent_folder_source_id?: string | null
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_folder_capture_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_creative_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wwe_asset_folder_parent_fkey"
+            columns: ["capture_id", "parent_folder_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset_folder"
+            referencedColumns: ["capture_id", "folder_source_id"]
+          },
+        ]
+      }
+      wwe_asset_folder_member: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          folder_source_id: string
+          raw: Json
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          folder_source_id: string
+          raw: Json
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          folder_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_folder_member_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "wwe_asset_folder_member_folder_fkey"
+            columns: ["capture_id", "folder_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset_folder"
+            referencedColumns: ["capture_id", "folder_source_id"]
+          },
+        ]
+      }
+      wwe_asset_library: {
+        Row: {
+          asset_count: number | null
+          brand_source_id: string
+          capture_id: string
+          library_kind: string | null
+          library_label: string
+          library_source_id: string
+          raw: Json
+        }
+        Insert: {
+          asset_count?: number | null
+          brand_source_id: string
+          capture_id: string
+          library_kind?: string | null
+          library_label: string
+          library_source_id: string
+          raw: Json
+        }
+        Update: {
+          asset_count?: number | null
+          brand_source_id?: string
+          capture_id?: string
+          library_kind?: string | null
+          library_label?: string
+          library_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_library_brand_fkey"
+            columns: ["capture_id", "brand_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_creative_brand"
+            referencedColumns: ["capture_id", "brand_source_id"]
+          },
+        ]
+      }
+      wwe_asset_property_inferred: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          confidence: number
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          confidence: number
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          confidence?: number
+          match_method?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_property_inferred_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+        ]
+      }
+      wwe_asset_style_guide_inferred: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          confidence: number
+          guideline_source_id: string
+          match_method: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          confidence: number
+          guideline_source_id: string
+          match_method: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          confidence?: number
+          guideline_source_id?: string
+          match_method?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_style_guide_inferred_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "wwe_asset_style_guide_inferred_guide_fkey"
+            columns: ["capture_id", "guideline_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_style_guide"
+            referencedColumns: ["capture_id", "guideline_source_id"]
+          },
+        ]
+      }
+      wwe_asset_tag: {
+        Row: {
+          asset_source_id: string
+          capture_id: string
+          raw: Json
+          tag_source: string
+          tag_source_key: string
+          tag_value: string | null
+        }
+        Insert: {
+          asset_source_id: string
+          capture_id: string
+          raw: Json
+          tag_source: string
+          tag_source_key: string
+          tag_value?: string | null
+        }
+        Update: {
+          asset_source_id?: string
+          capture_id?: string
+          raw?: Json
+          tag_source?: string
+          tag_source_key?: string
+          tag_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_asset_tag_asset_fkey"
+            columns: ["capture_id", "asset_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_asset"
+            referencedColumns: ["capture_id", "asset_source_id"]
+          },
+          {
+            foreignKeyName: "wwe_asset_tag_tag_fkey"
+            columns: ["capture_id", "tag_source_key"]
+            isOneToOne: false
+            referencedRelation: "wwe_tag"
+            referencedColumns: ["capture_id", "tag_source_key"]
+          },
+        ]
+      }
+      wwe_character_candidate: {
+        Row: {
+          candidate_label: string
+          capture_id: string
+          character_candidate_key: string
+          inference_method: string
+          normalized_candidate_label: string
+          raw: Json
+          rule_version: string
+        }
+        Insert: {
+          candidate_label: string
+          capture_id: string
+          character_candidate_key: string
+          inference_method: string
+          normalized_candidate_label: string
+          raw: Json
+          rule_version: string
+        }
+        Update: {
+          candidate_label?: string
+          capture_id?: string
+          character_candidate_key?: string
+          inference_method?: string
+          normalized_candidate_label?: string
+          raw?: Json
+          rule_version?: string
+        }
+        Relationships: []
+      }
+      wwe_character_evidence: {
+        Row: {
+          asset_source_id: string | null
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          evidence_type: string
+          evidence_value: string
+          folder_source_id: string | null
+          match_method: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+          submission_number: string | null
+        }
+        Insert: {
+          asset_source_id?: string | null
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          evidence_key: string
+          evidence_type: string
+          evidence_value: string
+          folder_source_id?: string | null
+          match_method: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+          submission_number?: string | null
+        }
+        Update: {
+          asset_source_id?: string | null
+          capture_id?: string
+          character_candidate_key?: string
+          confidence?: number
+          evidence_key?: string
+          evidence_type?: string
+          evidence_value?: string
+          folder_source_id?: string | null
+          match_method?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+          submission_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_character_evidence_candidate_fkey"
+            columns: ["capture_id", "character_candidate_key"]
+            isOneToOne: false
+            referencedRelation: "wwe_character_candidate"
+            referencedColumns: ["capture_id", "character_candidate_key"]
+          },
+          {
+            foreignKeyName: "wwe_character_evidence_submission_fkey"
+            columns: ["capture_id", "submission_number"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission"
+            referencedColumns: ["capture_id", "submission_number"]
+          },
+        ]
+      }
+      wwe_character_property_inferred: {
+        Row: {
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          capture_id: string
+          character_candidate_key: string
+          confidence: number
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          capture_id?: string
+          character_candidate_key?: string
+          confidence?: number
+          match_method?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_character_property_inferred_candidate_fkey"
+            columns: ["capture_id", "character_candidate_key"]
+            isOneToOne: false
+            referencedRelation: "wwe_character_candidate"
+            referencedColumns: ["capture_id", "character_candidate_key"]
+          },
+        ]
+      }
+      wwe_contract: {
+        Row: {
+          capture_id: string
+          contract_label: string
+          contract_source_id: string
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          contract_label: string
+          contract_source_id: string
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          contract_label?: string
+          contract_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_contract_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wwe_contract_property: {
+        Row: {
+          capture_id: string
+          contract_source_id: string
+          property_source_id: string
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          contract_source_id: string
+          property_source_id: string
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          contract_source_id?: string
+          property_source_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_contract_property_contract_fkey"
+            columns: ["capture_id", "contract_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_contract"
+            referencedColumns: ["capture_id", "contract_source_id"]
+          },
+          {
+            foreignKeyName: "wwe_contract_property_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      wwe_creative_brand: {
+        Row: {
+          brand_label: string
+          brand_source_id: string
+          capture_id: string
+          raw: Json
+        }
+        Insert: {
+          brand_label: string
+          brand_source_id: string
+          capture_id: string
+          raw: Json
+        }
+        Update: {
+          brand_label?: string
+          brand_source_id?: string
+          capture_id?: string
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_creative_brand_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_creative_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wwe_creative_capture: {
+        Row: {
+          asset_paging_terminal: boolean
+          brand_paging_terminal: boolean
+          capture_key: string
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          folder_paging_terminal: boolean
+          guidelines_reported: number
+          guidelines_visible: number
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          observed_counts: Json
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status: string
+        }
+        Insert: {
+          asset_paging_terminal?: boolean
+          brand_paging_terminal?: boolean
+          capture_key: string
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          folder_paging_terminal?: boolean
+          guidelines_reported: number
+          guidelines_visible: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_counts?: Json
+          portal_base_url: string
+          raw_summary: Json
+          read_commit_sha?: string | null
+          source_captured_at: string
+          source_commit_sha: string
+          source_manifest_sha256: string
+          source_repository: string
+          status?: string
+        }
+        Update: {
+          asset_paging_terminal?: boolean
+          brand_paging_terminal?: boolean
+          capture_key?: string
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          folder_paging_terminal?: boolean
+          guidelines_reported?: number
+          guidelines_visible?: number
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_counts?: Json
+          portal_base_url?: string
+          raw_summary?: Json
+          read_commit_sha?: string | null
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_manifest_sha256?: string
+          source_repository?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      wwe_product_entitlement: {
+        Row: {
+          article_label: string | null
+          capture_id: string
+          category_label: string | null
+          contract_source_id: string
+          id: string
+          product_label: string
+          property_source_id: string
+          raw: Json
+          sub_category_label: string | null
+        }
+        Insert: {
+          article_label?: string | null
+          capture_id: string
+          category_label?: string | null
+          contract_source_id: string
+          id?: string
+          product_label: string
+          property_source_id: string
+          raw: Json
+          sub_category_label?: string | null
+        }
+        Update: {
+          article_label?: string | null
+          capture_id?: string
+          category_label?: string | null
+          contract_source_id?: string
+          id?: string
+          product_label?: string
+          property_source_id?: string
+          raw?: Json
+          sub_category_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_product_entitlement_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wwe_product_entitlement_contract_fkey"
+            columns: ["capture_id", "contract_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_contract"
+            referencedColumns: ["capture_id", "contract_source_id"]
+          },
+          {
+            foreignKeyName: "wwe_product_entitlement_property_fkey"
+            columns: ["capture_id", "property_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      wwe_property: {
+        Row: {
+          capture_id: string
+          license_type_label: string | null
+          parent_property_source_id: string | null
+          property_label: string
+          property_source_id: string
+          raw: Json
+          source_hash: string
+          source_url: string
+        }
+        Insert: {
+          capture_id: string
+          license_type_label?: string | null
+          parent_property_source_id?: string | null
+          property_label: string
+          property_source_id: string
+          raw: Json
+          source_hash: string
+          source_url: string
+        }
+        Update: {
+          capture_id?: string
+          license_type_label?: string | null
+          parent_property_source_id?: string | null
+          property_label?: string
+          property_source_id?: string
+          raw?: Json
+          source_hash?: string
+          source_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_property_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission_capture"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wwe_property_parent_fkey"
+            columns: ["capture_id", "parent_property_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_property"
+            referencedColumns: ["capture_id", "property_source_id"]
+          },
+        ]
+      }
+      wwe_style_guide: {
+        Row: {
+          brand_source_id: string
+          capture_id: string
+          guideline_label: string
+          guideline_source_id: string
+          page_count: number | null
+          raw: Json
+          source_url: string
+        }
+        Insert: {
+          brand_source_id: string
+          capture_id: string
+          guideline_label: string
+          guideline_source_id: string
+          page_count?: number | null
+          raw: Json
+          source_url: string
+        }
+        Update: {
+          brand_source_id?: string
+          capture_id?: string
+          guideline_label?: string
+          guideline_source_id?: string
+          page_count?: number | null
+          raw?: Json
+          source_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_style_guide_brand_fkey"
+            columns: ["capture_id", "brand_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_creative_brand"
+            referencedColumns: ["capture_id", "brand_source_id"]
+          },
+        ]
+      }
+      wwe_style_guide_page: {
+        Row: {
+          capture_id: string
+          guideline_source_id: string
+          page_ordinal: number
+          page_source_id: string
+          page_title: string | null
+          raw: Json
+        }
+        Insert: {
+          capture_id: string
+          guideline_source_id: string
+          page_ordinal: number
+          page_source_id: string
+          page_title?: string | null
+          raw: Json
+        }
+        Update: {
+          capture_id?: string
+          guideline_source_id?: string
+          page_ordinal?: number
+          page_source_id?: string
+          page_title?: string | null
+          raw?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_style_guide_page_guide_fkey"
+            columns: ["capture_id", "guideline_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_style_guide"
+            referencedColumns: ["capture_id", "guideline_source_id"]
+          },
+        ]
+      }
+      wwe_style_guide_property_inferred: {
+        Row: {
+          capture_id: string
+          confidence: number
+          guideline_source_id: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth: string
+          rule_version: string
+        }
+        Insert: {
+          capture_id: string
+          confidence: number
+          guideline_source_id: string
+          match_method: string
+          property_source_id: string
+          raw: Json
+          relationship_truth?: string
+          rule_version: string
+        }
+        Update: {
+          capture_id?: string
+          confidence?: number
+          guideline_source_id?: string
+          match_method?: string
+          property_source_id?: string
+          raw?: Json
+          relationship_truth?: string
+          rule_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_style_guide_property_inferred_guide_fkey"
+            columns: ["capture_id", "guideline_source_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_style_guide"
+            referencedColumns: ["capture_id", "guideline_source_id"]
+          },
+        ]
+      }
+      wwe_submission: {
+        Row: {
+          capture_id: string
+          company_label: string | null
+          contract_label: string | null
+          date_submitted: string | null
+          licensor_label: string
+          raw: Json
+          response_date: string | null
+          samples: string | null
+          sku: string | null
+          source_url: string
+          status: string | null
+          submission_code: string | null
+          submission_number: string
+          submission_type: string | null
+          submitted_by: string | null
+        }
+        Insert: {
+          capture_id: string
+          company_label?: string | null
+          contract_label?: string | null
+          date_submitted?: string | null
+          licensor_label: string
+          raw: Json
+          response_date?: string | null
+          samples?: string | null
+          sku?: string | null
+          source_url: string
+          status?: string | null
+          submission_code?: string | null
+          submission_number: string
+          submission_type?: string | null
+          submitted_by?: string | null
+        }
+        Update: {
+          capture_id?: string
+          company_label?: string | null
+          contract_label?: string | null
+          date_submitted?: string | null
+          licensor_label?: string
+          raw?: Json
+          response_date?: string | null
+          samples?: string | null
+          sku?: string | null
+          source_url?: string
+          status?: string | null
+          submission_code?: string | null
+          submission_number?: string
+          submission_type?: string | null
+          submitted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_submission_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wwe_submission_capture: {
+        Row: {
+          capture_key: string
+          created_by: string
+          error_summary: Json
+          expected_counts: Json
+          id: string
+          load_completed_at: string | null
+          load_started_at: string
+          observed_counts: Json
+          raw_summary: Json
+          source_captured_at: string
+          source_commit_sha: string
+          source_hash: string
+          source_repository: string
+          source_url: string
+          status: string
+        }
+        Insert: {
+          capture_key: string
+          created_by: string
+          error_summary?: Json
+          expected_counts: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_counts?: Json
+          raw_summary: Json
+          source_captured_at: string
+          source_commit_sha: string
+          source_hash: string
+          source_repository: string
+          source_url: string
+          status?: string
+        }
+        Update: {
+          capture_key?: string
+          created_by?: string
+          error_summary?: Json
+          expected_counts?: Json
+          id?: string
+          load_completed_at?: string | null
+          load_started_at?: string
+          observed_counts?: Json
+          raw_summary?: Json
+          source_captured_at?: string
+          source_commit_sha?: string
+          source_hash?: string
+          source_repository?: string
+          source_url?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      wwe_submission_comment: {
+        Row: {
+          author: string | null
+          body: string
+          capture_id: string
+          comment_hash: string
+          posted_on: string | null
+          raw: Json
+          stage: string | null
+          submission_number: string
+        }
+        Insert: {
+          author?: string | null
+          body: string
+          capture_id: string
+          comment_hash: string
+          posted_on?: string | null
+          raw: Json
+          stage?: string | null
+          submission_number: string
+        }
+        Update: {
+          author?: string | null
+          body?: string
+          capture_id?: string
+          comment_hash?: string
+          posted_on?: string | null
+          raw?: Json
+          stage?: string | null
+          submission_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_submission_comment_submission_fkey"
+            columns: ["capture_id", "submission_number"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission"
+            referencedColumns: ["capture_id", "submission_number"]
+          },
+        ]
+      }
+      wwe_submission_image: {
+        Row: {
+          capture_id: string
+          image_source_id: string
+          raw: Json
+          stage: string | null
+          submission_number: string
+        }
+        Insert: {
+          capture_id: string
+          image_source_id: string
+          raw: Json
+          stage?: string | null
+          submission_number: string
+        }
+        Update: {
+          capture_id?: string
+          image_source_id?: string
+          raw?: Json
+          stage?: string | null
+          submission_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_submission_image_submission_fkey"
+            columns: ["capture_id", "submission_number"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission"
+            referencedColumns: ["capture_id", "submission_number"]
+          },
+        ]
+      }
+      wwe_submission_ip: {
+        Row: {
+          capture_id: string
+          ip_label: string
+          ip_ordinal: number
+          normalized_ip_label: string
+          raw: Json
+          submission_number: string
+        }
+        Insert: {
+          capture_id: string
+          ip_label: string
+          ip_ordinal: number
+          normalized_ip_label: string
+          raw: Json
+          submission_number: string
+        }
+        Update: {
+          capture_id?: string
+          ip_label?: string
+          ip_ordinal?: number
+          normalized_ip_label?: string
+          raw?: Json
+          submission_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_submission_ip_submission_fkey"
+            columns: ["capture_id", "submission_number"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission"
+            referencedColumns: ["capture_id", "submission_number"]
+          },
+        ]
+      }
+      wwe_submission_stage: {
+        Row: {
+          capture_id: string
+          raw: Json
+          revision_number: number | null
+          stage_label: string
+          stage_ordinal: number
+          stage_status: string | null
+          submission_number: string
+        }
+        Insert: {
+          capture_id: string
+          raw: Json
+          revision_number?: number | null
+          stage_label: string
+          stage_ordinal: number
+          stage_status?: string | null
+          submission_number: string
+        }
+        Update: {
+          capture_id?: string
+          raw?: Json
+          revision_number?: number | null
+          stage_label?: string
+          stage_ordinal?: number
+          stage_status?: string | null
+          submission_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_submission_stage_submission_fkey"
+            columns: ["capture_id", "submission_number"]
+            isOneToOne: false
+            referencedRelation: "wwe_submission"
+            referencedColumns: ["capture_id", "submission_number"]
+          },
+        ]
+      }
+      wwe_tag: {
+        Row: {
+          capture_id: string
+          normalized_tag_label: string
+          raw: Json
+          tag_label: string
+          tag_source_key: string
+        }
+        Insert: {
+          capture_id: string
+          normalized_tag_label: string
+          raw: Json
+          tag_label: string
+          tag_source_key: string
+        }
+        Update: {
+          capture_id?: string
+          normalized_tag_label?: string
+          raw?: Json
+          tag_label?: string
+          tag_source_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wwe_tag_capture_id_fkey"
+            columns: ["capture_id"]
+            isOneToOne: false
+            referencedRelation: "wwe_creative_capture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      coldlion_item_detail: {
+        Row: {
+          active: string | null
+          actual_dims: string | null
+          carton_height: number | null
+          carton_length: number | null
+          carton_qty: number | null
+          carton_weight: number | null
+          carton_width: number | null
+          company_code: string | null
+          division_code: string | null
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          hts_number: string | null
+          inner_pack_qty: number | null
+          item_available: string | null
+          item_cost: number | null
+          item_discontinued: string | null
+          item_height: number | null
+          item_length: number | null
+          item_no: string | null
+          item_pkey: string | null
+          item_price_a: number | null
+          item_price_b: number | null
+          item_price_c: number | null
+          item_price_d: number | null
+          item_status: string | null
+          item_volume: number | null
+          item_weight: number | null
+          item_width: number | null
+          label_code: string | null
+          last_seen_at: string | null
+          nmfc_code: string | null
+          pre_pack_code: string | null
+          retail_price: number | null
+          royalty_code: string | null
+          royalty_code2: string | null
+          sales_person_code1: string | null
+          sales_person_code2: string | null
+          season_code: string | null
+          selling_price: number | null
+          upc: string | null
+        }
+        Insert: {
+          active?: string | null
+          actual_dims?: string | null
+          carton_height?: number | null
+          carton_length?: number | null
+          carton_qty?: number | null
+          carton_weight?: number | null
+          carton_width?: number | null
+          company_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          hts_number?: string | null
+          inner_pack_qty?: number | null
+          item_available?: string | null
+          item_cost?: number | null
+          item_discontinued?: string | null
+          item_height?: number | null
+          item_length?: number | null
+          item_no?: string | null
+          item_pkey?: string | null
+          item_price_a?: number | null
+          item_price_b?: number | null
+          item_price_c?: number | null
+          item_price_d?: number | null
+          item_status?: string | null
+          item_volume?: number | null
+          item_weight?: number | null
+          item_width?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          nmfc_code?: string | null
+          pre_pack_code?: string | null
+          retail_price?: number | null
+          royalty_code?: string | null
+          royalty_code2?: string | null
+          sales_person_code1?: string | null
+          sales_person_code2?: string | null
+          season_code?: string | null
+          selling_price?: number | null
+          upc?: string | null
+        }
+        Update: {
+          active?: string | null
+          actual_dims?: string | null
+          carton_height?: number | null
+          carton_length?: number | null
+          carton_qty?: number | null
+          carton_weight?: number | null
+          carton_width?: number | null
+          company_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          hts_number?: string | null
+          inner_pack_qty?: number | null
+          item_available?: string | null
+          item_cost?: number | null
+          item_discontinued?: string | null
+          item_height?: number | null
+          item_length?: number | null
+          item_no?: string | null
+          item_pkey?: string | null
+          item_price_a?: number | null
+          item_price_b?: number | null
+          item_price_c?: number | null
+          item_price_d?: number | null
+          item_status?: string | null
+          item_volume?: number | null
+          item_weight?: number | null
+          item_width?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          nmfc_code?: string | null
+          pre_pack_code?: string | null
+          retail_price?: number | null
+          royalty_code?: string | null
+          royalty_code2?: string | null
+          sales_person_code1?: string | null
+          sales_person_code2?: string | null
+          season_code?: string | null
+          selling_price?: number | null
+          upc?: string | null
+        }
+        Relationships: []
+      }
+      coldlion_item_header: {
+        Row: {
+          active: string | null
+          annual_sample_date: string | null
+          annual_sample_qty: number | null
+          annual_sample_sent_date: string | null
+          brand_assurance_no: string | null
+          carton_height: number | null
+          carton_length: number | null
+          carton_qty: number | null
+          carton_weight: number | null
+          carton_width: number | null
+          character_likeness: string | null
+          character_list: string | null
+          company_code: string | null
+          compare_price: number | null
+          contract_sample_date: string | null
+          contract_sample_qty: number | null
+          contract_sample_sent_date: string | null
+          design_no: string | null
+          division_code: string | null
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          has_image: string | null
+          hts_number: string | null
+          hts_number2: string | null
+          inner_pack_qty: number | null
+          item_available: string | null
+          item_cost: number | null
+          item_desc: string | null
+          item_discontinued: string | null
+          item_display_desc: string | null
+          item_height: number | null
+          item_length: number | null
+          item_no: string | null
+          item_price_a: number | null
+          item_price_b: number | null
+          item_price_c: number | null
+          item_price_d: number | null
+          item_status: string | null
+          item_volume: number | null
+          item_weight: number | null
+          item_width: number | null
+          last_seen_at: string | null
+          mfg_lead_time: number | null
+          mg_category: string | null
+          movie_art: string | null
+          non_inventory_item: string | null
+          origin_country: string | null
+          po_lead_time: number | null
+          prepro_approved: string | null
+          prepro_approved_date: string | null
+          product_manager: string | null
+          retail_price: number | null
+          royalty_code: string | null
+          royalty_code2: string | null
+          sales_person_code1: string | null
+          sales_person_code2: string | null
+          season_code: string | null
+          selling_price: number | null
+        }
+        Insert: {
+          active?: string | null
+          annual_sample_date?: string | null
+          annual_sample_qty?: number | null
+          annual_sample_sent_date?: string | null
+          brand_assurance_no?: string | null
+          carton_height?: number | null
+          carton_length?: number | null
+          carton_qty?: number | null
+          carton_weight?: number | null
+          carton_width?: number | null
+          character_likeness?: string | null
+          character_list?: string | null
+          company_code?: string | null
+          compare_price?: number | null
+          contract_sample_date?: string | null
+          contract_sample_qty?: number | null
+          contract_sample_sent_date?: string | null
+          design_no?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          has_image?: string | null
+          hts_number?: string | null
+          hts_number2?: string | null
+          inner_pack_qty?: number | null
+          item_available?: string | null
+          item_cost?: number | null
+          item_desc?: string | null
+          item_discontinued?: string | null
+          item_display_desc?: string | null
+          item_height?: number | null
+          item_length?: number | null
+          item_no?: string | null
+          item_price_a?: number | null
+          item_price_b?: number | null
+          item_price_c?: number | null
+          item_price_d?: number | null
+          item_status?: string | null
+          item_volume?: number | null
+          item_weight?: number | null
+          item_width?: number | null
+          last_seen_at?: string | null
+          mfg_lead_time?: number | null
+          mg_category?: string | null
+          movie_art?: string | null
+          non_inventory_item?: string | null
+          origin_country?: string | null
+          po_lead_time?: number | null
+          prepro_approved?: string | null
+          prepro_approved_date?: string | null
+          product_manager?: string | null
+          retail_price?: number | null
+          royalty_code?: string | null
+          royalty_code2?: string | null
+          sales_person_code1?: string | null
+          sales_person_code2?: string | null
+          season_code?: string | null
+          selling_price?: number | null
+        }
+        Update: {
+          active?: string | null
+          annual_sample_date?: string | null
+          annual_sample_qty?: number | null
+          annual_sample_sent_date?: string | null
+          brand_assurance_no?: string | null
+          carton_height?: number | null
+          carton_length?: number | null
+          carton_qty?: number | null
+          carton_weight?: number | null
+          carton_width?: number | null
+          character_likeness?: string | null
+          character_list?: string | null
+          company_code?: string | null
+          compare_price?: number | null
+          contract_sample_date?: string | null
+          contract_sample_qty?: number | null
+          contract_sample_sent_date?: string | null
+          design_no?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          has_image?: string | null
+          hts_number?: string | null
+          hts_number2?: string | null
+          inner_pack_qty?: number | null
+          item_available?: string | null
+          item_cost?: number | null
+          item_desc?: string | null
+          item_discontinued?: string | null
+          item_display_desc?: string | null
+          item_height?: number | null
+          item_length?: number | null
+          item_no?: string | null
+          item_price_a?: number | null
+          item_price_b?: number | null
+          item_price_c?: number | null
+          item_price_d?: number | null
+          item_status?: string | null
+          item_volume?: number | null
+          item_weight?: number | null
+          item_width?: number | null
+          last_seen_at?: string | null
+          mfg_lead_time?: number | null
+          mg_category?: string | null
+          movie_art?: string | null
+          non_inventory_item?: string | null
+          origin_country?: string | null
+          po_lead_time?: number | null
+          prepro_approved?: string | null
+          prepro_approved_date?: string | null
+          product_manager?: string | null
+          retail_price?: number | null
+          royalty_code?: string | null
+          royalty_code2?: string | null
+          sales_person_code1?: string | null
+          sales_person_code2?: string | null
+          season_code?: string | null
+          selling_price?: number | null
+        }
+        Relationships: []
+      }
+      coldlion_item_merch_group: {
+        Row: {
+          company_code: string | null
+          division_code: string | null
+          id: string | null
+          item_no: string | null
+          item_pkey: string | null
+          last_seen_at: string | null
+          mg_code: string | null
+          slot_no: number | null
+        }
+        Insert: {
+          company_code?: string | null
+          division_code?: string | null
+          id?: string | null
+          item_no?: string | null
+          item_pkey?: string | null
+          last_seen_at?: string | null
+          mg_code?: string | null
+          slot_no?: number | null
+        }
+        Update: {
+          company_code?: string | null
+          division_code?: string | null
+          id?: string | null
+          item_no?: string | null
+          item_pkey?: string | null
+          last_seen_at?: string | null
+          mg_code?: string | null
+          slot_no?: number | null
+        }
+        Relationships: []
+      }
+      coldlion_prepack_detail: {
+        Row: {
+          color_code: string | null
+          company_code: string | null
+          detail_prepack: string | null
+          dim_code: string | null
+          division_code: string | null
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          item_cost: number | null
+          item_no: string | null
+          item_price: number | null
+          item_price_capitalized: number | null
+          label_code: string | null
+          last_seen_at: string | null
+          prepack_code: string | null
+          quantity: number | null
+          sequence_no: number | null
+          size_code: string | null
+        }
+        Insert: {
+          color_code?: string | null
+          company_code?: string | null
+          detail_prepack?: string | null
+          dim_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          item_cost?: number | null
+          item_no?: string | null
+          item_price?: number | null
+          item_price_capitalized?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          prepack_code?: string | null
+          quantity?: number | null
+          sequence_no?: number | null
+          size_code?: string | null
+        }
+        Update: {
+          color_code?: string | null
+          company_code?: string | null
+          detail_prepack?: string | null
+          dim_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          item_cost?: number | null
+          item_no?: string | null
+          item_price?: number | null
+          item_price_capitalized?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          prepack_code?: string | null
+          quantity?: number | null
+          sequence_no?: number | null
+          size_code?: string | null
+        }
+        Relationships: []
+      }
+      coldlion_prod_detail: {
+        Row: {
+          color_code: string | null
+          company_code: string | null
+          cust_po_number: string | null
+          dim_code: string | null
+          division_code: string | null
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          item_no: string | null
+          item_pkey: number | null
+          label_code: string | null
+          last_seen_at: string | null
+          pkey: number | null
+          prepack_code: string | null
+          prod_cost: number | null
+          prod_line_seq: number | null
+          prod_order_no: number | null
+          prod_qty: number | null
+          size_code: string | null
+          wip_qty: number | null
+        }
+        Insert: {
+          color_code?: string | null
+          company_code?: string | null
+          cust_po_number?: string | null
+          dim_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          item_no?: string | null
+          item_pkey?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          pkey?: number | null
+          prepack_code?: string | null
+          prod_cost?: number | null
+          prod_line_seq?: number | null
+          prod_order_no?: number | null
+          prod_qty?: number | null
+          size_code?: string | null
+          wip_qty?: number | null
+        }
+        Update: {
+          color_code?: string | null
+          company_code?: string | null
+          cust_po_number?: string | null
+          dim_code?: string | null
+          division_code?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          item_no?: string | null
+          item_pkey?: number | null
+          label_code?: string | null
+          last_seen_at?: string | null
+          pkey?: number | null
+          prepack_code?: string | null
+          prod_cost?: number | null
+          prod_line_seq?: number | null
+          prod_order_no?: number | null
+          prod_qty?: number | null
+          size_code?: string | null
+          wip_qty?: number | null
+        }
+        Relationships: []
+      }
+      coldlion_prod_history: {
+        Row: {
+          arrival_port_code: string | null
+          company_code: string | null
+          component_id: string | null
+          cust_po_number: string | null
+          customer_code: string | null
+          customer_desc: string | null
+          division_code: string | null
+          due_date: string | null
+          ext_cost: number | null
+          freight_forwarder_code: string | null
+          item_no: string | null
+          label_code: string | null
+          line_id: string | null
+          line_price: number | null
+          ppk_detail_cost: number | null
+          ppk_detail_qty: number | null
+          pre_pack_code: string | null
+          prepack_division_code: string | null
+          prepack_item_no: string | null
+          prepack_item_pkey: string | null
+          prepack_qty: number | null
+          prod_cost: number | null
+          prod_country: string | null
+          prod_line_seq: number | null
+          prod_order_date: string | null
+          prod_order_no: number | null
+          prod_order_qty: number | null
+          prod_reference_no: string | null
+          prod_type_code: string | null
+          receive_date: string | null
+          requested_stage_code: string | null
+          sales_order_link_present: boolean | null
+          sales_order_no: number | null
+          ship_date: string | null
+          short_item_no: string | null
+          stage_code: string | null
+          sub_item_no: string | null
+          total_ppk_qty: number | null
+          total_prod_cost: number | null
+          vendor_code: string | null
+          vendor_desc: string | null
+          warehouse_code: string | null
+          warehouse_sku: string | null
+        }
+        Relationships: []
+      }
+      coldlion_sales_history: {
+        Row: {
+          cancel_date: string | null
+          company_code: string | null
+          component_id: string | null
+          component_qty: number | null
+          customer_code: string | null
+          customer_desc: string | null
+          division_code: string | null
+          invoice_qty: number | null
+          label_code: string | null
+          line_id: string | null
+          line_price: number | null
+          master_item_no: string | null
+          order_amount: number | null
+          order_qty: number | null
+          po_number: string | null
+          pre_pack_code: string | null
+          prod_cost: number | null
+          prod_reference_no: string | null
+          sales_order_line_no: number | null
+          sales_order_no: number | null
+          sales_person_code1: string | null
+          ship_amount: number | null
+          ship_qty: number | null
+          start_date: string | null
+          sub_item_no: string | null
+          sub_label_code: string | null
+          warehouse_code: string | null
+        }
+        Relationships: []
+      }
+      item_missing_attribution: {
+        Row: {
+          company_code: string | null
+          division_code: string | null
+          id: string | null
+          item_number: string | null
+          licensor_id: string | null
+          property_id: string | null
+        }
+        Insert: {
+          company_code?: never
+          division_code?: never
+          id?: string | null
+          item_number?: string | null
+          licensor_id?: string | null
+          property_id?: string | null
+        }
+        Update: {
+          company_code?: never
+          division_code?: never
+          id?: string | null
+          item_number?: string | null
+          licensor_id?: string | null
+          property_id?: string | null
+        }
+        Relationships: []
+      }
+      opa_property_current_compliance: {
+        Row: {
+          absent_from_newer_complete_capture: boolean | null
+          account_scope_sha256: string | null
+          branch_code: string | null
+          capture_id: string | null
+          compliance_capture_id: string | null
+          compliance_status: string | null
+          eligible_for_new_coldlion_entry: boolean | null
+          eligible_for_new_styles: boolean | null
+          licensed_property_id: number | null
+          line_of_business_id: number | null
+          membership_id: string | null
+          product_type_code: string | null
+          region_code: string | null
+          source_captured_at: string | null
+          template_id: number | null
+          workflow_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opa_compliance_membership_capture_fk"
+            columns: ["compliance_capture_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property_compliance_capture"
+            referencedColumns: ["compliance_capture_id"]
+          },
+          {
+            foreignKeyName: "opa_property_scope_membership_licensed_property_id_fkey"
+            columns: ["licensed_property_id"]
+            isOneToOne: false
+            referencedRelation: "opa_property"
+            referencedColumns: ["licensed_property_id"]
+          },
+        ]
+      }
     }
     Functions: {
-      plan_licensing_consolidation: { Args: { p_source_system: string; p_capture_id: string; p_entity_source_id?: string }; Returns: Database["plm"]["Tables"]["licensing_consolidation_plan"]["Row"] }
-      apply_licensing_consolidation: { Args: { p_plan_id: string; p_expected_hash: string }; Returns: Database["plm"]["Tables"]["licensing_consolidation_plan"]["Row"] }
-      licensing_consolidation_capture_snapshot: { Args: { p_source_system: string; p_capture_id: string }; Returns: Json }
-      plan_licensing_consolidation_rollback: { Args: { p_applied_plan_id: string; p_expected_applied_state_hash: string }; Returns: Database["plm"]["Tables"]["licensing_consolidation_plan"]["Row"] }
-      licensing_consolidation_operation_state: { Args: { p_operation: Json }; Returns: Json }
-      licensing_operation_identity_predicate: { Args: { p_operation: Json }; Returns: string }
-      apply_licensing_support_operation: { Args: { p_plan_id: string; p_plan_hash: string; p_operation: Json }; Returns: Json }
+      abort_marvel_asgard_capture: {
+        Args: {
+          p_capture_key: string
+          p_error_summary: Json
+          p_expected_source_system: string
+        }
+        Returns: undefined
+      }
       acknowledge_taxonomy_sync_alert: {
         Args: { p_acknowledgement: Json; p_alert_id: string }
         Returns: Json
@@ -31103,6 +39388,73 @@ export type Database = {
         Returns: Json
       }
       active_taxonomy_baseline_key: { Args: never; Returns: string }
+      apply_licensing_canonical_merge: {
+        Args: {
+          p_expected_hash: string
+          p_plan_id: string
+          p_rollback?: boolean
+        }
+        Returns: {
+          body: Json
+          duplicate_id: string
+          entity_kind: string
+          event_kind: string
+          id: string
+          plan_hash: string
+          plan_id: string | null
+          plan_status: string | null
+          recorded_at: string
+          recorded_by: string
+          refusal_reason: string | null
+          result: Json
+          rollback_hash: string | null
+          survivor_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "licensing_canonical_change_history"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      apply_licensing_consolidation: {
+        Args: { p_expected_hash: string; p_plan_id: string }
+        Returns: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_state: Json | null
+          capture_complete: boolean
+          capture_id: string
+          capture_snapshot: Json
+          collision_count: number
+          created_at: string
+          entity_operation_count: number
+          id: string
+          operations: Json
+          plan_hash: string
+          plan_schema_version: number
+          plan_status: string
+          planned_at: string
+          planned_by: string
+          refusal_reason: string | null
+          relationship_operation_count: number
+          retire_operation_count: number
+          rollback_of: string | null
+          rollback_operations: Json
+          source_scope_checked: boolean
+          source_system: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "licensing_consolidation_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      apply_licensing_support_operation: {
+        Args: { p_operation: Json; p_plan_hash: string; p_plan_id: string }
+        Returns: Json
+      }
       apply_style_tracker_designer_resolutions: { Args: never; Returns: number }
       assert_dam_order_keys: {
         Args: { p_allowed: string[]; p_payload: Json; p_what: string }
@@ -31165,6 +39517,20 @@ export type Database = {
         }
         Returns: string
       }
+      begin_marvel_asgard_capture: {
+        Args: {
+          p_account_scope_descriptor: string
+          p_capture_key: string
+          p_expected_counts: Json
+          p_expected_source_system: string
+          p_raw_summary?: Json
+          p_scraper_version: string
+          p_source_captured_at: string
+          p_source_snapshot_sha256: string
+          p_source_url: string
+        }
+        Returns: string
+      }
       begin_marvel_dcp_crawl: {
         Args: {
           p_account_scope: string
@@ -31206,6 +39572,19 @@ export type Database = {
           p_source_commit_sha: string
           p_source_manifest_sha256: string
           p_source_repository: string
+        }
+        Returns: string
+      }
+      begin_opa_capture: {
+        Args: {
+          p_capture_key: string
+          p_created_by: string
+          p_scopes: Json
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
+          p_totals: Json
         }
         Returns: string
       }
@@ -31252,6 +39631,19 @@ export type Database = {
         }
         Returns: string
       }
+      begin_pmt_trackerplus_submission_capture: {
+        Args: {
+          p_capture_key: string
+          p_created_by: string
+          p_expected_property_count: number
+          p_expected_property_manifest_sha256: string
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_manifest_sha256: string
+          p_source_repository: string
+        }
+        Returns: string
+      }
       begin_sega_capture: {
         Args: {
           p_asset_paging_terminal: boolean
@@ -31268,6 +39660,25 @@ export type Database = {
           p_source_commit_sha: string
           p_source_manifest_sha256: string
           p_source_repository: string
+        }
+        Returns: string
+      }
+      begin_sega_submission_capture: {
+        Args: {
+          p_capture_key: string
+          p_created_by: string
+          p_expected_counts: Json
+          p_no_submission_created: boolean
+          p_raw_summary: Json
+          p_save_clicked: boolean
+          p_selected_contract_source_id: string
+          p_source_captured_at: string
+          p_source_commit_sha: string
+          p_source_hash: string
+          p_source_repository: string
+          p_source_url: string
+          p_submission_list_after_hash: string
+          p_submission_list_before_hash: string
         }
         Returns: string
       }
@@ -31317,19 +39728,6 @@ export type Database = {
         Returns: string
       }
       begin_wb_capture: {
-        Args: {
-          p_captured_at: string
-          p_captured_by: string
-          p_expected_row_count: number
-          p_notes?: string
-          p_private_source_commit: string
-          p_snapshot_sha256: string
-          p_source_url: string
-          p_target: string
-        }
-        Returns: string
-      }
-      begin_wb_capture_legacy: {
         Args: {
           p_captured_at: string
           p_captured_by: string
@@ -31448,6 +39846,22 @@ export type Database = {
         }
         Returns: undefined
       }
+      coldlion_merch_group_candidates: {
+        Args: { p_company_code?: string; p_division_code?: string }
+        Returns: {
+          active: string
+          candidate_kind: string
+          company_code: string
+          division_code: string
+          last_seen_at: string
+          mg_category: string
+          mg_code: string
+          mg_desc: string
+          mg_type_code: string
+          mg_type_desc: string
+          resolution_status: string
+        }[]
+      }
       coldlion_normalize_name: { Args: { p_value: string }; Returns: string }
       complete_sesame_capture: {
         Args: {
@@ -31465,6 +39879,7 @@ export type Database = {
       compute_taxonomy_immutability_snapshot: { Args: never; Returns: Json }
       dam_order_allowed_header_keys: { Args: never; Returns: string[] }
       dam_order_allowed_line_keys: { Args: never; Returns: string[] }
+      dam_order_tracking_allowed_header_keys: { Args: never; Returns: string[] }
       dcp_asset_row_hash: {
         Args: {
           p_file_extension: string
@@ -31550,6 +39965,7 @@ export type Database = {
         Args: { p_capture_id: string; p_reason: string }
         Returns: undefined
       }
+      finalize_coke_capture: { Args: { p_capture_id: string }; Returns: Json }
       finalize_dcp_crawl: { Args: { p_crawl_id: string }; Returns: Json }
       finalize_dcp_metadata_run: {
         Args: { p_metadata_run_id: string }
@@ -31563,12 +39979,21 @@ export type Database = {
         Args: { p_metadata_run_id: string }
         Returns: Json
       }
+      finalize_marvel_asgard_capture: {
+        Args: { p_capture_key: string; p_expected_source_system: string }
+        Returns: Json
+      }
       finalize_marvel_dcp_crawl: { Args: { p_crawl_id: string }; Returns: Json }
       finalize_marvel_dcp_metadata_run: {
         Args: { p_metadata_run_id: string }
         Returns: Json
       }
       finalize_nbcu_capture: { Args: { p_capture_id: string }; Returns: Json }
+      finalize_opa_capture: { Args: { p_capture_id: string }; Returns: Json }
+      finalize_opa_property_compliance_capture: {
+        Args: { p_approved_by: string; p_capture_id: string }
+        Returns: string
+      }
       finalize_peanuts_capture: {
         Args: {
           p_capture_id: string
@@ -31587,7 +40012,19 @@ export type Database = {
           ok: boolean
         }[]
       }
+      finalize_pmt_trackerplus_submission_capture: {
+        Args: { p_capture_id: string }
+        Returns: Json
+      }
       finalize_sega_capture: {
+        Args: {
+          p_capture_id: string
+          p_error_summary: Json
+          p_observed_counts: Json
+        }
+        Returns: undefined
+      }
+      finalize_sega_submission_capture: {
         Args: {
           p_capture_id: string
           p_error_summary: Json
@@ -31604,26 +40041,6 @@ export type Database = {
         Returns: Json
       }
       finalize_wb_capture: {
-        Args: {
-          p_capture_id: string
-          p_max_shrink_fraction?: number
-          p_snapshot_sha256: string
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      finalize_wb_capture_legacy: {
         Args: {
           p_capture_id: string
           p_max_shrink_fraction?: number
@@ -31661,6 +40078,20 @@ export type Database = {
           sync_run_id: string
         }[]
       }
+      import_coldlion_salespersons: {
+        Args: never
+        Returns: {
+          salespersons_seen: number
+          salespersons_upserted: number
+        }[]
+      }
+      import_coldlion_seasons: {
+        Args: never
+        Returns: {
+          seasons_seen: number
+          seasons_upserted: number
+        }[]
+      }
       import_item_master_data: {
         Args: { import_payload: Json }
         Returns: {
@@ -31674,16 +40105,6 @@ export type Database = {
           sync_run_id: string
         }[]
       }
-      import_master_data: {
-        Args: { customers_payload: Json; licensors_payload: Json }
-        Returns: {
-          customers_seen: number
-          licensors_seen: number
-          properties_seen: number
-          raw_records_upserted: number
-          sync_run_id: string
-        }[]
-      }
       import_merch_group_headers: {
         Args: { headers_payload: Json }
         Returns: {
@@ -31694,6 +40115,26 @@ export type Database = {
         }[]
       }
       latest_sesame_capture: { Args: never; Returns: string }
+      licensing_consolidation_capture_snapshot: {
+        Args: { p_capture_id: string; p_source_system: string }
+        Returns: Json
+      }
+      licensing_consolidation_operation_state: {
+        Args: { p_operation: Json }
+        Returns: Json
+      }
+      licensing_opa_observation_count: {
+        Args: never
+        Returns: {
+          evidence_readable: boolean
+          licensed_property_id: number
+          observation_count: number
+        }[]
+      }
+      licensing_operation_identity_predicate: {
+        Args: { p_operation: Json }
+        Returns: string
+      }
       link_coldlion_licensors_properties_approved: {
         Args: { p_expected: Json; p_input: Json }
         Returns: {
@@ -31725,6 +40166,10 @@ export type Database = {
           snapshot_hash: string
           sync_run_id: string
         }[]
+      }
+      load_coke_capture_chunk: {
+        Args: { p_capture_id: string; p_entity: string; p_rows: Json }
+        Returns: number
       }
       load_dcp_asset_chunk: {
         Args: {
@@ -31764,6 +40209,15 @@ export type Database = {
         }
         Returns: Json
       }
+      load_marvel_asgard_chunk: {
+        Args: {
+          p_capture_key: string
+          p_chunk_key: string
+          p_expected_source_system: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       load_marvel_dcp_asset_chunk: {
         Args: {
           p_chunk_number: number
@@ -31784,8 +40238,24 @@ export type Database = {
         }
         Returns: Json
       }
+      load_opa_capture_chunk: {
+        Args: {
+          p_authentication_evidence_sha256: string
+          p_capture_id: string
+          p_chunk_key: string
+          p_chunk_sha256: string
+          p_finish_scope?: boolean
+          p_rows: Json
+          p_scope_key: string
+        }
+        Returns: Json
+      }
       load_pmt_capture_chunk: {
         Args: { p_capture_id: string; p_rows: Json; p_target: string }
+        Returns: number
+      }
+      load_pmt_trackerplus_submission_capture_chunk: {
+        Args: { p_capture_id: string; p_chunk_index: number; p_rows: Json }
         Returns: number
       }
       load_twentieth_century_dcp_asset_chunk: {
@@ -31905,6 +40375,11 @@ export type Database = {
         }
         Returns: string
       }
+      nbcu_publish_lifecycle: { Args: { p_capture_id: string }; Returns: Json }
+      normalize_production_po_number: {
+        Args: { value: string }
+        Returns: string
+      }
       normalize_style_tracker_value: {
         Args: { p_field_key: string; p_value: string }
         Returns: string
@@ -31957,6 +40432,114 @@ export type Database = {
         }
         Returns: string
       }
+      peanuts_publish_lifecycle: {
+        Args: { p_capture_id: string }
+        Returns: Json
+      }
+      plan_licensing_canonical_merge: {
+        Args: {
+          p_duplicate_id: string
+          p_entity_kind: string
+          p_survivor_id: string
+        }
+        Returns: {
+          body: Json
+          duplicate_id: string
+          entity_kind: string
+          event_kind: string
+          id: string
+          plan_hash: string
+          plan_id: string | null
+          plan_status: string | null
+          recorded_at: string
+          recorded_by: string
+          refusal_reason: string | null
+          result: Json
+          rollback_hash: string | null
+          survivor_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "licensing_canonical_change_history"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      plan_licensing_consolidation: {
+        Args: {
+          p_capture_id: string
+          p_entity_source_id?: string
+          p_source_system: string
+        }
+        Returns: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_state: Json | null
+          capture_complete: boolean
+          capture_id: string
+          capture_snapshot: Json
+          collision_count: number
+          created_at: string
+          entity_operation_count: number
+          id: string
+          operations: Json
+          plan_hash: string
+          plan_schema_version: number
+          plan_status: string
+          planned_at: string
+          planned_by: string
+          refusal_reason: string | null
+          relationship_operation_count: number
+          retire_operation_count: number
+          rollback_of: string | null
+          rollback_operations: Json
+          source_scope_checked: boolean
+          source_system: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "licensing_consolidation_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      plan_licensing_consolidation_rollback: {
+        Args: {
+          p_applied_plan_id: string
+          p_expected_applied_state_hash: string
+        }
+        Returns: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_state: Json | null
+          capture_complete: boolean
+          capture_id: string
+          capture_snapshot: Json
+          collision_count: number
+          created_at: string
+          entity_operation_count: number
+          id: string
+          operations: Json
+          plan_hash: string
+          plan_schema_version: number
+          plan_status: string
+          planned_at: string
+          planned_by: string
+          refusal_reason: string | null
+          relationship_operation_count: number
+          retire_operation_count: number
+          rollback_of: string | null
+          rollback_operations: Json
+          source_scope_checked: boolean
+          source_system: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "licensing_consolidation_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       pmt_loader_privilege_ok: {
         Args: { p_role: string; p_session_user: string }
         Returns: boolean
@@ -31970,6 +40553,14 @@ export type Database = {
           old_count: number
           population: string
         }[]
+      }
+      prepack_role: {
+        Args: {
+          p_company_code: string
+          p_division_code: string
+          p_item_no: string
+        }
+        Returns: string
       }
       promote_coldlion_source_owned: {
         Args: { p_client_plan?: Json; p_expected: Json; p_is_drill?: boolean }
@@ -32061,6 +40652,106 @@ export type Database = {
         Returns: Json
       }
       resolve_deployment_environment: { Args: never; Returns: string }
+      set_source_resolution:
+        | {
+            Args: {
+              p_core_character_id?: string
+              p_core_property_id?: string
+              p_core_style_guide_id?: string
+              p_dam_asset_id?: string
+              p_entity_kind: string
+              p_expected_updated_at?: string
+              p_resolution_reason?: string
+              p_resolution_status: string
+              p_source_id: string
+              p_source_system: string
+            }
+            Returns: {
+              core_character_id: string | null
+              core_franchise_id: string | null
+              core_licensor_id: string | null
+              core_property_id: string | null
+              core_style_guide_id: string | null
+              created_at: string
+              dam_asset_id: string | null
+              entity_kind: string
+              resolution_reason: string | null
+              resolution_status: string
+              resolved_at: string | null
+              resolved_by: string | null
+              source_id: string
+              source_system: string
+              updated_at: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "source_resolution"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_core_character_id: string
+              p_core_franchise_id: string
+              p_core_licensor_id: string
+              p_core_property_id: string
+              p_core_style_guide_id: string
+              p_dam_asset_id: string
+              p_entity_kind: string
+              p_expected_updated_at: string
+              p_resolution_reason: string
+              p_resolution_status: string
+              p_source_id: string
+              p_source_system: string
+            }
+            Returns: {
+              core_character_id: string | null
+              core_franchise_id: string | null
+              core_licensor_id: string | null
+              core_property_id: string | null
+              core_style_guide_id: string | null
+              created_at: string
+              dam_asset_id: string | null
+              entity_kind: string
+              resolution_reason: string | null
+              resolution_status: string
+              resolved_at: string | null
+              resolved_by: string | null
+              source_id: string
+              source_system: string
+              updated_at: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "source_resolution"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      source_resolution_target_missing:
+        | {
+            Args: {
+              p_core_character_id: string
+              p_core_property_id: string
+              p_core_style_guide_id: string
+              p_dam_asset_id: string
+              p_entity_kind: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              p_core_character_id: string
+              p_core_franchise_id: string
+              p_core_licensor_id: string
+              p_core_property_id: string
+              p_core_style_guide_id: string
+              p_dam_asset_id: string
+              p_entity_kind: string
+            }
+            Returns: boolean
+          }
       sync_coldlion_licensors_properties: {
         Args: { p_link_expected?: Json; p_mode?: string; p_snapshot: Json }
         Returns: {
@@ -32108,124 +40799,20 @@ export type Database = {
           snapshot_hash: string
         }[]
       }
-      sync_wb_asset: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
+      sync_opa_property_studio_resolution: {
+        Args: { p_rows: Json }
         Returns: {
-          mode: string
-          rows_collapsed: number
           rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
           rows_seen: number
           rows_unchanged: number
           rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
         }[]
       }
-      sync_wb_asset_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
+      sync_wb_canonical_relationship_edges: {
+        Args: { p_edge_kind: string; p_rows: Json }
         Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
           rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
+          rows_upserted: number
         }[]
       }
       sync_wb_normalized_target: {
@@ -32235,46 +40822,6 @@ export type Database = {
           p_mode?: string
           p_snapshot: Json
           p_target: string
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_property_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
         }
         Returns: {
           mode: string
@@ -32386,6 +40933,10 @@ export type Database = {
       wb_validate_normalized_row: {
         Args: { p_row: Json; p_target: string }
         Returns: undefined
+      }
+      wildbrain_publish_lifecycle: {
+        Args: { p_capture_id: string }
+        Returns: Json
       }
     }
     Enums: {
@@ -32934,6 +41485,32 @@ export type Database = {
           },
         ]
       }
+      asset_effective_tags: {
+        Row: {
+          asset_id: string
+          scope: string
+          tag: string
+        }
+        Insert: {
+          asset_id: string
+          scope: string
+          tag: string
+        }
+        Update: {
+          asset_id?: string
+          scope?: string
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_effective_tags_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_path_history: {
         Row: {
           asset_id: string
@@ -32969,27 +41546,51 @@ export type Database = {
       asset_tags: {
         Row: {
           asset_id: string
+          category: string
+          confidence: number | null
           created_at: string
           created_by: string | null
+          evidence: Json
           id: string
+          model: string | null
+          rejected_at: string | null
+          rejected_by: string | null
           source: string
+          status: string
           tag: string
+          updated_at: string
         }
         Insert: {
           asset_id: string
+          category: string
+          confidence?: number | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json
           id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           source?: string
+          status: string
           tag: string
+          updated_at?: string
         }
         Update: {
           asset_id?: string
+          category?: string
+          confidence?: number | null
           created_at?: string
           created_by?: string | null
+          evidence?: Json
           id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
           source?: string
+          status?: string
           tag?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -33063,6 +41664,7 @@ export type Database = {
           sku_sequence: string | null
           stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
           style_group_id: string | null
           tags: string[]
           technical_designer_name: string | null
@@ -33133,6 +41735,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -33205,6 +41808,7 @@ export type Database = {
           sku_sequence?: string | null
           stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at?: string
           style_group_id?: string | null
           tags?: string[]
           technical_designer_name?: string | null
@@ -33239,6 +41843,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bulk_operation_runs: {
+        Row: {
+          ended_at: string | null
+          error: string | null
+          id: string
+          operation: string
+          progress: Json
+          reason_code: string | null
+          recorded_at: string
+          run_id: string
+          source_status: string | null
+          stage: string | null
+          started_at: string
+          status: string
+          succeeded: boolean
+        }
+        Insert: {
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          operation: string
+          progress?: Json
+          reason_code?: string | null
+          recorded_at?: string
+          run_id: string
+          source_status?: string | null
+          stage?: string | null
+          started_at: string
+          status: string
+          succeeded?: boolean
+        }
+        Update: {
+          ended_at?: string | null
+          error?: string | null
+          id?: string
+          operation?: string
+          progress?: Json
+          reason_code?: string | null
+          recorded_at?: string
+          run_id?: string
+          source_status?: string | null
+          stage?: string | null
+          started_at?: string
+          status?: string
+          succeeded?: boolean
+        }
+        Relationships: []
       }
       characters: {
         Row: {
@@ -33288,8 +41940,15 @@ export type Database = {
           customer: string | null
           document_type: string
           embedding: string | null
+          embedding_attempts: number
           embedding_error: string | null
+          embedding_error_category: string | null
+          embedding_lease_expires_at: string | null
+          embedding_lease_owner: string | null
+          embedding_lease_token: string | null
+          embedding_max_attempts: number
           embedding_model: string | null
+          embedding_next_retry_at: string | null
           embedding_updated_at: string | null
           entity_id: string
           indexed_at: string
@@ -33308,8 +41967,15 @@ export type Database = {
           customer?: string | null
           document_type: string
           embedding?: string | null
+          embedding_attempts?: number
           embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
           embedding_model?: string | null
+          embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id: string
           indexed_at?: string
@@ -33328,8 +41994,15 @@ export type Database = {
           customer?: string | null
           document_type?: string
           embedding?: string | null
+          embedding_attempts?: number
           embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
           embedding_model?: string | null
+          embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id?: string
           indexed_at?: string
@@ -33341,6 +42014,48 @@ export type Database = {
           source_updated_at?: string | null
           style_group_id?: string | null
           title?: string
+        }
+        Relationships: []
+      }
+      dam_search_keys: {
+        Row: {
+          asset_id: string | null
+          customer: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program: string | null
+          search_tsv: unknown
+          style_group_id: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Insert: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type: string
+          entity_id: string
+          path: string
+          program?: string | null
+          search_tsv: unknown
+          style_group_id?: string | null
+          title: string
+          title_key: string
+          title_tsv: unknown
+        }
+        Update: {
+          asset_id?: string | null
+          customer?: string | null
+          document_type?: string
+          entity_id?: string
+          path?: string
+          program?: string | null
+          search_tsv?: unknown
+          style_group_id?: string | null
+          title?: string
+          title_key?: string
+          title_tsv?: unknown
         }
         Relationships: []
       }
@@ -33409,130 +42124,6 @@ export type Database = {
           target_type?: string
         }
         Relationships: []
-      }
-      erp_items_current: {
-        Row: {
-          created_at: string
-          dismissed: boolean
-          division_code: string | null
-          erp_updated_at: string | null
-          external_id: string
-          id: string
-          item_description: string | null
-          licensor_code: string | null
-          mg_category: string | null
-          mg01_code: string | null
-          mg02_code: string | null
-          mg03_code: string | null
-          mg04_code: string | null
-          mg05_code: string | null
-          mg06_code: string | null
-          prepack_code: string | null
-          prepack_codes: Json | null
-          property_code: string | null
-          raw_mg_fields: Json | null
-          size_code: string | null
-          source_system: string
-          style_number: string | null
-          sync_run_id: string | null
-          synced_at: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          dismissed?: boolean
-          division_code?: string | null
-          erp_updated_at?: string | null
-          external_id: string
-          id?: string
-          item_description?: string | null
-          licensor_code?: string | null
-          mg_category?: string | null
-          mg01_code?: string | null
-          mg02_code?: string | null
-          mg03_code?: string | null
-          mg04_code?: string | null
-          mg05_code?: string | null
-          mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
-          property_code?: string | null
-          raw_mg_fields?: Json | null
-          size_code?: string | null
-          source_system?: string
-          style_number?: string | null
-          sync_run_id?: string | null
-          synced_at?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          dismissed?: boolean
-          division_code?: string | null
-          erp_updated_at?: string | null
-          external_id?: string
-          id?: string
-          item_description?: string | null
-          licensor_code?: string | null
-          mg_category?: string | null
-          mg01_code?: string | null
-          mg02_code?: string | null
-          mg03_code?: string | null
-          mg04_code?: string | null
-          mg05_code?: string | null
-          mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
-          property_code?: string | null
-          raw_mg_fields?: Json | null
-          size_code?: string | null
-          source_system?: string
-          style_number?: string | null
-          sync_run_id?: string | null
-          synced_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_items_current_sync_run_id_fkey"
-            columns: ["sync_run_id"]
-            isOneToOne: false
-            referencedRelation: "erp_sync_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      erp_items_raw: {
-        Row: {
-          external_id: string
-          fetched_at: string
-          id: string
-          raw_payload: Json
-          sync_run_id: string | null
-        }
-        Insert: {
-          external_id: string
-          fetched_at?: string
-          id?: string
-          raw_payload: Json
-          sync_run_id?: string | null
-        }
-        Update: {
-          external_id?: string
-          fetched_at?: string
-          id?: string
-          raw_payload?: Json
-          sync_run_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_items_raw_sync_run_id_fkey"
-            columns: ["sync_run_id"]
-            isOneToOne: false
-            referencedRelation: "erp_sync_runs"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       erp_sync_runs: {
         Row: {
@@ -33650,6 +42241,605 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      hts_rag_debate_runs: {
+        Row: {
+          attempt_count: number
+          case_packet_hash: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          consensus_code: string | null
+          created_at: string
+          error_code: string | null
+          error_detail: string | null
+          evidence_expansion_count: number
+          evidence_result: Json
+          gate_result: Json
+          id: string
+          lease_expires_at: string | null
+          luna_final_code: string | null
+          luna_initial_code: string | null
+          max_attempts: number
+          policy_version: string
+          precedent_id: string | null
+          session_id: string
+          source_determination_id: string
+          spark_final_code: string | null
+          spark_initial_code: string | null
+          status: string
+          stop_reason: string | null
+          turn_count: number
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          case_packet_hash: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version: string
+          precedent_id?: string | null
+          session_id: string
+          source_determination_id: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          case_packet_hash?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          consensus_code?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_detail?: string | null
+          evidence_expansion_count?: number
+          evidence_result?: Json
+          gate_result?: Json
+          id?: string
+          lease_expires_at?: string | null
+          luna_final_code?: string | null
+          luna_initial_code?: string | null
+          max_attempts?: number
+          policy_version?: string
+          precedent_id?: string | null
+          session_id?: string
+          source_determination_id?: string
+          spark_final_code?: string | null
+          spark_initial_code?: string | null
+          status?: string
+          stop_reason?: string | null
+          turn_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_debate_runs_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_debate_runs_source_determination_id_fkey"
+            columns: ["source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_determinations: {
+        Row: {
+          classification_state: string
+          comparison_category: string
+          comparison_details: Json
+          comparison_key: string
+          comparison_review_state: string
+          completion_key: string | null
+          created_at: string
+          id: string
+          method: string
+          operative_eligible: boolean
+          precedent_id: string | null
+          product_example_id: string
+          proposed_hts: string | null
+          result_hash: string
+          session_id: string | null
+        }
+        Insert: {
+          classification_state: string
+          comparison_category?: string
+          comparison_details?: Json
+          comparison_key: string
+          comparison_review_state?: string
+          completion_key?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id: string
+          proposed_hts?: string | null
+          result_hash: string
+          session_id?: string | null
+        }
+        Update: {
+          classification_state?: string
+          comparison_category?: string
+          comparison_details?: Json
+          comparison_key?: string
+          comparison_review_state?: string
+          completion_key?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          operative_eligible?: boolean
+          precedent_id?: string | null
+          product_example_id?: string
+          proposed_hts?: string | null
+          result_hash?: string
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_determinations_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_determinations_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_extraction_jobs: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
+          error_code: string | null
+          extraction_version: string
+          id: string
+          input_hash: string
+          max_attempts: number
+          model_version: string
+          parse_error_code: string | null
+          parse_state: string
+          product_example_id: string
+          prompt_version: string
+          raw_extraction: Json | null
+          result_hash: string | null
+          review_needed: boolean
+          status: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
+          error_code?: string | null
+          extraction_version: string
+          id?: string
+          input_hash: string
+          max_attempts?: number
+          model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
+          product_example_id: string
+          prompt_version: string
+          raw_extraction?: Json | null
+          result_hash?: string | null
+          review_needed?: boolean
+          status?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
+          error_code?: string | null
+          extraction_version?: string
+          id?: string
+          input_hash?: string
+          max_attempts?: number
+          model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
+          product_example_id?: string
+          prompt_version?: string
+          raw_extraction?: Json | null
+          result_hash?: string | null
+          review_needed?: boolean
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_extraction_jobs_product_example_id_fkey"
+            columns: ["product_example_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_examples"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_precedent_rulings: {
+        Row: {
+          created_at: string
+          final_relationship: string | null
+          id: string
+          precedent_id: string
+          provisional_claim: string | null
+          ruling_id: string
+          source_status: string
+          verifier_relevance: string
+          verifier_result_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id: string
+          provisional_claim?: string | null
+          ruling_id: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          final_relationship?: string | null
+          id?: string
+          precedent_id?: string
+          provisional_claim?: string | null
+          ruling_id?: string
+          source_status?: string
+          verifier_relevance?: string
+          verifier_result_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_precedent_id_fkey"
+            columns: ["precedent_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_precedents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedent_rulings_ruling_id_fkey"
+            columns: ["ruling_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_precedents: {
+        Row: {
+          classification_state: string
+          classifier_model: string
+          confidence_components: Json
+          conflicts: Json
+          created_at: string
+          decision_card_candidate: boolean
+          exclusions_checked: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          missing_critical_facts: Json
+          negative_attributes: Json
+          normalized_facts: Json
+          operative_eligible: boolean
+          plausible_headings: Json
+          positive_attributes: Json
+          product_family: string
+          promotion_basis: string
+          promotion_debate_run_id: string | null
+          promotion_gate_result: Json | null
+          promotion_policy_version: string | null
+          promotion_source_determination_id: string | null
+          prompt_version: string
+          proposed_hts: string | null
+          raw_result_hash: string
+          reasoning_summary: string | null
+          review_state: string
+          verifier_model: string
+        }
+        Insert: {
+          classification_state: string
+          classifier_model: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version: string
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
+          prompt_version: string
+          proposed_hts?: string | null
+          raw_result_hash: string
+          reasoning_summary?: string | null
+          review_state?: string
+          verifier_model: string
+        }
+        Update: {
+          classification_state?: string
+          classifier_model?: string
+          confidence_components?: Json
+          conflicts?: Json
+          created_at?: string
+          decision_card_candidate?: boolean
+          exclusions_checked?: Json
+          extraction_version?: string
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          missing_critical_facts?: Json
+          negative_attributes?: Json
+          normalized_facts?: Json
+          operative_eligible?: boolean
+          plausible_headings?: Json
+          positive_attributes?: Json
+          product_family?: string
+          promotion_basis?: string
+          promotion_debate_run_id?: string | null
+          promotion_gate_result?: Json | null
+          promotion_policy_version?: string | null
+          promotion_source_determination_id?: string | null
+          prompt_version?: string
+          proposed_hts?: string | null
+          raw_result_hash?: string
+          reasoning_summary?: string | null
+          review_state?: string
+          verifier_model?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_debate_run_id_fkey"
+            columns: ["promotion_debate_run_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_debate_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_precedents_promotion_source_determination_id_fkey"
+            columns: ["promotion_source_determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_product_examples: {
+        Row: {
+          created_at: string
+          facts: Json
+          fixture_hash: string
+          fixture_version: string
+          id: string
+          input_hash: string
+          product_family: string
+        }
+        Insert: {
+          created_at?: string
+          facts?: Json
+          fixture_hash: string
+          fixture_version: string
+          id?: string
+          input_hash: string
+          product_family: string
+        }
+        Update: {
+          created_at?: string
+          facts?: Json
+          fixture_hash?: string
+          fixture_version?: string
+          id?: string
+          input_hash?: string
+          product_family?: string
+        }
+        Relationships: []
+      }
+      hts_rag_product_family_allowlist: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          enabled_at: string | null
+          enabled_by: string | null
+          product_family: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          enabled_at?: string | null
+          enabled_by?: string | null
+          product_family?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hts_rag_provider_responses: {
+        Row: {
+          created_at: string
+          determination_id: string | null
+          enrichment_state: string
+          extraction_job_id: string | null
+          id: string
+          model_version: string
+          parse_error_code: string | null
+          parse_state: string
+          parsed_payload: Json | null
+          persisted_at: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at: string | null
+          request_hash: string
+          session_id: string
+          turn_index: number
+          turn_role: string
+        }
+        Insert: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version: string
+          provider: string
+          raw_response: Json
+          raw_response_hash: string
+          released_at?: string | null
+          request_hash: string
+          session_id: string
+          turn_index: number
+          turn_role: string
+        }
+        Update: {
+          created_at?: string
+          determination_id?: string | null
+          enrichment_state?: string
+          extraction_job_id?: string | null
+          id?: string
+          model_version?: string
+          parse_error_code?: string | null
+          parse_state?: string
+          parsed_payload?: Json | null
+          persisted_at?: string
+          prompt_version?: string
+          provider?: string
+          raw_response?: Json
+          raw_response_hash?: string
+          released_at?: string | null
+          request_hash?: string
+          session_id?: string
+          turn_index?: number
+          turn_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_provider_responses_determination_id_fkey"
+            columns: ["determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_provider_responses_extraction_job_id_fkey"
+            columns: ["extraction_job_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extraction_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_review_events: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_state: string | null
+          notes: string | null
+          prior_state: string | null
+          reviewed_by: string | null
+          subject_id: string
+          subject_type: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          subject_id: string
+          subject_type: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_state?: string | null
+          notes?: string | null
+          prior_state?: string | null
+          reviewed_by?: string | null
+          subject_id?: string
+          subject_type?: string
+        }
+        Relationships: []
       }
       hts_rag_rulings: {
         Row: {
@@ -33904,6 +43094,42 @@ export type Database = {
           },
         ]
       }
+      popdam_item_state: {
+        Row: {
+          created_at: string
+          created_by: string
+          dismissed: boolean
+          division_code: string
+          item_id: string
+          source_id: string
+          source_system: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          dismissed?: boolean
+          division_code: string
+          item_id: string
+          source_id: string
+          source_system: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          dismissed?: boolean
+          division_code?: string
+          item_id?: string
+          source_id?: string
+          source_system?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
       processing_queue: {
         Row: {
           agent_id: string | null
@@ -34116,6 +43342,8 @@ export type Database = {
           external_id: string
           id: string
           input_context: Json | null
+          item_identity_status: string
+          plm_item_id: string | null
           predicted_category: string
           rationale: string | null
           reviewed_at: string | null
@@ -34132,6 +43360,8 @@ export type Database = {
           external_id: string
           id?: string
           input_context?: Json | null
+          item_identity_status?: string
+          plm_item_id?: string | null
           predicted_category: string
           rationale?: string | null
           reviewed_at?: string | null
@@ -34148,21 +43378,15 @@ export type Database = {
           external_id?: string
           id?: string
           input_context?: Json | null
+          item_identity_status?: string
+          plm_item_id?: string | null
           predicted_category?: string
           rationale?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "product_category_predictions_erp_item_id_fkey"
-            columns: ["erp_item_id"]
-            isOneToOne: false
-            referencedRelation: "erp_items_current"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       product_subtypes: {
         Row: {
@@ -34402,6 +43626,65 @@ export type Database = {
           },
         ]
       }
+      style_group_tags: {
+        Row: {
+          category: string
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          evidence: Json
+          id: string
+          model: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          source: string
+          status: string
+          style_group_id: string
+          tag: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source?: string
+          status?: string
+          style_group_id: string
+          tag: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          id?: string
+          model?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source?: string
+          status?: string
+          style_group_id?: string
+          tag?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_group_tags_style_group_id_fkey"
+            columns: ["style_group_id"]
+            isOneToOne: false
+            referencedRelation: "style_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_groups: {
         Row: {
           asset_count: number | null
@@ -34415,10 +43698,20 @@ export type Database = {
           division_name: string | null
           folder_path: string
           freelancer_name: string | null
+          group_ai_description: string | null
+          group_ai_description_model: string | null
+          group_ai_description_source: string | null
+          group_ai_evidence_asset_ids: string[]
+          group_ai_tagged_at: string | null
           id: string
           is_licensed: boolean | null
           item_description: string | null
           item_description_source: string | null
+          item_short_description: string | null
+          item_short_description_at: string | null
+          item_short_description_input: string | null
+          item_short_description_model: string | null
+          item_short_description_source: string | null
           latest_file_date: string | null
           licensor_code: string | null
           licensor_id: string | null
@@ -34445,6 +43738,7 @@ export type Database = {
           size_name: string | null
           sku: string
           stage: string | null
+          style_group_changed_at: string
           technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
@@ -34461,10 +43755,20 @@ export type Database = {
           division_name?: string | null
           folder_path: string
           freelancer_name?: string | null
+          group_ai_description?: string | null
+          group_ai_description_model?: string | null
+          group_ai_description_source?: string | null
+          group_ai_evidence_asset_ids?: string[]
+          group_ai_tagged_at?: string | null
           id?: string
           is_licensed?: boolean | null
           item_description?: string | null
           item_description_source?: string | null
+          item_short_description?: string | null
+          item_short_description_at?: string | null
+          item_short_description_input?: string | null
+          item_short_description_model?: string | null
+          item_short_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
@@ -34491,6 +43795,7 @@ export type Database = {
           size_name?: string | null
           sku: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -34509,10 +43814,20 @@ export type Database = {
           division_name?: string | null
           folder_path?: string
           freelancer_name?: string | null
+          group_ai_description?: string | null
+          group_ai_description_model?: string | null
+          group_ai_description_source?: string | null
+          group_ai_evidence_asset_ids?: string[]
+          group_ai_tagged_at?: string | null
           id?: string
           is_licensed?: boolean | null
           item_description?: string | null
           item_description_source?: string | null
+          item_short_description?: string | null
+          item_short_description_at?: string | null
+          item_short_description_input?: string | null
+          item_short_description_model?: string | null
+          item_short_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
@@ -34539,6 +43854,7 @@ export type Database = {
           size_name?: string | null
           sku?: string
           stage?: string | null
+          style_group_changed_at?: string
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -34564,42 +43880,125 @@ export type Database = {
       }
       style_guide_crawl_runs: {
         Row: {
+          accepted_for_reconcile: boolean
+          active_before_reconcile: number | null
           agent_id: string | null
+          attention_reason: string | null
           completed_at: string | null
           created_at: string
           error_message: string | null
+          files_deactivated: number
           files_found: number | null
+          files_reactivated: number
+          files_upserted: number
+          guard_reason: string | null
+          guard_state: string | null
           id: string
           inaccessible_roots: string[] | null
+          ingest_completed_at: string | null
+          lifecycle_state: string
+          reconcile_batches: number
+          reconcile_completed_at: string | null
+          reconcile_started_at: string | null
+          refresh_completed_at: string | null
+          refresh_started_at: string | null
           roots_scanned: string[] | null
+          search_documents_synced: number
+          stale_candidates_at_start: number | null
+          stale_remaining: number | null
           started_at: string | null
           status: string
         }
         Insert: {
+          accepted_for_reconcile?: boolean
+          active_before_reconcile?: number | null
           agent_id?: string | null
+          attention_reason?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          files_deactivated?: number
           files_found?: number | null
+          files_reactivated?: number
+          files_upserted?: number
+          guard_reason?: string | null
+          guard_state?: string | null
           id?: string
           inaccessible_roots?: string[] | null
+          ingest_completed_at?: string | null
+          lifecycle_state?: string
+          reconcile_batches?: number
+          reconcile_completed_at?: string | null
+          reconcile_started_at?: string | null
+          refresh_completed_at?: string | null
+          refresh_started_at?: string | null
           roots_scanned?: string[] | null
+          search_documents_synced?: number
+          stale_candidates_at_start?: number | null
+          stale_remaining?: number | null
           started_at?: string | null
           status?: string
         }
         Update: {
+          accepted_for_reconcile?: boolean
+          active_before_reconcile?: number | null
           agent_id?: string | null
+          attention_reason?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          files_deactivated?: number
           files_found?: number | null
+          files_reactivated?: number
+          files_upserted?: number
+          guard_reason?: string | null
+          guard_state?: string | null
           id?: string
           inaccessible_roots?: string[] | null
+          ingest_completed_at?: string | null
+          lifecycle_state?: string
+          reconcile_batches?: number
+          reconcile_completed_at?: string | null
+          reconcile_started_at?: string | null
+          refresh_completed_at?: string | null
+          refresh_started_at?: string | null
           roots_scanned?: string[] | null
+          search_documents_synced?: number
+          stale_candidates_at_start?: number | null
+          stale_remaining?: number | null
           started_at?: string | null
           status?: string
         }
         Relationships: []
+      }
+      style_guide_file_preview_state: {
+        Row: {
+          has_error: boolean
+          has_preview: boolean
+          is_active: boolean
+          style_guide_file_id: string
+        }
+        Insert: {
+          has_error: boolean
+          has_preview: boolean
+          is_active: boolean
+          style_guide_file_id: string
+        }
+        Update: {
+          has_error?: boolean
+          has_preview?: boolean
+          is_active?: boolean
+          style_guide_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_file_preview_state_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       style_guide_file_tags: {
         Row: {
@@ -34773,6 +44172,71 @@ export type Database = {
           },
         ]
       }
+      style_guide_pdf_text: {
+        Row: {
+          attempts: number
+          claim_expires_at: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          content_identity: string
+          created_at: string
+          error_message: string | null
+          extracted_at: string | null
+          extracted_text: string | null
+          extraction_method: string | null
+          page_count: number | null
+          status: string
+          style_guide_file_id: string
+          terminal_reason: string | null
+          text_length: number | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          content_identity: string
+          created_at?: string
+          error_message?: string | null
+          extracted_at?: string | null
+          extracted_text?: string | null
+          extraction_method?: string | null
+          page_count?: number | null
+          status?: string
+          style_guide_file_id: string
+          terminal_reason?: string | null
+          text_length?: number | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          content_identity?: string
+          created_at?: string
+          error_message?: string | null
+          extracted_at?: string | null
+          extracted_text?: string | null
+          extraction_method?: string | null
+          page_count?: number | null
+          status?: string
+          style_guide_file_id?: string
+          terminal_reason?: string | null
+          text_length?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_pdf_text_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_render_queue: {
         Row: {
           attempts: number
@@ -34819,6 +44283,134 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      style_guide_search_documents: {
+        Row: {
+          content_sha256: string | null
+          directory_path: string
+          document_updated_at: string
+          embedding: string | null
+          embedding_attempts: number
+          embedding_error: string | null
+          embedding_error_category: string | null
+          embedding_lease_expires_at: string | null
+          embedding_lease_owner: string | null
+          embedding_lease_token: string | null
+          embedding_max_attempts: number
+          embedding_model: string | null
+          embedding_next_retry_at: string | null
+          embedding_updated_at: string | null
+          file_extension: string | null
+          filename: string
+          is_active: boolean
+          licensor_name: string | null
+          modified_at: string | null
+          pdf_text_length: number
+          pdf_text_status: string | null
+          property_folder: string | null
+          relative_path: string
+          root_label: string
+          search_vector: unknown
+          size_bytes: number | null
+          source_identity: string
+          style_guide_file_id: string
+          style_guide_folder: string | null
+          style_guide_name: string
+          tag_names: string[]
+          thumbnail_url: string | null
+        }
+        Insert: {
+          content_sha256?: string | null
+          directory_path: string
+          document_updated_at?: string
+          embedding?: string | null
+          embedding_attempts?: number
+          embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
+          embedding_model?: string | null
+          embedding_next_retry_at?: string | null
+          embedding_updated_at?: string | null
+          file_extension?: string | null
+          filename: string
+          is_active?: boolean
+          licensor_name?: string | null
+          modified_at?: string | null
+          pdf_text_length?: number
+          pdf_text_status?: string | null
+          property_folder?: string | null
+          relative_path: string
+          root_label: string
+          search_vector: unknown
+          size_bytes?: number | null
+          source_identity: string
+          style_guide_file_id: string
+          style_guide_folder?: string | null
+          style_guide_name: string
+          tag_names?: string[]
+          thumbnail_url?: string | null
+        }
+        Update: {
+          content_sha256?: string | null
+          directory_path?: string
+          document_updated_at?: string
+          embedding?: string | null
+          embedding_attempts?: number
+          embedding_error?: string | null
+          embedding_error_category?: string | null
+          embedding_lease_expires_at?: string | null
+          embedding_lease_owner?: string | null
+          embedding_lease_token?: string | null
+          embedding_max_attempts?: number
+          embedding_model?: string | null
+          embedding_next_retry_at?: string | null
+          embedding_updated_at?: string | null
+          file_extension?: string | null
+          filename?: string
+          is_active?: boolean
+          licensor_name?: string | null
+          modified_at?: string | null
+          pdf_text_length?: number
+          pdf_text_status?: string | null
+          property_folder?: string | null
+          relative_path?: string
+          root_label?: string
+          search_vector?: unknown
+          size_bytes?: number | null
+          source_identity?: string
+          style_guide_file_id?: string
+          style_guide_folder?: string | null
+          style_guide_name?: string
+          tag_names?: string[]
+          thumbnail_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_search_documents_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_search_sync_queue: {
+        Row: {
+          queued_at: string
+          style_guide_file_id: string
+        }
+        Insert: {
+          queued_at?: string
+          style_guide_file_id: string
+        }
+        Update: {
+          queued_at?: string
+          style_guide_file_id?: string
+        }
+        Relationships: []
       }
       style_guide_tag_aliases: {
         Row: {
@@ -35315,6 +44907,24 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_library_default_guides: {
+        Row: {
+          entity_key: string | null
+          group_id: string | null
+          modified_at: string | null
+          result: Json | null
+          sort_name: string | null
+        }
+        Relationships: []
+      }
+      style_guide_library_default_summary: {
+        Row: {
+          facets: Json | null
+          result_mode: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
       style_tracker_audit_log_with_user: {
         Row: {
           changed_at: string | null
@@ -35403,13 +45013,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "style_tracker_item_bridge_erp_item_id_fkey"
-            columns: ["erp_item_id"]
-            isOneToOne: false
-            referencedRelation: "erp_items_current"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "style_tracker_item_bridge_public_licensor_id_fkey"
             columns: ["public_licensor_id"]
             isOneToOne: false
@@ -35491,6 +45094,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_config_apply_counters: {
+        Args: { p_increments?: Json; p_key: string; p_set?: Json }
+        Returns: Json
+      }
       advise_dam_search_query_indexes: {
         Args: { p_query: string }
         Returns: {
@@ -35502,6 +45109,7 @@ export type Database = {
           total_cost_before: Json
         }[]
       }
+      apply_erp_item_updates: { Args: { p_items: Json }; Returns: Json }
       approve_licensor_alias: {
         Args: {
           p_alias: string
@@ -35509,6 +45117,14 @@ export type Database = {
           p_approved_by: string
         }
         Returns: string
+      }
+      assets_thumbnail_min_date: { Args: never; Returns: string }
+      await_style_guide_matview_refresh: {
+        Args: { p_run_id: string }
+        Returns: {
+          ready: boolean
+          refreshed_at: string
+        }[]
       }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
@@ -35521,12 +45137,20 @@ export type Database = {
         Returns: Json
       }
       claim_dam_search_embedding_documents: {
-        Args: { p_limit?: number }
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker_id?: string
+        }
         Returns: {
+          attempt: number
           content_sha256: string
           document_type: string
           entity_id: string
+          lease_expires_at: string
+          lease_token: string
           search_text: string
+          thumbnail_url: string
         }[]
       }
       claim_jobs: {
@@ -35586,6 +45210,37 @@ export type Database = {
           style_guide_file_id: string
         }[]
       }
+      claim_sg_search_embedding_documents: {
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker_id?: string
+        }
+        Returns: {
+          attempt: number
+          content_sha256: string
+          lease_expires_at: string
+          lease_token: string
+          search_text: string
+          style_guide_file_id: string
+          thumbnail_url: string
+        }[]
+      }
+      claim_style_guide_pdf_text: {
+        Args: {
+          p_batch_size?: number
+          p_claim_ttl?: string
+          p_max_attempts?: number
+          p_worker_id: string
+        }
+        Returns: {
+          attempts: number
+          content_identity: string
+          relative_path: string
+          root_label: string
+          style_guide_file_id: string
+        }[]
+      }
       claim_tiff_jobs: {
         Args: {
           p_agent_id: string
@@ -35627,18 +45282,220 @@ export type Database = {
           last_id: string
         }[]
       }
+      complete_style_guide_pdf_text: {
+        Args: {
+          p_content_identity: string
+          p_error?: string
+          p_page_count?: number
+          p_style_guide_file_id: string
+          p_text?: string
+        }
+        Returns: boolean
+      }
+      complete_style_guide_pdf_text_v2: {
+        Args: {
+          p_content_identity: string
+          p_method?: string
+          p_page_count?: number
+          p_reason?: string
+          p_status: string
+          p_style_guide_file_id: string
+          p_text?: string
+        }
+        Returns: boolean
+      }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
       create_dam_order: {
         Args: { p_lines?: Json; p_order: Json }
         Returns: string
       }
+      dam_asset_matches_filters: {
+        Args: {
+          p_asset: Database["public"]["Tables"]["assets"]["Row"]
+          p_filters: Json
+          p_style_group: Database["public"]["Tables"]["style_groups"]["Row"]
+          p_thumbnail_min_date: string
+        }
+        Returns: boolean
+      }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
+      dam_search_semantic_anchor: {
+        Args: { p_document_types?: string[]; p_query_embedding: string }
+        Returns: number
+      }
+      delete_style_tracker_rows: {
+        Args: { p_row_ids: string[] }
+        Returns: {
+          deleted_count: number
+          skipped_count: number
+        }[]
+      }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       expand_dam_search_queries: {
         Args: { p_query: string }
         Returns: {
           query_text: string
         }[]
+      }
+      filter_effective_assets: {
+        Args: { p_filters?: Json }
+        Returns: {
+          ai_description: string | null
+          ai_model: string | null
+          ai_tagged_at: string | null
+          art_source: Database["public"]["Enums"]["art_source"] | null
+          artboards: number | null
+          asset_type: Database["public"]["Enums"]["asset_type"] | null
+          big_theme: string | null
+          content_type: string | null
+          cover_description: string | null
+          created_at: string
+          customer: string | null
+          customer_id: string | null
+          design_ref: string | null
+          design_style: string | null
+          designer_name: string | null
+          division_code: string | null
+          division_name: string | null
+          file_created_at: string | null
+          file_size: number | null
+          file_type: Database["public"]["Enums"]["file_type"]
+          filename: string
+          freelancer_name: string | null
+          height: number | null
+          id: string
+          ingested_at: string | null
+          is_deleted: boolean | null
+          is_licensed: boolean | null
+          last_scanned_at: string | null
+          last_seen_at: string
+          licensor_code: string | null
+          licensor_id: string | null
+          licensor_name: string | null
+          little_theme: string | null
+          mg01_code: string | null
+          mg01_name: string | null
+          mg02_code: string | null
+          mg02_name: string | null
+          mg03_code: string | null
+          mg03_name: string | null
+          modified_at: string
+          pdf_page2_url: string | null
+          primary_sort_tier: number
+          product_category: string | null
+          product_dimensions: string | null
+          product_material: string[] | null
+          product_subtype_id: string | null
+          program: string | null
+          property_code: string | null
+          property_id: string | null
+          property_name: string | null
+          quick_hash: string
+          quick_hash_version: number
+          relative_path: string
+          scene_description: string | null
+          size_code: string | null
+          size_name: string | null
+          sku: string | null
+          sku_sequence: string | null
+          stage: string | null
+          status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
+          style_group_id: string | null
+          tags: string[]
+          technical_designer_name: string | null
+          thumbnail_error: string | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          width: number | null
+          workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "assets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      filter_effective_assets_unchecked_1703: {
+        Args: { p_filters?: Json }
+        Returns: {
+          ai_description: string | null
+          ai_model: string | null
+          ai_tagged_at: string | null
+          art_source: Database["public"]["Enums"]["art_source"] | null
+          artboards: number | null
+          asset_type: Database["public"]["Enums"]["asset_type"] | null
+          big_theme: string | null
+          content_type: string | null
+          cover_description: string | null
+          created_at: string
+          customer: string | null
+          customer_id: string | null
+          design_ref: string | null
+          design_style: string | null
+          designer_name: string | null
+          division_code: string | null
+          division_name: string | null
+          file_created_at: string | null
+          file_size: number | null
+          file_type: Database["public"]["Enums"]["file_type"]
+          filename: string
+          freelancer_name: string | null
+          height: number | null
+          id: string
+          ingested_at: string | null
+          is_deleted: boolean | null
+          is_licensed: boolean | null
+          last_scanned_at: string | null
+          last_seen_at: string
+          licensor_code: string | null
+          licensor_id: string | null
+          licensor_name: string | null
+          little_theme: string | null
+          mg01_code: string | null
+          mg01_name: string | null
+          mg02_code: string | null
+          mg02_name: string | null
+          mg03_code: string | null
+          mg03_name: string | null
+          modified_at: string
+          pdf_page2_url: string | null
+          primary_sort_tier: number
+          product_category: string | null
+          product_dimensions: string | null
+          product_material: string[] | null
+          product_subtype_id: string | null
+          program: string | null
+          property_code: string | null
+          property_id: string | null
+          property_name: string | null
+          quick_hash: string
+          quick_hash_version: number
+          relative_path: string
+          scene_description: string | null
+          size_code: string | null
+          size_name: string | null
+          sku: string | null
+          sku_sequence: string | null
+          stage: string | null
+          status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_changed_at: string
+          style_group_id: string | null
+          tags: string[]
+          technical_designer_name: string | null
+          thumbnail_error: string | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          width: number | null
+          workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "assets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       find_ai_pdf_duplicates: {
         Args: never
@@ -35648,6 +45505,13 @@ export type Database = {
           relative_path: string
           style_group_id: string
           thumbnail_url: string
+        }[]
+      }
+      find_dam_order_list_row: {
+        Args: { p_filters?: Json; p_search: string; p_sort?: Json }
+        Returns: {
+          order_line_id: string
+          row_index: number
         }[]
       }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
@@ -35676,6 +45540,36 @@ export type Database = {
           material: string
         }[]
       }
+      get_dam_order_assortment_quantities: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          assortment_sku_quantity: number
+          order_line_id: string
+          quantity_source: string
+        }[]
+      }
+      get_dam_order_sales_order_dates: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          order_line_id: string
+          sales_order_date: string
+        }[]
+      }
+      get_dam_order_tracking: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_only_open?: boolean
+          p_search?: string
+        }
+        Returns: unknown[]
+        SetofOptions: {
+          from: "*"
+          to: "dam_order_tracking"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
@@ -35690,7 +45584,39 @@ export type Database = {
           total_exec_ms: number
         }[]
       }
+      get_dam_style_tracker_license_status: {
+        Args: { p_row_ids: string[] }
+        Returns: {
+          id: string
+          license_status: string
+        }[]
+      }
+      get_effective_asset_metadata: {
+        Args: { p_asset_id: string }
+        Returns: {
+          category: string
+          confidence: number
+          created_by: string
+          effective_licensor_id: string
+          effective_property_id: string
+          model: string
+          scope: string
+          source: string
+          status: string
+          style_group_id: string
+          tag: string
+        }[]
+      }
+      get_effective_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      get_effective_filter_counts_unchecked_1703: {
+        Args: { p_filters?: Json }
+        Returns: Json
+      }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      get_filter_counts_unchecked_1703: {
+        Args: { p_filters?: Json }
+        Returns: Json
+      }
       get_path_facets: { Args: { p_customer_id?: string }; Returns: Json }
       get_pdf_rich_extraction_hashes: {
         Args: { p_asset_ids: string[] }
@@ -35699,8 +45625,11 @@ export type Database = {
           source_text_sha256: string
         }[]
       }
+      get_render_z_nas_password: { Args: never; Returns: string }
+      get_sg_nas_password: { Args: never; Returns: string }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
+      get_sg_search_embedding_status: { Args: never; Returns: Json }
       get_style_guide_deterministic_tag_batch: {
         Args: { p_after_id?: string; p_limit?: number; p_rebuild?: boolean }
         Returns: {
@@ -35745,6 +45674,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      hts_rag_fold_text: { Args: { value: string }; Returns: string }
+      hts_rag_tariff_subheadings: { Args: { tariffs: Json }; Returns: string[] }
+      image_embed_enqueue_index: {
+        Args: { p_asset_id: string }
+        Returns: boolean
+      }
+      image_embed_enqueue_query: {
+        Args: { p_payload: string }
+        Returns: string
+      }
+      image_embed_query_status: { Args: { p_id: string }; Returns: Json }
+      image_embed_stale_assets: {
+        Args: { p_after_asset_id?: string; p_limit?: number }
+        Returns: string[]
+      }
+      image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       is_style_guide_source_pdf: {
         Args: { p_file_type: string; p_filename: string }
@@ -35753,6 +45698,10 @@ export type Database = {
       link_dam_order_line: {
         Args: { p_item_id: string; p_line_id: string; p_match_status?: string }
         Returns: string
+      }
+      link_dam_order_lines_scoped: {
+        Args: { p_line_ids: string[] }
+        Returns: Json
       }
       list_licensor_aliases: {
         Args: never
@@ -35773,16 +45722,44 @@ export type Database = {
       }
       mark_dam_search_embedding_error: {
         Args: {
+          p_category?: string
           p_content_sha256: string
           p_document_type: string
           p_entity_id: string
           p_error: string
+          p_lease_token: string
+        }
+        Returns: boolean
+      }
+      mark_sg_search_embedding_error: {
+        Args: {
+          p_category?: string
+          p_content_sha256: string
+          p_error: string
+          p_lease_token: string
+          p_style_guide_file_id: string
         }
         Returns: boolean
       }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
+      preview_stale_sg_files: {
+        Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
+        Returns: {
+          active_total: number
+          guard_reason: string
+          guard_state: string
+          root_inaccessible: boolean
+          root_label: string
+          run_active_total: number
+          run_files_found: number
+          run_id: string
+          safe_to_reconcile: boolean
+          stale_candidates: number
+        }[]
+      }
+      prewarm_style_guide_search: { Args: never; Returns: undefined }
       promote_coldlion_source_owned: {
         Args: { p_client_plan?: Json; p_expected: Json; p_is_drill?: boolean }
         Returns: {
@@ -35839,14 +45816,64 @@ export type Database = {
         Returns: number
       }
       rebuild_dam_search_documents: { Args: never; Returns: Json }
-      rebuild_style_groups_batch: {
-        Args: { p_batch_size?: number; p_last_asset_id?: string }
+      rebuild_style_groups_batch:
+        | {
+            Args: { p_batch_size?: number; p_last_asset_id?: string }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+            }[]
+          }
+        | {
+            Args: {
+              p_batch_size: number
+              p_changed_since: string
+              p_last_asset_id: string
+            }
+            Returns: {
+              assets_assigned: number
+              assets_ungrouped: number
+              done: boolean
+              groups_created: number
+              next_cursor: string
+              rows_examined: number
+            }[]
+          }
+      reconcile_stale_sg_files_batch: {
+        Args: {
+          p_batch_size?: number
+          p_min_ratio?: number
+          p_root_label: string
+          p_run_id: string
+        }
         Returns: {
-          assets_assigned: number
-          assets_ungrouped: number
+          deactivated: number
           done: boolean
-          groups_created: number
-          next_cursor: string
+          guard_reason: string
+          guard_state: string
+          remaining: number
+        }[]
+      }
+      reconcile_style_group_drift: {
+        Args: { p_effective_tag_sample?: number }
+        Returns: {
+          assets_missing_or_wrong_group: number
+          assets_with_unexpected_group: number
+          effective_tag_drift_rate: number
+          effective_tag_drifted_assets: number
+          effective_tag_extra_rows: number
+          effective_tag_missing_rows: number
+          effective_tag_rows: number
+          effective_tag_sample_assets: number
+          grouped_assets: number
+          live_assets: number
+          observed_at: string
+          orphan_group_references: number
+          style_group_rows: number
+          ungrouped_assets: number
         }[]
       }
       reconcile_style_group_stats_batch: {
@@ -35892,6 +45919,14 @@ export type Database = {
         Args: { p_asset_id: string }
         Returns: undefined
       }
+      refresh_dam_search_documents_batch: {
+        Args: {
+          p_asset_ids?: string[]
+          p_limit?: number
+          p_style_group_ids?: string[]
+        }
+        Returns: Json
+      }
       refresh_dam_search_style_group_document: {
         Args: { p_style_group_id: string }
         Returns: undefined
@@ -35899,6 +45934,10 @@ export type Database = {
       refresh_sku_human_description: { Args: never; Returns: number }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
+        Args: { p_group_ids: string[] }
+        Returns: number
+      }
+      refresh_style_group_counts_serialized: {
         Args: { p_group_ids: string[] }
         Returns: number
       }
@@ -35927,7 +45966,29 @@ export type Database = {
           relationships_written: number
         }[]
       }
-      refresh_style_guide_matviews: { Args: never; Returns: undefined }
+      refresh_style_guide_library_default_snapshot: {
+        Args: never
+        Returns: undefined
+      }
+      refresh_style_guide_matviews:
+        | {
+            Args: { p_run_id?: string; p_search_batch_size?: number }
+            Returns: {
+              refreshed_at: string
+              search_documents_synced: number
+            }[]
+          }
+        | {
+            Args: {
+              p_run_id: string
+              p_search_batch_size: number
+              p_step: string
+            }
+            Returns: {
+              refreshed_at: string
+              search_documents_synced: number
+            }[]
+          }
       refresh_style_tracker_item_bridge: {
         Args: never
         Returns: {
@@ -35944,6 +46005,26 @@ export type Database = {
       remove_style_guide_manual_tag: {
         Args: { p_file_id: string; p_tag_id: string }
         Returns: boolean
+      }
+      replace_asset_ai_tag_result: {
+        Args: {
+          p_asset_id: string
+          p_model: string
+          p_source: string
+          p_tags: Json
+        }
+        Returns: Json
+      }
+      replace_style_group_ai_profile: {
+        Args: {
+          p_description: string
+          p_evidence_asset_ids?: string[]
+          p_model: string
+          p_source: string
+          p_style_group_id: string
+          p_tags?: Json
+        }
+        Returns: Json
       }
       replace_style_guide_deterministic_tags: {
         Args: {
@@ -35962,6 +46043,27 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      require_dam_access: { Args: never; Returns: boolean }
+      reset_bulk_operation_submission_lease: {
+        Args: {
+          p_expected_revision: number
+          p_http_status: number
+          p_lease_token: string
+          p_op_key: string
+          p_provider_error: Json
+          p_reason: string
+          p_submission_owner: string
+        }
+        Returns: Json
+      }
+      reset_dam_search_embedding_errors: {
+        Args: { p_document_type?: string; p_entity_ids?: string[] }
+        Returns: number
+      }
+      reset_sg_search_embedding_errors: {
+        Args: { p_style_guide_file_ids?: string[] }
+        Returns: number
+      }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
@@ -35969,6 +46071,10 @@ export type Database = {
       reset_taxonomy_circuit_breaker: {
         Args: { p_authorization: Json; p_lane?: string }
         Returns: Json
+      }
+      resolve_coldlion_triage: {
+        Args: { p_action: string; p_line: string; p_target?: string }
+        Returns: string
       }
       resolve_licensor_alias: { Args: { p_observed: string }; Returns: string }
       resolve_sku_files_used: { Args: never; Returns: number }
@@ -35997,7 +46103,11 @@ export type Database = {
       search_dam_documents: {
         Args: {
           p_document_types?: string[]
-          p_limit?: number
+          p_filters: Json
+          p_limit: number
+          p_min_rank?: number
+          p_min_semantic_score?: number
+          p_offset: number
           p_query: string
           p_query_embedding?: string
         }
@@ -36005,10 +46115,34 @@ export type Database = {
           asset_id: string
           document_type: string
           entity_id: string
+          facets: Json
+          has_more: boolean
           keyword_rank: number
           rank: number
           semantic_rank: number
           style_group_id: string
+          total_count: number
+        }[]
+      }
+      search_dam_image_similarity: {
+        Args: {
+          p_dino_weight?: number
+          p_floor?: number
+          p_limit?: number
+          p_model_stamps?: string[]
+          p_query_dino: unknown
+          p_query_siglip: unknown
+          p_top_k?: number
+        }
+        Returns: {
+          asset_id: string
+          combined_pct: number
+          dino_pct: number
+          filename: string
+          relative_path: string
+          siglip_pct: number
+          sku: string
+          thumbnail_url: string
         }[]
       }
       search_style_groups_full_text: {
@@ -36017,6 +46151,44 @@ export type Database = {
           rank: number
           style_group_id: string
         }[]
+      }
+      search_style_guide_library: {
+        Args: {
+          p_extensions?: string[]
+          p_licensors?: string[]
+          p_limit?: number
+          p_modified_after?: string
+          p_modified_before?: string
+          p_offset?: number
+          p_properties?: string[]
+          p_query?: string
+          p_sort?: string
+          p_style_guides?: string[]
+          p_tags?: string[]
+        }
+        Returns: Json
+      }
+      search_style_guide_library_v2: {
+        Args: {
+          p_extensions?: string[]
+          p_licensors?: string[]
+          p_limit?: number
+          p_min_semantic_score?: number
+          p_modified_after?: string
+          p_modified_before?: string
+          p_offset?: number
+          p_pdf_content_states?: string[]
+          p_preview_states?: string[]
+          p_properties?: string[]
+          p_query?: string
+          p_query_embedding?: string
+          p_render_exception_states?: string[]
+          p_result_mode?: string
+          p_sort?: string
+          p_style_guides?: string[]
+          p_tags?: string[]
+        }
+        Returns: Json
       }
       search_style_tracker_link_candidates: {
         Args: {
@@ -36033,9 +46205,22 @@ export type Database = {
           target_table: string
         }[]
       }
+      set_popdam_item_dismissed: {
+        Args: { dismissed: boolean; item_keys: string[] }
+        Returns: number
+      }
+      set_render_z_nas_password: {
+        Args: { p_password: string }
+        Returns: undefined
+      }
+      set_sg_nas_password: { Args: { p_password: string }; Returns: undefined }
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
+      }
+      style_group_key_for_sku: {
+        Args: { p_relative_path: string }
+        Returns: string
       }
       style_guide_tag_input_fingerprint: {
         Args: {
@@ -36090,6 +46275,14 @@ export type Database = {
           sync_run_id: string
         }[]
       }
+      sync_new_items_into_style_tracker: {
+        Args: { p_cutoff?: string; p_dry_run?: boolean }
+        Returns: {
+          deferred_count: number
+          eligible_count: number
+          inserted_count: number
+        }[]
+      }
       sync_opa_property_character: {
         Args: {
           p_max_shrink_fraction?: number
@@ -36106,166 +46299,6 @@ export type Database = {
           rows_seen: number
           rows_unchanged: number
           rows_updated: number
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_asset_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_franchise_property: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_property_character: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
-          snapshot_hash: string
-        }[]
-      }
-      sync_wb_style_guide: {
-        Args: {
-          p_max_shrink_fraction?: number
-          p_mode?: string
-          p_snapshot: Json
-        }
-        Returns: {
-          mode: string
-          rows_collapsed: number
-          rows_inserted: number
-          rows_landed: number
-          rows_missing: number
-          rows_orphan_identity: number
-          rows_seen: number
-          rows_unchanged: number
-          rows_updated: number
-          snapshot_captured_at: string
           snapshot_hash: string
         }[]
       }
@@ -36308,6 +46341,18 @@ export type Database = {
         }
         Returns: string
       }
+      update_dam_order_tracking: {
+        Args: { p_order_id: string; p_patch: Json }
+        Returns: string
+      }
+      upsert_dam_order_customer_settings: {
+        Args: { p_customer: string; p_suffix: string }
+        Returns: undefined
+      }
+      upsert_dam_order_sample_depth: {
+        Args: { p_customer: string; p_depth_inches: number; p_sku: string }
+        Returns: undefined
+      }
       upsert_dam_search_embedding: {
         Args: {
           p_content_sha256: string
@@ -36315,6 +46360,7 @@ export type Database = {
           p_embedding: string
           p_embedding_model?: string
           p_entity_id: string
+          p_lease_token: string
         }
         Returns: boolean
       }
@@ -36332,6 +46378,16 @@ export type Database = {
           p_style_group_id: string
         }
         Returns: undefined
+      }
+      upsert_sg_search_embedding: {
+        Args: {
+          p_content_sha256: string
+          p_embedding: string
+          p_embedding_model?: string
+          p_lease_token: string
+          p_style_guide_file_id: string
+        }
+        Returns: boolean
       }
       upsert_style_tracker_value_resolution: {
         Args: {
@@ -36412,12 +46468,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -36441,11 +46497,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -36466,11 +46522,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -36491,11 +46547,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -36508,11 +46564,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -36532,6 +46588,7 @@ export const Constants = {
         "designer",
         "viewer",
         "vendor",
+        "sales_assistant",
       ],
       entity_status: ["active", "inactive", "archived", "deleted", "potential"],
       file_storage_provider: [
@@ -36551,10 +46608,18 @@ export const Constants = {
     },
   },
   core: {
+    Enums: {
+      relationship_evidence_kind: [
+        "direct_source_assertion",
+        "inferred",
+        "co_occurrence",
+      ],
+    },
+  },
+  dflow: {
     Enums: {},
   },
-  dam: { Enums: {} },
-  dflow: {
+  hts_rag: {
     Enums: {},
   },
   plm: {
