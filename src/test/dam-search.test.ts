@@ -58,7 +58,6 @@ describe("DAM hybrid search", () => {
       ids: ["group-2"],
       totalCount: 23,
       hasMore: true,
-      totalIsLowerBound: false,
       facets: { fileType: { psd: 12 } },
     });
     expect(invoke).toHaveBeenCalledWith("dam-search-ai", {

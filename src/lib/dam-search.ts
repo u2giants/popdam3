@@ -33,22 +33,8 @@ export interface DamSearchPage {
   ids: string[];
   totalCount: number;
   hasMore: boolean;
-  /** True when the RPC reports totals/facets as a lower bound (facets.totalExact === false). */
-  totalIsLowerBound: boolean;
   facets: Record<string, unknown>;
 }
-
-/**
- * search_dam_documents (shared-db 20261021190510) marks totals and facet
- * counts as a lower bound with facets.totalExact = false /
- * facets.totalKind = 'lower_bound' when matches exceed the 1,000-asset probe.
- */
-export function isLowerBoundTotal(facets: unknown): boolean {
-  if (!facets || typeof facets !== "object" || Array.isArray(facets)) return false;
-  const f = facets as Record<string, unknown>;
-  return f.totalExact === false || f.totalKind === "lower_bound";
-}
-
 
 export function buildDamSearchFilters(filters: AssetFilters): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -82,7 +68,6 @@ export function parseDamSearchFacets(value: Record<string, unknown>): FacetCount
     workflowStatus: record("workflowStatus"),
     stage: record("stage"),
     isLicensed: { true: Number(licensed.true) || 0, false: Number(licensed.false) || 0 },
-    lowerBound: isLowerBoundTotal(value),
   };
 }
 
@@ -155,7 +140,6 @@ export async function fetchHybridSearchPage({
     ids,
     totalCount: typeof data?.total_count === "number" ? data.total_count : ids.length,
     hasMore: data?.has_more === true,
-    totalIsLowerBound: isLowerBoundTotal(facets),
     facets,
   };
 }

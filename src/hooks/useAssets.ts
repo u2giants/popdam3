@@ -401,7 +401,6 @@ export function useAssets(
               (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
             ),
             totalCount: ranked.totalCount,
-            totalIsLowerBound: ranked.totalIsLowerBound,
             pageSize: effectivePageSize,
             page,
           };
@@ -464,7 +463,6 @@ export function useAssets(
       return {
         assets,
         totalCount: count ?? 0,
-        totalIsLowerBound: false,
         pageSize: effectivePageSize,
         page,
       };

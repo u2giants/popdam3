@@ -115,13 +115,11 @@ function FacetRow({
   checked,
   onToggle,
   count,
-  countLowerBound = false,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
   count?: number;
-  countLowerBound?: boolean;
 }) {
   return (
     <label
@@ -162,7 +160,7 @@ function FacetRow({
       />
       {count !== undefined && (
         <span style={{ color: "var(--pd-fg-subtle)", fontSize: 11, tabularNums: true } as React.CSSProperties}>
-          {formatCount(count, countLowerBound)}
+          {formatCount(count)}
         </span>
       )}
     </label>
@@ -254,7 +252,6 @@ function CheckboxGroup({
   selected,
   onChange,
   counts,
-  countsLowerBound = false,
   labelMap,
 }: {
   label: string;
@@ -262,7 +259,6 @@ function CheckboxGroup({
   selected: string[];
   onChange: (v: string[]) => void;
   counts?: Record<string, number>;
-  countsLowerBound?: boolean;
   labelMap?: Record<string, string>;
 }) {
   const toggle = (val: string) => {
@@ -285,7 +281,6 @@ function CheckboxGroup({
             checked={selected.includes(opt)}
             onToggle={() => toggle(opt)}
             count={c}
-            countLowerBound={countsLowerBound}
           />
         );
       })}
@@ -743,7 +738,6 @@ export default function FilterSidebar({
           selected={filters.stage}
           onChange={(v) => update({ stage: v })}
           counts={facetCounts?.stage}
-          countsLowerBound={facetCounts?.lowerBound === true}
         />
 
         {/* Customer — searchable */}
@@ -772,7 +766,6 @@ export default function FilterSidebar({
             selected={filters.fileType}
             onChange={(v) => update({ fileType: v })}
             counts={facetCounts?.fileType}
-          countsLowerBound={facetCounts?.lowerBound === true}
           />
         )}
 
@@ -805,7 +798,6 @@ export default function FilterSidebar({
             selected={filters.status}
             onChange={(v) => update({ status: v })}
             counts={facetCounts?.status}
-          countsLowerBound={facetCounts?.lowerBound === true}
           />
         )}
 
@@ -816,7 +808,6 @@ export default function FilterSidebar({
           selected={filters.workflowStatus}
           onChange={(v) => update({ workflowStatus: v })}
           counts={facetCounts?.workflowStatus}
-          countsLowerBound={facetCounts?.lowerBound === true}
         />
 
         {/* Licensing */}
@@ -874,7 +865,7 @@ export default function FilterSidebar({
                     color: "var(--pd-fg-subtle)",
                   }}
                 >
-                  {c !== undefined ? formatCount(c, facetCounts?.lowerBound === true) : ""}
+                  {c !== undefined ? formatCount(c) : ""}
                 </span>
               );
             })}

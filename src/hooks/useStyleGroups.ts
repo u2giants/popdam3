@@ -266,7 +266,7 @@ export function useStyleGroups(
             searchTerm,
             (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
           );
-          return { groups, totalCount: ranked.totalCount, totalIsLowerBound: ranked.totalIsLowerBound, pageSize: effectivePageSize, page };
+          return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
         } catch (error) {
           if (searchAccessStatus(error)) throw error;
           // Preserve the existing keyword path if semantic search is unavailable.
@@ -320,7 +320,6 @@ export function useStyleGroups(
       return {
         groups,
         totalCount: count ?? 0,
-        totalIsLowerBound: false,
         pageSize: effectivePageSize,
         page,
       };
