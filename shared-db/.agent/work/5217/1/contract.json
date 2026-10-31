@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "evidence_parent": null,
+  "work_issue": 5217,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Bind migration 20261031031837 in config/atomic-migration-allowlist.json (sha256 + strip_outer_transaction) per review finding #5211 so the production gate accepts the atomic binding for PR #5210's superseding migration.",
+  "base_sha": "57b15fa96842ec4fade8d100c9487fc0ac86ef66",
+  "dispatcher": "ZCode chat adcae4fc-0e48-40e7-b492-4571e18b50aa on hetz",
+  "worker": "Same session.",
+  "branch": "zcode/5128-atomic-allowlist-v2",
+  "worktree": "/worksp/shared-db/.wt-5128-user-row-delete",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json",
+    ".agent/work/5217/1/contract.json",
+    ".agent/work/5217/1/completion.json"
+  ],
+  "file_writes": [
+    "config/atomic-migration-allowlist.json",
+    ".agent/work/5217/1/contract.json",
+    ".agent/work/5217/1/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write of any kind.",
+    "No migration file change."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python -m json.tool config/atomic-migration-allowlist.json",
+    "Migration guarded merge authorization published for the exact head"
+  ],
+  "assumptions": [
+    "sha256 a85a4401... was computed from the migration file bytes at current main."
+  ],
+  "stop_conditions": [
+    "Stop if the allowlist contract tests refuse the new entry shape."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_issue": 5217,
+  "outcome": "ready-for-merge",
+  "pr": 5216,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5217/1",
+  "contract_sha256": "2fb3b24ee09fbc07f9534f063443b83838f90dd51d8e9a1dd2261eca80b62815",
+  "base_sha": "57b15fa96842ec4fade8d100c9487fc0ac86ef66",
+  "head_sha": "e224db9e74900be4ebebb40d509c39167ea1fa54",
+  "files_changed": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree."
+    },
+    {
+      "command": "python -m json.tool config/atomic-migration-allowlist.json",
+      "exit_code": 0,
+      "evidence": "Valid JSON; entry shape mirrors the 20261030125352 twin."
+    },
+    {
+      "command": "Migration guarded merge authorization published for the exact head",
+      "exit_code": 0,
+      "evidence": "Disclosure: dispatched immediately after this pair, the standard last step."
+    }
+  ],
+  "assumptions_resolved": [
+    "refs/db-contracts/5217/1 published before the evidence-pair commit."
+  ],
+  "stop_conditions_hit": []
+}
