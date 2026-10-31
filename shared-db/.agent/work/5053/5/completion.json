@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_issue": 5053,
+  "pr": 5114,
+  "outcome": "ready-for-merge",
+  "contract_ref": "refs/db-contracts/5053/5",
+  "contract_sha256": "fa769a12776a8338828d33b238c5179011dca15052efada15fd10444818dcd19",
+  "head_sha": "6c96aa94cef6dc0896aac5cddf7dbc3b2bb5d22b",
+  "base_sha": "a8c10cb8a35ef7b3723c23ed48aa64721d39d4ea",
+  "files_changed": [
+    "supabase/migrations/20261030224046_dam_search_exact_totals.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql",
+    "supabase/tests/popdam_ranked_filter_parity_contracts.sql",
+    "supabase/tests/popdam_search_high_df_timeout_contracts.sql"
+  ],
+  "migration_versions": [
+    "20261030224046"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.dam_asset_matches_filters"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "evidence": "Static checks pass on the reversioned head 6c96aa94; the SQL is byte-identical to the reviewed 20261030061619 file (pure rename per supersession 7b5de1ce), and every search-scope must-exist pin remains present.",
+      "exit_code": 0
+    }
+  ],
+  "assumptions_resolved": [
+    "Round 3 Critical fixed: the last stale projection pin (ranked_documents literal) re-pinned to the page_documents projection; wording nits corrected.",
+    "Mechanical pin audit: every must-exist pin on the search body across supabase/tests is present in the new function text.",
+    "Claim #5113 held with current owner check-in at merge dispatch.",
+    "Version re-reserved 20261030061619 -> 20261030224046 by the governed supersession (newHead 237264055e4c, supersession ref 7b5de1ce) after the ordering guard refused the backdated version; claim #5113 carries the new version."
+  ],
+  "stop_conditions_hit": []
+}

@@ -162,8 +162,8 @@ begin
   end if;
 end $$;
 
--- 3c. Above the 1000-asset summary probe the total is a flagged lower bound,
---     and paging stays correct past the probe.
+-- 3c. Above the 1000-asset summary probe the total is EXACT (#5053: totals
+--     are never lower bounds) and paging stays correct past the probe.
 do $$
 declare
   f jsonb;
@@ -189,16 +189,23 @@ begin
 
   select min(total_count), bool_or(has_more), (array_agg(facets))[1] into total, more, f
   from public.search_dam_documents('zz4535lb', '{}'::jsonb, 20, 0);
-  if (f->>'totalExact')::boolean is not false or f->>'totalKind' <> 'lower_bound' then
-    raise exception 'large result set not flagged lower_bound: %', f;
+  if (f->>'totalExact')::boolean is not true or f->>'totalKind' <> 'exact' then
+    raise exception 'large result set not flagged exact: %', f;
   end if;
-  if not more or total < 21 or total > 2105 then
-    raise exception 'lower-bound total % / has_more % inconsistent', total, more;
+  -- #5053: past the probe the per-key facet counts would be lower bounds, so
+  -- the same five keys must be present and BLANKED, never dropped or under-counted.
+  if f->'fileType' is distinct from '{}'::jsonb or f->'status' is distinct from '{}'::jsonb
+     or f->'workflowStatus' is distinct from '{}'::jsonb or f->'stage' is distinct from '{}'::jsonb
+     or f->'isLicensed' is distinct from '{}'::jsonb then
+    raise exception 'truncated facets must keep their keys blanked: %', f;
+  end if;
+  if not more or total <> 2105 then
+    raise exception 'exact total % / has_more % inconsistent', total, more;
   end if;
 
   select count(entity_id), bool_or(has_more), min(total_count) into deep_rows, deep_more, deep_total
   from public.search_dam_documents('zz4535lb', '{}'::jsonb, 20, 2100);
-  if deep_rows <> 5 or deep_more or deep_total < 2105 then
+  if deep_rows <> 5 or deep_more or deep_total <> 2105 then
     raise exception 'page past the probe: rows %, has_more %, total %', deep_rows, deep_more, deep_total;
   end if;
 

@@ -1,0 +1,51 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261030224046_dam_search_exact_totals.sql",
+    "supabase/tests/popdam_ranked_filter_parity_contracts.sql",
+    "supabase/tests/popdam_search_high_df_timeout_contracts.sql",
+    "supabase/tests/popdam_authorized_ranked_search_contracts.sql"
+  ],
+  "assumptions": [
+    "v2 body measured read-only on production via pg_temp (issue #5053 comment): exact totals for spiderman/disney/star-wars/mickey legs, row-identical on bounded queries, facet-identical where untruncated",
+    "Scalar helper args eliminate ~150us/call composite detoast: 17,223 calls 3.56 s -> 0.62 s; planner opacity (per-function SET search_path) preserved from #4508",
+    "Draft reconciled against the live post-#4508 body: 19 predicate conditions verified one-to-one (p_asset.X -> p_X mapping), guard markers intact; derived-from updated to 20261030042314",
+    "Generation 4 superseded after reversion: main's newest migration (20261030125352) postdates 20261030061619, so the claim's version was re-reserved as 20261030224046 by the governed supersession (ref 7b5de1ce, newHead 237264055e4c); the SQL is byte-identical, a pure rename per the ordering guard's own remedy"
+  ],
+  "base_sha": "a8c10cb8a35ef7b3723c23ed48aa64721d39d4ea",
+  "branch": "zcode/5053-dam-search-exact-totals",
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.dam_asset_matches_filters"
+  ],
+  "dispatcher": "Albert ask 2026-10-29 via ZCode chat (estimates not acceptable \u2014 precise numbers only), drafted by the counts session on issue #5053",
+  "evidence_parent": {
+    "work_issue": 5053,
+    "generation": 4,
+    "contract_sha256": "d84c22365fdc83f05f6b81377fbccc99466bae4c7a8543ebf89cab82ab159d64"
+  },
+  "file_writes": [
+    "supabase/migrations/20261030224046_dam_search_exact_totals.sql"
+  ],
+  "generation": 5,
+  "goal": "search_dam_documents must never report lower-bound counts: exact_docs short-circuit count, always-exact summary flags, scalar-argument dam_asset_matches_filters",
+  "prohibited_actions": [
+    "No production writes; preview apply only through the governed workflow",
+    "No change to ranking semantics, page rows, grants, or require_dam_access",
+    "No SKU pattern-matching anywhere in search (owner instruction)"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "route": "claim-first",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Live body is not the #4508 body (pre-guard refuses)",
+    "Any result difference vs the measured production baselines",
+    "Reviewer terminal rejection on the exact head"
+  ],
+  "work_issue": 5053,
+  "work_type": "structural",
+  "worker": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz",
+  "worktree": "/worksp/shared-db/.wt-counts"
+}

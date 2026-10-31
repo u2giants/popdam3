@@ -121,7 +121,11 @@ begin
     raise exception 'short queries must not activate unindexable substring scans';
   end if;
   if position('offset (select page_offset from params)' in lower(v_definition)) = 0
-     or position('from ranked_documents' in lower(v_definition)) = 0 then
+     -- #5053: the summary row is anchored on a constant so the one-row envelope
+     -- survives no-match and truncation; the page still paginates the ranked
+     -- pipeline, and totals come from exact_docs over the same pipeline.
+     or position('from (select 1) as summary_anchor' in lower(v_definition)) = 0
+     or position('exact_docs' in lower(v_definition)) = 0 then
     raise exception 'ranked search must paginate only after authorization and ranking';
   end if;
   if position('* 0.35' in v_definition) = 0 then
@@ -198,7 +202,9 @@ begin
     'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
   ) into v_definition;
   if position('candidate_asset_ids' in v_definition) = 0
-     or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0 then
+     -- #5053: ranked_documents is gone (totals from exact_docs); the ranked
+     -- document projection lives in page_documents over the keyed expansion.
+     or position('select c.document_type,c.entity_id,c.asset_id,c.style_group_id,' in v_definition) = 0 then
     raise exception 'ranked search must use keyed asset and Style Group visibility joins';
   end if;
   if position('d.search_tsv @@ any(array(select q.tsq from queries q))' in v_definition) = 0
@@ -213,8 +219,13 @@ begin
     raise exception 'ranked search must retain the measured indexable scan and maximum synonym rank';
   end if;
   if position('c.keyword_rank, c.semantic_rank, c.rank, x.id, c.rn' in v_definition) = 0
-     or position('select distinct a.document_type, a.entity_id, a.asset_id' in v_definition) = 0
-     or position('from candidate_ranks c' in substring(v_definition from position('ranked_documents as materialized' in v_definition))) > 0 then
+     -- #5053: the ranked_documents CTE is gone (totals come from exact_docs);
+     -- its projection lives in page_documents, which paginates the ranked docs.
+     or position('select c.document_type,c.entity_id,c.asset_id,c.style_group_id,' in v_definition) = 0
+     -- candidate_ranks joins exactly once, in the visibility probe; a second
+     -- join would be the quadratic shape this guard exists to refuse.
+     or (length(v_definition) - length(replace(v_definition, 'from candidate_ranks c', '')))
+        / length('from candidate_ranks c') <> 1 then
     raise exception 'candidate rank keys must flow through visibility without a quadratic CTE join';
   end if;
   if position('c.asset_id = a.id or c.style_group_id = a.style_group_id' in v_definition) > 0
