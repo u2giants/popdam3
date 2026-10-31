@@ -1238,6 +1238,17 @@ test('curated master data admission still refuses schema DDL, non-migration chan
   assert.throws(() => parseQueueScope(curatedBody({ extra:['  - table core.property'] })), /must not claim database objects/)
 })
 
+test('an edited curated migration is admitted only while it is applied nowhere (#5079)', () => {
+  const body = curatedBody()
+  const edited = (ledgers) => ({ ...curatedIo(body, curatedSql), getPrFiles:()=>[{filename:'supabase/migrations/20261011164757_curated_warner_property_the_exorcist_1973.sql',status:'modified'}], appliedMigrationVersions:()=>ledgers })
+  const none = { preview:new Set(['20260101000000']), production:new Set(['20260101000000']) }
+  assert.equal(admitIssue(4172, edited(none), { pr: 4176, allowLegacy: true }).admitted, true)
+  assert.throws(() => admitIssue(4172, edited({ ...none, production:new Set(['20261011164757']) }), { pr: 4176, allowLegacy: true }), /edits applied curated migration/)
+  assert.throws(() => admitIssue(4172, edited({ ...none, preview:new Set(['20261011164757']) }), { pr: 4176, allowLegacy: true }), /edits applied curated migration/)
+  assert.throws(() => admitIssue(4172, { ...edited(none), appliedMigrationVersions:()=>{ throw new Error('no token') } }, { pr: 4176, allowLegacy: true }), /cannot prove its edited curated migration is unapplied/)
+  assert.throws(() => admitIssue(4172, edited(none), { pr: 4176, allowLegacy: true }) && admitIssue(4172, { ...edited(none), getFileAt:()=>curatedSql+'alter table core.property add column x int;\n' }, { pr: 4176, allowLegacy: true }), /changes database structure/)
+})
+
 test('structural route still refuses a data-only migration (gate unchanged)', () => {
   assert.throws(() => inspectPrStructuralChange([{filename:'supabase/migrations/20261011164757_x.sql',status:'added',content:curatedSql}]), /no statement-leading schema DDL/)
 })

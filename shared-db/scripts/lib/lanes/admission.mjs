@@ -65,7 +65,19 @@ export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-m
       const files=io.getPrFiles(Number(pr)).map((file)=>/^supabase\/migrations\/\d{14}_[^/]+\.sql$/.test(String(file?.filename??file?.path??''))&&file?.status!=='removed'
         ?{...file,content:io.getFileAt(file.filename??file.path,head)}:file)
       if(admitted.curated){
-        const inspection=inspectPrCuratedDataChange(files,issue,scope)
+        // A curated migration that merged but is applied NOWHERE (an atomic
+        // rollback) may be edited in place, like the structural #5141 lane: the
+        // version must be absent from both the preview and production ledgers,
+        // and the whole edited file is then inspected exactly as if newly added.
+        const curatedEdits=unappliedEditMigrationFiles(files).filter((row)=>row.status==='modified')
+        if(curatedEdits.length){
+          let ledgers
+          try{ledgers=appliedLedgerVersions(io)}catch(error){throw new AdmissionError(`pull request #${pr} cannot prove its edited curated migration is unapplied: ${error.message}`)}
+          const applied=curatedEdits.filter((row)=>ledgers.preview.has(row.version)||ledgers.production.has(row.version))
+          if(applied.length)throw new AdmissionError(`pull request #${pr} edits applied curated migration(s) ${applied.map((row)=>row.version).join(', ')}; fix forward instead`)
+        }
+        const curatedFiles=curatedEdits.length?files.map((file)=>curatedEdits.some((row)=>row.name===(file.filename??file.path))?{...file,status:'added'}:file):files
+        const inspection=inspectPrCuratedDataChange(curatedFiles,issue,scope)
         admitted={...admitted,actual_objects:[],reads:inspection.reads,row_writes:inspection.row_writes,row_reads:inspection.row_reads,migrations:inspection.migrations}
       }else{
       const inspection=inspectPrStructuralChange(files)
