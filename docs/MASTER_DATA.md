@@ -41,7 +41,7 @@ Important RPCs:
 - `public.upsert_style_tracker_value_resolution(...)`
 
 Row origin: rows added via the grid's **Row** button carry `row_data.origin = user_added`
-(from shared-db migration 20261030125352; a one-time backfill stamped the three
+(from shared-db migration 20261031031837, re-issued after 20261030125352 was stranded on preview; a one-time backfill stamped the three
 pre-existing user-created rows). Admins see a trash button in the row-number cell
 and a **Delete row** context-menu item on exactly those rows; every other row
 (sheet imports, `plm_item_autoflow`) can never be deleted from the app.
