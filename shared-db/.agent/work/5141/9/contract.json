@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "work_issue": 5141,
+  "generation": 9,
+  "evidence_parent": {
+    "work_issue": 5141,
+    "generation": 7,
+    "contract_sha256": "f7aab19320db2f52b20b49c55e6feffff25bcd49b999b5e7bc1fcd68c54e18a7"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Atomic allowlist entry for 20261030224046 (reversioned DAM exact totals, merged as f2f5d227fe2) so its merged-main rehearsal can run with the now-mandatory named preview_allowlist",
+  "base_sha": "f2f5d227fe2251e8c22dbcd4c98aa772089e1c32",
+  "branch": "zcode/5053-atomic-allowlist-224046",
+  "worktree": "/worksp/shared-db/.wt-224046-cfg",
+  "dispatcher": "ZCode chat e0cd8b5b-7ad0-4808-8171-b61d90f08b82 on hetz (coordinator delivery, owner-authorized #5141 chain)",
+  "worker": "ZCode chat af7789bc-5302-44ba-b91b-819263781783 on hetz",
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json"
+  ],
+  "file_writes": [],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No migration file changes; the pinned sha256 is the file already merged on main",
+    "No database writes; the rehearsal and promotion run through the governed workflow only",
+    "Never bypass or roll back the merge queue ruleset; a refusal stays a stop-and-report"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "The rehearsal lane refuses an unnamed allowlist verbatim (run 41164153696): REFUSED: preview_allowlist is empty. This lane applies ONLY the versions you name",
+    "Routed under #5141 (repository maintenance) because the changed file is repository configuration backing the #5141 delivery chain; issue #5053 stays the structural work issue",
+    "Same entry shape as #5139/#5155/#5170",
+    "Generation 8 was published against a superseded predecessor ref (another session republished 5141/7 at b9af3b74 while this chain was in flight); it is skipped unused and generation 9 binds the live ref's true digest"
+  ],
+  "stop_conditions": [
+    "The merged-main rehearsal of 20261030224046 refuses on the allowlist entry"
+  ]
+}

@@ -44,6 +44,13 @@
         "production"
       ],
       "strip_outer_transaction": true
+    },
+    "20261030224046": {
+      "sha256": "0cd9e90c94465c0565de92516a664e381a83316b8aa5ac829849dab495f83ef2",
+      "targets": [
+        "preview",
+        "production"
+      ]
     }
   }
 }
