@@ -400,7 +400,7 @@ test('every authorization status reader uses the shared paginated helper, not co
   const guarded = readWorkflow('guarded-migration-merge.yml')
   assert.ok(guarded.includes('--authorization-state'), 'the guarded lane readback must use --authorization-state')
   const migrations = readWorkflow('shared-supabase-migrations.yml')
-  assert.ok(migrations.includes('--authorization-state'), 'production dispatch must use --authorization-state')
+  assert.ok(!migrations.includes('--authorization-state'), 'production dispatch no longer reads guarded authorization (#2172 C2)')
   assert.ok(migrations.includes('--authorization-row'), 'freeze-lift clearing must use --authorization-row')
   const contract = readFileSync(new URL('../scripts/merge-queue-contract.mjs', import.meta.url), 'utf8')
   assert.ok(contract.includes('/statuses?per_page=100'), 'the shared reader must use the paginated /statuses collection')

@@ -12332,7 +12332,7 @@ test('nonclosing structural canonical proof preserves structural identity and re
   const admitted=admitNonclosingIssue(41,f.io,{pr:7,allowLegacy:true})
   assert.deepEqual(admitted.actual_objects,['table core.example'])
   const serialized={...reviewIo(),...f.io}
-  assert.deepEqual(resolveAdmittedIssueForPr(7,serialized),{issue:41,pr:7,admission:'admitted'})
+  assert.deepEqual(resolveAdmittedIssueForPr(7,serialized),{issue:41,pr:7,admission:'not-required'})
   assert.equal(derivePrOperationRoute(7,{...f.io,closingIssuesForPr:()=>[{number:41}]},{headSha:f.head,issue:41}).route,'structural')
   const bodyBefore=f.work.body;f.work.body=bodyBefore.replace('table core.example','table core.foreign');assert.throws(()=>resolveAdmittedIssueForPr(7,serialized),/writes disagrees/);f.work.body=bodyBefore
   assert.throws(()=>admitNonclosingIssue(42,f.io,{pr:7,allowLegacy:true}),/Refs|issue|identity/)

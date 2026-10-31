@@ -237,12 +237,10 @@ test('workflow resolver and PR-backed acquire preserve the same bounded legacy a
   const legacy=issue(['```db-work-scope','status: ready','work_type: structural','route: claim-first','priority: 5','depends_on:','writes:','  - table core.example','```'].join('\n'))
   const base={getIssue:()=>legacy,closingIssuesForPr:()=>[{number:41,state:'open'}],getPr:()=>({head:{sha:'a'.repeat(40)}}),getPrFiles:()=>[{filename:'supabase/migrations/20260911120000_example.sql',status:'added'}],getFileAt:()=>'create table core.example(id bigint);'}
   assert.equal(admitIssue(41,base,{pr:7,allowLegacy:true}).legacy,true)
-  assert.equal(resolveAdmittedIssueForPr(7,serializedIo(base)).admission,'admitted')
-  for(const mutate of [
-    io=>io.getIssue=()=>({...legacy,createdAt:'2026-09-11T18:00:00Z'}),
-    io=>io.closingIssuesForPr=()=>[{number:41},{number:42}],
-    io=>io.getFileAt=()=>'create table core.other(id bigint);',
-  ]){const io={...base};mutate(io);assert.throws(()=>resolveAdmittedIssueForPr(7,serializedIo(io)),/legacy admission|exactly one structural|exactly match/)}
+  // popcre/ai-devops#2172 stage C2: the resolver reads the closing issue and admits nothing.
+  assert.equal(resolveAdmittedIssueForPr(7,serializedIo(base)).admission,'not-required')
+  const io={...base,closingIssuesForPr:()=>[{number:41},{number:42}]}
+  assert.throws(()=>resolveAdmittedIssueForPr(7,serializedIo(io)),/exactly one structural/)
 })
 
 test('standalone PR-backed admission preserves bounded legacy parity',()=>{
@@ -423,21 +421,15 @@ test('admitIssue accepts a modified-migration pull request only through the prov
   assert.throws(()=>admitIssue(41,io({getPrFiles:()=>[{filename:'supabase/migrations/20261030043848_recovery.sql',status:'added'}]}),{pr:7}),/structural objects must exactly match admitted issue #41 writes/)
 })
 
-test('source PR resolves exactly one linked open issue and independently admits its files', () => {
+test('source PR resolves exactly one linked open issue and admits nothing (#2172 C2)', () => {
   const comments=[]
   const io=serializedIo({
     closingIssuesForPr:()=>[{number:41,state:'open'}],getIssue:()=>issue(scopeBody()),issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),
     getPr:()=>({head:{sha:'a'.repeat(40)}}),getFileAt:()=> 'create table core.example(id bigint);',getPrFiles:()=>[{filename:'supabase/migrations/20260911120000_example.sql',status:'added'}],
   })
-  assert.deepEqual(resolveAdmittedIssueForPr(7,io),{issue:41,pr:7,admission:'admitted'})
+  assert.deepEqual(resolveAdmittedIssueForPr(7,io),{issue:41,pr:7,admission:'not-required'})
   io.closingIssuesForPr=()=>[{number:41,state:'open'},{number:42,state:'open'}]
   assert.throws(()=>resolveAdmittedIssueForPr(7,io),/exactly one structural work issue/)
-  io.closingIssuesForPr=()=>[{number:41,state:'open'}]
-  io.getFileAt=()=>'create table core.example(id bigint); create table core.undeclared(id bigint);'
-  assert.throws(()=>admitIssue(41,io,{pr:7}),/structural objects must exactly match/)
-  io.getFileAt=()=> 'create table core.example(id bigint);'
-  io.closingIssuesForPr=()=>[{number:99,state:'open'}]
-  assert.throws(()=>admitIssue(41,io,{pr:7}),/must close exactly admitted issue #41/)
 })
 
 test('a merge-closed admitted issue reopens only for a merged linked PR', () => {

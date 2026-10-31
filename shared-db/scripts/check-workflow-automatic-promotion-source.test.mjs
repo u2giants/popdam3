@@ -137,11 +137,12 @@ test('the job admits maps only through an explicit train and retains single-sour
 
 test('every later step uses the guarded source PR, and recovery re-proves the live merge hash', () => {
   const job = jobSection()
-  const afterGuard = job.split('      - name: Re-prove current main, guarded merge, and durable exact-head verdict', 2)[1]
+  const afterGuard = job.split('      - name: Re-prove current main and the merged source PR', 2)[1]
   assert.doesNotMatch(afterGuard, /SOURCE_PR: \$\{\{ inputs\./, 'a step after the guard reads the raw input instead of the guarded output')
   assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 5)
   assert.match(afterGuard, /git merge-base --is-ancestor "\$RECOVERED_MERGE_SHA" "\$MAIN_SHA"/)
-  for (const gate of ['Migration guarded merge authorization', '--resolve-admitted-issue-for-pr']) assert.ok(afterGuard.includes(gate), `shared gate ${gate} is absent`)
+  assert.ok(!afterGuard.includes('--authorization-state'), 'promotion still reads the retired guarded-merge authorization')
+  for (const gate of ['merge-base --is-ancestor "$SOURCE_MERGE_SHA" "$MAIN_SHA"', '--resolve-admitted-issue-for-pr']) assert.ok(afterGuard.includes(gate), `shared gate ${gate} is absent`)
 })
 
 test('Windows executes the workflow shell through supported Git Bash', () => {

@@ -536,7 +536,8 @@ function readCompleteReviewStates(repository,leases){
 }
 export const githubIo = {
   releaseRefOverGit(ref, ownerSha) { return releaseRefOverGit(ref, ownerSha) },
-  enforceAdmission:true,
+  // popcre/ai-devops#2172 stage C2: claim-first admission is retired.
+  enforceAdmission:false,
   // Owner ruling 2026-09-11 (marker #2758): no global FIFO for reviewer draws. Any PR
   // draws any usable provider immediately. There is NO per-reviewer concurrency
   // limit (owner rule): a provider already holding live leases is drawn again,
@@ -4067,6 +4068,9 @@ function admitIssueSerialized(number, io = githubIo, options = {}) {
   return withAuthorMutex('admission',io,options,()=>admitIssue(number,io,options))
 }
 
+// popcre/ai-devops#2172 stage C2: the claim-first admission contract is retired.
+// The work issue is read from the pull request itself (its one closing issue, or
+// the verified structural route of an open nonclosing PR); nothing is admitted.
 export function resolveAdmittedIssueForPr(pr, io = githubIo) {
   if (!Number.isInteger(Number(pr)) || Number(pr) < 1) throw new LaneError('--resolve-admitted-issue-for-pr requires a pull request number')
   const linked = io.closingIssuesForPr(Number(pr))
@@ -4079,8 +4083,7 @@ export function resolveAdmittedIssueForPr(pr, io = githubIo) {
   const route=linked.length===0?derivePrOperationRoute(Number(pr),io):null
   if(route&&route.route!=='structural')throw new LaneError('nonclosing PR resolution requires verified structural work')
   const number=route?.issue??Number(linked[0].number)
-  const result=admitIssueSerialized(number,io,{pr:Number(pr),allowLegacy:true})
-  return {issue:number,pr:Number(pr),admission:result.admitted?'admitted':'refused'}
+  return {issue:number,pr:Number(pr),admission:'not-required'}
 }
 
 // Issue #2802: routing and admission are one gate, and neither half is reviewer work.
