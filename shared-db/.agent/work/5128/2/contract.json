@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 5128,
+    "generation": 1,
+    "contract_sha256": "c7d26f13ee99dcb04336455c984aaf4d8838b786f9ad3c05eb5bccd9ba2cf282"
+  },
+  "work_issue": 5128,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Supersede preview-stranded 20261030125352 with fresh version 20261031031837 (identical SQL body) so the automatic production promotion lane can deliver PR #5129's merged change: origin-stamped user-added rows, admin-gated delete RPC, row_deleted audit, 3-row backfill.",
+  "base_sha": "f2f5d227fe2251e8c22dbcd4c98aa772089e1c32",
+  "dispatcher": "ZCode chat adcae4fc-0e48-40e7-b492-4571e18b50aa on hetz (claim #5209 owner)",
+  "worker": "Same session.",
+  "branch": "zcode/5128-user-row-delete-v2",
+  "worktree": "/worksp/shared-db/.wt-5128-user-row-delete",
+  "allowed_paths": [
+    "supabase/migrations/20261031031837_master_data_user_row_delete.sql",
+    ".agent/work/5128/2/contract.json",
+    ".agent/work/5128/2/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261031031837_master_data_user_row_delete.sql",
+    ".agent/work/5128/2/contract.json",
+    ".agent/work/5128/2/completion.json"
+  ],
+  "db_reads": [
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_audit_log",
+    "table public.style_tracker_rows"
+  ],
+  "db_writes": [
+    "function public.add_style_tracker_rows",
+    "function public.delete_style_tracker_rows",
+    "table public.style_tracker_audit_log"
+  ],
+  "prohibited_actions": [
+    "No SQL body change versus 20261030125352 below the header (byte-identical guarantee).",
+    "No manual production command; production only through the automatic workflow.",
+    "Never delete sheet-synced or plm_item_autoflow rows through the RPC."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "supabase/tests against an ephemeral database passes on the PR head in CI",
+    "Migration guarded merge authorization published for the exact head"
+  ],
+  "assumptions": [
+    "The contract-test coverage shipped with PR #5129 (supabase/tests/master_data_user_row_delete_contracts.sql) exercises the identical SQL body and runs unchanged in CI."
+  ],
+  "stop_conditions": [
+    "Stop if the guarded pipeline refuses the supersession; hand off with the exact refusal."
+  ]
+}

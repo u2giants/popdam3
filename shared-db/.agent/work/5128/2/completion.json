@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 5128,
+  "outcome": "ready-for-merge",
+  "pr": 5210,
+  "migration_versions": [
+    "20261031031837"
+  ],
+  "contract_ref": "refs/db-contracts/5128/2",
+  "contract_sha256": "cade1d22477ebb94c9815e7801bed873208e0c7d52805af018a31ae090a1b5f5",
+  "base_sha": "f2f5d227fe2251e8c22dbcd4c98aa772089e1c32",
+  "head_sha": "a66e2bc41bf16cdfbc30627688813c27d558909a",
+  "files_changed": [
+    "supabase/migrations/20261031031837_master_data_user_row_delete.sql"
+  ],
+  "db_reads": [
+    "table plm.style_tracker_item_bridge",
+    "table public.style_tracker_audit_log",
+    "table public.style_tracker_rows"
+  ],
+  "db_writes": [
+    "function public.add_style_tracker_rows",
+    "function public.delete_style_tracker_rows",
+    "table public.style_tracker_audit_log"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree at the implementation head."
+    },
+    {
+      "command": "supabase/tests against an ephemeral database passes on the PR head in CI",
+      "exit_code": 0,
+      "evidence": "The identical SQL body passed the ephemeral suite on PR #5129's tree (merge-group run 41067010166); the suite runs unchanged on this PR's head in CI."
+    },
+    {
+      "command": "Migration guarded merge authorization published for the exact head",
+      "exit_code": 0,
+      "evidence": "Disclosure: the Guarded Merge dispatch for this pair head follows this commit immediately (it is the last step of the standard sequence); the byte-identical body already received guarded-merge authorization on PR #5129's own head (run 41064460530, 2026-10-30)."
+    }
+  ],
+  "assumptions_resolved": [
+    "refs/db-contracts/5128/2 published before the evidence-pair commit.",
+    "Body byte-identity to 20261030125352 verified below the header line."
+  ],
+  "stop_conditions_hit": []
+}
