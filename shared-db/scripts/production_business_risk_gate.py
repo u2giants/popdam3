@@ -47,9 +47,9 @@ PREVIEW_HISTORICAL_REBIND_ARTIFACT = re.compile(r"^preview-migration-dry-run-([0
 PREVIEW_WORKFLOW = ".github/workflows/shared-supabase-migrations.yml"
 ACTIVATION_SCHEMA = "shared-db-production-risk-activation/v1"
 ACTIVE_SCHEMA = "shared-db-production-risk-activation/v2"
+# popcre/ai-devops#2172: only the production-data core checks are required at
+# the exact PR head; claim, lease and guarded-authorization evidence is retired.
 REQUIRED_CHECKS = {
-    "Cross-PR object collision",
-    "Migration author lease",
     "SQL migration guards",
     "supabase/tests against an ephemeral database",
 }
@@ -2411,30 +2411,8 @@ def prove_pr_and_checks(
         name: row.get("conclusion") for name, row in select_newest_check_runs(checks).items()
     }
     missing = sorted(name for name in REQUIRED_CHECKS if conclusions.get(name) != "success")
-    historical_source = is_pinned_historical_disney_source(
-        pr_number, head, merge_commit_sha, allowlist
-    )
-    if historical_source:
-        # The author-lease workflow did not exist when this exact PR merged. Its
-        # historical source proof is verified later against current main and the
-        # preview artifact; every contemporary safety check remains mandatory.
-        missing = [name for name in missing if name != "Migration author lease"]
     if missing:
         raise RiskGateError(f"required exact-head checks are not successful: {', '.join(missing)}")
-    status_endpoint = f"repos/{REPOSITORY}/commits/{head}/status"
-    statuses = api_sublist(api_object(api, status_endpoint), "statuses", status_endpoint)
-    guarded = next(
-        (
-            row for row in statuses
-            if isinstance(row, dict)
-            and row.get("context") == "Migration guarded merge authorization"
-        ),
-        None,
-    )
-    if not isinstance(guarded, dict) or guarded.get("state") != "success":
-        raise RiskGateError(
-            "the latest Migration guarded merge authorization is not successful at the exact PR head"
-        )
     return head, str(merge_commit_sha)
 
 

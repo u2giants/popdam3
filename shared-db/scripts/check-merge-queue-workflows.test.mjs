@@ -313,19 +313,18 @@ test('PR-payload steps defer or re-resolve on merge_group (the payload does not 
   }
 })
 
-test('the queue gate: one-PR identity, ancestry proof, authorization, preview hold, group-SHA status', () => {
+test('the queue gate keeps only one-PR identity, ascending versions and the preview hold (ai-devops#2172 C2)', () => {
   const text = readWorkflow('merge-queue-gate.yml')
   assert.match(text, /^ {2}pull_request:$/m)
   assert.match(text, /^ {2}merge_group:$/m)
   assert.match(text, /name: Merge queue gate/)
-  assert.match(text, /^ {2}statuses: write$/m)
   assert.match(text, /MERGE_GROUP_REF: \$\{\{ github\.event\.merge_group\.head_ref \}\}/)
   assert.ok(text.includes('merge-queue-contract.mjs --resolve-queue-pr'), 'the gate does not resolve the queued PR through the contract')
-  assert.ok(text.includes('git merge-base --is-ancestor'), 'the gate does not prove the reviewed head is an ancestor of the group commit')
+  assert.ok(text.includes('git merge-base --is-ancestor'), 'the gate does not prove the PR head is an ancestor of the group commit')
+  assert.ok(text.includes('node scripts/merge-queue-contract.mjs\n'), 'the gate does not re-check ascending migration versions')
   assert.ok(text.includes('--require-preview-rehearsal'), 'the gate does not hold for the exact-SHA preview rehearsal')
-  // The commit status is published on the GROUP sha, never the PR head here.
-  assert.ok(text.includes('statuses/$MERGE_GROUP_SHA'), 'the gate does not publish authorization on the merge-group SHA')
-  assert.ok(text.includes("context='Migration guarded merge authorization'"), 'the gate does not publish the guarded authorization context')
+  for (const retired of ['Migration guarded merge authorization', '--authorization-state', '--recheck-interlock', '--acquire-merge', '\n  authorize:', 'statuses: write'])
+    assert.ok(!text.includes(retired), `the gate still carries retired ${retired}`)
   assert.match(text, /^ {2}cancel-in-progress: false$/m)
 })
 
@@ -334,54 +333,6 @@ test('the queue gate: one-PR identity, ancestry proof, authorization, preview ho
 // the production interlock under that lane, post group-SHA success, and HOLD the
 // lane until GitHub lands the merge. Posting success from a pre-wait read and
 // releasing the lane is the race this structure exists to close.
-test('the authorize job owns the mutation: merge lane before status, re-check under the lane, hold through the merge', () => {
-  const text = readWorkflow('merge-queue-gate.yml')
-  const authorizeIdx = text.indexOf('\n  authorize:')
-  assert.ok(authorizeIdx > -1, 'the queue gate has no authorize job for the asynchronous mutation')
-  const authorizeBlock = text.slice(authorizeIdx)
-
-  // The authorize job is intentionally NOT a required check-run. Its name must
-  // not collide with the required `Merge queue gate` context; a required
-  // check-run still running would keep the group pending while it waits for
-  // the merge it is itself blocking.
-  assert.match(authorizeBlock, /^ {4}name: Queue interlock$/m, 'the authorize job must be named Queue interlock (not a required context)')
-  assert.ok(!/^ {4}name: Merge queue gate$/m.test(authorizeBlock), 'the authorize job must not emit the required Merge queue gate check-run')
-
-  const acquireIdx = authorizeBlock.indexOf('--acquire-merge')
-  const recheckIdx = authorizeBlock.indexOf('--recheck-interlock')
-  const publishIdx = authorizeBlock.indexOf("statuses/$MERGE_GROUP_SHA")
-  const holdIdx = authorizeBlock.indexOf('Hold the merge lane through the actual merge')
-  const releaseIdx = authorizeBlock.indexOf('--release-merge')
-
-  assert.ok(acquireIdx > -1, 'the authorize job never acquires the exclusive merge lane')
-  assert.ok(recheckIdx > acquireIdx, 'the interlock re-check must run AFTER the merge lane is acquired')
-  assert.ok(publishIdx > recheckIdx, 'group-SHA authorization must be published AFTER the interlock re-check')
-  assert.ok(holdIdx > publishIdx, 'the authorize job must hold the lane through the actual merge after posting success')
-  assert.ok(releaseIdx > holdIdx, 'the merge lane must be released only after the hold-through-merge step')
-
-  // Ownership is the lane hold, not the status write: the hold step must poll
-  // for the live PR state and refuse a non-merge terminal state.
-  assert.ok(authorizeBlock.includes('node scripts/merge-queue-hold.mjs'), 'the hold uses the bounded read-only monitor')
-  const holdSource = readFileSync(new URL('merge-queue-hold.mjs', import.meta.url), 'utf8')
-  assert.ok(holdSource.includes("state === 'MERGED'"), 'the hold observes actual merge')
-  assert.ok(authorizeBlock.includes('Refusing') || authorizeBlock.includes('REFUSED') || authorizeBlock.includes('revok'),
-    'the hold path must fail closed and revoke when the mutation does not land')
-
-  // The re-check must cover BOTH halves of the interlock: PR-head authorization
-  // freshness and the production lane.
-  assert.ok(text.includes('--recheck-interlock'), 'no --recheck-interlock call exists anywhere in the queue gate')
-  assert.match(text, /recheck-interlock --head-sha/, 'the re-check must pin the exact PR head SHA')
-})
-
-test('the verify job does not post group-SHA success before the interlock re-check', () => {
-  const text = readWorkflow('merge-queue-gate.yml')
-  const verifyBlock = text.slice(text.indexOf('\n  verify:'), text.indexOf('\n  authorize:'))
-  // Success publishing lives only in authorize. verify may post fail-closed
-  // failure, never success, so a stale pre-wait read cannot authorize the merge.
-  assert.ok(!/state=success/.test(verifyBlock), 'verify must not post success authorization; that is the authorize job under the merge lock')
-  assert.ok(verifyBlock.includes('state=failure'), 'verify keeps its fail-closed failure publisher')
-})
-
 // ORDER-TRUST CLASS (governed REVISE). Authorization history must be read from
 // the PAGINATED `/statuses` collection via the shared helper, never the
 // combined `/status` page with `| first |` or `.at(-1)`. Combined `/status`
@@ -394,14 +345,11 @@ test('every authorization status reader uses the shared paginated helper, not co
     assert.ok(!/commits\/\$\{[^}]+\}\/status['"]/.test(text) && !/commits\/\$[A-Z_]+\/status['"]/.test(text),
       `${name} still reads the combined /status page`)
   }
-  const gate = readWorkflow('merge-queue-gate.yml')
-  assert.ok(gate.includes('--authorization-state'), 'the queue gate must use --authorization-state')
-  assert.ok(gate.includes('--recheck-interlock'), 'the queue gate must use --recheck-interlock')
   const guarded = readWorkflow('guarded-migration-merge.yml')
   assert.ok(guarded.includes('--authorization-state'), 'the guarded lane readback must use --authorization-state')
   const migrations = readWorkflow('shared-supabase-migrations.yml')
   assert.ok(!migrations.includes('--authorization-state'), 'production dispatch no longer reads guarded authorization (#2172 C2)')
-  assert.ok(migrations.includes('--authorization-row'), 'freeze-lift clearing must use --authorization-row')
+  assert.ok(!migrations.includes('--authorization-row'), 'the production freeze no longer revokes or restores authorizations (#2172 C2)')
   const contract = readFileSync(new URL('../scripts/merge-queue-contract.mjs', import.meta.url), 'utf8')
   assert.ok(contract.includes('/statuses?per_page=100'), 'the shared reader must use the paginated /statuses collection')
   assert.ok(contract.includes('--paginate') && contract.includes('--slurp'), 'the shared reader must paginate')
@@ -622,21 +570,6 @@ test('the EOL guard in check-sql.sh fetches its base and still fails closed (#32
 // `issues: read`, so openClaims() saw only pull requests (53 rows, 0 issues)
 // and refused every merge group (merge-queue-gate run on pr-3567). Job-level
 // permissions REPLACE the workflow-level block, so the job must name it itself.
-test('Queue interlock job and the workflow level both grant exactly issues: read', () => {
-  const text = readWorkflow('merge-queue-gate.yml')
-  const workflowLevel = /\npermissions:\n((?:  [^\n]*\n)+)/.exec(text)
-  assert.ok(workflowLevel, 'workflow-level permissions block exists (the verify job inherits it)')
-  assert.match(workflowLevel[1], /^  issues: read\b/m)
-  const start = text.indexOf('\n  authorize:\n')
-  assert.ok(start >= 0, 'authorize job exists')
-  const rest = text.slice(start + 1)
-  const next = rest.slice(1).search(/\n  [A-Za-z0-9_-]+:\n/)
-  const job = next < 0 ? rest : rest.slice(0, next + 1)
-  const block = /\n    permissions:\n((?:      [^\n]*\n)+)/.exec(job)
-  assert.ok(block, 'authorize job has its own permissions block')
-  assert.match(block[1], /^      issues: read\b/m)
-})
-
 // #3536: an explicit replay must inspect the selected PR, never inherited main evidence.
 test('contract replay retains queue admission and validates exact selected PR identity', () => {
   const text = readWorkflow('pr-guards.yml')
@@ -717,17 +650,6 @@ test('all job executable scripts use protected source before any credential and 
 
 // #4729: the merge-lane hold must outlast the slowest required merge-group check
 // (supabase/tests, ~7 minutes) and stay inside its job timeout.
-test('Queue interlock hold budget outlasts the slowest required check', () => {
-  const src = readFileSync(new URL('../.github/workflows/merge-queue-gate.yml', import.meta.url), 'utf8')
-  const budget = HOLD_SECONDS
-  const jobTimeout = Number(src.match(/name: Queue interlock[\s\S]*?timeout-minutes: (\d+)/)?.[1])
-  assert.equal(budget, 15 * 60, 'healthy hold retains the entire 15-minute budget')
-  assert.equal(POLL_SECONDS, 15)
-  assert.match(src, /node scripts\/merge-queue-hold\.mjs/)
-  assert.ok(jobTimeout * 60 >= budget + 8 * 60, `job timeout ${jobTimeout}m must leave margin over the hold`)
-})
-
-
 test('preview ordering uses the candidate migration paths and retains the latest first-parent migration target', () => {
   const text = readWorkflow('merge-queue-gate.yml')
   assert.ok(text.includes('--preview-rehearsal-target --base-sha "$BASE_SHA" --group-sha "$GITHUB_SHA"'))
@@ -750,18 +672,6 @@ test('guarded merge admits to the queue with the merge-queue admission app token
   // Exactly the two permissions GitHub's enqueue needs, nothing broader.
   assert.deepEqual(mint.match(/permission-[a-z-]+: \w+/g), ['permission-contents: write', 'permission-merge-queues: write'])
   assert.doesNotMatch(mint, /SYNC_TOKEN|AUTHORITY_TOKEN/)
-})
-
-test('queue hold is read-only exact-group monitoring and preserves write-token cleanup', () => {
-  const workflow = readFileSync(new URL('../.github/workflows/merge-queue-gate.yml', import.meta.url), 'utf8')
-  const hold = workflow.slice(workflow.indexOf('      - name: Hold the merge lane through the actual merge'), workflow.indexOf('      - name: Revoke group authorization'))
-  assert.match(hold, /GH_TOKEN: \$\{\{ steps\.read_token\.outputs\.token \|\| github\.token \}\}/)
-  for (const binding of ['PR_HEAD_SHA: ${{ steps.queue.outputs.head }}','MERGE_GROUP_SHA: ${{ github.event.merge_group.head_sha }}','MERGE_GROUP_REF: ${{ github.event.merge_group.head_ref }}']) assert.ok(hold.includes(binding))
-  assert.doesNotMatch(hold, /SYNC_TOKEN|AUTHORITY_TOKEN|permission-administration|--release-merge|statuses\//)
-  const cleanup = workflow.slice(workflow.indexOf('      - name: Revoke group authorization'))
-  assert.match(cleanup, /GH_TOKEN: \$\{\{ github\.token \}\}/)
-  assert.match(cleanup, /if: always\(\) && steps\.merge_lock\.outputs\.owner_sha != ''/)
-  assert.match(cleanup, /--release-merge --owner-sha "\$OWNER_SHA"/)
 })
 
 // A full pre-acquisition wait must retain the original post-acquisition margin.

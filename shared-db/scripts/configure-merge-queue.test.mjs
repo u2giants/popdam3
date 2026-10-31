@@ -42,7 +42,7 @@ test('queue is exactly one all-green PR built and merged at a time', () => {
   assert.equal(desiredRuleset().rules.length, 2)
   assert.equal(desiredRuleset().rules[0]?.type, 'merge_queue')
   assert.equal(desiredRuleset().rules[1]?.type, 'required_status_checks')
-  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 5)
+  assert.equal(REQUIRED_STATUS_CHECKS_RULE.parameters.required_status_checks.length, 3)
   assert.deepEqual(desiredRuleset().bypass_actors, [])
   const actors = [{ actor_id: 42, actor_type: 'Team', bypass_mode: 'always' }]
   assert.deepEqual(desiredRuleset(actors).bypass_actors, actors)

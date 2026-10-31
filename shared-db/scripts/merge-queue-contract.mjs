@@ -65,27 +65,12 @@ export const QUEUE_RULE = Object.freeze({
 })
 
 // The live required contexts. Owner ruling 2026-10-30 (popcre/ai-devops#2172):
-// only checks that stop production-data damage block a merge. The merge-queue
-// pair (gate + guarded authorization) stays until the claim/lease chain is
-// retired, because automatic promotion still reads the authorization.
+// only checks that stop production-data damage block a merge.
 // app_id 15368 = GitHub Actions.
 export const REQUIRED_STATUS_CHECK_CONTEXTS = Object.freeze([
   'Destructive SQL outside migrations',
-  'Merge queue gate',
-  'Migration guarded merge authorization',
   'SQL migration guards',
   'supabase/tests against an ephemeral database',
-])
-
-// Transition only (ai-devops#2172): the pre-2026-10-30 list is still accepted
-// as an approved live shape so merges keep working between this code landing
-// and the live ruleset switch. Delete with the claim/lease retirement stage.
-export const LEGACY_REQUIRED_STATUS_CHECK_CONTEXTS = Object.freeze([
-  ...REQUIRED_STATUS_CHECK_CONTEXTS,
-  'Cancelled work guard', 'Cross-PR object collision', 'Domain ownership',
-  'Handoff contract', 'Intake pointer guard', 'Migration author lease',
-  'Promotion contract tests (offline)', 'Queue-sensitive checks (aggregate)',
-  'Tools offline tests',
 ])
 
 // GitHub Actions integration id, matching classic protection's app binding.
@@ -254,9 +239,7 @@ export function queueParametersEqual(actual, expected = QUEUE_RULE.parameters) {
 // when present (GitHub echoes it back on read) and tolerated when absent.
 export function requiredStatusChecksEqual(actual, expected) {
   if (expected) return requiredStatusChecksExact(actual, expected)
-  if (requiredStatusChecksExact(actual, REQUIRED_STATUS_CHECKS_RULE.parameters)) return true
-  const legacy = { ...REQUIRED_STATUS_CHECKS_RULE.parameters, required_status_checks: LEGACY_REQUIRED_STATUS_CHECK_CONTEXTS.map((context) => ({ context, integration_id: GITHUB_ACTIONS_INTEGRATION_ID })) }
-  return requiredStatusChecksExact(actual, legacy)
+  return requiredStatusChecksExact(actual, REQUIRED_STATUS_CHECKS_RULE.parameters)
 }
 
 function requiredStatusChecksExact(actual, expected) {

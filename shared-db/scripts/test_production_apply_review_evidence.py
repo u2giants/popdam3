@@ -352,7 +352,8 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_automatic_path_dispatches_only_after_governed_preview_evidence(self):
         self.assertIn("automatic-production-promotion:", self.apply)
         self.assertIn("needs: [validate, preview]", self.apply)
-        self.assertIn("Migration guarded merge authorization", self.apply)
+        self.assertNotIn("Migration guarded merge authorization", self.apply)
+        self.assertIn('merge-base --is-ancestor "$SOURCE_MERGE_SHA" "$MAIN_SHA"', self.apply)
         self.assertIn("steps.preview_evidence.outputs.digest", self.apply)
         self.assertIn("automatic-production-apply-review-evidence", self.apply)
         self.assertIn("--resolve-admitted-issue-for-pr", self.apply)

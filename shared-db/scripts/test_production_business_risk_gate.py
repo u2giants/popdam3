@@ -893,7 +893,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                          "head": {"sha": head}}, {"check_runs": []}), root,
             )
 
-    def test_production_rechecks_the_latest_guarded_merge_authorization(self):
+    def test_production_no_longer_reads_guarded_merge_authorization(self):
+        """popcre/ai-devops#2172 stage C2: core checks plus merge commit on main suffice."""
         head = "1" * 40
         temp, root, main, merge_sha = self.historical_repo()
         checks = {"check_runs": [
@@ -901,32 +902,17 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         ]}
         pr = {"merged": True, "merge_commit_sha": merge_sha, "head": {"sha": head}}
 
-        def api_with(state):
-            def api(endpoint):
-                if "check-runs" in endpoint:
-                    return checks
-                if endpoint.endswith("/status"):
-                    statuses = [] if state is None else [{
-                        "context": "Migration guarded merge authorization", "state": state,
-                    }]
-                    return {"statuses": statuses}
-                return pr
-            return api
+        def api(endpoint):
+            if endpoint.endswith("/status"):
+                raise AssertionError("guarded-merge authorization must not be read")
+            return checks if "check-runs" in endpoint else pr
 
         with temp:
             self.assertEqual(
-                prove_pr_and_checks(
-                    1, main, ["20260814000000"], api_with("success"), root,
-                ),
+                prove_pr_and_checks(1, main, ["20260814000000"], api, root),
                 (head, merge_sha),
             )
-            for state in (None, "failure", "pending"):
-                with self.subTest(state=state), self.assertRaisesRegex(
-                    RiskGateError, "latest Migration guarded merge authorization"
-                ):
-                    prove_pr_and_checks(
-                        1, main, ["20260814000000"], api_with(state), root,
-                    )
+        self.assertEqual(REQUIRED_CHECKS, {"SQL migration guards", "supabase/tests against an ephemeral database"})
 
     # ------------------------------------------------------------------
     # Issue #2730: one head can carry several same-name check runs -- a
@@ -957,14 +943,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def issue_2730_rows(self, duplicated):
         others = [
             {"name": name, "conclusion": "success"}
-            for name in REQUIRED_CHECKS if name != "Cross-PR object collision"
+            for name in REQUIRED_CHECKS if name != "SQL migration guards"
         ]
         return others + duplicated
 
     def test_the_newest_same_name_check_is_selected_in_either_api_order(self):
         temp, root, main, merge_sha = self.historical_repo()
-        older = {"name": "Cross-PR object collision", "id": 103152255159, "conclusion": "cancelled"}
-        newer = {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "success"}
+        older = {"name": "SQL migration guards", "id": 103152255159, "conclusion": "cancelled"}
+        newer = {"name": "SQL migration guards", "id": 103152259453, "conclusion": "success"}
         with temp:
             for rows in ([older, newer], [newer, older]):
                 with self.subTest(order=[row["id"] for row in rows]):
@@ -975,10 +961,10 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
 
     def test_a_newer_unsuccessful_check_refuses_over_an_older_success(self):
         temp, root, main, merge_sha = self.historical_repo()
-        older = {"name": "Cross-PR object collision", "id": 103152255159, "conclusion": "success"}
+        older = {"name": "SQL migration guards", "id": 103152255159, "conclusion": "success"}
         with temp:
             for newer_conclusion in ("failure", "cancelled", "timed_out", None):
-                newer = {"name": "Cross-PR object collision", "id": 103152259453}
+                newer = {"name": "SQL migration guards", "id": 103152259453}
                 if newer_conclusion is not None:
                     newer["conclusion"] = newer_conclusion
                 with self.subTest(newer_conclusion=newer_conclusion), self.assertRaisesRegex(
@@ -991,9 +977,9 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_same_name_rows_without_usable_ids_refuse_rather_than_guess(self):
         temp, root, main, merge_sha = self.historical_repo()
         with temp:
-            for bad in ({"name": "Cross-PR object collision", "conclusion": "success"},
-                        {"name": "Cross-PR object collision", "id": "103152259453", "conclusion": "success"},
-                        {"name": "Cross-PR object collision", "id": 0, "conclusion": "success"}):
+            for bad in ({"name": "SQL migration guards", "conclusion": "success"},
+                        {"name": "SQL migration guards", "id": "103152259453", "conclusion": "success"},
+                        {"name": "SQL migration guards", "id": 0, "conclusion": "success"}):
                 duplicate = dict(bad, conclusion="cancelled")
                 with self.subTest(bad=bad), self.assertRaisesRegex(
                     RiskGateError, "newest cannot be selected"
@@ -1005,8 +991,8 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     def test_one_check_run_id_with_two_conclusions_refuses_as_ambiguous(self):
         temp, root, main, merge_sha = self.historical_repo()
         rows = self.issue_2730_rows([
-            {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "success"},
-            {"name": "Cross-PR object collision", "id": 103152259453, "conclusion": "failure"},
+            {"name": "SQL migration guards", "id": 103152259453, "conclusion": "success"},
+            {"name": "SQL migration guards", "id": 103152259453, "conclusion": "failure"},
         ])
         with temp, self.assertRaisesRegex(RiskGateError, "different conclusions"):
             self.prove_with_check_rows(root, main, merge_sha, rows)
