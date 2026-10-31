@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 5213,
+    "generation": 1,
+    "contract_sha256": "b5682eb52c5f36dfb6c408bf04403f8f49362ce73f0ab4bca7d29a9f220a955f"
+  },
+  "work_issue": 5213,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Unpark the automatic production promotion lane (generation 2 after the edit-guard refused file removal): scripts/automatic_promotion_candidates.py skips merged PRs whose every added version is a registered orphan in config/preview-ledger-orphan-reconciliations.json, and this PR registers 20261030125352 -> 20261031031837 (replacement_pending) with the exact applying-run evidence.",
+  "base_sha": "2dd4fbc4b1025e617121aaaff71e3da04813cb3f",
+  "dispatcher": "ZCode chat adcae4fc-0e48-40e7-b492-4571e18b50aa on hetz",
+  "worker": "Same session.",
+  "branch": "zcode/5128-lane-supersede-skip",
+  "worktree": "/worksp/shared-db/.wt-5128-user-row-delete",
+  "allowed_paths": [
+    "scripts/automatic_promotion_candidates.py",
+    "config/preview-ledger-orphan-reconciliations.json",
+    ".agent/work/5213/2/contract.json",
+    ".agent/work/5213/2/completion.json"
+  ],
+  "file_writes": [
+    "scripts/automatic_promotion_candidates.py",
+    "config/preview-ledger-orphan-reconciliations.json",
+    ".agent/work/5213/2/contract.json",
+    ".agent/work/5213/2/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "No database write of any kind.",
+    "No migration file edit or removal (the edit-guard owns applied versions; generation-1 removal was refused and reverted).",
+    "No weakening of the edit-guard or the attempts counter."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python -m py_compile scripts/automatic_promotion_candidates.py",
+    "offline supersede-skip test: registered orphan PRs drop out of candidates",
+    "Migration guarded merge authorization published for the exact head"
+  ],
+  "assumptions": [
+    "The manifest case fields mirror the reviewed #4437/#4508 shapes; the pinned run/artifact identity was read live from the GitHub API (run 41143267036, artifact 13018977964, digest sha256:f1a590c3...)."
+  ],
+  "stop_conditions": [
+    "Stop if the reconcile contract tests refuse the new manifest case shape."
+  ]
+}

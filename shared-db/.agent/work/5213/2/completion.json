@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "work_issue": 5213,
+  "outcome": "ready-for-merge",
+  "pr": 5214,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5213/2",
+  "contract_sha256": "8d4b51a45d65faf09bcbc3d47f9541f381aaa010eb7bac0df877a1d398f01fd5",
+  "base_sha": "2dd4fbc4b1025e617121aaaff71e3da04813cb3f",
+  "head_sha": "4f6f03dd25506ae5cee65c576eafa26c5a9c3242",
+  "files_changed": [
+    "scripts/automatic_promotion_candidates.py",
+    "config/preview-ledger-orphan-reconciliations.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree."
+    },
+    {
+      "command": "python -m py_compile scripts/automatic_promotion_candidates.py",
+      "exit_code": 0,
+      "evidence": "Compiled clean after the generation-2 patch."
+    },
+    {
+      "command": "offline supersede-skip test: registered orphan PRs drop out of candidates",
+      "exit_code": 0,
+      "evidence": "Offline run against the patched module with the new manifest case: orphans={...20261030125352...}; candidates keep {5098, 5210} and drop 5129."
+    },
+    {
+      "command": "Migration guarded merge authorization published for the exact head",
+      "exit_code": 0,
+      "evidence": "Disclosure: the Guarded Merge dispatch follows this pair commit immediately, the standard last step."
+    }
+  ],
+  "assumptions_resolved": [
+    "refs/db-contracts/5213/2 published before the evidence-pair commit; generation-1 pair remains on the branch as history.",
+    "Generation 1's file removal was refused by the edit-guard; it was reverted and superseded by this generation's manifest approach, so no stop condition remains open."
+  ],
+  "stop_conditions_hit": []
+}

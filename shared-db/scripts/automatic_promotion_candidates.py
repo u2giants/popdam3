@@ -37,8 +37,20 @@ def gh(*args: str) -> Any:
     return json.loads(out) if out.strip() else None
 
 
+def registered_orphan_versions() -> set[str]:
+    """Orphan versions pinned by the reviewed preview-ledger reconciliation manifest."""
+    path = os.path.join(os.path.dirname(HERE), "config", "preview-ledger-orphan-reconciliations.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cases = json.load(fh).get("cases", [])
+        return {c.get("orphan_version") for c in cases if c.get("orphan_version")}
+    except (OSError, ValueError):
+        return set()
+
+
 def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
     pulls = gh(f"repos/{repo}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100")
+    manifest_orphans = registered_orphan_versions()
     found = []
     for pr in pulls:
         merged = pr.get("merged_at")
@@ -50,7 +62,13 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             for page in files for f in page
             if f.get("status") == "added" and (m := MIGRATION_RE.match(f.get("filename", "")))
         )
-        if versions:
+        # Superseded-by-manifest (#5128/#5213): a merged PR whose every added
+        # version is a registered preview-ledger orphan (a governed replacement
+        # version carries the change in config/preview-ledger-orphan-reconciliations.json)
+        # can never be promoted -- its attempt counter would otherwise park the
+        # lane forever once MAX_ATTEMPTS failed preview applies accumulate
+        # (observed 2026-10-31: PR #5129 vs stranded 20261030125352).
+        if versions and not all(v in manifest_orphans for v in versions):
             found.append({"number": pr["number"], "merged_at": merged, "versions": versions})
     return sorted(found, key=lambda p: p["merged_at"])
 

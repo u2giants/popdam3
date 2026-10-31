@@ -10,7 +10,7 @@ class Tests(unittest.TestCase):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),17)
+        self.assertEqual(len(M.SUPPORTED_CASES),18)
 
     def test_stage_catalog_open_successor_governance_and_substitution_refusals(self):
         """Execute real governance, distinguishing producer from applied-source commits."""

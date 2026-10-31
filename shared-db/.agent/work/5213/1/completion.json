@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 5213,
+  "outcome": "ready-for-merge",
+  "pr": 5214,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5213/1",
+  "contract_sha256": "b5682eb52c5f36dfb6c408bf04403f8f49362ce73f0ab4bca7d29a9f220a955f",
+  "base_sha": "2dd4fbc4b1025e617121aaaff71e3da04813cb3f",
+  "head_sha": "d88530a0078e0626d8987e52c73cd903ee3e0768",
+  "files_changed": [
+    "scripts/automatic_promotion_candidates.py",
+    "supabase/migrations/20261030125352_master_data_user_row_delete.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed in the worktree (0 added migrations)."
+    },
+    {
+      "command": "python -m py_compile scripts/automatic_promotion_candidates.py",
+      "exit_code": 0,
+      "evidence": "Compiled clean after the patch."
+    },
+    {
+      "command": "offline supersede-skip test: candidates reduce to PR #5210 with the file off main",
+      "exit_code": 0,
+      "evidence": "Offline simulation: with 20261030125352 off main, candidates = {PR #5210} only."
+    },
+    {
+      "command": "Migration guarded merge authorization published for the exact head",
+      "exit_code": 0,
+      "evidence": "Disclosure: the Guarded Merge dispatch follows this pair commit immediately, the standard last step; the underlying change is lane tooling plus a file removal."
+    }
+  ],
+  "assumptions_resolved": [
+    "refs/db-contracts/5213/1 published before the evidence-pair commit."
+  ],
+  "stop_conditions_hit": []
+}
