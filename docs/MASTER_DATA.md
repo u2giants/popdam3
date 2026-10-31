@@ -35,9 +35,16 @@ The Google Sheet was imported into:
 Important RPCs:
 
 - `public.add_style_tracker_rows(p_source_sheet, p_tracker_type, p_count)`
+- `public.delete_style_tracker_rows(p_row_ids)` — admin-only; deletes only rows whose `row_data.origin` is `user_added` (rows created through the grid's Row button), refuses sheet-synced and auto-flow rows, and writes a `row_deleted` audit event (shared-db #5128)
 - `public.refresh_style_tracker_item_bridge()`
 - `public.search_style_tracker_link_candidates(p_field_key, p_query, p_limit, p_match_mode)`
 - `public.upsert_style_tracker_value_resolution(...)`
+
+Row origin: rows added via the grid's **Row** button carry `row_data.origin = user_added`
+(from shared-db migration 20261030125352; a one-time backfill stamped the three
+pre-existing user-created rows). Admins see a trash button in the row-number cell
+and a **Delete row** context-menu item on exactly those rows; every other row
+(sheet imports, `plm_item_autoflow`) can never be deleted from the app.
 
 Rows are loaded newest-first, but the browser loads the full active tab so quick
 search, column filters, and saved filters always evaluate the complete list.

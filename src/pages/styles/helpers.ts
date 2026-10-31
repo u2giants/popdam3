@@ -108,6 +108,12 @@ export function statusFor(row: StyleRow | undefined, column: SheetColumn) {
   return "unmatched";
 }
 
+/** Rows added through the Styles grid carry row_data.origin=user_added; only
+ *  those are deletable by admins (sheet-synced and auto-flow rows are not). */
+export function isUserCreatedRow(row: Pick<StyleRow, "row_data"> | undefined) {
+  return row?.row_data?.origin === "user_added";
+}
+
 export function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown): Partial<StyleRow> & { row_data: RowData } {
   if (column.typedField === "license_status") throw new Error("License Status is calculated from the current workflow and cannot be edited.");
   const nextValue = normalizeWorkflowEditValue(value, column);
