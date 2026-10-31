@@ -85,7 +85,7 @@ begin
      observation_count, confidence, is_current, metadata, created_by, updated_by)
   select distinct pr.entity_id, ch.id, v_lic, 'disney_opa',
          pc.licensed_property_id::text || ':' || pc.character_id::text,
-         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null, true,
+         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null::numeric, true,
          jsonb_build_object('loaded_by', v_actor, 'issue', v_issue), v_actor, v_actor
     from plm.opa_property_character pc
     join core.character ch
@@ -227,7 +227,7 @@ begin
      observation_count, confidence, is_current, metadata, created_by, updated_by)
   select distinct pr.entity_id, ch.id, v_lic, 'disney_opa',
          pc.licensed_property_id::text || ':' || pc.character_id::text,
-         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null, true,
+         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null::numeric, true,
          jsonb_build_object('loaded_by', v_actor, 'issue', v_issue), v_actor, v_actor
     from plm.opa_property_character pc
     join core.character ch
@@ -370,7 +370,7 @@ begin
      observation_count, confidence, is_current, metadata, created_by, updated_by)
   select distinct pr.entity_id, ch.id, v_lic, 'disney_opa',
          pc.licensed_property_id::text || ':' || pc.character_id::text,
-         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null, true,
+         'plm.opa_property_character', 'direct_source_assertion'::core.relationship_evidence_kind, 0, null::numeric, true,
          jsonb_build_object('loaded_by', v_actor, 'issue', v_issue), v_actor, v_actor
     from plm.opa_property_character pc
     join core.character ch
