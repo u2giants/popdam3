@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "generation": 8,
+  "evidence_parent": {
+    "work_issue": 5163,
+    "generation": 7,
+    "contract_sha256": "88f68df7ffe16abe0741e0ba5da59e8b3a67538c4468c279af0da9015ba6f9fe"
+  },
+  "work_issue": 5163,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Add the CBP ruling search function and its indexes in schema hts_rag (designflow-backend#254 step 6)",
+  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "dispatcher": "Claude chat d702b076-ad71-4b0c-b525-6908181756d1 on edge-dev3",
+  "worker": "same session",
+  "branch": "claude/designflow-backend-254-search",
+  "worktree": "/home/ahazan/repos/shared-db-wt-254-search",
+  "allowed_paths": [
+    "supabase/migrations/20261030190639_hts_rag_ruling_search.sql",
+    "supabase/tests/hts_rag_ruling_search_contract.sql",
+    "supabase/tests/hts_rag_shared_schema_contract.sql",
+    ".agent/work/5163/7/contract.json",
+    ".agent/work/5163/7/completion.json",
+    ".agent/work/5163/8/contract.json",
+    ".agent/work/5163/8/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261030190639_hts_rag_ruling_search.sql",
+    "supabase/tests/hts_rag_ruling_search_contract.sql",
+    "supabase/tests/hts_rag_shared_schema_contract.sql",
+    ".agent/work/5163/7/contract.json",
+    ".agent/work/5163/7/completion.json",
+    ".agent/work/5163/8/contract.json",
+    ".agent/work/5163/8/completion.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column hts_rag.hts_rag_rulings.search_tsv",
+    "function hts_rag.hts_rag_search_rulings",
+    "function hts_rag.hts_rag_search_rulings_pass",
+    "index hts_rag.hts_rag_ruling_codes_held_chapter_idx",
+    "index hts_rag.hts_rag_rulings_search_tsv_active_idx",
+    "index hts_rag.hts_rag_rulings_subject_trgm_active_idx",
+    "policy hts_rag_alsand_runtime_library_read on hts_rag.hts_rag_rulings",
+    "policy hts_rag_prod_runtime_library_read on hts_rag.hts_rag_rulings",
+    "schema extensions",
+    "table hts_rag.hts_rag_ruling_codes",
+    "table hts_rag.hts_rag_rulings"
+  ],
+  "prohibited_actions": [
+    "Additive only; hts_rag_rulings gains one generated column and two runtime read policies, the runtime roles gain USAGE on schema extensions; nothing is removed",
+    "Never invent or reuse a migration version; claim #5174 reserves 20261030190639"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check origin/main...HEAD"
+  ],
+  "assumptions": [
+    "pg_trgm and pgvector are installed in schema extensions on the shared project (verified read-only 2026-10-30)"
+  ],
+  "stop_conditions": [
+    "Stop if a required check fails"
+  ]
+}

@@ -279,8 +279,14 @@ begin
   ] loop
     begin
       execute format(
-        'insert into hts_rag.%1$I select (jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''alsand''))).* from hts_rag.%1$I t limit 1',
-        v_table
+        -- Explicit non-generated columns: a stored generated column (e.g. search_tsv, #5163)
+        -- refuses any written value, which would mask the provenance refusal under test.
+        'insert into hts_rag.%1$I (%2$s) select %3$s from hts_rag.%1$I t cross join lateral jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''alsand'')) r limit 1',
+        v_table,
+        (select string_agg(quote_ident(a.attname), ', ' order by a.attnum) from pg_attribute a
+          where a.attrelid = ('hts_rag.' || quote_ident(v_table))::regclass and a.attnum > 0 and not a.attisdropped and a.attgenerated = ''),
+        (select string_agg('r.' || quote_ident(a.attname), ', ' order by a.attnum) from pg_attribute a
+          where a.attrelid = ('hts_rag.' || quote_ident(v_table))::regclass and a.attnum > 0 and not a.attisdropped and a.attgenerated = '')
       );
       raise exception 'production worker forged alsand provenance on %', v_table;
     exception when insufficient_privilege then null;
@@ -353,8 +359,14 @@ begin
   ] loop
     begin
       execute format(
-        'insert into hts_rag.%1$I select (jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''production''))).* from hts_rag.%1$I t limit 1',
-        v_table
+        -- Explicit non-generated columns: a stored generated column (e.g. search_tsv, #5163)
+        -- refuses any written value, which would mask the provenance refusal under test.
+        'insert into hts_rag.%1$I (%2$s) select %3$s from hts_rag.%1$I t cross join lateral jsonb_populate_record(null::hts_rag.%1$I, to_jsonb(t) || jsonb_build_object(''source_environment'', ''production'')) r limit 1',
+        v_table,
+        (select string_agg(quote_ident(a.attname), ', ' order by a.attnum) from pg_attribute a
+          where a.attrelid = ('hts_rag.' || quote_ident(v_table))::regclass and a.attnum > 0 and not a.attisdropped and a.attgenerated = ''),
+        (select string_agg('r.' || quote_ident(a.attname), ', ' order by a.attnum) from pg_attribute a
+          where a.attrelid = ('hts_rag.' || quote_ident(v_table))::regclass and a.attnum > 0 and not a.attisdropped and a.attgenerated = '')
       );
       raise exception 'Alsand worker forged production provenance on %', v_table;
     exception when insufficient_privilege then null;
@@ -404,9 +416,11 @@ begin
      is distinct from '{27120000-0000-4000-8000-000000000011}' then
     raise exception 'prod runtime sees links of unqualified precedents';
   end if;
-  if (select array_agg(ruling_number order by ruling_number)::text from hts_rag.hts_rag_rulings)
-     is distinct from '{ZZ-R1}' then
-    raise exception 'prod runtime sees rulings not relied on by a qualified precedent';
+  -- #5163: runtime roles read the whole ruling library (classifier evidence), not only
+  -- rulings relied on by a qualified precedent.
+  if not exists (select 1 from hts_rag.hts_rag_rulings where ruling_number = 'ZZ-R1')
+     or (select count(*) from hts_rag.hts_rag_rulings where ruling_number like 'ZZ-R%') < 2 then
+    raise exception 'prod runtime does not see the whole ruling library';
   end if;
 
   begin
@@ -431,7 +445,7 @@ do $alsand_runtime$
 begin
   if (select count(*) from hts_rag.hts_rag_precedents) <> 1
      or (select count(*) from hts_rag.hts_rag_precedent_rulings) <> 1
-     or (select count(*) from hts_rag.hts_rag_rulings) <> 1 then
+     or (select count(*) from hts_rag.hts_rag_rulings where ruling_number like 'ZZ-R%') < 2 then
     raise exception 'alsand runtime visibility differs from the qualified operative set';
   end if;
 

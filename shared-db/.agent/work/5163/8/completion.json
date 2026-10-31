@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_issue": 5163,
+  "outcome": "ready-for-merge",
+  "pr": 5165,
+  "migration_versions": [
+    "20261030190639"
+  ],
+  "contract_ref": "refs/db-contracts/5163/8",
+  "contract_sha256": "74dbf4fbda43edfd8ad40438030cb74480330dc96912588d354772f51d43c9d6",
+  "head_sha": "276a4127c7776e6eda5e57360af804964d15b61e",
+  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "files_changed": [
+    "supabase/migrations/20261030190639_hts_rag_ruling_search.sql",
+    "supabase/tests/hts_rag_ruling_search_contract.sql",
+    "supabase/tests/hts_rag_shared_schema_contract.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column hts_rag.hts_rag_rulings.search_tsv",
+    "function hts_rag.hts_rag_search_rulings",
+    "function hts_rag.hts_rag_search_rulings_pass",
+    "index hts_rag.hts_rag_ruling_codes_held_chapter_idx",
+    "index hts_rag.hts_rag_rulings_search_tsv_active_idx",
+    "index hts_rag.hts_rag_rulings_subject_trgm_active_idx",
+    "policy hts_rag_alsand_runtime_library_read on hts_rag.hts_rag_rulings",
+    "policy hts_rag_prod_runtime_library_read on hts_rag.hts_rag_rulings",
+    "schema extensions",
+    "table hts_rag.hts_rag_ruling_codes",
+    "table hts_rag.hts_rag_rulings"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "git diff --check origin/main...HEAD",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Includes review fix #5176. Parsed migration objects match issue #5163 writes (structuralWritesMatch true). Migration plus the #5015 and #5163 contracts pass on a disposable pgvector Postgres 17; full-corpus copy p95 149 ms over 80 POP queries."
+  ],
+  "stop_conditions_hit": []
+}
