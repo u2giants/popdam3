@@ -505,12 +505,12 @@ async function loadTaxonomy(): Promise<TaxonomyEntry[]> {
   // core-licensor/property contract. core.licensor carries the merch-group
   // `code` (WARNER BROS=WB, AARDMAN ANIMATIONS=AA, TOEI - ONE PIECE=1P); folders
   // frequently store that code rather than the legal name, so we resolve against
-  // name AND code. Characters have no populated `core.character` yet (0 rows), so
-  // the legacy public.characters catalog remains the only source for that facet.
+  // name AND code. Characters come from the licensor-scraped `core.character`
+  // list; the DesignFlow public.characters catalog is retired.
   const [licensorsResult, propertiesResult, charactersResult, licensorAliasesResult, propertyAliasesResult] = await Promise.all([
     client.schema("core").from("licensor").select("id, name, code"),
     client.schema("core").from("property").select("id, name"),
-    client.from("characters").select("name"),
+    client.schema("core").from("character").select("name"),
     client.schema("core").from("licensor_alias").select("alias, licensor_id"),
     client.schema("core").from("property_alias").select("alias, property_id"),
   ]);

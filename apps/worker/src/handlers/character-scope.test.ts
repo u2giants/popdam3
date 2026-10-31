@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveCharacterScope, skuLicensorCode } from "./ai-tagging-shared.js";
+import { resolveCharacterScope, skuLicensorCode, buildImageTaggingPrompt, LICENSOR_CHARACTER_LIST_LIMIT } from "./ai-tagging-shared.js";
 
 const passthrough = <T>(query: PromiseLike<T>) => Promise.resolve(query);
 const noop = () => {};
@@ -42,4 +42,52 @@ test("without licensing ids the SKU licensor code scopes characters, never the g
   const scope = await resolveCharacterScope(fakeClient({ sku: "VS162PNUT01", licensor_id: null, property_id: null, is_licensed: true }, [{ id: "peanuts", code: "PN" }]),
     { style_group_id: "g", licensor_id: null, property_id: null, sku: null }, passthrough, noop);
   assert.deepEqual(scope, { licensor_id: "peanuts", property_id: null, unlicensed: false });
+});
+
+function catalogClient(links: { id: string; name: string }[], licensorChars: { id: string; name: string }[]) {
+  const table = (name: string) => {
+    const answer = () => {
+      if (name === "property_character_associations") return links.map(character => ({ character }));
+      if (name === "character") return licensorChars;
+      if (name === "property") return { licensor_id: "lic" };
+      return null;
+    };
+    const chain = {
+      select: () => chain, eq: () => chain, in: () => chain, order: () => chain,
+      limit: (n: number) => name === "character"
+        ? Promise.resolve({ data: licensorChars.slice(0, n), error: null })
+        : chain,
+      maybeSingle: async () => ({ data: name === "property" ? answer() : null, error: null }),
+      then: (resolve: (v: unknown) => void) => Promise.resolve({ data: answer(), error: null }).then(resolve),
+    };
+    return chain;
+  };
+  return { from: table, schema: () => ({ from: table }) } as never;
+}
+
+const promptAsset = (property_id: string | null, licensor_id: string | null) => ({
+  id: "a", filename: "f.png", relative_path: null, file_type: "png", tags: null, licensor_id, property_id,
+  thumbnail_url: "t", status: "pending", ai_tagged_at: null, sku: null, division_code: null, style_group_id: null,
+});
+
+async function offered(client: never, asset: ReturnType<typeof promptAsset>) {
+  let ids: string[] = [];
+  await buildImageTaggingPrompt(asset, { client, onCharacterCatalog: v => { ids = v; } });
+  return ids;
+}
+
+const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+test("a property's linked licensor characters are offered", async () => {
+  assert.deepEqual(await offered(catalogClient([{ id: uuid(1), name: "Stitch" }], []), promptAsset("p", "lic")), [uuid(1)]);
+});
+
+test("an unlinked property falls back to a small licensor list", async () => {
+  const chars = [{ id: uuid(2), name: "Kermit" }, { id: uuid(3), name: "Elmo" }];
+  assert.deepEqual((await offered(catalogClient([], chars), promptAsset("p", null))).sort(), [uuid(2), uuid(3)]);
+});
+
+test("a licensor list too large to show offers no characters", async () => {
+  const chars = Array.from({ length: LICENSOR_CHARACTER_LIST_LIMIT + 1 }, (_, i) => ({ id: uuid(i + 10), name: `C${i}` }));
+  assert.deepEqual(await offered(catalogClient([], chars), promptAsset("p", "lic")), []);
 });
