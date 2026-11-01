@@ -43,6 +43,11 @@ POOLER_URL="$(cat "$LINK_DIR/supabase/.temp/pooler-url")"
 POOLER_HOSTPORT="${POOLER_URL#*@}"
 POOLER_HOSTPORT="${POOLER_HOSTPORT%%/*}"
 CONNINFO="host=${POOLER_HOSTPORT%%:*} port=${POOLER_HOSTPORT##*:} dbname=postgres user=postgres.${PROJECT_REF} sslmode=require"
+# `supabase link` authenticates through the access token, so an empty database
+# password would otherwise reach psql unnoticed; fail loudly instead, and pass
+# the password both in the conninfo and the environment.
+[[ -n "${SUPABASE_DB_PASSWORD:-}" ]] || { echo "SUPABASE_DB_PASSWORD is empty"; exit 1; }
+CONNINFO="$CONNINFO password=${SUPABASE_DB_PASSWORD}"
 export PGPASSWORD="$SUPABASE_DB_PASSWORD"
 
 TIMINGS_FILE="$OUT_DIR/timings.txt"
