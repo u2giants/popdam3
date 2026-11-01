@@ -74,5 +74,6 @@ import { ERP_MISSING_CATEGORY_OR } from "./erp.js";
 test("ERP classify candidate scan treats empty-string mg_category as missing", () => {
   // The ColdLion mirror normalizes mGCategory to '' (never NULL). The scan
   // filter must cover both, or the AI path matches zero rows (u2giants/popdam3#616).
-  assert.equal(ERP_MISSING_CATEGORY_OR, "mg_category.is.null,mg_category.eq.''");
+  assert.equal(ERP_MISSING_CATEGORY_OR, 'mg_category.is.null,mg_category.eq.""');
+  // PostgREST parses eq."" as an empty-string match; eq.'' would match a literal two-quote string and match nothing.
 });
