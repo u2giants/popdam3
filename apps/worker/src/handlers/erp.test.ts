@@ -69,11 +69,96 @@ test("ERP apply results must match the item count and normalise ids", () => {
   assert.throws(() => parseErpApplyResults(null, 1), /results for 1 items/);
 });
 
-import { ERP_MISSING_CATEGORY_OR } from "./erp.js";
+import { ERP_MISSING_CATEGORY_OR, ERP_APPLY_MIN_PAGE_SIZE, handleApplyErpEnrichment, isErpTransientDbTimeout, nextErpApplyPageSize } from "./erp.js";
 
 test("ERP classify candidate scan treats empty-string mg_category as missing", () => {
   // The ColdLion mirror normalizes mGCategory to '' (never NULL). The scan
   // filter must cover both, or the AI path matches zero rows (u2giants/popdam3#616).
   assert.equal(ERP_MISSING_CATEGORY_OR, 'mg_category.is.null,mg_category.eq.""');
   // PostgREST parses eq."" as an empty-string match; eq.'' would match a literal two-quote string and match nothing.
+});
+
+// ── #630: transient-timeout page downsizing ─────────────────────────────────
+
+test("only statement/lock timeouts count as transient page failures", () => {
+  assert.equal(isErpTransientDbTimeout("apply_erp_item_updates failed: canceling statement due to statement timeout"), true);
+  assert.equal(isErpTransientDbTimeout("apply_erp_item_updates failed: canceling statement due to lock timeout"), true);
+  assert.equal(isErpTransientDbTimeout("assets lookup failed: operation timed out (57014)"), true);
+  assert.equal(isErpTransientDbTimeout("assets lookup failed: relation does not exist"), false);
+  assert.equal(isErpTransientDbTimeout(undefined), false);
+});
+
+test("page halving floors at ten", () => {
+  assert.equal(nextErpApplyPageSize(100), 50);
+  assert.equal(nextErpApplyPageSize(25), 12);
+  assert.equal(nextErpApplyPageSize(12), ERP_APPLY_MIN_PAGE_SIZE);
+  assert.equal(nextErpApplyPageSize(ERP_APPLY_MIN_PAGE_SIZE), ERP_APPLY_MIN_PAGE_SIZE);
+});
+
+/** Page-fetch-only fake: resolves transient errors, then a final empty page. */
+class TimeoutThenEmptyClient {
+  public pageSizes: number[] = [];
+  constructor(private transientFailures: number, private finalError: string | null = null) {}
+  schema() { return { from: () => this.builder() }; }
+  private builder() {
+    const b: Record<string, unknown> = {
+      select: () => b, not: () => b, neq: () => b, order: () => b, gt: () => b,
+      limit: (count: number) => { this.pageSizes.push(count); return b; },
+      then: (resolve: (v: { data: unknown[]; error: { message: string } | null }) => void) => {
+        if (this.transientFailures > 0) {
+          this.transientFailures -= 1;
+          resolve({ data: [], error: { message: "apply_erp_item_updates failed: canceling statement due to statement timeout" } });
+        } else if (this.finalError) {
+          const message = this.finalError;
+          this.finalError = null;
+          resolve({ data: [], error: { message } });
+        } else {
+          resolve({ data: [], error: null });
+        }
+      },
+    };
+    return b;
+  }
+}
+
+const OP_STATE = {
+  status: "running",
+  cursor: "22d04f21-aa69-4443-a2b2-913253903176",
+  params: { mode: "apply" },
+  progress: { total: 2100 },
+  run_id: "run-630",
+} as never;
+
+test("a transient-timeout page retries the same cursor at halved sizes, then succeeds", async () => {
+  const client = new TimeoutThenEmptyClient(2);
+  const result = await handleApplyErpEnrichment(OP_STATE, client as never);
+  assert.deepEqual(client.pageSizes, [100, 50, 25]);
+  assert.equal(result.ok, true);
+  assert.equal(result.done, true);
+  assert.equal(result.retry_page_size, 25);
+});
+
+test("non-transient page errors return immediately without downsizing", async () => {
+  const client = new TimeoutThenEmptyClient(0, "relation does not exist");
+  const result = await handleApplyErpEnrichment(OP_STATE, client as never);
+  assert.deepEqual(client.pageSizes, [100]);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "relation does not exist");
+});
+
+test("downsizing is bounded: four halvings then the page error parks the op", async () => {
+  const client = new TimeoutThenEmptyClient(99);
+  const result = await handleApplyErpEnrichment(OP_STATE, client as never);
+  assert.deepEqual(client.pageSizes, [100, 50, 25, 12, 10]);
+  assert.equal(result.ok, false);
+  assert.match(String(result.error), /statement timeout/);
+});
+
+test("a persisted working page size is the first size tried", async () => {
+  const client = new TimeoutThenEmptyClient(0);
+  const state = { ...OP_STATE, progress: { total: 2100, retry_page_size: 25 } } as never;
+  const result = await handleApplyErpEnrichment(state, client as never);
+  assert.deepEqual(client.pageSizes, [25]);
+  assert.equal(result.ok, true);
+  assert.equal(result.retry_page_size, 25);
 });

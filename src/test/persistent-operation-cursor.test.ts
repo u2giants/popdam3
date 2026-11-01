@@ -30,3 +30,10 @@ describe("reprocess-metadata fill mode cursor", () => {
     expect(isResumableOperationCursor("reprocess-metadata", "garbage")).toBe(false);
   });
 });
+
+describe("erp-enrichment apply cursor (#630)", () => {
+  it("resumes its canonical-item UUID keyset cursor instead of restarting from cursor 0", () => {
+    expect(isResumableOperationCursor("erp-enrichment", "22d04f21-aa69-4443-a2b2-913253903176")).toBe(true);
+    expect(isResumableOperationCursor("erp-enrichment", "not-a-uuid")).toBe(false);
+  });
+});

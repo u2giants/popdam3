@@ -7,6 +7,9 @@ const CURSOR = "ai1:2:123e4567-e89b-42d3-a456-426614174000";
 test("auto-resume accepts only known AI string cursors", () => {
   assert.equal(isValidAutoResumeCursor("ai-tag-untagged", CURSOR), true);
   assert.equal(isValidAutoResumeCursor("ai-tag-all", "uuid-only"), false);
+  // #630: erp-enrichment apply checkpoints a bare UUID keyset cursor over
+  // api.plm_item_list.id; its statement-timeout interruptions must auto-resume.
+  assert.equal(isValidAutoResumeCursor("erp-enrichment", "123e4567-e89b-42d3-a456-426614174000"), true);
   assert.equal(isValidAutoResumeCursor("erp-enrichment", CURSOR), false);
   assert.equal(isValidAutoResumeCursor("erp-enrichment", 10), true);
   assert.equal(isValidAutoResumeCursor("reprocess-metadata", "123e4567-e89b-42d3-a456-426614174000"), true);

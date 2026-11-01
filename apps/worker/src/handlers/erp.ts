@@ -272,11 +272,62 @@ function firstRowByMatchKey(rows: unknown): Map<string, Record<string, unknown>>
  * table, one atomic apply_erp_item_updates call, and one audit-log insert.
  * Every read/write error fails the page without advancing the cursor (#205);
  * the handler is idempotent so the retry is safe.
+ *
+ * A full 100-item page's apply RPC runs close to the statement cap once the
+ * per-row DAM-search refresh triggers fire, so under concurrent load a page can
+ * cancel with a statement/lock timeout even though nothing is wrong (#630).
+ * The handler therefore retries a transient-timeout page at the SAME cursor
+ * with a halved page size — at most ERP_APPLY_MAX_DOWNSIZE_STEPS times, never
+ * below ERP_APPLY_MIN_PAGE_SIZE — and only then parks as before. The working
+ * page size is reported as retry_page_size so later ticks start there instead
+ * of re-burning a timeout at 100. No changes to the RPC, triggers or search
+ * logic; every smaller page keeps the same per-page atomicity contract.
  */
+export const ERP_APPLY_PAGE_SIZE = 100;
+export const ERP_APPLY_MIN_PAGE_SIZE = 10;
+// Four halvings take a full page 100 -> 50 -> 25 -> 12 -> 10, ending exactly
+// at the floor; one more transient failure there parks the op as before.
+export const ERP_APPLY_MAX_DOWNSIZE_STEPS = 4;
+
+/** Exactly the two transient DB cap classes observed for this op (#630). */
+export function isErpTransientDbTimeout(message: string | undefined): boolean {
+  return typeof message === "string" && /statement timeout|lock timeout|57014/i.test(message);
+}
+
+export function nextErpApplyPageSize(size: number): number {
+  return Math.max(ERP_APPLY_MIN_PAGE_SIZE, Math.floor(size / 2));
+}
+
 export async function handleApplyErpEnrichment(opState: OpState, client: DB = db()): Promise<BatchResult> {
   const mode = (opState.params?.mode as string) || "apply";
-  const batchSize = 100;
   const afterId = erpKeysetAfter(opState.cursor);
+  const persistedSize = opState.progress?.retry_page_size;
+  let pageSize = Number.isSafeInteger(persistedSize)
+    && (persistedSize as number) >= ERP_APPLY_MIN_PAGE_SIZE
+    && (persistedSize as number) <= ERP_APPLY_PAGE_SIZE
+    ? persistedSize as number
+    : ERP_APPLY_PAGE_SIZE;
+  let downsizeSteps = 0;
+  for (;;) {
+    const result = await runErpApplyPage(mode, afterId, opState, client, pageSize);
+    if (result.ok) return { ...result, retry_page_size: pageSize };
+    if (!isErpTransientDbTimeout(result.error)
+      || pageSize <= ERP_APPLY_MIN_PAGE_SIZE
+      || downsizeSteps >= ERP_APPLY_MAX_DOWNSIZE_STEPS) {
+      return result;
+    }
+    pageSize = nextErpApplyPageSize(pageSize);
+    downsizeSteps += 1;
+  }
+}
+
+async function runErpApplyPage(
+  mode: string,
+  afterId: string | null,
+  opState: OpState,
+  client: DB,
+  batchSize: number,
+): Promise<BatchResult> {
   const processedBefore = typeof opState.progress?.total === "number" && afterId ? opState.progress.total : 0;
   const runId = typeof opState.run_id === "string" && opState.run_id.length > 0
     ? opState.run_id
