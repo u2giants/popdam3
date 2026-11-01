@@ -109,8 +109,11 @@ begin
   end if;
   select pg_get_functiondef('public.replace_asset_ai_tag_result(uuid,text,text,jsonb)'::regprocedure)
     into v_definition;
-  if position('refresh_dam_search_documents_batch(array[p_asset_id], ''{}''::uuid[], 2)' in v_definition) = 0 then
-    raise exception 'bounded search refresh contract changed';
+  -- One set-based write: the statement triggers refresh the asset, so a per-tag
+  -- loop or a trailing refresh would bring back the save timeout (#5377).
+  if position('refresh_dam_search_documents_batch' in v_definition) > 0
+     or position('for r in' in v_definition) > 0 then
+    raise exception 'set-based tag save contract changed';
   end if;
 end
 $$;
