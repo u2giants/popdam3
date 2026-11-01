@@ -1,4 +1,6 @@
-# Review service recovery policy
+# Review service recovery policy (ARCHIVED)
+
+> **Archived 2026-10-31.** Superseded by the 2026-10-29 owner rulings (review is advisory, never required; popcre/ai-devops#2041). The allocator, redraw and replacement machinery described here no longer gates anything. Kept for history only.
 
 Owner-authorized implementation is tracked on [#4297](https://github.com/popcre/shared-db/issues/4297). The combined source was externally merged through PR #4294; remaining audit and conservative-counting repairs continue on that same work issue. Original source, history and attribution are preserved. The earlier external merge is not evidence of independent approval. This tooling policy requires one independent exact-head approval for every change, including migrations (owner ruling §6.27), and preserves guarded merge. Every drawn slot still owes its own qualifying verdict.
 

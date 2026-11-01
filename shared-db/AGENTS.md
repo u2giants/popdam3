@@ -421,11 +421,11 @@ The withdrawal-confirmation question is **settled** in [`docs/business-rules/lic
   included, waits for or needs an AI verdict to merge. Lease, migration ordering, collision checks,
   tests, preview rehearsal and production owner authorization still bind. Supersedes the review
   parts of the three rulings below. Full text: [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md).
-- **Never ask a human to approve (Albert Hazan, 2026-09-28).** Allocator-assigned AI review
-  gates technical actions; the AI performs every manual step itself. Full text: §1 below.
+- **Never ask a human to approve (Albert Hazan, 2026-09-28).** The AI performs every manual
+  step itself. AI review is advice only (2026-10-29). Full text: §1 below.
 - **Albert is not a technical reviewer, now or in the future (Albert Hazan, 2026-09-30).**
-  Production risk classes are accepted by the allocator-assigned AI reviewer's durable exact-head
-  assessment, never by Albert. Full text: [`owner-rulings.md` §6.23](docs/owner-rulings.md).
+  Production risk classes are accepted by the automatic promotion workflow (plan_skinny-review
+  rule 8.6: preview rehearsal, tests, no open review-finding issue), never by Albert. Full text: [`owner-rulings.md` §6.23](docs/owner-rulings.md).
 - **One independent review is enough for every change (Albert Hazan, 2026-10-14, verbatim:
   "change the rules so that we don't need 2 reviews").** The two-slot migration minimum is
   retired. Full text: [`owner-rulings.md` §6.27](docs/owner-rulings.md).
@@ -498,8 +498,8 @@ code, manage branches, or merge pull requests. Therefore:
   i am a solo vibe coder with no technical knowledge. ai has to do everything
   for me without asking me to do manual things. institute that.").** Before
   anything hard to undo (dropping a column, applying to production, deleting
-  data), make it recoverable and get the allocator-assigned AI reviewer's
-  exact-head APPROVE; that review is the gate. The AI performs every manual
+  data), make it recoverable first. AI review is advice only and never a gate
+  (owner rulings 2026-10-29). The AI performs every manual
   step itself (access, tooling, keys). Ask Albert only genuine business-meaning
   questions, and report risk in plain English afterwards.
 
@@ -554,32 +554,7 @@ to "spend" only one review.
    event-aware waiter, concurrently. Never end a turn to report that something
    is still running.
 
-**What this does NOT change — and must never be traded for speed:**
-
-- The exact-head APPROVE requirement stands exactly as enforced by
-  `scripts/check-exact-head-approval.mjs`. A review
-  bound to an earlier head does not authorize a later head, and the only
-  equivalence permitted is the narrow, already-enforced #2758 rule
-  (`scripts/lib/pr-content-equivalence.mjs`): an ancestor head whose pull-request
-  diff is byte-identical, ignoring only `.agent/` evidence files. A tree-identical
-  re-push keeps every existing review (slot 1 is not re-drawn). A returned or refused
-  slot cannot be revived from an older assignment; the newest valid assignment
-  controls. **Owner ruling 2026-10-14: one independent exact-head APPROVE is
-  enough for every change, including migrations.**
-- **The proposal in #3002 to accept a review bound to a head whose only later
-  change is test or evidence files is REFUSED.** Tests are code: a changed test
-  changes what the change proves, and a reviewer who never saw it never reviewed
-  it. Widening equivalence beyond `.agent/` would be reviewing less, not
-  reviewing faster.
-- **Retiring a required check is an AI decision with evidence (owner ruling
-  2026-09-28, see `docs/agents/owner-rulings.md`).** A required check may be
-  retired, merged into another, or made advisory when measured evidence shows it
-  mostly fails for reasons unrelated to the change; the pull request carrying it
-  states the exact before/after required-check list and gets an assigned AI
-  reviewer's APPROVE before branch protection changes. On any single pull
-  request no gate is skipped, and no reviewer
-  requirement is dropped. Speed comes from parallelising; do not delete the
-  exact-head review.
-
-`scripts/check-review-parallelism-brief.mjs` holds this brief and this refusal in
-place, and fails the tools-offline check if either is removed or contradicted.
+**Superseded (owner rulings 2026-10-29, 2026-10-29 night, 2026-10-30 #2172):** no exact-head
+APPROVE is required anywhere; `scripts/check-exact-head-approval.mjs` and
+`check-review-parallelism-brief.mjs` are deleted. The one advisory CI review runs once per PR;
+its findings become `review-finding` issues, which hold only automatic production promotion.
