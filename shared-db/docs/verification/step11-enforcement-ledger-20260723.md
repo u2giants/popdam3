@@ -1,6 +1,6 @@
 # Step 11 enforcement ledger — 2026-07-23
 
-Authoritative plan: [`DB_Data_Admin.md`](../../DB_Data_Admin.md) §10 sub-step 11.  
+Authoritative plan: [`DB_Data_Admin.md`](https://github.com/popcre/shared-db/blob/main/DB_Data_Admin.md) §10 sub-step 11.  
 This ledger records every serialized sub-step, evidence, and remaining gates.
 
 ## Shared-db in-flight (start of session)

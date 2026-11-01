@@ -105,7 +105,7 @@ The local password-login failure is frontend-direct: the Angular local environme
 `/findUserLoginInfo` to Backend on port 5000. It does not traverse the BFF locally. The BFF's
 30-second normal-route timeout remains relevant to deployed verification, not the local timing
 measurement. The complete corrective implementation and evidence gates are in the repository
-root [`fix_connection_pool.md`](../../fix_connection_pool.md).
+root [`fix_connection_pool.md`](https://github.com/popcre/shared-db/blob/main/fix_connection_pool.md).
 
 ## Initial Slice-A implementation and sandbox verification (2026-07-17)
 

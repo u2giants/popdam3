@@ -1,6 +1,6 @@
 # Step 3 — cross-repository call graph for expensive rebuilds and projection churn
 
-**Plan:** [`plan_database_efficiency_and_api_security.md`](../../../../plan_database_efficiency_and_api_security.md) Step 3
+**Plan:** [`plan_database_efficiency_and_api_security.md`](https://github.com/popcre/shared-db/blob/main/plan_database_efficiency_and_api_security.md) Step 3
 **Tracking issue:** [#2326](https://github.com/u2giants/shared-db/issues/2326) (see also #2213, #2214, #2215)
 **Captured:** 2026-09-04, 21:28–21:35 UTC
 **Target proved before reading:** `get_project_url` returned `https://qsllyeztdwjgirsysgai.supabase.co` (production, project ref `qsllyeztdwjgirsysgai`)

@@ -9,7 +9,7 @@ forbade running Phase 2A against production, so production facts remain the alre
 [`../licensor-property-cutover-baseline-20260724.md`](../licensor-property-cutover-baseline-20260724.md).
 
 This folder completes the residual Phase 0 evidence required by
-[`fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md)
+[`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md)
 §2 and §15.1 before Phase 2A importer implementation. It separates freshly measured
 preview/API facts from the existing production snapshot and contains the full row-level
 inventories that were missing from the earlier summary.

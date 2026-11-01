@@ -1,7 +1,7 @@
 # DB Data Admin Step 6 — per-app serving and administrator read contracts
 
 Date: 2026-07-21
-Specification: [`../../DB_Data_Admin.md`](../../DB_Data_Admin.md) (Delivery Step 6)
+Specification: [`../../DB_Data_Admin.md`](https://github.com/popcre/shared-db/blob/main/DB_Data_Admin.md) (Delivery Step 6)
 Inventory: [`../db-data-admin-inventory.md`](../db-data-admin-inventory.md)
 Foundation evidence: [`db-data-admin-foundation-20260722.md`](db-data-admin-foundation-20260722.md)
 Merge-coverage evidence: [`db-data-admin-merge-coverage-20260722.md`](db-data-admin-merge-coverage-20260722.md)

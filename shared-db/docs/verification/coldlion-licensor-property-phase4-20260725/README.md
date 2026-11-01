@@ -5,7 +5,7 @@
 **Production (`qsllyeztdwjgirsysgai`):** never connected or modified · **DesignFlow:** untouched · **Result:** **PASS**
 
 This folder is the Phase 4 deliverable for
-[`fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md) §15.3
+[`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md) §15.3
 and the user approval of 2026-07-25: link **ONLY** the 542 exact-compatible proposed mappings
 (38 licensor + 504 property rows → 271 distinct canonical UUIDs), hash-pinned to
 `1230f5a12d0f2a3029f1d3df17fc5b5f`.

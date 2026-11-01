@@ -22,7 +22,7 @@
 deleted. Production `qsllyeztdwjgirsysgai` was never contacted.**
 
 This is the deliverable that the Phase 3 backfill is blocked on
-([`fix_characters_style_guides.md`](../../../fix_characters_style_guides.md) Phase 3,
+([`fix_characters_style_guides.md`](https://github.com/popcre/shared-db/blob/main/fix_characters_style_guides.md) Phase 3,
 model doc [§7 question 4](../../style-guides-characters-and-royalties.md)):
 **how do 9,622 character *appearances* collapse into canonical character identities?**
 

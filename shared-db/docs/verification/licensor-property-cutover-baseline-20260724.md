@@ -7,7 +7,7 @@
 > That completion used fresh ColdLion and preview reads only; no production query or
 > importer run was performed in the Phase 2A session.
 
-**Why this exists.** [`fix_coldlion_licensor_property_cutover.md`](../../fix_coldlion_licensor_property_cutover.md)
+**Why this exists.** [`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md)
 §2 requires a fresh dated baseline before Phase 0, because the `20 / 256` figures it was
 written against predate [PR #198](https://github.com/u2giants/shared-db/pull/198) (the PopSG
 manual licensor backfill), which is now merged. This is that re-measurement.
@@ -89,7 +89,7 @@ for the full division matrix and response shape.
 ## Implications for the plan
 
 1. **Replace `20 / 256` with `26 / 256`** as the reconciliation target in
-   [`fix_coldlion_licensor_property_cutover.md`](../../fix_coldlion_licensor_property_cutover.md) §2.
+   [`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md) §2.
 2. **The licensor delta is no longer "ColdLion 22 vs canonical 20" (2 rows).** It is now 22
    ColdLion vs 26 canonical, and 6 of the canonical rows are provenance-free manual adds that
    ColdLion will never contain. The reconciliation categories in §7.1 must include a

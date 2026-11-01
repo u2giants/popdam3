@@ -734,8 +734,8 @@ CRM, PM, or all of DAM is production-proven.**
 
 | Artifact | Path |
 |---|---|
-| Phase 6 handoff | [`fix_coldlion_licensor_property_phase6_handoff.md`](../../../fix_coldlion_licensor_property_phase6_handoff.md) |
-| Cutover plan | [`fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md) |
+| Phase 6 handoff | [`fix_coldlion_licensor_property_phase6_handoff.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_phase6_handoff.md) |
+| Cutover plan | [`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md) |
 | Parser fix PR | #233 / merge `18ab164ce503ba875413a7d4573597032c56be81` |
 | Phase 4 links | [`../coldlion-licensor-property-phase4-20260725/`](../coldlion-licensor-property-phase4-20260725/README.md) |
 | Phase 5 NOT NEEDED | [`../coldlion-licensor-property-phase5-not-needed-20260726/`](../coldlion-licensor-property-phase5-not-needed-20260726/README.md) |

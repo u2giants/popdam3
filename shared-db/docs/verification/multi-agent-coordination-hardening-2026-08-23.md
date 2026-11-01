@@ -1,6 +1,6 @@
 # Verification — provider-neutral multi-agent database coordination hardening
 
-**Plan:** [`plan_multi_agent_database_coordination_hardening.md`](../../plan_multi_agent_database_coordination_hardening.md)
+**Plan:** [`plan_multi_agent_database_coordination_hardening.md`](https://github.com/popcre/shared-db/blob/main/plan_multi_agent_database_coordination_hardening.md)
 **Tracking issue:** [#1366](https://github.com/u2giants/shared-db/issues/1366)
 **Date:** 2026-08-23
 **Work class:** repository maintenance. **No database, migration, or secret was changed by any step.**

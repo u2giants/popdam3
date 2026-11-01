@@ -1,7 +1,7 @@
 # Issue lead-time baseline — `u2giants/shared-db`, 2026-08-27
 
 The artifact behind the success target in
-[`plan_orchestrator_throughput_guard_truth.md`](../../plan_orchestrator_throughput_guard_truth.md)
+[`plan_orchestrator_throughput_guard_truth.md`](https://github.com/popcre/shared-db/blob/main/plan_orchestrator_throughput_guard_truth.md)
 section 1. It exists because the plan set a numeric goal with nothing a reader could
 re-derive, and an independent review (Grok 4.6, 2026-08-27) correctly called that out
 under the plan's own evidence rule.

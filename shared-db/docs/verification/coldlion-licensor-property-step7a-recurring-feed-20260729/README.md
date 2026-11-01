@@ -3,7 +3,7 @@
 **Date:** 2026-07-29
 **Environment:** PREVIEW `rjyboqwcdzcocqgmsyel` only. Production `qsllyeztdwjgirsysgai` was never
 linked, never pushed to, never queried and never written during this work.
-**Plan:** [`plan_coldlion_licensor_property_accelerated_cutover.md`](../../../plan_coldlion_licensor_property_accelerated_cutover.md)
+**Plan:** [`plan_coldlion_licensor_property_accelerated_cutover.md`](https://github.com/popcre/shared-db/blob/main/plan_coldlion_licensor_property_accelerated_cutover.md)
 Step 7A.
 **Human response owner:** Albert Hazan.
 

@@ -5,7 +5,7 @@
 **Production:** not connected or modified · **DesignFlow:** enabled (fresh read-only snapshot obtained) · **Schedule:** none (0 matching jobs)
 
 This folder is the Phase 3 deliverable for
-[`fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md) §15.3:
+[`fix_coldlion_licensor_property_cutover.md`](https://github.com/popcre/shared-db/blob/main/fix_coldlion_licensor_property_cutover.md) §15.3:
 a row-level ruling ledger for every ColdLion source row and every canonical Licensor/Property row,
 typed dispositions and named human owners for every non-automatic decision, parent-edge evidence,
 and the **exact frozen + hashed Phase 4 approved-mapping input**. Phase 3 does **not** link or create

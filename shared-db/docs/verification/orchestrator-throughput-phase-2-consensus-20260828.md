@@ -1,6 +1,6 @@
 # Orchestrator throughput Phase 2 — consensus ledger
 
-**Plan:** [`../../plan_orchestrator_throughput_phase_2.md`](../../plan_orchestrator_throughput_phase_2.md)
+**Plan:** [`../../plan_orchestrator_throughput_phase_2.md`](https://github.com/popcre/shared-db/blob/main/plan_orchestrator_throughput_phase_2.md)
 **Issue:** #1738
 **Starting commit:** `1eacdacd52a5d6bbd212f718967391df1381138d`
 **Reviewers:** Codex, Grok 4.6, Claude Opus 5

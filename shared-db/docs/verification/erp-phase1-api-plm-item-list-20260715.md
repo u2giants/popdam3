@@ -1,6 +1,6 @@
 # Verification — ERP Phase 1: `api.plm_item_list` serving view (2026-07-15)
 
-Durable evidence for Phase 1 of [`../../fix_schema_for_api.md`](../../fix_schema_for_api.md).
+Durable evidence for Phase 1 of [`../../fix_schema_for_api.md`](https://github.com/popcre/shared-db/blob/main/fix_schema_for_api.md).
 Migration: `supabase/migrations/20260715193000_erp_phase1_api_plm_item_list.sql` · PR
 [#70](https://github.com/u2giants/shared-db/pull/70).
 
