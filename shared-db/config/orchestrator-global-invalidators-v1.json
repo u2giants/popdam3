@@ -2,8 +2,6 @@
   "schema_version": 1,
   "files": [
     ".github/workflows/author-lane-abandonment-audit.yml",
-    ".github/workflows/guarded-migration-merge.yml",
-    ".github/workflows/migration-author-lease.yml",
     ".github/workflows/shared-supabase-migrations.yml",
     "AGENTS.md",
     "config/atomic-migration-allowlist.json",

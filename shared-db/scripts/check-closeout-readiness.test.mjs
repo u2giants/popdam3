@@ -74,21 +74,6 @@ test('the contract workflow takes the classification only from protected base po
   assert.doesNotMatch(workflow, /github\.event_name != 'pull_request' \|\|/)
 })
 
-test('every documents-only decision that can waive a safeguard uses protected policy', () => {
-  const agent = jobBlockByName(readFileSync(fileURLToPath(new URL('../.github/workflows/pr-guards.yml', import.meta.url)), 'utf8').replace(/\r\n/g, '\n'), 'Agent work contract')
-  assert.ok(agent, 'no job emits Agent work contract')
-  const merge = readFileSync(fileURLToPath(new URL('../.github/workflows/guarded-migration-merge.yml', import.meta.url)), 'utf8').replace(/\r\n/g, '\n')
-  assert.match(agent, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \|\| steps\.queue\.outputs\.pr_base_sha \}\}/)
-  // The exemption is decided on merge_group too, after the queued PR is resolved.
-  assert.match(agent, /id: documents_only\n        if: github\.event_name == 'merge_group' \|\| github\.event_name == 'workflow_dispatch'/)
-  assert.ok(agent.indexOf('id: queue') < agent.indexOf('id: documents_only'))
-  assert.match(agent, /node trusted-policy\/scripts\/check-documents-only-pull-request\.mjs/)
-  assert.match(agent, /steps\.documents_only\.outputs\.value/)
-  assert.match(merge, /ref: main\n          path: trusted-policy/)
-  // Owner 2026-10-29: review is advisory; no pass calls the approval gate.
-  assert.match(merge,/for attempt in 1 2 3 4 5; do\n\s+prove_retained_all14/)
-})
-
 test('a failed file-list read refuses with exit 2 and never reports inapplicable', () => {
   const out = []
   assert.equal(main(['fixture-owner/fixture-repo', '1', SHA], { read: () => { throw new Error('HTTP 403') }, out: (t) => out.push(t), err: () => {} }), 2)

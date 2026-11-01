@@ -497,6 +497,6 @@ test('#3675 an APPROVE filed under the claim number instead of the work issue do
 
 test('#3675 this suite is wired into the lane-test CI step', async () => {
   const { readFileSync } = await import('node:fs')
-  const workflow = readFileSync(new URL('../.github/workflows/migration-author-lease.yml', import.meta.url), 'utf8')
+  const workflow = readFileSync(new URL('../.github/workflows/tools-offline-tests.yml', import.meta.url), 'utf8')
   assert.match(workflow, /scripts\/migration-retirement-tombstones\.test\.mjs/)
 })

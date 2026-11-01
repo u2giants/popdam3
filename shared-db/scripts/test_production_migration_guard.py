@@ -2538,14 +2538,11 @@ class ApplyLaneTests(unittest.TestCase):
         self.assertIn("derivation_override:$derivation_override", dispatch)
 
     def test_admission_workflows_can_reopen_only_the_validated_linked_issue(self) -> None:
-        for workflow, job in (("guarded-migration-merge.yml", "merge"), ("preview-ledger-orphan-reconciliation.yml", "reconcile")):
+        # guarded-migration-merge.yml retired (popcre/ai-devops#2172 C2).
+        for workflow, job in (("preview-ledger-orphan-reconciliation.yml", "reconcile"),):
             text = (REPO / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
             self.assertEqual(_effective_permission(text, job, "issues"), "write", workflow)
-            if workflow == "guarded-migration-merge.yml":
-                self.assertIn("--acquire-merge", text)
-                self.assertNotIn("--admit-issue", text)
-            else:
-                self.assertIn("--admit-issue", text, workflow)
+            self.assertIn("--admit-issue", text, workflow)
         self.assertIn("--resolve-admitted-issue-for-pr", WORKFLOW_TEXT)
         for job_name in ("preview", "production-apply"):
             self.assertEqual(_effective_permission(WORKFLOW_TEXT, job_name, "issues"), "write", job_name)

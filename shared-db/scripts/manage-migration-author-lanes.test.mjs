@@ -3998,12 +3998,8 @@ test('#2758 merge lane grants a real independent-main lock and refuses an overla
 })
 
 test('issue 1688 permits success only after the appropriate merge lock is acquired', () => {
-  const leaseWorkflow=readFileSync(fileURLToPath(new URL('../.github/workflows/migration-author-lease.yml',import.meta.url)),'utf8')
-  const mergeWorkflow=readFileSync(fileURLToPath(new URL('../.github/workflows/guarded-migration-merge.yml',import.meta.url)),'utf8')
   const documentsWorkflow=readFileSync(fileURLToPath(new URL('../.github/workflows/documents-only-merge-authorization.yml',import.meta.url)),'utf8')
   const productionWorkflow=readFileSync(fileURLToPath(new URL('../.github/workflows/shared-supabase-migrations.yml',import.meta.url)),'utf8')
-  assert.doesNotMatch(leaseWorkflow,/state=success[^\n]+Migration guarded merge authorization/)
-  assert.match(mergeWorkflow,/--acquire-merge[\s\S]+state=success[^\n]+Migration guarded merge authorization/)
   assert.match(documentsWorkflow,/check-documents-only-merge-authorization\.mjs[\s\S]+--authorize-repository-maintenance-status/)
   assert.doesNotMatch(documentsWorkflow,/--acquire-(?:preview|merge|production)/)
   // popcre/ai-devops#2172 stage C2: production no longer revokes merge authorizations.
@@ -4011,7 +4007,7 @@ test('issue 1688 permits success only after the appropriate merge lock is acquir
 })
 
 test('database-only workflow acquisitions supply admission while guarded merge rederives its route', () => {
-  const files=['guarded-migration-merge.yml','shared-supabase-migrations.yml','preview-ledger-orphan-reconciliation.yml']
+  const files=['shared-supabase-migrations.yml','preview-ledger-orphan-reconciliation.yml']
   const commands=[]
   for(const file of files){
     const source=readFileSync(fileURLToPath(new URL(`../.github/workflows/${file}`,import.meta.url)),'utf8')
@@ -4023,7 +4019,7 @@ test('database-only workflow acquisitions supply admission while guarded merge r
       commands.push(`${file}: ${command}`)
     }
   }
-  assert.equal(commands.length,4,commands.join('\n'))
+  assert.equal(commands.length,3,commands.join('\n'))
   for(const command of commands){
     assert.match(command,/--pr\s+\S+/,command)
     if(command.startsWith('guarded-migration-merge.yml:')){
