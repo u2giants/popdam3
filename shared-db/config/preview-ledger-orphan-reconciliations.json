@@ -1,6 +1,34 @@
 {
   "schema": "shared-db-preview-ledger-orphan-reconciliations/v1",
   "cases": [
+    {
+      "issue": 5259,
+      "claim": 5262,
+      "source_pr": 5264,
+      "mode": "replacement_pending",
+      "orphan_version": "20261101065326",
+      "replacement_version": "20261101123510",
+      "orphan_run_head": "4f782aa7f00704a3ac834475ce718a5e5481a901",
+      "orphan_commit_sha": "5b13bb80464dd4eb9be10cb966038e2f5c2c60cd",
+      "preview_run_id": 41285451398,
+      "preview_artifact_id": 13075102086,
+      "preview_artifact_digest": "sha256:d5fa69c3e9882daf2a148c16edb98b014f046a19e16fb6938b909a459cb88129",
+      "merged_source": true
+    },
+    {
+      "issue": 5292,
+      "claim": 5293,
+      "source_pr": 5294,
+      "mode": "replacement_pending",
+      "orphan_version": "20261101074415",
+      "replacement_version": "20261101123510",
+      "orphan_run_head": "e43db7209a37350ad98b3185a1fde80f4919972f",
+      "orphan_commit_sha": "f3f61500554fce01f8e8be4d05dee0fb3736a2f3",
+      "preview_run_id": 41289391402,
+      "preview_artifact_id": 13076990465,
+      "preview_artifact_digest": "sha256:0018b7560d9bc8e3465a83be6a2ab0665800edab29b83fd598945294ce450020",
+      "merged_source": true
+    },
 {
 "issue": 5163,
 "claim": 5174,
