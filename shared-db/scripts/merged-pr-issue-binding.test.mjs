@@ -144,6 +144,11 @@ test('the resolver still refuses a merged PR with no link and no binding',()=>{
   assert.throws(()=>resolveAdmittedIssueForPr(2726,fixture().io),/must close exactly one structural work issue; found 0/)
 })
 
+test('the resolver reads the work issue from a merged PR title',()=>{
+  const {io}=fixture({pr:{...fixture().state.pr,title:'Reissue a migration (#5315)'}})
+  assert.equal(resolveAdmittedIssueForPr(2726,io).issue,5315)
+})
+
 test('reviewer assignment snapshot accepts the same verified binding and nothing looser',()=>{
   const snap=(linkedIssues)=>({pr:{state:'merged',merged_at:'2026-09-11T22:49:13Z',head:{sha:HEAD}},files:[],linkedIssues})
   const withRoute=(override={},linkedIssues=[])=>{const f=fixture(override);f.io.readReviewerOperationRoute=()=>snap(linkedIssues);return f}

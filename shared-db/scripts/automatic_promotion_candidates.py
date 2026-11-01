@@ -99,7 +99,7 @@ def run_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
 
 
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
-           applied: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
+           applied: callable = lambda run: False, main_sha: str = "") -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
@@ -113,8 +113,10 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             continue
         if held(pr["number"]):
             return "wait", pr, f"PR #{pr['number']} is held by a blocking review finding"
+        # Attempts count per main commit: a later merge may be the cure, so it earns fresh tries.
         attempts = sum(1 for t, r in zip(titles, runs)
                        if t.startswith("DB preview apply") and tag in t and r.get("created_at", "") > pr["merged_at"]
+                       and (not main_sha or f" {main_sha} " in t)
                        and r.get("conclusion") != "success")
         if attempts >= MAX_ATTEMPTS:
             return "wait", pr, f"ENGINEER ACTION REQUIRED: PR #{pr['number']} failed {attempts} automatic attempts"
@@ -147,12 +149,12 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     repo = os.environ["GITHUB_REPOSITORY"]
+    main_sha = gh(f"repos/{repo}/commits/main")["sha"]
     action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), is_held,
-                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])))
+                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])), main_sha)
     print(f"{action}: {reason}")
     if action != "dispatch" or args.dry_run:
         return 0
-    main_sha = gh(f"repos/{repo}/commits/main")["sha"]
     source = [f"merged_preview_source_pr={pr['number']}"]
     original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: any(
         j.get("name") == "preview" and j.get("conclusion") == "success" for j in run_jobs(repo, run["id"])))

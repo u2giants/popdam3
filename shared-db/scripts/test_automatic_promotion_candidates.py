@@ -9,6 +9,15 @@ APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": 
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 
 
+class AttemptsPerMainCommit(unittest.TestCase):
+    def test_a_new_main_commit_earns_fresh_attempts(self):
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        runs = [{"display_title": "DB preview apply old PR7 1", "status": "completed", "conclusion": "failure", "created_at": "2026-01-02"}] * 3
+        held = lambda n: False
+        self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "wait")
+        self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "dispatch")
+
+
 class WorkflowRunsWindow(unittest.TestCase):
     def test_reads_every_page_of_runs(self):
         pages = [{"workflow_runs": [{"id": 1}]}, {"workflow_runs": [{"id": 2}]}]

@@ -4078,6 +4078,11 @@ export function resolveAdmittedIssueForPr(pr, io = githubIo) {
   if(linked.length>1)throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
   if(linked.length===0){
     const candidate=io.getPr(Number(pr))
+    if(candidate?.merged_at){
+      // Merged without a closing keyword: its title's trailing "(#N)" names the work issue.
+      const titled=String(candidate.title??'').match(/\(#([1-9][0-9]*)\)\s*$/)
+      if(titled)return {issue:Number(titled[1]),pr:Number(pr),admission:'not-required'}
+    }
     if(!candidate||candidate.merged_at||String(candidate.state??'open').toLowerCase()!=='open')throw new LaneError('pull request must close exactly one structural work issue; found 0')
   }
   const route=linked.length===0?derivePrOperationRoute(Number(pr),io):null
