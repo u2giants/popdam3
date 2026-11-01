@@ -73,6 +73,8 @@ end $$;
 
 rollback;
 
+begin;
+
 -- #5259 amendment: a file_type correction must recompute the tier (trigger
 -- watches file_type), and artwork is the complement of 'pdf'.
 do $$
@@ -107,3 +109,5 @@ begin
     raise exception 'ZZ5259: sole artwork asset expected as primary';
   end if;
 end $$;
+
+rollback;
