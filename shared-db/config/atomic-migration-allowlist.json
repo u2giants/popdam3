@@ -66,6 +66,13 @@
         "preview",
         "production"
       ]
+    },
+    "20261101074415": {
+      "sha256": "8fc472ec0cd780b26076c098b2245c139de055f5c50b9dc155cd1d19f448f213",
+      "targets": [
+        "preview",
+        "production"
+      ]
     }
   }
 }
