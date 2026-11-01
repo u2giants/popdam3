@@ -129,7 +129,8 @@ def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
     """The oldest post-merge preview apply of this PR whose preview job succeeded, if any."""
     # Recovery runs title themselves "PR " with no number, so match the versions.
     def names_pr(title: str) -> bool:
-        words = title.split()
+        # Several versions are one comma-joined word in the title.
+        words = {v for word in title.split() for v in word.split(",")}
         return all(v in words for v in pr["versions"])
     hits = [r for r in runs
             if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(r.get("display_title") or "")
