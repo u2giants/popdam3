@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_issue": 5092,
+  "outcome": "ready-for-merge",
+  "pr": 5200,
+  "migration_versions": [
+    "20261031231417"
+  ],
+  "contract_ref": "refs/db-contracts/5092/5",
+  "contract_sha256": "c8002917e0a8a0a4557cffa4b789b2825c041f924240ac768acffed7877642e3",
+  "base_sha": "bb3f2ca0a2e9f6fa48bcc8ea5df0c1262df284c3",
+  "head_sha": "6e762f3fffeb5329d8e66ed56b4a279a1e04b94a",
+  "files_changed": [
+    "supabase/migrations/20261031231417_drop_sku_files_used_fuzzy_trigger.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed on EDGE-DEV after the origin/main refresh merge 6e762f3ff (Guard B, expected-count, verify-cost, EOL reference all green)."
+    }
+  ],
+  "assumptions_resolved": [
+    "Version 20261031231417 reserved by claim #5223 before the re-versioned file existed",
+    "Contract published to refs/db-contracts/5092/5 before the implementation commit",
+    "Generation 4 evidence retired in the implementation commit; version 20261030224416 stays reserved by the parked claim #5199",
+    "Branch refreshed against main bb3f2ca0a before merge; evidence pair rebound to the new merge base and implementation head"
+  ],
+  "stop_conditions_hit": []
+}

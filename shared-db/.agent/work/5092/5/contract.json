@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "work_issue": 5092,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 5092,
+    "generation": 4,
+    "contract_sha256": "2b27a855ca9242e1b4358374a308663f1833dc58d2768b0ac06b7224581c029b"
+  },
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Drop the per-row fuzzy resolve trigger trg_fn_resolve_sku_file_used on public.sku_files_used (park-resume re-issue of generation 4; claim #5223, reserved version 20261031231417)",
+  "base_sha": "d8fd8b0b1c25d2213c18fc5ed1b704bd8a61b87f",
+  "dispatcher": "MiMo chat ses_ffe5e7143df12ffeEiqA5kk41w on EDGE-DEV",
+  "worker": "mimo-ses_ffe5e7143df12ffeEiqA5kk41w-EDGE-DEV",
+  "branch": "mimo/drop-resolve-trigger",
+  "worktree": "D:\\repos\\shared-db-worktrees\\drop-resolve-trigger",
+  "allowed_paths": [
+    "supabase/migrations/20261031231417_drop_sku_files_used_fuzzy_trigger.sql"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261031231417_drop_sku_files_used_fuzzy_trigger.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.trg_fn_resolve_sku_file_used",
+    "table public.sku_files_used",
+    "trigger trg_resolve_sku_file_used on public.sku_files_used"
+  ],
+  "prohibited_actions": [
+    "No changes beyond dropping the trigger and its function; existing sku_files_used.style_guide_file_id values are never deleted or unlinked (quarantine model)",
+    "No direct production DDL; preview-first then the governed promotion pipeline only",
+    "Do not edit migration 20261030043848 or reuse any reserved version"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "assumptions": [
+    "Version 20261031231417 is reserved by claim #5223 and is unique",
+    "Generation 4 (version 20261030224416) stays permanently reserved by the parked claim #5199 and is never reused",
+    "The nightly fuzzy resolver resolve-sku-files-used-nightly is already unscheduled"
+  ],
+  "stop_conditions": [
+    "check-sql.sh fails on the drop migration",
+    "The lane refuses the claimed objects or the reserved version",
+    "Preview apply does not drop exactly the trigger and its function"
+  ]
+}
