@@ -75,6 +75,7 @@ Result of that cross-tab (matched source rows → core licensor):
   Warner's own `plm.wb_franchise` confirms this at franchise level: its 8 franchises are
   Adult Swim, Cartoon Network, **DC**, Hanna-Barbera, **Harry Potter**, HBO, Looney Tunes,
   Warner Bros. So `DC`/`HP` are Warner franchises in the source and licensors in our data.
+  **Superseded 2026-11-01:** that split was wrong; both are properties under Warner Bros ([ruling 6.34](owner-rulings.md)).
 - Paramount Creative Library → `VM` VIACOM MULTI. Clean: **every** Paramount match landed on
   `VM` and nothing else.
 - NBCU Creative Asset Factory → `NB` NBC. Clean: **every** NBCU match landed on `NB`.
@@ -271,7 +272,7 @@ Named examples are in `u2giants/licensor-source-data` (private).
 1. ~~**Whether the 2 genuine disagreements are wrong.**~~ **WITHDRAWN — see §4.1a.** Neither
    `Blaze` nor `Peanuts` carries a Disney studio attribution; there was no disagreement and no
    owner decision.
-2. **Whether the Marvel / Star Wars / DC / Harry Potter licensor split is intended.** It is
+2. **Whether the Marvel / Star Wars / DC / Harry Potter licensor split is intended.** (DC and Harry Potter answered 2026-11-01: not licensors, [ruling 6.34](owner-rulings.md).) It is
    consistent across all 260 core rows, which reads as deliberate, but nothing in the database
    records the intent. Owner decision, and it changes what "correct attribution" even means.
 3. **Anything about fuzzy matches.** Exact-key matching only. Titles that differ by more than

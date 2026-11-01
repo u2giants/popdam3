@@ -2220,3 +2220,17 @@ Verbatim from Albert's chat (2026-10-28):
 **Effect.** DesignFlow PLM is the single source of truth for user data, permissions, and roles across all POP applications (CRM, PopPIM, PopDAM/PopSG). Each app's Settings keeps its user card, but that card is only a frontend to DesignFlow's user administration — no application owns a separate role or permission authority. Login does not move: Microsoft SSO through Supabase Auth stays; this ruling is about who owns authorization data, not how anyone authenticates. Whatever DesignFlow's canonical model turns out to be, its authority must land in the shared rows row-level security already evaluates (`app.profile`, `app.user_role`, `app.app_access`) or every app's RLS breaks; *how* it lands there is the Phase-1 ownership contract recorded on the master issue. Master tracking issue: popcre/designflow-backend#250. Cutover plan (read its STATUS table first): u2giants/popdam3 `plan_user_permissions_designflow_cutover.md`. Business-map row: [application-map.md](business-rules/application-map.md).
 
 Posted by MiMo chat unknown on edge-dev
+
+### 6.34 OWNER RULING — DC and Harry Potter are properties under Warner Bros (Albert Hazan, 2026-11-01)
+
+Verbatim from Albert, relayed from the PopDAM session (2026-11-01):
+
+> "DC and Harry Potter were not left out. they used to (Wrongly) be listed as their own licensors. that was wrong, they are properties under Warner Bros, which is how it is now. document that everywhere it needs to be documented"
+
+**Effect.** DC and Harry Potter are not licensors. Their Properties belong to `WB` WARNER BROS, and their Characters resolve through the Warner scrape. Migration `20261101133201` moves their `core.property` rows to `WB`.
+
+Albert confirmed the move of existing rows, verbatim (2026-11-01): "Yes, move them".
+
+**SKU codes stay.** `DC` and `HP` remain valid ColdLion codes and SKU characters 6-7. They resolve to `WB`; the two `core.licensor` rows stay `inactive` so those codes and old history still have a referent. Every prior row is archived in `archive.dc_hp_wb_repoint_20261101`.
+
+Posted by Claude chat 8b15975b-42fa-4ebc-acab-6338808d482a on hetz
