@@ -1,0 +1,58 @@
+{
+ "schema_version": 1,
+ "work_issue": 5163,
+ "outcome": "ready-for-merge",
+ "pr": 5242,
+ "migration_versions": [
+  "20261101000005"
+ ],
+ "contract_ref": "refs/db-contracts/5163/10",
+ "contract_sha256": "9a0b0fca04477861032432ed1e35451337f6fe0e9ab0a97075b0975120fea2e1",
+ "head_sha": "ea1d4c62ce694faddc515935d5653d9208675531",
+ "base_sha": "69b71688f2f53772cb4db0782c3b584c517725bc",
+ "files_changed": [
+  "config/preview-ledger-orphan-reconciliations.json",
+  "scripts/test_preview_ledger_orphan_reconcile.py",
+  "supabase/migrations/20261101000005_hts_rag_ruling_search.sql"
+ ],
+ "db_reads": [],
+ "db_writes": [
+  "column hts_rag.hts_rag_rulings.search_tsv",
+  "function hts_rag.hts_rag_search_rulings",
+  "function hts_rag.hts_rag_search_rulings_pass",
+  "index hts_rag.hts_rag_ruling_codes_held_chapter_idx",
+  "index hts_rag.hts_rag_rulings_search_tsv_active_idx",
+  "index hts_rag.hts_rag_rulings_subject_trgm_active_idx",
+  "policy hts_rag_alsand_runtime_library_read on hts_rag.hts_rag_rulings",
+  "policy hts_rag_prod_runtime_library_read on hts_rag.hts_rag_rulings",
+  "schema extensions",
+  "table hts_rag.hts_rag_ruling_codes",
+  "table hts_rag.hts_rag_rulings"
+ ],
+ "checks": [
+  {
+   "command": "bash scripts/check-sql.sh",
+   "exit_code": 0,
+   "evidence": "Static checks passed."
+  },
+  {
+   "command": "git diff --check origin/main...HEAD",
+   "exit_code": 0,
+   "evidence": "No whitespace errors."
+  },
+  {
+   "command": "python3 -m pytest -q scripts/test_preview_ledger_orphan_reconcile.py",
+   "exit_code": 0,
+   "evidence": "45 passed"
+  },
+  {
+   "command": "python3 -m pytest -q scripts/test_migration_derivation.py",
+   "exit_code": 0,
+   "evidence": "passed"
+  }
+ ],
+ "assumptions_resolved": [
+  "Applied fresh (18 s) and re-applied over the existing objects on a full-corpus pgvector Postgres 17 copy; runtime role search returns rows. Orphan case follows the #5128 replacement_pending precedent."
+ ],
+ "stop_conditions_hit": []
+}

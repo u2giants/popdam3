@@ -1,6 +1,21 @@
 {
   "schema": "shared-db-preview-ledger-orphan-reconciliations/v1",
   "cases": [
+{
+"issue": 5163,
+"claim": 5174,
+"source_pr": 5165,
+"mode": "replacement_pending",
+"orphan_version": "20261030190639",
+"replacement_version": "20261101000005",
+"orphan_run_head": "ac2ad11d8b7458ccc1777863304446992d873d52",
+"orphan_commit_sha": "ac2ad11d8b7458ccc1777863304446992d873d52",
+"preview_run_id": 41161159327,
+"preview_artifact_id": 13026319764,
+"preview_artifact_digest": "sha256:3c21e525b317252b252c6a665a0ae441cb380913c8630989a93126c910250087",
+"issue_state": "open",
+"claim_state": "open"
+},
     {
       "issue": 4437,
       "claim": 4820,

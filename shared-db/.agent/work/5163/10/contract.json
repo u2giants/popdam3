@@ -1,37 +1,41 @@
 {
   "schema_version": 2,
-  "generation": 8,
+  "generation": 10,
   "evidence_parent": {
     "work_issue": 5163,
-    "generation": 7,
-    "contract_sha256": "88f68df7ffe16abe0741e0ba5da59e8b3a67538c4468c279af0da9015ba6f9fe"
+    "generation": 9,
+    "contract_sha256": "1ebfade3a28c391a94968b7ccbf862d4184ab46611c8fb79d855a0620d072962"
   },
   "work_issue": 5163,
   "work_type": "structural",
   "route": "claim-first",
-  "goal": "Add the CBP ruling search function and its indexes in schema hts_rag (designflow-backend#254 step 6)",
-  "base_sha": "a576e1e211193ec0251caf850a0984e91f8036d8",
+  "goal": "Re-issue the stranded CBP ruling search migration 20261030190639 as idempotent 20261101000005 with a longer statement timeout (designflow-backend#254 step 6)",
+  "base_sha": "69b71688f2f53772cb4db0782c3b584c517725bc",
   "dispatcher": "Claude chat d702b076-ad71-4b0c-b525-6908181756d1 on edge-dev3",
   "worker": "same session",
-  "branch": "claude/designflow-backend-254-search",
-  "worktree": "/home/ahazan/repos/shared-db-wt-254-search",
+  "branch": "claude/designflow-backend-254-search-timeout",
+  "worktree": "/home/ahazan/repos/shared-db-wt-254-search-timeout",
   "allowed_paths": [
-    "supabase/migrations/20261030190639_hts_rag_ruling_search.sql",
-    "supabase/tests/hts_rag_ruling_search_contract.sql",
-    "supabase/tests/hts_rag_shared_schema_contract.sql",
-    ".agent/work/5163/7/contract.json",
-    ".agent/work/5163/7/completion.json",
+    "supabase/migrations/20261101000005_hts_rag_ruling_search.sql",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
     ".agent/work/5163/8/contract.json",
-    ".agent/work/5163/8/completion.json"
+    ".agent/work/5163/8/completion.json",
+    ".agent/work/5163/9/contract.json",
+    ".agent/work/5163/9/completion.json",
+    ".agent/work/5163/10/contract.json",
+    ".agent/work/5163/10/completion.json"
   ],
   "file_writes": [
-    "supabase/migrations/20261030190639_hts_rag_ruling_search.sql",
-    "supabase/tests/hts_rag_ruling_search_contract.sql",
-    "supabase/tests/hts_rag_shared_schema_contract.sql",
-    ".agent/work/5163/7/contract.json",
-    ".agent/work/5163/7/completion.json",
+    "supabase/migrations/20261101000005_hts_rag_ruling_search.sql",
+    "config/preview-ledger-orphan-reconciliations.json",
+    "scripts/test_preview_ledger_orphan_reconcile.py",
     ".agent/work/5163/8/contract.json",
-    ".agent/work/5163/8/completion.json"
+    ".agent/work/5163/8/completion.json",
+    ".agent/work/5163/9/contract.json",
+    ".agent/work/5163/9/completion.json",
+    ".agent/work/5163/10/contract.json",
+    ".agent/work/5163/10/completion.json"
   ],
   "db_reads": [],
   "db_writes": [
@@ -49,11 +53,12 @@
   ],
   "prohibited_actions": [
     "Additive only; hts_rag_rulings gains one generated column and two runtime read policies, the runtime roles gain USAGE on schema extensions; nothing is removed",
-    "Never invent or reuse a migration version; claim #5174 reserves 20261030190639"
+    "Never invent or reuse a migration version; claim #5174 was reissued to 20261101000005"
   ],
   "required_checks": [
     "bash scripts/check-sql.sh",
-    "git diff --check origin/main...HEAD"
+    "git diff --check origin/main...HEAD",
+    "python3 -m pytest -q scripts/test_preview_ledger_orphan_reconcile.py"
   ],
   "assumptions": [
     "pg_trgm and pgvector are installed in schema extensions on the shared project (verified read-only 2026-10-30)"
