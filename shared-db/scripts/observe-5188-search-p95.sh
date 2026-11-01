@@ -36,15 +36,20 @@ LINK_DIR="$(mktemp -d)"
 cd "$LINK_DIR"
 supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" >/dev/null
 POOLER_URL="$(cat "$LINK_DIR/supabase/.temp/pooler-url")"
-# The pooler URL carries no password (the apply tooling passes it separately);
-# psql reads it from PGPASSWORD.
+# The pooler (transaction mode) authenticates `postgres.<project-ref>` and the
+# linked URL carries no password; psql reads the password from PGPASSWORD. Build
+# the conninfo explicitly so the pooler-required user form is never dependent on
+# whatever the linked URL happens to contain.
+POOLER_HOSTPORT="${POOLER_URL#*@}"
+POOLER_HOSTPORT="${POOLER_HOSTPORT%%/*}"
+CONNINFO="host=${POOLER_HOSTPORT%%:*} port=${POOLER_HOSTPORT##*:} dbname=postgres user=postgres.${PROJECT_REF} sslmode=require"
 export PGPASSWORD="$SUPABASE_DB_PASSWORD"
 
 TIMINGS_FILE="$OUT_DIR/timings.txt"
 : > "$TIMINGS_FILE"
 for ((i = 0; i < SAMPLES; i++)); do
   PHRASE="${QUERIES[$((i % ${#QUERIES[@]}))]}"
-  MS="$(psql "$POOLER_URL" -X -At -v ON_ERROR_STOP=1 -c \
+  MS="$(psql "$CONNINFO" -X -At -v ON_ERROR_STOP=1 -c \
     "select round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric, 2)
        from (select clock_timestamp() as t0) s,
             lateral (select count(*) from hts_rag.hts_rag_search_rulings('${PHRASE//\'/\'\'}')) r")"
