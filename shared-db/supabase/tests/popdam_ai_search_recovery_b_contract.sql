@@ -48,9 +48,11 @@ begin
     raise exception 'PopDAM canonical final validated checks are incomplete';
   end if;
   if (select count(*) from pg_trigger where not tgisinternal and tgenabled <> 'D' and (
-      (tgrelid='public.asset_tags'::regclass and tgname in ('asset_tags_sync_assets_tags','asset_tags_dam_search_refresh'))
-      or (tgrelid='public.style_group_tags'::regclass and tgname='style_group_tags_dam_search_refresh')
-      or (tgrelid='public.asset_characters'::regclass and tgname='asset_characters_dam_search_refresh'))) <> 4 then
+      (tgrelid='public.asset_tags'::regclass and tgname='asset_tags_sync_assets_tags')
+      -- Statement-level search refresh, one trigger per event (migration 20261101120856).
+      or (tgrelid='public.asset_tags'::regclass and tgname like 'asset\_tags\_dam\_search\_refresh\_%')
+      or (tgrelid='public.style_group_tags'::regclass and tgname like 'style\_group\_tags\_dam\_search\_refresh\_%')
+      or (tgrelid='public.asset_characters'::regclass and tgname like 'asset\_characters\_dam\_search\_refresh\_%'))) <> 10 then
     raise exception 'PopDAM canonical final trigger wiring is incomplete';
   end if;
   if not (select relrowsecurity from pg_class where oid='public.style_group_tags'::regclass)
