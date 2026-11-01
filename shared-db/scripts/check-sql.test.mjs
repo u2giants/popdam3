@@ -1416,5 +1416,5 @@ test('protected SQL source validates actual PR SQL and never executes PR helper 
   assert.equal(existsSync(marker),false,'PR executable was run for valid data')
   assert.equal(git(source,['status','--porcelain']),'','protected source was mutated')
   assert.equal(git(source,['rev-parse','HEAD']),sourceSha)
- } finally {rmSync(directory,{recursive:true,force:true})}
+ } finally {rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:200})}
 })
