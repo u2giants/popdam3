@@ -18,9 +18,20 @@ begin
                     and column_name = 'source_environment' and is_nullable = 'NO' and column_default is null) then
       raise exception 'hts_rag.% lacks a mandatory, default-free source_environment', v_table;
     end if;
-    foreach v_role in array array['anon','authenticated','service_role','designflow_hts_prod_runtime','designflow_hts_alsand_runtime'] loop
+    foreach v_role in array array['anon','authenticated','service_role'] loop
       if has_any_column_privilege(v_role, 'hts_rag.' || v_table, 'SELECT') then
         raise exception '% can read hts_rag.%', v_role, v_table;
+      end if;
+    end loop;
+    -- 20261101000731 (#5244): runtime reads the product, decision and vocabulary tables, writes none.
+    foreach v_role in array array['designflow_hts_prod_runtime','designflow_hts_alsand_runtime'] loop
+      if has_table_privilege(v_role, 'hts_rag.' || v_table, 'SELECT') <> (v_table = any (array['hts_rag_article_types',
+           'hts_rag_materials','hts_rag_attribute_keys','hts_rag_ruling_products','hts_rag_product_components',
+           'hts_rag_product_attributes','hts_rag_heading_decisions']))
+         or has_table_privilege(v_role, 'hts_rag.' || v_table, 'INSERT')
+         or has_table_privilege(v_role, 'hts_rag.' || v_table, 'UPDATE')
+         or has_table_privilege(v_role, 'hts_rag.' || v_table, 'DELETE') then
+        raise exception '% runtime access on hts_rag.% differs', v_role, v_table;
       end if;
     end loop;
     foreach v_role in array array['designflow_hts_prod_worker','designflow_hts_alsand_worker'] loop
