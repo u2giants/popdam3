@@ -353,9 +353,15 @@
       "mode": "replacement_pending",
       "orphan_version": "20261101125528",
       "replacement_version": "20261101153043",
+      "orphan_run_head": "900dd82892e3dd1d73d270d39c76544f2a2b5903",
+      "orphan_commit_sha": "914106d2c3874d3b214dd4191f096ee547772f0e",
+      "preview_run_id": 41310201660,
+      "preview_artifact_id": 13084942989,
+      "preview_artifact_digest": "sha256:325d7125162f3736cf5989d477c31a0ab3995dcc2335823102aec2dacac69812",
+      "merged_source": true,
       "issue_state": "closed",
       "claim_state": "closed",
-      "note": "Preview-only restore of Disney characters that production already holds; never bound for production. Its link rows are carried by the replacement."
+      "note": "Applied to preview as run 41310201660; promotion evidence never qualified, so it was never bound for production. Preview-only restore of Disney characters that production already holds. Its link rows are carried by 20261101153043, which reached production with 20261101153102. Suppression registration: the reconciler additionally requires the replacement-side claim and source PR, which this identity does not carry (review finding #5391)."
     },
     {
       "issue": 5377,

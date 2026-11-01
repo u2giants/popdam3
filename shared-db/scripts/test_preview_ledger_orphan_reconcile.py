@@ -65,6 +65,38 @@ class Tests(unittest.TestCase):
             'claim_state':'open',
         })
 
+    def test_issue_5079_preview_only_restore_is_narrowly_evidence_bound(self):
+        case=M.SUPPORTED_CASES[(5079,5323,5324)]
+        pinned=dict(case); pinned.pop('note',None)
+        self.assertEqual(pinned,{
+            'mode':'replacement_pending',
+            'orphan_version':'20261101125528',
+            'replacement_version':'20261101153043',
+            'orphan_run_head':'900dd82892e3dd1d73d270d39c76544f2a2b5903',
+            'orphan_commit_sha':'914106d2c3874d3b214dd4191f096ee547772f0e',
+            'preview_run_id':41310201660,
+            'preview_artifact_id':13084942989,
+            'preview_artifact_digest':'sha256:325d7125162f3736cf5989d477c31a0ab3995dcc2335823102aec2dacac69812',
+            'merged_source':True,
+            'issue_state':'closed',
+            'claim_state':'closed',
+        })
+
+    def test_issue_5079_evidence_pins_refuse_substitution(self):
+        case=M.SUPPORTED_CASES[(5079,5323,5324)]
+        good={
+            'preview_run_id':41310201660,
+            'preview_artifact_id':13084942989,
+            'preview_artifact_digest':'sha256:325d7125162f3736cf5989d477c31a0ab3995dcc2335823102aec2dacac69812',
+        }
+        for key,value in (('preview_run_id',41330807520),('preview_artifact_id',13093425709),
+                          ('preview_artifact_digest','sha256:42c5ca2f937b43218776ba9894e49ddb8a54d2678b151195420a1417106730f6')):
+            with self.subTest(key=key):
+                M.validate_pinned_evidence(case,type('A',(),dict(good))())
+                bad=dict(good); bad[key]=value
+                with self.assertRaises(M.Refusal):
+                    M.validate_pinned_evidence(case,type('A',(),bad)())
+
     def test_issue_2506_rehearsal_reset_is_narrowly_evidence_bound(self):
         case=M.SUPPORTED_CASES[(2506,2510,2512,'20260907131610','20260907131610')]
         self.assertEqual(case,{
