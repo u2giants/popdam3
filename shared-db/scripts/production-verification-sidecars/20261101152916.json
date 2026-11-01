@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261101152916",
+  "migration_sha256": "5a536e6d62aef1dc4ac0c14e0aed704770b8e2072f4652e79c5c78be84256093",
+  "checks": [
+    {
+      "id": "fuzzy_resolve_trigger_gone",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_trigger",
+      "filters": [{"column": "tgname", "type": "text", "equals": "trg_resolve_sku_file_used"}],
+      "expected_count": 0
+    },
+    {
+      "id": "fuzzy_resolve_function_gone",
+      "kind": "catalog_absence",
+      "object": "public.trg_fn_resolve_sku_file_used()",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 18,
+      "line_end": 18,
+      "disposition": "checks",
+      "check_ids": ["fuzzy_resolve_trigger_gone"],
+      "reason": "DROP TRIGGER removes trg_resolve_sku_file_used from public.sku_files_used; the per-row fuzzy resolve it fired is not a licensor statement and broke the historical parse backfill (shared-db #5092). The contract asserts pg_trigger carries no such row after the batch, so a surviving trigger fails exactly like a missing expected one."
+    },
+    {
+      "line_start": 20,
+      "line_end": 20,
+      "disposition": "checks",
+      "check_ids": ["fuzzy_resolve_function_gone"],
+      "reason": "DROP FUNCTION removes the trigger implementation public.trg_fn_resolve_sku_file_used(); nothing else calls it and the batch helper resolve_sku_files_used() stays callable on purpose. The contract asserts to_regprocedure resolves nothing for that signature, so a surviving function is a hard failure."
+    }
+  ]
+}
