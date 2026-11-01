@@ -213,6 +213,35 @@ test('the queue gate keeps only one-PR identity, ascending versions and the prev
   assert.match(text, /^ {2}cancel-in-progress: false$/m)
 })
 
+// ISSUE #5370. The "Revalidate migration order" step runs the contract's
+// no-args ascending-version order check, which resolves its PR number from
+// PR_NUMBER or, in merge_group context, from MERGE_GROUP_REF. The step
+// historically carried only GH_TOKEN, so the check refused on every merge_group
+// run and the guard was silently dead. The step must feed the queued PR
+// identity it already resolved, and the order check must still run bare.
+function revalidateIdentityProblems(step) {
+  if (!step) return ['the Revalidate migration order step is missing']
+  const problems = []
+  if (!/^ {10}MERGE_GROUP_REF: \$\{\{ github\.event\.merge_group\.head_ref \}\}$/m.test(step)) problems.push('the revalidation step does not feed MERGE_GROUP_REF')
+  if (!/^ {10}PR_NUMBER: \$\{\{ steps\.queue\.outputs\.pr \}\}$/m.test(step)) problems.push('the revalidation step does not feed PR_NUMBER')
+  if (!/node scripts\/merge-queue-contract\.mjs\n/m.test(step)) problems.push('the bare ascending-version order check is missing')
+  return problems
+}
+
+test('the queue gate feeds the queued PR identity to the migration-order re-validation (issue #5370)', () => {
+  const job = jobBlockByName(readWorkflow('merge-queue-gate.yml'), 'Merge queue gate')
+  assert.ok(job, 'no job emits Merge queue gate')
+  const step = stepBlock(job, 'Revalidate migration order')
+  assert.deepEqual(revalidateIdentityProblems(step), [])
+  // Negative fixture: a step that feeds no PR identity must be caught.
+  const starved = step.replace(/^ {10}(?:MERGE_GROUP_REF|PR_NUMBER): .*\n/gm, '')
+  assert.notEqual(starved, step, 'the negative fixture did not change the step')
+  assert.deepEqual(revalidateIdentityProblems(starved), [
+    'the revalidation step does not feed MERGE_GROUP_REF',
+    'the revalidation step does not feed PR_NUMBER',
+  ])
+})
+
 // QUEUE INTERLOCK (workflow-refactor closeout §5). The authorize path must own
 // the ASYNCHRONOUS MUTATION: acquire the merge lane, re-check authorization and
 // the production interlock under that lane, post group-SHA success, and HOLD the

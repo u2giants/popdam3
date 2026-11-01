@@ -693,3 +693,86 @@ test('only the lean core list is an approved live shape (ai-devops#2172 C2)', as
   assert.equal(m.requiredStatusChecksEqual(rows([...m.REQUIRED_STATUS_CHECK_CONTEXTS, 'Merge queue gate'])), false)
   assert.equal(m.requiredStatusChecksEqual(rows(m.REQUIRED_STATUS_CHECK_CONTEXTS.slice(1))), false)
 })
+
+// ---------------------------------------------------------------------------
+// Queue-time order-check PR resolution (issue #5370)
+// ---------------------------------------------------------------------------
+//
+// WHY THESE TESTS EXIST. The merge-queue gate's "Revalidate migration order"
+// step ran this contract's no-args mode with no PR_NUMBER in env, so the
+// ascending-version order check refused on EVERY merge_group run and was
+// silently dead. The number is now derived from MERGE_GROUP_REF in merge_group
+// context. The derivation must never become a silent pass: an unresolvable PR
+// number still refuses, and the order check itself is not weakened.
+
+const orderReadNoMigrations = (args) => {
+  const url = String(args.at(-1) ?? '')
+  if (url.includes('pulls?state=open')) return [[]]
+  if (url.includes('/files')) return [[{ filename: 'README.md' }]]
+  throw new Error(`unexpected read ${url}`)
+}
+
+const orderReadViolation = (args) => {
+  const url = String(args.at(-1) ?? '')
+  if (url.includes('pulls?state=open')) return [[{ number: 9, draft: false }]]
+  if (url.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825120001_old.sql' }]]
+  return [[{ filename: 'supabase/migrations/20260825120002_new.sql' }]]
+}
+
+const mustNotRead = () => { throw new Error('must not read') }
+
+test('merge_group context with a resolvable ref passes the queue-time order re-validation', async () => {
+  const logs = []
+  const originalLog = console.log
+  console.log = (msg) => logs.push(String(msg))
+  try {
+    assert.equal(await contractMain([], {
+      MERGE_GROUP_REF: 'refs/heads/gh-readonly-queue/main/pr-1435-deadbeef',
+    }, { read: orderReadNoMigrations }), 0)
+    assert.match(logs.at(-1) ?? '', /not applicable/)
+  } finally {
+    console.log = originalLog
+  }
+})
+
+test('the ref-derived order check still refuses a real ordering violation (not weakened)', async () => {
+  await assert.rejects(
+    contractMain([], { MERGE_GROUP_REF: 'refs/heads/gh-readonly-queue/main/pr-20-deadbeef' }, { read: orderReadViolation }),
+    /behind open PR #9/,
+  )
+})
+
+test('an unresolvable PR number still refuses (fail-closed)', async () => {
+  // No PR_NUMBER and no MERGE_GROUP_REF — the original refusal, unchanged.
+  await assert.rejects(contractMain([], {}, { read: mustNotRead }), /PR_NUMBER must be a positive integer/)
+  // A merge-group ref naming no (or several) PR is refused, never guessed.
+  await assert.rejects(contractMain([], { MERGE_GROUP_REF: 'refs/heads/main' }, { read: mustNotRead }), /expected exactly one pull request/)
+  await assert.rejects(contractMain([], { MERGE_GROUP_REF: 'gh-readonly-queue/main/pr-12-aaa/pr-34-bbb' }, { read: mustNotRead }), /expected exactly one pull request/)
+  // A garbage PR_NUMBER with no usable ref refuses.
+  await assert.rejects(contractMain([], { PR_NUMBER: 'abc' }, { read: mustNotRead }), /PR_NUMBER must be a positive integer/)
+  await assert.rejects(contractMain([], { PR_NUMBER: '0' }, { read: mustNotRead }), /PR_NUMBER must be a positive integer/)
+  await assert.rejects(contractMain([], { PR_NUMBER: '-5' }, { read: mustNotRead }), /PR_NUMBER must be a positive integer/)
+})
+
+test('an explicit valid PR_NUMBER wins over the merge-group ref', async () => {
+  const seen = []
+  const read = (args) => {
+    const url = String(args.at(-1) ?? '')
+    seen.push(url)
+    if (url.includes('pulls?state=open')) return [[]]
+    return [[{ filename: 'README.md' }]]
+  }
+  const logs = []
+  const originalLog = console.log
+  console.log = (msg) => logs.push(String(msg))
+  try {
+    assert.equal(await contractMain([], {
+      PR_NUMBER: '1435',
+      MERGE_GROUP_REF: 'refs/heads/gh-readonly-queue/main/pr-9999-deadbeef',
+    }, { read }), 0)
+  } finally {
+    console.log = originalLog
+  }
+  assert.ok(seen.some((url) => url.includes('pulls/1435/files')), `order check must run for PR 1435; reads: ${seen.join(', ')}`)
+  assert.ok(!seen.some((url) => url.includes('pulls/9999/files')), 'a valid PR_NUMBER must not be overridden by the merge-group ref')
+})

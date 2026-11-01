@@ -566,7 +566,7 @@ export async function awaitPreviewRehearsal({ sha, descendants = [], readStatuse
 // ---------------------------------------------------------------------------
 
 export const USAGE = `Usage:
-  node scripts/merge-queue-contract.mjs                       Ascending-version order check for PR_NUMBER
+  node scripts/merge-queue-contract.mjs                       Ascending-version order check (PR_NUMBER, else MERGE_GROUP_REF)
   node scripts/merge-queue-contract.mjs --resolve-queue-pr    Print the one queued PR as JSON (MERGE_GROUP_REF env)
   node scripts/merge-queue-contract.mjs --queue-mode          Print active|inactive; exit 3 when undecidable
   node scripts/merge-queue-contract.mjs --require-preview-rehearsal --sha <main-sha>
@@ -702,7 +702,14 @@ export async function main(argv, env = process.env, deps = {}) {
     return 0
   }
 
-  const number = Number(env.PR_NUMBER)
+  // PR_NUMBER may be absent in merge_group context: the merge-queue gate's
+  // revalidation step historically never set it, so the order check was dead.
+  // Derive the queued PR from the merge-group ref instead. Still fail-closed:
+  // an unresolvable ref throws exactly as an absent PR_NUMBER did before.
+  let number = Number(env.PR_NUMBER)
+  if (!Number.isInteger(number) || number < 1) {
+    if (env.MERGE_GROUP_REF) number = pullRequestFromQueueRef(env.MERGE_GROUP_REF)
+  }
   if (!Number.isInteger(number) || number < 1) throw new MergeQueueError('PR_NUMBER must be a positive integer')
   const result = checkQueueOrder(number, { repo, read })
   console.log(result.relevant
