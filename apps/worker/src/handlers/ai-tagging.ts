@@ -258,19 +258,15 @@ export async function applyBatchTagResult(
   // metadata save — see file_sources note below.
   try { await writeAssetAiTags(client, assetId, model, tagData); }
   catch (error) { throw new AssetTagApplyError("asset_tags", (error as { code?: string }).code); }
-  // A re-tag replaces the asset's character links. Every link is machine-made
-  // (no UI writes asset_licensor_characters), so stale ones from older prompts or the
-  // retired group propagation must not survive a new result.
-  let staleLinks = client.from("asset_licensor_characters").delete().eq("asset_id", assetId);
+  // Keep the deployed link/search/stats contract until a canonical database
+  // migration provides an end-to-end replacement. Prompt IDs use this catalog.
+  let staleLinks = client.from("asset_characters").delete().eq("asset_id", assetId);
   if (characterIds.length) staleLinks = staleLinks.not("character_id", "in", `(${characterIds.join(",")})`);
   const removedCharacters = await staleLinks;
   if (removedCharacters.error) throw new AssetTagApplyError("character_links", removedCharacters.error.code);
-  // Links to the retired DesignFlow character list are replaced, never kept beside new ones.
-  const removedLegacy = await client.from("asset_characters").delete().eq("asset_id", assetId);
-  if (removedLegacy.error) throw new AssetTagApplyError("character_links", removedLegacy.error.code);
   if (characterIds.length) {
-    const rows = characterIds.map((character_id) => ({ asset_id: assetId, character_id, source: "ai", model, tagged_at: new Date().toISOString() }));
-    const savedCharacters = await client.from("asset_licensor_characters").upsert(rows, { onConflict: "asset_id,character_id" });
+    const rows = characterIds.map((character_id) => ({ asset_id: assetId, character_id }));
+    const savedCharacters = await client.from("asset_characters").upsert(rows, { onConflict: "asset_id,character_id" });
     if (savedCharacters.error) throw new AssetTagApplyError("character_links", savedCharacters.error.code);
   }
   let fileSourcesFailed = false;

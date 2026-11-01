@@ -44,12 +44,13 @@ test("without licensing ids the SKU licensor code scopes characters, never the g
   assert.deepEqual(scope, { licensor_id: "peanuts", property_id: null, unlicensed: false });
 });
 
-function catalogClient(links: { id: string; name: string }[], licensorChars: { id: string; name: string }[]) {
+function catalogClient(links: { id: string; name: string }[], licensorChars: { id: string; name: string }[], compatible = [...links, ...licensorChars]) {
   const table = (name: string) => {
     const answer = () => {
       if (name === "property_character_associations") return links.map(character => ({ character }));
       if (name === "character") return licensorChars;
-      if (name === "property") return { licensor_id: "lic" };
+      if (name === "dam_character_catalog") return compatible;
+      if (name === "property") return [{ id: "p", licensor_id: "lic" }];
       return null;
     };
     const chain = {
@@ -57,7 +58,7 @@ function catalogClient(links: { id: string; name: string }[], licensorChars: { i
       limit: (n: number) => name === "character"
         ? Promise.resolve({ data: licensorChars.slice(0, n), error: null })
         : chain,
-      maybeSingle: async () => ({ data: name === "property" ? answer() : null, error: null }),
+      maybeSingle: async () => ({ data: name === "property" ? { licensor_id: "lic" } : null, error: null }),
       then: (resolve: (v: unknown) => void) => Promise.resolve({ data: answer(), error: null }).then(resolve),
     };
     return chain;
@@ -90,4 +91,16 @@ test("an unlinked property falls back to a small licensor list", async () => {
 test("a licensor list too large to show offers no characters", async () => {
   const chars = Array.from({ length: LICENSOR_CHARACTER_LIST_LIMIT + 1 }, (_, i) => ({ id: uuid(i + 10), name: `C${i}` }));
   assert.deepEqual(await offered(catalogClient([], chars), promptAsset("p", "lic")), []);
+});
+
+
+test("property lists above the cap offer no characters", async () => {
+  const chars = Array.from({ length: LICENSOR_CHARACTER_LIST_LIMIT + 1 }, (_, i) => ({ id: uuid(i + 10), name: `C${i}` }));
+  assert.deepEqual(await offered(catalogClient(chars, []), promptAsset("p", "lic")), []);
+});
+
+test("scraped names use writable catalog IDs, excluding absent or ambiguous names", async () => {
+  const scraped = [{ id: uuid(1), name: "Stitch" }, { id: uuid(2), name: "Missing" }, { id: uuid(3), name: "Ambiguous" }];
+  const compatible = [{ id: uuid(10), name: "Stitch" }, { id: uuid(11), name: "Ambiguous" }, { id: uuid(12), name: "Ambiguous" }];
+  assert.deepEqual(await offered(catalogClient(scraped, [], compatible), promptAsset("p", "lic")), [uuid(10)]);
 });

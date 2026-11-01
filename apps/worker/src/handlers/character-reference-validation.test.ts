@@ -16,14 +16,14 @@ test("unknown, malformed and out-of-bound character references perform zero writ
  for(const [ids,binding] of [[[other],[character]],[["invalid"],[character]],[[other],[other]]] as Array<[unknown,string[]]>){const c=client();await assert.rejects(applyBatchTagResult(assetId,result(ids),"fixture",c.db,binding),CharacterReferenceValidationError);assert.equal(c.writes.length,0);}
 });
 test("duplicate normalized UUIDs preserve exactly one legitimate link and mark asset last",async()=>{
- const c=client();await applyBatchTagResult(assetId,result([character,character.toUpperCase()]),"fixture",c.db,[character]);const link=c.writes.find(w=>w.stage==="asset_licensor_characters") as {rows:Array<Record<string,unknown>>}|undefined;assert.deepEqual(link?.rows.map(r=>[r.asset_id,r.character_id,r.source,r.model]),[[assetId,character,"ai","fixture"]]);assert.equal(c.writes.at(-1)?.stage,"asset_metadata");assert.deepEqual(normalizeCharacterIds([character.toUpperCase(),character]),[character]);
+ const c=client();await applyBatchTagResult(assetId,result([character,character.toUpperCase()]),"fixture",c.db,[character]);const link=c.writes.find(w=>w.stage==="asset_characters") as {rows:Array<Record<string,unknown>>}|undefined;assert.deepEqual(link?.rows.map(r=>[r.asset_id,r.character_id]),[[assetId,character]]);assert.equal(c.writes.at(-1)?.stage,"asset_metadata");assert.deepEqual(normalizeCharacterIds([character.toUpperCase(),character]),[character]);
 });
 test("character lookup failure is a dependency hold, not invalid model data or an empty catalog",async()=>{
  const c=client([character],true);await assert.rejects(validateCharacterReferences([character],[character],c.db),CharacterCatalogDependencyError);assert.equal(c.writes.length,0);await assert.rejects(applyBatchTagResult(assetId,result([character]),"fixture",c.db,[character]),CharacterCatalogDependencyError);assert.equal(c.writes.length,0);
 });
 const CATALOG="property_character_associations";
 function promptClient(fault=false){
- const plain=(table:string)=>{const data=table===CATALOG?[{character:{id:character,name:"Fixture character"}}]:[];const answer={data,error:table===CATALOG&&fault?{code:"57014"}:null};const chain={select:()=>chain,eq:()=>chain,in:()=>chain,order:()=>chain,limit:()=>chain,maybeSingle:async()=>({data:null,error:null}),then:(resolve:(v:unknown)=>void)=>Promise.resolve(answer).then(resolve)};return chain;};
+ const plain=(table:string)=>{const data=table===CATALOG?[{character:{id:character,name:"Fixture character"}}]:table==="dam_character_catalog"?[{id:character,name:"Fixture character"}]:[];const answer={data,error:table===CATALOG&&fault?{code:"57014"}:null};const chain={select:()=>chain,eq:()=>chain,in:()=>chain,order:()=>chain,limit:()=>chain,maybeSingle:async()=>({data:null,error:null}),then:(resolve:(v:unknown)=>void)=>Promise.resolve(answer).then(resolve)};return chain;};
  const c:{from:(table:string)=>unknown;schema:(name:string)=>unknown}={from:plain,schema:()=>({from:(table:string)=>c.from(table)})};
  return c as never;
 }
@@ -74,9 +74,9 @@ test("a fabricated character ID triggers same-model output repair before a resul
 
 test("a re-tag clears the asset's old character links before writing the new ones, even when none are found",async()=>{
  const found=client();await applyBatchTagResult(assetId,result([character]),"fixture",found.db,[character]);
- assert.deepEqual(found.writes.map(w=>w.stage).slice(1,4),["asset_licensor_characters:delete","asset_characters:delete","asset_licensor_characters"]);
+ assert.deepEqual(found.writes.map(w=>w.stage).slice(1,3),["asset_characters:delete","asset_characters"]);
  const none=client();await applyBatchTagResult(assetId,result([]),"fixture",none.db,[character]);
- assert.ok(none.writes.some(w=>w.stage==="asset_licensor_characters:delete"));assert.ok(none.writes.some(w=>w.stage==="asset_characters:delete"));assert.ok(!none.writes.some(w=>w.stage==="asset_licensor_characters"));
+ assert.equal(none.writes.filter(w=>w.stage==="asset_characters:delete").length,1);assert.ok(!none.writes.some(w=>w.stage==="asset_characters"));
 });
 
 test("a file with no licensing context is offered no characters",async()=>{

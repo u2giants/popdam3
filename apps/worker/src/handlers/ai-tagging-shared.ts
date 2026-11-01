@@ -237,7 +237,7 @@ export async function validateCharacterReferences(
   if (binding && ids.some(id => !binding.includes(id))) throw new CharacterReferenceValidationError();
   if (!ids.length) return ids;
   let response;
-  try { response = await client.schema("core").from("character").select("id").in("id", ids); }
+  try { response = await client.from("dam_character_catalog").select("id").in("id", ids); }
   catch { throw new CharacterCatalogDependencyError("transport"); }
   const { data, error } = response;
   if (error || !data) throw new CharacterCatalogDependencyError(error?.code);
@@ -309,7 +309,7 @@ export async function resolveCharacterScope(
   return scope;
 }
 
-/** A licensor list longer than this is too broad to offer without property links. */
+/** Bound every character list supplied to a model. */
 export const LICENSOR_CHARACTER_LIST_LIMIT = 400;
 
 export function skuLicensorCode(sku: string | null | undefined): string | null {
@@ -332,6 +332,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
   let characters: { id: string; name: string }[] = [];
+  let usePropertyLinks = false;
+  let oversizedProperty = false;
   const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
   // Characters come only from the licensor-scraped master list (core.character):
@@ -345,17 +347,20 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
       .from("property_character_associations")
       .select("character:character_id(id, name)")
       .eq("property_id", scope.property_id)
-      .eq("is_current", true));
+      .eq("is_current", true)
+      .limit(LICENSOR_CHARACTER_LIST_LIMIT + 1));
     checkedCharacterRead(linksError, links);
+    oversizedProperty = (links?.length ?? 0) > LICENSOR_CHARACTER_LIST_LIMIT;
     characters = ((links ?? []) as unknown as { character: { id: string; name: string } | null }[])
       .map(link => link.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
+    usePropertyLinks = characters.length > 0;
     if (!scope.licensor_id && characters.length === 0) {
       const { data: property } = await checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle());
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
     }
   }
-  if (!scope.unlicensed && characters.length === 0 && scope.licensor_id) {
+  if (!scope.unlicensed && !oversizedProperty && characters.length === 0 && scope.licensor_id) {
     const { data: licensorChars, error: licensorError } = await checkedQuery(client
       .schema("core")
       .from("character")
@@ -368,6 +373,33 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
   characters = [...new Map(characters.map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  if (oversizedProperty || characters.length > LICENSOR_CHARACTER_LIST_LIMIT) characters = [];
+
+  // Only offer scraped names that have an unambiguous, writable counterpart.
+  // The deployed asset links, search, stats and bakeoff all use legacy IDs.
+  if (characters.length) {
+    let propertyIds = usePropertyLinks && scope.property_id ? [scope.property_id] : [];
+    if (!propertyIds.length && scope.licensor_id) {
+      const { data, error } = await checkedQuery(client.schema("core").from("property")
+        .select("id").eq("licensor_id", scope.licensor_id));
+      checkedCharacterRead(error, data);
+      propertyIds = (data ?? []).map((row: { id: string }) => row.id);
+    }
+    if (propertyIds.length) {
+      const { data, error } = await checkedQuery(client.from("dam_character_catalog")
+        .select("id, name, core_property_id")
+        .in("core_property_id", propertyIds).in("name", characters.map(c => c.name)));
+      checkedCharacterRead(error, data);
+      const rows = (data ?? []) as { id: string; name: string }[];
+      characters = characters.flatMap(character => {
+        const matches = rows.filter(row => row.name === character.name);
+        return matches.length === 1 ? [{ id: matches[0].id, name: character.name }] : [];
+      });
+      characters = [...new Map(characters.map(c => [c.id, c])).values()];
+    } else {
+      characters = [];
+    }
+  }
 
   if (options.onCharacterCatalog) {
     let ids: string[];
