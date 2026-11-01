@@ -106,6 +106,10 @@ begin
   if not exists (select 1 from hts_rag.hts_rag_fault_lines_any_type where prefix_a = '9405.50' and prefix_b = '9505.10') then
     raise exception 'type-agnostic fault line missing';
   end if;
+  if not exists (select 1 from pg_proc where oid = 'hts_rag.hts_rag_refresh_fault_lines()'::regprocedure
+                  and 'statement_timeout=5min' = any(proconfig)) then
+    raise exception 'fault-line refresh must carry its own statement timeout';
+  end if;
   -- (5a) UPDATE new columns on heading_decisions and product_attributes under RLS
   insert into hts_rag.hts_rag_product_attributes (product_id, key, value_text, source_span, source_environment)
   values (v_product, 'zz_principal_use', 'candle holder', int4range(0, 34), 'alsand') returning id into v_attr;
