@@ -40,6 +40,9 @@ class EarlierPreviewApply(unittest.TestCase):
         self.assertIsNone(m.earlier_preview_apply(pr, runs[3:]))
         recovery = {"id": 4, "conclusion": "success", "created_at": "2026-10-31T01:50:00Z", "display_title": "DB preview apply a PR 20261030190639"}
         self.assertEqual(m.earlier_preview_apply(pr, runs + [recovery]), 4)
+        held = {**recovery, "id": 2, "conclusion": "failure", "created_at": "2026-10-31T01:45:00Z"}
+        self.assertEqual(m.earlier_preview_apply(pr, runs + [held]), 7)
+        self.assertEqual(m.earlier_preview_apply(pr, runs + [held], lambda r: r["id"] == 2), 2)
 
 
 if __name__ == "__main__":

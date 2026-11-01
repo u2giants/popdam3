@@ -120,15 +120,18 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     return "idle", None, "every merged migration PR since activation is in production"
 
 
-def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]]) -> int | None:
-    """The oldest successful post-merge preview apply of this PR, if any."""
+def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
+                          preview_ok: callable = lambda run: False) -> int | None:
+    """The oldest post-merge preview apply of this PR whose preview job succeeded, if any."""
     # Recovery runs title themselves "PR " with no number, so match the versions.
     def names_pr(title: str) -> bool:
         words = title.split()
         return all(v in words for v in pr["versions"])
     hits = [r for r in runs
             if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(r.get("display_title") or "")
-            and r.get("conclusion") == "success" and r.get("created_at", "") > pr["merged_at"]]
+            and r.get("created_at", "") > pr["merged_at"]
+            # A run can fail after preview applied, e.g. at the review-finding hold.
+            and (r.get("conclusion") == "success" or preview_ok(r))]
     return min(hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
 
 
@@ -149,7 +152,8 @@ def main() -> int:
         return 0
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
     source = [f"merged_preview_source_pr={pr['number']}"]
-    original = earlier_preview_apply(pr, workflow_runs(repo))
+    original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: any(
+        j.get("name") == "preview" and j.get("conclusion") == "success" for j in run_jobs(repo, run["id"])))
     if original:
         # A retry after a failed production apply: preview already holds the
         # versions, so only the historical-recovery lane can re-prove them.
