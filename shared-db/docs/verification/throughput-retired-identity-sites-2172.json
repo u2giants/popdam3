@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "retired_by_issue": 2172,
+  "note": "popcre/ai-devops#2172 Stage C2: call sites deleted by the lean-core rewrite (C2b risk gate) and the retirement of migration-author-lease.yml (C2c). Historical disposition fields preserved.",
+  "sites": [
+    {
+      "site": "scripts/production_business_risk_gate.py:2095",
+      "semantic_key": "scripts/production_business_risk_gate.py:5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b:1",
+      "line_sha256": "5d4b23eb3d2d4bf4b5b08b9141fb149e71e0c7923baa6065463164d7c7cf0c9b",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
+      "state": "retired"
+    }
+  ]
+}

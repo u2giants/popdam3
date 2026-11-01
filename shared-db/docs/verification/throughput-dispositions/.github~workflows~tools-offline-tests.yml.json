@@ -64,6 +64,13 @@
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
       "reason": "CI presence check for the self-service lane boundary and route-sync tests (#3199 Phase B). The word \"Missing\" reports an absent TEST FILE in the workflow checkout, not an absent database object; excluded exactly like its freshness-gate and hygiene-report twins."
+    },
+    {
+      "site": ".github/workflows/tools-offline-tests.yml:175",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:9f58991dca375bde83e82c50a334d77744e5b096075189ae3bcb481bf788820d:context-0d9a3d65dcdedcbd057ea739c6b2d0427e186f4833130c1d59aef856b66609ae",
+      "line_sha256": "9f58991dca375bde83e82c50a334d77744e5b096075189ae3bcb481bf788820d",
+      "disposition": "excluded",
+      "reason": "Moved unchanged from the retired migration-author-lease.yml (popcre/ai-devops#2172 C2c); disposition carried from that catalogue entry."
     }
   ]
 }
