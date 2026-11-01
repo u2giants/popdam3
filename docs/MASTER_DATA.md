@@ -221,6 +221,12 @@ After approving/dismissing a value, the UI removes it immediately from the dropd
 
 ## Source authority
 
+Owner ruling, Albert Hazan, 2026-11-01: "DC and Harry Potter were not left out. they used to (Wrongly) be listed as their own licensors. that was wrong, they are properties under Warner Bros, which is how it is now."
+
+DC and Harry Potter are properties under the Warner Bros licensor (`WB`), never licensors. Character and property work resolves them through the Warner scrape. A `DC` or `HP` SKU code, or a `DC`/`HP` row in `core.licensor`, does not make either one a licensor.
+
+Live data as of 2026-11-01 7:35 AM EST had not caught up: `core.licensor` still held active `DC` (14 properties, 557 style groups) and `HP` (12 properties, 179 style groups) rows with no characters. Re-measure before relying on these rows.
+
 This document describes how the DAM screen implements Master Data. It does not own a
 separate business rule for source authority.
 

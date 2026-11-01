@@ -293,3 +293,11 @@ October 11 live origin comparison disproved treating every such 404 as a capacit
 **Actually:** Prose-only merges require `/worksp/ai-devops/bin/ai-doc-safety <worktree>` to pass on the whole tree: no credential-shaped strings, no RFC1918/CGNAT/tailnet addresses, no unexplained 20-letter lowercase runs (the shape of a Supabase project ref). 20-letter words that are legitimate are cleared per-word in `tools/public-boundary-allowlist.txt` (grouped justifications; never widen the pattern). Canonical shared-db mirror content is fixed in `popcre/shared-db` first, then the sync bot brings the fix here.
 **Why:** This repo is public; the boundary keeps credentials, Albert's network topology, and live infrastructure identifiers out of it. The lane was jammed repo-wide from 2026-10 until the #526 closeout remediation (PR #548, popcre/shared-db#4919) cleared it on 2026-10-27.
 **Do not change because:** Re-adding an IP or project ref to a doc re-fails the gate for every prose PR until another allowlist/redaction pass lands. Write hostnames or vault pointers instead of addresses; never edit another session's `HANDOFF.d/` file to remove one — retire the file per the ai-devops #2009 precedent with its unique facts migrated.
+
+## DC and Harry Potter belong to Warner Bros
+
+Owner ruling, Albert Hazan, 2026-11-01: "DC and Harry Potter were not left out. they used to (Wrongly) be listed as their own licensors. that was wrong, they are properties under Warner Bros, which is how it is now."
+
+DC and Harry Potter are properties under the Warner Bros licensor (`WB`), never licensors. Character and property work resolves them through the Warner scrape. A `DC` or `HP` SKU code, or a `DC`/`HP` row in `core.licensor`, does not make either one a licensor.
+
+Live data as of 2026-11-01 7:35 AM EST had not caught up: `core.licensor` still held active `DC` (14 properties, 557 style groups) and `HP` (12 properties, 179 style groups) rows with no characters. Re-measure before relying on these rows.
