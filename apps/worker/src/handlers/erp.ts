@@ -26,6 +26,13 @@ import {
 
 const DEFAULT_CLASSIFICATION_MODEL = "anthropic/claude-3.5-haiku";
 const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"];
+/**
+ * The ColdLion mirror carries mGCategory as '' (empty string) on every item
+ * (measured 2026-10-31: 19,893 of 19,893), never NULL. An is-null-only filter
+ * matches zero rows, so the AI classification candidate scan silently stopped
+ * (last prediction 2026-05-29). Missing means NULL or ''.
+ */
+export const ERP_MISSING_CATEGORY_OR = "mg_category.is.null,mg_category.eq.''";
 export const ERP_CLASSIFICATION_SCHEMA = {
   type: "object", properties: { category: { type: "string", enum: CATEGORIES }, confidence: { type: "number", minimum: 0, maximum: 1 }, rationale: { type: "string", maxLength: 200 } },
   required: ["category", "confidence", "rationale"], additionalProperties: false,
@@ -432,7 +439,11 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
   for (let i = 0; i < maxScanWindows && candidates.length < batchSize; i++) {
     const windowQuery = canonicalItems(client)
       .select("id, source_id, source_system, division_code, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code")
-      .is("mg_category", null)
+      // The ColdLion mirror carries mGCategory as '' (empty string) on every
+      // item (measured 2026-10-31: 19,893 of 19,893), never NULL. An
+      // is-null-only filter matches zero rows, so the AI classification path
+      // silently stopped (last prediction 2026-05-29). Treat '' as missing.
+      .or(ERP_MISSING_CATEGORY_OR)
       .not("style_number", "is", null)
       .neq("style_number", "");
     const { data: windowRows, error: windowErr } = await applyErpKeysetPage(windowQuery, scanAfter, scanWindow);
