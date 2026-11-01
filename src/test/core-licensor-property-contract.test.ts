@@ -23,10 +23,12 @@ describe("canonical licensor/property contract", () => {
     expect(syncFunction).not.toContain('.upsert(');
   });
 
-  it("uses the explicit character compatibility catalog", () => {
+  it("sources characters only from the licensor-scraped master list", () => {
     const tagging = read("apps/worker/src/handlers/ai-tagging-shared.ts");
-    expect(tagging).toContain('from("dam_character_catalog")');
+    expect(tagging).toContain('schema("core").from("character")');
+    expect(tagging).toContain('from("property_character_associations")');
     expect(tagging).toContain('schema("core").from("property")');
+    expect(tagging).not.toContain('from("dam_character_catalog")');
   });
 
   it("never derives licensor or property identity from folder names", () => {
