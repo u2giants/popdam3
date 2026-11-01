@@ -237,7 +237,7 @@ export async function validateCharacterReferences(
   if (binding && ids.some(id => !binding.includes(id))) throw new CharacterReferenceValidationError();
   if (!ids.length) return ids;
   let response;
-  try { response = await client.from("characters").select("id").in("id", ids); }
+  try { response = await client.schema("core").from("character").select("id").in("id", ids); }
   catch { throw new CharacterCatalogDependencyError("transport"); }
   const { data, error } = response;
   if (error || !data) throw new CharacterCatalogDependencyError(error?.code);
@@ -309,6 +309,9 @@ export async function resolveCharacterScope(
   return scope;
 }
 
+/** A licensor list longer than this is too broad to offer without property links. */
+export const LICENSOR_CHARACTER_LIST_LIMIT = 400;
+
 export function skuLicensorCode(sku: string | null | undefined): string | null {
   const match = sku?.trim().toUpperCase().match(/^[A-Z0-9]{5}([A-Z0-9]{2})/);
   return match ? match[1] : null;
@@ -331,31 +334,40 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
   let characters: { id: string; name: string }[] = [];
   const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
-  // Characters come only from the product's own property or licensor. With no
-  // licensing context (or an unlicensed group) the model gets no characters:
-  // a store-wide list let it attach Spider-Man to spider webs, Deadpool, etc.
-  let propertyIds: string[] = [];
+  // Characters come only from the licensor-scraped master list (core.character):
+  // the property's linked characters, else the whole licensor list when it is
+  // small enough to show. With no licensing context, an unlicensed group, or a
+  // large licensor whose property has no links, the model gets no characters:
+  // a broad list let it attach Spider-Man to spider webs, Deadpool, etc.
   if (!scope.unlicensed && scope.property_id) {
-    propertyIds = [scope.property_id];
-  } else if (!scope.unlicensed && scope.licensor_id) {
-    const { data: propIds, error: propertyIdsError } = await checkedQuery(client
+    const { data: links, error: linksError } = await checkedQuery(client
       .schema("core")
-      .from("property")
-      .select("id")
-      .eq("licensor_id", scope.licensor_id));
-    checkedCharacterRead(propertyIdsError, propIds);
-    propertyIds = (propIds ?? []).map((p: { id: string }) => p.id);
+      .from("property_character_associations")
+      .select("character:character_id(id, name)")
+      .eq("property_id", scope.property_id)
+      .eq("is_current", true));
+    checkedCharacterRead(linksError, links);
+    characters = ((links ?? []) as unknown as { character: { id: string; name: string } | null }[])
+      .map(link => link.character)
+      .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
+    if (!scope.licensor_id && characters.length === 0) {
+      const { data: property } = await checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle());
+      scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
+    }
   }
-  if (propertyIds.length > 0) {
-    const { data: scopedChars, error: scopedError } = await checkedQuery(client
-      .from("dam_character_catalog")
+  if (!scope.unlicensed && characters.length === 0 && scope.licensor_id) {
+    const { data: licensorChars, error: licensorError } = await checkedQuery(client
+      .schema("core")
+      .from("character")
       .select("id, name")
-      .in("core_property_id", propertyIds)
-      .order("is_priority", { ascending: false })
-      .order("name"));
-    checkedCharacterRead(scopedError, scopedChars);
-    characters = scopedChars ?? [];
+      .eq("licensor_id", scope.licensor_id)
+      .order("name")
+      .limit(LICENSOR_CHARACTER_LIST_LIMIT + 1));
+    checkedCharacterRead(licensorError, licensorChars);
+    const rows = (licensorChars ?? []) as { id: string; name: string }[];
+    characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
+  characters = [...new Map(characters.map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
