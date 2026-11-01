@@ -4,7 +4,7 @@
   "paths": [
     {
       "glob": "AGENTS.md",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "HANDOFF.md",
@@ -20,99 +20,99 @@
     },
     {
       "glob": ".ai-devops/**",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/refresh-style-tracker-rows.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/load-orderlist-integration-inputs.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-load-orderlist-integration-inputs.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/refresh-google-orderlist-rows.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/consolidate-orderlist-matches.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-consolidate-orderlist-matches.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/orderlist-source-dispositions.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-orderlist-source-dispositions.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/orderlist-source-disposition-writer.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-orderlist-source-disposition-writer.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/orderlist-settled-exception-executor.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "contracts/orderlist-settled-exception-apply.json",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-orderlist-settled-exception-executor.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-orderlist-settled-exception-postgres.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/repair-style-tracker-overflow-dates.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/orderlist-production-date-plan.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/apply-orderlist-production-date-plan.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-orderlist-production-date-plan.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-apply-orderlist-production-date-plan.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/capture-orderlist-production-date-source.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-capture-orderlist-production-date-source.py",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "contracts/orderlist-production-date-apply.json",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "scripts/test-task-gates.sh",
-      "class": "code"
+      "class": "reviewer-safety"
     },
     {
       "glob": "src/**",
