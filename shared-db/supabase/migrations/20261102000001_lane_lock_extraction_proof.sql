@@ -1,0 +1,9 @@
+-- Comment-only migration: proof that the extracted exclusive lock code works.
+-- This migration exercises the preview and production lock acquisition/release
+-- in scripts/lib/lanes/exclusive-locks.mjs (extracted from manage-migration-author-lanes.mjs
+-- by PR #5383, issue #5382, ai-devops#2172 follow-up).
+--
+-- The migration intentionally changes no database objects. Its purpose is to
+-- run through the full pipeline (preview apply -> production apply) so the
+-- extracted lock functions acquire and release the preview and production
+-- exclusive lanes against the real repository.
