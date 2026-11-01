@@ -356,6 +356,17 @@
       "issue_state": "closed",
       "claim_state": "closed",
       "note": "Preview-only restore of Disney characters that production already holds; never bound for production. Its link rows are carried by the replacement."
+    },
+    {
+      "issue": 5377,
+      "claim": 5385,
+      "source_pr": 5379,
+      "mode": "replacement_pending",
+      "orphan_version": "20261101192220",
+      "replacement_version": "20261101212654",
+      "issue_state": "open",
+      "claim_state": "open",
+      "note": "Declared a base production does not hold, so the production gate refused it. The replacement is the same body with the correct base."
     }
   ]
 }
