@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "source": "scripts/lib/lanes/exclusive-locks.mjs",
+  "sites": [
+    {
+      "source": "scripts/lib/lanes/exclusive-locks.mjs",
+      "site": "scripts/lib/lanes/exclusive-locks.mjs:288",
+      "semantic_key": "scripts/lib/lanes/exclusive-locks.mjs:353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759:context-964dddcd167a20a57e9b0638f43200e7a00fac35962f1ebca789cadecc7eb5b4",
+      "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "source": "scripts/lib/lanes/exclusive-locks.mjs",
+      "site": "scripts/lib/lanes/exclusive-locks.mjs:287",
+      "semantic_key": "scripts/lib/lanes/exclusive-locks.mjs:a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b:context-d390481fbe6277f96763351058136dbba14b1de8a1cc19e9683861ccca551304",
+      "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "source": "scripts/lib/lanes/exclusive-locks.mjs",
+      "site": "scripts/lib/lanes/exclusive-locks.mjs:240",
+      "semantic_key": "scripts/lib/lanes/exclusive-locks.mjs:edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92:context-78f28793eac74abd7ca212cb567db7b66ba215e8fbdad9bbe03a817a33393003",
+      "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    }
+  ]
+}

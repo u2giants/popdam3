@@ -96,7 +96,7 @@
       "line_sha256": "353e05215c33d52eeb934fee9fba3ee00cc84e87c32baf606fc691a7ffa50759",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1086",
@@ -186,7 +186,7 @@
       "line_sha256": "a3035e88f0dd1717b214c9b0742c1efb752dda15ff0a8d6aed632ed9c44eb66b",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:2302",
@@ -258,7 +258,7 @@
       "line_sha256": "edd9522c827b9793833f73e03172024d7b1bf2c0354e269ec0131cd4dc6a2c92",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:5557",
