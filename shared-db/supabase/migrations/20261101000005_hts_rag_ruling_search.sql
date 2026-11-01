@@ -37,6 +37,14 @@ create index if not exists hts_rag_ruling_codes_held_chapter_idx
   on hts_rag.hts_rag_ruling_codes (left(code, 2), ruling_number)
   where role = 'held';
 
+-- Load the pg_trgm library in this session before the functions below declare
+-- `set pg_trgm.word_similarity_threshold`. An unregistered extension parameter is
+-- only a placeholder, and a function may not pin a placeholder (42501: permission
+-- denied to set parameter). On a fresh apply the trigram index above loads the
+-- library, but on the replay path that index is an `if not exists` no-op and the
+-- library is never loaded — this call makes both paths identical.
+select extensions.word_similarity('', '');
+
 -- One pass of the search: three ranked lists of at most 200 rulings each. p_scope_chapters
 -- null means all active rulings; otherwise only rulings whose held code is in those chapters.
 -- Load pg_trgm in this session before a function SETs its parameter: on a re-apply the
