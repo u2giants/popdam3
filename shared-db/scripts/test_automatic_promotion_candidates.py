@@ -9,6 +9,16 @@ APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": 
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 
 
+class WorkflowRunsWindow(unittest.TestCase):
+    def test_reads_every_page_of_runs(self):
+        pages = [{"workflow_runs": [{"id": 1}]}, {"workflow_runs": [{"id": 2}]}]
+        real, m.gh = m.gh, lambda *args: pages if "--paginate" in args else {"workflow_runs": [{"id": 1}]}
+        try:
+            self.assertEqual([r["id"] for r in m.workflow_runs("o/r")], [1, 2])
+        finally:
+            m.gh = real
+
+
 class AppliedDespiteCatalogCheck(unittest.TestCase):
     def test_only_catalog_failure_counts_as_applied(self):
         self.assertTrue(m.applied_despite_catalog_check(APPLIED))

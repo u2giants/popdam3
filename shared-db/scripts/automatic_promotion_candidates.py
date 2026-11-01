@@ -74,8 +74,10 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
 
 
 def workflow_runs(repo: str) -> list[dict[str, Any]]:
-    data = gh(f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&per_page=100&created=>={ACTIVATED_AT[:10]}")
-    return data.get("workflow_runs", [])
+    # Every page: a PR's old production success must not age out of the window,
+    # or the lane re-promotes it and parks on it (observed 2026-11-01: PR #5045).
+    pages = gh("--paginate", "--slurp", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&per_page=100&created=>={ACTIVATED_AT[:10]}")
+    return [run for page in pages for run in page.get("workflow_runs", [])]
 
 
 # A production apply whose atomic apply step succeeded but whose only failed
