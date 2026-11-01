@@ -32,7 +32,7 @@ const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor"
  * matches zero rows, so the AI classification candidate scan silently stopped
  * (last prediction 2026-05-29). Missing means NULL or ''.
  */
-export const ERP_MISSING_CATEGORY_OR = "mg_category.is.null,mg_category.eq.''";
+export const ERP_MISSING_CATEGORY_OR = 'mg_category.is.null,mg_category.eq.""';
 export const ERP_CLASSIFICATION_SCHEMA = {
   type: "object", properties: { category: { type: "string", enum: CATEGORIES }, confidence: { type: "number", minimum: 0, maximum: 1 }, rationale: { type: "string", maxLength: 200 } },
   required: ["category", "confidence", "rationale"], additionalProperties: false,
@@ -450,7 +450,11 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
 
     if (windowErr) return { ok: false, done: false, error: windowErr.message };
 
-    const rows = (windowRows ?? []) as ErpCandidate[];
+    // Belt and braces: the server-side or-filter above is the documented
+    // PostgREST empty-string form (eq.""), but a quoting regression there
+    // must never silently empty the scan again — enforce the same predicate
+    // on the fetched rows too.
+    const rows = ((windowRows ?? []) as ErpCandidate[]).filter((r) => !r.mg_category);
     if (rows.length === 0) { exhausted = true; break; }
 
     scanned += rows.length;
