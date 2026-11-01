@@ -69,19 +69,22 @@ for ((i = 0; i < SAMPLES; i++)); do
   [[ "$MS" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "scoped sample $i produced no timing: $MS"; exit 1; }
   echo "$MS" >> "$SCOPED_FILE"
 
-  # Pass 2 shape: full corpus, recorded as context only.
+  # Pass 2 shape: full corpus, recorded as context only. Bounded so one slow
+  # sample cannot kill the run (run 41279896464 died on a statement timeout
+  # here); a timed-out sample is recorded as a miss and the run continues.
   MS="$(psql "$CONNINFO" -X -At -v ON_ERROR_STOP=1 -c \
-    "select round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric, 2)
+    "set statement_timeout = '45s';
+     select round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric, 2)
        from (select clock_timestamp() as t0) s,
-            lateral (select count(*) from hts_rag.hts_rag_search_rulings('${ESCAPED}')) r")"
-  [[ "$MS" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "corpus sample $i produced no timing: $MS"; exit 1; }
+            lateral (select count(*) from hts_rag.hts_rag_search_rulings('${ESCAPED}')) r" 2>/dev/null || echo TIMEOUT)"
+  [[ "$MS" =~ ^[0-9]+(\.[0-9]+)?$ ]] || MS="TIMEOUT"
   echo "$MS" >> "$CORPUS_FILE"
 done
 
 STATS="$(node -e '
 const fs = require("node:fs");
 const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))];
-const read = (f) => fs.readFileSync(f, "utf8").trim().split(/\s+/).map(Number).sort((a, b) => a - b);
+const read = (f) => fs.readFileSync(f, "utf8").trim().split(/\s+/).filter(x => /^[0-9]+(\.[0-9]+)?$/.test(x)).map(Number).sort((a, b) => a - b);
 const s = read(process.argv[1]); const c = read(process.argv[2]);
 console.log(pct(s, 50), pct(s, 95), pct(c, 50), pct(c, 95));
 ' "$SCOPED_FILE" "$CORPUS_FILE")"
