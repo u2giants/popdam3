@@ -78,15 +78,36 @@ def workflow_runs(repo: str) -> list[dict[str, Any]]:
     return data.get("workflow_runs", [])
 
 
-def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable) -> tuple[str, dict[str, Any] | None, str]:
+# A production apply whose atomic apply step succeeded but whose only failed
+# step is the post-apply catalog check has written its versions (observed
+# 2026-10-31: PR #5104, a pure-data load the catalog lexer cannot read).
+APPLY_STEP = "Fresh dry-run, then apply"
+CATALOG_STEP = "Post-apply catalog verification"
+
+
+def applied_despite_catalog_check(jobs: list[dict[str, Any]]) -> bool:
+    steps = [s for j in jobs for s in j.get("steps") or []]
+    failed = {s.get("name") for s in steps if s.get("conclusion") == "failure"}
+    applied = any(s.get("name") == APPLY_STEP and s.get("conclusion") == "success" for s in steps)
+    return applied and failed == {CATALOG_STEP}
+
+
+def run_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
+    return gh(f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
+
+
+def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
+           applied: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     for pr in prs:
         tag = f"PR{pr['number']} "
         titles = [(r.get("display_title") or "") + " " for r in runs]
-        if any(t.startswith("DB production apply") and tag in t and r.get("conclusion") == "success"
-               for t, r in zip(titles, runs)):
+        prod = [r for t, r in zip(titles, runs) if t.startswith("DB production apply") and tag in t]
+        if any(r.get("conclusion") == "success" for r in prod):
+            continue
+        if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
             continue
         if held(pr["number"]):
             return "wait", pr, f"PR #{pr['number']} is held by a blocking review finding"
@@ -109,7 +130,8 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     repo = os.environ["GITHUB_REPOSITORY"]
-    action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), is_held)
+    action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), is_held,
+                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])))
     print(f"{action}: {reason}")
     if action != "dispatch" or args.dry_run:
         return 0
