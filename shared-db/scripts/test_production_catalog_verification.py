@@ -3743,7 +3743,10 @@ class OrderSheetsIntegrationContractTests(unittest.TestCase):
             sidecar = root / "scripts/production-verification-sidecars" / (version + ".json")
             sidecar.parent.mkdir(parents=True)
             payload = {"schema_version": 1, "migration_version": version,
-                       "migration_sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
+                       # Same canonical form as the loader: a Windows
+                       # `write_text` materialises CRLF, and the loader binds
+                       # to LF bytes so one hash holds on both platforms.
+                       "migration_sha256": hashlib.sha256(migration.read_bytes().replace(b"\r\n", b"\n")).hexdigest(),
                        "checks": [{"id": "sheets_exact_shape", "kind": "catalog_contract", "contract": "dam_order_sheets_integration_v1", "expected_count": 1}]}
             sidecar.write_text(json.dumps(payload))
             checks = load_behavior_sidecars(root, {version: migration}, [version])

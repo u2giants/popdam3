@@ -241,8 +241,14 @@ ALTER_ROUTINE_HEAD_RE = re.compile(r"^\s*alter\s+(?:function|procedure|routine)\
 ALTER_SCHEMA_RENAME_RE = re.compile(
     rf"^\s*alter\s+schema\s+({IDENT})\s+rename\s+to\s+({IDENT})\s*$"
 )
+# `is null` (comment removal) is as much a comment statement as a literal, and
+# a final statement needs no trailing semicolon -- both spellings name a schema
+# and must be read, or a comment-only migration of that shape still lands in the
+# "proved nothing" refusal (#5349 follow-up). Group 2 is None for the `null`
+# form, which the schema-comment assertion then compares against an absent
+# catalog comment.
 COMMENT_SCHEMA_RE = re.compile(
-    rf"^\s*comment\s+on\s+schema\s+({IDENT})\s+is\s+'((?:''|[^'])*)'\s*;",
+    rf"^\s*comment\s+on\s+schema\s+({IDENT})\s+is\s+(?:'((?:''|[^'])*)'|null)\s*;?",
     re.IGNORECASE | re.MULTILINE | re.DOTALL,
 )
 COMMENT_ON_RE = re.compile(r"^\s*comment\s+on\b")
@@ -252,8 +258,12 @@ COMMENT_RELATION_RE = re.compile(
 COMMENT_COLUMN_RE = re.compile(
     rf"^\s*comment\s+on\s+column\s+{QUALIFIED}\s*\.\s*{IDENT}\s+is\b"
 )
+# The argument list is optional in Postgres: `comment on function f is '...'`
+# names `f` every bit as much as `comment on function f(int) is '...'` does, so
+# the paren-less spelling must derive the routine too instead of falling into
+# "proved nothing" (#5349 follow-up).
 COMMENT_ROUTINE_RE = re.compile(
-    rf"^\s*comment\s+on\s+(?:function|procedure|routine)\s+{QUALIFIED}\s*\("
+    rf"^\s*comment\s+on\s+(?:function|procedure|routine)\s+{QUALIFIED}(?:\s*\(|\s+is\b)"
 )
 ROW_SECURITY_RE = re.compile(r"\brow\s+level\s+security\b")
 CREATE_POLICY_RE = re.compile(rf"^\s*create\s+policy\b[\s\S]*?\bon\s+{QUALIFIED}")
@@ -1787,7 +1797,7 @@ class Targets:
         indexes: set[tuple[str, str]] | None = None,
         schema_renames: set[tuple[str, str, str | None]] | None = None,
         function_settings: list[tuple[str, str | None, str, str]] | None = None,
-        schema_comments: dict[str, str] | None = None,
+        schema_comments: dict[str, str | None] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -2934,7 +2944,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     noop: dict | None = None
     indexes: set[tuple[str, str]] = set()
     schema_rename_pairs: set[tuple[str, str]] = set()
-    schema_comments: dict[str, str] = {}
+    schema_comments: dict[str, str | None] = {}
     settings: dict[tuple[str, str | None, str], tuple[str, str | None, str, str]] = {}
     batch_statements: list[str] = []
 
@@ -2947,7 +2957,10 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         # must be read from the comment-stripped raw text. This still avoids
         # matching prose in SQL comments while preserving the exact literal.
         for match in COMMENT_SCHEMA_RE.finditer(_strip_sql_comments(raw)):
-            schema_comments[match.group(1)] = match.group(2).replace("''", "'")
+            literal = match.group(2)
+            schema_comments[match.group(1)] = (
+                literal.replace("''", "'") if literal is not None else None
+            )
         declaration = read_noop_declaration(raw, version)
         if declaration is not None and (noop is None or not declaration["accepted"]):
             noop = declaration
@@ -3138,7 +3151,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     # relation or routine exists. Restricted to such a batch so that no other
     # migration gains a target; a comment on anything else stays unreadable and
     # the "proved nothing" refusal still applies.
-    verified_schema_comments: dict[str, str] = {}
+    verified_schema_comments: dict[str, str | None] = {}
     if batch_statements and all(COMMENT_ON_RE.match(s) for s in batch_statements):
         verified_schema_comments = schema_comments
         for statement in batch_statements:
