@@ -2227,7 +2227,7 @@ Verbatim from Albert, relayed from the PopDAM session (2026-11-01):
 
 > "DC and Harry Potter were not left out. they used to (Wrongly) be listed as their own licensors. that was wrong, they are properties under Warner Bros, which is how it is now. document that everywhere it needs to be documented"
 
-**Effect.** DC and Harry Potter are not licensors. Their Properties belong to `WB` WARNER BROS, and their Characters resolve through the Warner scrape. Migration `20261101133201` moves their `core.property` rows to `WB`.
+**Effect.** DC and Harry Potter are not licensors. Their Properties belong to `WB` WARNER BROS, and their Characters resolve through the Warner scrape. Migration `20261101153043` moves their `core.property` rows to `WB`.
 
 Albert confirmed the move of existing rows, verbatim (2026-11-01): "Yes, move them".
 

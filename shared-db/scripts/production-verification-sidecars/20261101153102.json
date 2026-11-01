@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261101153102",
+  "migration_sha256": "65fb70f5e9c829dfb81e58951837b80bf7acdbe37ac923fbc0ecfed8c0929e69",
+  "checks": [],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 68,
+      "line_end": 68,
+      "disposition": "no_durable_target",
+      "reason": "Rewrites only the licensor resolution text of the existing plm.import_item_master_data body. No verifier-owned catalog contract covers this function, so no post-apply check is declared; the migration re-reads the body and raises if the new text is absent, and the session verifies the live function after apply."
+    }
+  ]
+}
