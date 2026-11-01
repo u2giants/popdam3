@@ -39,6 +39,11 @@ create index if not exists hts_rag_ruling_codes_held_chapter_idx
 
 -- One pass of the search: three ranked lists of at most 200 rulings each. p_scope_chapters
 -- null means all active rulings; otherwise only rulings whose held code is in those chapters.
+-- Load pg_trgm in this session before a function SETs its parameter: on a re-apply the
+-- trigram index already exists, so nothing else loads the library and the placeholder
+-- parameter is refused for a non-superuser.
+select extensions.show_limit();
+
 create or replace function hts_rag.hts_rag_search_rulings_pass(
   p_query text,
   p_tsquery tsquery,
