@@ -199,6 +199,13 @@ test("Postgres timeout codes classify even when the database message is blank", 
   assert.ok(nextAutoResumeAt(reason, { status: "interrupted", auto_resume_attempts: 0 }));
 });
 
+test("lock timeouts classify as the same transient cap class as statement timeouts (#630)", () => {
+  const reason = classifyError("apply_erp_item_updates failed: canceling statement due to lock timeout");
+
+  assert.equal(reason, "statement_timeout");
+  assert.ok(nextAutoResumeAt(reason, { status: "interrupted", auto_resume_attempts: 0 }));
+});
+
 test("configuration reads fail into a resumable dependency timeout", () => {
   const reason = classifyError("AI task model config read timed out after 10000ms");
 

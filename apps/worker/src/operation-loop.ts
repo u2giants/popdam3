@@ -750,6 +750,11 @@ export function classifyError(msg: string): string {
   if (m.includes("thumbnail fetch temporarily failed before submission")) return "dependency_timeout";
   if (m.includes("config read timed out") || m.includes("dependency timed out")) return "dependency_timeout";
   if (m.includes("57014") || m.includes("statement timeout")) return "statement_timeout";
+  // Postgres raises lock timeouts as "canceling statement due to lock timeout"
+  // (also 57014): same transient cap class as a statement timeout (#630). Left
+  // unclassified they land as "unknown" and the op terminally "fails", which
+  // auto-resume skips.
+  if (m.includes("lock timeout")) return "statement_timeout";
   if (m.includes("handler supplied no message")) return "missing_error_message";
   if (m.includes("bad gateway") || m.includes("502") || m.includes("503") || m.includes("504")) return "gateway_timeout";
   if (m.includes("too many connections") || m.includes("connection refused")) return "connection_error";
