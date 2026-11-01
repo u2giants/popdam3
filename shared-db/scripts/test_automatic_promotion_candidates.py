@@ -25,5 +25,22 @@ class AppliedDespiteCatalogCheck(unittest.TestCase):
         self.assertEqual((action, pr["number"]), ("dispatch", 5104))
 
 
+class EarlierPreviewApply(unittest.TestCase):
+    def test_finds_the_oldest_successful_post_merge_preview_apply(self):
+        pr = {"number": 5165, "merged_at": "2026-10-31T00:00:00Z", "versions": ["20261030190639"]}
+        runs = [
+            {"id": 9, "conclusion": "success", "created_at": "2026-10-31T05:00:00Z", "display_title": "DB preview apply a PR5165 20261030190639"},
+            {"id": 7, "conclusion": "success", "created_at": "2026-10-31T02:00:00Z", "display_title": "DB preview apply a PR5165 20261030190639"},
+            {"id": 3, "conclusion": "success", "created_at": "2026-10-30T02:00:00Z", "display_title": "DB preview apply a PR5165 20261030190639"},
+            {"id": 8, "conclusion": "failure", "created_at": "2026-10-31T01:00:00Z", "display_title": "DB preview apply a PR5165 20261030190639"},
+            {"id": 6, "conclusion": "success", "created_at": "2026-10-31T01:30:00Z", "display_title": "DB preview apply a PR51650 x"},
+            {"id": 5, "conclusion": "success", "created_at": "2026-10-31T01:40:00Z", "display_title": "DB preview apply a PR 202610301906390"},
+        ]
+        self.assertEqual(m.earlier_preview_apply(pr, runs), 7)
+        self.assertIsNone(m.earlier_preview_apply(pr, runs[3:]))
+        recovery = {"id": 4, "conclusion": "success", "created_at": "2026-10-31T01:50:00Z", "display_title": "DB preview apply a PR 20261030190639"}
+        self.assertEqual(m.earlier_preview_apply(pr, runs + [recovery]), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

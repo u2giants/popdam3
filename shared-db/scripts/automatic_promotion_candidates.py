@@ -120,6 +120,18 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     return "idle", None, "every merged migration PR since activation is in production"
 
 
+def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]]) -> int | None:
+    """The oldest successful post-merge preview apply of this PR, if any."""
+    # Recovery runs title themselves "PR " with no number, so match the versions.
+    def names_pr(title: str) -> bool:
+        words = title.split()
+        return all(v in words for v in pr["versions"])
+    hits = [r for r in runs
+            if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(r.get("display_title") or "")
+            and r.get("conclusion") == "success" and r.get("created_at", "") > pr["merged_at"]]
+    return min(hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
+
+
 def is_held(pr: int) -> bool:
     rc = subprocess.run([sys.executable, os.path.join(HERE, "review_finding_hold.py"), "--pr", str(pr)]).returncode
     return rc != 0
@@ -136,11 +148,18 @@ def main() -> int:
     if action != "dispatch" or args.dry_run:
         return 0
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
+    source = [f"merged_preview_source_pr={pr['number']}"]
+    original = earlier_preview_apply(pr, workflow_runs(repo))
+    if original:
+        # A retry after a failed production apply: preview already holds the
+        # versions, so only the historical-recovery lane can re-prove them.
+        source = [f"historical_preview_source_pr={pr['number']}",
+                  "historical_preview_original_run_map=" + ",".join(f"{v}:{original}" for v in pr["versions"])]
     subprocess.run(
         ["gh", "workflow", "run", WORKFLOW, "--repo", repo, "--ref", "main",
          "-f", "target=preview", "-f", "mode=apply", "-f", f"commit_sha={main_sha}",
          "-f", f"preview_allowlist={','.join(pr['versions'])}",
-         "-f", f"merged_preview_source_pr={pr['number']}"],
+         *[a for kv in source for a in ("-f", kv)]],
         check=True,
     )
     print(f"Dispatched the post-merge preview rehearsal for PR #{pr['number']} at {main_sha}.")
