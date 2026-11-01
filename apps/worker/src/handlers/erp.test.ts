@@ -68,3 +68,11 @@ test("ERP apply results must match the item count and normalise ids", () => {
   assert.throws(() => parseErpApplyResults([], 1), /0 results for 1 items/);
   assert.throws(() => parseErpApplyResults(null, 1), /results for 1 items/);
 });
+
+import { ERP_MISSING_CATEGORY_OR } from "./erp.js";
+
+test("ERP classify candidate scan treats empty-string mg_category as missing", () => {
+  // The ColdLion mirror normalizes mGCategory to '' (never NULL). The scan
+  // filter must cover both, or the AI path matches zero rows (u2giants/popdam3#616).
+  assert.equal(ERP_MISSING_CATEGORY_OR, "mg_category.is.null,mg_category.eq.''");
+});
