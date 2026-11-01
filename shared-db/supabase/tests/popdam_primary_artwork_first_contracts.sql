@@ -72,3 +72,38 @@ begin
 end $$;
 
 rollback;
+
+-- #5259 amendment: a file_type correction must recompute the tier (trigger
+-- watches file_type), and artwork is the complement of 'pdf'.
+do $$
+declare
+  v_group uuid := 'ffffffff-5259-4000-8000-000000000010';
+  v_pdf uuid := 'ffffffff-5259-4000-8000-000000000001';
+begin
+  insert into public.style_groups(id, sku, folder_path)
+  values (v_group, 'ZZ5259-' || txid_current(), 'ZZ5259/A');
+
+  insert into public.assets(
+    id, filename, relative_path, file_type, quick_hash, modified_at,
+    style_group_id, is_deleted, thumbnail_url, thumbnail_error
+  ) values
+    (v_pdf, 'ZZ5259_sheet.pdf', 'ZZ5259/A/sheet.pdf', 'pdf',
+      'zz5259-pdf-' || txid_current(), now(), v_group, false,
+      'https://example.invalid/zz5259.jpg', null);
+
+  if (select primary_sort_tier from public.assets where id = v_pdf) <> 7 then
+    raise exception 'ZZ5259: pdf-with-thumbnail tier expected 7';
+  end if;
+
+  -- Correct the file type: the trigger must recompute pdf(7) -> artwork(5)
+  -- without any filename or thumbnail change.
+  update public.assets set file_type = 'psd' where id = v_pdf;
+  if (select primary_sort_tier from public.assets where id = v_pdf) <> 5 then
+    raise exception 'ZZ5259: file_type correction did not recompute the tier (trigger must watch file_type)';
+  end if;
+
+  perform public.refresh_style_group_primaries(array[v_group]);
+  if (select primary_asset_id from public.style_groups where id = v_group) is distinct from v_pdf then
+    raise exception 'ZZ5259: sole artwork asset expected as primary';
+  end if;
+end $$;
