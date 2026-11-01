@@ -345,6 +345,17 @@
       "issue_state": "open",
       "claim_state": "open",
       "note": "Applied to preview as run 41332949470; stranded when its promotion evidence could not qualify (separately merged allowlist entry; re-run original apply). Superseded by 20261101182210."
+    },
+    {
+      "issue": 5079,
+      "claim": 5323,
+      "source_pr": 5324,
+      "mode": "replacement_pending",
+      "orphan_version": "20261101125528",
+      "replacement_version": "20261101153043",
+      "issue_state": "closed",
+      "claim_state": "closed",
+      "note": "Preview-only restore of Disney characters that production already holds; never bound for production. Its link rows are carried by the replacement."
     }
   ]
 }
