@@ -70,6 +70,7 @@ test("ERP apply results must match the item count and normalise ids", () => {
 });
 
 import { ERP_MISSING_CATEGORY_OR, ERP_APPLY_MIN_PAGE_SIZE, handleApplyErpEnrichment, isErpTransientDbTimeout, nextErpApplyPageSize } from "./erp.js";
+import type { OpState } from "../types.js";
 
 test("ERP classify candidate scan treats empty-string mg_category as missing", () => {
   // The ColdLion mirror normalizes mGCategory to '' (never NULL). The scan
@@ -121,13 +122,13 @@ class TimeoutThenEmptyClient {
   }
 }
 
-const OP_STATE = {
+const OP_STATE: OpState = {
   status: "running",
   cursor: "22d04f21-aa69-4443-a2b2-913253903176",
   params: { mode: "apply" },
   progress: { total: 2100 },
   run_id: "run-630",
-} as never;
+};
 
 test("a transient-timeout page retries the same cursor at halved sizes, then succeeds", async () => {
   const client = new TimeoutThenEmptyClient(2);
@@ -156,7 +157,7 @@ test("downsizing is bounded: four halvings then the page error parks the op", as
 
 test("a persisted working page size is the first size tried", async () => {
   const client = new TimeoutThenEmptyClient(0);
-  const state = { ...OP_STATE, progress: { total: 2100, retry_page_size: 25 } } as never;
+  const state: OpState = { ...OP_STATE, progress: { total: 2100, retry_page_size: 25 } };
   const result = await handleApplyErpEnrichment(state, client as never);
   assert.deepEqual(client.pageSizes, [25]);
   assert.equal(result.ok, true);
