@@ -134,6 +134,16 @@ page size; subsequent retries reduce `50 -> 25 -> 10`. A successful page clears
 the fallback. The page-size reduction is only resilience: the normal path is
 the indexed keyset RPC.
 
+`erp-enrichment` checkpoints a bare UUID keyset cursor (`api.plm_item_list.id`)
+and auto-resumes from it like the other UUID-keyset operations (#630). Its
+apply pages (100 canonical items) sit near the statement cap once the per-row
+DAM-search refresh triggers fire, so on a statement/lock timeout the handler
+retries the SAME cursor with a halved page — `100 -> 50 -> 25 -> 12 -> 10`,
+four downsizing steps, floor 10 — and only then parks as an ordinary
+interruption. The size that worked is persisted as `retry_page_size` and later
+ticks start from it; a fresh run resets to 100. Every smaller page keeps the
+same per-page atomicity (`apply_erp_item_updates` per page, #4167).
+
 ---
 
 ## State Storage

@@ -64,6 +64,10 @@ export function isResumableOperationCursor(operationKey: string, cursor: unknown
   if (operationKey === "reprocess-metadata" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
   // Image-embed backfill keysets its stale-asset enumeration by assets.id.
   if (operationKey === "rebuild-image-vectors" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
+  // ERP enrichment apply keysets by the canonical PLM item id (#630). Without
+  // this, Resume computed shouldResume=false and restarted the run from
+  // cursor 0 — the restart this op must never take.
+  if (operationKey === "erp-enrichment" && typeof cursor === "string") return UUID_CURSOR_RE.test(cursor);
   if (operationKey === "tag-popsg-files") {
     return typeof cursor === "string"
       && (UUID_CURSOR_RE.test(cursor) || POPSG_CONSENSUS_CURSOR_RE.test(cursor));

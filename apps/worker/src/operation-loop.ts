@@ -615,6 +615,9 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         total: Math.max((prev.total as number) || 0, (batch.total as number) || 0),
         assets_updated: ((prev.assets_updated as number) || 0) + ((batch.assets_updated as number) || 0),
         groups_updated: ((prev.groups_updated as number) || 0) + ((batch.groups_updated as number) || 0),
+        // #630: the handler reports the page size that actually worked so a
+        // later tick starts there instead of re-burning a timeout at 100.
+        retry_page_size: (batch.retry_page_size as number) ?? prev.retry_page_size,
       };
     case "shorten-item-descriptions":
       return {

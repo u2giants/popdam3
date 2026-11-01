@@ -25,7 +25,10 @@ export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean
   // bare UUID. Without this the op cannot auto-resume after a Railway restart.
   // reprocess-metadata in fill-missing-licensing mode keysets by assets.id.
   // rebuild-image-vectors keysets its stale-asset enumeration by assets.id too.
-  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata" || opKey === "rebuild-image-vectors") {
+  // erp-enrichment apply mode keysets by the canonical PLM item id (#630): without
+  // this entry its statement-timeout interruptions schedule an auto-resume that
+  // can never fire, and the op stays interrupted indefinitely.
+  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata" || opKey === "rebuild-image-vectors" || opKey === "erp-enrichment") {
     return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
   }
   return false;
