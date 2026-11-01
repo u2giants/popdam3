@@ -23,9 +23,9 @@ begin
         raise exception '% can read hts_rag.%', v_role, v_table;
       end if;
     end loop;
-    -- 20261101000731 (#5244): runtime reads the product, decision and vocabulary tables, writes none.
+    -- 20261101000731 (#5244), 20261101022731 (#5260): runtime reads the HTS code, product, decision and vocabulary tables, writes none.
     foreach v_role in array array['designflow_hts_prod_runtime','designflow_hts_alsand_runtime'] loop
-      if has_table_privilege(v_role, 'hts_rag.' || v_table, 'SELECT') <> (v_table = any (array['hts_rag_article_types',
+      if has_table_privilege(v_role, 'hts_rag.' || v_table, 'SELECT') <> (v_table = any (array['hts_rag_hts_codes','hts_rag_hts_renumbering','hts_rag_article_types',
            'hts_rag_materials','hts_rag_attribute_keys','hts_rag_ruling_products','hts_rag_product_components',
            'hts_rag_product_attributes','hts_rag_heading_decisions']))
          or has_table_privilege(v_role, 'hts_rag.' || v_table, 'INSERT')
