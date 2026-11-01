@@ -43,8 +43,8 @@
       "legacy_semantic_key": ".github/workflows/tools-offline-tests.yml:c22603525ed4d2630a06407de00fca17ad8fb56e69673a6a493bcad40d89ac56:1"
     },
     {
-      "site": ".github/workflows/tools-offline-tests.yml:240",
-      "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:context-151c599d12840cc1dd8564c5663c13925a9099f45f3bc21d10eba29c54312737",
+      "site": ".github/workflows/tools-offline-tests.yml:258",
+      "semantic_key": ".github/workflows/tools-offline-tests.yml:d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8:context-645a36e22a4f195e1cd24d4683fe14baecabd3a325c09b8a150fda33b70234f6",
       "line_sha256": "d5a626c2543aa053b14be20e283e895a018d584a660c4bcc07828a13d9cb74c8",
       "disposition": "excluded",
       "reason": "CI presence check for the self-service lane boundary and route-sync tests (#3199 Phase B). The word \"Missing\" reports an absent TEST FILE in the workflow checkout, not an absent database object; excluded exactly like its freshness-gate and hygiene-report twins.",
