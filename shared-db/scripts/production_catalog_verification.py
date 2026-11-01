@@ -245,6 +245,16 @@ COMMENT_SCHEMA_RE = re.compile(
     rf"^\s*comment\s+on\s+schema\s+({IDENT})\s+is\s+'((?:''|[^'])*)'\s*;",
     re.IGNORECASE | re.MULTILINE | re.DOTALL,
 )
+COMMENT_ON_RE = re.compile(r"^\s*comment\s+on\b")
+COMMENT_RELATION_RE = re.compile(
+    rf"^\s*comment\s+on\s+(?:table|view|materialized\s+view|foreign\s+table)\s+{QUALIFIED}\s+is\b"
+)
+COMMENT_COLUMN_RE = re.compile(
+    rf"^\s*comment\s+on\s+column\s+{QUALIFIED}\s*\.\s*{IDENT}\s+is\b"
+)
+COMMENT_ROUTINE_RE = re.compile(
+    rf"^\s*comment\s+on\s+(?:function|procedure|routine)\s+{QUALIFIED}\s*\("
+)
 ROW_SECURITY_RE = re.compile(r"\brow\s+level\s+security\b")
 CREATE_POLICY_RE = re.compile(rf"^\s*create\s+policy\b[\s\S]*?\bon\s+{QUALIFIED}")
 INSERT_INTO_RE = re.compile(rf"^\s*insert\s+into\s+{QUALIFIED}")
@@ -1777,6 +1787,7 @@ class Targets:
         indexes: set[tuple[str, str]] | None = None,
         schema_renames: set[tuple[str, str, str | None]] | None = None,
         function_settings: list[tuple[str, str | None, str, str]] | None = None,
+        schema_comments: dict[str, str] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -1799,6 +1810,8 @@ class Targets:
         self.seeded = sorted(seeded)
         self.indexes = sorted(indexes or set())
         self.schema_renames = sorted(schema_renames or set())
+        # Filled only for a batch of nothing but `comment on` statements.
+        self.schema_comments = sorted((schema_comments or {}).items())
         # (family, normalized signature or None, setting, "set"|"reset"), in
         # statement order with only the last word per routine+setting kept.
         self.function_settings = list(function_settings or [])
@@ -1835,6 +1848,7 @@ class Targets:
             or self.privileges
             or self.indexes
             or self.schema_renames
+            or self.schema_comments
             or self.function_settings
         )
 
@@ -1852,6 +1866,7 @@ class Targets:
                 f"{source}|{destination}|{comment if comment is not None else ''}"
                 for source, destination, comment in self.schema_renames
             ],
+            "schema_comments": [name for name, _ in self.schema_comments],
             "function_settings": [
                 f"{signature or family}|{action}|{setting}"
                 for family, signature, setting, action in self.function_settings
@@ -2921,6 +2936,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     schema_rename_pairs: set[tuple[str, str]] = set()
     schema_comments: dict[str, str] = {}
     settings: dict[tuple[str, str | None, str], tuple[str, str | None, str, str]] = {}
+    batch_statements: list[str] = []
 
     for version in allowlist:
         path = migrations.get(version)
@@ -2936,6 +2952,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         if declaration is not None and (noop is None or not declaration["accepted"]):
             noop = declaration
         text = strip_sql(raw)
+        batch_statements.extend(split_statements(text))
         for statement in split_statements(text):
             if match := ALTER_SCHEMA_RENAME_RE.match(statement):
                 schema_rename_pairs.add((match.group(1), match.group(2)))
@@ -3116,6 +3133,19 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         (source, destination, schema_comments.get(destination))
         for source, destination in schema_rename_pairs
     }
+    # A batch of nothing but `comment on` still names real objects, so it can
+    # prove something: the schema and its exact comment, or that the commented
+    # relation or routine exists. Restricted to such a batch so that no other
+    # migration gains a target; a comment on anything else stays unreadable and
+    # the "proved nothing" refusal still applies.
+    verified_schema_comments: dict[str, str] = {}
+    if batch_statements and all(COMMENT_ON_RE.match(s) for s in batch_statements):
+        verified_schema_comments = schema_comments
+        for statement in batch_statements:
+            if match := COMMENT_RELATION_RE.match(statement) or COMMENT_COLUMN_RE.match(statement):
+                views.add(f"{match.group(1)}.{match.group(2)}")
+            elif match := COMMENT_ROUTINE_RE.match(statement):
+                functions.add(f"{match.group(1)}.{match.group(2)}")
     return Targets(
         tables,
         views,
@@ -3130,6 +3160,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         indexes=indexes,
         schema_renames=schema_renames,
         function_settings=list(settings.values()),
+        schema_comments=verified_schema_comments,
     )
 
 
@@ -3239,7 +3270,10 @@ def build_catalog_sql(targets: Targets) -> str:
     index_names = _sql_array([row[0] for row in targets.indexes])
     index_relations = _sql_array([row[1] for row in targets.indexes])
     schema_names = _sql_array(
-        sorted({name for source, destination, _ in targets.schema_renames for name in (source, destination)})
+        sorted(
+            {name for source, destination, _ in targets.schema_renames for name in (source, destination)}
+            | {name for name, _ in targets.schema_comments}
+        )
     )
     defacl = targets.default_acls
     defacl_schemas = _sql_array([row[0] for row in defacl])
@@ -4276,6 +4310,22 @@ def render_report(
     if not targets.schema_renames:
         add("| _no ALTER SCHEMA RENAME target was derived_ | | | | |")
     add("")
+
+    if targets.schema_comments:
+        add("## Schema comment assertions (`pg_namespace`)")
+        add("")
+        add("| schema | present | comment matches |")
+        add("| --- | --- | --- |")
+        for name, expected_comment in targets.schema_comments:
+            row = schema_rows.get(name)
+            present = row is not None and row.get("exists") is True
+            matches = row is not None and row.get("comment") == expected_comment
+            add(f"| `{name}` | {present} | {matches} |")
+            if not present:
+                failures.append(f"schema comment on {name}: schema must be present")
+            if not matches:
+                failures.append(f"schema comment on {name}: comment does not match the migration")
+        add("")
 
     add("## Indexes (`pg_index` / `pg_get_indexdef`)")
     add("")

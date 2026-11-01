@@ -1491,6 +1491,43 @@ class NoopDeclarationTests(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertIn("proved nothing", failures[0])
 
+    def test_a_schema_comment_only_batch_checks_the_exact_comment(self):
+        targets = targets_for("comment on schema core is 'it''s core';")
+        self.assertFalse(targets.is_empty())
+        good = {"schemas": [{"name": "core", "exists": True, "comment": "it's core"}]}
+        _, failures = render_report(["20260810140000"], targets, good, None, [], True)
+        self.assertEqual(failures, [])
+        for bad in (
+            {"schemas": []},
+            {"schemas": [{"name": "core", "exists": False, "comment": None}]},
+            {"schemas": [{"name": "core", "exists": True, "comment": "other"}]},
+        ):
+            with self.subTest(bad=bad):
+                _, failures = render_report(["20260810140000"], targets, bad, None, [], True)
+                self.assertTrue(failures)
+        self.assertIn("'core'", build_catalog_sql(targets))
+
+    def test_a_comment_only_batch_requires_the_commented_objects(self):
+        targets = targets_for(
+            "comment on table plm.a is 'x';\n"
+            "comment on column plm.b.c is 'x';\n"
+            "comment on function plm.f(int) is 'x';\n"
+        )
+        self.assertEqual(targets.required_relations, ["plm.a", "plm.b"])
+        self.assertEqual(targets.functions, ["plm.f"])
+
+    def test_a_comment_on_an_unreadable_object_still_proves_nothing(self):
+        targets, (_, failures) = self.render("comment on policy p on plm.a is 'x';")
+        self.assertTrue(targets.is_empty())
+        self.assertIn("proved nothing", failures[0])
+
+    def test_a_comment_beside_a_data_statement_adds_no_target(self):
+        targets, (_, failures) = self.render(
+            "comment on schema core is 'x';\nupdate plm.widget set a = 1;"
+        )
+        self.assertTrue(targets.is_empty())
+        self.assertIn("proved nothing", failures[0])
+
     def test_a_declared_and_checked_no_op_passes_with_its_reason_recorded(self):
         targets, (markdown, failures) = self.render(self.DATA_ONLY)
         self.assertEqual(failures, [])
