@@ -55,6 +55,12 @@ begin
       or (tgrelid='public.asset_characters'::regclass and tgname like 'asset\_characters\_dam\_search\_refresh\_%'))) <> 10 then
     raise exception 'PopDAM canonical final trigger wiring is incomplete';
   end if;
+  -- The per-row refresh triggers were retired by migration 20261101120856.
+  if exists (select 1 from pg_trigger where not tgisinternal and tgname in (
+      'asset_tags_dam_search_refresh','style_group_tags_dam_search_refresh',
+      'asset_characters_dam_search_refresh','asset_licensor_characters_dam_search_refresh')) then
+    raise exception 'retired per-row DAM search refresh triggers are still present';
+  end if;
   if not (select relrowsecurity from pg_class where oid='public.style_group_tags'::regclass)
      or (select count(*) from pg_policy where polrelid='public.style_group_tags'::regclass
        and polname in ('Authenticated read style_group_tags','Admin manage style_group_tags')) <> 2 then

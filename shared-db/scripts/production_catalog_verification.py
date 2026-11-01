@@ -1034,7 +1034,7 @@ POPDAM_FORWARD_RECOVERY_CONTRACT = _shape_contract(
     constraints=tuple((('public.asset_tags' if name.startswith('asset_tags_') else 'public.dam_search_embeddings'),name) for name in """asset_tags_category_check asset_tags_confidence_check asset_tags_rejection_check asset_tags_source_normalized_check asset_tags_status_check asset_tags_tag_normalized_check dam_search_embedding_attempts_check dam_search_embedding_error_category_check""".split()),
     routines=tuple('public.'+value for value in "claim_dam_search_embedding_documents get_dam_search_embedding_status get_effective_asset_metadata mark_dam_search_embedding_error refresh_dam_search_asset_document refresh_dam_search_documents_batch refresh_dam_search_style_group_document replace_asset_ai_tag_result replace_style_group_ai_profile reset_dam_search_embedding_errors sync_asset_tags_to_array trg_refresh_dam_tag_or_character upsert_dam_search_embedding".split()),
     policies=(('public.style_group_tags','Authenticated read style_group_tags'),('public.style_group_tags','Admin manage style_group_tags')),
-    triggers=(('public.asset_tags','asset_tags_sync_assets_tags'),('public.asset_tags','asset_tags_dam_search_refresh'),('public.style_group_tags','style_group_tags_dam_search_refresh'),('public.asset_characters','asset_characters_dam_search_refresh')),
+    triggers=(('public.asset_tags','asset_tags_sync_assets_tags'),('public.asset_tags','asset_tags_dam_search_refresh_ins'),('public.asset_tags','asset_tags_dam_search_refresh_upd'),('public.asset_tags','asset_tags_dam_search_refresh_del'),('public.style_group_tags','style_group_tags_dam_search_refresh_ins'),('public.style_group_tags','style_group_tags_dam_search_refresh_upd'),('public.style_group_tags','style_group_tags_dam_search_refresh_del'),('public.asset_characters','asset_characters_dam_search_refresh_ins'),('public.asset_characters','asset_characters_dam_search_refresh_upd'),('public.asset_characters','asset_characters_dam_search_refresh_del')),
 )
 def designflow_fk_contract(expected: tuple[tuple[str, str, str, str, str], ...]) -> str:
     """Closed, verifier-owned exact foreign-key inventory; no external inputs."""
@@ -1599,10 +1599,10 @@ and (select count(*) from pg_constraint c where c.conrelid=to_regclass('plm.lice
       and to_regprocedure('public.mark_dam_search_embedding_error(text,uuid,text,uuid,text,text)') is not null
       and to_regprocedure('public.get_dam_search_embedding_status()') is not null
       and to_regprocedure('public.reset_dam_search_embedding_errors(text,uuid[])') is not null
-      and (select count(*) = 4 from pg_trigger where not tgisinternal and tgenabled <> 'D' and (
-        (tgrelid=to_regclass('public.asset_tags') and tgname in ('asset_tags_sync_assets_tags','asset_tags_dam_search_refresh'))
-        or (tgrelid=to_regclass('public.style_group_tags') and tgname='style_group_tags_dam_search_refresh')
-        or (tgrelid=to_regclass('public.asset_characters') and tgname='asset_characters_dam_search_refresh')))
+      and (select count(*) = 10 from pg_trigger where not tgisinternal and tgenabled <> 'D' and (
+        (tgrelid=to_regclass('public.asset_tags') and tgname in ('asset_tags_sync_assets_tags','asset_tags_dam_search_refresh_ins','asset_tags_dam_search_refresh_upd','asset_tags_dam_search_refresh_del'))
+        or (tgrelid=to_regclass('public.style_group_tags') and tgname in ('style_group_tags_dam_search_refresh_ins','style_group_tags_dam_search_refresh_upd','style_group_tags_dam_search_refresh_del'))
+        or (tgrelid=to_regclass('public.asset_characters') and tgname in ('asset_characters_dam_search_refresh_ins','asset_characters_dam_search_refresh_upd','asset_characters_dam_search_refresh_del'))))
     """,
     "popdam_1427_security_v1": """
       (select relrowsecurity from pg_class where oid=to_regclass('public.style_group_tags'))

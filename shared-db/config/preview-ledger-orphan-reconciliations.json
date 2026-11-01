@@ -320,17 +320,6 @@
       "claim_state": "open"
     },
     {
-      "issue": 5336,
-      "claim": 5338,
-      "source_pr": 5310,
-      "mode": "replacement_pending",
-      "orphan_version": "20261101120856",
-      "replacement_version": "20261101153023",
-      "issue_state": "open",
-      "claim_state": "open",
-      "note": "Merged but never applied to preview or production; no ledger row to reconcile."
-    },
-    {
       "issue": 5337,
       "claim": 5358,
       "source_pr": 5314,
