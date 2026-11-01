@@ -36,6 +36,9 @@ LINK_DIR="$(mktemp -d)"
 cd "$LINK_DIR"
 supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" >/dev/null
 POOLER_URL="$(cat "$LINK_DIR/supabase/.temp/pooler-url")"
+# The pooler URL carries no password (the apply tooling passes it separately);
+# psql reads it from PGPASSWORD.
+export PGPASSWORD="$SUPABASE_DB_PASSWORD"
 
 TIMINGS_FILE="$OUT_DIR/timings.txt"
 : > "$TIMINGS_FILE"
