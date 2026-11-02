@@ -334,13 +334,13 @@ export async function writeAssetAiTags(
 }
 
 /** The save is one atomic transaction, so a statement timeout left nothing behind; keep the paid AI result and retry. */
-export async function retryStatementTimeout<T extends { error: null | { code?: string } }>(
+export async function retryStatementTimeout<T extends { error: unknown }>(
   save: () => PromiseLike<T>,
   delaysMs: number[] = [2_000, 5_000, 15_000],
 ): Promise<T> {
   let result = await save();
   for (const delayMs of delaysMs) {
-    if (result.error?.code !== "57014") break;
+    if ((result.error as { code?: string } | null)?.code !== "57014") break;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
     result = await save();
   }
