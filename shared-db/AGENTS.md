@@ -241,7 +241,7 @@ Root cause: parallel chip-spawned sessions without claims/reservation.
 Recovery: fix forward; CI now blocks duplicate and backdated versions.
 
 Rule added: never spawn background task chips here; reserve versions through
-`scripts/manage-migration-coordination.mjs --claim` (standing facts 4–5).
+`scripts/check-dispatch-collision.mjs --reserve-version` (standing facts 4–5).
 
 ### [2026-08-11] Production apply pin refused two approved runs
 

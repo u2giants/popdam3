@@ -36,7 +36,7 @@ have already happened in this repo, more than once.
    error. This has happened twice — `20260722220000` and `20260728160000`. CI
    now blocks duplicate versions and backdated versions, but do not rely on CI
    to save you; reserve the version atomically through
-   `scripts/manage-migration-coordination.mjs --claim` before creating the file.
+   `scripts/check-dispatch-collision.mjs --reserve-version` before creating the file.
 5. **Never create background task chips for this repo — banned.** Four
    chip-spawned sessions recently authored competing `CREATE OR REPLACE`
    migrations against the *same* database function, three of them sharing

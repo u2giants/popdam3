@@ -61,7 +61,7 @@ AI sessions from breaking each other through the one database they all depend on
 > ceremony (issue #3199 Phase B, boundary opened to all four app schemas 2026-09-25):** an additive change whose every named object lives in
 > `{crm, pim, dam, plm}` may instead take the **self-service additive lane** — declare
 > `route: self-service-additive` in the issue's `db-work-scope`, claim the lane yourself
-> (`--claim --admit-issue`), draw one reviewer yourself (`--assign-reviewer`), and dispatch the
+> (reserve and file a claim via `check-dispatch-collision.mjs`), draw one reviewer yourself (`--assign-reviewer`), and dispatch the
 > guarded merge yourself; the merge-time boundary classifier enforces the scope. Everything else
 > (shared objects, other schemas, brand-new schemas) is claim-first (AGENTS.md §0.0-D): claim
 > the exact objects on the existing issue and do the work yourself — no HANDOVER issue and stop.
