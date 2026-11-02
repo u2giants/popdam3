@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "work_issue": 5412,
+  "generation": 3,
+  "evidence_parent": {
+    "work_issue": 5412,
+    "generation": 2,
+    "contract_sha256": "9778c12f18cd86b9c851c765a4a3de8215081779964857870cd77543683a7d04"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "branch": "codex/dam-preview-order-4508",
+  "worker": "Codex chat 01a199a4-7411-70e0-abf3-b9aa8cd7c6c7 on hetz",
+  "worktree": "/tmp/shared-db-coir-preview",
+  "dispatcher": "Albert requested full delivery of the DAM cold search fix; this resolves its measured preview release deadlock",
+  "base_sha": "a0a526bf78fe7830775268ca757bec4460e4eb3f",
+  "goal": "Complete the unchanged merged OrderList preview rehearsal despite a legitimate already-applied preview-only DAM version, without changing migrations or production authority",
+  "file_writes": [
+    "config/atomic-migration-allowlist.json",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply.py",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/verification/throughput-dispositions/scripts~atomic_migration_apply.py.json"
+  ],
+  "allowed_paths": [
+    "config/atomic-migration-allowlist.json",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply.py",
+    ".github/workflows/shared-supabase-migrations.yml",
+    "docs/verification/throughput-dispositions/scripts~atomic_migration_apply.py.json"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Supabase CLI refuses missing local history for preview-applied 03027, blocking unrelated merged 03158 rehearsal",
+    "Existing exact-hash atomic applier avoids replaying or repairing any unrelated ledger row",
+    "Preview-only classification must preserve the ordinary production CLI route"
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts/test_atomic_migration_apply.py",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs scripts/throughput-guard/check-throughput-truth-audit.test.mjs"
+  ],
+  "prohibited_actions": [
+    "No migration edits",
+    "No manual database apply or ledger repair",
+    "No change to production authority or qualification"
+  ],
+  "stop_conditions": [
+    "Hash mismatch for the merged source",
+    "Any regression in production-stage routing"
+  ]
+}

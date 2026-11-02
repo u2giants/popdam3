@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "work_issue": 4508,
+  "pr": 5397,
+  "base_sha": "af542c271bb80e1f35166b02653b4eb812745547",
+  "head_sha": "e18b9b4694f205f732f7e893c7820dcce3ce6f2c",
+  "contract_ref": "refs/db-contracts/4508/23",
+  "contract_sha256": "533a6c9235c576ce3e5aa087deb7890ccbb057f513cf436b6e890966c801d869",
+  "files_changed": [
+    "config/atomic-migration-allowlist.json",
+    "scripts/check-applied-migration-edit.mjs",
+    "scripts/check-applied-migration-edit.test.mjs",
+    "scripts/historical-migration-restorations.mjs",
+    "scripts/historical-migration-restorations.test.mjs",
+    "supabase/migrations/20261102003027_dam_dense_group_vectors.sql",
+    "supabase/tests/popdam_dense_group_vectors_contracts.sql",
+    "supabase/tests/popdam_semantic_anchor_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function public.search_dam_documents",
+    "function public.dam_search_semantic_anchor",
+    "table dam.search_group_vectors",
+    "function dam.sync_search_group_vectors",
+    "trigger trg_sync_search_group_vectors on public.dam_search_documents",
+    "table public.dam_search_documents"
+  ],
+  "migration_versions": [
+    "20261102003027"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards passed."
+    },
+    {
+      "command": "isolated PostgreSQL17/pgvector migration plus popdam_dense_group_vectors_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Migration and vector parity, insert, replace, key change, invalidate, delete, asset isolation and privilege checks passed."
+    },
+    {
+      "command": "compare canonical function definitions",
+      "exit_code": 0,
+      "evidence": "Both bodies byte identical except exact-scan relation; all scoring and authorization preserved."
+    },
+    {
+      "command": "popdam_semantic_anchor_contracts.sql in isolated PostgreSQL17",
+      "exit_code": 0,
+      "evidence": "Asset, exact group, untyped and null anchors plus anon denial pass with normal document synchronization."
+    },
+    {
+      "command": "node --test scripts/check-applied-migration-edit.test.mjs",
+      "exit_code": 0,
+      "evidence": "38 tests pass including changed-SQL, authorization-hash, transaction-shape and production/modified-file refusal cases."
+    },
+    {
+      "command": "check-applied-migration-edit.mjs against current preview ledger",
+      "exit_code": 0,
+      "evidence": "Exact canonical 13-statement ordered match to immutable preview record; migration sha256 unchanged."
+    },
+    {
+      "command": "node --test scripts/historical-migration-restorations.test.mjs",
+      "exit_code": 0,
+      "evidence": "22 tests pass; exact source/provenance accepted, changed SQL or appended SQL rejected."
+    },
+    {
+      "command": "GitHub Database Contract Tests run 41369219698",
+      "exit_code": 0,
+      "evidence": "Full suite passed at 5e413604b; runtime migration SQL remains byte-identical. Refreshed exact-head CI remains required."
+    },
+    {
+      "command": "node --test scripts/check-applied-migration-edit.test.mjs scripts/historical-migration-restorations.test.mjs",
+      "exit_code": 0,
+      "evidence": "60 focused tests pass after current-main reconciliation; migration SHA256 remains byte-identical to preview."
+    }
+  ],
+  "assumptions_resolved": [
+    "Authenticated live anchor hit 5s timeout and search hit 30s timeout; exact group vector scan exceeded 15s under load",
+    "Both search function bodies remain byte identical except exact-scan relation",
+    "Private dense projection tracks every vector mutation in the same transaction",
+    "The existing anchor fixture must exercise normal document writes instead of disabling every synchronization trigger; no runtime migration bytes changed after preview apply",
+    "Applied migration bytes are unchanged; guard now reuses the canonical atomic loader and requires byte-identical ordered ledger statements after its hash-authorized transaction stripping",
+    "Unrelated OrderList migration 20261102003158 merged while this unchanged version was already preview-applied; exact byte-and-provenance registration preserves the already-rehearsed source instead of renaming/reapplying it"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge"
+}

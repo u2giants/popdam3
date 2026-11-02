@@ -619,3 +619,19 @@ test('pins the issue 2988 restoration and its production provenance',()=>{
     /historical restoration file hash mismatch for 20260916033914/,
   )
 })
+
+test('#4508 pins unchanged preview-rehearsed dense vectors after a disjoint migration overtook it',()=>{
+  const row=HISTORICAL_RESTORATIONS['20261102003027']
+  const raw=readFileSync(row.filename,'utf8')
+  assert.equal(row.previewApplyRun,'41368010464')
+  assert.equal(row.previewAppliedCommit,'0d86e722c8098bb4f25df09b36762fc3612df6f9')
+  assert.equal(row.fileSha256,'1b6de5834005b8ace1a829d2f53e91adda59cbc333743a568d4f7671af8b62d4')
+  assert.deepEqual(row.objects,[...dispatchObjectKeys(raw)].sort())
+  assert.equal(validateHistoricalRestorationFile(row.filename,raw),row)
+  assert.throws(()=>validateHistoricalRestorationFile(row.filename,raw.replace('set storage plain','set storage external')),/hash mismatch/)
+  assert.throws(()=>validateHistoricalRestorationFile(row.filename,raw+'select 1;\n'),/hash mismatch/)
+  assert.equal(row.sourcePr,undefined)
+  assert.equal(row.sourceMergeCommit,undefined)
+  assert.equal(Object.isFrozen(row),true)
+  assert.equal(Object.isFrozen(row.objects),true)
+})

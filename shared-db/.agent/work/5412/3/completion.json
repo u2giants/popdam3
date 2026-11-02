@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_issue": 5412,
+  "pr": 5413,
+  "base_sha": "a0a526bf78fe7830775268ca757bec4460e4eb3f",
+  "head_sha": "98a8753af7ddfecd5a18bbc1159f99dfda1ce1e2",
+  "contract_ref": "refs/db-contracts/5412/3",
+  "contract_sha256": "f4c2faf941281ba5fb61938b6a27d17aa78e8dcd94ffdf6e70a11ab15bd333a2",
+  "files_changed": [
+    ".github/workflows/shared-supabase-migrations.yml",
+    "config/atomic-migration-allowlist.json",
+    "docs/verification/throughput-dispositions/scripts~atomic_migration_apply.py.json",
+    "scripts/atomic_migration_apply.py",
+    "scripts/test_atomic_migration_apply.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "migration_versions": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts/test_atomic_migration_apply.py",
+      "exit_code": 0,
+      "evidence": "27 focused tests passed, including target routing and malformed/mixed allowlists."
+    },
+    {
+      "command": "canonical atomic loader against unchanged merged 03158 source",
+      "exit_code": 0,
+      "evidence": "Exact preview hash validates five inner statements; production atomic authorization is refused and production classification retains ordinary CLI routing."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Reviewed unchanged missing-entry refusal with new target-classifier context; inventory and focused tests pass."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/check-throughput-truth-audit-context.test.mjs scripts/throughput-guard/check-throughput-truth-audit.test.mjs",
+      "exit_code": 0,
+      "evidence": "24 full-context and inventory tests passed."
+    },
+    {
+      "command": "node --test scripts/throughput-guard/*.test.mjs",
+      "exit_code": 0,
+      "evidence": "72 tests passed using a temporary private PATH python alias to installed python3; original invocation failed only because python executable was absent."
+    }
+  ],
+  "assumptions_resolved": [
+    "Supabase CLI refuses missing local history for preview-applied 03027, blocking unrelated merged 03158 rehearsal",
+    "Existing exact-hash atomic applier avoids replaying or repairing any unrelated ledger row",
+    "Preview-only classification must preserve the ordinary production CLI route"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge"
+}

@@ -18,7 +18,8 @@ begin
 end
 $$;
 
-set local session_replication_role = replica;
+-- Keep normal document triggers active: the exact-search vector projection
+-- must be populated just as it is for real document writes.
 insert into public.dam_search_documents
   (document_type, entity_id, asset_id, style_group_id, title, path, embedding, embedding_model)
 values
@@ -28,7 +29,6 @@ values
   ('style_group', '49990000-0000-4000-8000-000000000002', null, '49990000-0000-4000-8000-000000000002',
    'zz4999 anchor group', 'zz4999-g',
    (array[0::real, 1::real] || array_fill(0::real, array[766]))::extensions.vector, 'google/siglip2-base-patch16-naflex');
-set local session_replication_role = origin;
 
 do $$
 declare

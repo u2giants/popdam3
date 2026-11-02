@@ -51,12 +51,14 @@
       "legacy_semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1"
     },
     {
-      "site": "scripts/atomic_migration_apply.py:526",
-      "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:context-30b1db32c5cf57a972c9be56d17d5d8126d9e17dfa536c5934a3f73c036360db",
+      "site": "scripts/atomic_migration_apply.py:531",
+      "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:context-4de01795c5e4381a73431644eddb58c9eb582653bfd7493d6862d3c83810b210",
       "line_sha256": "c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1"
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1",
+      "source": "scripts/atomic_migration_apply.py",
+      "review_note": "The missing-entry refusal is unchanged. Target-scoped classification now validates the same authorized entry for the selected stage; this nearby context change does not suppress or weaken refusal."
     }
   ]
 }
