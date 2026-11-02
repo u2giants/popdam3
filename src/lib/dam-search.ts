@@ -91,10 +91,10 @@ export function getSearchMode(): Promise<SearchMode> {
         return lastKnownGoodMode;
       } catch (error) {
         if (searchAccessStatus(error)) throw error;
-        // A transient failure must not flip the whole library between hybrid
-        // and keyword result sets every TTL window: sticky-return the last
-        // mode that actually loaded (keyword before the first success).
-        return lastKnownGoodMode ?? "keyword";
+        // Preserve an established mode during a transient probe failure. A cold
+        // failure has no trustworthy mode: report it instead of assuming keyword.
+        if (lastKnownGoodMode) return lastKnownGoodMode;
+        throw error;
       }
     })();
   }
@@ -169,8 +169,8 @@ export async function fetchSearchIds(
         // One immediate retry: a single cold start or timeout must not flip
         // the result set to the keyword fallback between refreshes.
         if (attempt === 1) {
-          // A persistently unavailable edge function still degrades to keyword search.
-          return fetchKeywordIds();
+          // Preserve the failure: a different search can falsely report no matches.
+          throw error;
         }
       }
     }
