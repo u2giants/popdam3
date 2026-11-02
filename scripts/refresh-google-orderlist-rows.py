@@ -46,9 +46,23 @@ def source_rows(path):
     return [m.SourceRow(sheet_row=i,values=tuple(row)) for i,row in enumerate(rows[1:],2)]
 
 
-def merged_payload(old,desired,metadata,columns):
+def merged_payload(old,desired,metadata,columns,source_id=None):
     result={key:desired.get(key) for key in columns}
     prior=(old or {}).get('metadata') or {}
+    correction=prior.get('orderlist_google_correction')
+    if correction is not None and 'sku' in columns:
+        original=correction.get('original') if isinstance(correction,dict) else None
+        corrected=correction.get('corrected') if isinstance(correction,dict) else None
+        keys={'sku','customer_po_number'}
+        if (not isinstance(correction,dict) or correction.get('version')!=1
+                or correction.get('source_id')!=source_id or not source_id
+                or not str(correction.get('evidence_ref') or '').strip()
+                or not isinstance(original,dict) or set(original)!=keys
+                or not isinstance(corrected,dict) or set(corrected)!=keys
+                or any(not isinstance(corrected[k],str) or not corrected[k].strip() for k in keys)
+                or any(desired.get(k)!=original[k] for k in keys)):
+            raise ValueError('OrderList source correction no longer matches source cells; held without changes: '+str(source_id))
+        result.update(corrected)
     result['metadata']={**prior,**metadata}
     if (old and 'order_list_snapshot' in prior and
             prior['order_list_snapshot'] != metadata.get('order_list_snapshot')):
@@ -210,6 +224,7 @@ def main():
             desired_orders[order.source_id]=order_payload(old,order)
         for line in source_plan.writable_lines():
             old=lines.get(lrefs.get(line.source_id))
+            payload=merged_payload(old,line.payload,line.metadata,m.LINE_COLUMNS,line.source_id)
             if old and old['id'] in cold_refs:
                 held.append({'source_id':line.source_id,'reason':'shared_coldlion_line'});continue
             assert_existing_identity(old,line,orefs.get(line.order_source_id),old and orders.get(old['production_order_id']))
@@ -217,7 +232,7 @@ def main():
                 held.append({'source_id':line.source_id,'reason':'new_cross_source_overlap','coldlion_ids':cold_index[overlap_key(line.payload)]});continue
             if old is None and blank_quantity_key(line.payload) in cold_po_style:
                 held.append({'source_id':line.source_id,'reason':'blank_quantity_coldlion_overlap','coldlion_ids':cold_po_style[blank_quantity_key(line.payload)]});continue
-            desired_lines[line.source_id]={'order_source_id':line.order_source_id,'payload':merged_payload(old,line.payload,line.metadata,m.LINE_COLUMNS)}
+            desired_lines[line.source_id]={'order_source_id':line.order_source_id,'payload':payload}
         changes={'orders_inserted':0,'orders_updated':0,'lines_inserted':0,'lines_updated':0}
         for sid,payload in desired_orders.items():
             old=orders.get(orefs.get(sid));changes['orders_inserted' if old is None else 'orders_updated']+=int(old is None or bool(changed_fields(payload,old)))

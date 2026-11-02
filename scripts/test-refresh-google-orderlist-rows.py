@@ -75,4 +75,23 @@ class RefreshBoundaryTests(unittest.TestCase):
   for number in ['D2','GOOGLE-ROW-8']:
    with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None,{'production_order_number':number})
   with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None)
+ def test_exact_google_correction_survives_replay(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW'},'evidence_ref':'issue636'}
+  old={'sku':'SKU','metadata':{'orderlist_google_correction':correction}}
+  desired={'sku':'SKU','customer_po_number':'OLD'}
+  for _ in range(2):
+   result=s.merged_payload(old,desired,{},s.m.LINE_COLUMNS,'order:row:7')
+   self.assertEqual(result['customer_po_number'],'NEW')
+   old=result
+  self.assertEqual(desired['customer_po_number'],'OLD')
+ def test_google_correction_rejects_changed_source_and_other_source_id(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW'},'evidence_ref':'issue636'}
+  old={'sku':'SKU','metadata':{'orderlist_google_correction':correction}}
+  for desired,sid in [({'sku':'SKU','customer_po_number':'CHANGED'},'order:row:7'),({'sku':'OTHER','customer_po_number':'OLD'},'order:row:7'),({'sku':'SKU','customer_po_number':'OLD'},'order:row:8')]:
+   with self.assertRaisesRegex(ValueError,'held without changes'):
+    s.merged_payload(old,desired,{},s.m.LINE_COLUMNS,sid)
+ def test_google_correction_cannot_write_unrelated_fields(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW','quantity_ordered':619},'evidence_ref':'issue636'}
+  with self.assertRaisesRegex(ValueError,'held without changes'):
+   s.merged_payload({'sku':'SKU','metadata':{'orderlist_google_correction':correction}},{'sku':'SKU','customer_po_number':'OLD'},{},s.m.LINE_COLUMNS,'order:row:7')
 unittest.main()
