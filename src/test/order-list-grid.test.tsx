@@ -127,6 +127,22 @@ describe("OrderList grid: opening an existing order", () => {
     expect(onEditOrder.mock.calls[0][0].order_id).toBe("order-1");
   });
 
+  it("labels verified source cancellation and preserves the active sibling", async () => {
+    const { container } = renderGrid([
+      row({ order_line_id: "cancelled", coldlion_source_id: "coldlion:so:123:line:0:component:1", line_status: "cancelled", production_order_number: "OLD", cancel_date: "2026-07-23" }),
+      row({ order_line_id: "active", line_status: null, production_order_number: "ACTIVE", cancel_date: "2026-07-23" }),
+    ]);
+    expect(await screen.findByTitle("Cancelled in ColdLion")).toHaveTextContent("Cancelled");
+    expect(screen.getAllByTitle("Cancelled in ColdLion")).toHaveLength(1);
+    expect(container.querySelectorAll('.ag-center-cols-container .ag-row[style*="line-through"]')).toHaveLength(1);
+  });
+
+  it("a past shipping cancel date alone never means a cancelled source line", async () => {
+    renderGrid([row({ line_status: null, cancel_date: "2000-01-01" })]);
+    await screen.findByText("PO-1");
+    expect(screen.queryByTitle("Cancelled in ColdLion")).toBeNull();
+  });
+
   it("marks a voided order instead of showing it as a live one", async () => {
     // `api.dam_order_list` does not filter voided rows out, so the grid must.
     const { container } = renderGrid([

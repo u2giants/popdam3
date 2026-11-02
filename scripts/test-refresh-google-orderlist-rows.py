@@ -75,4 +75,58 @@ class RefreshBoundaryTests(unittest.TestCase):
   for number in ['D2','GOOGLE-ROW-8']:
    with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None,{'production_order_number':number})
   with self.assertRaises(ValueError):s.assert_existing_identity(old,line,None)
+ def test_exact_google_correction_survives_replay(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW'},'evidence_ref':'issue636'}
+  old={'sku':'SKU','customer_po_number':'NEW','metadata':{'orderlist_google_correction':correction}}
+  desired={'sku':'SKU','customer_po_number':'OLD'}
+  for _ in range(2):
+   result=s.merged_payload(old,desired,{},s.m.LINE_COLUMNS,'order:row:7')
+   self.assertEqual(result['customer_po_number'],'NEW')
+   old=result
+  self.assertEqual(desired['customer_po_number'],'OLD')
+ def test_google_correction_rejects_changed_source_and_other_source_id(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW'},'evidence_ref':'issue636'}
+  old={'sku':'SKU','customer_po_number':'NEW','metadata':{'orderlist_google_correction':correction}}
+  for desired,sid in [({'sku':'SKU','customer_po_number':'CHANGED'},'order:row:7'),({'sku':'OTHER','customer_po_number':'OLD'},'order:row:7'),({'sku':'SKU','customer_po_number':'OLD'},'order:row:8')]:
+   with self.assertRaisesRegex(ValueError,'held without changes'):
+    s.merged_payload(old,desired,{},s.m.LINE_COLUMNS,sid)
+ def test_google_correction_cannot_write_unrelated_fields(self):
+  correction={'version':1,'source_id':'order:row:7','original':{'sku':'SKU','customer_po_number':'OLD'},'corrected':{'sku':'SKU','customer_po_number':'NEW','quantity_ordered':619},'evidence_ref':'issue636'}
+  with self.assertRaisesRegex(ValueError,'held without changes'):
+   s.merged_payload({'sku':'SKU','metadata':{'orderlist_google_correction':correction}},{'sku':'SKU','customer_po_number':'OLD'},{},s.m.LINE_COLUMNS,'order:row:7')
+ def test_first_sku_correction_replays_with_its_current_item_link(self):
+  from types import SimpleNamespace
+  c={'version':1,'source_id':'order:row:7','original':{'sku':'RAW','customer_po_number':'PO'},'corrected':{'sku':'FIXED','customer_po_number':'PO'},'evidence_ref':'editor5403'}
+  old={'sku':'FIXED','customer_po_number':'PO','production_order_id':'parent','item_id':'fixed-item','master_data_match_status':'manual','metadata':{'orderlist_google_correction':c}}
+  line=SimpleNamespace(payload={'sku':'RAW','customer_po_number':'PO','item_id':'raw-item','master_data_match_status':'matched'},source_id='order:row:7')
+  s.assert_existing_identity(old,line,'parent')
+  result=s.merged_payload(old,line.payload,{},s.m.LINE_COLUMNS,line.source_id)
+  self.assertEqual(result['sku'],'FIXED');self.assertEqual(result['item_id'],'fixed-item')
+  self.assertEqual(result['master_data_match_status'],'manual')
+ def test_repeated_sku_edits_keep_original_source_and_latest_correction(self):
+  from types import SimpleNamespace
+  c={'version':1,'source_id':'order:row:7','original':{'sku':'RAW','customer_po_number':'PO'},'corrected':{'sku':'SECOND-FIX','customer_po_number':'NEW-PO'},'evidence_ref':'editor5403'}
+  old={'sku':'SECOND-FIX','customer_po_number':'NEW-PO','production_order_id':'parent','metadata':{'orderlist_google_correction':c}}
+  line=SimpleNamespace(payload={'sku':'RAW','customer_po_number':'PO'},source_id='order:row:7')
+  for _ in range(2):
+   s.assert_existing_identity(old,line,'parent')
+   result=s.merged_payload(old,line.payload,{},s.m.LINE_COLUMNS,line.source_id)
+   self.assertEqual(result['sku'],'SECOND-FIX');self.assertEqual(result['customer_po_number'],'NEW-PO')
+   self.assertEqual(result['metadata']['orderlist_google_correction']['original'],{'sku':'RAW','customer_po_number':'PO'})
+   old={**old,**result}
+ def test_sku_exception_never_accepts_wrong_source_changed_source_or_stale_endpoint(self):
+  from types import SimpleNamespace
+  c={'version':1,'source_id':'order:row:7','original':{'sku':'RAW','customer_po_number':'PO'},'corrected':{'sku':'FIXED','customer_po_number':'PO'},'evidence_ref':'editor5403'}
+  old={'sku':'FIXED','customer_po_number':'PO','production_order_id':'parent','metadata':{'orderlist_google_correction':c}}
+  for sku,po,sid in [('RAW','PO','order:row:8'),('OTHER','PO','order:row:7'),('RAW','CHANGED','order:row:7')]:
+   line=SimpleNamespace(payload={'sku':sku,'customer_po_number':po},source_id=sid)
+   with self.assertRaisesRegex(ValueError,'held without changes'):s.assert_existing_identity(old,line,'parent')
+  line=SimpleNamespace(payload={'sku':'RAW','customer_po_number':'PO'},source_id='order:row:7')
+  with self.assertRaisesRegex(ValueError,'held without changes'):s.assert_existing_identity({**old,'sku':'UNRECORDED-EDIT'},line,'parent')
+ def test_valid_sku_correction_does_not_authorize_parent_move(self):
+  from types import SimpleNamespace
+  c={'version':1,'source_id':'order:row:7','original':{'sku':'RAW','customer_po_number':'PO'},'corrected':{'sku':'FIXED','customer_po_number':'PO'},'evidence_ref':'editor5403'}
+  old={'sku':'FIXED','customer_po_number':'PO','production_order_id':'parent','metadata':{'orderlist_google_correction':c}}
+  line=SimpleNamespace(payload={'sku':'RAW','customer_po_number':'PO'},source_id='order:row:7',sheet_row=7,order_source_id='order:po:unrelated')
+  with self.assertRaisesRegex(ValueError,'identity changed'):s.assert_existing_identity(old,line,'different',{'production_order_number':'original'})
 unittest.main()
