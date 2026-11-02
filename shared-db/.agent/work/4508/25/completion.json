@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "work_issue": 4508,
+  "pr": 5422,
+  "base_sha": "64310a3240579a34a62d5e68f009a81482ff6a41",
+  "head_sha": "c755a45ed1556753f320302c6feb4cee30e34ee1",
+  "contract_ref": "refs/db-contracts/4508/25",
+  "contract_sha256": "7a0ae64ba7dbc19f2a3dda490c30ec13f5b5da2c58d98497cccdd638d74f45c0",
+  "files_changed": [
+    "supabase/migrations/20261102020822_dam_dense_vectors_replica_sync.sql",
+    "supabase/tests/popdam_dense_group_vectors_contracts.sql",
+    "config/atomic-migration-allowlist.json",
+    ".github/workflows/database-contract-tests.yml"
+  ],
+  "db_reads": [
+    "table public.dam_search_documents"
+  ],
+  "db_writes": [
+    "table public.dam_search_documents",
+    "trigger trg_sync_search_group_vectors on public.dam_search_documents",
+    "table dam.search_group_vectors"
+  ],
+  "migration_versions": [
+    "20261102020822"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL guards pass; CI performs live-ledger guards separately."
+    },
+    {
+      "command": "disposable PostgreSQL original drift, forward migration and dense-vector contract",
+      "exit_code": 0,
+      "evidence": "Reproduced missing/stale/orphan rows under original replica writes; repaired two entries/deleted one orphan. Complete parity and origin/replica lifecycle pass, including same-key asset isolation."
+    },
+    {
+      "command": "python3 -m unittest scripts/test_atomic_migration_apply.py",
+      "exit_code": 0,
+      "evidence": "27 tests pass; the actual new five-statement body is hash-authorized on both targets; original03027 SHA remains unchanged."
+    },
+    {
+      "command": "replica contract over disposable PostgreSQL TCP as existing supabase_admin",
+      "exit_code": 0,
+      "evidence": "Complete normal/replica lifecycle passes using the same localhost authentication as CI. Exact file-specific test user selection leaves other contracts unchanged."
+    },
+    {
+      "command": "node --test scripts/database-contract-authorization.test.mjs scripts/check-workflow-yaml.test.mjs",
+      "exit_code": 0,
+      "evidence": "All56 workflow/authorization tests pass. The YAML checker also parses all51 workflows."
+    }
+  ],
+  "assumptions_resolved": [
+    "Finding5401 replica-mode drift is reproduced in disposable PostgreSQL",
+    "Original03027 remains byte-identical and already preview applied",
+    "Normal and replica mutations must synchronously preserve complete projection parity",
+    "The replica-mode contract must run with the existing disposable superuser; no parameter/role grants or production authority change"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge"
+}

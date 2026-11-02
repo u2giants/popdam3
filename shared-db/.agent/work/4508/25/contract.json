@@ -1,0 +1,57 @@
+{
+  "allowed_paths": [
+    "supabase/migrations/20261102020822_dam_dense_vectors_replica_sync.sql",
+    "supabase/tests/popdam_dense_group_vectors_contracts.sql",
+    "config/atomic-migration-allowlist.json",
+    ".github/workflows/database-contract-tests.yml"
+  ],
+  "assumptions": [
+    "Finding5401 replica-mode drift is reproduced in disposable PostgreSQL",
+    "Original03027 remains byte-identical and already preview applied",
+    "Normal and replica mutations must synchronously preserve complete projection parity",
+    "The replica-mode contract must run with the existing disposable superuser; no parameter/role grants or production authority change"
+  ],
+  "base_sha": "64310a3240579a34a62d5e68f009a81482ff6a41",
+  "branch": "codex/dam-replica-sync-4508",
+  "db_reads": [
+    "table public.dam_search_documents"
+  ],
+  "db_writes": [
+    "table public.dam_search_documents",
+    "trigger trg_sync_search_group_vectors on public.dam_search_documents",
+    "table dam.search_group_vectors"
+  ],
+  "dispatcher": "Albert requested the exact spiderman coir search latency fix and live verification in this chat",
+  "file_writes": [
+    "supabase/migrations/20261102020822_dam_dense_vectors_replica_sync.sql",
+    "supabase/tests/popdam_dense_group_vectors_contracts.sql",
+    "config/atomic-migration-allowlist.json",
+    ".github/workflows/database-contract-tests.yml"
+  ],
+  "generation": 25,
+  "goal": "Preserve exact-vector projection consistency for replica-mode writers and reconcile any existing drift without changing ranking",
+  "prohibited_actions": [
+    "No manual production apply",
+    "No ranking, matching, visibility, grant, or word-search changes",
+    "No editing another session files"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh"
+  ],
+  "route": "claim-first",
+  "schema_version": 2,
+  "stop_conditions": [
+    "Unexpected source or migration drift",
+    "Projection differs after replica-mode mutations",
+    "Preview or production identity cannot be proved"
+  ],
+  "work_issue": 4508,
+  "work_type": "structural",
+  "worker": "Codex chat 01a199a4-7411-70e0-abf3-b9aa8cd7c6c7 on hetz",
+  "worktree": "/tmp/shared-db-coir-preview",
+  "evidence_parent": {
+    "work_issue": 4508,
+    "generation": 24,
+    "contract_sha256": "1f5e38cabea61c2f80678bef220584952a325893bcb1422e74ac61edf92a6477"
+  }
+}

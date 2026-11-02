@@ -116,6 +116,14 @@
         "preview"
       ],
       "strip_outer_transaction": true
+    },
+    "20261102020822": {
+      "sha256": "9e619caa99822566703a34dbcf56a227a322be5cfdfabe3b87316d1e95ebb848",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "strip_outer_transaction": true
     }
   }
 }
