@@ -15,7 +15,9 @@ export default defineConfig({
         test: {
           name: "src",
           environment: "jsdom",
-          setupFiles: ["./src/test/setup.ts"],
+          // Absolute so a git-worktree checkout resolves its OWN setup file;
+          // the relative form silently bound to the canonical checkout's copy.
+          setupFiles: [path.resolve(__dirname, "src/test/setup.ts")],
           include: ["src/**/*.{test,spec}.{ts,tsx}"],
         },
       },

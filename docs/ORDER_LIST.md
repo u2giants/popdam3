@@ -123,7 +123,11 @@ Consequence, deliberate: **Set filters are not offered.** A Set filter lists the
 distinct values of the whole dataset, which the browser no longer holds; showing
 one would silently filter against loaded rows only. Columns use Text, Number and
 Date filters, plus the free-text search box, which searches
-`ORDER_LIST_SEARCH_COLUMNS` in the database.
+`ORDER_LIST_SEARCH_COLUMNS` in the database. The Find box shows a Google-Sheets
+style counter ("3 of 12") with up/down arrows; Enter steps to the next match,
+Shift+Enter to the previous, wrapping around, and Esc clears the term. The
+`find_dam_order_list_row` RPC returns the requested occurrence, its position
+and the total match count.
 
 The summary counts (total, linked, ambiguous, not linked) are read as sequential
 count queries over the whole dataset, not derived from loaded rows. They start

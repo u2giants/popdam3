@@ -60,6 +60,11 @@ vi.mock("@/components/orders/OrderListGrid", async () => {
       setGridOption: mocks.setGridOption,
       getColumnState: mocks.getColumnState,
       getFilterModel: mocks.getFilterModel,
+      isLastRowIndexKnown: () => true,
+      paginationGetRowCount: () => 0,
+      paginationGetPageSize: () => 100,
+      paginationGoToPage: vi.fn(),
+      ensureIndexVisible: vi.fn(),
     } }));
     return <div data-testid="orderlist-grid">Existing OrderList grid</div>;
   }) };
@@ -151,6 +156,50 @@ describe("OrdersPage integration wiring", () => {
 
     expect(findOrderListRow).toHaveBeenCalledExactlyOnceWith({ search: "TEST", filterModel, sortModel: expected });
     expect(columns).toEqual(columnSnapshot);
+  });
+
+  it("counts Find matches and steps between them with arrows and Enter", async () => {
+    const { findOrderListRow } = await import("@/hooks/useOrderList");
+    vi.mocked(findOrderListRow)
+      .mockResolvedValueOnce({ rowId: "line-a", index: 3, matchCount: 3 })
+      .mockResolvedValueOnce({ rowId: "line-b", index: 9, matchCount: 3 })
+      .mockResolvedValueOnce({ rowId: "line-c", index: 1, matchCount: 3 })
+      .mockResolvedValueOnce({ rowId: "line-a", index: 3, matchCount: 3 });
+    render(<OrdersPage />);
+
+    const input = screen.getByRole("textbox", { name: "Find in orders" });
+    fireEvent.change(input, { target: { value: "SKU" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+
+    expect(findOrderListRow).toHaveBeenCalledExactlyOnceWith({ search: "SKU", filterModel: {}, sortModel: [] });
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 3");
+    expect(screen.getByRole("button", { name: "Previous match" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(findOrderListRow).toHaveBeenLastCalledWith({ search: "SKU", filterModel: {}, sortModel: [], occurrence: 2 });
+    expect(screen.getByRole("status")).toHaveTextContent("2 of 3");
+
+    // Enter steps forward; the third step wraps back to the first match.
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(findOrderListRow).toHaveBeenLastCalledWith({ search: "SKU", filterModel: {}, sortModel: [], occurrence: 3 });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(findOrderListRow).toHaveBeenLastCalledWith({ search: "SKU", filterModel: {}, sortModel: [], occurrence: 1 });
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 3");
+  });
+
+  it("reports zero Find matches without step buttons", async () => {
+    const { findOrderListRow } = await import("@/hooks/useOrderList");
+    vi.mocked(findOrderListRow).mockResolvedValue(null);
+    render(<OrdersPage />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Find in orders" }), { target: { value: "NOPE" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+
+    expect(screen.getByRole("status")).toHaveTextContent("0 results");
+    expect(screen.getByRole("button", { name: "Next match" })).toBeDisabled();
   });
 
   it("shows SO-date lookup failures without hiding the grid and clears stale warnings after a successful new view load", async () => {

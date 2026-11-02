@@ -2,7 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { AllCommunityModule, ModuleRegistry, themeQuartz, type GridApi } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { navigateToStyleTrackerMatch } from "@/lib/style-tracker-find-navigation";
 
@@ -65,5 +65,28 @@ describe("Styles Find navigation with progressive row loading", () => {
       expect(api!.getRowNode("target-style")?.rowIndex).toBe(200);
       expect(api!.paginationGetCurrentPage()).toBe(4);
     });
+  });
+
+  it("navigates to the requested 1-based match occurrence, not just the first", () => {
+    const api = {
+      getRowNode: vi.fn((id: string) => ({ id, rowIndex: Number(id.split("-")[1]) })),
+      paginationGetPageSize: () => 50,
+      paginationGoToPage: vi.fn(),
+      ensureNodeVisible: vi.fn(),
+      redrawRows: vi.fn(),
+    } as unknown as GridApi<Row>;
+    const rows = [
+      { id: "row-0", description: "plain" },
+      { id: "row-1", description: "target one" },
+      { id: "row-2", description: "plain" },
+      { id: "row-3", description: "target two" },
+    ];
+
+    expect(navigateToStyleTrackerMatch(api, rows, "target", 2)).toBe(true);
+    expect(api.getRowNode).toHaveBeenCalledWith("row-3");
+    expect(api.ensureNodeVisible).toHaveBeenCalledWith({ id: "row-3", rowIndex: 3 }, "middle");
+
+    expect(navigateToStyleTrackerMatch(api, rows, "target", 3)).toBe(false);
+    expect(navigateToStyleTrackerMatch(api, rows, "target", 0)).toBe(false);
   });
 });

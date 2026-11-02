@@ -175,7 +175,10 @@ canonical item links. A pre-refresh database backup was taken before replacement
   once complete they cover the full in-browser tab.
 - Ctrl+F focuses the grid's full-dataset Find box. Find keeps the full table
   visible, moves to the first matching row, and highlights matching rows rather
-  than filtering every other row out.
+  than filtering every other row out. A Google-Sheets style counter ("3 of 12")
+  shows the loaded matches; the up/down arrows, Enter and Shift+Enter step
+  between them (wrapping around), Esc clears the term, and the current match
+  carries an amber outline while other matches stay highlighted.
 - Administrators can select rows and use **AI helper** to preview one bulk
   field/value update before confirming it. The planner uses `gpt-5.6-luna`
   with medium reasoning; existing picker and description rules still validate saves.
