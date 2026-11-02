@@ -12,7 +12,7 @@
       "updated_at": "2026-09-20T15:16:13Z",
       "author": "u2giants",
       "author_association": "MEMBER",
-      "body": "```db-coordination-event\n{\n  \"schema_version\": 2,\n  \"event_id\": \"87f9510ee9bcd4e0\",\n  \"event_type\": \"entered\",\n  \"timestamp\": \"2026-09-20T15:16:12.344Z\",\n  \"work_issue\": 2611,\n  \"actor\": \"manage-migration-author-lanes\",\n  \"result\": \"succeeded\",\n  \"evidence_urls\": []\n}\n```"
+      "body": "```db-coordination-event\n{\n  \"schema_version\": 2,\n  \"event_id\": \"87f9510ee9bcd4e0\",\n  \"event_type\": \"entered\",\n  \"timestamp\": \"2026-09-20T15:16:12.344Z\",\n  \"work_issue\": 2611,\n  \"actor\": \"manage-migration-coordination\",\n  \"result\": \"succeeded\",\n  \"evidence_urls\": []\n}\n```"
     },
     {
       "id": 5750673862,
@@ -20,7 +20,7 @@
       "updated_at": "2026-09-20T15:16:15Z",
       "author": "u2giants",
       "author_association": "MEMBER",
-      "body": "```db-coordination-event\n{\n  \"schema_version\": 2,\n  \"event_id\": \"bbe4eea14114c759\",\n  \"event_type\": \"classified\",\n  \"timestamp\": \"2026-09-20T15:16:14.155Z\",\n  \"work_issue\": 2611,\n  \"actor\": \"manage-migration-author-lanes\",\n  \"result\": \"succeeded\",\n  \"evidence_urls\": []\n}\n```"
+      "body": "```db-coordination-event\n{\n  \"schema_version\": 2,\n  \"event_id\": \"bbe4eea14114c759\",\n  \"event_type\": \"classified\",\n  \"timestamp\": \"2026-09-20T15:16:14.155Z\",\n  \"work_issue\": 2611,\n  \"actor\": \"manage-migration-coordination\",\n  \"result\": \"succeeded\",\n  \"evidence_urls\": []\n}\n```"
     },
     {
       "id": 5750674091,

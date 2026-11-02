@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { recordReviewVerdict, reviewerReadsRepository, REVIEW_ASSIGNMENT_REF_PREFIX, reviewActiveRef } from './manage-migration-author-lanes.mjs'
+import { recordReviewVerdict, reviewerReadsRepository, REVIEW_ASSIGNMENT_REF_PREFIX, reviewActiveRef } from './manage-migration-coordination.mjs'
 
 const issue=1824,pr=2000,headSha='a'.repeat(40),assignmentSha='b'.repeat(40),reviewer='glm-5.3'
 const findingsRef='https://github.com/u2giants/shared-db/pull/2000#issuecomment-123',findings='Coverage: all changed files. No material findings.'
@@ -69,7 +69,7 @@ test('a verdict from a reviewer whose wrapper cannot read the repository is REFU
   // following the old message walked into a second refusal.
   let message='';try{recordReviewVerdict({issue,pr,headSha,verdict:'APPROVE',findingsRef},ioFixture('deepseek-chat'))}catch(error){message=error.message}
   assert.match(message,/no retry and no re-run can satisfy it/)
-  assert.ok(message.includes(`node scripts/manage-migration-author-lanes.mjs --replace-failed-reviewer --issue ${issue} --pr ${pr} --head-sha ${headSha}`))
+  assert.ok(message.includes(`node scripts/manage-migration-coordination.mjs --replace-failed-reviewer --issue ${issue} --pr ${pr} --head-sha ${headSha}`))
   assert.ok(message.includes('--failure-code reviewer_cannot_read_repository --confirm-no-verdict --confirm-no-artifact'))
 })
 test('a verdict from a reviewer that does read the repository still records (#2078)',()=>{

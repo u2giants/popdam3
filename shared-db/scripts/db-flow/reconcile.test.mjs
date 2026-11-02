@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict'
 import { readyRecord,persistInitialReady,preparePreviewDispatch,terminalizeReady,repairPreviewReady,reconcileFlow,ReconcileError,MODE_SEQUENCE,RECONCILE_SCHEMA_VERSION,RELINQUISH_WORKTREE_STATES,parseAbandonmentAudit,abandonmentEvidenceFor,reportOnlyFlowIo,abandonmentAuditExit } from './reconcile.mjs'
-import { githubIo, main as managerMain, WORKTREE_STATES, claimBody, assertAbandonmentEvidence, flowCapacityFacts } from '../manage-migration-author-lanes.mjs'
+import { githubIo, main as managerMain, WORKTREE_STATES, claimBody, assertAbandonmentEvidence, flowCapacityFacts } from '../manage-migration-coordination.mjs'
 import { sha256, canonicalJson } from './evidence-bundle.mjs'
 const h='a'.repeat(40),b='b'.repeat(64),base={issue:7,pr:8,head_sha:h,bundle_id:b,route:'ordinary_preview_apply',route_context:'',manifest:{target:'preview',preview_allowlist:'v',claim_pr:'8',claim_head_sha:h}}
 function fake(){const refs=new Map(),eventLog=[],state={current:base,ready:[]};return{state,refs,eventLog,resolveMarker:()=>({live:true,task:'t',calling_task:'t'}),actor:()=> 't',now:()=>new Date(0).toISOString(),appendEvent:e=>eventLog.push(e),createRef:(r,d,record)=>refs.has(r)?false:(refs.set(r,{digest:d,record}),true),readRef:r=>refs.get(r),listReady:()=>state.ready,selectCurrent:()=>state.current,withMutex:f=>f(),events:()=>eventLog}}
@@ -59,7 +59,7 @@ test('the dispatch mode is a per-run phase, never part of ready identity',()=>{
 // writer's own convention against itself, so it passed under WHICHEVER convention the
 // writer used and could not see that consumers recompute
 // sha256(canonicalJson(<whole stored record>)) from the record they read back
-// (manage-migration-author-lanes.mjs:2094). Each leg below fails for a different
+// (manage-migration-coordination.mjs:2094). Each leg below fails for a different
 // mistake: narrowing the stored digest, reverting occupancy to raw digest equality,
 // and loosening occupancy into a tautology that accepts anything.
 test('stored ready digest is the whole record, and occupancy is judged on identity',()=>{

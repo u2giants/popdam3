@@ -14,7 +14,7 @@ import { acquireMutex, requireOwnedRef, releaseMutexOnExit, readRefAfterWrite } 
 import { GIT_COMMAND_TIMEOUT_MS } from './github-wire.mjs'
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
 import { canonicalJson, sha256 } from '../../db-flow/evidence-bundle.mjs'
-import { githubIo, assertDurableReviewApproval, resetRetirementSnapshot } from '../../manage-migration-author-lanes.mjs'
+import { githubIo, assertDurableReviewApproval, resetRetirementSnapshot } from '../../manage-migration-coordination.mjs'
 import { resolveSessionAuthority } from '../../lib/session-authority.mjs'
 
 export const STOPPED_ADOPTION_REF_PREFIX = 'refs/db-stopped-merged-claim-adoptions/'

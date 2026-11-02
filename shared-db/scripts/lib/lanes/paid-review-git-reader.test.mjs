@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { paidReviewGitReader, PAID_REVIEW_GIT_MAX_BYTES } from '../../manage-migration-author-lanes.mjs'
+import { paidReviewGitReader, PAID_REVIEW_GIT_MAX_BYTES } from '../../manage-migration-coordination.mjs'
 
 function fixture(run) {
  const dir=mkdtempSync(join(tmpdir(),'paid-git-reader-'))

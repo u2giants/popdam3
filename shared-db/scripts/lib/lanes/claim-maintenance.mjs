@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
 import { coordinationEvent, formatEventComment } from '../../db-coordination-events.mjs'
@@ -7,7 +7,7 @@ import { validateCompletionRecord, DependencyError, findCompletionRecord, COMPLE
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { COORDINATION_LABELS, QUEUE_STATUSES, parseQueueScope } from './queue-routing.mjs'
 import { AUTHOR_CAPACITY_STATES, WORKTREE_STATES } from './constants.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
 import { REPO } from './constants.mjs'
 
 export const SPLIT_REMAINDER = 'index plm.item_upper_trim_item_number_idx'
@@ -219,7 +219,7 @@ export function wrongOwnerMessage({ claim, onRecord, supplied, command }) {
 // keeps a name containing spaces from being split into separate argv entries --
 // the exact failure that wasted a session on #2212's hand edit.
 export function laneCommand(flags) {
-  return `node scripts/manage-migration-author-lanes.mjs ${flags.join(' ')}`
+  return `node scripts/manage-migration-coordination.mjs ${flags.join(' ')}`
 }
 
 export function renewalIssueScope(issue, lease, claimIssues=[],{ allowClaimSuperset=false, allowIssueExpansion=false }={}) {

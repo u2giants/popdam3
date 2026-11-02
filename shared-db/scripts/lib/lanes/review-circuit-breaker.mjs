@@ -343,7 +343,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     return selected.every(file=>{if(overrides.get(file)?.normalizedStoredHash)return true;const actual=entry(b,file),expected=overrides.get(file);return actual.mode===expected.mode && actual.text===expected.text})
   }
   const canonicalAppend = (a,b,base) => {
-    const file='scripts/manage-migration-author-lanes.test.mjs'
+    const file='scripts/manage-migration-coordination.test.mjs'
     const blobs=[a,base,b].map(commit=>entry(commit,file))
     if(new Set(blobs.map(x=>x.mode)).size!==1 || blobs.some(x=>/^(?:<{7}|\|{7}|={7}|>{7})/m.test(x.text)))throw new LaneError('review budget canonical append mode or marker ambiguity refused')
     const dir=mkdtempSync(path.join(tmpdir(),'review-budget-append-'))
@@ -373,7 +373,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
     const file='scripts/production_business_risk_gate.py'
     const rows=[base,a,b].map(commit=>entry(commit,file))
     if(rows.some(row=>row.mode!=='100644'))throw new LaneError('review budget producer pin overlap requires exact regular mode')
-    const anchor='    "scripts/manage-migration-author-lanes.mjs",\n'
+    const anchor='    "scripts/manage-migration-coordination.mjs",\n'
     const pins=['agent-work-contract-git-evidence.mjs','agent-work-contract.mjs','refresh-code-pr-branch.mjs','run-governed-review.mjs'].map(name=>`    "scripts/${name}",\n`).join('')
     const comments=['    # Existing modules newly reachable through exact budget/contract imports.\n','    # Existing normal canonical validators now used by authenticated nonclosing routing.\n']
     if(rows.some(row=>row.text.includes('\0') || row.text.split('PREVIEW_PRODUCER_PATHS = (').length!==2 || row.text.split('PREVIEW_PRODUCER_PATHS = (\n')[1]?.split('\n)')[0]?.split(anchor).length!==2))throw new LaneError('review budget producer pin anchor is ambiguous')
@@ -530,7 +530,7 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
       const withMetadata=overrides=>({tree:resultTree,overrides:new Map([...metadataOverrides,...overrides])})
       if(sha.test(resultTree) && stages.length===0 && metadataOverrides.size)return withMetadata(new Map())
       if(!sha.test(resultTree) || stages.length!==3)throw new LaneError('review budget conflict is outside the one canonical test append')
-      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-author-lanes\\.test\\.mjs$`).test(line)))return withMetadata(canonicalAppend(a,b,base))
+      if(stages.every((line,i)=>new RegExp(`^(100644|100755) [0-9a-f]{40} ${i+1}\\tscripts/manage-migration-coordination\\.test\\.mjs$`).test(line)))return withMetadata(canonicalAppend(a,b,base))
       if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/production_business_risk_gate\\.py$`).test(line)))return withMetadata(canonicalPinOverlap(a,b,base))
       if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tscripts/db-flow/admission-outcome\\.test\\.mjs$`).test(line)))return withMetadata(canonicalImportUnion(a,b,base,stages))
       if(stages.every((line,i)=>new RegExp(`^100644 [0-9a-f]{40} ${i+1}\\tconfig/production-verification-sidecar-registry\\.json$`).test(line)))return withMetadata(canonicalRegistryUnion(a,b,base,stages))
@@ -621,11 +621,11 @@ export function derivePaidContentProof(before, after, protectedMain, git, exclud
         }
       } else throw new LaneError('review budget ambiguous merge provenance refused')
     }
-    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-author-lanes.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[]),...(canonicalImportUnions.length?[':(top,literal,exclude)scripts/db-flow/admission-outcome.test.mjs']:[]),...(canonicalRegistryUnions.length?[':(top,literal,exclude)config/production-verification-sidecar-registry.json']:[])]
+    const witnessExcludes=[...(canonicalAppends.length?[':(top,literal,exclude)scripts/manage-migration-coordination.test.mjs']:[]),...(canonicalPinOverlaps.length?[':(top,literal,exclude)scripts/production_business_risk_gate.py']:[]),...(canonicalImportUnions.length?[':(top,literal,exclude)scripts/db-flow/admission-outcome.test.mjs']:[]),...(canonicalRegistryUnions.length?[':(top,literal,exclude)config/production-verification-sidecar-registry.json']:[])]
     const netPaths=run(['diff','--name-only',tree(expected),after,'--',...paths,...witnessExcludes]).split('\n').filter(Boolean)
     if(netPaths.some(file=>file.startsWith('.agent/')))throw new LaneError('review budget unverified evidence cannot witness authored repair')
-    const managerFile='scripts/manage-migration-author-lanes.mjs'
-    const managerTestFile='scripts/manage-migration-author-lanes.test.mjs'
+    const managerFile='scripts/manage-migration-coordination.mjs'
+    const managerTestFile='scripts/manage-migration-coordination.test.mjs'
     const standaloneImport="import { readPublishedContractFromGit } from './agent-work-contract-git-evidence.mjs'\n"
     const combinedImport="import { verifyGitEvidence, gitIo, readPublishedContractFromGit } from './agent-work-contract-git-evidence.mjs'\n"
     const count=(text,line)=>text.split(line).length-1

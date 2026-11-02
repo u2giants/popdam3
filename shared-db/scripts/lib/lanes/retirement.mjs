@@ -1,9 +1,9 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { RETIRED_CLAIM_REF_PREFIX, RETIREMENT_DECISIONS, RETIREMENT_RECORD_PREFIX, RETIREMENT_SCHEMA_VERSION, WORKTREE_STATES } from './constants.mjs'
 import { validateImmutableArtifactReference } from './claim-maintenance.mjs'
-import { githubIo, resetRetirementSnapshot, retirementSnapshot } from '../../manage-migration-author-lanes.mjs'
+import { githubIo, resetRetirementSnapshot, retirementSnapshot } from '../../manage-migration-coordination.mjs'
 import { assertReviewerDrawIsWarranted, assertReviewerDrawReadiness } from './github-wire.mjs'
 import { RETIREMENT_LEGACY_SCHEMA_VERSIONS, RETIREMENT_PRESERVATION_FIELDS, RETIREMENT_PRESERVATION_STATES } from './constants.mjs'
 import { assertDrawPromptContract } from '../reviewer-draw-readiness.mjs'

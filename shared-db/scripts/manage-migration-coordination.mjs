@@ -1,5 +1,9 @@
 #!/usr/bin/env node
+// Active migration coordination after #5426: lock ownership, recovery and
+// promotion transport live here. Author/reviewer lifecycle commands were retired
+// by #5409; this is not an author-lane allocator.
 import {hostname, homedir} from 'node:os'
+import { contractStorageRef, contractLogicalRef } from './lib/contract-storage.mjs'
 import {parseStrictJson} from './proofs/shared-db-2870-observation.mjs'
 import {recoveryCodeUnchangedAt} from './lib/claim-recovery-dependencies.mjs'
 import {recoverCompletedForeignClaim,recoveryDigest,RECOVERY_CODE_PATHS} from './lib/lanes/completed-claim-recovery.mjs'
@@ -207,7 +211,7 @@ function consumeReviewWireRequest(){
   if(reviewWireBudget.releaseProofAllowance>0){reviewWireBudget.releaseProofAllowance-=1;return}
   const limit=reviewWireBudget.limit??REVIEW_OPERATION_REQUEST_LIMIT
   const usable=reviewWireBudget.locked&&!reviewWireBudget.cleanup?limit-(reviewWireBudget.cleanupReserve??0):limit
-  if(reviewWireBudget.count>=usable)throw new LaneError(`reviewer operation '${reviewWireBudget.operation??'reviewer-operation'}' exhausted its derived ${limit}-request budget before request ${reviewWireBudget.count+1}${usable!==limit?` (${limit-usable} held back as the mutex-release reserve)`:''}. This ceiling is DERIVED for this operation, not a global default: see the derivation cited beside its constant in scripts/manage-migration-author-lanes.mjs. Re-derive it from a written measurement rather than widening it (issue #2075)`)
+  if(reviewWireBudget.count>=usable)throw new LaneError(`reviewer operation '${reviewWireBudget.operation??'reviewer-operation'}' exhausted its derived ${limit}-request budget before request ${reviewWireBudget.count+1}${usable!==limit?` (${limit-usable} held back as the mutex-release reserve)`:''}. This ceiling is DERIVED for this operation, not a global default: see the derivation cited beside its constant in scripts/manage-migration-coordination.mjs. Re-derive it from a written measurement rather than widening it (issue #2075)`)
   reviewWireBudget.count+=1
 }
 export function withReviewRequestBudget(fn,limit=REVIEW_OPERATION_REQUEST_LIMIT,operation='reviewer-operation'){
@@ -1086,17 +1090,20 @@ export const githubIo = {
     return ghJson(['api',`repos/${REPO}/issues/comments/${match[2]}`])?.body??null
   },
   createRef(ref, sha) {
+    ref = contractStorageRef(ref)
     return createRefWithReadback(ref,sha,{readRef:(target)=>this.readRef(target)})
   },
   // Issues #2457/#2844: a confirmation read that never comes from the git replica.
   // Used only to confirm an apparently-unreleased mutex before refusing, so it is
   // paid once, from the mutex-release reserve, on a path that is already failing.
   readRefOverApi(ref) {
+    ref = contractStorageRef(ref)
     const short = ref.replace(/^refs\//, '')
     try { return ghJson(['api', `repos/${REPO}/git/ref/${short}`],{expectedFailure:EXPECTED_REF_ABSENCE})?.object?.sha ?? null }
     catch (error) { if (isConfirmedRefAbsence(error)) return null; throw error }
   },
   readRef(ref) {
+    ref = contractStorageRef(ref)
     if(reviewWireBudget)return gitRemoteRefs([ref]).get(ref)??null
     const short = ref.replace(/^refs\//, '')
     // Absence is an expected answer here, so gh's 404 line is not printed --
@@ -1108,9 +1115,11 @@ export const githubIo = {
     catch (error) { if (isConfirmedRefAbsence(error)) return null; throw error }
   },
   listRefs(prefix) {
-    if(reviewWireBudget)return gitRemoteRefRows(prefix)
+    const logical = prefix !== contractStorageRef(prefix)
+    prefix = contractStorageRef(prefix)
+    if(reviewWireBudget)return gitRemoteRefRows(prefix).map(row=>({...row,ref:logical?contractLogicalRef(row.ref):row.ref}))
     const short=prefix.replace(/^refs\//,'')
-    return ghPaginated(`repos/${REPO}/git/matching-refs/${short}?per_page=100`).map((row)=>({ref:row.ref,sha:row.object?.sha})).filter((row)=>row.sha)
+    return ghPaginated(`repos/${REPO}/git/matching-refs/${short}?per_page=100`).map((row)=>({ref:logical?contractLogicalRef(row.ref):row.ref,sha:row.object?.sha})).filter((row)=>row.sha)
   },
   // Paginated sibling of listRefs for the DURABLE review ref namespaces
   // (issue #1798). `listRefs` routes through ghPaginated, which -- inside a
@@ -2264,7 +2273,7 @@ export function main(argv, now = new Date(), io = githubIo) {
         requireAdmission(o,io,{pr:o.pr??null,mutexOwner:ownerSha})
         requireOwnedRef(MUTEX_REF,ownerSha,io)
         const holdReason=o.holdReason===undefined?undefined:namedHold(o.issue,o.holdReason,io)
-        return advanceOutcome({issue:Number(o.issue),state:o.advanceOutcome,actor:o.owner??'manage-migration-author-lanes',timestamp:new Date().toISOString(),evidenceUrls:[o.evidence],holdReason},io)
+        return advanceOutcome({issue:Number(o.issue),state:o.advanceOutcome,actor:o.owner??'manage-migration-coordination',timestamp:new Date().toISOString(),evidenceUrls:[o.evidence],holdReason},io)
       })
       console.log(JSON.stringify(result,null,2));return 0
     }
@@ -2281,7 +2290,7 @@ export function main(argv, now = new Date(), io = githubIo) {
     }
     if(o.completeOutcome){
       if(!o.evidence)throw new LaneError('--complete-outcome requires --evidence <durable comment URL>')
-      const result=withAuthorMutex('outcome-complete',io,o,(ownerSha)=>completeOutcome({issue:o.completeOutcome,evidenceRef:o.evidence,actor:o.owner??'manage-migration-author-lanes',timestamp:now.toISOString()},{...io,parseScope:parseQueueScope,
+      const result=withAuthorMutex('outcome-complete',io,o,(ownerSha)=>completeOutcome({issue:o.completeOutcome,evidenceRef:o.evidence,actor:o.owner??'manage-migration-coordination',timestamp:now.toISOString()},{...io,parseScope:parseQueueScope,
         commentIssue:(...args)=>{requireOwnedRef(MUTEX_REF,ownerSha,io);return io.commentIssue(...args)},
         updateIssue:(...args)=>{requireOwnedRef(MUTEX_REF,ownerSha,io);return io.updateIssue(...args)},
       }))

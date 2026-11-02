@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bounded wait for the exclusive merge lane (merge-queue Queue interlock).
 //
-// WHY THIS EXISTS. `manage-migration-author-lanes.mjs --acquire-merge` tries the
+// WHY THIS EXISTS. `manage-migration-coordination.mjs --acquire-merge` tries the
 // create-only ref refs/db-coordination/merge exactly once. When another PR's
 // queue run (or a guarded merge) is holding that lane through its own mutation,
 // the attempt refuses with "refs/db-coordination/merge is occupied" and the
@@ -27,7 +27,7 @@ export const OCCUPIED = /refs\/db-coordination\/merge is occupied/
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 
 export function runCli(args) {
-  const script = join(dirname(fileURLToPath(import.meta.url)), 'manage-migration-author-lanes.mjs')
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'manage-migration-coordination.mjs')
   const r = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? String(r.error ?? '') }
 }

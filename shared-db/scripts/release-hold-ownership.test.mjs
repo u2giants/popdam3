@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   releaseExclusive, recoverExclusive, assertExclusive, readExclusiveLease, EXCLUSIVE_REFS, MUTEX_REF, MUTEX_RECOVERY_ACTIVE_REF, main,
-} from './manage-migration-author-lanes.mjs'
+} from './manage-migration-coordination.mjs'
 import { RECOVERY_GRACE_MS, formatLeaseMessage } from './lib/exclusive-lease.mjs'
 
 const NOW = new Date('2026-10-21T12:00:00Z')
@@ -239,7 +239,7 @@ test('a different ref sha after our delete is never read as proof of our own rel
 })
 
 test('the direct releaseOwnedRef CLI fast path is gone and every --release-<lane> flag reaches releaseExclusive', () => {
-  const source = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('./manage-migration-coordination.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /releaseOwnedRef\(EXCLUSIVE_REFS\[o\.releaseExclusive\]/, 'the unserialized SHA fast path must not return')
   assert.match(source, /releaseExclusive\(o\.releaseExclusive, \{ holderId: o\.holderId, generation: o\.generation, ownerSha: o\.ownerSha \}, io\)/)
   for (const lane of ['preview', 'preview-recovery', 'preview-rehearsal', 'merge', 'production']) {

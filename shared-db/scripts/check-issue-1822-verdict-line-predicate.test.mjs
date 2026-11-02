@@ -20,7 +20,7 @@ import {
   anyVerdictFor,
   evidenceTiedToHead,
   gateAuthorizes,
-} from './manage-migration-author-lanes.mjs'
+} from './manage-migration-coordination.mjs'
 
 const HEAD = '8bb1886a31f89409d06c312d3a9005eff07a1cea'
 

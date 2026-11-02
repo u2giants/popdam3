@@ -31,7 +31,7 @@ test('plan reuses baseline/sidecar FIRST and every requested full test family wi
   assert.deepEqual(plan[1].args, ['scripts/check-throughput-truth-audit.mjs']);
   const throughput = readdirSync(path.join(root, 'scripts/throughput-guard')).filter(n => n.endsWith('.test.mjs')).sort().map(n => `scripts/throughput-guard/${n}`);
   assert.deepEqual(plan[3].args, ['--test', ...throughput]);
-  assert.deepEqual(plan[2].args, ['--test', 'scripts/manage-migration-author-lanes.test.mjs', 'scripts/check-merge-queue-workflows.test.mjs', 'scripts/merge-queue-hold.test.mjs', 'scripts/acquire-merge-lane-waiting.test.mjs']);
+  assert.deepEqual(plan[2].args, ['--test', 'scripts/manage-migration-coordination.test.mjs', 'scripts/check-merge-queue-workflows.test.mjs', 'scripts/merge-queue-hold.test.mjs', 'scripts/acquire-merge-lane-waiting.test.mjs']);
   assert.ok(throughput.length > 1);
   for (const file of ['rls-public-admin-initplan', 'rls-owner-uid-initplan', 'rls-style-guide-access-initplan', 'rls-packaging-access-initplan', 'check-live-proof-probe']) assert.ok(plan[4].args.includes(`scripts/${file}.test.mjs`));
   assert.deepEqual(plan[5].args, ['-m', 'unittest', 'scripts.test_shared_db_live_proof', 'scripts.test_production_catalog_verification', 'scripts.test_rls_admin_catalog_recovery', 'scripts.test_production_catalog_recovery_evidence']);

@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { acquireMutex, acquireRef, EXCLUSIVE_REFS, githubIo, MUTEX_REF, parseQueueScope, releaseOwnedRef } from './manage-migration-author-lanes.mjs'
+import { acquireMutex, acquireRef, EXCLUSIVE_REFS, githubIo, MUTEX_REF, parseQueueScope, releaseOwnedRef } from './manage-migration-coordination.mjs'
 import { formatLeaseMessage } from './lib/exclusive-lease.mjs'
 
 export class PreviewMaintenanceLockError extends Error {}

@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { isTrustedOperatorComment } from '../../lib/repository-identity.mjs'
 import { AdmissionError, STRUCTURAL_ROUTES, evaluateAdmission, parseImpactBlock, inspectPrStructuralChange, inspectPrCuratedDataChange, structuralWritesMatch, structuralWritesMatchUnappliedEdit, unappliedEditMigrationFiles, NON_STRUCTURAL_CHANGE_TYPES } from '../../db-flow/admission.mjs'
@@ -14,7 +14,7 @@ import { REPO } from './constants.mjs'
 import { parseQueueScope } from './queue-routing.mjs'
 import { LaneError } from './claims.mjs'
 import { migrationVersions } from './claim-maintenance.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
 
 // Issues created at or after this instant must carry change_type and the other
 // admission fields; only earlier in-flight work may use the legacy path.
@@ -24,7 +24,7 @@ export function trustedCompletionComments(comments=[]){return comments.filter((c
   return isTrustedOperatorComment(comment,REPO)
 })}
 
-export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-migration-author-lanes', allowLegacy = false, timestamp } = {}) {
+export function admitIssue(number, io = githubIo, { pr = null, actor = 'manage-migration-coordination', allowLegacy = false, timestamp } = {}) {
   let issue = io.getIssue(Number(number))
   let livePr=null
   let scope=null

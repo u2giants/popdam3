@@ -37,7 +37,7 @@ test('real invalidator inventory names only existing files and covers manager im
   const inventory=JSON.parse(readFileSync('config/orchestrator-global-invalidators-v1.json','utf8'))
   for(const file of inventory.files)assert.doesNotThrow(()=>readFileSync(file))
   const realAdapters={readFile:(file)=>readFileSync(file,'utf8'),fileExists:(file)=>{try{readFileSync(file);return true}catch{return false}}}
-  const closure=discoverModuleImports(['scripts/manage-migration-author-lanes.mjs'],realAdapters)
+  const closure=discoverModuleImports(['scripts/manage-migration-coordination.mjs'],realAdapters)
   assert.ok(closure.includes('scripts/lib/review-verdict-artifact.mjs'),'verdict artifact policy must stay inside manager import closure')
   assert.ok(inventory.files.includes('scripts/lib/review-verdict-artifact.mjs'),'verdict artifact policy must invalidate reviewed evidence globally')
   assert.ok(closure.includes('scripts/lib/sql-role-operations.mjs'), 'role accounting must be a live manager dependency')

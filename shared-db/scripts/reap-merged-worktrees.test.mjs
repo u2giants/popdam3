@@ -341,7 +341,7 @@ test("--force does not override a lock, a detached head, unpushed commits, or an
 test("a REAL db-author-lease body holds its worktree and branch", () => {
   // The fixture above writes the fields into a db-claim fence. Production author
   // lanes emit a db-author-lease fence instead, so the parser is proved against
-  // the shape scripts/manage-migration-author-lanes.mjs actually writes.
+  // the shape scripts/manage-migration-coordination.mjs actually writes.
   const body = [
     "## Claim",
     "",

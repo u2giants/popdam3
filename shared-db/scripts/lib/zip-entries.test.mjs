@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { readZipEntries, ZipError } from './zip-entries.mjs'
-import { selectArtifactJson, selectArtifactFiles } from '../manage-migration-author-lanes.mjs'
+import { selectArtifactJson, selectArtifactFiles } from '../manage-migration-coordination.mjs'
 
 // Build real zips with Python's zipfile (stored and deflated), the same format
 // GitHub Actions artifacts use, so the test does not trust our own writer.

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "source": "scripts/manage-migration-coordination.mjs",
+  "sites": [
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:459",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722:context-d9e7a0e59b046bfdb0ffb295a716b97ac2b61b453cf4d9d2034d0511f7ad75fd",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722:1",
+      "line_sha256": "4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722",
+      "disposition": "excluded",
+      "reason": "Fail-closed trusted signed attribution refusal for authenticated nonclosing repository-maintenance binding; this is admission evidence, not a throughput delivery assertion."
+    },
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:1763",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:537d451910634fd2f14713cac9d0438df2014761e3c8a34287f15f19a3101efc:context-e4fcec7ac643e52510d8f2f9bcf5af486010bb607e7cb097a50d0ec58e68a0ff",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:537d451910634fd2f14713cac9d0438df2014761e3c8a34287f15f19a3101efc:1",
+      "line_sha256": "537d451910634fd2f14713cac9d0438df2014761e3c8a34287f15f19a3101efc",
+      "disposition": "excluded",
+      "reason": "Ordinary silence recovery refuses unreadable activity metadata or absent terminal status; this is fail-closed evidence validation, not a throughput result or missing database-object proof."
+    },
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:809",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:context-b6f980f2e1fa928365cade86765d4f4281afa2b63dbafba98387b370b61d6f5b",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019:1",
+      "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019",
+      "disposition": "excluded",
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
+    },
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:428",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af:context-7e2dc481deb1463f2354b58e7e176203e5ecfab296e99f05d2ecebeb26bf56a0",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af:1",
+      "line_sha256": "8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af",
+      "disposition": "excluded",
+      "reason": "Classifies documentation paths from the authenticated Git snapshot; it does not report migration throughput or alter a refusal message."
+    },
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:1987",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f:context-86ead335fe9148c632a97fcd84901d43be7f15edb97432fdc6658b774043040c",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f:1",
+      "line_sha256": "a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f",
+      "disposition": "excluded",
+      "reason": "Refuses missing, future or stale owner confirmation; this is ownership admission evidence, not an assertion of database absence."
+    },
+    {
+      "source": "scripts/manage-migration-coordination.mjs",
+      "site": "scripts/manage-migration-coordination.mjs:1758",
+      "semantic_key": "scripts/manage-migration-coordination.mjs:cacd014683682e2f81f6071cb737bacad49050b604160b28d26cb86d1c4d12d1:context-af56cb79a5e4d9ab9178138b727048a51ec7648d55af0542e531410fe1715e3e",
+      "legacy_semantic_key": "scripts/manage-migration-coordination.mjs:cacd014683682e2f81f6071cb737bacad49050b604160b28d26cb86d1c4d12d1:1",
+      "line_sha256": "cacd014683682e2f81f6071cb737bacad49050b604160b28d26cb86d1c4d12d1",
+      "disposition": "excluded",
+      "reason": "Ordinary silence recovery refuses unreadable activity metadata or absent terminal status; this is fail-closed evidence validation, not a throughput result or missing database-object proof."
+    }
+  ]
+}

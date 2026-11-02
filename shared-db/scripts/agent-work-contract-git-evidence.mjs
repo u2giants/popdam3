@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
+import { contractStorageRef } from './lib/contract-storage.mjs'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { contractHash, contractRef, validateContract } from './agent-work-contract.mjs'
@@ -101,6 +102,7 @@ export function verifyGitEvidence({ contract, report, prBaseSha, prHeadSha }, io
 }
 
 export function readPublishedContractFromGit(ref, runGit = execFileSync) {
+  ref = contractStorageRef(ref)
   let remote
   try {
     remote = runGit('git', ['ls-remote', '--exit-code', 'origin', ref], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()

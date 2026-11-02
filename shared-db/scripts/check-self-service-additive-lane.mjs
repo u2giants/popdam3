@@ -38,7 +38,7 @@ import { pathToFileURL } from 'node:url'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { createTreeReader } from './lib/github-tree.mjs'
 import { isDocumentPath } from './lib/documents-only-change.mjs'
-import { REPO, parseQueueScope, derivePrOperationRoute } from './manage-migration-author-lanes.mjs'
+import { REPO, parseQueueScope, derivePrOperationRoute } from './manage-migration-coordination.mjs'
 
 export const SELF_SERVICE_ROUTE = 'self-service-additive'
 // Owner ruling 2026-09-25 (Albert Hazan): open the self-service lane to all four

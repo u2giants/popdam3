@@ -3,32 +3,32 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import test from 'node:test'
-import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-author-lanes.mjs'
-import { claimWorktreeRebindRef } from './manage-migration-author-lanes.mjs'
-import { allocatableReviewers, reconcilePreflightRows } from './manage-migration-author-lanes.mjs'
-import { completeReviewerOperationRouteSnapshot, derivePrOperationRoute, reconcileReviewerOperationRouteFiles } from './manage-migration-author-lanes.mjs'
+import { namedHold, urgentHoldDetail, urgentHoldReason } from './manage-migration-coordination.mjs'
+import { claimWorktreeRebindRef } from './manage-migration-coordination.mjs'
+import { allocatableReviewers, reconcilePreflightRows } from './manage-migration-coordination.mjs'
+import { completeReviewerOperationRouteSnapshot, derivePrOperationRoute, reconcileReviewerOperationRouteFiles } from './manage-migration-coordination.mjs'
 import { validateHoldReasonRecord } from './lib/hold-reason.mjs'
 import { ENGINES } from './lib/engine-routing.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { REVIEW_VERDICT_REF_PREFIX, verdictRef } from './lib/review-verdict-artifact.mjs'
-import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-author-lanes.mjs'
+import { OWN_START_ONLY_ACTIVITY, ENGINE_REVIEWER_EXCLUSION } from './manage-migration-coordination.mjs'
 import { resolvePeerSlots } from './lib/lanes/review-assignment.mjs'
-import { authorizeRepositoryMaintenanceStatus } from './manage-migration-author-lanes.mjs'
-import { freezeTolerantMerge, mergedPrReviewerReuseAllowed, acquirePromotionFreeze, releasePromotionFreeze, readPromotionFreeze, PROMOTION_FREEZE_REF } from './manage-migration-author-lanes.mjs'
-import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-author-lanes.mjs'
-import { canonicalReviewerAllowlist, REVIEWER_FALLBACK_PROVIDERS, orderedReviewers } from './manage-migration-author-lanes.mjs'
-import { inheritReviewerAllowlist, isReviewerAllowlistSuperset, sameReviewerAllowlist } from './manage-migration-author-lanes.mjs'
-import { parseAssignmentRef } from './manage-migration-author-lanes.mjs'
-import { setScopeStatus, wrongOwnerMessage } from './manage-migration-author-lanes.mjs'
+import { authorizeRepositoryMaintenanceStatus } from './manage-migration-coordination.mjs'
+import { freezeTolerantMerge, mergedPrReviewerReuseAllowed, acquirePromotionFreeze, releasePromotionFreeze, readPromotionFreeze, PROMOTION_FREEZE_REF } from './manage-migration-coordination.mjs'
+import { SLOT_INDEPENDENCE_CONFLICT } from './manage-migration-coordination.mjs'
+import { canonicalReviewerAllowlist, REVIEWER_FALLBACK_PROVIDERS, orderedReviewers } from './manage-migration-coordination.mjs'
+import { inheritReviewerAllowlist, isReviewerAllowlistSuperset, sameReviewerAllowlist } from './manage-migration-coordination.mjs'
+import { parseAssignmentRef } from './manage-migration-coordination.mjs'
+import { setScopeStatus, wrongOwnerMessage } from './manage-migration-coordination.mjs'
 import { readyRecord, persistInitialReady } from './db-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs'
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewLeaseAgeHours, activityFingerprintForLease, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireExclusive, assertLaneAvailable, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverStaleAuthorMutex, releaseOwnedRef, failedReviewerReleaseCommand, requireOwnedRef, reviewerExecutionPreflight, runGitHubCommand, withReviewRequestBudget, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './manage-migration-author-lanes.mjs'
-import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-author-lanes.mjs'
+import { assertUnambiguousClaimTitle, claimCoversObject, renewalIssueScope, CLAIM_CLOSE_REASONS, RECORDABLE_EXCLUSION_REASONS, RETIRED_EXCLUSION_REASONS, RECOVERABLE_CLAIM_CLOSE_REASONS, LEGACY_GUARDED_CLEANUP_CLOSE_REASON, ACTIVE_REVIEWERS, OVERFLOW_REVIEWERS, reviewersForOrchestrator, findBusyReviewers, reviewLeaseAgeHours, activityFingerprintForLease, SILENCE_MIN_AGE_HOURS, SILENCE_CONFIRM_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, pickReviewer, addedMigrationVersions, assertMergeCommitInMainHistory, REVIEWERS, RETIRED_REVIEWERS, QUARANTINED_REVIEWERS, acquireExclusive, assertLaneAvailable, assertDurableReviewApproval, buildDynamicQueues, claimBody, closedClaimAuthoredOnMain, currentMainMaxVersion, queueExit, NON_STRUCTURAL_EXITS, OUTSIDE_ORCHESTRATOR_EXITS, conflicts, completeWork, requiresReturnAddress, returnIssueToOwner, RETURNED_MARKER, createRefWithReadback, deleteRefWithReadback, EXCLUSIVE_REFS, githubIo, isConfirmedRefAbsence, LaneError, main, MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, parseAuthorLease, parseQueueScope, parseReviewCursor, readPrAfterPush, readRefAfterWrite, recoverStaleAuthorMutex, releaseOwnedRef, failedReviewerReleaseCommand, requireOwnedRef, reviewerExecutionPreflight, runGitHubCommand, withReviewRequestBudget, REVIEW_CURSOR_REF, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, validateClaimObjects, parseDoctorFailures, TERMINAL_FAILURE_CODES, doctorSpawnPlan, doctorTimeoutFailingChecks, resolveCommandPath, summarizeDoctorOutput, pickExecutableCandidate, REVIEWER_DOCTOR_TIMEOUT_MS, REVIEWER_PREFLIGHT_TIMEOUT_MS, findPrReviewAssignments, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_ACTIVE_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, reviewActiveRef, parseReviewLease, EXPECTED_REF_ABSENCE, EXPECTED_REF_PRESENCE, deriveLivePreviewCandidate, validateOriginalPreviewApplyEvidence, projectReviewPr, projectReviewerOperationRouteSnapshot, reviewStateGraphqlFields, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_SILENT_RECLAIM_REQUEST_LIMIT, REVIEW_SILENT_RECLAIM_MUTEX_SECTION_RESERVE, inReviewReplacementNamespace, REVIEW_REF_ROW_LIMIT, parseGhIncludeResponse, hasNextPageLink, parseLinkHeader, parseReviewExclusion, REVIEW_EXCLUSION_REF_PREFIX, parseReviewReinstatement, REVIEW_REINSTATEMENT_REF_PREFIX, REINSTATABLE_EXCLUSION_REASONS, reviewExclusionRef, reviewReinstatementRef, REVIEW_EXCLUSION_GENERATION_LIMIT, countDoctorPassLines, REVIEW_RETURN_REF_PREFIX, parseReviewReturn, readReviewReturns, reviewReturnRef, reviewRecordRefs, retiredVerdictRef, REVIEW_RETIRED_VERDICT_REF_PREFIX, reviewerReadsRepository, reviewerEmitsGovernedVerdict, readReviewVerdicts, nonReadingReviewerReplacementCommand, hasVerdictForHead, headVerdictBlocksReplacement, reviewerKnownNonReading, DURABLE_VERDICT_REF_NAMESPACE, recordReviewVerdict, markReviewRefListingRefusal, isReviewRefListingRefusal, markLeaseReadFailure, isLeaseReadFailure, REVIEW_TARGET_SUPERSEDED, withArchivedVerdictMirror, legacyLeaseTerminalReason, isCommandSizeFailure, classifyVerdictForArchive, archivedVerdictRef, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, reviewStartedMarkerRef, RETURNED_COPY_MARKER, returnedCopyProvenance, REPO, noteHeldMutex, clearHeldMutex, releaseHeldMutexOnProcessExit } from './manage-migration-coordination.mjs'
+import { readDatabasePreviewClassificationFile, withDatabasePreviewClassificationFile, databasePreviewAdmission, buildDatabasePreviewFileSnapshot } from './manage-migration-coordination.mjs'
 import { parseReviewRelease } from './lib/lanes/review-replacement.mjs'
 
 function commandFailure(message){const error=new Error(message);error.stderr=message;return error}
@@ -487,7 +487,7 @@ test('legacy claims never hit a lane cap and always protect objects', () => {
   // assertLaneAvailable lives in scripts/lib/lanes/claims.mjs since the split
   // (#3726), so the guard reads the entrypoint AND every lane module.
   const laneDir = new URL('./lib/lanes/', import.meta.url)
-  const sources = [readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8'), ...readdirSync(laneDir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(new URL(f, laneDir), 'utf8'))]
+  const sources = [readFileSync(new URL('./manage-migration-coordination.mjs', import.meta.url), 'utf8'), ...readdirSync(laneDir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(new URL(f, laneDir), 'utf8'))]
   for (const source of sources) assert.doesNotMatch(source, /MAX_AUTHOR_LANES|active-author leases are occupied|would exceed active-author capacity/, 'a lane cap must never be reintroduced')
   assert.throws(() => assertLaneAvailable([legacy(1,'table core.a')], ['TABLE core.a'], NOW), /collision/)
   assert.equal(parseAuthorLease(legacy(1,'table core.a').body, NOW).legacy, true)
@@ -1439,7 +1439,7 @@ test('database-only workflow acquisitions supply admission while guarded merge r
     const source=readFileSync(fileURLToPath(new URL(`../.github/workflows/${file}`,import.meta.url)),'utf8')
     const lines=source.split(/\r?\n/)
     for(let index=0;index<lines.length;index++){
-      if(!/(?:manage-migration-author-lanes\.mjs["']?\s+--acquire-|acquire-merge-lane-waiting\.mjs["']?[^\n]*\s--\s+--acquire-merge\b)/.test(lines[index]))continue
+      if(!/(?:manage-migration-coordination\.mjs["']?\s+--acquire-|acquire-merge-lane-waiting\.mjs["']?[^\n]*\s--\s+--acquire-merge\b)/.test(lines[index]))continue
       let command=lines[index].trim()
       while(command.endsWith('\\'))command+=`\n${lines[++index].trim()}`
       commands.push(`${file}: ${command}`)
@@ -1507,7 +1507,7 @@ test('reviewer routing fetches prior paths for mixed rename and deletion invento
 })
 
 test('githubIo reviewer routing wires the REST file inventory into rename reconciliation (#3608 review)',()=>{
-  const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
+  const source=readFileSync(new URL('./manage-migration-coordination.mjs',import.meta.url),'utf8')
   const start=source.indexOf('  readReviewerOperationRoute(pr){'),body=source.slice(start,source.indexOf('\n  },',start))
   assert.ok(start>0,'githubIo.readReviewerOperationRoute must exist')
   assert.match(body,/completeReviewerOperationRouteSnapshot\(data,\(\)=>githubIo\.getPrFiles\(Number\(pr\)\)\)/)
@@ -1740,7 +1740,7 @@ test('post-merge preview rehearsal never needs or reads a live author claim', ()
 // Deliberately a SECOND import statement, placed here rather than appended to the
 // import list at the top of the file: PR #1359 appends to that same line, and two
 // appends to one line is a merge conflict for no benefit.
-import { parseVersionPrMap, pendingRequiredContexts } from './manage-migration-author-lanes.mjs'
+import { parseVersionPrMap, pendingRequiredContexts } from './manage-migration-coordination.mjs'
 
 // ---------------------------------------------------------------------------
 // POST-MERGE REHEARSAL OF A BATCH AUTHORED BY SEVERAL PULL REQUESTS (#1350)
@@ -2034,17 +2034,17 @@ test('serialized recovery resumes its own stranded active marker and cleans it',
   assert.equal(result.released,'4a69fbbc');assert.equal(io.refs.has(MUTEX_REF),false);assert.equal(io.refs.has(MUTEX_RECOVERY_ACTIVE_REF),false)
 })
 test('REAL CLI: a relative script path executes main and refuses an invalid argument', () => {
-  const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--definitely-invalid'], { encoding: 'utf8' })
+  const result = spawnSync(process.execPath, ['scripts/manage-migration-coordination.mjs', '--definitely-invalid'], { encoding: 'utf8' })
   assert.equal(result.status, 2)
   assert.match(result.stderr, /unknown argument/)
 })
 test('forged caller-written production risk JSON has no CLI authorization path', () => {
-  const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--production-risk-gate', 'forged.json'], { encoding: 'utf8' })
+  const result = spawnSync(process.execPath, ['scripts/manage-migration-coordination.mjs', '--production-risk-gate', 'forged.json'], { encoding: 'utf8' })
   assert.equal(result.status, 2)
   assert.match(result.stderr, /unknown argument: --production-risk-gate/)
 })
 test('manual verdict recording has no CLI authorization path', () => {
-  const result = spawnSync(process.execPath, ['scripts/manage-migration-author-lanes.mjs', '--record-review-verdict'], { encoding: 'utf8' })
+  const result = spawnSync(process.execPath, ['scripts/manage-migration-coordination.mjs', '--record-review-verdict'], { encoding: 'utf8' })
   assert.equal(result.status, 2)
   assert.match(result.stderr, /unknown argument: --record-review-verdict/)
 })
@@ -2089,7 +2089,7 @@ test('stranded reviewer exclusion, reinstatement, release, reap and merged-claim
 // minted unrecoverable without this test failing.
 test('every owner-commit kind that acquires the author mutex is recoverable',async()=>{
   const {readFileSync}=await import('node:fs')
-  const source=readFileSync(new URL('./manage-migration-author-lanes.mjs',import.meta.url),'utf8')
+  const source=readFileSync(new URL('./manage-migration-coordination.mjs',import.meta.url),'utf8')
   const lines=source.split('\n')
   const kinds=new Set()
   // Holders whose kind is a label passed to the mutex wrapper.
@@ -4623,7 +4623,7 @@ test('issue 3027 a claim hold is accepted only when the claim and held work shar
 })
 
 test('the no-progress alarm fallback label is a coordination label the queue audit excludes', async () => {
-  const { COORDINATION_LABELS } = await import('./manage-migration-author-lanes.mjs')
+  const { COORDINATION_LABELS } = await import('./manage-migration-coordination.mjs')
   const { FALLBACK_LABEL } = await import('./db-flow/no-progress-alarm.mjs')
   assert.ok(COORDINATION_LABELS.has(FALLBACK_LABEL))
 })
@@ -4677,7 +4677,7 @@ const rebindArgs={issue:764,claim:1056,pr:1047,owner:'issue_764_sequence_repair/
 // before any check line when its own `AI_<PROVIDER>_CALLER` is unset, because
 // credentialed execution never guesses its caller. These tests spawn a real
 // wrapper shim with exactly that behaviour, so the probe is proved end to end.
-import { unnamedDoctorFailure } from './manage-migration-author-lanes.mjs'
+import { unnamedDoctorFailure } from './manage-migration-coordination.mjs'
 
 const callerWrapperDir=()=>{
   const dir=mkdtempSync(path.join(tmpdir(),'reviewer-caller-'))
@@ -4809,7 +4809,7 @@ test('#2491 an already-applied version matches its original claim-head apply whe
 //
 // It also proves the guard REFUSES rather than approves: the draw must never be
 // reached, and a refusal is never recorded as a verdict.
-import { assertReviewerDrawReadiness } from './manage-migration-author-lanes.mjs'
+import { assertReviewerDrawReadiness } from './manage-migration-coordination.mjs'
 function readinessRun(pr){
   let drew=false
   const io={
@@ -5044,7 +5044,7 @@ test('#2824 --set-scope-status is reachable from the CLI and reports the transit
 // #3411: a merged pull request's prior-head APPROVE is compared against the
 // first parent of its guarded merge commit, never the current main tip.
 test('resolveLaneApprovalBase judges a merged PR against its merge commit first parent', async () => {
-  const { resolveLaneApprovalBase } = await import('./manage-migration-author-lanes.mjs')
+  const { resolveLaneApprovalBase } = await import('./manage-migration-coordination.mjs')
   const head = 'd'.repeat(40), merge = 'e'.repeat(40), tip = 'f'.repeat(40)
   const io = (pr, inMain = true) => ({ mainSha: () => tip, getPr: () => pr, mergeCommitInMain: () => inMain })
   assert.deepEqual(resolveLaneApprovalBase(null, head, io(null)), { ok: true, fetch: tip })
@@ -5063,7 +5063,7 @@ test('resolveLaneApprovalBase judges a merged PR against its merge commit first 
 
 
 test('#3411 real Git: production refresh carries only unchanged approval after a two-parent merge and later main movement', async () => {
-  const { mergedReviewComparisonBase } = await import('./manage-migration-author-lanes.mjs')
+  const { mergedReviewComparisonBase } = await import('./manage-migration-coordination.mjs')
   const repo = mkdtempSync(path.join(tmpdir(), 'shared-db-3411-'))
   const git = (args) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   const commit = (message) => { git(['add', '.']); git(['commit', '-q', '-m', message]); return git(['rev-parse', 'HEAD']) }
@@ -5140,11 +5140,11 @@ function legacyRow(io,ref){const busy=findBusyReviewers(io);return {busy,row:bus
 
 
 // Issue #2831 -- a reviewer whose wrapper cannot emit the governed verdict line is never drawn.
-import { reviewerEmitsGovernedVerdict as emits2831, nonVerdictReviewerReplacementCommand as nonVerdictCmd2831 } from './manage-migration-author-lanes.mjs'
+import { reviewerEmitsGovernedVerdict as emits2831, nonVerdictReviewerReplacementCommand as nonVerdictCmd2831 } from './manage-migration-coordination.mjs'
 
 // Issue #2787 -- the queue audit lists open issues ONCE, reads each pull request's files
 // at most once, and prints exactly the queue the old repeated-listing path printed.
-import { memoizePrFiles as memo2787 } from './manage-migration-author-lanes.mjs'
+import { memoizePrFiles as memo2787 } from './manage-migration-coordination.mjs'
 test('#2787: queue audit lists open issues once and prints the identical queue',()=>{
   const now=new Date('2026-09-24T12:00:00Z')
   const scope=(extra)=>'```db-work-scope\n'+extra+'\n```'
@@ -5389,7 +5389,7 @@ test('#2998 collision: a pull request that does not edit the protected source ma
 })
 
 test('#2998 collision: touching the protected source runs the REAL guard inside the logical-read budget', () => {
-  const source = 'scripts/manage-migration-author-lanes.mjs'
+  const source = 'scripts/manage-migration-coordination.mjs'
   const others = [{ number: 9, created_at: '2026-09-25T00:00:00Z', files: [source] }, ...Array.from({ length: 12 }, (_, i) => ({ number: 3300 + i, files: i === 0 ? [source] : [`docs/${i}.md`] }))]
   const gh = collisionGitHub({ others })
   const rows = [{ filename: source, status: 'modified' }]
@@ -5404,7 +5404,7 @@ test('#2998 collision: touching the protected source runs the REAL guard inside 
 })
 
 test('#2998 collision: only a genuine transport fault proceeds (degraded); a 404/403 or an incomplete input refuses', () => {
-  const source = 'scripts/manage-migration-author-lanes.mjs'
+  const source = 'scripts/manage-migration-coordination.mjs'
   const rows = [{ filename: source, status: 'modified' }]
   const tagged = (message, extra) => Object.assign(new Error(message), extra)
   const transport = collisionGitHub({ others: [{ number: 9, files: [source] }], fail: () => { throw tagged('gh api failed', { stderr: 'HTTP 502 Bad Gateway', transientTransport: true }) } })
@@ -5455,7 +5455,7 @@ test('#2998 exact objects: a stale --head-sha and a different issue\'s evidence 
 
 // #3874: the orchestrator role is retired. Reviewer independence follows the
 // authoring session's declared engine, and `claim-first` is a structural route.
-import { authorEngineFromEnv as __authorEngineFromEnv, knownAuthorEngines as __knownAuthorEngines, CLAIM_FIRST_ROUTES as __CLAIM_FIRST_ROUTES, ROUTES_BY_WORK_TYPE as __ROUTES_BY_WORK_TYPE, QUEUE_ROUTES as __QUEUE_ROUTES } from './manage-migration-author-lanes.mjs'
+import { authorEngineFromEnv as __authorEngineFromEnv, knownAuthorEngines as __knownAuthorEngines, CLAIM_FIRST_ROUTES as __CLAIM_FIRST_ROUTES, ROUTES_BY_WORK_TYPE as __ROUTES_BY_WORK_TYPE, QUEUE_ROUTES as __QUEUE_ROUTES } from './manage-migration-coordination.mjs'
 import { STRUCTURAL_ROUTES as __STRUCTURAL_ROUTES } from './db-flow/admission.mjs'
 test('#3874 author engine is mandatory and fails closed', () => {
   assert.throws(() => __authorEngineFromEnv(undefined), /SHARED_DB_AUTHOR_ENGINE is not set/)
@@ -5667,7 +5667,7 @@ function conservativeBudgetFixture({atomic=false,issue,pr,headSha,paidAttempts=1
 
 
 test('Windows monotonic pause invokes supported command launcher and independently reads protected status',async()=>{
- const {pauseProviderFailure}=await import('./manage-migration-author-lanes.mjs')
+ const {pauseProviderFailure}=await import('./manage-migration-coordination.mjs')
  const observedEpoch=1000,record={reviewer:'glm-5.3',failureCode:'provider_unavailable',observedEpoch}
  const hold={provider:'glm',created_epoch:observedEpoch,expires_epoch:4600,record_id:'protected',failure_class:'provider_unavailable'}
  const calls=[]
@@ -5712,7 +5712,7 @@ test('preview admission refuses an unclaimed role owner dependency and accepts a
 
 // #4048: use actual Git commits, a local immutable contract remote and all normal
 // validators. Refs and a mocked successful proof alone must not grant authority.
-import { verifyNonclosingMaintenanceBinding, resolveAdmittedIssueForPr } from './manage-migration-author-lanes.mjs'
+import { verifyNonclosingMaintenanceBinding, resolveAdmittedIssueForPr } from './manage-migration-coordination.mjs'
 import {contractHash as bindingContractHash} from './agent-work-contract.mjs'
 import {readPublishedContractFromGit as bindingPublishedContract} from './agent-work-contract-git-evidence.mjs'
 function nonclosingGitFixture(structural=false){
@@ -5727,7 +5727,8 @@ function nonclosingGitFixture(structural=false){
   const contract={schema_version:2,generation:1,work_issue:41,work_type:'repo-maintenance',route:'repo-maintenance',goal:'Controlled nonclosing canonical proof',base_sha:base,dispatcher:'fixture',worker:'fixture',branch:'feature',worktree:dir,allowed_paths:['app.txt'],file_writes:['app.txt'],db_reads:[],db_writes:[],prohibited_actions:[],required_checks:['fixture'],assumptions:[],stop_conditions:['Stop on unknown'],evidence_parent:null}
   if(structural)Object.assign(contract,{work_type:'structural',route:'claim-first',allowed_paths:[sourcePath],file_writes:[sourcePath],db_writes:objects})
   const ref='refs/db-contracts/41/1',publication=git('commit-tree',`${base}^{tree}`,'-p',base,'-m',`Work contract published\n\n${JSON.stringify(contract)}`)
-  git('update-ref',ref,publication);git('push','origin',ref)
+  const storageRef=ref.replace('refs/db-contracts/','refs/db-evidence/contracts/')
+  git('update-ref',storageRef,publication);git('push','origin',storageRef)
   put(sourcePath,structural?'CREATE TABLE core.example (id integer);\n':'genuine source\n');git('add',sourcePath);git('commit','-m','source');const implementation=git('rev-parse','HEAD')
   const report={schema_version:1,work_issue:41,outcome:'ready-for-merge',pr:7,migration_versions:[],contract_ref:ref,contract_sha256:bindingContractHash(contract),head_sha:implementation,base_sha:base,files_changed:['app.txt'],db_reads:[],db_writes:[],checks:[{command:'fixture',exit_code:0,evidence:'Actual controlled fixture source operation'}],assumptions_resolved:[],stop_conditions_hit:[]}
   if(structural)Object.assign(report,{files_changed:[sourcePath],migration_versions:['20260101000000'],db_writes:objects})
@@ -5954,7 +5955,7 @@ test('paginated PR comments and commit-bound reviews both complete',()=>{
 
 
 test('#4348 reviewer-budget PR file inventory follows pages and fails closed past the cap',async()=>{
-  const {ghPaginated,withReviewRequestBudget}=await import('./manage-migration-author-lanes.mjs')
+  const {ghPaginated,withReviewRequestBudget}=await import('./manage-migration-coordination.mjs')
   const row=(i)=>({filename:`docs/f${i}.md`,status:'modified'})
   const pages={1:Array.from({length:100},(_,i)=>row(i)),2:Array.from({length:12},(_,i)=>row(100+i))}
   const seen=[]
@@ -5995,7 +5996,7 @@ test('real flowAdapter admits only qualified closed merged proof selectors witho
 });
 
 test('curated claim objects are limited to exact core tables (#2599)',async()=>{
-  const {requireCuratedClaimObjects}=await import('./manage-migration-author-lanes.mjs')
+  const {requireCuratedClaimObjects}=await import('./manage-migration-coordination.mjs')
   assert.doesNotThrow(()=>requireCuratedClaimObjects(['table core.property','table core.taxonomy_source_ref'],2599))
   assert.throws(()=>requireCuratedClaimObjects([],2599),/at least one exact core/)
   assert.throws(()=>requireCuratedClaimObjects(['table plm.item'],2599),/only curated core/)

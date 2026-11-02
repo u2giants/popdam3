@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { LaneError } from './claims.mjs'
 import { parseStrictJson } from '../../proofs/shared-db-2870-observation.mjs'
@@ -7,7 +7,7 @@ import { REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, REVIEW_REPLACE
 import { SLOT_INDEPENDENCE_CONFLICT, TERMINAL_FAILURE_CODES } from './queue-routing.mjs'
 import { inReviewReplacementNamespace, reviewSlotSuffix, silenceReleaseRef } from './review-leases.mjs'
 import { parseReviewCursor } from './review-records.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
 
 export function parseReviewReplacement(commit) {
   const message=commit?.message ?? commit?.commit?.message ?? ''

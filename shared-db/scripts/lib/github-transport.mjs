@@ -72,7 +72,7 @@ import path from 'node:path'
 export class GitHubTransportError extends Error {}
 
 // Deliberately identical to the classifier this repository already proved in
-// manage-migration-author-lanes.mjs. Widening it is a governed decision, not a
+// manage-migration-coordination.mjs. Widening it is a governed decision, not a
 // convenience: see the 404 note above.
 export const TRANSIENT_TRANSPORT =
   /HTTP 5\d\d|connection (?:reset|timed out)|TLS handshake timeout|No server is currently available/i

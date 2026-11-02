@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { isDocumentsOnlyChange } from './lib/documents-only-change.mjs'
-import { EXCLUSIVE_REFS } from './manage-migration-author-lanes.mjs'
+import { EXCLUSIVE_REFS } from './manage-migration-coordination.mjs'
 
 export function expectedPolicy({ activation, approvalSource, documentsOnly = isDocumentsOnlyChange, exclusiveRefs = EXCLUSIVE_REFS }) {
   // Owner ruling 2026-10-29 (ai-devops #2104): review is advice only. The

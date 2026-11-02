@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { dispatchObjectKeys } from './check-pr-object-collisions.mjs'
-import { parseAuthorLease, REPO, authorCheckinRef, validateAuthorCheckin, AUTHOR_CHECKIN_MESSAGE } from './manage-migration-author-lanes.mjs'
+import { parseAuthorLease, REPO, authorCheckinRef, validateAuthorCheckin, AUTHOR_CHECKIN_MESSAGE } from './manage-migration-coordination.mjs'
 import { validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 
 export class LeaseCheckError extends Error {}

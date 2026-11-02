@@ -130,7 +130,7 @@ export function parseClaimBlock(body) {
   // `objects:` is the legacy spelling of `writes:`. A claim that declares objects
   // has always meant "I am changing these", so reading it any other way would let
   // a writer start against work already in flight. See LEGACY_OBJECTS_MEANS_WRITES
-  // in manage-migration-author-lanes.mjs.
+  // in manage-migration-coordination.mjs.
   const lists = { objects: [], writes: [], reads: [] }
   let currentList = null
 

@@ -15,7 +15,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { canonicalJson, sha256 } from './evidence-bundle.mjs'
-import { databasePreviewAdmission, githubIo, withDatabasePreviewClassificationFile } from '../manage-migration-author-lanes.mjs'
+import { databasePreviewAdmission, githubIo, withDatabasePreviewClassificationFile } from '../manage-migration-coordination.mjs'
 
 export const BLOCK_LANG = 'db-preview-classification'
 export const TRUSTED_ASSOCIATIONS = Object.freeze(['OWNER', 'MEMBER', 'COLLABORATOR'])

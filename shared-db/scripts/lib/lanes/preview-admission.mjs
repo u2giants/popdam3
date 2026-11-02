@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { parseAbandonmentAudit, MODE_SEQUENCE, readyRecord, terminalizeReady } from '../../db-flow/reconcile.mjs'
 import { execFileSync } from 'node:child_process'
@@ -12,7 +12,7 @@ import { parseQueueScope } from './queue-routing.mjs'
 import { CURATED_LEDGER_TABLES } from '../../db-flow/curated-admission.mjs'
 import { REPO } from './constants.mjs'
 import { claimTitleIssues, claimTitleWorkIssue, claimWorkIssue } from './claim-maintenance.mjs'
-import { githubIo, main, validateOriginalPreviewApplyEvidence } from '../../manage-migration-author-lanes.mjs'
+import { githubIo, main, validateOriginalPreviewApplyEvidence } from '../../manage-migration-coordination.mjs'
 import { sessionAuthorityRefusal } from '../session-authority.mjs'
 
 // THE CAPACITY HALF OF ONE FLOW SNAPSHOT ROW (issue #2301 Step 4). It is a named

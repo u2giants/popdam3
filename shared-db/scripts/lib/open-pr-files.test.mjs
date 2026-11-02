@@ -8,7 +8,7 @@ import { gather as gatherSourceInputs, openProtectedCollisions } from '../check-
 import { findCollisions, gatherSources } from '../check-pr-object-collisions.mjs'
 
 const REPO = 'o/r'
-const LANES = 'scripts/manage-migration-author-lanes.mjs'
+const LANES = 'scripts/manage-migration-coordination.mjs'
 const MIG = (name) => `supabase/migrations/${name}.sql`
 
 // A fake GitHub. Every PR: detail, file list, and the SQL at its head.

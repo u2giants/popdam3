@@ -78,7 +78,7 @@ class WorkflowShapeTests(unittest.TestCase):
     def test_artifact_name_matches_what_complete_outcome_re_derives(self):
         self.assertIn("name: shared-db-live-proof-${{ inputs.work_issue }}-${{ github.sha }}", self.text)
         self.assertIn("db-live-proof.json", self.text)
-        lane = (ROOT / "scripts/manage-migration-author-lanes.mjs").read_text(encoding="utf-8")
+        lane = (ROOT / "scripts/manage-migration-coordination.mjs").read_text(encoding="utf-8")
         self.assertIn("shared-db-live-proof-${evidence.work_issue}-", lane)
         self.assertIn("'db-live-proof.json'", lane)
 

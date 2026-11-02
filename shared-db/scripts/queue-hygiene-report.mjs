@@ -4,7 +4,7 @@
 //
 // WHY A STANDALONE MODULE (a 2026-09-17 placement decision, not the plan's
 // first draft): the plan drafted this as a subcommand inside
-// scripts/manage-migration-author-lanes.mjs. That file is a PROTECTED
+// scripts/manage-migration-coordination.mjs. That file is a PROTECTED
 // COORDINATION SOURCE (scripts/check-pr-source-collisions.mjs): at the time a
 // later overlapping ready pull request was refused (#3721 later made it queue
 // in the merge queue, proved at merge_group time), and on the day this landed another session's
@@ -29,7 +29,7 @@
 //      an instrument that could not read must never be mistaken for a clean
 //      queue. Exit-non-zero-on-dirty-queue is deliberately NOT implemented
 //      (plan §8 open question — decide after a week of daily runs).
-import { githubIo, buildDynamicQueues, parseAuthorLease, parseQueueScope, verifyCompletionAcceptance, WORK_LABEL, OUTSIDE_ORCHESTRATOR_EXITS, LaneError } from './manage-migration-author-lanes.mjs'
+import { githubIo, buildDynamicQueues, parseAuthorLease, parseQueueScope, verifyCompletionAcceptance, WORK_LABEL, OUTSIDE_ORCHESTRATOR_EXITS, LaneError } from './manage-migration-coordination.mjs'
 import { classifyDependency, dependencyIssue, findDependencyCycles, findCompletionRecord } from './lib/work-dependencies.mjs'
 import { createStageEvidenceVerifier } from './lib/work-stage-evidence.mjs'
 import { resolveRepositoryIdentity } from './lib/repository-identity.mjs'

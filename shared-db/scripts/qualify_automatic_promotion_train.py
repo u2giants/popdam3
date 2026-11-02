@@ -59,11 +59,11 @@ def main():
  a=vars(p.parse_args()); root=Path.cwd()
  a['active']=json.loads((root/'config/production-risk-policy-activation.json').read_text()).get('active')
  def read_train(ref,sha,allow):
-  subprocess.run(['node','scripts/manage-migration-author-lanes.mjs','--verify-train-dispatch',ref,'--target','production','--commit-sha',sha,'--allowlist',allow],check=True,stdout=subprocess.DEVNULL)
+  subprocess.run(['node','scripts/manage-migration-coordination.mjs','--verify-train-dispatch',ref,'--target','production','--commit-sha',sha,'--allowlist',allow],check=True,stdout=subprocess.DEVNULL)
   subprocess.run(['node','scripts/db-flow/read-verified-train-record.mjs','--ref',ref,'--target','production','--commit-sha',sha,'--allowlist',allow,'--output',a['train_output']],check=True)
   return json.loads(Path(a['train_output']).read_text())
  def closing(pr):
-  code="import{githubIo}from './scripts/manage-migration-author-lanes.mjs';console.log(JSON.stringify(githubIo.closingIssuesForPr(Number(process.argv[1]))))"
+  code="import{githubIo}from './scripts/manage-migration-coordination.mjs';console.log(JSON.stringify(githubIo.closingIssuesForPr(Number(process.argv[1]))))"
   return json.loads(subprocess.check_output(['node','--input-type=module','-e',code,str(pr)],text=True))
  try:
   out=qualify(a,json.loads(Path(a['recovery']).read_text()),read_train=read_train,

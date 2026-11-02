@@ -130,7 +130,7 @@ here. Observed with `ai-grok-review`, whose doctor printed
 `version policy: UNQUALIFIED — installed 1.0.41, requires exactly 1.0.13`.
 
 - Reproduce the runner's own probe rather than running the wrapper by hand:
-  `node -e "import('./scripts/manage-migration-author-lanes.mjs').then(m=>m.githubIo.reviewerDoctor('<wrapper>').then(r=>console.log(r.ok, r.failingChecks)))"`
+  `node -e "import('./scripts/manage-migration-coordination.mjs').then(m=>m.githubIo.reviewerDoctor('<wrapper>').then(r=>console.log(r.ok, r.failingChecks)))"`
 - **Never pipe a by-hand doctor run through `head`.** `wrapper doctor | head -30; echo exit=$?`
   reports `head`'s status, so a failing doctor reads as `exit=0`. That misread cost an hour.
 - Fix it by pointing the wrapper at the already-downloaded qualified build —

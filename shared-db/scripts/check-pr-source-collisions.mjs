@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 // edit the SAME file, never merely the same family. Protecting the family as a
 // whole would serialize every split-out change again and undo the split.
 export const PROTECTED_SOURCE_PATHS=new Set([
-  'scripts/manage-migration-author-lanes.mjs',
+  'scripts/manage-migration-coordination.mjs',
   'scripts/lib/lanes/admission.mjs',
   'scripts/lib/lanes/claim-maintenance.mjs',
   'scripts/lib/lanes/claim-versions.mjs',

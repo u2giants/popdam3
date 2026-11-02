@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { buildDatabasePreviewFileSnapshot, githubIo } from '../manage-migration-author-lanes.mjs'
+import { buildDatabasePreviewFileSnapshot, githubIo } from '../manage-migration-coordination.mjs'
 import { buildSenderClassification, extractBlock, main, receive, renderBlock } from './preview-route-canary.mjs'
 
 const base_sha = '8'.repeat(40), head_sha = '9'.repeat(40)

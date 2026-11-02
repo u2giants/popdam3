@@ -44,7 +44,7 @@
 // this file and unchanged. A human is never asked.
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { assertDurableReviewApproval, githubIo, REPO } from './manage-migration-author-lanes.mjs'
+import { assertDurableReviewApproval, githubIo, REPO } from './manage-migration-coordination.mjs'
 import { findingsDigest } from './lib/review-verdict-artifact.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 

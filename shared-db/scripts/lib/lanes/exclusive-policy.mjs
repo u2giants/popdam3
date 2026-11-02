@@ -3,7 +3,7 @@
 // This module is intentionally pure: no GitHub I/O, no ref mutation, no
 // workflow wiring. It owns the compatibility-matrix assertions and the
 // production-freshness assertion the lock manager must satisfy, so they can be
-// proven here without taking the contested `manage-migration-author-lanes.mjs`
+// proven here without taking the contested `manage-migration-coordination.mjs`
 // surface (open PRs #3622 #3666 #3627 #3636 #3626 own it). Wiring into
 // `acquireExclusive` call sites is a later change on accepted current main.
 //

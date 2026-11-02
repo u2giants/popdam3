@@ -5,7 +5,7 @@ import test from 'node:test'
 import { HISTORICAL_RESTORATIONS, validateHistoricalProductionProvenance, validateHistoricalRestorationFile } from './historical-migration-restorations.mjs'
 import { dispatchObjectKeys } from './check-pr-object-collisions.mjs'
 import { validateMigrationLease } from './check-migration-pr-lease.mjs'
-import { claimBody } from './manage-migration-author-lanes.mjs'
+import { claimBody } from './manage-migration-coordination.mjs'
 
 test('pins #2336 exact preview-applied pre-merge SQL without registering production provenance',()=>{
   const row=HISTORICAL_RESTORATIONS['20261013130102']

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { findBusyReviewers, reviewLeaseStillHeld } from './manage-migration-author-lanes.mjs'
+import { findBusyReviewers, reviewLeaseStillHeld } from './manage-migration-coordination.mjs'
 import { isReviewAssignmentLive, assertReviewLeaseStillStale } from './lib/lanes/review-approval.mjs'
 import { projectReviewPr } from './lib/lanes/review-assignment.mjs'
 import { reviewTargetSuperseded } from './lib/lanes/queue-routing.mjs'

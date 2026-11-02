@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { activationDate, conflictsWithMain, filePaths, gather, lastActivityAt, main, mergeGroupProblem, readMergeGroupFacts, latestChecksFailing, openProtectedCollisions, parseStalePlaceNudge, STALE_PLACE_AFTER_MS, stalePlaceNudgeLine, stalePlaceSkipLine, stalePlaceWindowText, stalePlaceSkips, stalePlaceYield } from './check-pr-source-collisions.mjs'
 
 const NOW='2026-09-18T12:00:00Z'
-const PROTECTED='scripts/manage-migration-author-lanes.mjs'
+const PROTECTED='scripts/manage-migration-coordination.mjs'
 // A ready earlier pull request whose place the stale-place rule could forfeit:
 // older activation, an overlapping protected file, and (in most tests) every
 // stale-place signal present. Spread it and override ONE signal per case.
@@ -19,19 +19,19 @@ const newer={number:20,title:'newer',activatedAt:'2026-09-18T09:00:00Z',files:[P
 const blocks=[{file:PROTECTED,pr:10,title:'stale'}]
 
 test('an earlier open PR editing the lane manager serializes a later PR',()=>{
-  const current={number:20,files:['scripts/manage-migration-author-lanes.mjs']}
-  assert.deepEqual(openProtectedCollisions(current,[{number:10,title:'first',files:['scripts/manage-migration-author-lanes.mjs']}]),[{file:'scripts/manage-migration-author-lanes.mjs',pr:10,title:'first'}])
+  const current={number:20,files:['scripts/manage-migration-coordination.mjs']}
+  assert.deepEqual(openProtectedCollisions(current,[{number:10,title:'first',files:['scripts/manage-migration-coordination.mjs']}]),[{file:'scripts/manage-migration-coordination.mjs',pr:10,title:'first'}])
 })
 
 test('the earliest active contender wins regardless of PR number',()=>{
-  const current={number:20,activatedAt:'2026-08-30T12:00:00Z',files:['scripts/manage-migration-author-lanes.mjs','docs/x.md']}
+  const current={number:20,activatedAt:'2026-08-30T12:00:00Z',files:['scripts/manage-migration-coordination.mjs','docs/x.md']}
   assert.deepEqual(openProtectedCollisions(current,[
-    {number:21,activatedAt:'2026-08-30T11:00:00Z',files:['scripts/manage-migration-author-lanes.mjs']},
-    {number:10,draft:true,files:['scripts/manage-migration-author-lanes.mjs']},
+    {number:21,activatedAt:'2026-08-30T11:00:00Z',files:['scripts/manage-migration-coordination.mjs']},
+    {number:10,draft:true,files:['scripts/manage-migration-coordination.mjs']},
     {number:9,files:['docs/x.md']},
-  ]),[{file:'scripts/manage-migration-author-lanes.mjs',pr:21,title:''}])
+  ]),[{file:'scripts/manage-migration-coordination.mjs',pr:21,title:''}])
   assert.deepEqual(openProtectedCollisions({...current,activatedAt:'2026-08-30T10:00:00Z'},[
-    {number:10,activatedAt:'2026-08-30T11:00:00Z',files:['scripts/manage-migration-author-lanes.mjs']},
+    {number:10,activatedAt:'2026-08-30T11:00:00Z',files:['scripts/manage-migration-coordination.mjs']},
   ]),[])
 })
 
@@ -39,17 +39,17 @@ test('synchronizing a winner cannot reverse priority and deadlock both PRs',()=>
   const winner={number:20,created_at:'2026-08-30T10:00:00Z',head:{sha:'new-head'}}
   const loser={number:21,created_at:'2026-08-30T11:00:00Z'}
   assert.equal(activationDate(winner,[]),'2026-08-30T10:00:00.000Z')
-  assert.deepEqual(openProtectedCollisions({number:20,activatedAt:activationDate(winner,[]),files:['scripts/manage-migration-author-lanes.mjs']},[
-    {number:21,activatedAt:activationDate(loser,[]),files:['scripts/manage-migration-author-lanes.mjs']},
+  assert.deepEqual(openProtectedCollisions({number:20,activatedAt:activationDate(winner,[]),files:['scripts/manage-migration-coordination.mjs']},[
+    {number:21,activatedAt:activationDate(loser,[]),files:['scripts/manage-migration-coordination.mjs']},
   ]),[])
 })
 
 test('renaming the protected source participates through its previous path',()=>{
-  assert.deepEqual(filePaths([{filename:'scripts/renamed.mjs',previous_filename:'scripts/manage-migration-author-lanes.mjs'}]),['scripts/renamed.mjs','scripts/manage-migration-author-lanes.mjs'])
+  assert.deepEqual(filePaths([{filename:'scripts/renamed.mjs',previous_filename:'scripts/manage-migration-coordination.mjs'}]),['scripts/renamed.mjs','scripts/manage-migration-coordination.mjs'])
 })
 
 test('a PR that does not edit a protected source never blocks on bystanders',()=>{
-  assert.deepEqual(openProtectedCollisions({number:20,files:['docs/x.md']},[{number:10,files:['scripts/manage-migration-author-lanes.mjs']}]),[])
+  assert.deepEqual(openProtectedCollisions({number:20,files:['docs/x.md']},[{number:10,files:['scripts/manage-migration-coordination.mjs']}]),[])
 })
 
 test('stale-place: a nudge-gated skip drops an inactive red predecessor from the queue (issue #3273)',()=>{
@@ -255,7 +255,7 @@ test('workflow pins the merge-group step to merge_group with merge-group mode',a
   const yml=jobBlockByName(readFileSync(new URL('../.github/workflows/pr-guards.yml',import.meta.url),'utf8'),'Cross-PR object collision')
   const step=yml.slice(yml.indexOf('- name: Merge group is its base plus exactly one PR'))
   assert.match(step.slice(0,400),/if: github\.event_name == 'merge_group'[\s\S]*SOURCE_COLLISION_MODE: merge-group[\s\S]*node scripts\/check-pr-source-collisions\.mjs/)
-  assert.match(yml,/node --test [^\n]*scripts\/manage-migration-author-lanes\.test\.mjs/)
+  assert.match(yml,/node --test [^\n]*scripts\/manage-migration-coordination\.test\.mjs/)
 })
 
 test('stale-place: the inactivity window is one hour (owner ruling 2026-10-21)',()=>{

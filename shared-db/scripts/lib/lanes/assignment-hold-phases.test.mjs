@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { mutexSectionReserveAfterPrepare, MUTEX_REF, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_STARTED_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ASSIGNMENT_REF_PREFIX } from '../../manage-migration-author-lanes.mjs'
+import { mutexSectionReserveAfterPrepare, MUTEX_REF, REVIEW_OPERATION_REQUEST_LIMIT, REVIEW_MUTEX_SECTION_RESERVE, REVIEW_STARTED_REF_PREFIX, REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ASSIGNMENT_REF_PREFIX } from '../../manage-migration-coordination.mjs'
 
 function usableAdmission(row) {
   return {

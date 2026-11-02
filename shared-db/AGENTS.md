@@ -135,7 +135,7 @@ Everything else requires justification before touching.
 | Change database shape (table/column/view/function/RLS/index) | New `supabase/migrations/<timestamp>_<name>.sql` only | Any migration already on a ledger; consumer-repo schema copies |
 | Change shared API contract / browser view | New migration + `docs/architecture.md` / schema map if ownership changes | Ad-hoc SQL against production |
 | Change CI, merge, promotion, or task gates | Relevant `.github/workflows/*.yml`, `scripts/` guards + tests | Live production settings except via reviewed workflow |
-| Change author-lane / claim / review mechanics | `scripts/manage-migration-author-lanes.mjs`, `scripts/lib/lanes/**`, tests | Bypassing lease, ordering, or production authorization checks |
+| Change author-lane / claim / review mechanics | `scripts/manage-migration-coordination.mjs`, `scripts/lib/lanes/**`, tests | Bypassing lease, ordering, or production authorization checks |
 | Change business meaning / permissions / workflows | `docs/business-rules/` topic file via the business-rules process | Competing copies inside app repos |
 | Change operating rules / owner rulings | `AGENTS.md` and the matching `docs/agents/` chapter **together** | Silent edits that contradict `scripts/check-*.mjs` guards |
 | Add or change a tool/loader | `tools/**` + its `*.test.mjs` | Hand-built Windows direct-invocation guards without testing |
@@ -241,7 +241,7 @@ Root cause: parallel chip-spawned sessions without claims/reservation.
 Recovery: fix forward; CI now blocks duplicate and backdated versions.
 
 Rule added: never spawn background task chips here; reserve versions through
-`scripts/manage-migration-author-lanes.mjs --claim` (standing facts 4–5).
+`scripts/manage-migration-coordination.mjs --claim` (standing facts 4–5).
 
 ### [2026-08-11] Production apply pin refused two approved runs
 
@@ -373,6 +373,13 @@ Open work lives in **GitHub Issues** and open `HANDOFF.d/` files, not here.
 Re-derive state from `git` and `gh`. A heading in a markdown file is not a backlog.
 
 ## Current operating route
+
+Author-lane and reviewer-assignment commands were retired by #5409. The
+surviving lock, promotion and recovery CLI is
+`scripts/manage-migration-coordination.mjs` (#5426). Older claim-first command
+examples are historical; do not reintroduce those commands. Historical contract
+identifiers resolve to preserved evidence storage as documented in
+[`docs/contract-ref-retirement.md`](docs/contract-ref-retirement.md).
 
 - [current-workflow.md](docs/agents/current-workflow.md)
 - [plan_shared_db_workflow_refactor.md](plan_shared_db_workflow_refactor.md)

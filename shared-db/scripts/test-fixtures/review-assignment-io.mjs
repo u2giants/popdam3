@@ -1,6 +1,6 @@
 // Issue #4414 step 5: in-memory reviewer-assignment io with atomic CAS batches.
 // Shared by the section-deadline and hostile-matrix suites. Not production code.
-import { MUTEX_REF, REVIEW_ACTIVE_CUTOVER_REF } from '../manage-migration-author-lanes.mjs'
+import { MUTEX_REF, REVIEW_ACTIVE_CUTOVER_REF } from '../manage-migration-coordination.mjs'
 
 export const HEAD = 'a'.repeat(40)
 function usable(row) {

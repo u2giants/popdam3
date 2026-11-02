@@ -36,7 +36,7 @@ have already happened in this repo, more than once.
    error. This has happened twice — `20260722220000` and `20260728160000`. CI
    now blocks duplicate versions and backdated versions, but do not rely on CI
    to save you; reserve the version atomically through
-   `scripts/manage-migration-author-lanes.mjs --claim` before creating the file.
+   `scripts/manage-migration-coordination.mjs --claim` before creating the file.
 5. **Never create background task chips for this repo — banned.** Four
    chip-spawned sessions recently authored competing `CREATE OR REPLACE`
    migrations against the *same* database function, three of them sharing
@@ -127,7 +127,7 @@ have already happened in this repo, more than once.
     finishes, then release it.** This is standard practice, not an improvisation.
     **The mechanism (owner instruction 2026-10-02, "assign someone to pause merges during
     production runs"; [owner rulings §6.26](../owner-rulings.md)):** before drawing the risk
-    assessment, run `node scripts/manage-migration-author-lanes.mjs --acquire-promotion-freeze
+    assessment, run `node scripts/manage-migration-coordination.mjs --acquire-promotion-freeze
     --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-60>`. Every `--acquire-merge`
     and repository-maintenance (documents-only) authorization then refuses until the freeze is
     released (`--release-promotion-freeze --owner <text>`), the production run's cleanup releases
@@ -162,7 +162,7 @@ have already happened in this repo, more than once.
     **It did not touch curated Master Data.** `curated-master-data` still exits by `fork` under
     §6.4 and is still governed inside this repository. Extending the ruling to it needs a separate
     explicit decision from Albert. See `NON_STRUCTURAL_EXITS` in
-    `scripts/manage-migration-author-lanes.mjs` for the enforced form.
+    `scripts/manage-migration-coordination.mjs` for the enforced form.
 
 17. **`required_status_checks.strict` is FALSE on purpose (owner ruling, 2026-08-19, issue #1286).**
     Requiring every branch to be up to date before merging restarted the full check suite on every
@@ -233,7 +233,7 @@ have already happened in this repo, more than once.
     never acquires preview, merge, or production, and emits no structural lifecycle event. Unknown or
     non-document changes receive no status from that path. `scripts/check-exact-head-approval.mjs`
     — the gate the guarded merge waits on — uses the classifier to skip the reviewer requirement, and
-    `--assign-reviewer` in `scripts/manage-migration-author-lanes.mjs` refuses to draw for such a
+    `--assign-reviewer` in `scripts/manage-migration-coordination.mjs` refuses to draw for such a
     pull request. `scripts/lib/documents-only-change.test.mjs` fails if the classifier exempts a
     rulebook file or a mixed change.
 

@@ -5,6 +5,14 @@ they do not override the current implementation or Albert's later rulings.
 The matrix below is checked by `scripts/check-current-workflow-policy.mjs`.
 It documents existing authority; it does not activate a new release route.
 
+Stage C2 supersedes the historical claim-first/guarded-merge instructions below:
+#5409 retired author and reviewer lifecycle commands. #5426 moves the surviving
+lock, promotion and recovery CLI to `scripts/manage-migration-coordination.mjs`.
+The removed guarded-merge/author-lease workflows are not prerequisites. Preserve
+the existing merge queue, SQL safety checks, preview evidence and automatic
+serial production route. See [contract-ref-retirement.md](../contract-ref-retirement.md)
+for the historical evidence storage move; it activates no contract gate.
+
 ## Policy matrix
 
 | Policy | Current value | Authority |
@@ -19,7 +27,7 @@ It documents existing authority; it does not activate a new release route.
 | agent-instructions | guarded | scripts/lib/documents-only-change.mjs |
 | automatic-production-policy | active | config/production-risk-policy-activation.json |
 | preview-target | repository-variable-PREVIEW_PROJECT_REF | AGENTS.md target identity rule |
-| exclusive-mutation-lanes | preview,merge,production | scripts/manage-migration-author-lanes.mjs EXCLUSIVE_REFS |
+| exclusive-mutation-lanes | preview,merge,production | scripts/manage-migration-coordination.mjs EXCLUSIVE_REFS |
 | completion-closure | issue-opener-or-explicit-authority | AGENTS.md closure authority |
 
 ## Select the route once

@@ -3,7 +3,7 @@ import { currentRepository, expectedOperatorAssociation } from './lib/repository
 // Fixtures follow the resolved repository identity and its operator association (#3255).
 const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAssociation()
 import assert from 'node:assert/strict'
-import { authorizeRepositoryMaintenanceStatus, EXCLUSIVE_REFS, MUTEX_REF, selectNewestCommitStatus, MERGE_ADVISORY_CONTEXT } from './manage-migration-author-lanes.mjs'
+import { authorizeRepositoryMaintenanceStatus, EXCLUSIVE_REFS, MUTEX_REF, selectNewestCommitStatus, MERGE_ADVISORY_CONTEXT } from './manage-migration-coordination.mjs'
 import { MERGE_SELF_CONTEXT } from './lib/merge-self-context.mjs'
 
 const head='a'.repeat(40),owner='b'.repeat(40),base='c'.repeat(40)

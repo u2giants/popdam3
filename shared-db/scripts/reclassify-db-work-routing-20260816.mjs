@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { parseQueueScope } from './manage-migration-author-lanes.mjs'
+import { parseQueueScope } from './manage-migration-coordination.mjs'
 
 const REPO='u2giants/shared-db'
 const apply=process.argv.includes('--apply')

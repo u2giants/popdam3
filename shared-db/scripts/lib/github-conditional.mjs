@@ -37,7 +37,7 @@ import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { hostQuotaLatch, runGitHubCommand } from './github-transport.mjs'
-import { parseLinkHeader } from '../manage-migration-author-lanes.mjs'
+import { parseLinkHeader } from '../manage-migration-coordination.mjs'
 
 export class SharedReadError extends Error {
   constructor(message, { transientTransport = false } = {}) {

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseQueueScope, buildDynamicQueues, readDependencyStates, verifyCompletionAcceptance } from './manage-migration-author-lanes.mjs'
+import { parseQueueScope, buildDynamicQueues, readDependencyStates, verifyCompletionAcceptance } from './manage-migration-coordination.mjs'
 
 const scope = (number, depends = '') => ({ number, title: `work ${number}`, body: ['```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first', 'service_class: standard-application', 'change_type: migration', 'application_return_to: popcre/example-app', 'live_assertion: authenticated create succeeds', 'generated_types: not-applicable', 'priority: 1', `depends_on: ${depends}`, 'writes:', `  - table core.task_${number}`, 'reads:', '```'].join('\n') })
 

@@ -28,7 +28,7 @@ import { formatHoldReason } from './lib/hold-reason.mjs'
 import { parseEventComment } from './db-coordination-events.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { currentRepository } from './lib/repository-identity.mjs'
-import { buildDynamicQueues, githubIo as laneIo, parseQueueScope } from './manage-migration-author-lanes.mjs'
+import { buildDynamicQueues, githubIo as laneIo, parseQueueScope } from './manage-migration-coordination.mjs'
 import { findCompletionRecord } from './lib/work-dependencies.mjs'
 
 export class SnapshotCallerError extends Error {}

@@ -692,7 +692,7 @@ PREVIEW_PRODUCER_PATHS = (
     "scripts/atomic_migration_apply.py",
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
-    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-coordination.mjs",
     # Statically imported by the manager and read by its re-qualified preview
     # admission (#4464/#4486); unpinned, an edited pin table would be trusted.
     "scripts/db-flow/requalified-preview-runs.mjs",
@@ -911,7 +911,7 @@ PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
     ),
     "docs": (
         "Named by a producer, but never OPENED by one, in exactly three places. "
-        "scripts/manage-migration-author-lanes.mjs passes 'docs' to `git grep -l` "
+        "scripts/manage-migration-coordination.mjs passes 'docs' to `git grep -l` "
         "and `git add` as a PATHSPEC when it renames an author's migration "
         "version, so git decides which files exist there and the process opens "
         "nothing; that rename also runs inside a temporary author worktree, not "
@@ -1160,7 +1160,7 @@ def independent_sidecar_paths(
 # stays compared byte for byte, and a tolerated path is never counted as a
 # comparison, so the zero-comparison refusal still holds.
 PREVIEW_CUSTODY_ONLY_PATHS = frozenset((
-    "scripts/manage-migration-author-lanes.mjs",
+    "scripts/manage-migration-coordination.mjs",
     # Read only by the lane manager's re-qualified preview admission
     # (#4464/#4486); it never shapes the apply. Added after the pinned run
     # 39173012894 checked out fe39316, so it must be tolerated as absent there.

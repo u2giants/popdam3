@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { REVIEW_VERDICT_REF_PREFIX, REVIEW_VERDICT_REPLACEMENT_REF_PREFIX, REVIEW_ARCHIVED_VERDICT_REF_PREFIX, parseVerdictRef } from '../../lib/review-verdict-artifact.mjs'
 import { REVIEW_ACTIVE_CUTOVER_REF, REVIEW_ACTIVE_PARALLEL_REF_PREFIX, REVIEW_LEASE_SUSPECT_HOURS, REVIEW_SILENCE_PROBE_REF_PREFIX, REVIEW_SILENCE_RELEASE_REF_PREFIX, SILENCE_CONFIRM_HOURS, SILENCE_MIN_AGE_HOURS, isLeaseReadFailure, isReviewRefListingRefusal, leaseReadFailureError, reviewStartMarkerPresent } from './constants.mjs'
@@ -9,7 +9,7 @@ import { parseReviewLease, resolveAssignmentLeaseRef, reviewActiveRef, reviewLea
 import { hasVerdictForHead, leaseVerdictOptions } from './review-approval.mjs'
 import { resolveFailedReviewRecord } from './review-replacement.mjs'
 import { liveReviewerQueue } from './review-assignment.mjs'
-import { activityFingerprintForLease } from '../../manage-migration-author-lanes.mjs'
+import { activityFingerprintForLease } from '../../manage-migration-coordination.mjs'
 import { orderedReviewers } from './reviewer-roster.mjs'
 
 // WHICH REVIEWERS HOLD LIVE REVIEW LEASES IN THIS REPOSITORY RIGHT NOW.

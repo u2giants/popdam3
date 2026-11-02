@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Re-target a pre-split patch of scripts/manage-migration-author-lanes.mjs onto
+// Re-target a pre-split patch of scripts/manage-migration-coordination.mjs onto
 // the split layout (issue #3726). Every hunk is moved to the ONE current file
 // whose text contains the hunk's old side (context + removed lines) verbatim, so
 // a pull request written before the split can be replayed mechanically:
 //
-//   git diff "$(git merge-base origin/main HEAD~0)" HEAD -- scripts/manage-migration-author-lanes.mjs > /tmp/lane.patch
+//   git diff "$(git merge-base origin/main HEAD~0)" HEAD -- scripts/manage-migration-coordination.mjs > /tmp/lane.patch
 //   node scripts/route-lane-manager-patch.mjs /tmp/lane.patch > /tmp/routed.patch
 //   git apply --3way /tmp/routed.patch
 //
@@ -16,7 +16,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-export const ENTRY = 'scripts/manage-migration-author-lanes.mjs'
+export const ENTRY = 'scripts/manage-migration-coordination.mjs'
 export const LANES_DIR = 'scripts/lib/lanes'
 
 export function parseHunks(patchText) {

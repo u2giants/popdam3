@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "Public export names of scripts/manage-migration-author-lanes.mjs before the module split (issue #3726). Names may be added freely; removing or retyping one is a public-surface break.",
+  "note": "Public export names of scripts/manage-migration-coordination.mjs before the module split (issue #3726). Names may be added freely; removing or retyping one is a public-surface break.",
   "exports": {
     "ACTIVE_REVIEWERS": "array",
     "ADMISSION_LEGACY_CUTOVER": "string",

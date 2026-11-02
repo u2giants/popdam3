@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { MERGE_SELF_CONTEXT } from '../../lib/merge-self-context.mjs'
 import { currentRepository } from '../../lib/repository-identity.mjs'
@@ -154,7 +154,7 @@ export const REVIEW_ACTIVE_CUTOVER_REF = 'refs/db-coordination/reviewer-index-cu
 // was added after REVIEW_OPERATION_REQUEST_LIMIT was derived, and its request count was
 // never measured against it, so every reclaim refused at request 24 and a dead lease could
 // never be released. Measured on the wire-attempt fixture in
-// Initial current-key measurement in scripts/manage-migration-author-lanes.test.mjs:
+// Initial current-key measurement in scripts/manage-migration-coordination.test.mjs:
 // 14 pre-mutex requests + a 14-request
 // mutex-held section (mutex create, in-mutex lease re-resolution, fresh activity
 // fingerprint, uncached durable-verdict re-listing, locked readback, atomic transition,

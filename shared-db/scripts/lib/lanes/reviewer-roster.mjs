@@ -1,11 +1,11 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { wrapperEmitsGovernedVerdict } from '../../lib/reviewer-capabilities.mjs'
 import { execFileSync } from 'node:child_process'
 import { LaneError } from './claims.mjs'
 import { parseReviewCursor, readReviewReturns } from './review-records.mjs'
 import { parseReviewReplacement } from './review-replacement.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
 import { readSessionId } from '../session-authority.mjs'
 
 //

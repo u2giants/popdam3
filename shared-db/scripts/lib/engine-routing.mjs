@@ -71,7 +71,7 @@ export const LEGACY_ROUTING_BLOCK = 'orchestrator-routing'
  *
  * Which reviewer family an engine's orchestrator must never draw does NOT live
  * here: it is reviewer-draw knowledge and lives in ENGINE_REVIEWER_EXCLUSION in
- * manage-migration-author-lanes.mjs (issue #3232). The lane test suite asserts
+ * manage-migration-coordination.mjs (issue #3232). The lane test suite asserts
  * this vocabulary and that map agree key-for-key.
  */
 export const ENGINES = {
@@ -98,7 +98,7 @@ export const ENGINES = {
      * `sess_<uuid>`. The `sess_` prefix is part of the id.
      *
      * ZCode runs on the GLM engine (GLM-5.3), which matters one hop away in
-     * manage-migration-author-lanes.mjs: the owner ruled on 2026-09-17 (issue
+     * manage-migration-coordination.mjs: the owner ruled on 2026-09-17 (issue
      * #3232) that GLM must never review GLM code, so a zcode orchestrator must
      * never draw the glm reviewers. ZCode is NOT a reviewer — adding it as one
      * was rejected by the same ruling.

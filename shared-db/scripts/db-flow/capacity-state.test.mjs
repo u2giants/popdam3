@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { WORKTREE_STATES, assertLaneAvailable, buildDynamicQueues, claimBody, main, parseAuthorLease } from '../manage-migration-author-lanes.mjs'
+import { WORKTREE_STATES, assertLaneAvailable, buildDynamicQueues, claimBody, main, parseAuthorLease } from '../manage-migration-coordination.mjs'
 
 const NOW=new Date('2026-08-28T12:00:00Z')
 const body=(number,{capacityState='active',blockedOn=null,worktreeState=capacityState==='relinquished'?'clean':null,recoveryArtifact=null,expiresAt=new Date('2026-08-29T00:00:00Z')}={})=>claimBody({

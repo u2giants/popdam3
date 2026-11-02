@@ -1,7 +1,7 @@
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { acquireAuthorLane, LaneError } from '../manage-migration-author-lanes.mjs'
+import { acquireAuthorLane, LaneError } from '../manage-migration-coordination.mjs'
 
 const [store, owner, object] = process.argv.slice(2)
 mkdirSync(path.join(store, 'refs'), { recursive: true })

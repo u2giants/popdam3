@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { selectCurrentLivePackageFiles, CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
-import { githubIo, parseQueueScope, trainIo } from './manage-migration-author-lanes.mjs';
+import { githubIo, parseQueueScope, trainIo } from './manage-migration-coordination.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { admitIssue, mergedPrSourceIssues } from './lib/lanes/admission.mjs';

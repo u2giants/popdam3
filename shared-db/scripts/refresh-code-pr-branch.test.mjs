@@ -101,7 +101,7 @@ test('#507(b) a recorded assignment survives a stale-readback error (#2844); an 
       moveMain(r, 'base.txt', '2\n')
       const logs = []
       const run = (file, args, opts) => {
-        if (file === 'node' && args[0] === 'scripts/manage-migration-author-lanes.mjs') {
+        if (file === 'node' && args[0] === 'scripts/manage-migration-coordination.mjs') {
           const tip = args[args.indexOf('--head-sha') + 1]
           if (record) {
             const tree = r.g(r.work, 'rev-parse', 'HEAD^{tree}')

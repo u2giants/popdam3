@@ -23,7 +23,7 @@ test('every indexed fixture executes a real guard path',async()=>{
       assert.deepEqual(objects('create table public.temp_t(id int); drop table public.temp_t;'),{created:['public.temp_t'],dropped:['public.temp_t']});
     }else if(fixture.id==='cancelled-and-cascade'){
       execFileSync('python',['-m','unittest','scripts.test_production_business_risk_gate.ProductionBusinessRiskGateTests.test_creating_new_tables_is_not_reported_as_losing_production_data'],{cwd:root,stdio:'pipe'});
-      execFileSync(process.execPath,['--test','--test-name-pattern=an unsuccessful outcome blocks','scripts/manage-migration-author-lanes.test.mjs'],{cwd:root,stdio:'pipe'});
+      execFileSync(process.execPath,['--test','--test-name-pattern=an unsuccessful outcome blocks','scripts/manage-migration-coordination.test.mjs'],{cwd:root,stdio:'pipe'});
     }else if(fixture.id==='incident-1645-dynamic-helper'){
       execFileSync('python',['-m','unittest','scripts.test_production_migration_guard.PreflightNegativeTests.test_applied_dynamic_ddl_creation_contradicts_the_refusal'],{cwd:root,stdio:'pipe'});
     }else assert.fail(`fixture has no executable case: ${fixture.id}`);

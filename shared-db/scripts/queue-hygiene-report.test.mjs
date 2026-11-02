@@ -13,9 +13,9 @@
 //      silently degrades into "no findings".
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { claimBody, WORK_LABEL } from './manage-migration-author-lanes.mjs'
+import { claimBody, WORK_LABEL } from './manage-migration-coordination.mjs'
 import { main, hygieneReportIo, dependencyHygiene } from './queue-hygiene-report.mjs'
-import { githubIo } from './manage-migration-author-lanes.mjs'
+import { githubIo } from './manage-migration-coordination.mjs'
 import { stageEventKey } from './lib/work-stage-evidence.mjs'
 import { expectedOperatorAssociation } from './lib/repository-identity.mjs'
 import { createHash } from 'node:crypto'

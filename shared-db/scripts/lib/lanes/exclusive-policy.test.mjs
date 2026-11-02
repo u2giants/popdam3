@@ -1,5 +1,5 @@
 // Step 10 (#3781) — lock-manager compatibility matrix and unified production
-// freshness, proven without taking the contested manage-migration-author-lanes
+// freshness, proven without taking the contested manage-migration-coordination
 // surface. Fake-lock cases use a tiny in-memory io that mimics EXCLUSIVE_REFS.
 
 import assert from 'node:assert/strict'
@@ -521,7 +521,7 @@ test('fake-lock: production refuses while the merge ref is held (existing interl
   occupy(io, 'merge')
   // The production ref is free at the ref level, but the merge/production
   // cross-ref interlock must still refuse — reproduced at policy level because
-  // acquireExclusive lives in the contested manage-migration-author-lanes.mjs.
+  // acquireExclusive lives in the contested manage-migration-coordination.mjs.
   assert.equal(io.readRef(EXCLUSIVE_REFS.production), null)
   assert.throws(
     () => assertExclusiveAcquisitionPolicy('production', {}, {

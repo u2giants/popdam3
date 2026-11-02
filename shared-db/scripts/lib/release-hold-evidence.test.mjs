@@ -11,7 +11,7 @@ import {
 } from './release-hold-evidence.mjs'
 import { releaseOwnedRef, releaseRefOverGit } from './lanes/holds-and-refs.mjs'
 import { deleteRefWithReadback } from './lanes/github-wire.mjs'
-import { githubIo } from '../manage-migration-author-lanes.mjs'
+import { githubIo } from '../manage-migration-coordination.mjs'
 
 const H = (c) => c.repeat(40)
 const D = (c) => c.repeat(64)
@@ -100,7 +100,7 @@ test('release_evidence_namespace_is_never_pruned: every deletion primitive refus
   // The raw API delete with readback.
   assert.throws(() => deleteRefWithReadback(victim, { run: () => { throw new Error('must not run') }, readRef: () => H('1') }), /never pruned/)
   // The live adapter's deleteRef delegates to the guarded deleteRefWithReadback.
-  const source = readFileSync(new URL('../manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../manage-migration-coordination.mjs', import.meta.url), 'utf8')
   assert.match(source, /deleteRef\(ref\) \{\n\s*deleteRefWithReadback\(ref,\{/)
   assert.equal(typeof githubIo.deleteRef, 'function')
 })

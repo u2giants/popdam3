@@ -272,7 +272,7 @@ test('workIssueRouteOf routes through the operation fork, never structural admis
   // names the rejected resolver to explain the fork.)
   const source = readFileSync(new URL('./check-self-service-additive-lane.mjs', import.meta.url), 'utf8')
   assert.match(source, /derive = derivePrOperationRoute/)
-  assert.doesNotMatch(source.split('\n').find((line) => line.includes('from \'./manage-migration-author-lanes.mjs\'')), /resolveAdmittedIssueForPr/)
+  assert.doesNotMatch(source.split('\n').find((line) => line.includes('from \'./manage-migration-coordination.mjs\'')), /resolveAdmittedIssueForPr/)
 })
 
 test('COMMENT ON a shared or unqualified target REFUSES (round-2 review Medium)', () => {

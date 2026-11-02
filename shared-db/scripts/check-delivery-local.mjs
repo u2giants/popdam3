@@ -34,7 +34,7 @@ export function buildPlan({ root = process.cwd(), base = 'origin/main' } = {}) {
   return [
     { name: 'sidecars-and-baseline', command: 'node', args: ['scripts/check-production-verification-sidecars.mjs', '--base', base] },
     { name: 'throughput-truth', command: 'node', args: ['scripts/check-throughput-truth-audit.mjs'] },
-    { name: 'merge-coordination-tests', command: 'node', args: ['--test', 'scripts/manage-migration-author-lanes.test.mjs', 'scripts/check-merge-queue-workflows.test.mjs', 'scripts/merge-queue-hold.test.mjs', 'scripts/acquire-merge-lane-waiting.test.mjs'] },
+    { name: 'merge-coordination-tests', command: 'node', args: ['--test', 'scripts/manage-migration-coordination.test.mjs', 'scripts/check-merge-queue-workflows.test.mjs', 'scripts/merge-queue-hold.test.mjs', 'scripts/acquire-merge-lane-waiting.test.mjs'] },
     { name: 'full-throughput-tests', command: 'node', args: ['--test', ...throughput] },
     { name: 'rls-family-and-live-proof-parser', command: 'node', args: ['--test', ...FAMILY.map(n => `scripts/${n}.test.mjs`)] },
     { name: 'focused-python-catalog-and-live-proof', command: 'python3', args: ['-m', 'unittest', ...PYTHON.map(n => `scripts.test_${n}`)] },

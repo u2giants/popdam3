@@ -138,7 +138,7 @@ test('production public Git IO derives budget proof from a real clean main-only 
  const f=realGitFixture(t);f.git(['switch','main']);const main=f.commit('app.txt','new context\nseparator1\nseparator2\nauthor\nend\n')
  f.git(['switch','feature']);f.git(['merge','-qm','refresh','main']);const after=f.git(['rev-parse','HEAD']).trim()
  f.git(['remote','add','origin',f.dir])
- const moduleUrl=new URL('../../manage-migration-author-lanes.mjs',import.meta.url).href
+ const moduleUrl=new URL('../../manage-migration-coordination.mjs',import.meta.url).href
  const script=`import {githubIo} from ${JSON.stringify(moduleUrl)};const p=githubIo.reviewContentComparison(${JSON.stringify(f.before)},${JSON.stringify(after)},4000,{base:${JSON.stringify(main)}});console.log(JSON.stringify(p))`
  const proof=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:f.dir,encoding:'utf8',stdio:['ignore','pipe','pipe']}))
  assert.notEqual(proof.before,proof.after);assert.equal(proof.budgetProof.kind,'unchanged');assert.equal(proof.budgetProof.before,f.before);assert.equal(proof.budgetProof.after,after)
@@ -244,7 +244,7 @@ function appendFixture(t,{repair=false,revert=false,reordered=false,omit=false,m
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test'])
  git(['config','core.fileMode','false']);git(['config','core.autocrlf','false']);git(['config','core.eol','lf'])
- const file='scripts/manage-migration-author-lanes.test.mjs';mkdirSync(path.join(dir,'scripts'))
+ const file='scripts/manage-migration-coordination.test.mjs';mkdirSync(path.join(dir,'scripts'))
  const base='// protected baseline\n',ours="test('author append',()=>{});\n",theirs="test('main append',()=>{});\n"
  let modePending=false
  const commit=()=>{git(['add','.']);if(modePending){git(['update-index','--chmod=+x',file]);modePending=false}git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}
@@ -279,7 +279,7 @@ test('reordered, omitted, old-line and mode-changing test conflict resolutions r
 
 test('production public Git IO reconciles exact test appends with surviving source witness',t=>{
  const f=appendFixture(t,{repair:true});f.git(['remote','add','origin',f.dir])
- const moduleUrl=new URL('../../manage-migration-author-lanes.mjs',import.meta.url).href
+ const moduleUrl=new URL('../../manage-migration-coordination.mjs',import.meta.url).href
  const script=`import {githubIo} from ${JSON.stringify(moduleUrl)};console.log(JSON.stringify(githubIo.reviewContentComparison(${JSON.stringify(f.before)},${JSON.stringify(f.after)},4000,{base:${JSON.stringify(f.main)}})))`
  const proof=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:f.dir,encoding:'utf8',stdio:['ignore','pipe','pipe']}))
  assert.equal(proof.budgetProof.kind,'substantive');assert.equal(proof.budgetProof.witness.path,'app.txt')
@@ -305,7 +305,7 @@ test('octopus and wrong protected-main provenance cannot authorize append repair
 })
 
 test('ordinary conflict-free test-only author fixes retain mandatory fresh review capability',t=>{
- const f=realGitFixture(t);mkdirSync(path.join(f.dir,'scripts'));const file='scripts/manage-migration-author-lanes.test.mjs'
+ const f=realGitFixture(t);mkdirSync(path.join(f.dir,'scripts'));const file='scripts/manage-migration-coordination.test.mjs'
  const after=f.commit(file,"test('new authored regression',()=>{});\n")
  const proof=derivePaidContentProof(f.before,after,f.base,f.git)
  assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,file);assert.equal(proof.canonicalAppends.length,0)
@@ -471,10 +471,10 @@ for(const bad of ['hash','pr','issue','mode','custom'])test(`actual Git historic
 
 import childProcess from 'node:child_process'
 import {syncBuiltinESMExports} from 'node:module'
-import {githubIo,withReviewRequestBudget} from '../../manage-migration-author-lanes.mjs'
+import {githubIo,withReviewRequestBudget} from '../../manage-migration-coordination.mjs'
 test('public Git budget authority reader is counted, cached, and cannot exceed its ceiling',t=>{
  const f=generationsFixture(t,{publishedOnly:true}),original=childProcess.execFileSync,oldCwd=process.cwd(),calls=[]
- const ref='refs/db-contracts/3536/315',message='fixture immutable contract\n\n'+JSON.stringify(f.published)
+ const ref='refs/db-evidence/contracts/3536/315',message='fixture immutable contract\n\n'+JSON.stringify(f.published)
  childProcess.execFileSync=(command,args,opts)=>{
   if(command==='git' && args[0]==='fetch'){
    if(args.includes(ref)){calls.push('fetch');return ''}
@@ -504,7 +504,7 @@ for(const failure of ['missing','hash','identity'])test(`immutable missing315 ${
 })
 
 const producerPinFile='scripts/production_business_risk_gate.py'
-const producerPinAnchor='    "scripts/manage-migration-author-lanes.mjs",\n'
+const producerPinAnchor='    "scripts/manage-migration-coordination.mjs",\n'
 const producerPinNames=['agent-work-contract-git-evidence.mjs','agent-work-contract.mjs','refresh-code-pr-branch.mjs','run-governed-review.mjs']
 const producerPinComments=['    # Existing modules newly reachable through exact budget/contract imports.\n','    # Existing normal canonical validators now used by authenticated nonclosing routing.\n']
 function producerPinFixture(t,{repair=false,alter=null,mode=false,extraConflict=false,mainEvolve=false,laterMain=false,mainAlter=null}={}){
@@ -546,21 +546,21 @@ function symmetricImportFixture(t,{repair=true,bad=null,protectedImport=null,noR
  const manager='// beginning\n'+padding+'export const repair = false\n'
  const tests='// beginning\n'+padding+'// existing regression\n'
  const inventory='PREVIEW_PRODUCER_PATHS = (\n'+producerPinAnchor+'    "scripts/unchanged.py",\n)\n'
- f.git(['switch','main']);f.commit('scripts/manage-migration-author-lanes.mjs',manager);f.commit('scripts/manage-migration-author-lanes.test.mjs',tests);const base=f.commit(producerPinFile,inventory)
- f.git(['switch','-qc','symmetry',base]);f.commit('scripts/manage-migration-author-lanes.mjs',manager+standalone)
+ f.git(['switch','main']);f.commit('scripts/manage-migration-coordination.mjs',manager);f.commit('scripts/manage-migration-coordination.test.mjs',tests);const base=f.commit(producerPinFile,inventory)
+ f.git(['switch','-qc','symmetry',base]);f.commit('scripts/manage-migration-coordination.mjs',manager+standalone)
  const pins=producerPinNames.map(name=>`    "scripts/${name}",\n`).join('');const before=f.commit(producerPinFile,inventory.replace(producerPinAnchor,producerPinAnchor+producerPinComments[0]+pins))
  let authored=null
- if(repair){writeFileSync(path.join(f.dir,'scripts/manage-migration-author-lanes.mjs'),(manager+standalone).replace('repair = false','repair = true'));writeFileSync(path.join(f.dir,'scripts/manage-migration-author-lanes.test.mjs'),tests+(noRegression?'':'// original genuine regression\n'));f.git(['add','scripts/manage-migration-author-lanes.mjs','scripts/manage-migration-author-lanes.test.mjs']);f.git(['commit','-qm','genuine original runtime and regression repair']);authored=f.git(['rev-parse','HEAD']).trim()}
- f.git(['switch','main']);f.commit('scripts/manage-migration-author-lanes.mjs',(protectedImport?protectedImport(combined):combined)+manager);f.commit('scripts/manage-migration-author-lanes.test.mjs','// new upstream regression\n'+tests);const main=f.commit(producerPinFile,inventory.replace(producerPinAnchor,producerPinAnchor+producerPinComments[1]+pins))
+ if(repair){writeFileSync(path.join(f.dir,'scripts/manage-migration-coordination.mjs'),(manager+standalone).replace('repair = false','repair = true'));writeFileSync(path.join(f.dir,'scripts/manage-migration-coordination.test.mjs'),tests+(noRegression?'':'// original genuine regression\n'));f.git(['add','scripts/manage-migration-coordination.mjs','scripts/manage-migration-coordination.test.mjs']);f.git(['commit','-qm','genuine original runtime and regression repair']);authored=f.git(['rev-parse','HEAD']).trim()}
+ f.git(['switch','main']);f.commit('scripts/manage-migration-coordination.mjs',(protectedImport?protectedImport(combined):combined)+manager);f.commit('scripts/manage-migration-coordination.test.mjs','// new upstream regression\n'+tests);const main=f.commit(producerPinFile,inventory.replace(producerPinAnchor,producerPinAnchor+producerPinComments[1]+pins))
  f.git(['switch','symmetry']);try{f.git(['merge','--no-ff','-m','protected main','main'])}catch(error){if(error.status!==1)throw error;f.git(['checkout','--theirs','--',producerPinFile]);f.git(['add',producerPinFile]);f.git(['commit','-qm','protected canonical pins'])}
- const merged=readFileSync(path.join(f.dir,'scripts/manage-migration-author-lanes.mjs'),'utf8');let normalized=merged.replace(standalone,'');if(bad)normalized=bad(normalized)
- f.commit('scripts/manage-migration-author-lanes.mjs',normalized)
+ const merged=readFileSync(path.join(f.dir,'scripts/manage-migration-coordination.mjs'),'utf8');let normalized=merged.replace(standalone,'');if(bad)normalized=bad(normalized)
+ f.commit('scripts/manage-migration-coordination.mjs',normalized)
  return {...f,base,before,main,authored,after:f.git(['rev-parse','HEAD']).trim()}
 }
 test('symmetric protected binding projection proves original runtime author and full regression blob, not integration',t=>{
  const f=symmetricImportFixture(t),proof=derivePaidContentProof(f.before,f.after,f.main,f.git)
- assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'scripts/manage-migration-author-lanes.mjs')
- assert.ok(proof.witness.symmetricProjection);assert.equal(proof.witness.symmetricProjection.actualTestBlob,f.git(['rev-parse',`${f.after}:scripts/manage-migration-author-lanes.test.mjs`]).trim())
+ assert.equal(proof.kind,'substantive');assert.equal(proof.witness.path,'scripts/manage-migration-coordination.mjs')
+ assert.ok(proof.witness.symmetricProjection);assert.equal(proof.witness.symmetricProjection.actualTestBlob,f.git(['rev-parse',`${f.after}:scripts/manage-migration-coordination.test.mjs`]).trim())
  assert.equal(proof.witness.commit,f.authored);assert.notEqual(proof.witness.commit,f.after)
 })
 test('duplicate imported binding consolidation with no real source repair cannot renew two exhausted starts',t=>{
@@ -826,7 +826,7 @@ test('ordinary source above explicit4MiB bound still refuses',t=>{
 })
 
 test('shipped reader refuses oversized provenance without returning partial witness',async t=>{
- const {paidReviewGitReader}=await import('../../manage-migration-author-lanes.mjs')
+ const {paidReviewGitReader}=await import('../../manage-migration-coordination.mjs')
  const f=realGitFixture(t), source='x'.repeat(4*1024*1024+65536)
  const before=f.commit('types.txt',source),after=f.commit('types.txt',source+'repair')
  assert.throws(()=>derivePaidContentProof(before,after,f.base,args=>paidReviewGitReader(['-C',f.dir,...args])),/Git provenance refused:.*ENOBUFS/)

@@ -1,7 +1,7 @@
 import {mergedPrSourceIssues} from './lib/lanes/admission.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseMergedPrIssueBinding, verifyMergedPrIssueBinding, withMergedPrIssueBinding, resolveAdmittedIssueForPr, reviewTargetIsRecordable } from './manage-migration-author-lanes.mjs'
+import { parseMergedPrIssueBinding, verifyMergedPrIssueBinding, withMergedPrIssueBinding, resolveAdmittedIssueForPr, reviewTargetIsRecordable } from './manage-migration-coordination.mjs'
 
 test('verdict recording accepts a merged PR only through the same verified binding',()=>{
   const open={state:'open',head:{sha:HEAD}}

@@ -4278,7 +4278,7 @@ class AbandonmentAuditWorkflowPolicyTests(unittest.TestCase):
 
     def test_the_audit_calls_the_read_only_command_and_no_mutating_one(self) -> None:
         self.assertIn(
-            "node scripts/manage-migration-author-lanes.mjs --abandonment-audit",
+            "node scripts/manage-migration-coordination.mjs --abandonment-audit",
             self.jobs,
         )
         for flag in MUTATING_LANE_FLAGS:
@@ -4378,7 +4378,7 @@ class AbandonmentDocumentationAgreementTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         cls.template = ABANDONMENT_ISSUE_TEMPLATE.read_text(encoding="utf-8")
         cls.workflow = ABANDONMENT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
-        cls.cli = (REPO / "scripts" / "manage-migration-author-lanes.mjs").read_text(
+        cls.cli = (REPO / "scripts" / "manage-migration-coordination.mjs").read_text(
             encoding="utf-8"
         )
         cls.reconcile = (

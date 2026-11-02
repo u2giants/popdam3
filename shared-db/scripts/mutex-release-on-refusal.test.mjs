@@ -3,7 +3,7 @@
 // owner-check read was refused too -- the mutex was never released.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { withAuthorMutex, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit, gitRemoteRefs, GIT_COMMAND_TIMEOUT_MS, MUTEX_REF, MUTEX_RECOVERY_ACTIVE_REF } from './manage-migration-author-lanes.mjs'
+import { withAuthorMutex, releaseMutexOnExit, releaseRefOnExit, releaseRefOverGit, gitRemoteRefs, GIT_COMMAND_TIMEOUT_MS, MUTEX_REF, MUTEX_RECOVERY_ACTIVE_REF } from './manage-migration-coordination.mjs'
 
 const rateLimited = () => { const e = new Error('GitHub command failed: GitHub API rate limit exceeded (host-wide latch; no request sent)'); e.rateLimitExhausted = true; return e }
 

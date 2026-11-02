@@ -1788,7 +1788,7 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         So this walks the closure instead of trusting a hand-written list.
         """
         closure = self.executed_closure()
-        self.assertIn("scripts/manage-migration-author-lanes.mjs", closure,
+        self.assertIn("scripts/manage-migration-coordination.mjs", closure,
                       "closure walk missed a known preview-job script; the parser has rotted")
         self.assertIn("scripts/check-pr-object-collisions.mjs", closure,
                       "closure walk did not follow imports; that is the hop-three defect")
@@ -2183,9 +2183,9 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
     #   message-citation -- named inside a string a human reads, in a raised
     #                      error or a printed line. Nothing is opened.
     DOCS_NAMING_SITES = {
-        ("scripts/manage-migration-author-lanes.mjs", "git-pathspec"): 2,
+        ("scripts/manage-migration-coordination.mjs", "git-pathspec"): 2,
         # Added for issue #1812. The budget constants on line 46 of
-        # manage-migration-author-lanes.mjs carry a trailing comment citing
+        # manage-migration-coordination.mjs carry a trailing comment citing
         # docs/verification/reviewer-assignment-api-budget-2026-08-28.md, where
         # the 9 + 13 = 22 derivation is written out. Classified deliberately, as
         # this test asks: it is a CITATION in a comment and opens nothing. The
@@ -2196,14 +2196,14 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         # opened one without looking, so every new mention is made to argue for
         # itself. If this citation ever becomes a read, this entry must go and
         # docs must be pinned in PREVIEW_PRODUCER_PATHS instead.
-        ("scripts/manage-migration-author-lanes.mjs", "message-citation"): 2,
+        ("scripts/manage-migration-coordination.mjs", "message-citation"): 2,
         ("scripts/production_migration_guard.py", "message-citation"): 1,
     }
 
     def test_the_docs_exemption_is_verified_against_every_producer_that_names_it(self):
         """#1213 round 9, finding 2. `docs` claims to be NAMED but never OPENED.
 
-        The claim is true today. scripts/manage-migration-author-lanes.mjs passes
+        The claim is true today. scripts/manage-migration-coordination.mjs passes
         the string `docs` to `git grep -l` and to `git add` as a PATHSPEC, after
         the `--` separator, and scripts/production_migration_guard.py cites a docs
         filename inside a GuardError message. Neither opens a file. Nothing
@@ -4785,7 +4785,7 @@ class MainLineCustodyOnlyProducerDriftTests(unittest.TestCase):
     def test_custody_only_edits_and_additions_after_a_main_line_preview_pass(self):
         self.prove(self.api(
             changed=("scripts/check-main-tip-freshness.mjs",
-                     "scripts/manage-migration-author-lanes.mjs"),
+                     "scripts/manage-migration-coordination.mjs"),
             absent_at_ref=("scripts/lib/repository-identity.mjs",
                            "scripts/repository_identity.py"),
         ))

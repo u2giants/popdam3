@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { githubIo, trainIo } from '../manage-migration-author-lanes.mjs'
+import { githubIo, trainIo } from '../manage-migration-coordination.mjs'
 import { MigrationTrainError, TRAIN_REF_PREFIX, assertDispatchMatchesTrain, assertRecordedTrain, trainRecordRef } from './migration-train.mjs'
 
 export function readVerifiedTrainRecord({ref,target,commitSha,allowlist},rawIo){

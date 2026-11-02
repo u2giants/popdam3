@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { normalizeObject, parseClaimBlock } from '../../check-dispatch-collision.mjs'
 import { createTreeReader } from '../../lib/github-tree.mjs'

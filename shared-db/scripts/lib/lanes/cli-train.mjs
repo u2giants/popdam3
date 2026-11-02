@@ -1,9 +1,9 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { MigrationTrainError, TRAIN_REF_PREFIX, proposeTrain, validateTrain, transitionTrain, trainRecordRef, assertRecordedTrain, assertTrainProductionEvidence, assertDispatchMatchesTrain } from '../../db-flow/migration-train.mjs'
 import { sha256, canonicalJson } from '../../db-flow/evidence-bundle.mjs'
 import { createHash } from 'node:crypto'
-import { main } from '../../manage-migration-author-lanes.mjs'
+import { main } from '../../manage-migration-coordination.mjs'
 
 export const TRAIN_RECORD_PREFIX='db-migration-train '
 // Immutable train records are ownership commits named by create-only refs.

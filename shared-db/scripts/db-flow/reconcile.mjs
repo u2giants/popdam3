@@ -61,7 +61,7 @@ export function persistInitialReady(input,io){
   assertMarker(io);const record=readyRecord(input),ref=readyRef(record.ready_id)
   // The STORED digest must stay sha256(canonicalJson(<whole stored record>)): readers
   // recompute it from the record they read back, so any narrower convention here makes
-  // every newly written ref unreadable to them (manage-migration-author-lanes.mjs:2094).
+  // every newly written ref unreadable to them (manage-migration-coordination.mjs:2094).
   const digest=sha256(canonicalJson(record))
   const event=previewReadyEvent({workIssue:record.issue,actor:io.actor(),timestamp:io.now(),pr:record.pr,head_sha:record.head_sha,ready_id:record.ready_id,bundle_id:record.bundle_id,route:record.route,route_context:record.route_context,manifest_digest:record.manifest_digest})
   io.appendEvent(event)
@@ -198,7 +198,7 @@ function expiredUnconfirmedReport(issue){
     suggested_command:null,
   }
   if(evidence)action.suggested_command=[
-    'node scripts/manage-migration-author-lanes.mjs --relinquish-author-lease',
+    'node scripts/manage-migration-coordination.mjs --relinquish-author-lease',
     // --claim-number, NOT --claim. The lane CLI parses `--claim` as a BOOLEAN
     // (it is the flag that claims a lane), so `--claim 41` dies on the bare 41
     // as an unknown argument. The value flag is --claim-number, and the test

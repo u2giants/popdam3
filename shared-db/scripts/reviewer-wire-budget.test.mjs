@@ -12,7 +12,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const cli = path.join(here, 'manage-migration-author-lanes.mjs')
+const cli = path.join(here, 'manage-migration-coordination.mjs')
 const fake = pathToFileURL(path.join(here, 'test-fixtures', 'github-wire-fake.mjs')).href
 const HEAD = 'a'.repeat(40), MAIN = 'b'.repeat(40), TREE = 'c'.repeat(40)
 const LIMIT = 10

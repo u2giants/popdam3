@@ -6,10 +6,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { LaneError, REVIEW_ASSIGNMENT_REF_PREFIX, RETIRED_CLAIM_REF_PREFIX, RETIREMENT_SCHEMA_VERSION, RETIREMENT_CLOSE_REASON, RETIREMENT_RECORD_PREFIX, RETIREMENT_REF_ROW_LIMIT, retiredClaimRef, normalizeRetirementIdentity, validateRetirementRecord, formatRetirementRecord, parseRetirementRecord, resetRetirementSnapshot, isVersionRetired, readRetirementRecord, assertClaimNotRetired, assertRetirementIdentityAvailable, createRetirementTombstone, claimBody, main, retiredReopenedClaims, MUTEX_REF } from './manage-migration-author-lanes.mjs'
+import { LaneError, REVIEW_ASSIGNMENT_REF_PREFIX, RETIRED_CLAIM_REF_PREFIX, RETIREMENT_SCHEMA_VERSION, RETIREMENT_CLOSE_REASON, RETIREMENT_RECORD_PREFIX, RETIREMENT_REF_ROW_LIMIT, retiredClaimRef, normalizeRetirementIdentity, validateRetirementRecord, formatRetirementRecord, parseRetirementRecord, resetRetirementSnapshot, isVersionRetired, readRetirementRecord, assertClaimNotRetired, assertRetirementIdentityAvailable, createRetirementTombstone, claimBody, main, retiredReopenedClaims, MUTEX_REF } from './manage-migration-coordination.mjs'
 // The whole module, so the wiring check below can DISCOVER claim-mutating paths
 // instead of being handed a list of the ones somebody already remembered.
-import * as lanes from './manage-migration-author-lanes.mjs'
+import * as lanes from './manage-migration-coordination.mjs'
 
 const VERSION = '20260901120000'
 const HEAD = 'a'.repeat(40)

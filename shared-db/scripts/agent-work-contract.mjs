@@ -14,7 +14,10 @@
 //
 // WHERE THE AUTHORITY LIVES: A GIT REF, NOT A COMMENT
 // ---------------------------------------------------
-// The contract is pinned to `refs/db-contracts/<issue>/<generation>` using
+// The immutable logical identity remains `refs/db-contracts/<issue>/<generation>`.
+// #5426 stores it at refs/db-evidence/contracts with the same commit SHA; the
+// historical identifier is resolved by contract-storage.mjs, never fetched as
+// a retired author-lane ref. The stored contract is pinned using
 // create-if-absent, the same atomic primitive as claims and the acquisition mutex.
 // An issue COMMENT cannot carry authority here:
 //
@@ -43,6 +46,7 @@
 // Say all of that plainly rather than claiming more.
 
 import { execFileSync } from 'node:child_process'
+import { contractStorageRef, contractLogicalRef } from './lib/contract-storage.mjs'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { currentRepository } from './lib/repository-identity.mjs'
@@ -348,15 +352,18 @@ function gh(args, { executor = execFileSync, input } = {}) {
 
 export const contractIo = {
   readRef(ref) {
+    ref = contractStorageRef(ref)
     try { return JSON.parse(gh(['api', `repos/${REPO}/git/ref/${ref.replace(/^refs\//, '')}`])).object.sha }
     catch (error) { if (/HTTP 404|Not Found/i.test(String(error.message))) return null; throw error }
   },
   listRefs(prefix) {
+    const logical = prefix !== contractStorageRef(prefix)
+    prefix = contractStorageRef(prefix)
     const short = String(prefix).replace(/^refs\//, '')
     const rows = JSON.parse(gh(['api', `repos/${REPO}/git/matching-refs/${short}`]))
-    return rows.map((row) => ({ ref: row.ref, sha: row.object?.sha })).filter((row) => row.sha)
+    return rows.map((row) => ({ ref: logical ? contractLogicalRef(row.ref) : row.ref, sha: row.object?.sha })).filter((row) => row.sha)
   },
-  createRef(ref, sha) { gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`]) },
+  createRef(ref, sha) { gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=${contractStorageRef(ref)}`, '-f', `sha=${sha}`]) },
   createBlobCommit(message) {
     // The contract text lives in the commit message of an empty-tree commit, the
     // same shape the coordination refs already use.

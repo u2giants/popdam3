@@ -6,9 +6,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
-import * as entry from './manage-migration-author-lanes.mjs'
+import * as entry from './manage-migration-coordination.mjs'
 
-const fixture = JSON.parse(readFileSync(new URL('./test-fixtures/manage-migration-author-lanes-surface.json', import.meta.url), 'utf8'))
+const fixture = JSON.parse(readFileSync(new URL('./test-fixtures/manage-migration-coordination-surface.json', import.meta.url), 'utf8'))
 const kind = (value) => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value
 const lanesDir = new URL('./lib/lanes/', import.meta.url)
 
@@ -35,7 +35,7 @@ test('every public module binding is re-exported by the entrypoint as the identi
 })
 
 test('the CLI entrypoint path is unchanged and still runs main only when invoked directly', () => {
-  const source = readFileSync(new URL('./manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('./manage-migration-coordination.mjs', import.meta.url), 'utf8')
   assert.match(source, /^#!\/usr\/bin\/env node/)
   assert.equal(typeof entry.main, 'function')
 })

@@ -159,7 +159,7 @@
       "line_sha256": "7d8875f1c49d3354fc47de9e020545d7f83bd6f691cde1d99585ee9d7f915019",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:1734",
@@ -168,7 +168,7 @@
       "line_sha256": "8adc9b054f8c6e4ce85fb3cb69e4cb7d6288bbb63b76ab3d0f1f0f0cd7e783af",
       "disposition": "excluded",
       "reason": "Classifies documentation paths from the authenticated Git snapshot; it does not report migration throughput or alter a refusal message.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:5492",

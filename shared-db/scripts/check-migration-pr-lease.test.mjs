@@ -9,7 +9,7 @@ test('issue 2958 lease re-check keeps only labelled db-claim issues from the unf
   assert.match(readFileSync(new URL('./check-migration-pr-lease.mjs',import.meta.url),'utf8'),/issues\?state=open&per_page=100`\)/)
   assert.doesNotMatch(readFileSync(new URL('./check-migration-pr-lease.mjs',import.meta.url),'utf8'),/labels=db-claim/)
 })
-import { claimBody } from './manage-migration-author-lanes.mjs'
+import { claimBody } from './manage-migration-coordination.mjs'
 const now=new Date('2026-08-14T20:00:00Z')
 const claim=(overrides={})=>({number:12,body:claimBody({version:'20260814170219',objects:['table core.x'],owner:'owner-a',branch:'codex/x',worktree:'C:/w',expiresAt:new Date('2026-08-14T21:00:00Z'),...overrides})})
 const confirmation=(holder=claim(),overrides={})=>({schema_version:1,kind:'author-checkin',human_identity_authenticated:false,claim:12,issue:10,pr:20,head_sha:'a'.repeat(40),owner:'owner-a',branch:'codex/x',worktree:'C:/w',version:'20260814170219',body_sha256:createHash('sha256').update(holder.body).digest('hex'),expires_at:holder.body.match(/^expires_at: (.*)$/m)[1],author_session:'owner-a',checked_in_at:now.toISOString(),...overrides})

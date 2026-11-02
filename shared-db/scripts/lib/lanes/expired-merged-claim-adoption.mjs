@@ -10,7 +10,7 @@ import { assertClaimNotRetired, assertRetirementIdentityAvailable } from './reti
 import { acquireMutex, requireOwnedRef, releaseOwnedRef, readRefAfterWrite } from './holds-and-refs.mjs'
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
 import { canonicalJson, sha256 } from '../../db-flow/evidence-bundle.mjs'
-import { githubIo, assertAbandonmentEvidence } from '../../manage-migration-author-lanes.mjs'
+import { githubIo, assertAbandonmentEvidence } from '../../manage-migration-coordination.mjs'
 
 export const MERGED_ADOPTION_REF_PREFIX='refs/db-merged-claim-author-adoptions/'
 const PREFIX='db-coordination expired-merged-claim-author-adoption '

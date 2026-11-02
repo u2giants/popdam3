@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { execFileSync } from 'node:child_process'
 import { REVIEW_VERDICT_REPLACEMENT_REF_PREFIX } from '../../lib/review-verdict-artifact.mjs'
@@ -6,7 +6,7 @@ import { classifyChangedPaths, changedPathsFromPullRequestFiles } from '../../li
 import { REPO, REPO_OWNER, REPO_NAME, REVIEW_REPLACEMENT_REF_PREFIX } from './constants.mjs'
 import { LaneError } from './claims.mjs'
 import { projectReviewPr } from './review-assignment.mjs'
-import { gitRemoteRefs, githubIo, runGitHubCommand, reviewChildTimeoutMs } from '../../manage-migration-author-lanes.mjs'
+import { gitRemoteRefs, githubIo, runGitHubCommand, reviewChildTimeoutMs } from '../../manage-migration-coordination.mjs'
 import { authorityReadEnv } from '../authority-token-read.mjs'
 import { assertRefDeletable } from '../release-hold-evidence.mjs'
 

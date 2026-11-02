@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { evaluateAdmission, parseImpactBlock, STRUCTURAL_CHANGE_TYPES, NON_STRUCTURAL_CHANGE_TYPES, assertPrCarriesStructuralChange, inspectPrStructuralChange, structuralWritesMatch, inspectPrCuratedDataChange, structuralWritesMatchUnappliedEdit, unappliedEditMigrationFiles } from './admission.mjs'
 import { OutcomeError, advanceOutcome, completeOutcome, outcomeEvent, outcomeHistory, repairOutcomeHistory, trustedOutcomeComments, OUTCOME_STATES, parseOutcomeEvidence } from './outcome-lifecycle.mjs'
 import { coordinationEvent, formatEventComment, parseEventComment } from '../db-coordination-events.mjs'
-import { githubIo, admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-author-lanes.mjs'
+import { githubIo, admitIssue, buildDynamicQueues, claimBody, derivePrOperationRoute, EXCLUSIVE_REFS, main as managerMain, matchesGeneratedTypesArtifact, matchesGeneratedTypesProof, matchesLiveProof, MUTEX_REF, parseQueueScope, resolveAdmittedIssueForPr } from '../manage-migration-coordination.mjs'
 import { generatedTypesSha256, PRODUCTION_PROJECT_REF, PRODUCTION_PROJECT_URL, GENERATED_TYPES_SCHEMAS } from '../generated-types-proof.mjs'
 import { findCompletionRecord } from '../lib/work-dependencies.mjs'
 
@@ -495,7 +495,7 @@ test('forged or stale refusal comments cannot suppress current owner refusal pro
   const body=scopeBody({change:'application-code'});let result
   try{evaluateAdmission(issue(body),parseQueueScope(body),null)}catch(error){result=error.result}
   const make=(overrides,association)=>({author_association:association,body:formatEventComment(coordinationEvent({
-    eventType:'rejected_non_structural',workIssue:41,actor:'manage-migration-author-lanes',timestamp:'2026-09-11T00:00:00Z',result:'refused',detail:result.reason,return_to:result.return_to,evidence_required:result.evidence_required,...overrides,
+    eventType:'rejected_non_structural',workIssue:41,actor:'manage-migration-coordination',timestamp:'2026-09-11T00:00:00Z',result:'refused',detail:result.reason,return_to:result.return_to,evidence_required:result.evidence_required,...overrides,
   }))})
   const comments=[make({},'NONE'),make({return_to:'u2giants/stale-app'},OPERATOR_ASSOCIATION),make({},OPERATOR_ASSOCIATION)]
   const io=serializedIo({enforceAdmission:true,getIssue:()=>issue(body),issueComments:()=>comments,commentIssue:(_n,value)=>comments.push(ownerComment(value))})

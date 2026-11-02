@@ -1,6 +1,6 @@
 import { hostname } from 'node:os'
 import { pathToFileURL } from 'node:url'
-import { githubIo, parseQueueScope } from './manage-migration-author-lanes.mjs'
+import { githubIo, parseQueueScope } from './manage-migration-coordination.mjs'
 import { currentRepository, TRUSTED_OPERATOR_LOGIN } from './lib/repository-identity.mjs'
 import { runGitHubCommand } from './lib/github-transport.mjs'
 import { publishStageEvent, validateStageEvent } from './lib/work-stage-evidence.mjs'

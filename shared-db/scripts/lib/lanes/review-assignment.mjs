@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { LaneError } from './claims.mjs'
 import { MUTEX_REF, REVIEW_ASSIGNMENT_REF_PREFIX, REVIEW_FAILURE_REF_PREFIX, REVIEW_QUEUE_REF_PREFIX, REVIEW_QUEUE_TTL_HOURS, REVIEW_REPLACEMENT_REF_PREFIX, REVIEW_RETURN_REF_PREFIX } from './constants.mjs'
@@ -7,7 +7,7 @@ import { parseReviewReplacement, requireReplacementEvidence } from './review-rep
 import { assertReviewerAllowlistConsistency } from './reviewer-roster.mjs'
 import { reviewLeaseAgeHours } from './review-leases.mjs'
 import { releaseOwnedRef, requireOwnedRef } from './holds-and-refs.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
 
 // One shared set of namespace listings resolves the requesting slot's durable
 // policy, the earliest other live peer's task policy, and every other live

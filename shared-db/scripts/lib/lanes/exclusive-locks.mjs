@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726, #5382).
+// Split from scripts/manage-migration-coordination.mjs (issue #3726, #5382).
 // Behavior-preserving move: the entrypoint re-exports every public name defined
 // here. Edit here, not there.
 import { randomUUID } from 'node:crypto'
@@ -9,7 +9,7 @@ import { MUTEX_REF } from './constants.mjs'
 import { acquireMutex, releaseMutexOnExit, requireOwnedRef, releaseOwnedRef, acquireRef, leaseHoldText } from './holds-and-refs.mjs'
 import { addedMigrationVersions, parseVersionPrMap, assertMergeCommitInMainHistory } from './claim-maintenance.mjs'
 import { classifyBranchFreshness, isProductionInertPath, classifyMainTip } from '../../check-main-tip-freshness.mjs'
-import { githubIo, requireAdmission, requirePrOperationRoute } from '../../manage-migration-author-lanes.mjs'
+import { githubIo, requireAdmission, requirePrOperationRoute } from '../../manage-migration-coordination.mjs'
 import {
   EXCLUSIVE_LOCK_ORDER,
   assertExclusiveAcquisitionPolicy,

@@ -19,7 +19,7 @@ const THIS_REPO = currentRepository(), OPERATOR_ASSOCIATION = expectedOperatorAs
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assertLaneAvailable, claimBody, conflicts, parseAuthorLease, parseQueueScope, buildDynamicQueues } from './manage-migration-author-lanes.mjs'
+import { assertLaneAvailable, claimBody, conflicts, parseAuthorLease, parseQueueScope, buildDynamicQueues } from './manage-migration-coordination.mjs'
 import { classifyDependency } from './lib/work-dependencies.mjs'
 import { contractHash, reconcileReportWithContract, validateContract } from './agent-work-contract.mjs'
 import { auditTimeline } from './db-coordination-events.mjs'

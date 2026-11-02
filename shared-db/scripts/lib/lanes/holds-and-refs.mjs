@@ -1,4 +1,4 @@
-// Split from scripts/manage-migration-author-lanes.mjs (issue #3726). Behavior-preserving move:
+// Split from scripts/manage-migration-coordination.mjs (issue #3726). Behavior-preserving move:
 // the entrypoint re-exports every public name defined here. Edit here, not there.
 import { describeLeaseHolder, assertNamedHold, HoldReasonError, formatHoldReason } from '../../lib/hold-reason.mjs'
 import { normalizeObject } from '../../check-dispatch-collision.mjs'
@@ -6,8 +6,8 @@ import { EXCLUSIVE_REFS, parseQueueScope } from './queue-routing.mjs'
 import { LaneError, parseAuthorLease } from './claims.mjs'
 import { migrationVersions } from './claim-maintenance.mjs'
 import { MUTEX_RECOVERY_ACTIVE_REF, MUTEX_REF, MUTEX_STALE_AFTER_MS } from './constants.mjs'
-import { githubIo } from '../../manage-migration-author-lanes.mjs'
-import { gitRemoteRefs } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-coordination.mjs'
+import { gitRemoteRefs } from '../../manage-migration-coordination.mjs'
 import { GIT_COMMAND_TIMEOUT_MS } from './github-wire.mjs'
 import { execFileSync } from 'node:child_process'
 import { assertRefDeletable } from '../release-hold-evidence.mjs'

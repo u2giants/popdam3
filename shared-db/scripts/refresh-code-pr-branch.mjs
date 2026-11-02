@@ -8,10 +8,11 @@
 // It never carries an old review forward, never edits the published contract, and
 // refuses (leaving the branch as it was) on any real merge conflict or failing check.
 import { spawnSync } from 'node:child_process'
+import { contractStorageRef, contractLogicalRef } from './lib/contract-storage.mjs'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { REVIEWERS } from './manage-migration-author-lanes.mjs'
+import { REVIEWERS } from './manage-migration-coordination.mjs'
 import { LEGACY_COMPLETION_PATH, LEGACY_CONTRACT_PATH, resolveEvidencePair, evidencePaths } from './lib/agent-evidence-paths.mjs'
 import { validateGenerationLineage, planSuccessor, assertGenerationWriteAllowed } from './lib/evidence-generation-lineage.mjs'
 import { contractHash, contractRef } from './agent-work-contract.mjs'
@@ -141,10 +142,10 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
     // a SUCCESSOR contract whose ref is PUBLISHED FIRST. The predecessor's pair
     // stays historical in git; it is never rebound in place, and a publication
     // that fails stops the refresh before any result is recorded.
-    const listed = git('ls-remote', 'origin', `refs/db-contracts/${options.issue}/*`)
+    const listed = git('ls-remote', 'origin', contractStorageRef(`refs/db-contracts/${options.issue}/*`))
     if (listed.status !== 0) throw new RefreshError(`published generations for issue #${options.issue} could not be listed (${String(listed.stderr || listed.stdout || '').trim().split('\n').at(-1)}); no successor can be planned, so nothing was recorded`)
     const knownGenerations = String(listed.stdout || '').split(/\r?\n/).flatMap((line) => {
-      const match = /refs\/db-contracts\/\d+\/(\d+)\s*$/.exec(line.trim())
+      const match = /refs\/db-contracts\/\d+\/(\d+)\s*$/.exec(contractLogicalRef(line.trim().split(/\s+/).at(-1)))
       return match ? [Number(match[1])] : []
     })
     const successor = planSuccessor({ workIssue: options.issue, parentContract: contract, knownGenerations })
@@ -173,7 +174,7 @@ export function refresh(options, { run = defaultRun, log = (l) => console.log(l)
   if (!options.push) return { head, tip, pushed: false }
   ok(git('push', '-q'), 'git push')
   if (!options.assign) return { head, tip, pushed: true }
-  const assign = run('node', ['scripts/manage-migration-author-lanes.mjs', '--assign-reviewer', '--issue', String(options.issue), '--pr', String(options.pr), '--head-sha', tip], { cwd })
+  const assign = run('node', ['scripts/manage-migration-coordination.mjs', '--assign-reviewer', '--issue', String(options.issue), '--pr', String(options.pr), '--head-sha', tip], { cwd })
   let assigned = String(assign.stdout ?? '')
   if (assign.status !== 0) {
     // u2giants/shared-db#2844: a stale readback can report RECOVERY REQUIRED after the assignment

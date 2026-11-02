@@ -165,7 +165,7 @@ export const HISTORICAL_RESTORATIONS = Object.freeze({
   // dispatched at main commit 0a11c42d and bound (instance-binding
   // appliedCommit) to PR #3008 commit 1595aec0 before the PR merged. The
   // production apply of this version was refused because the evidence-producing
-  // scripts/manage-migration-author-lanes.mjs at the dispatch commit differs
+  // scripts/manage-migration-coordination.mjs at the dispatch commit differs
   // from the one at merge commit 6c9b149d, so the immutable original apply must
   // be rebound through this registry rather than replayed. Producer provenance
   // is complete because this exact version merged from PR #3008 as 6c9b149d.

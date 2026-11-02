@@ -4,7 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { withReviewRequestBudget, reviewChildTimeoutMs, reconcileAtomicReviewBatch, setReviewMonotonicClock, runGitHubCommand, gitRemoteRefs, MUTEX_REF, REVIEW_MUTEX_SECTION_DEADLINE_MS, REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS } from '../../manage-migration-author-lanes.mjs'
+import { withReviewRequestBudget, reviewChildTimeoutMs, reconcileAtomicReviewBatch, setReviewMonotonicClock, runGitHubCommand, gitRemoteRefs, MUTEX_REF, REVIEW_MUTEX_SECTION_DEADLINE_MS, REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS } from '../../manage-migration-coordination.mjs'
 import { REPO } from './constants.mjs'
 import { atomicIo, HEAD } from '../../test-fixtures/review-assignment-io.mjs'
 

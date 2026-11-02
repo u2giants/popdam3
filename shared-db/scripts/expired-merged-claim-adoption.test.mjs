@@ -3,7 +3,7 @@ import test from 'node:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { claimBody, formatRetirementRecord, main, parseAuthorLease, resetRetirementSnapshot } from './manage-migration-author-lanes.mjs'
+import { claimBody, formatRetirementRecord, main, parseAuthorLease, resetRetirementSnapshot } from './manage-migration-coordination.mjs'
 
 const NOW=new Date('2026-09-28T12:00:00Z')
 const HEAD='a'.repeat(40),VERSION='20260923181754',RESERVATION='d'.repeat(40)
