@@ -126,7 +126,7 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
 
 def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
                           preview_ok: callable = lambda run: False) -> int | None:
-    """The oldest post-merge preview apply of this PR whose preview job succeeded, if any."""
+    """The oldest preview apply of this PR whose preview job succeeded, if any."""
     # Recovery runs title themselves "PR " with no number, so match the versions.
     def names_pr(title: str) -> bool:
         # Several versions are one comma-joined word in the title.
@@ -134,10 +134,12 @@ def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
         return all(v in words for v in pr["versions"])
     hits = [r for r in runs
             if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(r.get("display_title") or "")
-            and r.get("created_at", "") > pr["merged_at"]
             # A run can fail after preview applied, e.g. at the review-finding hold.
             and (r.get("conclusion") == "success" or preview_ok(r))]
-    return min(hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
+    # A pre-merge rehearsal also leaves the versions on preview, so it is the
+    # fallback; the recovery lane refuses an original run whose bytes differ.
+    post_merge = [r for r in hits if r.get("created_at", "") > pr["merged_at"]]
+    return min(post_merge or hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
 
 
 def is_held(pr: int) -> bool:

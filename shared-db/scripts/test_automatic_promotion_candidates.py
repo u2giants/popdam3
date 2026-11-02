@@ -56,6 +56,7 @@ class EarlierPreviewApply(unittest.TestCase):
             {"id": 5, "conclusion": "success", "created_at": "2026-10-31T01:40:00Z", "display_title": "DB preview apply a PR 202610301906390"},
         ]
         self.assertEqual(m.earlier_preview_apply(pr, runs), 7)
+        self.assertEqual(m.earlier_preview_apply(pr, [runs[2]]), 3)  # pre-merge is the fallback
         self.assertIsNone(m.earlier_preview_apply(pr, runs[3:]))
         recovery = {"id": 4, "conclusion": "success", "created_at": "2026-10-31T01:50:00Z", "display_title": "DB preview apply a PR 20261030190639"}
         self.assertEqual(m.earlier_preview_apply(pr, runs + [recovery]), 4)
