@@ -2,7 +2,7 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
-## Open 2026-11-01: DAM picture search times out under cold database load
+## Resolved 2026-11-01: DAM picture search times out under cold database load
 
 The exact query `spiderman coir` intermittently fails in `dam-search-ai`, causing the app to fall back to broader word matching. The earlier planning-cost repair (shared-db #5075) is live; this is a separate execution-I/O regression as style-group picture coverage grows.
 
@@ -14,7 +14,9 @@ Review-finding [shared-db #5401](https://github.com/popcre/shared-db/issues/5401
 
 Local PostgreSQL17/pgvector checks cover migration with existing vectors, projection parity and lifecycle/privilege contracts. A 9,641-vector synthetic test returned identical top-2,000 candidates (zero symmetric difference); the compact exact scan took 12.235 ms. Those local numbers are not production acceptance.
 
-- [ ] live proof: after automatic promotion, verify the exact query in a fresh authenticated browser before any query prewarming, then repeat under live load. Record actual groups, response times and whether fallback occurred. The separate missing-artwork/ERP recall work remains on #616.
+The live page also exposed a separate count mismatch: its header/footer preferred a one-row variant probe reporting 10 while the main search returned all 15 mat groups. [PopDAM PR #649](https://github.com/u2giants/popdam3/pull/649) uses the loaded page total consistently and avoids that redundant probe during text search. Nine focused regressions, typecheck, lint and full [CI 41380870029](https://github.com/u2giants/popdam3/actions/runs/41380870029) passed. Frontend [publish 41381204217](https://github.com/u2giants/popdam3/actions/runs/41381204217) succeeded for merge `0f0b9979217dc575a0641e68f2ca2e4f9cc312e5`; Coolify deployment `nuytec594njiltbjhrqc7r1x` finished.
+
+- [x] live proof: both migrations automatically promoted ([original](https://github.com/popcre/shared-db/actions/runs/41378855953), [replica synchronization](https://github.com/popcre/shared-db/actions/runs/41379360000)). The first fresh authenticated browser after database deployment returned all 15 correct `spiderman coir` mat groups in 7.042 seconds (edge 6.145 seconds); five sequential/concurrent calls took 2.447–6.988 seconds, all returning the same 15 IDs. After frontend deployment, a fresh authenticated browser visibly confirmed build `0f0b997`, all 15 mat cards, header 15 and paginator 1–15 of 15 in 5.658 seconds (main edge 4.590 seconds), with no fallback during 35 seconds of observation. Five additional sequential/concurrent calls took 2.600–6.257 seconds; all returned the same 15 IDs and exact total. These are fresh browser first calls, not a flushed database-cache test. Licensed screenshots and rows stay local. Separate missing-artwork/ERP recall remains on #616.
 
 ## Resolved 2026-10-29: Master Data first load slow, then a false "could not be loaded"
 

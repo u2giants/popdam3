@@ -457,7 +457,7 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 
 Full entries live in [`docs/incident-log.md`](docs/incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
-- Open 2026-11-01: DAM picture search cold-load timeouts — compact exact vectors (shared-db #5397; live proof pending on #4508)
+- Resolved 2026-11-01: DAM picture search cold-load timeouts — compact exact vectors and consistent totals; live exact query verified at 15 groups (#4508, PopDAM #649)
 - Resolved 2026-10-29: Master Data first load slow + false "could not be loaded" — indexed view rewrite (shared-db #5045) + app retry hardening (#581)
 - Resolved 2026-10-27: OrderList first load hit statement timeout — stale planner stats + whole-view block query; two-step fetch (#560) and table autoanalyze (shared-db #4969)
 - Resolved 2026-10-27: Supabase sb_secret printed into an AI transcript — redacted on-machine per owner ruling; rotation cancelled
