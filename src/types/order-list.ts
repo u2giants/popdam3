@@ -27,6 +27,8 @@ export type OrderListRow = {
   customer_name: string | null;
   factory_id: string | null;
   vendor_name: string | null;
+  /** ColdLion business vendor identifier; supplied by the bounded reader. */
+  vendor_code?: string | null;
   ordering_company: string | null;
   order_date: string | null;
   /** Bounded per-block RPC output; not a field on `api.dam_order_list`. */

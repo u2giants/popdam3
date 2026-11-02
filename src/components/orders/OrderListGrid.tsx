@@ -13,6 +13,7 @@ import {
   ORDER_LIST_FETCH_BATCH_SIZE,
   ORDER_LIST_DEFAULT_PAGE_SIZE,
   ORDER_LIST_PAGE_SIZE_OPTIONS,
+  ensureVendorIdInSavedColumnState,
   formatOrderBoolean,
   formatOrderDate,
   isOrderListFieldSortable,
@@ -317,7 +318,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       defaultColDef={DEFAULT_COL_DEF}
       onGridReady={(event) => {
         const state = readOrderListColumns(userId);
-        if (state) event.api.applyColumnState({ state, applyOrder: true });
+        if (state) event.api.applyColumnState({ state: ensureVendorIdInSavedColumnState(state) as any, applyOrder: true });
         columnsReady.current = true;
       }}
       onStateUpdated={(event) => {

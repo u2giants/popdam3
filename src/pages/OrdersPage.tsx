@@ -35,7 +35,7 @@ import {
 import { IS_NON_PRODUCTION_DATABASE, POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { refreshOrderListRows, refreshOrderListRowsInPlace } from "@/lib/order-list-grid-refresh";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrderListEdit, ensureAssortmentQuantityInSavedColumnState, ensureSalesOrderDateInSavedColumnState, ORDER_LIST_COLUMNS, orderWindowStart } from "@/lib/order-list";
+import { buildOrderListEdit, ensureAssortmentQuantityInSavedColumnState, ensureSalesOrderDateInSavedColumnState, ensureVendorIdInSavedColumnState, ORDER_LIST_COLUMNS, orderWindowStart } from "@/lib/order-list";
 import { navigateToOrderListMatch } from "@/lib/order-list-find-navigation";
 import type { OrderListRow, OrderListSavedView } from "@/types/order-list";
 
@@ -99,7 +99,7 @@ export default function OrdersPage() {
         const scope = orderListBlockScope(salesOrderDateGeneration.current, fullRequest);
         setActiveOrderListBlockScope(scope);
         const block = await fetchOrderListBlock(fullRequest);
-        const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError].filter((message): message is string => Boolean(message));
+        const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError, block.vendorIdsError].filter((message): message is string => Boolean(message));
         setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, request.startRow, warnings.length ? warnings.join("\n") : null));
         return block.rows;
       },
@@ -153,7 +153,7 @@ export default function OrdersPage() {
           const scope = orderListBlockScope(salesOrderDateGeneration.current, request);
           setActiveOrderListBlockScope(scope);
           const block = await fetchOrderListBlock(request);
-          const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError].filter((message): message is string => Boolean(message));
+          const warnings = [block.salesOrderDatesError, block.assortmentQuantitiesError, block.vendorIdsError].filter((message): message is string => Boolean(message));
           setSalesOrderDateErrors((current) => updateOrderListSalesDateErrors(current, scope, params.startRow, warnings.length ? warnings.join("\n") : null));
           setLoadError(null);
           setHasLoadedRows(true);
@@ -338,7 +338,7 @@ export default function OrdersPage() {
     if (Array.isArray(view.column_state)) {
       const withSalesOrderDate = ensureSalesOrderDateInSavedColumnState(view.column_state);
       const withAssortmentQuantity = ensureAssortmentQuantityInSavedColumnState(withSalesOrderDate);
-      api.applyColumnState({ state: withAssortmentQuantity as any, applyOrder: true });
+      api.applyColumnState({ state: ensureVendorIdInSavedColumnState(withAssortmentQuantity) as any, applyOrder: true });
     }
     api.setFilterModel((view.filter_model ?? null) as any);
     setActiveViewId(view.id);

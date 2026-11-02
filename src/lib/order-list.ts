@@ -513,6 +513,7 @@ export const ORDER_LIST_COLUMNS: OrderListColumn[] = [
   { field: "order_status", header: "PO Status", kind: "order", source: "automatic", type: "text", width: 130, pinned: "left" },
   { field: "production_order_number", header: "Import PO #", kind: "order", source: "helper", type: "text", width: 240, pinned: "left" },
   { field: "vendor_name", header: "Vendor", kind: "order", type: "text", width: 170 },
+  { field: "vendor_code", header: "Vendor ID", headerTooltip: "Vendor ID from ColdLion order data. Missing or conflicting source stays blank.", kind: "order", source: "automatic", type: "text", width: 130, queryable: false, virtual: true },
   { field: "order_date", header: "Prod PO Date", headerTooltip: "Production PO Date in ColdLion.", kind: "order", type: "date", width: 130 },
   { field: "sales_order_date", header: "SO Date", headerTooltip: "Date ColdLion received the Sales Order.", kind: "order", type: "date", width: 130, queryable: false, virtual: true, sortField: "sales_order_received_date" },
   { field: "sent_po_date", header: "Sent PO", kind: "order", type: "date", width: 130 },
@@ -634,4 +635,13 @@ export function ensureAssortmentQuantityInSavedColumnState(state: unknown): unkn
 
 export function isMasterDataColumn(column: OrderListColumn) {
   return column.kind === "masterData";
+}
+
+/** Adds Vendor ID once without changing an explicit visibility/order choice. */
+export function ensureVendorIdInSavedColumnState(state: unknown): unknown {
+  if (!Array.isArray(state) || state.some((entry) => entry?.colId === "vendor_code")) return state;
+  const next = state.map((entry) => ({ ...entry }));
+  const vendorIndex = next.findIndex((entry) => entry?.colId === "vendor_name");
+  next.splice(vendorIndex >= 0 ? vendorIndex + 1 : next.length, 0, { colId: "vendor_code", hide: false });
+  return next;
 }

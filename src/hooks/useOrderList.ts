@@ -77,6 +77,7 @@ export type OrderListBlock = {
   totalRowCount: number | null;
   salesOrderDatesError: string | null;
   assortmentQuantitiesError?: string | null;
+  vendorIdsError?: string | null;
 };
 
 export type OrderListSalesOrderDate = { order_line_id: string; sales_order_date: string | null };
@@ -185,6 +186,32 @@ async function attachOrderListAssortmentQuantities(rows: OrderListRow[]): Promis
   });
   if (error) throw error;
   return mergeOrderListAssortmentQuantities(rows, data);
+}
+
+/** Vendor codes remain text so leading zeroes are preserved. */
+export function mergeOrderListVendorIds(rows: OrderListRow[], results: unknown): OrderListRow[] {
+  if (!Array.isArray(results)) throw new Error("Could not read OrderList Vendor IDs.");
+  const requested = new Set(rows.map((row) => row.order_line_id));
+  const codes = new Map<string, string | null>();
+  for (const result of results) {
+    if (!result || typeof result.order_line_id !== "string" || !requested.has(result.order_line_id)
+      || codes.has(result.order_line_id) || (result.vendor_code !== null
+        && (typeof result.vendor_code !== "string" || result.vendor_code.trim() === ""))) {
+      throw new Error("Vendor ID lookup returned an invalid OrderList line.");
+    }
+    codes.set(result.order_line_id, result.vendor_code);
+  }
+  return rows.map((row) => ({ ...row, vendor_code: codes.get(row.order_line_id) ?? null }));
+}
+
+async function attachOrderListVendorIds(rows: OrderListRow[]): Promise<OrderListRow[]> {
+  if (rows.length === 0) return rows;
+  if (rows.length > 1500) throw new Error("Vendor ID lookup exceeded its 1,500-line bound.");
+  const { data, error } = await (supabase as any).rpc("get_dam_order_vendor_ids", {
+    p_line_ids: rows.map((row) => row.order_line_id),
+  });
+  if (error) throw error;
+  return mergeOrderListVendorIds(rows, data);
 }
 
 export type OrderListFindRequest = Pick<OrderListBlockRequest, "filterModel" | "sortModel" | "search">;
@@ -307,13 +334,15 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
     sales_order_date: null,
     assortment_sku_quantity: null,
     assortment_quantity_source: null,
+    vendor_code: null,
   }));
-  const [salesDatesResult, assortmentQuantitiesResult] = await Promise.allSettled([
+  const [salesDatesResult, assortmentQuantitiesResult, vendorIdsResult] = await Promise.allSettled([
     attachOrderListSalesOrderDates(baseRows),
     attachOrderListAssortmentQuantities(baseRows),
+    attachOrderListVendorIds(baseRows),
   ]);
   // Merge the independent optional lookups by their exact line IDs. A failure
-  // in either sidecar leaves the primary rows and the other sidecar intact.
+  // in any sidecar leaves the primary rows and the other lookups intact.
   const datesById = new Map(
     salesDatesResult.status === "fulfilled"
       ? salesDatesResult.value.map((row) => [row.order_line_id, row.sales_order_date] as const)
@@ -324,11 +353,14 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
       ? assortmentQuantitiesResult.value.map((row) => [row.order_line_id, [row.assortment_sku_quantity, row.assortment_quantity_source] as const] as const)
       : [],
   );
+  const vendorsById = new Map(vendorIdsResult.status === "fulfilled"
+    ? vendorIdsResult.value.map((row) => [row.order_line_id, row.vendor_code] as const) : []);
   const rows = baseRows.map((row) => {
     const [assortment_sku_quantity, assortment_quantity_source] = quantitiesById.get(row.order_line_id) ?? [null, null];
     return {
       ...row,
       sales_order_date: datesById.get(row.order_line_id) ?? null,
+      vendor_code: vendorsById.get(row.order_line_id) ?? null,
       assortment_sku_quantity,
       assortment_quantity_source,
     };
@@ -338,6 +370,7 @@ export async function fetchOrderListBlock(request: OrderListBlockRequest): Promi
     totalRowCount: null,
     salesOrderDatesError: salesDatesResult.status === "rejected" ? SALES_ORDER_DATES_UNAVAILABLE : null,
     assortmentQuantitiesError: assortmentQuantitiesResult.status === "rejected" ? ASSORTMENT_QUANTITIES_UNAVAILABLE : null,
+    vendorIdsError: vendorIdsResult.status === "rejected" ? "Vendor IDs could not be loaded. Refresh OrderList to try again." : null,
   };
 }
 
