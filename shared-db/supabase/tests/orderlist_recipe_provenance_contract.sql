@@ -39,6 +39,25 @@ DO $$ declare q numeric; begin
  assert (select assortment_sku_quantity from public.get_dam_order_assortment_quantities(array['99999999-9999-4999-8999-000000000002']::uuid[]))=2,'existing top-level hash retains precedence';
  update plm.production_order_line_source_ref set metadata=jsonb_set(metadata,'{orderlist_source_correction,original_sku}','"ZZ-UNTRUSTED"') where id='99999999-9999-4999-8999-000000000003';
  assert (select assortment_sku_quantity from public.get_dam_order_assortment_quantities(array['99999999-9999-4999-8999-000000000002']::uuid[])) is null,'correction must agree with immutable raw component identity';
+
+ -- Apply input and multiplicity contracts to the replacement reader itself.
+ assert (select count(*) from public.get_dam_order_assortment_quantities(array['99999999-9999-4999-8999-000000000002','99999999-9999-4999-8999-000000000002']::uuid[]))=1,'duplicate IDs return one line';
+ assert (select count(*) from public.get_dam_order_assortment_quantities(array_fill('99999999-9999-4999-8999-000000000002'::uuid,array[1500])))=1,'1500 IDs accepted';
+ begin perform * from public.get_dam_order_assortment_quantities(array_fill('99999999-9999-4999-8999-000000000002'::uuid,array[1501])); raise exception 'oversize IDs accepted'; exception when invalid_parameter_value then null; end;
+ begin perform * from public.get_dam_order_assortment_quantities(null); raise exception 'null array accepted'; exception when invalid_parameter_value then null; end;
+ begin perform * from public.get_dam_order_assortment_quantities(array[null::uuid]); raise exception 'null ID accepted'; exception when invalid_parameter_value then null; end;
+ assert not exists(select from public.get_dam_order_assortment_quantities(array[]::uuid[])),'empty IDs return no lines';
+ -- Source-free Google rows retain the explicitly labelled unique current recipe.
+ insert into plm.production_order_line(id,production_order_id,sku,customer_po_number,assortment_id,metadata,source_system,source_id)
+ values('99999999-9999-4999-8999-000000000007','99999999-9999-4999-8999-000000000001','ZZ-CATALOG-SKU','ZZ-PO','ZZ-CATALOG-PACK','{}','zz-test','ZZ-CATALOG-LINE');
+ insert into coldlion.item_detail(company_code,division_code,item_no,item_pkey,pre_pack_code,run_id,fetched_at,source_hash,first_seen_at,last_seen_at)
+ values('EDGEHOME','ZZ-DIV','ZZ-CATALOG-PACK','ZZ-ITEM-1','ZZ-CATALOG-CODE','99999999-9999-4999-8999-000000000004',now(),repeat('d',64),now(),now());
+ insert into coldlion.prepack_detail(company_code,prepack_code,sequence_no,division_code,item_no,quantity,detail_prepack,run_id,fetched_at,source_hash,first_seen_at,last_seen_at)
+ values('EDGEHOME','ZZ-CATALOG-CODE',1,'ZZ-DIV','ZZ-CATALOG-SKU',3,'','99999999-9999-4999-8999-000000000004',now(),repeat('e',64),now(),now());
+ assert exists(select from public.get_dam_order_assortment_quantities(array['99999999-9999-4999-8999-000000000007']::uuid[]) where assortment_sku_quantity=3 and quantity_source='current_recipe'),'unique catalog quantity remains labelled';
+ insert into coldlion.item_detail(company_code,division_code,item_no,item_pkey,pre_pack_code,run_id,fetched_at,source_hash,first_seen_at,last_seen_at)
+ values('EDGEHOME','ZZ-DIV-2','ZZ-CATALOG-PACK','ZZ-ITEM-2','ZZ-OTHER-CODE','99999999-9999-4999-8999-000000000004',now(),repeat('f',64),now(),now());
+ assert exists(select from public.get_dam_order_assortment_quantities(array['99999999-9999-4999-8999-000000000007']::uuid[]) where assortment_sku_quantity is null and quantity_source is null),'multiple catalog manifests abstain even if only one contains SKU';
  perform set_config('request.jwt.claim.sub','',true);
  begin perform * from public.get_dam_order_assortment_quantities(array[]::uuid[]);raise exception 'anonymous accepted';exception when insufficient_privilege then null;end;
 end $$;

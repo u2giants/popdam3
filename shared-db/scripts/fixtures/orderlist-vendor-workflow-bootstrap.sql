@@ -8,8 +8,15 @@ create table public.style_tracker_rows(id uuid primary key,sku text,tracker_type
 create table plm.style_tracker_item_bridge(id uuid primary key,plm_item_id uuid,style_tracker_row_id uuid,tracker_type text);
 create table plm.production_order_line(id uuid primary key,sku text,assortment_id text);
 create table plm.production_order_line_source_ref(production_order_line_id uuid,source_system text,is_primary boolean,source_id text);
-create table coldlion.intake_order_line(id uuid,company_code text,sales_order_no bigint,sales_order_line_no int,prod_reference_no text,master_item_no text,last_seen_run uuid);
+create table coldlion.sync_run(id uuid primary key,started_at timestamptz);
+-- Mirror the production identity/type constraints used by this reader.
+create table coldlion.intake_order_line(
+ id uuid primary key default gen_random_uuid(), company_code text,
+ sales_order_no bigint not null, sales_order_line_no int not null check(sales_order_line_no >= 0),
+ prod_reference_no text, master_item_no text not null,
+ last_seen_run uuid not null references coldlion.sync_run(id),
+ line_source_hash text not null check(line_source_hash ~ '^[0-9a-f]{64}$'),
+ unique nulls not distinct(sales_order_no,sales_order_line_no,master_item_no,line_source_hash)
+);
 create table plm.history_fixture(company_code text,sales_order_no bigint,prod_reference_no text,item_no text,sub_item_no text,component_id uuid,vendor_code text,line_id uuid);
 create view plm.coldlion_prod_history as select * from plm.history_fixture;
-
-create table coldlion.sync_run(id uuid primary key,started_at timestamptz);

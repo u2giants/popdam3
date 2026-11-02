@@ -33,7 +33,7 @@ end $$;
 insert into plm.production_order_line values ('99999999-9999-4999-8999-000000000031','ZZ-ITEM',null),('99999999-9999-4999-8999-000000000032','ZZ-OTHER',null);
 insert into plm.production_order_line_source_ref values ('99999999-9999-4999-8999-000000000031','coldlion',true,'coldlion:so:9123456:line:1');
 insert into coldlion.sync_run values ('99999999-9999-4999-8999-000000000071',now()),('99999999-9999-4999-8999-000000000072',now()-interval '1 day');
-insert into coldlion.intake_order_line values ('99999999-9999-4999-8999-000000000041','EDGEHOME',9123456,1,'ZZ-PO','ZZ-ITEM','99999999-9999-4999-8999-000000000071');
+insert into coldlion.intake_order_line values ('99999999-9999-4999-8999-000000000041','EDGEHOME',9123456,1,'ZZ-PO','ZZ-ITEM','99999999-9999-4999-8999-000000000071',repeat('a',64));
 insert into plm.history_fixture values ('EDGEHOME',9123456,'ZZ-PO','ZZ-ITEM',null,null,'00123','99999999-9999-4999-8999-000000000051');
 select set_config('request.jwt.claim.sub','99999999-9999-4999-8999-000000000099',false);
 DO $$ declare code text; begin
@@ -53,7 +53,7 @@ DO $$ declare code text; begin
  update plm.history_fixture set sub_item_no='ZZ-OTHER';
  assert (select vendor_code from public.get_dam_order_vendor_ids(array['99999999-9999-4999-8999-000000000031']::uuid[])) is null,'wrong assortment component abstains';
  update plm.history_fixture set sub_item_no='ZZ-ITEM';
- insert into coldlion.intake_order_line select '99999999-9999-4999-8999-000000000042',company_code,sales_order_no,sales_order_line_no,'ZZ-CONFLICT',master_item_no,last_seen_run from coldlion.intake_order_line;
+ insert into coldlion.intake_order_line select '99999999-9999-4999-8999-000000000042',company_code,sales_order_no,sales_order_line_no,'ZZ-CONFLICT',master_item_no,last_seen_run,repeat('b',64) from coldlion.intake_order_line;
  assert (select vendor_code from public.get_dam_order_vendor_ids(array['99999999-9999-4999-8999-000000000031']::uuid[])) is null,'same-run conflicting intake abstains';
  update coldlion.intake_order_line set last_seen_run='99999999-9999-4999-8999-000000000072' where prod_reference_no='ZZ-CONFLICT';
  assert (select vendor_code from public.get_dam_order_vendor_ids(array['99999999-9999-4999-8999-000000000031']::uuid[]))='00123','older intake does not override latest';

@@ -32,11 +32,11 @@ def main():
 create schema auth; create schema api; create schema plm; create schema coldlion;
 create function auth.uid() returns uuid language sql stable as
  'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
-create table plm.production_order_line(id uuid primary key, assortment_id text, sku text, metadata jsonb);
-create table plm.production_order_line_source_ref(production_order_line_id uuid, source_system text, source_id text, is_primary boolean);
+create table plm.production_order_line(id uuid primary key, assortment_id text, sku text, metadata jsonb, customer_po_number text);
+create table plm.production_order_line_source_ref(production_order_line_id uuid, source_system text, source_id text, is_primary boolean, metadata jsonb default '{}');
 create table public.order_fixture(order_line_id uuid primary key, assortment_id text, sku text, coldlion_source_id text);
 create view api.dam_order_list as select * from public.order_fixture;
-create table coldlion.intake_order_line(id uuid, company_code text, sales_order_no bigint, sales_order_line_no integer, master_item_no text);
+create table coldlion.intake_order_line(id uuid, company_code text, sales_order_no bigint, sales_order_line_no integer, master_item_no text, po_number text);
 create table coldlion.intake_order_component(line_id uuid, sub_item_no text, component_source_hash text, quantity numeric);
 create table coldlion.item_detail(item_no text,company_code text,division_code text,pre_pack_code text);
 create table coldlion.prepack_detail(company_code text,division_code text,prepack_code text,item_no text,quantity integer,detail_prepack text);
@@ -45,13 +45,13 @@ select ('00000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,
  case when i=8 then null else 'PACK-'||i end,'SKU-'||i,
  case when i<=3 then 'coldlion:so:500:line:'||i||':component:1' end
 from generate_series(1,9) i;
-insert into plm.production_order_line select order_line_id,assortment_id,sku,
+insert into plm.production_order_line(id,assortment_id,sku,metadata) select order_line_id,assortment_id,sku,
  case when coldlion_source_id is not null then jsonb_build_object('component_source_hash','exact-'||right(sku,1)) else '{}'::jsonb end
 from public.order_fixture;
-insert into plm.production_order_line_source_ref select order_line_id,'coldlion',coldlion_source_id,true from public.order_fixture where coldlion_source_id is not null;
+insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary) select order_line_id,'coldlion',coldlion_source_id,true from public.order_fixture where coldlion_source_id is not null;
 -- Non-primary references must not duplicate or displace the authoritative source.
-insert into plm.production_order_line_source_ref select order_line_id,'coldlion','coldlion:so:999:line:1:component:1',false from public.order_fixture where sku='SKU-1';
-insert into coldlion.intake_order_line
+insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary) select order_line_id,'coldlion','coldlion:so:999:line:1:component:1',false from public.order_fixture where sku='SKU-1';
+insert into coldlion.intake_order_line(id,company_code,sales_order_no,sales_order_line_no,master_item_no)
 select order_line_id,'EDGEHOME',500,i,assortment_id
 from public.order_fixture cross join lateral (select right(sku,1)::integer i) v where i<=3;
 insert into coldlion.intake_order_component
@@ -70,7 +70,7 @@ insert into coldlion.item_detail values ('PACK-5','EDGEHOME','DIV-B','OTHER');
 -- Duplicate component records remain ambiguous.
 insert into coldlion.prepack_detail values ('EDGEHOME','DIV-A','CODE-6','SKU-6',4,'');
 """)
-        run(target, (ROOT / 'supabase/migrations/20261027155655_orderlist_assortment_quantities.sql').read_text())
+        run(target, (ROOT / 'supabase/migrations/20261102150308_orderlist_recipe_provenance.sql').read_text())
         run(target, """
 do $$ begin
  if has_function_privilege('anon','public.get_dam_order_assortment_quantities(uuid[])','execute') then raise exception 'anonymous grant'; end if;
