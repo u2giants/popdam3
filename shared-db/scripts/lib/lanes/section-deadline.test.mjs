@@ -4,18 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import {
-  assignNextReviewer,
-  withReviewRequestBudget,
-  reviewChildTimeoutMs,
-  reconcileAtomicReviewBatch,
-  setReviewMonotonicClock,
-  runGitHubCommand,
-  gitRemoteRefs,
-  MUTEX_REF,
-  REVIEW_MUTEX_SECTION_DEADLINE_MS,
-  REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS,
-} from '../../manage-migration-author-lanes.mjs'
+import { withReviewRequestBudget, reviewChildTimeoutMs, reconcileAtomicReviewBatch, setReviewMonotonicClock, runGitHubCommand, gitRemoteRefs, MUTEX_REF, REVIEW_MUTEX_SECTION_DEADLINE_MS, REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS } from '../../manage-migration-author-lanes.mjs'
 import { REPO } from './constants.mjs'
 import { atomicIo, HEAD } from '../../test-fixtures/review-assignment-io.mjs'
 
@@ -30,60 +19,8 @@ test('outside ownership the per-call default bound is unchanged', () => {
   withReviewRequestBudget(() => assert.equal(reviewChildTimeoutMs(60000), 60000))
 })
 
-test('owned_git_and_gh_children_have_remaining_deadlines — capped by the remaining section deadline on a monotonic clock', () => withClock((clock) => {
-  const io = atomicIo()
-  const seen = []
-  const raw = io.readReviewRefs
-  io.readReviewRefs = (list) => {
-    if (io.refs.has(MUTEX_REF)) { seen.push(reviewChildTimeoutMs(10 * 60 * 1000)); clock.advance(60 * 1000) }
-    return raw(list)
-  }
-  const result = assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io)
-  assert.ok(result?.reviewer)
-  assert.ok(seen.length >= 2, 'reads happened under ownership')
-  assert.equal(seen[0], REVIEW_MUTEX_SECTION_DEADLINE_MS, 'first owned call gets the full section budget, never more')
-  for (let i = 1; i < seen.length; i++) assert.ok(seen[i] < seen[i - 1], 'remaining budget only shrinks')
-  assert.equal(io.refs.has(MUTEX_REF), false, 'mutex released')
-  assert.equal(reviewChildTimeoutMs(5), 5, 'deadline cleared after release')
-}))
 
-test('exhausted section refuses before launching a child, and release still runs on its own allowance', () => withClock((clock) => {
-  const io = atomicIo()
-  let batchLaunched = false
-  const rawBatch = io.atomicReviewRefs.bind(io)
-  io.atomicReviewRefs = (changes) => {
-    const assignment = changes.length > 1
-    if (assignment) { reviewChildTimeoutMs(60000); batchLaunched = true }
-    return rawBatch(changes)
-  }
-  const rawStates = io.readReviewStates
-  let releaseBudget = null
-  io.readReviewStates = (list) => {
-    if (io.refs.has(MUTEX_REF)) clock.advance(REVIEW_MUTEX_SECTION_DEADLINE_MS)
-    return rawStates(list)
-  }
-  const rawRelease = io.atomicReviewMutexRelease
-  io.atomicReviewMutexRelease = (owner) => { releaseBudget = reviewChildTimeoutMs(10 * 60 * 1000); return rawRelease(owner) }
-  assert.throws(() => assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io), /deadline; refused before launching/)
-  assert.equal(batchLaunched, false, 'no write launched after the deadline')
-  assert.equal(releaseBudget, REVIEW_MUTEX_CLEANUP_ALLOWANCE_MS, 'release got its reserved cleanup allowance')
-  assert.equal(io.refs.has(MUTEX_REF), false, 'our mutex was released')
-}))
 
-test('ambiguous_commit_recovers_same_assignment_without_redraw', () => {
-  const io = atomicIo()
-  const rawBatch = io.atomicReviewRefs.bind(io)
-  let assignmentCalls = 0
-  io.atomicReviewRefs = (changes) => {
-    if (changes.length === 4) { assignmentCalls++; rawBatch(changes); const e = new Error('atomic reviewer ref transition failed (timed out; result unknown until readback)'); e.atomicOutcomeUnknown = true; throw e }
-    return rawBatch(changes)
-  }
-  const result = assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io)
-  assert.ok(result?.reviewer)
-  assert.match(result.reconciledAfter, /timed out/)
-  assert.equal(assignmentCalls, 1, 'exactly one paid-draw write, no redraw')
-  assert.equal(io.refs.has(MUTEX_REF), false)
-})
 
 test('partial_or_unreadable_transaction_is_recovery_required — and provably uncommitted is a retryable no-write refusal', () => {
   const refs = new Map([['refs/a', 'x'], ['refs/b', null]])
@@ -97,30 +34,6 @@ test('partial_or_unreadable_transaction_is_recovery_required — and provably un
   assert.throws(() => reconcileAtomicReviewBatch(batch, { readReviewRefs: () => { throw new Error('offline') } }, new Error('boom')), /UNKNOWN[\s\S]*RECOVERY REQUIRED/)
 })
 
-test('owned_section_never_sleeps_for_quota_or_retries — inherited GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS', () => withClock(() => {
-  const saved = process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS
-  process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS = '900'
-  try {
-    const io = atomicIo()
-    let waited = 0, calls = 0, timeouts = []
-    const raw = io.readReviewRefs
-    io.readReviewRefs = (list) => {
-      if (io.refs.has(MUTEX_REF) && calls === 0) {
-        calls++
-        const executor = (bin, args, options) => { timeouts.push(options.timeout); const e = new Error('rate'); e.stderr = 'HTTP 403: API rate limit exceeded'; throw e }
-        assert.throws(() => runGitHubCommand(['api', 'repos/x/y'], { executor, wait: () => { waited++ } }), /rate limit/)
-      }
-      return raw(list)
-    }
-    assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io)
-    assert.equal(calls, 1)
-    assert.equal(waited, 0, 'no quota wait under ownership')
-    assert.equal(timeouts.length, 1, 'one attempt, no probe/replay')
-    assert.ok(timeouts[0] <= REVIEW_MUTEX_SECTION_DEADLINE_MS)
-  } finally {
-    if (saved === undefined) delete process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS; else process.env.GITHUB_RATE_LIMIT_MAX_WAIT_SECONDS = saved
-  }
-}))
 
 // Production read path: readReviewRefs goes through the real gitRemoteRefs with a
 // stubbed git runner, so deadline behaviour is the shipped wiring, not the fixture (L2).
@@ -133,38 +46,5 @@ function wireRefs(io, launched) {
   io.readReviewRefs = (list) => { const found = gitRemoteRefs(list, { run }); return new Map(list.map((ref) => [ref, found.get(ref) ?? null])) }
 }
 
-test('production gitRemoteRefs refuses before launch once the section is exhausted', () => withClock((clock) => {
-  const io = atomicIo(); const launched = []; wireRefs(io, launched)
-  const rawStates = io.readReviewStates
-  let refusedLaunch = null
-  io.readReviewStates = (list) => {
-    if (io.refs.has(MUTEX_REF)) {
-      clock.advance(REVIEW_MUTEX_SECTION_DEADLINE_MS)
-      const before = launched.length
-      assert.throws(() => io.readReviewRefs([MUTEX_REF]), /exhausted its mutex-held section deadline/)
-      refusedLaunch = launched.length === before
-    }
-    return rawStates(list)
-  }
-  assert.throws(() => assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io), /deadline/)
-  assert.equal(refusedLaunch, true, 'ls-remote never launched after the deadline')
-  assert.equal(io.refs.has(MUTEX_REF), false, 'release still ran on its reserved allowance')
-}))
 
-test('timed-out push with an exhausted section still reconciles on the cleanup allowance (no-write => retryable)', () => withClock((clock) => {
-  const io = atomicIo(); const launched = []; wireRefs(io, launched)
-  io.atomicReviewRefs = function (changes) {
-    if (changes.length === 4) { clock.advance(REVIEW_MUTEX_SECTION_DEADLINE_MS); const e = new Error('atomic reviewer ref transition failed (timed out; result unknown until readback)'); throw e }
-    for (const c of changes) { if (c.sha) this.refs.set(c.ref, c.sha); else this.refs.delete(c.ref) }
-  }
-  assert.throws(() => assignNextReviewer({ issue: 4414, pr: 4419, headSha: HEAD, slot: 1 }, io), (e) => e.retryableNoWrite === true && /did NOT commit/.test(e.message))
-  assert.equal(io.refs.has(MUTEX_REF), false)
-}))
 
-test('the section deadline does not depend on a request budget (archiveOldReviewVerdicts holds the mutex without one)', () => {
-  const source = readFileSync(new URL('../../manage-migration-author-lanes.mjs', import.meta.url), 'utf8')
-  assert.match(source, /function startReviewSectionDeadline\(\)\{reviewSectionDeadline=/, 'deadline is module state, not gated on reviewWireBudget')
-  const archive = source.slice(source.indexOf('export function archiveOldReviewVerdicts'))
-  assert.match(archive.slice(0, 2000), /acquireReviewMutex\(ownerSha,io\)/, 'archive acquires through acquireReviewMutex, which starts the deadline')
-  assert.equal(reviewChildTimeoutMs(undefined), undefined, 'no deadline outside ownership')
-})

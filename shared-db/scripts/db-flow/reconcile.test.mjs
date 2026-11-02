@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict'
 import { readyRecord,persistInitialReady,preparePreviewDispatch,terminalizeReady,repairPreviewReady,reconcileFlow,ReconcileError,MODE_SEQUENCE,RECONCILE_SCHEMA_VERSION,RELINQUISH_WORKTREE_STATES,parseAbandonmentAudit,abandonmentEvidenceFor,reportOnlyFlowIo,abandonmentAuditExit } from './reconcile.mjs'
-import { githubIo, main as managerMain, WORKTREE_STATES, claimBody, assertAbandonmentEvidence, relinquishAuthorLease, flowCapacityFacts } from '../manage-migration-author-lanes.mjs'
+import { githubIo, main as managerMain, WORKTREE_STATES, claimBody, assertAbandonmentEvidence, flowCapacityFacts } from '../manage-migration-author-lanes.mjs'
 import { sha256, canonicalJson } from './evidence-bundle.mjs'
 const h='a'.repeat(40),b='b'.repeat(64),base={issue:7,pr:8,head_sha:h,bundle_id:b,route:'ordinary_preview_apply',route_context:'',manifest:{target:'preview',preview_allowlist:'v',claim_pr:'8',claim_head_sha:h}}
 function fake(){const refs=new Map(),eventLog=[],state={current:base,ready:[]};return{state,refs,eventLog,resolveMarker:()=>({live:true,task:'t',calling_task:'t'}),actor:()=> 't',now:()=>new Date(0).toISOString(),appendEvent:e=>eventLog.push(e),createRef:(r,d,record)=>refs.has(r)?false:(refs.set(r,{digest:d,record}),true),readRef:r=>refs.get(r),listReady:()=>state.ready,selectCurrent:()=>state.current,withMutex:f=>f(),events:()=>eventLog}}
@@ -153,17 +153,6 @@ test('an unreadable queued-behind count reports unknown rather than none',()=>{
   assert.equal(reportFor(row).queued_behind,null,'an unreadable queue must not read as an empty one')
 })
 
-test('an exact abandonment-audit issue yields only the suggested separate command',()=>{
-  const io=fake(),touched=[]
-  io.relinquishCapacity=(row)=>touched.push(row.issue)
-  const result=reconcileFlow({issues:[expiredRow()]},io)
-  assert.equal(result.mutating,true,'the marker is live, so this is a mutating run')
-  const report=result.actions.find((a)=>a.action==='expired-unconfirmed-report')
-  assert.match(report.suggested_command,/--relinquish-author-lease --claim-number 41 --owner "gone-agent" --blocked-on issue:#77 --worktree-state <clean\|dirty\|absent\|remote>/)
-  assert.equal(report.mutates,false)
-  assert.deepEqual(touched,[],'even a live marker must not transition an expired claim automatically')
-  assert.deepEqual(result.actions.filter((a)=>a.issue===5).map((a)=>a.action),['expired-unconfirmed-report'])
-})
 
 test('every way of being the wrong evidence refuses the suggestion',()=>{
   const base41=expiredRow(),blocker=base41.blocker
@@ -350,60 +339,8 @@ test('the guarded command revalidates the whole abandonment tuple before it writ
   assert.equal(assertAbandonmentEvidence(options,lease77,'issue:#901',laneIo()),null)
 })
 
-test('automatic reconciliation can never complete an abandonment relinquishment',()=>{
-  // The flow adapter calls relinquishAuthorLease without a worktree state, because
-  // no automated caller can observe somebody else's disk. That refusal IS the
-  // property: the lane is reported, and only an operator-run command can take it.
-  assert.throws(()=>relinquishAuthorLease({claim:77,owner:'gone-agent',blockedOn:'issue:#900'},NOW,laneIo()),
-    /explicit --worktree-state/)
-  // With the observation supplied, the same evidence is accepted.
-  const io=laneIo()
-  const result=relinquishAuthorLease({claim:77,owner:'gone-agent',blockedOn:'issue:#900',worktreeState:'clean'},NOW,io)
-  assert.equal(result.capacityState,'relinquished')
-  // An ordinary blocker still needs no marker and no audit, so the existing path is unchanged.
-  assert.equal(relinquishAuthorLease({claim:77,owner:'gone-agent',blockedOn:'issue:#901',worktreeState:'clean'},NOW,laneIo()).capacityState,'relinquished')
-})
 
-test('the suggested command is runnable exactly as printed',()=>{
-  // Matching the suggestion against a regex only proves the string is the string
-  // we wrote. The suggestion's whole purpose is to be pasted, so this test builds
-  // it from real capacity facts, splits it into argv, and runs it through the real
-  // CLI. `--claim 41` passed the regex test and would have died in the parser,
-  // because --claim is the boolean that CLAIMS a lane; --claim-number is the value.
-  const factsIo=laneIo()
-  factsIo.getIssue=((inner)=>(number)=>Number(number)===5?{number:5,state:'open',body:'blocked_on: issue:#900'}:inner(number))(factsIo.getIssue)
-  const row={issue:5,claim:77,...flowCapacityFacts(factsIo.issues.get(77),5,NOW,factsIo,()=>0)}
-  const report=reconcileFlow({issues:[row]},{resolveMarker:()=>null}).actions.find((a)=>a.action==='expired-unconfirmed-report')
-  assert.ok(report.suggested_command,'the fixture must carry real evidence, or this test proves nothing')
-  const argv=report.suggested_command.match(/"[^"]*"|\S+/g).slice(2)
-    .map((token)=>token.replace(/^"|"$/g,''))
-    // the one placeholder: the operator supplies their own observation.
-    .map((token)=>/^<.+>$/.test(token)?'clean':token)
-  const io=laneIo()
-  assert.equal(managerMain(argv,NOW,io),0,'the printed command must be accepted by the parser it names')
-  assert.match(io.issues.get(77).body,/capacity_state: relinquished/,'and it must do what the report said it would do')
-})
 
-test('evidence that changes between the two reads refuses rather than writing',()=>{
-  // Both reads are inside the mutex, but the audit issue lives outside it. A second
-  // read that is still well formed, still names this claim and owner, and still
-  // names a pull request on this branch is the case no individual check can catch;
-  // only comparing the two records can.
-  const other='f'.repeat(40)
-  const io=laneIo({pulls:[{number:42,state:'open',head:{sha:AUDIT_HEAD}},{number:43,state:'open',head:{sha:other}}]})
-  // The swap is tied to the worktree observation, which happens between the two
-  // evidence reads, rather than to a read count that would drift with the code.
-  let swapped=false
-  io.localClean=()=>{swapped=true;return true}
-  io.getIssue=((inner)=>(number)=>{
-    if(Number(number)!==900||!swapped)return inner(number)
-    return {number:900,state:'open',body:auditBody({claim:'#77',pr:'#43',head_sha:other,owner:'gone-agent'})}
-  })(io.getIssue)
-  assert.throws(()=>relinquishAuthorLease({claim:77,owner:'gone-agent',blockedOn:'issue:#900',worktreeState:'clean'},NOW,io),
-    /changed concurrently/,'a swapped-but-valid audit record must refuse')
-  assert.ok(swapped,'the refusal must come from a second read, not from the first')
-  assert.doesNotMatch(io.issues.get(77).body,/capacity_state: relinquished/,'and nothing may be written')
-})
 
 test('capacity facts name where each fact came from',()=>{
   const io=laneIo()

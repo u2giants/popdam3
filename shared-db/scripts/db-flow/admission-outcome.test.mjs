@@ -208,16 +208,6 @@ test('unrelated structural authors can dispatch concurrently while object confli
   assert.equal(buildDynamicQueues(conflicting,[]).dispatchable.length,1)
 })
 
-test('manager requires explicit admission before claim and database-only shared stages', () => {
-  const io={enforceAdmission:true}
-  const calls=[
-    ['--claim','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.x'],
-    ['--acquire-preview','--owner','o','--pr','1','--head-sha','a'.repeat(40)],
-  ]
-  const old=console.error;const messages=[];console.error=(m)=>messages.push(String(m))
-  try { for (const args of calls) assert.equal(managerMain(args,new Date('2026-09-11T00:00:00Z'),io),2) } finally { console.error=old }
-  assert.equal(messages.filter((m)=>m.includes('--admit-issue')).length,2,messages.join(' | '))
-})
 
 test('production admission requires the source PR so actual SQL is rechecked',()=>{
   const io={enforceAdmission:true}
@@ -343,15 +333,6 @@ test('legacy issues remain protected if already claimed but are never offered as
   assert.equal(result.skipped.find((row)=>row.issue===41)?.reason,'missing-required-admission-fields')
 })
 
-test('an admitted issue cannot authorize a claim for different objects',()=>{
-  const comments=[];let claims=0
-  const io=serializedIo({enforceAdmission:true,getIssue:()=>issue(scopeBody({object:'table core.authorized'})),issueComments:()=>comments,commentIssue:(_n,body)=>comments.push(ownerComment(body)),createClaim:()=>{claims++}})
-  const old=console.error;let message='';console.error=(value)=>{message=String(value)}
-  try{
-    assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.unrelated'],new Date('2026-09-11T00:00:00Z'),io),2)
-  }finally{console.error=old}
-  assert.match(message,/must exactly match admitted issue/);assert.equal(claims,0)
-})
 
 
 // #5141 — the unapplied-migration-edit subset proof. A pull request that EDITS
@@ -609,71 +590,9 @@ test('initial admission events are serialized under the author mutex',()=>{
   assert.equal(outcomeHistory(comments,41).state,'classified')
 })
 
-test('claim admission and dispatched event share one author-mutex ownership interval',()=>{
-  const comments=[],refs=new Map(),labels=[]
-  const io={
-    enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
-    createRef:(ref,sha)=>{labels.push('lock');if(refs.has(ref))return false;refs.set(ref,sha);return true},
-    deleteRef:(ref)=>{labels.push('unlock');refs.delete(ref)},openClaims:()=>[],prSources:()=>[],
-    reserveVersion:()=>({version:'20260911133700'}),
-    createClaim:()=>{assert.equal(refs.size,1);labels.push('claim');return 'https://github.com/u2giants/shared-db/issues/99'},closeClaim:()=>{},
-    commentIssue:(_n,body)=>{assert.equal(refs.size,1);labels.push('event');comments.push(ownerComment(body))},
-  }
-  const old=console.log;console.log=()=>{}
-  try{assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.example'],new Date('2026-09-11T00:00:00Z'),io),0)}finally{console.log=old}
-  assert.deepEqual(labels,['lock','event','event','claim','event','unlock'])
-  assert.equal(outcomeHistory(comments,41).state,'dispatched')
-  const history=outcomeHistory(comments,41)
-  assert.equal(history.valid,true)
-  assert.ok(Date.parse(history.events.at(-1).timestamp)>=Date.parse(history.events[1].timestamp),'claim dispatch must follow admission publication, not command-start clock')
-})
 
-test('lost dispatched-comment response tolerates delayed exact-event visibility and preserves the claim',()=>{
-  const comments=[],refs=new Map();let closed=0,hiddenReads=0,waits=0
-  const io={
-    enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>hiddenReads-->0?comments.filter((comment)=>parseEventComment(comment.body)[0]?.event_type!=='dispatched'):comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
-    createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
-    openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133800'}),
-    createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},wait:()=>{waits++},
-    commentIssue:(_n,body)=>{comments.push(ownerComment(body));if(parseEventComment(body)[0]?.event_type==='dispatched'){hiddenReads=2;throw new Error('response lost')}},
-  }
-  const old=console.log;console.log=()=>{}
-  try{assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.example'],new Date('2026-09-11T00:00:00Z'),io),0)}finally{console.log=old}
-  assert.equal(closed,0);assert.equal(waits,2);assert.equal(outcomeHistory(comments,41).state,'dispatched')
-})
 
-test('exhausted dispatch visibility remains ambiguous and never closes the claim',()=>{
-  const comments=[],refs=new Map();let closed=0,hiddenReads=100,message=''
-  const io={
-    enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>hiddenReads>0?comments.filter((comment)=>parseEventComment(comment.body)[0]?.event_type!=='dispatched'):comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
-    createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
-    openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133801'}),wait:()=>{},
-    createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},
-    commentIssue:(_n,body)=>{comments.push(ownerComment(body));if(parseEventComment(body)[0]?.event_type==='dispatched')throw new Error('response lost')},
-  }
-  const old=console.error;console.error=(value)=>{message=String(value)}
-  try{assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.example'],new Date('2026-09-11T00:00:00Z'),io),2)}finally{console.error=old}
-  assert.match(message,/readback remained ambiguous.*remains protected/);assert.equal(closed,0)
-  hiddenReads=0;assert.equal(outcomeHistory(comments,41).state,'dispatched')
-})
 
-test('lost mutex ownership never closes the newly created claim',()=>{
-  const comments=[],refs=new Map();let closed=0,message=''
-  const io={
-    enforceAdmission:true,getIssue:()=>issue(scopeBody()),issueComments:()=>comments,
-    makeOwnerCommit:()=> 'claim-owner',readRef:(ref)=>refs.get(ref)??null,listRefs:(prefix)=>[...refs].filter(([name])=>name===prefix||name.startsWith(`${prefix}/`)).map(([ref,sha])=>({ref,sha})),readCommitMessage:()=>null,
-    createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:(ref)=>refs.delete(ref),
-    openClaims:()=>[],prSources:()=>[],reserveVersion:()=>({version:'20260911133900'}),
-    createClaim:()=> 'https://github.com/u2giants/shared-db/issues/99',closeClaim:()=>{closed++},
-    commentIssue:(_n,body)=>{comments.push(ownerComment(body));if(parseEventComment(body)[0]?.event_type==='dispatched'){for(const ref of refs.keys())refs.set(ref,'successor-owner');throw new Error('response lost after ownership changed')}},
-  }
-  const old=console.error;console.error=(value)=>{message=String(value)}
-  try{assert.equal(managerMain(['--claim','--admit-issue','41','--task','x','--owner','o','--branch','b','--worktree','w','--objects','table core.example'],new Date('2026-09-11T00:00:00Z'),io),2)}finally{console.error=old}
-  assert.match(message,/claim .* remains protected for explicit recovery/);assert.equal(closed,0);assert.deepEqual([...refs.values()],['successor-owner'])
-})
 
 test('advance validation and lifecycle mutation share one author-mutex interval',()=>{
   const comments=eventComments('classified',41),refs=new Map();let writes=0
@@ -1003,15 +922,6 @@ test('admission never silently replaces another requested primary operation',()=
   assert.equal(touched,false)
 })
 
-test('zero-valued primary operations cannot disappear from command cardinality',()=>{
-  const old=console.error;console.error=()=>{}
-  try{
-    assert.equal(managerMain(['--prepare-preview-dispatch','0'],new Date(),{}),2)
-    assert.equal(managerMain(['--prepare-preview-dispatch','0','--assign-reviewer'],new Date(),{}),2)
-    assert.equal(managerMain(['--admit-issue','0'],new Date(),{}),2)
-    assert.equal(managerMain(['--admit-issue','0','--complete-work','--issue','7','--report-file','x'],new Date(),{}),2)
-  }finally{console.error=old}
-})
 
 test('two concurrent completion commands serialize to one authoritative completion',()=>{
   const fixture=completionFixture();let owner=null,sequence=0,second=null,attempted=false

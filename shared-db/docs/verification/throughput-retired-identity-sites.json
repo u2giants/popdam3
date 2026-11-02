@@ -60,7 +60,7 @@
       "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
       "disposition": "excluded",
       "reason": "Comment explaining that a cutover record with no commit message must refuse rather than be skipped; documentation of fail-closed behaviour, not a guard call site.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:7093",
@@ -69,7 +69,7 @@
       "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:5883",
@@ -78,7 +78,7 @@
       "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:4302",
@@ -177,7 +177,7 @@
       "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:7677",
@@ -231,7 +231,7 @@
       "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:7384",
@@ -267,7 +267,7 @@
       "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "state": "pending"
+      "state": "retired"
     },
     {
       "site": "scripts/manage-migration-author-lanes.mjs:5608",

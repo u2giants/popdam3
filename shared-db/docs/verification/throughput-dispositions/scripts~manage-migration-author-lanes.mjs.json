@@ -4,41 +4,6 @@
   "sites": [
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3194",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:0b716eea0affd8c1f60e9b3820df6db4445adf036363d0e0233455f0047e2072:context-adfef0e4a0016ad4f482aaf03b5525650725249e9218519a9b64fc9e85b3f838",
-      "line_sha256": "0b716eea0affd8c1f60e9b3820df6db4445adf036363d0e0233455f0047e2072",
-      "disposition": "excluded",
-      "reason": "Fail-closed validation of original reviewer start, private evidence or historical failure proof; missing describes coordination evidence, not database or migration state."
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3902",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:context-339bdfbb6f15a84e7908a538253ad9fe7340bc445971020d3ee696abb9de29e3",
-      "line_sha256": "1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7",
-      "disposition": "excluded",
-      "reason": "Comment explaining that a cutover record with no commit message must refuse rather than be skipped; documentation of fail-closed behaviour, not a guard call site.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:1a8f56bcdf8680f4353a5954af7a8a0ea450b17b8d7ee64b832e52c411bf59b7:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:4503",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:context-b14c2b509c5d652fb51a545fa5b29f6114c6cd100d6252c6adb0b224f5b1fde2",
-      "line_sha256": "1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:1e4f7e93bdfa4e56b0f950e0af30aecf555234caabf45af55469df81665a4816:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3539",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:context-877f52c870097ec52d1135bc38fb02024fb4da38e3b304b6dad3d33829911185",
-      "line_sha256": "24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:24907eac099978efffb5d13c1ff206d6f398c787d5aa259678ad6cf594af2299:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
       "site": "scripts/manage-migration-author-lanes.mjs:481",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722:context-be05543645a2fa9dc572c710f29da33074c7ed9f87d0a915f28502743344ecec",
       "line_sha256": "4acbed99c8d10620f341b76c814ff4abe161db23788800c69dcf87e0136ff722",
@@ -52,14 +17,6 @@
       "line_sha256": "537d451910634fd2f14713cac9d0438df2014761e3c8a34287f15f19a3101efc",
       "disposition": "excluded",
       "reason": "Ordinary silence recovery refuses unreadable activity metadata or absent terminal status; this is fail-closed evidence validation, not a throughput result or missing database-object proof."
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3125",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:687b3f46d56efb3fd697ed0b209baeff0f608488ce5e4deeeba3aa6e2abefc35:context-057f255fb3ab321d65b768ad6b6b12f65f889bdc966432f696e7a085e118d25b",
-      "line_sha256": "687b3f46d56efb3fd697ed0b209baeff0f608488ce5e4deeeba3aa6e2abefc35",
-      "disposition": "excluded",
-      "reason": "Fail-closed validation of original reviewer start, private evidence or historical failure proof; missing describes coordination evidence, not database or migration state."
     },
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
@@ -81,37 +38,11 @@
     },
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:2733",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:context-c0184e02790e05bbde8ba99e181fa9befb7d0d7abb60379bad7d9a503ea5aa38",
-      "line_sha256": "8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:8da94f391777fd03edd79c104d91688f45731132e59a130de7ff14c484311415:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:4443",
+      "site": "scripts/manage-migration-author-lanes.mjs:1981",
       "semantic_key": "scripts/manage-migration-author-lanes.mjs:a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f:context-4638a58a41bf3397fe7c661dbe4d55c5700830bb8545e9121e0f1705a219174d",
       "line_sha256": "a0a855da1e62f55e6049d273f43cb1521d8fe5e2231dabddb4ed8ffa0c7e0a1f",
       "disposition": "excluded",
       "reason": "Refuses missing, future or stale owner confirmation; this is ownership admission evidence, not an assertion of database absence."
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3220",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:bdce3b72f28f3624177732202179263ffecf857cd65480dd4113388ae9653c05:context-2f33bc85ece06bb3ca0c29583e6428236bd14ea4ba85e88e209241c438f4b591",
-      "line_sha256": "bdce3b72f28f3624177732202179263ffecf857cd65480dd4113388ae9653c05",
-      "disposition": "excluded",
-      "reason": "Fail-closed validation of original reviewer start, private evidence or historical failure proof; missing describes coordination evidence, not database or migration state."
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:4622",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:context-73db2415d5f2832d756a475b0a2b59078a321e2e1dcfa1dbc97f9121563dbd7f",
-      "line_sha256": "c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:c2daf6668b46ae5bed2e1f77960c1bdd9d479d087d2b02cf384da4602a5b0420:1"
     },
     {
       "source": "scripts/manage-migration-author-lanes.mjs",
@@ -120,33 +51,6 @@
       "line_sha256": "cacd014683682e2f81f6071cb737bacad49050b604160b28d26cb86d1c4d12d1",
       "disposition": "excluded",
       "reason": "Ordinary silence recovery refuses unreadable activity metadata or absent terminal status; this is fail-closed evidence validation, not a throughput result or missing database-object proof."
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:2980",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:cb55dc8a509c3845e54b033dd567e1ebdf7f6b0f5c8a46ae2b310b6365093e3e:context-0bf2d9605568e6e6798471f1e7cd5727d4aee271ad4ed63a93e0d252dff2731a",
-      "line_sha256": "cb55dc8a509c3845e54b033dd567e1ebdf7f6b0f5c8a46ae2b310b6365093e3e",
-      "disposition": "excluded",
-      "reason": "Refuses absent or ambiguous canonical open-source PR parser evidence; merged sources use the exact structural parser separately. It asserts no database absence.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:cb55dc8a509c3845e54b033dd567e1ebdf7f6b0f5c8a46ae2b310b6365093e3e:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:3068",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:context-9725fa43e7a419968d674ca500a43f26713d01d1c058cfd129ac9b047e0d5f9f",
-      "line_sha256": "f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d",
-      "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f2b70e881056d343bb62e9487b82900f635636b8136d2773566a2308bb505e5d:1"
-    },
-    {
-      "source": "scripts/manage-migration-author-lanes.mjs",
-      "site": "scripts/manage-migration-author-lanes.mjs:2986",
-      "semantic_key": "scripts/manage-migration-author-lanes.mjs:f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497:context-b2d8596e988a6fdfbd9fd20a3eae79c2c2f5b140bdf6d2d69afca78e94a117d2",
-      "line_sha256": "f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497",
-      "disposition": "excluded",
-      "reason": "Refuses absent or drifted canonical claim-roster identity; this coordination readback asserts no database row absence.",
-      "legacy_semantic_key": "scripts/manage-migration-author-lanes.mjs:f70bb424f24c07066d4bd5b6b80e1bf9987558d410b0b712a65c761b414ab497:1"
     }
   ]
 }

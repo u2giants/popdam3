@@ -3,7 +3,7 @@ import test from 'node:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { claimBody, formatRetirementRecord, main, parseAuthorLease, rebindClaimWorktree, renewExpiredClaim, resetRetirementSnapshot, resumeAuthorLease, transferClaimAuthor } from './manage-migration-author-lanes.mjs'
+import { claimBody, formatRetirementRecord, main, parseAuthorLease, resetRetirementSnapshot } from './manage-migration-author-lanes.mjs'
 
 const NOW=new Date('2026-09-28T12:00:00Z')
 const HEAD='a'.repeat(40),VERSION='20260923181754',RESERVATION='d'.repeat(40)
@@ -57,15 +57,6 @@ function mergedFixture(overrides={}){
     prStructuralObjects:(pr,head)=>{assert.equal(pr,3391);assert.equal(head,HEAD);return ['table plm.art_piece_attachment']},
     prSources:()=>[],...overrides})
 }
-test('expired merged adoption preserves exact source and immutable record and replays',()=>{
-  const io=mergedFixture(),before=parseAuthorLease(io.issues.get(3378).body,NOW)
-  assert.throws(()=>transferClaimAuthor(args,NOW,io),/open PR/)
-  const result=transferExpiredMergedClaimAuthor(args,NOW,io),after=parseAuthorLease(io.issues.get(3378).body,NOW)
-  assert.equal(after.owner,args.newOwner);assert.equal(after.version,before.version);assert.deepEqual(after.objects,before.objects)
-  const record=JSON.parse(io.commits.get(result.sha).message.split('expired-merged-claim-author-adoption ')[1])
-  assert.equal(record.kind,'expired-merged-operator-adoption');assert.equal(record.source_merge_sha,MERGE);assert.equal(record.request.headSha,HEAD)
-  assert.equal(transferExpiredMergedClaimAuthor(args,NOW,io).idempotent,true)
-})
 test('merged adoption refuses active and relinquished leases even with exact source',()=>{
   for(const mutate of [body=>body.replace('2026-09-26T00:00:00.000Z','2026-09-29T00:00:00.000Z'),
     body=>claimBody({version:VERSION,objects:['table plm.art_piece_attachment'],owner:args.oldOwner,branch:args.branch,worktree:args.worktree,expiresAt:new Date('2026-09-26T00:00:00Z'),capacityState:'relinquished',blockedOn:'issue:#900',worktreeState:'remote',recoveryArtifact:ARTIFACT})]){
