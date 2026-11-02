@@ -1,10 +1,13 @@
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 
-spec=importlib.util.spec_from_file_location('customs_loader',Path(__file__).with_name('load-customs-benchmark.py'))
+spec=importlib.util.spec_from_file_location('customs_loader',Path(__file__).resolve().parents[1]/'tools'/'load-customs-benchmark.py')
 loader=importlib.util.module_from_spec(spec);spec.loader.exec_module(loader)
 
 class PreservationTests(unittest.TestCase):
@@ -36,6 +39,26 @@ class PreservationTests(unittest.TestCase):
             with self.assertRaises(ValueError):loader.inventory(source,master)
             master.write_bytes(b'original spreadsheet bytes');(source/'link').symlink_to(master)
             with self.assertRaises(ValueError):loader.inventory(source,master)
+    def test_optimized_python_still_refuses_absent_dataset(self):
+        script = f"""
+import importlib.util
+from pathlib import Path
+from types import SimpleNamespace
+spec=importlib.util.spec_from_file_location('loader',{str(Path('tools/load-customs-benchmark.py').resolve())!r})
+loader=importlib.util.module_from_spec(spec);spec.loader.exec_module(loader)
+loader.inventory=lambda *args:('dataset',[],[],{{}},[])
+loader.ObjectStore=lambda:object()
+class EmptyDatabase:
+    def __init__(self,*args):pass
+    def query(self,*args):return []
+loader.Database=EmptyDatabase
+loader.run(SimpleNamespace(root='',master='',apply=False,archive_only=False,expected_ref='',project_ref_file=''))
+"""
+        result=subprocess.run([sys.executable,'-O','-c',script],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('ValueError: Dataset absent',result.stderr)
+        self.assertNotIn('all_row_context_verified',result.stdout)
+
     def test_wrong_target_stops_before_api(self):
         with tempfile.TemporaryDirectory() as t:
             path=Path(t)/'project-ref';path.write_text('wrong')

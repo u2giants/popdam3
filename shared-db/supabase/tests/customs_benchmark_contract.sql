@@ -9,7 +9,7 @@ begin
     if has_table_privilege('anon','plm.'||t,'SELECT') or has_table_privilege('authenticated','plm.'||t,'SELECT') then
       raise exception 'Private customs table is browser-readable: %',t;
     end if;
-    if not has_table_privilege('service_role','plm.'||t,'SELECT,INSERT') or has_table_privilege('service_role','plm.'||t,'DELETE') or has_table_privilege('service_role','plm.'||t,'UPDATE') then
+    if not has_table_privilege('service_role','plm.'||t,'SELECT') or not has_table_privilege('service_role','plm.'||t,'INSERT') or has_table_privilege('service_role','plm.'||t,'DELETE') or has_table_privilege('service_role','plm.'||t,'UPDATE') then
       raise exception 'Archive privileges do not preserve append-only access: %',t;
     end if;
   end loop;

@@ -152,7 +152,7 @@ def run(args):
     with ThreadPoolExecutor(max_workers=4) as workers:
         objects=dict(workers.map(preserve_file,files))
     if args.archive_only:
-        assert inventory(args.root,args.master)[0]==ident,'Source changed during archive'
+        if not (inventory(args.root,args.master)[0]==ident):raise ValueError('Source changed during archive')
         print(json.dumps(dict(dataset_id=ident,files=len(files),source_bytes=sum(x[3] for x in files),
             all_source_sha256_verified=True,all_objects_private=True,database_file_bytes=0)))
         return
@@ -170,19 +170,19 @@ def run(args):
                 values.append('('+','.join([literal(ident),literal(r['section']),str(r['source_ordinal']),*[literal(r[k]) for k in ['style_number','product_description','product_family','historical_hts','packet_reference','evidence_status']],str(r['exact_historical_candidate']).lower(),'false',json_sql(r['original_record'])])+')')
             db.query('insert into plm.customs_benchmark_observation values '+','.join(values)+' on conflict do nothing;',True)
     stored=db.query('select source_manifest,original_intelligence,authority_context,source_file_count,source_byte_count,observation_count from plm.customs_benchmark_dataset where dataset_id='+literal(ident))
-    assert len(stored)==1,'Dataset absent'
+    if not (len(stored)==1):raise ValueError('Dataset absent')
     d=stored[0]
-    assert d['source_manifest']==manifest and d['original_intelligence']==data and d['authority_context']==CONTEXT,'Dataset context mismatch'
-    assert (d['source_file_count'],d['source_byte_count'],d['observation_count'])==(len(files),sum(x[3] for x in files),len(rows)),'Dataset counts mismatch'
+    if not (d['source_manifest']==manifest and d['original_intelligence']==data and d['authority_context']==CONTEXT):raise ValueError('Dataset context mismatch')
+    if not ((d['source_file_count'],d['source_byte_count'],d['observation_count'])==(len(files),sum(x[3] for x in files),len(rows))):raise ValueError('Dataset counts mismatch')
     artifacts=db.query('select relative_path,content_sha256,byte_count,storage_endpoint,storage_bucket,storage_key,private_verified,structured_content from plm.customs_benchmark_artifact where dataset_id='+literal(ident))
     expected={n:(h,s) for n,p,h,s in files}
-    assert len(artifacts)==len(expected),'Incomplete archive references'
+    if not (len(artifacts)==len(expected)):raise ValueError('Incomplete archive references')
     for a in artifacts:
-        assert expected[a['relative_path']]==(a['content_sha256'],a['byte_count']),'Archive identity mismatch'
-        assert {k:a[k] for k in objects[a['relative_path']]}==objects[a['relative_path']],'Archive location or extraction mismatch'
+        if not (expected[a['relative_path']]==(a['content_sha256'],a['byte_count'])):raise ValueError('Archive identity mismatch')
+        if not ({k:a[k] for k in objects[a['relative_path']]}==objects[a['relative_path']]):raise ValueError('Archive location or extraction mismatch')
     observed=db.query('select section,source_ordinal,style_number,product_description,product_family,historical_hts,packet_reference,evidence_status,exact_historical_candidate,current_law_verified,original_record from plm.customs_benchmark_observation where dataset_id='+literal(ident))
-    assert sorted(observed,key=lambda r:(r['section'],r['source_ordinal']))==sorted(rows,key=lambda r:(r['section'],r['source_ordinal'])),'Observation or context mismatch'
-    assert inventory(args.root,args.master)[0]==ident,'Source changed during verification'
+    if not (sorted(observed,key=lambda r:(r['section'],r['source_ordinal']))==sorted(rows,key=lambda r:(r['section'],r['source_ordinal']))):raise ValueError('Observation or context mismatch')
+    if not (inventory(args.root,args.master)[0]==ident):raise ValueError('Source changed during verification')
     print(json.dumps(dict(target=args.expected_ref,dataset_id=ident,files=len(files),source_bytes=sum(x[3] for x in files),observations=len(rows),sections={s:len(data[s]) for s in SECTIONS},all_source_sha256_verified=True,all_row_context_verified=True,all_objects_private=True,database_file_bytes=0)))
 
 def main():
