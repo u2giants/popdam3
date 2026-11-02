@@ -7,8 +7,8 @@
 //   --source-pr N --commit-sha S --allowlist A
 //       The source PR is merged, its merge commit is an ancestor of S, and it
 //       ADDED a migration file for every allowlisted version. Prints the PR's
-//       exact head SHA on success (the caller then re-proves its guarded merge
-//       and durable exact-head verdict with the existing gates).
+//       exact head SHA on success (the caller then reuses production's merged-source
+//       and required exact-head check verifier; no retired status is needed).
 //   --dry-run-run R --commit-sha S
 //       Run R is a successful workflow_dispatch run of the sandbox workflow at
 //       exact commit S. (The caller compares the downloaded allowlist.)

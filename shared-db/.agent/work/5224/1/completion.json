@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "work_issue": 5224,
+  "outcome": "ready-for-merge",
+  "pr": 5466,
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/5224/1",
+  "contract_sha256": "f0bca70c6b1ef86e501335a11646947aa04f324cdc6cb59d57945ada1c3953c6",
+  "head_sha": "a5d899a9edad3837488102805bfd798695c779e5",
+  "base_sha": "dfafef911585bd33e31b04b4294efb531adf5440",
+  "files_changed": [
+    ".github/workflows/designflow-sandbox-migrations.yml",
+    "scripts/sandbox-migration-binding.mjs",
+    "scripts/sandbox_migration_preflight.py",
+    "scripts/test_sandbox_migration_preflight.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.test_sandbox_migration_preflight",
+      "exit_code": 0,
+      "evidence": "36 tests passed, including native-source success and unmerged/off-main/missing/newer-failed-check refusals."
+    },
+    {
+      "command": "node --test scripts/sandbox-migration-binding.test.mjs",
+      "exit_code": 0,
+      "evidence": "Three source/version and dry-run binding tests passed."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "1,776 tests passed, 46 environment skips."
+    },
+    {
+      "command": "actual merged source and required-check proof for PR #5450",
+      "exit_code": 0,
+      "evidence": "Actual previously blocked source accepted with merged ancestry and required exact-head checks; no retired status read or fabricated."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "assumptions_resolved": [
+    "Reuses the existing current production verifier, including its required exact-head checks; no database mutation or producer identity bypass."
+  ],
+  "stop_conditions_hit": []
+}

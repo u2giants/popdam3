@@ -171,6 +171,14 @@ class WorkflowInvariantTests(unittest.TestCase):
     def test_allowlist_gate_runs_before_any_github_or_database_read(self) -> None:
         self.assertLess(WORKFLOW.index("- name: Sandbox allowlist gate"), WORKFLOW.index("- name: Bind the source PR"))
 
+    def test_source_proof_uses_live_merged_source_checks_not_retired_status(self):
+        step = WORKFLOW.split("- name: Bind the source PR", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("sandbox-migration-binding.mjs --source-pr", step)
+        self.assertIn("sandbox_migration_preflight.py source-proof", step)
+        self.assertNotIn("--authorization-state", WORKFLOW)
+        self.assertIn("checks: read", WORKFLOW)
+        self.assertLess(WORKFLOW.index("source-proof --repo"), WORKFLOW.index("Verify the target identity"))
+
     def test_every_shared_guard_call_names_sandbox_without_replacing_identity_proof(self):
         commands = re.findall(r"python[^\n]*(?:production_migration_guard|production_catalog_verification)\.py[^\n]*", WORKFLOW.replace("\\\n", " "))
         self.assertEqual(len(commands), 6)
@@ -390,6 +398,43 @@ class ConditioningTests(unittest.TestCase):
 
         with self.assertRaises((sp.Refusal, GuardError)):
             sp.condition(repo, "20260101000000", sp.SANDBOX_PROJECT_REF, "t", evidence, query=query)
+
+
+class SourceProofTests(unittest.TestCase):
+    def invoke(self, *, merged=True, checks=None, ancestor=True):
+        from unittest.mock import patch
+        import subprocess
+        import production_business_risk_gate as risk
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            (repo / "supabase/migrations").mkdir(parents=True)
+            (repo / "supabase/migrations/20260101000000_test.sql").write_text("select 1;")
+            pr = {"merged": merged, "merge_commit_sha": "b" * 40, "head": {"sha": "c" * 40}}
+            default_checks = [{"name": name, "id": i + 1, "conclusion": "success"} for i, name in enumerate(sorted(risk.REQUIRED_CHECKS))]
+            def api(endpoint):
+                if endpoint.endswith("/pulls/7"):
+                    return pr
+                if endpoint.endswith("/check-runs?per_page=100"):
+                    return {"check_runs": default_checks if checks is None else checks}
+                raise AssertionError("unexpected source read, including retired authorization")
+            side_effect = None if ancestor else subprocess.CalledProcessError(1, ["git", "merge-base"])
+            with patch.object(risk, "gh_json", side_effect=api), patch.object(risk.subprocess, "run", side_effect=side_effect):
+                return sp.source_proof(repo, 7, "a" * 40, "20260101000000")
+
+    def test_native_merged_source_needs_no_retired_authorization(self):
+        self.assertEqual(self.invoke(), ("c" * 40, "b" * 40))
+
+    def test_unmerged_off_main_and_missing_checks_still_refuse(self):
+        for args in ({"merged": False}, {"ancestor": False}, {"checks": []}):
+            with self.subTest(args=args), self.assertRaises(sp.Refusal):
+                self.invoke(**args)
+
+    def test_newer_failed_required_check_refuses_over_older_success(self):
+        import production_business_risk_gate as risk
+        checks = [{"name": name, "id": i + 1, "conclusion": "success"} for i, name in enumerate(sorted(risk.REQUIRED_CHECKS))]
+        checks.append({"name": sorted(risk.REQUIRED_CHECKS)[0], "id": 99, "conclusion": "failure"})
+        with self.assertRaises(sp.Refusal):
+            self.invoke(checks=checks)
 
 
 if __name__ == "__main__":
