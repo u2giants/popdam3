@@ -12,7 +12,7 @@ test("parallel distribution is opt-in and limited to its exact explicit-ID run",
 });
 test("invalid provider routes and concurrency fail closed", () => {
   for (const model of ["meta-direct/muse", "google-direct/gemini:batch", "google/gemini:batch", "", "scaledown/foo"]) assert.throws(() => parallelTagRun({...setting, models: [model, "openai/gpt-6-luna"]}, "run", [id]));
-  for (const concurrency of [0, 1, 9, 2.5, "6"]) assert.throws(() => parallelTagRun({...setting, concurrency}, "run", [id]));
+  for (const concurrency of [0, 1, 33, 2.5, "6"]) assert.throws(() => parallelTagRun({...setting, concurrency}, "run", [id]));
 });
 test("asset assignment is stable across page boundaries and covers every model", () => {
   const run = parallelTagRun(setting, "run", [id])!;
@@ -35,4 +35,14 @@ test("trial explicitly covers every model and keeps the exact unique full scope"
   assert.equal(new Set(ordered).size,ids.length);assert.deepEqual([...ordered].sort(),[...ids].sort());
   assert.throws(()=>parallelTrialOrder(run,[ids[0]],1));
   assert.throws(()=>parallelTrialOrder(run,Array(20).fill(ids[0])));
+});
+
+test("single-model forced run is valid and keeps exact-run identity", () => {
+  const single = {run_id: "run", models: ["z-ai/glm-5.3-flash"], concurrency: 20, force: true};
+  const run = parallelTagRun(single, "run", [id])!;
+  assert.equal(run.force, true);
+  assert.equal(parallelModel(run, id), "z-ai/glm-5.3-flash");
+  assert.equal(parallelTagRun({...single, force: undefined}, "run", [id])!.force, undefined);
+  assert.throws(() => parallelTagRun({...single, force: "yes"}, "run", [id]));
+  assert.throws(() => parallelTagRun({...single, models: []}, "run", [id]));
 });
