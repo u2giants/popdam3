@@ -1,5 +1,21 @@
 # PopDAM Hybrid Search — Safe Implementation and Rollout Plan
 
+## STATUS — style-number outage completed November 2, 2026
+
+| Incident outcome | State | Verified delivery |
+|---|---|---|
+| Reported exact style returns its product | Done | Fresh authenticated viewer: first product in 2.968 seconds; ranked requests HTTP 200. |
+| Search failure remains visibly unavailable | Done | Browser-only HTTP 503: error and Retry visible, invalid counts/pagination hidden, no false zero results. |
+| Retry restores the product | Done | Remove the browser-only failure and press Retry: successful mode probe and ranked requests, product restored. |
+| Source and production delivery | Done | [PR #641](https://github.com/u2giants/popdam3/pull/641), merge `aaf743e6aee17113a4f89b81a5ed8e6a8152ec19`; [frontend release](https://github.com/u2giants/popdam3/actions/runs/41470651864) passed and the viewer's visible build matched. |
+
+Start with the completed acceptance on [#564](https://github.com/u2giants/popdam3/issues/564),
+not a new repair of this outage. [Review findings #643](https://github.com/u2giants/popdam3/issues/643)
+are resolved. This incident has no remaining work. The broader plan below is historical;
+separate search-relevance decisions on shared-db #4508 retain their own owner and scope.
+The NAS scan remained active through final proof; this session changed no tagging or scan controls.
+
+
 > **Current failure contract — November 1, 2026 (#564 / PR #641).** Albert requested:
 > "Also make the page show an error rather than a false '0 results' when search fails."
 > This supersedes the browser fallback passages below and the historical October 18
@@ -8,8 +24,9 @@
 > probe also reports an error; a previously verified mode may remain sticky during
 > a transient probe outage. The server still supports keyword search when query
 > embedding is unavailable; no keyword capability, matching or scoring is removed.
-> Live search-latency repair remains with shared-db #4508 / PR #5397. Current proof
-> and remaining delivery checks live on the same application issue, #564.
+> Search latency was repaired by shared-db PRs #5397 and #5422. The completed
+> application proof is recorded on #564; do not reopen this incident from the
+> older execution notes below.
 
 
 **Combined continuation:** [PopDAM and PopSG semantic-search delivery](plan_semantic_search_popdam_popsg.md) coordinates completion and independent corpus rollout. Read its STATUS and this plan’s historical STATUS; do not redo landed foundations.
