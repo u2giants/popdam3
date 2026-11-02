@@ -53,4 +53,21 @@ class PacketTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'source cells changed'):
    m.verify_sources(Connection(),p,m.validate_manifest(p))
 
+class CancellationTests(unittest.TestCase):
+ def test_only_verified_full_source_cancellation_can_be_marked(self):
+  p=packet();p['operations']=[{'kind':'mark_source_cancelled','line_id':L,'cancellation':{'version':1,'source_id':REF['source_id'],'line_qty':75,'line_cancelled_qty':75,'evidence_ref':'issue636'}}]
+  self.assertEqual(list(m.validate_manifest(p)),[L])
+  p['operations'][0]['cancellation']['line_cancelled_qty']=74
+  with self.assertRaisesRegex(ValueError,'fully cancelled'):m.validate_manifest(p)
+ def test_changed_cancellation_never_silently_reopens_history(self):
+  p=packet();p['preimages'][0]['line'].update(sku='RAW',customer_po_number='PO')
+  p['operations']=[{'kind':'mark_source_cancelled','line_id':L,'cancellation':{'version':1,'source_id':REF['source_id'],'line_qty':75,'line_cancelled_qty':75,'evidence_ref':'issue636'}}]
+  class Cursor:
+   def fetchall(self):return [('RAW','PO',75,0)]
+  class Connection:
+   def execute(self,sql,args):
+    if not sql.startswith('with '):raise AssertionError('unexpected mutation')
+    return Cursor()
+  with self.assertRaisesRegex(ValueError,'cancellation changed'):
+   m.verify_sources(Connection(),p,m.validate_manifest(p))
 unittest.main()

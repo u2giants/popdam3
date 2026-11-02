@@ -12,7 +12,7 @@ from pathlib import Path
 import uuid
 
 TARGET = 'qsllyeztdwjgirsysgai'
-KINDS = {'void_superseded', 'google_customer_po', 'coldlion_identity'}
+KINDS = {'void_superseded', 'google_customer_po', 'coldlion_identity','mark_source_cancelled'}
 
 
 def validate_manifest(plan):
@@ -39,6 +39,13 @@ def validate_manifest(plan):
                 raise ValueError('Google correction requires exact source ID and replacement PO')
             if not any(r['source_system'] == 'google_order_list' and r['source_id'] == op['source_id'] for r in refs):
                 raise ValueError('Google source reference mismatch')
+        elif op['kind']=='mark_source_cancelled':
+            c=op['cancellation']
+            if (c.get('version')!=1 or not c.get('evidence_ref')
+                    or not isinstance(c.get('line_qty'),(int,float)) or c['line_qty']<=0
+                    or not isinstance(c.get('line_cancelled_qty'),(int,float)) or c['line_cancelled_qty']<c['line_qty']
+                    or not any(r['source_system']=='coldlion' and r['source_id']==c.get('source_id') for r in refs)):
+                raise ValueError('Cancellation requires exact source reference and fully cancelled source quantities')
         else:
             c = op['correction']
             required = {'version','source_id','original_sku','canonical_sku','original_customer_po','canonical_customer_po','evidence_ref'}
@@ -69,17 +76,18 @@ def verify_preimages(conn, preimages, lock=False):
             raise ValueError('Source reference preimage changed; regenerate private manifest')
 
 
-def source_identity(conn, ref):
+def source_identity(conn, ref, cancellation=False):
     parts=ref['source_id'].split(':')
     if len(parts)!=7 or parts[0:2]!=['coldlion','so'] or parts[3]!='line' or parts[5]!='component':
         raise ValueError('ColdLion source identity malformed')
     # Actual observation time chooses the winner. fetched_at is insert-only.
-    return conn.execute('''with v as (
+    cancellation_fields=',v.line_qty,v.line_cancelled_qty' if cancellation else ''
+    return conn.execute(f'''with v as (
       select l.*,rank() over(partition by l.sales_order_no,l.sales_order_line_no
         order by r.started_at desc nulls last,l.last_seen_run desc) winner
       from coldlion.intake_order_line l left join coldlion.sync_run r on r.id=l.last_seen_run
       where l.sales_order_no=%s and l.sales_order_line_no=%s)
-      select distinct coalesce(nullif(btrim(c.sub_item_no),''),v.master_item_no),v.po_number
+      select distinct coalesce(nullif(btrim(c.sub_item_no),''),v.master_item_no),v.po_number{cancellation_fields}
       from v join coldlion.intake_order_component c on c.line_id=v.id
       where winner=1 and v.division_code is distinct from 'EP001'
         and v.master_item_no=%s and nullif(c.sub_item_no,'') is not distinct from %s
@@ -112,8 +120,13 @@ def verify_sources(conn, plan, preimages, google_snapshot=None):
                 raise ValueError('Current Google source snapshot and exact cells required')
             continue
         ref=next(r for r in old['refs'] if r['source_system']=='coldlion')
-        current=source_identity(conn,ref)
-        if op['kind']=='coldlion_identity':
+        current=source_identity(conn,ref,cancellation=op['kind']=='mark_source_cancelled')
+        if op['kind']=='mark_source_cancelled':
+            c=op['cancellation']
+            expected=(old['line']['sku'],old['line']['customer_po_number'],c['line_qty'],c['line_cancelled_qty'])
+            if current != [expected]:
+                raise ValueError('Source cancellation changed or ambiguous; held without changes')
+        elif op['kind']=='coldlion_identity':
             c=op['correction']
             if current != [(c['original_sku'],c['original_customer_po'])]:
                 raise ValueError('ColdLion correction source cells changed or ambiguous')
@@ -143,6 +156,10 @@ def apply_operations(conn, plan, preimages):
             conn.execute('''update plm.production_order_line set customer_po_number=%s,
               metadata=metadata || jsonb_build_object('orderlist_google_correction',%s::jsonb),updated_at=now() where id=%s''',
               (op['customer_po_number'],Jsonb(correction),op['line_id']))
+        elif op['kind']=='mark_source_cancelled':
+            conn.execute("""update plm.production_order_line set status='cancelled',
+              metadata=metadata || jsonb_build_object('orderlist_source_cancellation',%s::jsonb),
+              updated_at=now() where id=%s""",(Jsonb(op['cancellation']),op['line_id']))
         else:
             conn.execute('''update plm.production_order_line_source_ref set metadata=metadata ||
               jsonb_build_object('orderlist_source_correction',%s::jsonb)
