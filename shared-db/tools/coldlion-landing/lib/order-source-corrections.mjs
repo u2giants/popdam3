@@ -18,7 +18,8 @@ export function correctionExpressions({ metadata = "r.metadata", sourceId = "r.s
 }
 
 /** Read-only refusal before any writer work. Source observations stay untouched. */
-export function buildSourceCorrectionPreflightSql() {
+export function buildSourceCorrectionPreflightSql({ refPredicate } = {}) {
+  if (!refPredicate) throw new Error('source correction preflight requires an explicit mutation scope');
   const correction = correctionExpressions({ sku: "s.sku", po: "s.po_number" });
   return `do $source_corrections$
 begin
@@ -26,6 +27,7 @@ begin
     with corrected as materialized (
       select r.* from plm.production_order_line_source_ref r
       where r.source_system = 'coldlion' and r.metadata ? 'orderlist_source_correction'
+        and (${refPredicate})
     ), versions as (
       select l.*, rank() over (partition by l.sales_order_no,l.sales_order_line_no
         order by run.started_at desc nulls last,l.last_seen_run desc) observation_rank
@@ -57,7 +59,8 @@ $source_corrections$;`;
 }
 
 /** A source cancellation is retained history; changed source demands review. */
-export function buildCancellationPreflightSql() {
+export function buildCancellationPreflightSql({ refPredicate } = {}) {
+  if (!refPredicate) throw new Error('source cancellation preflight requires an explicit mutation scope');
   return `do $source_cancellations$
 begin
   if exists (
@@ -66,6 +69,7 @@ begin
       from plm.production_order_line_source_ref r
       join plm.production_order_line pl on pl.id=r.production_order_line_id
       where r.source_system='coldlion' and pl.metadata ? 'orderlist_source_cancellation'
+        and (${refPredicate})
     ), versions as (
       select l.*,rank() over(partition by l.sales_order_no,l.sales_order_line_no
         order by run.started_at desc nulls last,l.last_seen_run desc) observation_rank

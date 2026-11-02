@@ -75,6 +75,55 @@ export function lineSourceId(salesOrderNo, salesOrderLineNo, componentOrdinal) {
   return `coldlion:so:${salesOrderNo}:line:${salesOrderLineNo}:component:${componentOrdinal}`;
 }
 
+// Share the exact eligibility, routing, ordering and bound with both guards.
+function buildWriterScopeSql({ order, limit }) {
+  const scopeFilter = order !== null ? `and n.sales_order_no = ${sqlNumber(order)}` : "";
+  // An explicit --order also re-processes an already-created order, so a
+  // writer fix can correct its existing lines in place (every UPDATE stays
+  // IS DISTINCT FROM guarded; the state transitions stay pending-only).
+  const scopeStates = order !== null ? "('pending', 'created')" : "('pending')";
+  // A created order also re-enters scope, explicitly or not, whenever its
+  // latest staged components are not all carried by an identity-matching
+  // ref — a component ColdLion added after creation (SO 7128092, 2026-10-26)
+  // is minted on the next hourly run instead of waiting for a manual --order.
+  const incompleteCreated = `
+    or (n.state = 'created' and exists (
+      select 1
+      from (select l.id, l.sales_order_line_no, l.master_item_no,
+                   rank() over (partition by l.sales_order_line_no
+                                order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
+            from coldlion.intake_order_line l
+            left join coldlion.sync_run r on r.id = l.last_seen_run
+            where l.sales_order_no = n.sales_order_no
+              and l.division_code is distinct from 'EP001') lv
+      join coldlion.intake_order_component c on c.line_id = lv.id
+      where lv.run_rank = 1
+        and not exists (
+          select 1 from plm.production_order_line_source_ref r
+          where r.source_system = 'coldlion'
+            and r.source_id like 'coldlion:so:' || n.sales_order_no::text || ':line:'
+                                 || lv.sales_order_line_no::text || ':component:%'
+            and r.metadata ->> 'master_item_no' = lv.master_item_no
+            and r.metadata ->> 'sub_item_no' is not distinct from nullif(c.sub_item_no, '')
+            and r.metadata ->> 'sub_label_code' is not distinct from nullif(c.sub_label_code, ''))))`;
+  const scopeLimit = limit !== null ? `\n  limit ${sqlNumber(limit)}` : "";
+  return `  select n.sales_order_no, n.warehouse_code, n.state
+  from coldlion.intake_new_order n
+  where (n.state in ${scopeStates}${incompleteCreated})
+    -- The table check refuses sales_order_no = 0 outright; this predicate is
+    -- defence in depth so a relaxed future constraint can never mint
+    -- COLDLION-SO-0, whose header ref would collapse every zero-SO row onto
+    -- one header under unique (source_system, source_id).
+    and n.sales_order_no <> 0
+    -- Only decodable orders enter the claim path; C1 owns the
+    -- unknown-code quarantine, so anything still pending without a map row
+    -- stays pending for the decode step instead of being written or hidden.
+    and exists (select 1 from coldlion.routing_code_map m
+                where m.code = n.warehouse_code)
+    ${scopeFilter}
+  order by n.sales_order_no${scopeLimit}`;
+}
+
 /**
  * The canonical-write transaction. One statement-set, one transaction:
  *
@@ -114,41 +163,14 @@ export function buildWriteSql({ runId, write = false, limit = null, order = null
     // (never COLDLION-SO-0); the refusal mirrors placeholderHeaderNumber.
     throw new Error("order must be a positive sales order number (salesOrderNo = 0 is never written)");
   }
-  const scopeFilter = order !== null ? `and n.sales_order_no = ${sqlNumber(order)}` : "";
-  // An explicit --order also re-processes an already-created order, so a
-  // writer fix can correct its existing lines in place (every UPDATE stays
-  // IS DISTINCT FROM guarded; the state transitions stay pending-only).
-  const scopeStates = order !== null ? "('pending', 'created')" : "('pending')";
-  // A created order also re-enters scope, explicitly or not, whenever its
-  // latest staged components are not all carried by an identity-matching
-  // ref — a component ColdLion added after creation (SO 7128092, 2026-10-26)
-  // is minted on the next hourly run instead of waiting for a manual --order.
-  const incompleteCreated = `
-    or (n.state = 'created' and exists (
-      select 1
-      from (select l.id, l.sales_order_line_no, l.master_item_no,
-                   rank() over (partition by l.sales_order_line_no
-                                order by r.started_at desc nulls last, l.last_seen_run desc) as run_rank
-            from coldlion.intake_order_line l
-            left join coldlion.sync_run r on r.id = l.last_seen_run
-            where l.sales_order_no = n.sales_order_no
-              and l.division_code is distinct from 'EP001') lv
-      join coldlion.intake_order_component c on c.line_id = lv.id
-      where lv.run_rank = 1
-        and not exists (
-          select 1 from plm.production_order_line_source_ref r
-          where r.source_system = 'coldlion'
-            and r.source_id like 'coldlion:so:' || n.sales_order_no::text || ':line:'
-                                 || lv.sales_order_line_no::text || ':component:%'
-            and r.metadata ->> 'master_item_no' = lv.master_item_no
-            and r.metadata ->> 'sub_item_no' is not distinct from nullif(c.sub_item_no, '')
-            and r.metadata ->> 'sub_label_code' is not distinct from nullif(c.sub_label_code, ''))))`;
-  const scopeLimit = limit !== null ? `\n  limit ${sqlNumber(limit)}` : "";
+  const scopeSql = buildWriterScopeSql({ order, limit });
+  const refPredicate = `exists (select 1 from (${scopeSql}) writer_scope
+    where writer_scope.sales_order_no=split_part(r.source_id,':',3)::bigint)`;
   const corrected = correctionExpressions({ sku: "raw.sku", po: "raw.po_number" });
-  return `begin;
+  return `begin isolation level repeatable read;
 
-${buildSourceCorrectionPreflightSql()}
-${buildCancellationPreflightSql()}
+${buildSourceCorrectionPreflightSql({ refPredicate })}
+${buildCancellationPreflightSql({ refPredicate })}
 
 create temporary table coldlion_orderlist_link_scope (
   line_id uuid primary key, expected_type text, incoming_sku text,
@@ -166,21 +188,7 @@ values
 on conflict (id) do nothing;
 
 with scope as (
-  select n.sales_order_no, n.warehouse_code, n.state
-  from coldlion.intake_new_order n
-  where (n.state in ${scopeStates}${incompleteCreated})
-    -- The table check refuses sales_order_no = 0 outright; this predicate is
-    -- defence in depth so a relaxed future constraint can never mint
-    -- COLDLION-SO-0, whose header ref would collapse every zero-SO row onto
-    -- one header under unique (source_system, source_id).
-    and n.sales_order_no <> 0
-    -- Only decodable orders enter the claim path; C1 owns the
-    -- unknown-code quarantine, so anything still pending without a map row
-    -- stays pending for the decode step instead of being written or hidden.
-    and exists (select 1 from coldlion.routing_code_map m
-                where m.code = n.warehouse_code)
-    ${scopeFilter}
-  order by n.sales_order_no${scopeLimit}
+${scopeSql}
 ),
 line_version_winners as (
   -- C2 step 0, first tier: the latest OBSERVATION of every staged line
@@ -1035,10 +1043,23 @@ export function buildAutoMergeSql({ runId, write = false } = {}) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId ?? "")) {
     throw new Error("buildAutoMergeSql requires a UUID run id");
   }
-  return `begin;
-
-${buildSourceCorrectionPreflightSql()}
-${buildCancellationPreflightSql()}
+  // Existing linked rows also receive a source-value refresh. Validate that
+  // exact mutation scope as well as the newly selected consolidation pairs.
+  const refreshEligibility = `r.source_system = 'coldlion'
+    and r.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
+    and coalesce(p.metadata ->> 'production_order_number_origin', '') <> 'coldlion_intake_placeholder'
+    and pl.voided_at is null and p.voided_at is null
+    and pl.status is distinct from 'cancelled'
+    and not (coalesce(pl.metadata,'{}'::jsonb) ? 'orderlist_source_cancellation')`;
+  const refPredicate = `r.production_order_line_id in (
+    select placeholder_line from pg_temp.coldlion_auto_merge
+    union select google_line from pg_temp.coldlion_auto_merge
+    union select r.production_order_line_id
+      from plm.production_order_line_source_ref r
+      join plm.production_order_line pl on pl.id=r.production_order_line_id
+      join plm.production_order p on p.id=pl.production_order_id
+      where ${refreshEligibility})`;
+  return `begin isolation level repeatable read;
 
 create temporary table coldlion_auto_merge (placeholder_line uuid primary key, google_line uuid unique not null) on commit drop;
 
@@ -1050,7 +1071,9 @@ with ph as (
            where r.production_order_line_id = pl.id and r.source_system = 'coldlion') as sales_order_line_no
   from plm.production_order_line pl
   join plm.production_order p on p.id = pl.production_order_id
-  where pl.voided_at is null
+  where pl.voided_at is null and p.voided_at is null
+    and pl.status is distinct from 'cancelled'
+    and not (coalesce(pl.metadata,'{}'::jsonb) ? 'orderlist_source_cancellation')
     and p.metadata ->> 'production_order_number_origin' = 'coldlion_intake_placeholder'
     and p.production_order_number ~ '^COLDLION-SO-[0-9]+$'
     and exists (select 1 from plm.production_order_line_source_ref r
@@ -1065,7 +1088,9 @@ g as (
          gp.production_order_number as import_po
   from plm.production_order_line gl
   join plm.production_order gp on gp.id = gl.production_order_id
-  where gl.voided_at is null
+  where gl.voided_at is null and gp.voided_at is null
+    and gl.status is distinct from 'cancelled'
+    and not (coalesce(gl.metadata,'{}'::jsonb) ? 'orderlist_source_cancellation')
     and gp.production_order_number !~ '^COLDLION-SO-'
     and exists (select 1 from plm.production_order_line_source_ref r
                 where r.production_order_line_id = gl.id and r.source_system = 'google_order_list')
@@ -1085,6 +1110,9 @@ select p.placeholder_line, p.google_line
 from pairs p
 where p.google_matches = 1 and p.placeholder_matches = 1
   and p.sales_order_line_no is not null;
+
+${buildSourceCorrectionPreflightSql({ refPredicate })}
+${buildCancellationPreflightSql({ refPredicate })}
 
 insert into coldlion.sync_run (id, endpoint, company_code, request_params, status, requested_by, started_at, finished_at, notes)
 select ${sqlUuid(runId)}, '/orderHistory', 'POP',
@@ -1177,9 +1205,7 @@ cur as (
   left join oh
     on oh.sales_order_no = split_part(r.source_id, ':', 3)::bigint
    and oh.sales_order_line_no = split_part(r.source_id, ':', 5)::integer
-  where r.source_system = 'coldlion'
-    and r.source_id ~ '^coldlion:so:[0-9]+:line:[0-9]+:component:[0-9]+$'
-    and coalesce(p.metadata ->> 'production_order_number_origin', '') <> 'coldlion_intake_placeholder'
+  where ${refreshEligibility}
   order by r.production_order_line_id, r.source_id
 )
 update plm.production_order_line pl
@@ -1360,6 +1386,9 @@ const INTAKE_READ_COLUMNS = [
 ];
 
 export const WRITE_REQUIRED_COLUMNS = Object.freeze([
+  { schema: "plm", table: "production_order", column: "voided_at", type: "timestamp with time zone" },
+  { schema: "plm", table: "production_order_line", column: "voided_at", type: "timestamp with time zone" },
+  { schema: "plm", table: "production_order_line", column: "status", type: "text" },
   { schema: "public", table: "style_tracker_rows", column: "id", type: "uuid" },
   { schema: "public", table: "style_tracker_rows", column: "sku", type: "text" },
   { schema: "plm", table: "style_tracker_item_bridge", column: "style_tracker_row_id", type: "uuid" },

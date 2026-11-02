@@ -46,7 +46,7 @@ create table coldlion.item_detail (company_code text, division_code text, item_n
 create table core.company_source_ref (company_id uuid, source_system text, source_table text, source_id text);
 create table plm.erp_customer (customer_code text primary key, customer_id uuid, active boolean);
 create table plm.production_order (id uuid primary key default gen_random_uuid(), production_order_number text,
-  company_id uuid, metadata jsonb not null default '{}', source_system text, source_id text,
+  voided_at timestamptz, company_id uuid, metadata jsonb not null default '{}', source_system text, source_id text,
   updated_at timestamptz default now(), unique (source_system, source_id));
 create table plm.production_order_source_ref (production_order_id uuid, source_system text, source_id text,
   is_primary boolean, metadata jsonb, unique (source_system, source_id));
@@ -515,4 +515,133 @@ test("automatic merge preserves exact recipe hash, keeps conflicting hashes, and
     join coldlion.intake_order_component c on c.line_id=h.id and c.sub_item_no=l.sku
       and c.component_source_hash=l.metadata->>'component_source_hash'
     where l.sku='HASH-MISSING'`),'1');
+});
+
+function resetScopeFixture() {
+  psql(`drop database if exists ${DB}`, 'postgres');
+  psql(`create database ${DB}`, 'postgres');
+  psql(SCHEMA);
+  psql(stage(run(), ['SCOPED-ITEM']));
+  write();
+}
+function invalidateCorrection() {
+  psql(`update plm.production_order_line_source_ref r set metadata=metadata ||
+    jsonb_build_object('orderlist_source_correction',jsonb_build_object('version',1,
+      'source_id',r.source_id,'original_sku','STALE-SOURCE','canonical_sku','SCOPED-ITEM',
+      'original_customer_po','62004433','canonical_customer_po','62004433','evidence_ref','test5402'))
+    where r.source_system='coldlion';`);
+}
+function addGoogleCandidate() {
+  psql(`insert into plm.production_order(production_order_number) select 'D-SCOPE'
+      where not exists(select 1 from plm.production_order where production_order_number='D-SCOPE');
+    insert into plm.production_order_line(production_order_id,sku,customer_po_number,metadata)
+      select p.id,l.sku,l.customer_po_number,'{}' from plm.production_order_line l
+      cross join plm.production_order p where p.production_order_number='D-SCOPE';
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select l.id,'google_order_list','google:scope:'||l.id,true,'{}' from plm.production_order_line l
+      join plm.production_order p on p.id=l.production_order_id where p.production_order_number='D-SCOPE'
+        and not exists(select 1 from plm.production_order_line_source_ref r where r.production_order_line_id=l.id and r.source_system='google_order_list');`);
+}
+
+test('writer correction guard follows explicit order, limit, routing, terminal and complete-created scope', {skip:!container},()=>{
+  resetScopeFixture();
+  invalidateCorrection();
+  const other=SO-1;
+  psql(stage(run(), ['OTHER-ITEM']).replaceAll(String(SO),String(other)));
+  psql(`update coldlion.intake_new_order set state='pending'`);
+  assert.doesNotThrow(()=>psql(buildWriteSql({runId:run(),order:other,write:true})));
+  psql(`update coldlion.intake_new_order set state='pending'`);
+  assert.doesNotThrow(()=>psql(buildWriteSql({runId:run(),limit:1,write:true})));
+  assert.equal(psql(`select state from coldlion.intake_new_order where sales_order_no=${SO}`),'pending');
+  assert.throws(()=>psql(buildWriteSql({runId:run(),order:SO,write:true})),/source correction no longer matches/);
+  assert.throws(()=>psql(buildWriteSql({runId:run(),limit:2,write:true})),/source correction no longer matches/);
+  for(const state of ['quarantined','created']) {
+    psql(`update coldlion.intake_new_order set state='${state}' where sales_order_no=${SO};
+      update coldlion.intake_new_order set state='pending' where sales_order_no=${other};`);
+    assert.doesNotThrow(()=>write(),state+' is outside the actual hourly mutation scope');
+  }
+  psql(`update coldlion.intake_new_order set state='pending',warehouse_code='UNMAPPED' where sales_order_no=${SO}`);
+  assert.doesNotThrow(()=>write(),'unrouted pending order does not poison a routed batch');
+  assert.equal(psql(`select count(*) from plm.production_order_line where sku='OTHER-ITEM'`),'1');
+});
+
+test('incomplete created order stays guarded, while unrelated stale cancellation does not block a bounded write', {skip:!container},()=>{
+  resetScopeFixture();
+  invalidateCorrection();
+  psql(stage(run(), ['SCOPED-ITEM','NEW-ITEM']));
+  psql(`update coldlion.intake_new_order set state='created'`);
+  assert.throws(()=>write(),/source correction no longer matches/,'new component re-enters hourly scope');
+  psql(`update plm.production_order_line_source_ref set metadata=metadata-'orderlist_source_correction';
+    update plm.production_order_line l set status='cancelled',metadata=l.metadata || jsonb_build_object(
+      'orderlist_source_cancellation',jsonb_build_object('version',1,'source_id',r.source_id,
+        'line_qty',96,'line_cancelled_qty',96,'evidence_ref','test5402'))
+    from plm.production_order_line_source_ref r where r.production_order_line_id=l.id;`);
+  const other=SO-1;
+  psql(stage(run(),['OTHER-ITEM']).replaceAll(String(SO),String(other)));
+  assert.doesNotThrow(()=>psql(buildWriteSql({runId:run(),order:other,write:true})));
+  assert.throws(()=>psql(buildWriteSql({runId:run(),order:SO,write:true})),/source cancellation changed/);
+  assert.equal(psql(`select status from plm.production_order_line where sku='SCOPED-ITEM'`),'cancelled');
+});
+
+test('auto-merge guards only its exact unambiguous candidate pair, and refuses a stale in-pair correction', {skip:!container},()=>{
+  resetScopeFixture();
+  invalidateCorrection();
+  // A stale ref with no matching Google target is not being merged.
+  psql(stage(run(),['OTHER-ITEM']).replaceAll(String(SO),String(SO-1)));
+  psql(buildWriteSql({runId:run(),order:SO-1,write:true}));
+  addGoogleCandidate();
+  psql(`delete from plm.production_order_line where sku='SCOPED-ITEM' and source_system is null`);
+  assert.equal(psql(buildAutoMergeSql({runId:run(),write:true})),'1');
+  addGoogleCandidate();
+  assert.throws(()=>psql(buildAutoMergeSql({runId:run(),write:true})),/source correction no longer matches/);
+  assert.equal(psql(`select count(*) from plm.production_order_line where sku='SCOPED-ITEM'`),'2');
+});
+
+for (const side of ['placeholder','google']) {
+  for (const protection of ['header-void','line-void','cancelled-status','cancellation-proof']) {
+    test(`auto-merge retains ${side} ${protection} history`,{skip:!container},()=>{
+      resetScopeFixture();addGoogleCandidate();
+      const header=side==='placeholder'?`production_order_number='COLDLION-SO-${SO}'`:`production_order_number='D-SCOPE'`;
+      if(protection==='header-void') psql(`update plm.production_order set voided_at=now() where ${header}`);
+      else {
+        const change=protection==='line-void'?'voided_at=now()':protection==='cancelled-status'?"status='cancelled'":"metadata=coalesce(metadata,'{}') || '{\"orderlist_source_cancellation\":{\"version\":1}}'::jsonb";
+        psql(`update plm.production_order_line set ${change} where production_order_id in(select id from plm.production_order where ${header})`);
+      }
+      const before=psql(`select jsonb_agg(to_jsonb(l) order by l.id) from plm.production_order_line l`);
+      assert.equal(psql(buildAutoMergeSql({runId:run(),write:true})),'0');
+      assert.equal(psql(`select count(*) from plm.production_order_line_source_ref where source_system='coldlion'`),'1');
+      assert.equal(psql(`select jsonb_agg(to_jsonb(l) order by l.id) from plm.production_order_line l`),before);
+    });
+  }
+}
+
+test('existing linked value refresh validates source corrections before touching saved values', {skip:!container},()=>{
+  resetScopeFixture();
+  const source=psql(`select source_id from plm.production_order_line_source_ref where source_system='coldlion'`);
+  const correction=JSON.stringify({version:1,source_id:source,original_sku:'SCOPED-ITEM',canonical_sku:'SCOPED-ITEM',original_customer_po:'62004433',canonical_customer_po:'62004433',evidence_ref:'test5402'});
+  psql(`update plm.production_order_line_source_ref set metadata=metadata || jsonb_build_object('orderlist_source_correction','${correction}'::jsonb);
+    insert into plm.production_order(production_order_number) values('D-EXISTING');
+    update plm.production_order_line set production_order_id=(select id from plm.production_order where production_order_number='D-EXISTING');
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select id,'google_order_list','google:existing',true,'{}' from plm.production_order_line;`);
+  psql(buildAutoMergeSql({runId:run(),write:true}));
+  assert.equal(psql(`select metadata->'coldlion_values'->>'quantity_ordered' from plm.production_order_line`),'24');
+  psql(`update coldlion.intake_order_component set order_qty=31`);
+  assert.equal(psql(buildAutoMergeSql({runId:run(),write:true})),'0','refresh continues without any newly merged pairs');
+  assert.equal(psql(`select metadata->'coldlion_values'->>'quantity_ordered' from plm.production_order_line`),'31');
+  psql(`update coldlion.intake_order_line set po_number='SOURCE-CHANGED';update coldlion.intake_order_component set order_qty=77`);
+  const before=psql(`select to_jsonb(l) from plm.production_order_line l`);
+  assert.throws(()=>psql(buildAutoMergeSql({runId:run(),write:true})),/source correction no longer matches/);
+  assert.equal(psql(`select to_jsonb(l) from plm.production_order_line l`),before,'stale existing-linked correction cannot overwrite coldlion_values');
+  for (const protectedCase of ['header-void','line-void','cancelled-status','cancellation-proof']) {
+    psql(`update plm.production_order set voided_at=null;
+      update plm.production_order_line set voided_at=null,status=null,metadata=metadata-'orderlist_source_cancellation'`);
+    if(protectedCase==='header-void') psql(`update plm.production_order set voided_at=now()`);
+    if(protectedCase==='line-void') psql(`update plm.production_order_line set voided_at=now()`);
+    if(protectedCase==='cancelled-status') psql(`update plm.production_order_line set status='cancelled'`);
+    if(protectedCase==='cancellation-proof') psql(`update plm.production_order_line set metadata=metadata || '{"orderlist_source_cancellation":{"version":1}}'::jsonb`);
+    const protectedBefore=psql(`select to_jsonb(l) from plm.production_order_line l`);
+    assert.equal(psql(buildAutoMergeSql({runId:run(),write:true})),'0',protectedCase+' is outside linked refresh and guard scope');
+    assert.equal(psql(`select to_jsonb(l) from plm.production_order_line l`),protectedBefore);
+  }
 });
