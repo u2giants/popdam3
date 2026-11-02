@@ -64,6 +64,21 @@ describe("OrderList grid", () => {
     expect(screen.getByText("Linked")).toBeTruthy();
   });
 
+  it("shows text-serialized current workflow booleans as Yes/No and preserves Unknown", async () => {
+    const ref = createRef<AgGridReact<OrderListRow>>();
+    const rows = [row({ test_report: "false", professional_photos: "true", product_workflow_source: "master_data" }), row({ order_line_id: "line-unknown", test_report: null, professional_photos: null, product_workflow_source: "unavailable" })];
+    const datasource = { getRows: (params: any) => { void Promise.resolve().then(() => params.successCallback(rows, rows.length)); } };
+    const view = render(<div style={{ height: 360, width: 720 }}><OrderListGrid ref={ref} datasource={datasource} onCellEdited={vi.fn()} onRelink={vi.fn()} onEditOrder={vi.fn()} /></div>);
+    await waitFor(() => expect(ref.current?.api).toBeTruthy());
+    act(() => { ref.current!.api.applyColumnState({ defaultState: { hide: true }, state: [{ colId: "test_report", hide: false }, { colId: "professional_photos", hide: false }] }); });
+    await waitFor(() => {
+      expect(view.container.querySelector('[row-id="line-1"] [col-id="test_report"]')?.textContent).toBe("No");
+      expect(view.container.querySelector('[row-id="line-1"] [col-id="professional_photos"]')?.textContent).toBe("Yes");
+      expect(view.container.querySelector('[row-id="line-unknown"] [col-id="test_report"]')?.textContent).toBe("Unknown");
+    }, { timeout: 10_000 });
+    expect(screen.queryByText("at import")).toBeNull();
+  });
+
   it("falls back to the import snapshot and marks it when the line is not linked", async () => {
     renderGrid([
       row({
