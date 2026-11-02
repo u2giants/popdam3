@@ -86,6 +86,8 @@ export function buildItemImportSql(payload, { allowResolutionDrop = false } = {}
     // Explicit transaction: atomic whatever the transport does; ON_ERROR_STOP (set by
     // runSql) makes any raise below abort before commit, rolling the import back.
     "begin;",
+    // The whole-catalog import outgrew the role's 2-minute default (2026-11-01); stay bounded.
+    "set local statement_timeout = '15min';",
     `create temp table item_master_resolved_before as ${DIVISION_SHARE_SQL};`,
     `select * from plm.import_item_master_data(${sqlDollarQuote("cl_items", payload)}::jsonb);`,
     "do $guard$",
