@@ -1,7 +1,7 @@
 # Plan: make the DAM search-embedding claim fast
 
 Handoff: [HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md](HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md)
-Owning issue: popcre/shared-db#4664 (DAM SigLIP2/768 embeddings). Sibling plan: [plan_hts-ruling-search-speed.md](plan_hts-ruling-search-speed.md).
+Owning issue: popcre/shared-db#5482 (split out of #4664) (DAM SigLIP2/768 embeddings). Sibling plan: [plan_hts-ruling-search-speed.md](plan_hts-ruling-search-speed.md).
 
 ## STATUS (2026-11-02 2:15 PM EST)
 
@@ -17,7 +17,10 @@ Fresh session starts at step 0.
 
 ## 1. Ultimate goal
 
-Albert wants the shared database to use less compute. The photo library (POP DAM) search-indexing worker is one of the two largest consumers: each batch pickup costs several seconds of disk reads that do no useful work. Done means each pickup costs milliseconds, the worker keeps indexing at the same rate, and nothing about *which* rows it picks changes. **If a step conflicts with this goal, the goal wins — stop and flag it on #4664.**
+**Why we're doing this, in one paragraph:** Albert asked on 2026-11-02 to cut how much compute the shared database uses. Profiling ruled out connection pooling (only 37 of 90 connections in use; apps already go through Supavisor). The load instead comes from a few slow queries, and this is one of the two biggest. Every second it wastes is a second of shared database capacity taken from every POP app, so fixing it lowers cost risk and keeps the other apps responsive.
+
+
+Albert wants the shared database to use less compute. The photo library (POP DAM) search-indexing worker is one of the two largest consumers: each batch pickup costs several seconds of disk reads that do no useful work. Done means each pickup costs milliseconds, the worker keeps indexing at the same rate, and nothing about *which* rows it picks changes. **If a step conflicts with this goal, the goal wins — stop and flag it on #5482.**
 
 ## 2. The application
 
@@ -73,7 +76,7 @@ Gate: EXPLAIN on preview shows `Index Scan using dam_search_embedding_claim_orde
 
 **Step 3 — Land.** Merge when required checks pass; the automatic promotion workflow applies it to production. Never run it manually.
 
-**Step 4 — Live proof.** Re-run step 0 on production; record in the same verification folder. After 24 h, `pg_stat_statements` mean for the claim query < 100 ms. Tick the checkbox on #4664.
+**Step 4 — Live proof.** Re-run step 0 on production; record in the same verification folder. After 24 h, `pg_stat_statements` mean for the claim query < 100 ms. Tick the checkbox on #5482.
 
 ## 10. Tests
 
@@ -81,7 +84,7 @@ Add a pgTAP (or repo-standard SQL test under `supabase/tests/`) case: insert sty
 
 ## 11. Constraints
 
-Structural change → load `shared-db-change`, claim objects on #4664 first, declare `ai-task-gates start --class shared-db`. Production read-only except via promotion. No `review-finding` open blocks promotion. Never hand-edit `types/database.types.ts` (index adds no type change). Worker keeps running throughout — no function signature change.
+Structural change → load `shared-db-change`, claim objects on #5482 first, declare `ai-task-gates start --class shared-db`. Production read-only except via promotion. No `review-finding` open blocks promotion. Never hand-edit `types/database.types.ts` (index adds no type change). Worker keeps running throughout — no function signature change.
 
 ## 12. Access
 

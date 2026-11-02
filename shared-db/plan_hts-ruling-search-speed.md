@@ -1,7 +1,7 @@
 # Plan: make the HTS customs-ruling search fast
 
 Handoff: [HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md](HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md)
-Owning issue: popcre/shared-db#5188 (CBP ruling database reasoning layer). Sibling plan: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md).
+Owning issue: popcre/shared-db#5483 (split out of #5188) (CBP ruling database reasoning layer). Sibling plan: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md).
 
 ## STATUS (2026-11-02 2:15 PM EST)
 
@@ -17,7 +17,10 @@ Fresh session starts at step 0. **Step 0 may show the problem is already solved 
 
 ## 1. Ultimate goal
 
-Albert wants the shared database to use less compute. DesignFlow's customs-ruling search (finding past U.S. Customs rulings similar to a product, to suggest a tariff code) averaged ~24 s per call — one of the two largest consumers. Done means a typical search answers in under 1 s with the **same ranked results**. **If a step conflicts with this goal, the goal wins — stop and flag it on #5188.**
+**Why we're doing this, in one paragraph:** Albert asked on 2026-11-02 to cut how much compute the shared database uses. Profiling ruled out connection pooling (only 37 of 90 connections in use; apps already go through Supavisor). The load instead comes from a few slow queries, and this is one of the two biggest. Every second it wastes is a second of shared database capacity taken from every POP app, so fixing it lowers cost risk and keeps the other apps responsive.
+
+
+Albert wants the shared database to use less compute. DesignFlow's customs-ruling search (finding past U.S. Customs rulings similar to a product, to suggest a tariff code) averaged ~24 s per call — one of the two largest consumers. Done means a typical search answers in under 1 s with the **same ranked results**. **If a step conflicts with this goal, the goal wins — stop and flag it on #5483.**
 
 ## 2. The application
 
@@ -53,7 +56,7 @@ NOT in: ranking formula changes, filling `phrase_embedding` (a data-load job und
 
 ## 8. Decisions
 
-Locked: ranked output identical for the benchmark queries; forward-only migration; coordinate with whoever owns #5283 (comment on #5188 before editing the function).
+Locked: ranked output identical for the benchmark queries; forward-only migration; coordinate with whoever owns #5283 (comment on #5483 before editing the function).
 Open: which fix, decided by step 2 evidence.
 
 ## 9. Steps
@@ -66,7 +69,7 @@ Open: which fix, decided by step 2 evidence.
 
 **Step 3 — Fix migration** `supabase/migrations/<UTC>_hts_rag_ruling_search_<fix>.sql`. Likely shapes: chapter-scoped trigram/FTS index (e.g. partial or composite on chapter), cap pass 2 candidates, or a covering index. Gate: preview EXPLAIN < 1 s for all saved queries and identical top-`p_limit` output vs. current function (diff both result sets).
 
-**Step 4 — Land + live proof.** PR → required checks → automatic promotion. Then 24 h `pg_stat_statements` mean < 1 s; record; tick checkbox on #5188.
+**Step 4 — Land + live proof.** PR → required checks → automatic promotion. Then 24 h `pg_stat_statements` mean < 1 s; record; tick checkbox on #5483.
 
 ## 10. Tests
 
@@ -74,7 +77,7 @@ Add regression SQL test under `supabase/tests/` asserting result order for 3 fix
 
 ## 11. Constraints
 
-Load `shared-db-change`; claim `hts_rag.hts_rag_search_rulings*` on #5188; `ai-task-gates start --class shared-db`. Function is `security definer` with `search_path ''` — keep fully-qualified names. Regenerate types only via the repo's type workflow, never by hand.
+Load `shared-db-change`; claim `hts_rag.hts_rag_search_rulings*` on #5483; `ai-task-gates start --class shared-db`. Function is `security definer` with `search_path ''` — keep fully-qualified names. Regenerate types only via the repo's type workflow, never by hand.
 
 ## 12. Access
 
