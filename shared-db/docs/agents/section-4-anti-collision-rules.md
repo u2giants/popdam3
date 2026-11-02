@@ -46,15 +46,25 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    it means more drafts queueing for the same serial stages. Do not reintroduce
    a lane cap in `scripts/manage-migration-author-lanes.mjs`; a test refuses it.
 
-   **Do not open a migration file first.** Acquire an author lane, object claim
-   and unique 14-digit version as one dispatch operation:
+   **Do not open a migration file first.** Reserve an object claim and a unique
+   14-digit version as one dispatch operation:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --claim \
-     --task "<issue and outcome>" --owner "<agent/session>" \
-     --branch "<branch>" --worktree "<absolute isolated worktree>" \
-     --objects "<every exact object written, comma-separated>"
+   node scripts/check-dispatch-collision.mjs \
+     --objects "<every exact object written, comma-separated>" --reserve-version
+
+   node scripts/check-dispatch-collision.mjs \
+     --task "<issue and outcome>" \
+     --objects "<every exact object written, comma-separated>" \
+     --version <the reserved version> --claim-body-file claim.md
+
+   gh issue create --body-file claim.md
    ```
+
+   The first command acquires the 14-digit version atomically
+   (`refs/db-claims/<version>`, create-if-absent); the second writes the fenced
+   claim body to a file so no shell quoting rule can lose the block (#669) and
+   prints the filing command.
 
    Allocation is serialized across computers by a GitHub-backed lock. The command
    fails closed if claims are unreadable, objects overlap an open claim or pull

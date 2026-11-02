@@ -137,7 +137,11 @@ and runs only `supabase gen types`; it does not link a project or run a migratio
 
 1. Confirm it is **structure** (or gated curated Master Data), not ordinary rows.
 2. Check in-flight work: [`docs/agents/in-flight-check.md`](agents/in-flight-check.md).
-3. Reserve a version: `node scripts/manage-migration-coordination.mjs --claim …`
+3. Reserve a version, then file its claim body (do not open the migration file
+   first): `node scripts/check-dispatch-collision.mjs --objects "<every exact
+   object written>" --reserve-version`, then the same command with `--task
+   "<issue and outcome>" --objects "…" --version <reserved> --claim-body-file
+   claim.md`, then `gh issue create --body-file claim.md`.
 4. Write only the new `supabase/migrations/<timestamp>_<name>.sql`.
 5. Run `scripts/check-sql.sh` and the relevant `scripts/*.test.mjs`.
 6. Branch + PR; start CI **and** the governed review in parallel

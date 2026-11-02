@@ -26,16 +26,25 @@ object/version/source protection. See the current procedure in the full text.
    #2775: no limit on migration author lanes, ever). Exact object claims and version reservations
    still refuse every object/version collision, including against protected relinquished claims.
 
-   **Do not open a migration file first.** Acquire an author lane, an exact object claim, and a
+   **Do not open a migration file first.** Reserve an exact object claim and a
    centrally reserved 14-digit version as one dispatch operation:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --claim \
-     --admit-issue <work-issue> \
-     --task "<issue and outcome>" --owner "<agent/session>" \
-     --branch "<branch>" --worktree "<absolute isolated worktree>" \
-     --objects "<every exact object written, comma-separated>"
+   node scripts/check-dispatch-collision.mjs \
+     --objects "<every exact object written, comma-separated>" --reserve-version
+
+   node scripts/check-dispatch-collision.mjs \
+     --task "<issue and outcome>" \
+     --objects "<every exact object written, comma-separated>" \
+     --version <the reserved version> --claim-body-file claim.md
+
+   gh issue create --body-file claim.md
    ```
+
+   The first command acquires the 14-digit version atomically
+   (`refs/db-claims/<version>`, create-if-absent); the second writes the fenced
+   claim body to a file so no shell quoting rule can lose the block (#669) and
+   prints the filing command.
 
    Allocation is serialized across computers by a GitHub-backed lock and **fails closed**. The
    created issue body is authoritative and machine-readable — **never hand-edit its fenced
