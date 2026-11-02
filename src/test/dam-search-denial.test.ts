@@ -15,6 +15,11 @@ import { defaultFilters } from "@/types/assets";
 describe("DAM list/count/facet auth_denial_never_keyword_fallback", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.mode.mockResolvedValue("hybrid"); });
   const filters = { ...defaultFilters, search: "snowman" };
+  it("keeps count queries enabled by default and lets the page disable its redundant probe", () => {
+    expect(useStyleGroupCount(filters)).toMatchObject({ enabled: true });
+    expect(useStyleGroupCount(filters, undefined, false)).toMatchObject({ enabled: false });
+    expect(mocks.ranked).not.toHaveBeenCalled();
+  });
   it.each([401, 403])("propagates HTTP %s on every ranked query surface", async (status) => {
     const error = { context: new Response(null, { status }) };
     mocks.ranked.mockRejectedValue(error);
