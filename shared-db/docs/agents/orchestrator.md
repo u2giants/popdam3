@@ -143,7 +143,7 @@ work — structural or forked — happens in a sub-agent's context, not this one
 
 ### How it is enforced
 
-`node scripts/manage-migration-author-lanes.mjs --queue-audit` prints a **`NOT ORCHESTRATOR WORK`**
+`node scripts/manage-migration-coordination.mjs --queue-audit` prints a **`NOT ORCHESTRATOR WORK`**
 block listing every open issue that fails the shape test, each stamped `REJECT` or `FORK`, with
 `[blocked on owner decision]` where the route is `owner-only`. These items previously sat silently
 in `skipped` and accumulated. The block is a worklist, not a failure — it does not change the exit

@@ -74,15 +74,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    The created issue body is authoritative and machine-readable. Never hand-edit
    its fenced blocks. The permanent version ref prevents reuse even after a lease
    ends. Clock expiry releases neither protection nor capacity. When durable
-   external evidence blocks clean work, use `--relinquish-author-lease
-   --claim-number <n> --owner <owner> --blocked-on issue:#<n>`; after the blocker
-   clears, use `--resume-author-lease --claim-number <n> --owner <owner>
-   --lease-hours <hours>`. The value flag is `--claim-number` on both: a bare
-   `--claim` is the boolean that claims a lane. If a resumed claim still carries
-   `blocked_on`, `worktree_state` or `recovery` (refused as unreadable), repair it
-   with `--repair-resumed-claim --claim-number <n> --owner <owner>`; it only
-   removes that residue, and only after a recorded `author_capacity_resumed`
-   event (issue #3170).
+   external evidence blocks clean work, use the guarded capacity relinquishment.
+   (`--relinquish-author-lease`, `--resume-author-lease`, and
+   `--repair-resumed-claim` were retired by #5409; there is no replacement.
+   `--claim-number` remains the value flag on surviving commands; `--claim` was
+   the boolean that claimed a lane and is also retired.)
 
    **An expired lease is not an abandoned lane (issue #2301).** Expiry is
    created by time passing. It proves that nobody renewed a claim; it does not
@@ -93,7 +89,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Detect with the read-only audit:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --abandonment-audit
+   node scripts/manage-migration-coordination.mjs --abandonment-audit
    ```
 
    It prints the same report as `--reconcile-flow` but cannot write: the
@@ -163,11 +159,10 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    1. Open the durable abandonment audit issue above and let the audit output
       stand as its first evidence.
-   2. Relinquish capacity with the observed worktree state:
-      `--relinquish-author-lease --claim-number <n> --owner <owner> --blocked-on issue:#<audit issue> --worktree-state <clean|dirty|absent|remote>`.
-      The value flag is `--claim-number`; the CLI parses a bare `--claim` as the
-      boolean that claims a lane, so giving it a value dies in the parser on the
-      bare number.
+   2. Relinquish capacity with the observed worktree state.
+      (`--relinquish-author-lease` was retired by #5409; there is no replacement.
+      `--claim-number` remains the value flag; `--claim` was the boolean that
+      claimed a lane and is also retired.)
       `--worktree-state` is not optional on this path — acting on abandonment
       evidence is refused without it, because the observation is the operator's
       own and may never be inferred from a stale audit. The reconciler prints
@@ -177,17 +172,13 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
       are. Never delete a ref, a branch, a claim or a worktree to free a lane.
    4. Recover the work when the author or a successor returns, and record the
       recovery evidence on the audit issue.
-   5. Resume atomically with
-      `--resume-author-lease --claim-number <n> --owner <owner> --lease-hours <hours>`,
-      which re-runs every current collision, capacity and version check.
+   5. Resume atomically.
+      (`--resume-author-lease` was retired by #5409; there is no replacement.)
 
    **Parking a stuck claim** (the work should return later, but the session cannot
-   finish it now): `--release-claim <n> --owner <exact owner> --confirm-finished --park`
-   closes — never deletes — the claim branch's open pull request with a resume note,
-   then performs the ordinary release under the same owner, mutex and claim checks.
-   To resume: reopen the pull request, take a new claim on the same objects, and move
-   the migration to a new version (the parked version stays reserved forever).
-   `--park` never combines with `--retire`.
+   finish it now): `--release-claim`, `--park`, and `--retire` were all retired
+   by #5409; there is no replacement. (Historical note: `--park` never combined
+   with `--retire`.)
 
    **Procedure 2 — terminal retirement** (the work cannot or should not return):
 
@@ -197,7 +188,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
       allocator-assigned AI reviewer's APPROVE — see the authority boundary below.
    3. Close the pull request through the normal authenticated operator flow.
       Never delete its branch or its refs.
-   4. Retire the claim with the tombstoning `--release-claim`, which writes an
+   4. Retire the claim with the tombstoning `--release-claim` (retired by #5409;
+      there is no replacement), which writes an
       immutable tombstone and reads it back before the claim closes.
    5. A successor takes a fresh claim tuple and a fresh migration version. The
       retired version can never be reissued, and a retired claim is refused on
@@ -217,9 +209,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    (#3675). An `ambiguous` observation
    is not a state; re-observe, or treat it as `3` and stop.
 
-   Audit lanes with `node scripts/manage-migration-author-lanes.mjs --audit`.
+   Audit lanes with `node scripts/manage-migration-coordination.mjs --audit`.
    Audit and refill the dynamic queues with
-   `node scripts/manage-migration-author-lanes.mjs --queue-audit`. Every open
+   `node scripts/manage-migration-coordination.mjs --queue-audit`. Every open
    `db-work` issue must contain one authoritative block:
 
    ````text
