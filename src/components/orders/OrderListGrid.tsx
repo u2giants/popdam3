@@ -86,6 +86,13 @@ function valueFormatterFor(column: OrderListColumn) {
  * link we show the frozen import snapshot and mark it, so nobody mistakes
  * historical text for current product truth.
  */
+function masterDataFlag(value: unknown): string {
+  if (value == null) return "Unknown";
+  if (value === true || value === "true") return "Yes";
+  if (value === false || value === "false") return "No";
+  return String(value);
+}
+
 function masterDataRenderer(field: keyof OrderListRow) {
   return function MasterDataValue(params: CustomCellRendererProps<OrderListRow>) {
     const row = params.data;
@@ -96,7 +103,7 @@ function masterDataRenderer(field: keyof OrderListRow) {
         : field === "master_data_license_status"
           ? masterDataLicenseStatus(row)
           : ["test_report", "professional_photos", "contractual_sample_reorder"].includes(field)
-            ? { value: row[field] == null ? "Unknown" : typeof row[field] === "boolean" ? (row[field] ? "Yes" : "No") : String(row[field]), isSnapshot: row.product_workflow_source === "at_import" }
+            ? { value: masterDataFlag(row[field]), isSnapshot: row.product_workflow_source === "at_import" }
             : { value: (row[field] ?? "") as string, isSnapshot: !row.item_id };
     if (!display.value) return null;
     return (
