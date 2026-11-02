@@ -22,6 +22,8 @@ let salesOrderDateBehaviour: (args: any) => Promise<{ data: any[] | null; error:
 });
 let assortmentQuantityBehaviour: (args: any) => Promise<{ data: unknown; error: unknown }> = async () => ({ data: [], error: null });
 
+let vendorIdBehaviour: (args: any) => Promise<{ data: unknown; error: unknown }> = async () => ({ data: [], error: null });
+
 let countBehaviour: () => Promise<{ count: number | null; error: unknown }> = async () => ({
   count: 24486,
   error: null,
@@ -57,7 +59,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       rpcCalls.push({ name, args });
       return name === "get_dam_order_sales_order_dates"
         ? salesOrderDateBehaviour(args)
-        : assortmentQuantityBehaviour(args);
+        : name === "get_dam_order_vendor_ids" ? vendorIdBehaviour(args) : assortmentQuantityBehaviour(args);
     },
     schema: () => ({
       from: () => ({
@@ -83,6 +85,7 @@ beforeEach(() => {
     error: null,
   });
   assortmentQuantityBehaviour = async () => ({ data: [], error: null });
+  vendorIdBehaviour = async () => ({ data: [], error: null });
   countBehaviour = async () => ({ count: 24486, error: null });
 });
 
@@ -99,7 +102,7 @@ describe("OrderList block loading", () => {
     expect(rpcCalls).toEqual([{
       name: "get_dam_order_sales_order_dates",
       args: { p_line_ids: ["line-1"] },
-    }]);
+    }, { name: "get_dam_order_vendor_ids", args: { p_line_ids: ["line-1"] } }]);
   });
 
   it("matches reversed RPC results to exact line IDs and leaves missing dates blank", async () => {
@@ -129,7 +132,7 @@ describe("OrderList block loading", () => {
     salesOrderDateBehaviour = async () => ({ data: null, error: rpcError });
 
     const block = await fetchOrderListBlock({ startRow: 0, endRow: 1 });
-    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null, assortment_sku_quantity: null, assortment_quantity_source: null }]);
+    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null, assortment_sku_quantity: null, assortment_quantity_source: null, vendor_code: null }]);
     expect([block.salesOrderDatesError, block.assortmentQuantitiesError].filter(Boolean)).toContain("SO Date could not be loaded. Refresh OrderList to try again.");
 
     const rowSelect = recorded.filter((r) => r.kind === "rows").at(-1)?.select ?? "";
@@ -151,7 +154,7 @@ describe("OrderList block loading", () => {
       error: null,
     });
     const block = await fetchOrderListBlock({ startRow: 0, endRow: 1 });
-    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null, assortment_sku_quantity: null, assortment_quantity_source: null }]);
+    expect(block.rows).toEqual([{ order_line_id: "line-1", sales_order_date: null, assortment_sku_quantity: null, assortment_quantity_source: null, vendor_code: null }]);
     expect([block.salesOrderDatesError, block.assortmentQuantitiesError].filter(Boolean)).toContain("SO Date could not be loaded. Refresh OrderList to try again.");
   });
 
@@ -284,5 +287,23 @@ describe("OrderList 12-month window", () => {
     await fetchOrderListBlock({ startRow: 0, endRow: 100, orderWindowStart: null });
 
     expect(orCalls).toEqual([]);
+  });
+});
+
+
+describe("OrderList Vendor IDs", () => {
+  it("maps exact IDs and keeps dates/quantities when the vendor reader fails, then recovers", async () => {
+    rowBehaviour = async () => ({ data: [{ order_line_id: "line-a", assortment_id: "AS-1" }, { order_line_id: "line-b" }], error: null });
+    salesOrderDateBehaviour = async () => ({ data: [{ order_line_id: "line-a", sales_order_date: "2026-10-09" }], error: null });
+    assortmentQuantityBehaviour = async () => ({ data: [{ order_line_id: "line-a", assortment_sku_quantity: 12, quantity_source: "order_recipe" }], error: null });
+    vendorIdBehaviour = async () => ({ data: null, error: new Error("vendor reader unavailable") });
+    const failed = await fetchOrderListBlock({ startRow: 0, endRow: 2 });
+    expect(failed.rows).toHaveLength(2);
+    expect(failed.rows[0]).toMatchObject({ vendor_code: null, sales_order_date: "2026-10-09", assortment_sku_quantity: 12 });
+    expect(failed.vendorIdsError).toBe("Vendor IDs could not be loaded. Refresh OrderList to try again.");
+    vendorIdBehaviour = async () => ({ data: [{ order_line_id: "line-b", vendor_code: "0042" }, { order_line_id: "line-a", vendor_code: "A01" }], error: null });
+    const recovered = await fetchOrderListBlock({ startRow: 0, endRow: 2 });
+    expect(recovered.rows.map(row => row.vendor_code)).toEqual(["A01", "0042"]);
+    expect(recovered.vendorIdsError).toBeNull();
   });
 });

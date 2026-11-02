@@ -146,6 +146,17 @@ shows a warning. SO Date is live (October 14, 2026): shared-db version
 20261013211042 is in production and the column shows ColdLion SO received dates
 with the tooltip **Date ColdLion received the Sales Order.**
 
+**Vendor ID** is a read-only, default-visible column next to Vendor. It reads
+ColdLion's business vendor code through the bounded authenticated
+`get_dam_order_vendor_ids` reader (shared-db PR #5398), preserving leading zeros.
+Only an exact primary SO/line, latest intake production reference, matching
+parent/component and unanimous nonblank production-history code can supply it.
+Missing or conflicting evidence stays blank. The column is not editable,
+sortable, filterable or searched. Reader failures retain the other order data
+and show a refresh warning. Older local and named layouts gain Vendor ID beside
+Vendor once; explicit saved visibility and position remain unchanged. Delivery
+and live proof are tracked on [#634](https://github.com/u2giants/popdam3/issues/634).
+
 **SKU Qty in Assortment** is a read-only, default-visible column next to
 Quantity. It means the number of pieces of this SKU in one assortment carton.
 The authenticated, bounded reader is in [shared-db PR #4857](https://github.com/popcre/shared-db/pull/4857),

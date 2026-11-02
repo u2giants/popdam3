@@ -355,10 +355,11 @@ describe("OrderList columns", () => {
 
   it("opens with the recognizable legacy sheet order", () => {
     const visible = ORDER_LIST_COLUMNS.filter((column) => !column.hide).map((column) => column.field);
-    expect(visible.slice(0, 10)).toEqual([
+    expect(visible.slice(0, 11)).toEqual([
       "order_status",
       "production_order_number",
       "vendor_name",
+      "vendor_code",
       "order_date",
       "sales_order_date",
       "sent_po_date",
