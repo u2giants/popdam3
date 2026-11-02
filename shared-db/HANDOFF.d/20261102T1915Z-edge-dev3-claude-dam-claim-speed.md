@@ -1,5 +1,5 @@
 ---
-issue: 5482, 5483
+issue: 5482
 status: OPEN
 owner: unowned — next session claims
 ---

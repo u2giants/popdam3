@@ -1,6 +1,6 @@
 # Plan: make the DAM search-embedding claim fast
 
-Handoff: [HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md](HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md)
+Handoff: [HANDOFF.d/20261102T1915Z-edge-dev3-claude-dam-claim-speed.md](HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md)
 Owning issue: popcre/shared-db#5482 (split out of #4664) (DAM SigLIP2/768 embeddings). Sibling plan: [plan_hts-ruling-search-speed.md](plan_hts-ruling-search-speed.md).
 
 ## STATUS (2026-11-02 2:15 PM EST)
