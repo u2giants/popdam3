@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import urllib.request
 
 from migration_derivation import (
     DerivationError,
@@ -393,6 +395,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261102215524": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#4578",
+        "note": "Complete sandbox Sample Tracking baseline; source and issue explicitly exclude shared preview and production.",
+    },
     "20261002135053": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
@@ -2372,7 +2380,8 @@ def _created_by_applied_dynamic_ddl(
 
 
 def preflight_batch(
-    migrations: dict[str, Path], allowlist: list[str], remote: set[str]
+    migrations: dict[str, Path], allowlist: list[str], remote: set[str],
+    existing_relations: frozenset[str] = frozenset(),
 ) -> None:
     """Reject a batch that cannot run end to end. Never an approval."""
     creators: dict[str, list[str]] = {}
@@ -2386,7 +2395,7 @@ def preflight_batch(
     # `removed_by` remembers WHICH version removed an object, so the refusal can
     # say "dropped by X" instead of the misleading "created by X, which is not
     # applied" the creation-only model would have printed.
-    available: set[str] = set()
+    available: set[str] = set(existing_relations)
     removed_by: dict[str, str] = {}
     for version in sorted(remote):
         path = migrations.get(version)
@@ -2502,12 +2511,15 @@ def preflight(
     ledger: Path,
     derivation_overrides: dict[tuple[str, str], str] | None = None,
     ledger_name: str = "production",
+    existing_relations: frozenset[str] = frozenset(),
 ) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
     migrations = local_migrations(repo)
     validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
-    preflight_batch(migrations, allowlist, remote)
+    if existing_relations and ledger_name != "sandbox":
+        raise GuardError("live dependency catalog is supported only for sandbox")
+    preflight_batch(migrations, allowlist, remote, existing_relations)
     print(
         f"PREFLIGHT OK: {len(allowlist)} migrations, no missing non-deferrable "
         "dependency. This is a pre-filter, NOT an approval -- the rehearsal "
@@ -2523,6 +2535,7 @@ def prepare(
     ledger: Path,
     derivation_overrides: dict[tuple[str, str], str] | None = None,
     ledger_name: str = "production",
+    existing_relations: frozenset[str] = frozenset(),
 ) -> None:
     remote = parse_remote_versions(ledger)
     allowlist = parse_allowlist(raw_allowlist, remote, migration_target_for_ledger(ledger_name))
@@ -2530,7 +2543,9 @@ def prepare(
     validate_candidates(migrations, allowlist, remote, derivation_overrides, ledger_name)
     # AGENTS.md section 6.8: the whole batch must be proven runnable end to end
     # before anything is applied, never one migration at a time.
-    preflight_batch(migrations, allowlist, remote)
+    if existing_relations and ledger_name != "sandbox":
+        raise GuardError("live dependency catalog is supported only for sandbox")
+    preflight_batch(migrations, allowlist, remote, existing_relations)
     if output.exists():
         raise GuardError(f"bounded checkout already exists: {output}")
     subprocess.run(
@@ -2646,6 +2661,52 @@ def _add_derivation_override(sub: argparse.ArgumentParser) -> None:
     )
 
 
+def read_sandbox_dependencies(ledger_name, project_ref, token, query=None, fetch=None):
+    """Read current relations, never invent ledger entries for pre-ledger tables."""
+    if ledger_name != "sandbox" or project_ref != "xupnyeifmpsacrqahwwm":
+        raise GuardError("live dependency reads require the exact DesignFlow sandbox target")
+    if not token:
+        raise GuardError("sandbox live dependency read requires SUPABASE_ACCESS_TOKEN")
+    # This reader uses only stdlib so sandbox-only inspection cannot expand
+    # the production preview producer's pinned executable/data closure.
+    def read_api(suffix, payload=None):
+        request = urllib.request.Request(
+            f"https://api.supabase.com/v1/projects/{project_ref}{suffix}",
+            data=None if payload is None else json.dumps(payload).encode(),
+            headers={"Authorization": f"Bearer {token}",
+                     "User-Agent": "shared-db-sandbox-dependency-proof/1",
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    if fetch:
+        project = fetch(project_ref, token)
+    else:
+        project = read_api("")
+    if not isinstance(project, dict) or (project.get("id") or project.get("ref")) != project_ref:
+        raise GuardError("Management API returned a different sandbox project identity")
+    statement = """
+            SELECT n.nspname || '.' || c.relname AS name
+            FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname='dflow' AND c.relkind IN ('r','p','v','m','f')
+            ORDER BY 1
+        """
+    rows = query(project_ref, token, statement) if query else read_api(
+        "/database/query", {"query": statement, "read_only": True})
+    if not isinstance(rows, list) or not rows:
+        raise GuardError("sandbox dependency catalog is missing or empty")
+    names = []
+    for row in rows:
+        name = row.get("name") if isinstance(row, dict) else None
+        if not isinstance(name, str) or not re.fullmatch(r"dflow\.[A-Za-z_][A-Za-z_0-9]*", name):
+            raise GuardError("sandbox dependency catalog contains an invalid relation")
+        names.append(name)
+    if len(names) != len(set(names)):
+        raise GuardError("sandbox dependency catalog contains duplicate relations")
+    print(f"LIVE SANDBOX DEPENDENCIES: {len(names)} relations, sha256=" +
+          hashlib.sha256(json.dumps(sorted(names)).encode()).hexdigest())
+    return frozenset(names)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     subs = parser.add_subparsers(dest="command", required=True)
@@ -2656,12 +2717,14 @@ def main() -> int:
     prep.add_argument("--allowlist", required=True)
     prep.add_argument("--remote-ledger", type=Path, required=True)
     prep.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
+    prep.add_argument("--sandbox-live-dependencies", action="store_true")
     _add_derivation_override(prep)
     pre = subs.add_parser("preflight")
     pre.add_argument("--repo", type=Path, required=True)
     pre.add_argument("--allowlist", required=True)
     pre.add_argument("--remote-ledger", type=Path, required=True)
     pre.add_argument("--ledger-name", choices=LEDGER_NAMES, default="production")
+    pre.add_argument("--sandbox-live-dependencies", action="store_true")
     _add_derivation_override(pre)
     bounded = subs.add_parser("assert-bounded")
     bounded.add_argument("--dir", dest="directory", type=Path, required=True)
@@ -2684,6 +2747,11 @@ def main() -> int:
     args = parser.parse_args()
     try:
         overrides = parse_overrides(getattr(args, "derivation_override", []))
+        existing_relations = frozenset()
+        if getattr(args, "sandbox_live_dependencies", False):
+            existing_relations = read_sandbox_dependencies(
+                args.ledger_name, os.environ.get("SANDBOX_PROJECT_REF", ""),
+                os.environ.get("SUPABASE_ACCESS_TOKEN", ""))
         if args.command == "prepare":
             prepare(
                 args.repo.resolve(),
@@ -2693,11 +2761,13 @@ def main() -> int:
                 args.remote_ledger,
                 overrides,
                 args.ledger_name,
+                existing_relations,
             )
         elif args.command == "preflight":
             preflight(
                 args.repo.resolve(), args.allowlist, args.remote_ledger, overrides,
                 args.ledger_name,
+                existing_relations,
             )
         elif args.command == "assert-bounded":
             assert_bounded(

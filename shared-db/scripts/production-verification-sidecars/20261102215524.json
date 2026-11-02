@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261102215524",
+  "migration_sha256": "1bcffdb4ec2c08cc996f0ed57675283e7a94beb3f72cb3401a9f7fdcb10b6e25",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 2176,
+      "line_end": 2177,
+      "disposition": "no_durable_target",
+      "reason": "The conditional role grant is idempotent privilege plumbing for the optional direct backend role; catalog verification cannot require a role that may not exist, while the migration's fixed postgres grants and browser revocations remain statically guarded."
+    }
+  ],
+  "checks": []
+}

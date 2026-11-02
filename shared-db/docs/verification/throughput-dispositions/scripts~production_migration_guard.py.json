@@ -11,6 +11,15 @@
       "legacy_semantic_key": "scripts/production_migration_guard.py:00bc14076dfdfc42a7de7a785cd9cb0a12e0bce3e6dc22ec029dc3451b241dbd:1"
     },
     {
+      "source": "scripts/production_migration_guard.py",
+      "site": "scripts/production_migration_guard.py:2696",
+      "semantic_key": "scripts/production_migration_guard.py:037888719994a2d33bd60120c25e25cc2a0b5a5f815cceb26d512f2e8d32f4ef:context-2f1a618b1021bd65540dabb899b734b609c973d9fa2032707a8d8e0ac4bf4012",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:037888719994a2d33bd60120c25e25cc2a0b5a5f815cceb26d512f2e8d32f4ef:1",
+      "line_sha256": "037888719994a2d33bd60120c25e25cc2a0b5a5f815cceb26d512f2e8d32f4ef",
+      "disposition": "excluded",
+      "reason": "The new sandbox-only diagnostic refuses an absent or empty live catalog after exact target verification; it never infers missing database objects from an unapplied migration ledger."
+    },
+    {
       "site": "scripts/production_migration_guard.py:237",
       "semantic_key": "scripts/production_migration_guard.py:07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e:context-d404d45d90eab71943191877d081f6072d1385c95124420fa1af3cffadbfdc95",
       "line_sha256": "07e281dcbfa7b0a003faa8fea69a37bdd202e13e6edce968b18f3a7bbe77ff9e",
@@ -283,12 +292,13 @@
       "legacy_semantic_key": "scripts/production_migration_guard.py:f215e81452775dde8be07b97a775dcd16679e5782667c7792ea4651301f207b8:1"
     },
     {
-      "site": "scripts/production_migration_guard.py:2502",
-      "semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:context-07865c587680c86ff57bffd67c4020823220ff1de42ce1240b1e0c06e7c7b73f",
+      "source": "scripts/production_migration_guard.py",
+      "site": "scripts/production_migration_guard.py:2523",
+      "semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:context-ef4aed005e907ff6f3ec87874bf4377b5207af597a32099ac41a27787cd80007",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:1",
       "line_sha256": "fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef",
       "disposition": "excluded",
-      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/production_migration_guard.py:fd57353970def949be974cb98d8a25b4a34bf6a10ee7bbb79bc54ea33d2d58ef:1"
+      "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation."
     },
     {
       "site": "scripts/production_migration_guard.py:615",
