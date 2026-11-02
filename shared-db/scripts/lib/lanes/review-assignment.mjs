@@ -7,7 +7,7 @@ import { parseReviewReplacement, requireReplacementEvidence } from './review-rep
 import { assertReviewerAllowlistConsistency } from './reviewer-roster.mjs'
 import { reviewLeaseAgeHours } from './review-leases.mjs'
 import { releaseOwnedRef, requireOwnedRef } from './holds-and-refs.mjs'
-import { assignNextReviewer, githubIo } from '../../manage-migration-author-lanes.mjs'
+import { githubIo } from '../../manage-migration-author-lanes.mjs'
 
 // One shared set of namespace listings resolves the requesting slot's durable
 // policy, the earliest other live peer's task policy, and every other live
@@ -384,12 +384,3 @@ export function finishReviewerQueueTurn(ticket,io){
 // (2026-09-11, marker #2758): lock-contention retries wait at least five minutes,
 // so the default is one retry after five minutes plus jitter.
 export const MUTEX_RETRY_WAIT_MS = 300000
-export function assignWithMutexRetry(request,io=githubIo,{attempts=2,wait=(ms)=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)}={}){
-  for(let attempt=1;;attempt++){
-    try{return assignNextReviewer(request,io)}
-    catch(error){
-      if(attempt>=attempts||error?.message!==`${MUTEX_REF} is occupied`)throw error
-      wait(MUTEX_RETRY_WAIT_MS+Math.floor(Math.random()*30000))
-    }
-  }
-}

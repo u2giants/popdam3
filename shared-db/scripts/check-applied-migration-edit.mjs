@@ -127,15 +127,49 @@ export function fileMatchesLedgerStatements(raw, statements) {
   return /^[\s;]*$/.test(text.slice(cursor))
 }
 
+/** Read the exact preview-only atomic representation using the applier itself. */
+export function atomicPreviewStatements(file, raw, { executor = execFileSync, cwd = repoRoot } = {}) {
+  if (typeof raw !== 'string' || !versionOf(file)) return null
+  try {
+    const result = executor('python3', ['-c', `
+import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import atomic_migration_apply as atomic
+root = Path(sys.argv[2])
+atomic.POLICY = root / 'config/atomic-migration-allowlist.json'
+file = root / sys.argv[3]
+version = sys.argv[4]
+entry = atomic.read_policy().get(version, {})
+if entry.get('strip_outer_transaction') is not True:
+    raise atomic.Refusal('outer transaction stripping is not authorized')
+expected = sys.stdin.buffer.read().replace(b'\\r\\n', b'\\n')
+if atomic.canonical_migration_bytes(file) != expected:
+    raise atomic.Refusal('migration differs from the guard input')
+loaded, _, _, statements = atomic.load_candidate(root / 'supabase/migrations', version, 'preview')
+if loaded.resolve() != file.resolve():
+    raise atomic.Refusal('migration path mismatch')
+print(json.dumps(statements))
+`, path.join(repoRoot, 'scripts'), cwd, file, versionOf(file)], { cwd, input: raw, encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] })
+    const statements = JSON.parse(result)
+    return Array.isArray(statements) ? statements : null
+  } catch { return null }
+}
+
+function sameOrderedStatements(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length > 0 && left.length === right.length
+    && left.every((statement, index) => typeof statement === 'string' && statement !== '' && statement === statement.trim() && statement === right[index])
+}
+
 /**
  * Pure. The preview-only pre-merge exception described in the header. Returns
  * null (refuse) unless every condition holds.
  */
-export function previewApplyAllows(edit, appliedIn, raw, previewStatements) {
+export function previewApplyAllows(edit, appliedIn, raw, previewStatements, atomicStatements = new Map()) {
   if (edit?.kind !== 'added' || appliedIn.length !== 1 || appliedIn[0] !== 'preview') return null
   if (!(previewStatements instanceof Map) || !previewStatements.has(edit.version)) return null
   const statements = previewStatements.get(edit.version)
-  if (!fileMatchesLedgerStatements(raw, statements)) return null
+  if (!fileMatchesLedgerStatements(raw, statements) && !sameOrderedStatements(atomicStatements.get(edit.file), statements)) return null
   return { statementCount: statements.length }
 }
 
@@ -224,7 +258,7 @@ export function editedMigrations(baseRef, { executor = execFileSync, cwd = repoR
  * Pure. Given the edits and each ledger's applied versions, say which edits are
  * forbidden and where each was already applied.
  */
-export function findingsFor(edits, ledgers, bodies = new Map(), previewStatements = new Map()) {
+export function findingsFor(edits, ledgers, bodies = new Map(), previewStatements = new Map(), atomicStatements = new Map()) {
   const findings = []
   const allowed = []
   for (const edit of edits) {
@@ -232,7 +266,7 @@ export function findingsFor(edits, ledgers, bodies = new Map(), previewStatement
     if (appliedIn.length === 0) continue
     const restoration = restorationAllows(edit.file, bodies.get(edit.file))
     if (restoration) { allowed.push({ ...edit, appliedIn, restoration }); continue }
-    const previewApply = previewApplyAllows(edit, appliedIn, bodies.get(edit.file), previewStatements)
+    const previewApply = previewApplyAllows(edit, appliedIn, bodies.get(edit.file), previewStatements, atomicStatements)
     if (previewApply) { allowed.push({ ...edit, appliedIn, previewApply }); continue }
     findings.push({ ...edit, appliedIn })
   }
@@ -281,6 +315,7 @@ export function formatReport(edits, findings) {
 
 export const defaultIo = {
   editedMigrations,
+  atomicPreviewStatements,
   async appliedVersions(projectRef) { return new Set(await fetchAppliedVersions(projectRef)) },
   previewStatements(projectRef, version) { return fetchLedgerStatements(projectRef, version) },
   readMigration(file) {
@@ -304,12 +339,19 @@ export async function runCheck({ baseRef = 'origin/main', io = defaultIo } = {})
   // Statements are read only for the preview-only exception's candidates. An
   // unreadable row is left absent, which previewApplyAllows refuses.
   const previewStatements = new Map()
+  const atomicStatements = new Map()
   for (const edit of edits) {
     if (edit.kind !== 'added' || !ledgers.preview.has(edit.version) || ledgers.production.has(edit.version)) continue
     if (restorationAllows(edit.file, bodies.get(edit.file)) || typeof io.previewStatements !== 'function') continue
-    try { previewStatements.set(edit.version, await io.previewStatements(PROJECT_REFS.preview, edit.version)) } catch { /* fail closed: stays refused */ }
+    try {
+      const statements = await io.previewStatements(PROJECT_REFS.preview, edit.version)
+      previewStatements.set(edit.version, statements)
+      if (!fileMatchesLedgerStatements(bodies.get(edit.file), statements) && typeof io.atomicPreviewStatements === 'function') {
+        atomicStatements.set(edit.file, await io.atomicPreviewStatements(edit.file, bodies.get(edit.file)))
+      }
+    } catch { /* fail closed: stays refused */ }
   }
-  return { edits, findings: findingsFor(edits, ledgers, bodies, previewStatements), ledgersRead: Object.keys(ledgers) }
+  return { edits, findings: findingsFor(edits, ledgers, bodies, previewStatements, atomicStatements), ledgersRead: Object.keys(ledgers) }
 }
 
 export function parseArgs(argv) {

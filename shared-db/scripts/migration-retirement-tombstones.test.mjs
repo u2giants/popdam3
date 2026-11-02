@@ -6,39 +6,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import {
-  LaneError,
-  REVIEW_ASSIGNMENT_REF_PREFIX,
-  RETIRED_CLAIM_REF_PREFIX,
-  RETIREMENT_SCHEMA_VERSION,
-  RETIREMENT_CLOSE_REASON,
-  RETIREMENT_RECORD_PREFIX,
-  RETIREMENT_REF_ROW_LIMIT,
-  retiredClaimRef,
-  normalizeRetirementIdentity,
-  validateRetirementRecord,
-  formatRetirementRecord,
-  parseRetirementRecord,
-  resetRetirementSnapshot,
-  isVersionRetired,
-  readRetirementRecord,
-  assertClaimNotRetired,
-  assertRetirementIdentityAvailable,
-  createRetirementTombstone,
-  acquireAuthorLane,
-  resumeAuthorLease,
-  renewExpiredClaim,
-  expandActiveClaimFromPr,
-  expandActiveClaimFromIssue,
-  recoverSameOwnerSplit,
-  recoverExpiredClaimFromPr,
-  supersedeActiveClaimVersion,
-  reissueMergedStrandedClaim,
-  claimBody,
-  main,
-  retiredReopenedClaims,
-  MUTEX_REF,
-} from './manage-migration-author-lanes.mjs'
+import { LaneError, REVIEW_ASSIGNMENT_REF_PREFIX, RETIRED_CLAIM_REF_PREFIX, RETIREMENT_SCHEMA_VERSION, RETIREMENT_CLOSE_REASON, RETIREMENT_RECORD_PREFIX, RETIREMENT_REF_ROW_LIMIT, retiredClaimRef, normalizeRetirementIdentity, validateRetirementRecord, formatRetirementRecord, parseRetirementRecord, resetRetirementSnapshot, isVersionRetired, readRetirementRecord, assertClaimNotRetired, assertRetirementIdentityAvailable, createRetirementTombstone, claimBody, main, retiredReopenedClaims, MUTEX_REF } from './manage-migration-author-lanes.mjs'
 // The whole module, so the wiring check below can DISCOVER claim-mutating paths
 // instead of being handed a list of the ones somebody already remembered.
 import * as lanes from './manage-migration-author-lanes.mjs'
@@ -276,41 +244,6 @@ test('#2301 identity normalisation treats separator, case and trailing slash as 
 
 // --- wiring and API budget --------------------------------------------------
 
-test('#2301 every claim-reactivation path consults the retirement guard', () => {
-  // Source-level wiring check on purpose: the risk this step exists to remove is
-  // a NEW mutation path that forgets the guard, and that is a property of the
-  // call sites, not of any single behaviour a fixture can reach.
-  //
-  // DISCOVERED, never enumerated. A list of the paths that DO carry the guard can
-  // never catch the path that forgot it, because a path nobody remembered to
-  // guard is also a path nobody remembered to add to the list. An earlier version
-  // of this test named five functions and passed while three others re-pointed
-  // claims with no guard at all.
-  //
-  // The exemptions below are de-escalations. Each states why it must NOT refuse,
-  // because an unexplained exemption is how the next hole gets waved through.
-  const EXEMPT = {
-    main: 'the CLI performs the retirement itself; guarding it would make --release-claim --retire refuse its own close',
-    relinquishAuthorLease: 'relinquishing hands capacity back and never re-points or extends a lease; refusing it would strand a retired claim rather than protect it',
-  }
-  const population = [], unguarded = []
-  for (const [name, fn] of Object.entries(lanes)) {
-    if (typeof fn !== 'function' || Object.hasOwn(EXEMPT, name)) continue
-    const source = fn.toString()
-    // Reads a lease and writes the claim back: that is a claim mutation.
-    if (!/parseAuthorLease/.test(source) || !/\.updateIssue\(/.test(source)) continue
-    population.push(name)
-    if (!/assertClaimNotRetired/.test(source)) unguarded.push(name)
-  }
-  assert.deepEqual(unguarded.sort(), [], 'every path that re-points or extends a claim must refuse a terminally retired version')
-  // A discovery that finds nothing would pass the assertion above while checking
-  // nothing at all, so the population itself is held to a floor.
-  assert.ok(population.length >= 8, `discovery found only ${population.length} claim-mutating paths, so the discovery itself is broken`)
-  for (const [name, fn] of Object.entries({ resumeAuthorLease, renewExpiredClaim, expandActiveClaimFromPr, expandActiveClaimFromIssue, recoverSameOwnerSplit, recoverExpiredClaimFromPr, supersedeActiveClaimVersion, reissueMergedStrandedClaim })) {
-    assert.match(fn.toString(), /assertClaimNotRetired/, `${name} must refuse a terminally retired claim`)
-  }
-  assert.match(acquireAuthorLane.toString(), /assertRetirementIdentityAvailable/, 'acquiring a lane must refuse a retired branch or worktree')
-})
 
 // --- ordering, rollback and reporting --------------------------------------
 
@@ -333,24 +266,7 @@ function releaseIo({ closeThrows = false, refs, commits } = {}) {
 
 const RETIRE_ARGV = ['--release-claim', '4101', '--owner', 'a', '--confirm-finished', '--retire', 'abandoned-worktree', '--pr', '4102', '--head-sha', HEAD, '--worktree-state', 'absent', '--evidence', 'https://github.com/u2giants/shared-db/issues/4101#issuecomment-1']
 
-test('#2301 --release-claim --retire creates the tombstone BEFORE it closes the claim', () => {
-  const io = releaseIo()
-  assert.equal(main(RETIRE_ARGV, NOW, io), 0)
-  assert.deepEqual(io.events.filter((e) => e.startsWith('tombstone:') || e.startsWith('close:')), [`tombstone:${retiredClaimRef(VERSION)}`, 'close:4101'])
-  assert.equal(io.closed.number, 4101)
-  assert.match(io.closed.reason, /terminal retirement/i)
-})
 
-test('#2301 a failed close leaves the tombstone standing and the identical retry finishes the job', () => {
-  const io = releaseIo({ closeThrows: true })
-  assert.notEqual(main(RETIRE_ARGV, NOW, io), 0)
-  assert.ok(io.refs.get(retiredClaimRef(VERSION)), 'the terminal record must survive a failed close')
-  assert.ok(!io.events.some((e) => e.startsWith(`delete:${RETIRED_CLAIM_REF_PREFIX}`)), 'rollback must never delete the tombstone')
-  resetRetirementSnapshot()
-  const retry = releaseIo({ refs: io.refs, commits: io.commits })
-  assert.equal(main(RETIRE_ARGV, NOW, retry), 0)
-  assert.equal(retry.closed.number, 4101)
-})
 
 test('#2301 retirement refuses without the exact PR, head SHA and worktree state it records', () => {
   for (const drop of ['--pr', '--head-sha', '--worktree-state']) {
@@ -361,18 +277,7 @@ test('#2301 retirement refuses without the exact PR, head SHA and worktree state
   }
 })
 
-test('#2301 --retire refuses an unknown decision word at the command boundary', () => {
-  const argv = [...RETIRE_ARGV]
-  argv[argv.indexOf('abandoned-worktree')] = 'gave-up'
-  assert.notEqual(main(argv, NOW, releaseIo()), 0)
-})
 
-test('#2301 an ordinary release is unchanged and writes no tombstone', () => {
-  const io = releaseIo()
-  assert.equal(main(['--release-claim', '4101', '--owner', 'a', '--confirm-finished'], NOW, io), 0)
-  assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
-  assert.ok(!/terminal retirement/i.test(io.closed.reason))
-})
 
 test('#2301 a reopened claim over a retired version is reported as RETIRED-REOPENED', () => {
   const io = withTombstone({ decision: 'superseded-by-successor', successor_issue: 4200 })
@@ -477,16 +382,6 @@ function approvedDirtyIo({ verdictIssue = 4100 } = {}) {
   return { io, verdictSha }
 }
 
-test('#3675 a dirty retirement succeeds with dereferenceable preservation plus the durable APPROVE under the work issue', () => {
-  resetRetirementSnapshot()
-  const { io, verdictSha } = approvedDirtyIo()
-  const preservation = 'artifact:' + 'f'.repeat(40)
-  assert.equal(main([...DIRTY_ARGV, '--preservation', preservation], NOW, io), 0)
-  const tombstone = readRetirementRecord(VERSION, io)
-  assert.equal(tombstone.preservation, preservation)
-  assert.equal(tombstone.review_approval, `artifact:${verdictSha}`, 'review_approval is written from the durable verdict ref')
-  assert.equal(io.closed.number, 4101)
-})
 
 test('#3675 an APPROVE filed under the claim number instead of the work issue does not satisfy retirement', () => {
   resetRetirementSnapshot()

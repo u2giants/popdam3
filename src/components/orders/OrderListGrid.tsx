@@ -220,6 +220,18 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
             : (source === "input" ? "bg-blue-50/60" : source === "helper" ? "bg-slate-200/70" : "bg-slate-50/70"),
         };
 
+        if (column.field === "order_status") {
+          return {
+            ...base,
+            cellRenderer: (params: CustomCellRendererProps<OrderListRow>) =>
+              params.data?.line_status === "cancelled" ? (
+                <span className="rounded border border-amber-700 px-1.5 py-0.5 text-xs" title={params.data.coldlion_source_id ? "Cancelled in ColdLion" : "Cancelled order line"}>
+                  Cancelled
+                </span>
+              ) : (params.valueFormatted ?? params.value ?? null),
+          };
+        }
+
         if (column.kind === "link") {
           return {
             ...base,
@@ -287,11 +299,12 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
         : (band?.alternate ? "#dce5ef" : "#ffffff"),
       borderTop: band?.start ? `2px solid ${theme === "dark" ? "#64748b" : "#94a3b8"}` : "2px solid transparent",
     };
+    if (params.data?.line_status === "cancelled") return { ...groupStyle, opacity: 0.55, textDecoration: "line-through" };
     if (params.data?.order_line_id === highlightedRowId && orderListRowMatchesSearch(params.data, search)) {
       // Find remains prominent within the PO band.
       return { ...groupStyle, backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
     }
-    if (params.data?.order_voided_at) return { ...groupStyle, opacity: 0.55, textDecoration: "line-through" };
+    if (params.data?.order_voided_at || params.data?.line_voided_at) return { ...groupStyle, opacity: 0.55, textDecoration: "line-through" };
     if (params.data && needsReview(params.data)) return { ...groupStyle, backgroundColor: "#fef3c7", color: "#713f12" };
     return groupStyle;
   }, [theme, highlightedRowId, search]);

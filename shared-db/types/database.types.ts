@@ -12450,14 +12450,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "item_workflow_action_actor_user_id_fkey"
-            columns: ["original_actor_user_id"]
+            columns: ["returned_by_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "item_workflow_action_actor_user_id_fkey"
-            columns: ["returned_by_user_id"]
+            columns: ["original_actor_user_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -12739,14 +12739,14 @@ export type Database = {
           },
           {
             foreignKeyName: "sample_shipment_carrier_id_fkey"
-            columns: ["outbound_carrier_id"]
+            columns: ["return_carrier_id"]
             isOneToOne: false
             referencedRelation: "sample_carrier"
             referencedColumns: ["sample_carrier_id"]
           },
           {
             foreignKeyName: "sample_shipment_carrier_id_fkey"
-            columns: ["return_carrier_id"]
+            columns: ["outbound_carrier_id"]
             isOneToOne: false
             referencedRelation: "sample_carrier"
             referencedColumns: ["sample_carrier_id"]
@@ -13103,6 +13103,50 @@ export type Database = {
         }
         Relationships: []
       }
+      hts_rag_authorities: {
+        Row: {
+          created_at: string
+          hs_era: string | null
+          id: number
+          kind: string
+          ref: string
+          ref_norm: string
+          ruling_number: string | null
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hs_era?: string | null
+          id?: never
+          kind: string
+          ref: string
+          ref_norm: string
+          ruling_number?: string | null
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hs_era?: string | null
+          id?: never
+          kind?: string
+          ref?: string
+          ref_norm?: string
+          ruling_number?: string | null
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_authorities_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
       hts_rag_classification_jobs: {
         Row: {
           actual_cost_usd: number | null
@@ -13200,6 +13244,121 @@ export type Database = {
             columns: ["determination_id"]
             isOneToOne: false
             referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_classification_tests: {
+        Row: {
+          anchor_authority_id: number | null
+          canonical_name: string
+          created_at: string
+          description: string | null
+          embedding: unknown
+          id: number
+          kind: string
+          merged_into: number | null
+          source_environment: string
+          updated_at: string
+          vocab_version: number
+        }
+        Insert: {
+          anchor_authority_id?: number | null
+          canonical_name: string
+          created_at?: string
+          description?: string | null
+          embedding?: unknown
+          id?: never
+          kind: string
+          merged_into?: number | null
+          source_environment: string
+          updated_at?: string
+          vocab_version: number
+        }
+        Update: {
+          anchor_authority_id?: number | null
+          canonical_name?: string
+          created_at?: string
+          description?: string | null
+          embedding?: unknown
+          id?: never
+          kind?: string
+          merged_into?: number | null
+          source_environment?: string
+          updated_at?: string
+          vocab_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_classification_tests_anchor_fkey"
+            columns: ["anchor_authority_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_classification_tests_merged_fkey"
+            columns: ["merged_into"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_classification_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_counterfactuals: {
+        Row: {
+          attribute_key: string
+          created_at: string
+          extraction_id: string
+          if_value: string
+          product_id: string
+          sentence_seq: number
+          source_environment: string
+          then_code_prefix: string
+          updated_at: string
+        }
+        Insert: {
+          attribute_key: string
+          created_at?: string
+          extraction_id: string
+          if_value: string
+          product_id: string
+          sentence_seq: number
+          source_environment: string
+          then_code_prefix: string
+          updated_at?: string
+        }
+        Update: {
+          attribute_key?: string
+          created_at?: string
+          extraction_id?: string
+          if_value?: string
+          product_id?: string
+          sentence_seq?: number
+          source_environment?: string
+          then_code_prefix?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_counterfactuals_extraction_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_counterfactuals_key_fkey"
+            columns: ["attribute_key"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_attribute_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "hts_rag_counterfactuals_product_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_ruling_products"
             referencedColumns: ["id"]
           },
         ]
@@ -13308,6 +13467,167 @@ export type Database = {
             columns: ["source_determination_id"]
             isOneToOne: false
             referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_decision_authorities: {
+        Row: {
+          authority_id: number
+          created_at: string
+          decision_id: string
+          role: string
+          sentence_seq: number
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          authority_id: number
+          created_at?: string
+          decision_id: string
+          role: string
+          sentence_seq: number
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          authority_id?: number
+          created_at?: string
+          decision_id?: string
+          role?: string
+          sentence_seq?: number
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_decision_authorities_authority_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_authorities_decision_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_heading_decisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_decision_facts: {
+        Row: {
+          attribute_id: string | null
+          attribute_key: string
+          created_at: string
+          decision_test_id: string
+          direction: string
+          sentence_seq: number
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          attribute_id?: string | null
+          attribute_key: string
+          created_at?: string
+          decision_test_id: string
+          direction: string
+          sentence_seq: number
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          attribute_id?: string | null
+          attribute_key?: string
+          created_at?: string
+          decision_test_id?: string
+          direction?: string
+          sentence_seq?: number
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_decision_facts_attribute_fkey"
+            columns: ["attribute_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_product_attributes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_facts_key_fkey"
+            columns: ["attribute_key"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_attribute_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_facts_test_fkey"
+            columns: ["decision_test_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_decision_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_decision_tests: {
+        Row: {
+          created_at: string
+          decision_id: string
+          extraction_id: string
+          id: string
+          is_dispositive: boolean
+          outcome: string
+          reason_sentence_seq: number | null
+          source_environment: string
+          test_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decision_id: string
+          extraction_id: string
+          id?: string
+          is_dispositive?: boolean
+          outcome: string
+          reason_sentence_seq?: number | null
+          source_environment: string
+          test_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decision_id?: string
+          extraction_id?: string
+          id?: string
+          is_dispositive?: boolean
+          outcome?: string
+          reason_sentence_seq?: number | null
+          source_environment?: string
+          test_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_decision_tests_decision_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_heading_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_tests_extraction_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extractions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_tests_test_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_classification_tests"
             referencedColumns: ["id"]
           },
         ]
@@ -13470,50 +13790,125 @@ export type Database = {
           },
         ]
       }
+      hts_rag_extractions: {
+        Row: {
+          cost_usd: number | null
+          created_at: string
+          extract_version: string
+          id: string
+          is_current: boolean
+          model: string
+          pass: string
+          prompt_hash: string
+          raw_output: Json | null
+          ruling_number: string
+          source_environment: string
+          text_hash: string
+          updated_at: string
+        }
+        Insert: {
+          cost_usd?: number | null
+          created_at?: string
+          extract_version: string
+          id?: string
+          is_current?: boolean
+          model: string
+          pass: string
+          prompt_hash: string
+          raw_output?: Json | null
+          ruling_number: string
+          source_environment: string
+          text_hash: string
+          updated_at?: string
+        }
+        Update: {
+          cost_usd?: number | null
+          created_at?: string
+          extract_version?: string
+          id?: string
+          is_current?: boolean
+          model?: string
+          pass?: string
+          prompt_hash?: string
+          raw_output?: Json | null
+          ruling_number?: string
+          source_environment?: string
+          text_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_extractions_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
       hts_rag_heading_decisions: {
         Row: {
+          code_prefix: string | null
           created_at: string
           decisive_keys: string[]
+          extraction_id: string | null
           heading: string
           id: string
           legal_note_refs: string[]
           outcome: string
           product_id: string
           reason_text: string | null
+          rejected_proposed_by: string | null
           rule_used: string[]
+          sentence_seq: number | null
           source_environment: string
           source_span: unknown
           updated_at: string
         }
         Insert: {
+          code_prefix?: string | null
           created_at?: string
           decisive_keys?: string[]
+          extraction_id?: string | null
           heading: string
           id?: string
           legal_note_refs?: string[]
           outcome: string
           product_id: string
           reason_text?: string | null
+          rejected_proposed_by?: string | null
           rule_used?: string[]
+          sentence_seq?: number | null
           source_environment: string
           source_span?: unknown
           updated_at?: string
         }
         Update: {
+          code_prefix?: string | null
           created_at?: string
           decisive_keys?: string[]
+          extraction_id?: string | null
           heading?: string
           id?: string
           legal_note_refs?: string[]
           outcome?: string
           product_id?: string
           reason_text?: string | null
+          rejected_proposed_by?: string | null
           rule_used?: string[]
+          sentence_seq?: number | null
           source_environment?: string
           source_span?: unknown
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hts_rag_heading_decisions_extraction_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extractions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hts_rag_heading_decisions_product_fkey"
             columns: ["product_id"]
@@ -13807,6 +14202,7 @@ export type Database = {
           is_decisive: boolean
           key: string
           product_id: string
+          sentence_seq: number | null
           source_environment: string
           source_span: unknown
           unit: string | null
@@ -13821,6 +14217,7 @@ export type Database = {
           is_decisive?: boolean
           key: string
           product_id: string
+          sentence_seq?: number | null
           source_environment: string
           source_span: unknown
           unit?: string | null
@@ -13835,6 +14232,7 @@ export type Database = {
           is_decisive?: boolean
           key?: string
           product_id?: string
+          sentence_seq?: number | null
           source_environment?: string
           source_span?: unknown
           unit?: string | null
@@ -14200,6 +14598,7 @@ export type Database = {
       }
       hts_rag_ruling_links: {
         Row: {
+          affected_product_ids: string[] | null
           created_at: string
           from_ruling: string
           kind: string
@@ -14210,6 +14609,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          affected_product_ids?: string[] | null
           created_at?: string
           from_ruling: string
           kind: string
@@ -14220,6 +14620,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          affected_product_ids?: string[] | null
           created_at?: string
           from_ruling?: string
           kind?: string
@@ -14247,6 +14648,7 @@ export type Database = {
           description_text: string | null
           effective_status: string
           extract_version: string
+          extraction_id: string | null
           held_chapter: string | null
           held_code: string | null
           held_code_current: string[]
@@ -14255,6 +14657,7 @@ export type Database = {
           is_composite: boolean
           is_set: boolean
           item_label: string
+          likely_superseded: boolean
           phrase_embedding: unknown
           plain_phrase: string
           primary_material_id: string | null
@@ -14271,6 +14674,7 @@ export type Database = {
           description_text?: string | null
           effective_status?: string
           extract_version: string
+          extraction_id?: string | null
           held_chapter?: string | null
           held_code?: string | null
           held_code_current?: string[]
@@ -14279,6 +14683,7 @@ export type Database = {
           is_composite?: boolean
           is_set?: boolean
           item_label: string
+          likely_superseded?: boolean
           phrase_embedding?: unknown
           plain_phrase: string
           primary_material_id?: string | null
@@ -14295,6 +14700,7 @@ export type Database = {
           description_text?: string | null
           effective_status?: string
           extract_version?: string
+          extraction_id?: string | null
           held_chapter?: string | null
           held_code?: string | null
           held_code_current?: string[]
@@ -14303,6 +14709,7 @@ export type Database = {
           is_composite?: boolean
           is_set?: boolean
           item_label?: string
+          likely_superseded?: boolean
           phrase_embedding?: unknown
           plain_phrase?: string
           primary_material_id?: string | null
@@ -14321,6 +14728,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hts_rag_ruling_products_extraction_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_extractions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "hts_rag_ruling_products_material_fkey"
             columns: ["primary_material_id"]
             isOneToOne: false
@@ -14329,6 +14743,50 @@ export type Database = {
           },
           {
             foreignKeyName: "hts_rag_ruling_products_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
+      hts_rag_ruling_sentences: {
+        Row: {
+          created_at: string
+          ruling_number: string
+          section: string
+          seq: number
+          source_environment: string
+          span: unknown
+          text_hash: string
+          text_norm: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ruling_number: string
+          section: string
+          seq: number
+          source_environment: string
+          span: unknown
+          text_hash: string
+          text_norm: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ruling_number?: string
+          section?: string
+          seq?: number
+          source_environment?: string
+          span?: unknown
+          text_hash?: string
+          text_norm?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_sentences_ruling_fkey"
             columns: ["ruling_number"]
             isOneToOne: false
             referencedRelation: "hts_rag_rulings"
@@ -14356,6 +14814,7 @@ export type Database = {
           revoked_by: Json
           ruling_date: string | null
           ruling_number: string
+          search_tsv: unknown
           source_environment: string
           source_url: string | null
           subject: string | null
@@ -14381,6 +14840,7 @@ export type Database = {
           revoked_by?: Json
           ruling_date?: string | null
           ruling_number: string
+          search_tsv?: unknown
           source_environment: string
           source_url?: string | null
           subject?: string | null
@@ -14406,6 +14866,7 @@ export type Database = {
           revoked_by?: Json
           ruling_date?: string | null
           ruling_number?: string
+          search_tsv?: unknown
           source_environment?: string
           source_url?: string | null
           subject?: string | null
@@ -14414,8 +14875,104 @@ export type Database = {
         }
         Relationships: []
       }
+      hts_rag_test_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          source_environment: string
+          test_id: number
+          updated_at: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          source_environment: string
+          test_id: number
+          updated_at?: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          source_environment?: string
+          test_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_test_aliases_test_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_classification_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      hts_rag_fault_lines: {
+        Row: {
+          article_type_id: string | null
+          attribute_key: string | null
+          example_products: string[] | null
+          n_held_a: number | null
+          n_held_b: number | null
+          n_products: number | null
+          prefix_a: string | null
+          prefix_b: string | null
+          test_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_decision_facts_key_fkey"
+            columns: ["attribute_key"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_attribute_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_tests_test_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_classification_tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_ruling_products_article_type_fkey"
+            columns: ["article_type_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_article_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hts_rag_fault_lines_any_type: {
+        Row: {
+          attribute_key: string | null
+          example_products: string[] | null
+          n_held_a: number | null
+          n_held_b: number | null
+          n_products: number | null
+          prefix_a: string | null
+          prefix_b: string | null
+          test_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_decision_facts_key_fkey"
+            columns: ["attribute_key"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_attribute_keys"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "hts_rag_decision_tests_test_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_classification_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hts_rag_type_heading_stats: {
         Row: {
           all_materials: boolean | null
@@ -14447,7 +15004,43 @@ export type Database = {
       }
     }
     Functions: {
+      hts_rag_refresh_fault_lines: { Args: never; Returns: undefined }
       hts_rag_refresh_type_heading_stats: { Args: never; Returns: undefined }
+      hts_rag_search_rulings: {
+        Args: {
+          p_chapters?: string[]
+          p_limit?: number
+          p_min_pass1?: number
+          p_query: string
+          p_query_embedding?: unknown
+        }
+        Returns: {
+          fts_rank: number
+          held_codes: string[]
+          in_candidate_chapters: boolean
+          pass: number
+          ruling_date: string
+          ruling_number: string
+          score: number
+          subject: string
+          trgm_rank: number
+          vector_rank: number
+        }[]
+      }
+      hts_rag_search_rulings_pass: {
+        Args: {
+          p_query: string
+          p_query_embedding: unknown
+          p_scope_chapters: string[]
+          p_tsquery: unknown
+        }
+        Returns: {
+          fts_rank: number
+          ruling_number: string
+          trgm_rank: number
+          vector_rank: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -38750,6 +39343,17 @@ export type Database = {
       }
     }
     Views: {
+      asset_file_style_guide_index: {
+        Row: {
+          core_style_guide_id: string | null
+          file_name_norm: string | null
+          matched_file_name: string | null
+          source_style_guide_key: string | null
+          source_system: string | null
+          style_guide_label: string | null
+        }
+        Relationships: []
+      }
       coldlion_item_detail: {
         Row: {
           active: string | null
@@ -41511,6 +42115,38 @@ export type Database = {
           },
         ]
       }
+      asset_licensor_characters: {
+        Row: {
+          asset_id: string
+          character_id: string
+          model: string | null
+          source: string
+          tagged_at: string
+        }
+        Insert: {
+          asset_id: string
+          character_id: string
+          model?: string | null
+          source?: string
+          tagged_at?: string
+        }
+        Update: {
+          asset_id?: string
+          character_id?: string
+          model?: string | null
+          source?: string
+          tagged_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_licensor_characters_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_path_history: {
         Row: {
           asset_id: string
@@ -43626,6 +44262,57 @@ export type Database = {
           },
         ]
       }
+      sku_style_guide_links: {
+        Row: {
+          core_style_guide_id: string | null
+          created_at: string
+          file_name: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          match_confidence: number
+          match_method: string
+          matched_asset_count: number
+          sku: string
+          source_style_guide_key: string
+          source_system: string
+          style_guide_label: string
+          updated_at: string
+        }
+        Insert: {
+          core_style_guide_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          match_confidence?: number
+          match_method: string
+          matched_asset_count?: number
+          sku: string
+          source_style_guide_key: string
+          source_system: string
+          style_guide_label: string
+          updated_at?: string
+        }
+        Update: {
+          core_style_guide_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          match_confidence?: number
+          match_method?: string
+          matched_asset_count?: number
+          sku?: string
+          source_style_guide_key?: string
+          source_system?: string
+          style_guide_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       style_group_tags: {
         Row: {
           category: string
@@ -45127,6 +45814,7 @@ export type Database = {
         }[]
       }
       backfill_pdf_files_used: { Args: never; Returns: number }
+      backfill_pdf_files_used_v2: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
@@ -45311,10 +45999,34 @@ export type Database = {
       }
       dam_asset_matches_filters: {
         Args: {
-          p_asset: Database["public"]["Tables"]["assets"]["Row"]
+          p_art_source: Database["public"]["Enums"]["art_source"]
+          p_asset_type: Database["public"]["Enums"]["asset_type"]
+          p_content_type: string
+          p_customer: string
+          p_customer_id: string
+          p_file_created_at: string
+          p_file_type: Database["public"]["Enums"]["file_type"]
           p_filters: Json
-          p_style_group: Database["public"]["Tables"]["style_groups"]["Row"]
-          p_thumbnail_min_date: string
+          p_id: string
+          p_is_deleted: boolean
+          p_is_licensed: boolean
+          p_licensor_id: string
+          p_min_date: string
+          p_modified_at: string
+          p_product_category: string
+          p_product_material: string[]
+          p_program: string
+          p_property_id: string
+          p_relative_path: string
+          p_sg_customer_id: string
+          p_sg_licensor_id: string
+          p_sg_property_id: string
+          p_stage: string
+          p_status: Database["public"]["Enums"]["asset_status"]
+          p_style_group_id: string
+          p_thumbnail_error: string
+          p_thumbnail_url: string
+          p_workflow_status: Database["public"]["Enums"]["workflow_status"]
         }
         Returns: boolean
       }
@@ -45337,6 +46049,7 @@ export type Database = {
           query_text: string
         }[]
       }
+      file_name_norm: { Args: { p_name: string }; Returns: string }
       filter_effective_assets: {
         Args: { p_filters?: Json }
         Returns: {
@@ -45691,6 +46404,10 @@ export type Database = {
       }
       image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
+      is_plausible_source_file_name: {
+        Args: { p_name: string }
+        Returns: boolean
+      }
       is_style_guide_source_pdf: {
         Args: { p_file_type: string; p_filename: string }
         Returns: boolean
@@ -45743,7 +46460,12 @@ export type Database = {
       }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
+      parse_pdf_declared_style_guide: {
+        Args: { p_asset_id: string }
+        Returns: number
+      }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
+      parse_pdf_files_used_v2: { Args: { p_asset_id: string }; Returns: number }
       preview_stale_sg_files: {
         Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
         Returns: {
@@ -46082,6 +46804,7 @@ export type Database = {
         Args: { p_threshold?: number }
         Returns: number
       }
+      resolve_sku_style_guide_links: { Args: never; Returns: Json }
       retry_sg_render_errors:
         | { Args: { p_file_ids?: string[] }; Returns: number }
         | { Args: { p_file_ids?: string[]; p_limit?: number }; Returns: number }
@@ -46222,6 +46945,7 @@ export type Database = {
         Args: { p_relative_path: string }
         Returns: string
       }
+      style_guide_label_norm: { Args: { p_label: string }; Returns: string }
       style_guide_tag_input_fingerprint: {
         Args: {
           p_file_extension: string

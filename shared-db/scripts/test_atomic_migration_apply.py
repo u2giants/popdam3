@@ -187,6 +187,42 @@ class AtomicMigrationApplyTests(unittest.TestCase):
                 with self.subTest(raw=raw), self.assertRaises(atomic.Refusal):
                     atomic.classify_allowlist(raw)
 
+    def test_classifier_respects_target_and_preserves_targetless_api(self):
+        _, policy = self.authorize()
+        value = json.loads(policy.read_text(encoding="utf-8"))
+        entry = value["migrations"]["29990101000000"]
+        for targets in (["preview"], ["preview", "production"]):
+            entry["targets"] = targets
+            policy.write_text(json.dumps(value), encoding="utf-8")
+            with patch.object(atomic, "POLICY", policy):
+                self.assertEqual(atomic.classify_allowlist("29990101000000"), "29990101000000")
+                for target in ("preview", "production"):
+                    with self.subTest(target=target, targets=targets):
+                        expected = "29990101000000" if target in targets else ""
+                        self.assertEqual(atomic.classify_allowlist("29990101000000", target), expected)
+                        if expected:
+                            for raw in ("29990101000000,29990101000001", "29990101000000,29990101000000"):
+                                with self.assertRaises(atomic.Refusal):
+                                    atomic.classify_allowlist(raw, target)
+                        for raw in ("", "29990101000000,", ",29990101000000", "invalid"):
+                            with self.assertRaises(atomic.Refusal):
+                                atomic.classify_allowlist(raw, target)
+                with self.assertRaises(atomic.Refusal):
+                    atomic.classify_allowlist("29990101000000", "other")
+
+    def test_classifier_cli_passes_target(self):
+        for target in (None, "preview", "production"):
+            argv = ["atomic_migration_apply.py", "--migrations-dir", str(self.root),
+                    "--classify-allowlist", "29990101000000"]
+            if target:
+                argv.extend(["--target", target])
+            with patch.object(sys, "argv", argv), patch.object(
+                atomic, "classify_allowlist", return_value="29990101000000"
+            ) as classifier, redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(atomic.main(), 0)
+                classifier.assert_called_once_with("29990101000000", target)
+                self.assertEqual(output.getvalue(), "29990101000000\n")
+
     def test_policy_entries_bind_exactly_one_matching_committed_file(self):
         path, policy = self.authorize()
         with patch.object(atomic, "POLICY", policy):

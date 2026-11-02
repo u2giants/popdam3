@@ -324,13 +324,27 @@ export async function writeAssetAiTags(
   model: string,
   tagData: Record<string, unknown>,
 ) {
-  const result = await client.rpc("replace_asset_ai_tag_result", {
+  const result = await retryStatementTimeout(() => client.rpc("replace_asset_ai_tag_result", {
     p_asset_id: assetId,
     p_source: "ai",
     p_model: model,
     p_tags: assetTagsForRpc(tagData),
-  });
+  }));
   if (result.error) throw Object.assign(new Error(`Atomic AI tag write failed: ${result.error.message}`), { code: (result.error as { code?: string }).code });
+}
+
+/** The save is one atomic transaction, so a statement timeout left nothing behind; keep the paid AI result and retry. */
+export async function retryStatementTimeout<T extends { error: unknown }>(
+  save: () => PromiseLike<T>,
+  delaysMs: number[] = [2_000, 5_000, 15_000],
+): Promise<T> {
+  let result = await save();
+  for (const delayMs of delaysMs) {
+    if ((result.error as { code?: string } | null)?.code !== "57014") break;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    result = await save();
+  }
+  return result;
 }
 
 export interface AiTagRpcClient {
@@ -893,7 +907,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
     return { outcome: "failed", error: `Asset not found: ${fetchErr?.message ?? "no data"}` };
   }
 
-  // Parallel mode never retags a saved complete asset, even on a retried page.
+  // Parallel mode never retags a saved complete asset, even on a retried page, unless the exact run sets force.
   if (parallelModel && asset.ai_tagged_at && asset.ai_description?.trim() && asset.ai_model && acceptedModels?.includes(asset.ai_model)) {
     const savedTags = await client.from("asset_tags").select("id").eq("asset_id", assetId).eq("source", "ai").eq("status", "active").eq("model", asset.ai_model).limit(1);
     if (savedTags.error) return { outcome: "failed", error: "Saved tag verification failed" };
@@ -1115,7 +1129,7 @@ export async function handleBulkAiTag(
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
         }),
       );

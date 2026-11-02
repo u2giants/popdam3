@@ -323,10 +323,11 @@ export function useStyleGroups(
   });
 }
 
-export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: string) {
+export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: string, enabled = true) {
   return useQuery({
     retry: filters.search ? false : undefined,
     queryKey: ["style-group-count", filters, visibilityDate],
+    enabled,
     queryFn: async () => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {

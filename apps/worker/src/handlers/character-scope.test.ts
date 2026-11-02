@@ -44,10 +44,11 @@ test("without licensing ids the SKU licensor code scopes characters, never the g
   assert.deepEqual(scope, { licensor_id: "peanuts", property_id: null, unlicensed: false });
 });
 
-function catalogClient(links: { id: string; name: string }[], licensorChars: { id: string; name: string }[]) {
+function catalogClient(links: { id: string; name: string }[], licensorChars: { id: string; name: string }[], edges: { id: string; name: string }[] = []) {
   const table = (name: string) => {
     const answer = () => {
       if (name === "property_character_associations") return links.map(character => ({ character }));
+      if (name === "property_character_source_edge") return edges.map(character => ({ character }));
       if (name === "character") return licensorChars;
       if (name === "property") return { licensor_id: "lic" };
       return null;
@@ -90,4 +91,10 @@ test("an unlinked property falls back to a small licensor list", async () => {
 test("a licensor list too large to show offers no characters", async () => {
   const chars = Array.from({ length: LICENSOR_CHARACTER_LIST_LIMIT + 1 }, (_, i) => ({ id: uuid(i + 10), name: `C${i}` }));
   assert.deepEqual(await offered(catalogClient([], chars), promptAsset("p", "lic")), []);
+});
+
+test("co-occurrence edges are offered alongside property links", async () => {
+  const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+  const ids = await offered(catalogClient([{ id: id(1), name: "A" }], [], [{ id: id(2), name: "B" }]), promptAsset("p", "lic"));
+  assert.deepEqual(ids.sort(), [id(1), id(2)]);
 });

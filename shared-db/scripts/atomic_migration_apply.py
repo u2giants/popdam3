@@ -78,13 +78,18 @@ def read_policy() -> dict[str, dict[str, object]]:
     return migrations
 
 
-def classify_allowlist(raw: str) -> str:
+def classify_allowlist(raw: str, target: str | None = None) -> str:
     """Return the sole atomic version, or an empty string for the normal CLI lane."""
     items = raw.split(",")
     if not items or any(not item.strip() for item in items):
         raise Refusal("allowlist contains an empty or malformed entry")
     versions = [validate_version(item.strip()) for item in items]
-    atomic = sorted(set(versions) & set(read_policy()))
+    if target not in (None, "preview", "production"):
+        raise Refusal("atomic classification target is invalid")
+    policy = read_policy()
+    eligible = {version for version, entry in policy.items()
+                if target is None or target in entry.get("targets", [])}
+    atomic = sorted(set(versions) & eligible)
     if not atomic:
         return ""
     if len(versions) != 1 or len(atomic) != 1:
@@ -521,7 +526,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.classify_allowlist is not None:
-            print(classify_allowlist(args.classify_allowlist))
+            print(classify_allowlist(args.classify_allowlist, args.target))
             return 0
         missing = [
             flag

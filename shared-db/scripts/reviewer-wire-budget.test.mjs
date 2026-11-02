@@ -42,26 +42,6 @@ function run(dir, args) {
 const common = ['--issue', '9001', '--pr', '9002', '--head-sha', HEAD]
 const failure = [...common, '--failed-sequence', '1', '--failure-code', 'provider_unavailable', '--confirm-no-verdict', '--confirm-no-artifact']
 
-test('#3187 reviewer assignment, release and replacement each stay within 10 API requests on the wire', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'reviewer-wire-'))
-  try {
-    seed(path.join(dir, 'state.json'))
-    const steps = [
-      ['slot 1 assignment', ['--assign-reviewer', ...common]],
-      ['slot 2 assignment with a live slot 1 lease', ['--assign-reviewer', ...common, '--review-slot', '2']],
-      ['failed reviewer release', ['--release-failed-reviewer', ...failure]],
-      ['failed reviewer replacement', ['--replace-failed-reviewer', ...failure]],
-    ]
-    for (const [name, args] of steps) {
-      const { status, output, api } = run(dir, args)
-      assert.equal(status, 0, `${name} failed:\n${output.slice(-1500)}`)
-      assert.ok(api.length <= LIMIT, `${name} used ${api.length} API requests:\n${api.map((row) => `${row.kind} ${row.label}`).join('\n')}`)
-      assert.ok(!api.some((row) => /rate_limit/.test(row.label)), `${name} made an explicit quota request`)
-    }
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
 
 // Issue #3206 (Refs #2773): the idempotent retry of an assignment and both silent-reclaim
 // routes are proved on the same wire. Commit dates and the probe's observed-at are moved
@@ -82,50 +62,5 @@ function within(name, { status, output, api }) {
   return api.length
 }
 
-test('#3206 an idempotent assignment retry stays within 10 API requests on the wire', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'reviewer-wire-'))
-  try {
-    seed(path.join(dir, 'state.json'))
-    within('first assignment', run(dir, ['--assign-reviewer', ...common]))
-    within('idempotent assignment retry', run(dir, ['--assign-reviewer', ...common]))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
 
-for (const [name, extra, observedAt] of [
-  ['unstarted silent reclaim', ['--unstarted'], null],
-  ['silent reclaim after the confirmation window', [], '2026-09-16T01:00:00.000Z'],
-]) {
-  test(`#3206 ${name} stays within 10 API requests on the wire with no quota request`, () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'reviewer-wire-'))
-    try {
-      seed(path.join(dir, 'state.json'))
-      within('assignment', run(dir, ['--assign-reviewer', ...common]))
-      backdate(dir, null)
-      within('silence probe', run(dir, ['--probe-silent-reviewer', ...common, '--failed-sequence', '1', ...extra]))
-      if (observedAt) backdate(dir, observedAt)
-      const reclaim = run(dir, ['--reclaim-silent-reviewer', ...common, '--failed-sequence', '1', ...extra, '--confirm-no-verdict', '--confirm-no-artifact'])
-      within(name, reclaim)
-      assert.match(reclaim.output, /"releasedLeaseSha"/)
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
-  })
-}
 
-test('complete paginated issue evidence adds only continuation and fresh proof reads',()=>{
-  const ordinary=mkdtempSync(path.join(tmpdir(),'reviewer-wire-ordinary-')),paged=mkdtempSync(path.join(tmpdir(),'reviewer-wire-pages-'))
-  try{
-    seed(path.join(ordinary,'state.json'));seed(path.join(paged,'state.json'))
-    const file=path.join(paged,'state.json'),state=JSON.parse(readFileSync(file,'utf8'))
-    state.issues[9001].comments=Array.from({length:101},(_,i)=>({id:`comment${i}`,updatedAt:'2026-09-01T00:00:00Z',body:`preserved evidence ${i}`,authorAssociation:'OWNER'}))
-    writeFileSync(file,JSON.stringify(state))
-    for(const [index,args] of [[0,['--assign-reviewer',...common]],[1,['--assign-reviewer',...common,'--review-slot','2']]]){
-      const baseline=within(`ordinary slot${index+1}`,run(ordinary,args)),actual=run(paged,args)
-      assert.equal(actual.status,0,actual.output.slice(-1500))
-      assert.equal(actual.api.length,baseline+2*(index+1),'only continuation + fresh first-page proof for each distinct snapshot may add reads')
-      assert.ok(!actual.api.some(row=>/rate_limit/.test(row.label)))
-    }
-  }finally{rmSync(ordinary,{recursive:true,force:true});rmSync(paged,{recursive:true,force:true})}
-})

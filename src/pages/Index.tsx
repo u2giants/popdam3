@@ -76,7 +76,7 @@ export default function LibraryPage() {
   const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
   const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
-  const { data: totalGroupCount, error: groupCountError } = useStyleGroupCount(filters, visibilityDate);
+  const { data: totalGroupCount, error: groupCountError } = useStyleGroupCount(filters, visibilityDate, !filters.search?.trim());
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
   const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
@@ -92,15 +92,15 @@ export default function LibraryPage() {
   const activeQueryError = isGroupsMode ? sgError : assetError;
   const activeFilterCount = countActiveFilters(filters);
   const hasLibraryFilters = hasActiveFilters(filters);
+  const groupCount = sgData?.totalCount ?? totalGroupCount ?? 0;
   const count = isGroupsMode
-    ? (totalGroupCount ?? sgData?.totalCount ?? 0)
+    ? groupCount
     : (assetData?.totalCount ?? 0);
-  // Hybrid search totals past the 1,000-file probe are lower bounds ("N+").
   const showRebuildHint =
     isGroupsMode &&
     !hasLibraryFilters &&
     groups.length === 0 &&
-    ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0);
+    (groupCount > 0 || (ungroupedCount ?? 0) > 0);
 
   // ── Selection ───────────────────────────────────────────────────
   const currentItems = isGroupsMode ? groups : assets;
@@ -186,7 +186,7 @@ export default function LibraryPage() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
-        totalCount={isGroupsMode ? (totalGroupCount ?? 0) : (assetData?.totalCount ?? 0)}
+        totalCount={count}
         totalAssets={totalAssets ?? 0}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
@@ -203,7 +203,7 @@ export default function LibraryPage() {
         scanBlockedReason={agentStatus.scanBlockedReason}
         cardStyle={cardStyle}
         onCardStyleChange={setCardStyle}
-        groupCount={isGroupsMode ? (totalGroupCount ?? 0) : 0}
+        groupCount={isGroupsMode ? groupCount : 0}
         fileCount={isGroupsMode ? (hasLibraryFilters ? (filteredGroupAssetCount ?? 0) : (totalAssets ?? 0)) : (assetData?.totalCount ?? 0)}
         scanProgress={scanProgress}
         ungroupedCount={isGroupsMode && !hasLibraryFilters ? ungroupedCount : null}

@@ -350,6 +350,18 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = ((links ?? []) as unknown as { character: { id: string; name: string } | null }[])
       .map(link => link.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
+    // Scrape asset co-occurrence narrows the list too; it never becomes a canonical link.
+    const { data: edges, error: edgesError } = await checkedQuery(client
+      .schema("core")
+      .from("property_character_source_edge")
+      .select("character:character_id(id, name)")
+      .eq("property_id", scope.property_id)
+      .eq("evidence_kind", "co_occurrence")
+      .eq("is_current", true));
+    checkedCharacterRead(edgesError, edges);
+    characters = characters.concat(((edges ?? []) as unknown as { character: { id: string; name: string } | null }[])
+      .map(edge => edge.character)
+      .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name));
     if (!scope.licensor_id && characters.length === 0) {
       const { data: property } = await checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle());
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
@@ -367,7 +379,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const rows = (licensorChars ?? []) as { id: string; name: string }[];
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
-  characters = [...new Map(characters.map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  // Licensor-retired labels ("Venom - Do Not Use") must never be offered as characters.
+  characters = [...new Map(characters.filter(c => !/do not use/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];

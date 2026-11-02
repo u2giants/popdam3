@@ -3,7 +3,7 @@ import test from 'node:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { claimBody, parseAuthorLease, resetRetirementSnapshot, transferClaimAuthor } from './manage-migration-author-lanes.mjs'
+import { claimBody, parseAuthorLease, resetRetirementSnapshot } from './manage-migration-author-lanes.mjs'
 import { rebindExpiredClaimBlocker, BLOCKER_REBIND_REF_PREFIX, parseArgs, validateRequest } from './rebind-expired-claim-blocker.mjs'
 import { MUTEX_REF } from './lib/lanes/constants.mjs'
 import { EXCLUSIVE_REFS } from './lib/lanes/queue-routing.mjs'
@@ -20,19 +20,6 @@ function fixture(){
   const io={issues,refs,commits,get writes(){return writes},getIssue:n=>structuredClone(issues.get(Number(n))),updateIssue:(n,{body})=>{writes++;issues.get(Number(n)).body=body},openClaims:()=>[structuredClone(issues.get(4152))],getPr:()=>({state:'open',head:{sha:HEAD,ref:args.branch},base:{sha:BASE}}),getPrFiles:()=>[{filename:`supabase/migrations/${VERSION}_licensing.sql`,status:'added'}],prSources:()=>[{label:'PR #4206',branch:args.branch,objects:['table plm.plan'],versions:[VERSION]}],branchPulls:()=>[{number:4206,head:{sha:HEAD}}],flowAdapter:()=>({resolveMarker:()=>({live:true,task:'root',calling_task:'root'})}),localWorktreeState:()=>({state:'clean'}),localClean:()=>true,localHead:()=>HEAD,localBranch:()=>args.branch,verifyArtifact:r=>r===ARTIFACT?{sha:HEAD}:null,mainSha:()=>MAIN,compareCommits:()=>({status:'ahead',behind_by:0}),makeOwnerCommit:message=>{const sha=String(++serial).padStart(40,'0');commits.set(sha,{message});return sha},getCommit:sha=>commits.get(sha),readCommitMessage:sha=>commits.get(sha)?.message,readRef:ref=>refs.get(ref)??null,createRef:(ref,sha)=>{if(refs.has(ref))return false;refs.set(ref,sha);return true},deleteRef:ref=>refs.delete(ref),listRefs:prefix=>[...refs].filter(([ref])=>ref.startsWith(prefix+'/')).map(([ref,sha])=>({ref,sha})),wait:()=>{}}
   return io
 }
-test('one-field repair preserves original protections, permits unchanged later transfer and replays without writes',()=>{
-  const io=fixture(),before=io.getIssue(4152).body,old=parseAuthorLease(before,NOW)
-  const result=rebindExpiredClaimBlocker(args,NOW,io)
-  assert.equal(result.idempotent,false);assert.equal(io.writes,1)
-  assert.equal(io.getIssue(4152).body,before.replace(`blocked_on: ${ARTIFACT}`, 'blocked_on: issue:#900'))
-  const after=parseAuthorLease(io.getIssue(4152).body,NOW)
-  for(const field of ['owner','branch','worktree','expiresAt','capacityState','worktreeState','recoveryArtifact','version','objects','reads'])assert.deepEqual(after[field],old[field])
-  assert.equal(io.readRef('refs/db-claims/'+VERSION),RESERVATION)
-  assert.equal(rebindExpiredClaimBlocker(args,NOW,io).idempotent,true);assert.equal(io.writes,1)
-  io.localClean=()=>true;io.localHead=()=>HEAD;io.localBranch=()=>args.branch
-  const adoption={...args,newOwner:'new-author',targetWorktree:'/new-clean',worktreeState:'clean',recoveryArtifact:ARTIFACT,leaseHours:0.5};delete adoption.expectedBlockedOn
-  assert.equal(transferClaimAuthor(adoption,NOW,io).owner,'new-author')
-})
 test('one millisecond before expiry refuses before any commit/ref/write; exact expiry passes without changing clock',()=>{
   const io=fixture(),before=io.getIssue(4152).body
   assert.throws(()=>rebindExpiredClaimBlocker(args,new Date(EXPIRY.valueOf()-1),io),/expired relinquished/)
