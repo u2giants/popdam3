@@ -14,7 +14,7 @@ begin
     raise exception 'SO-date helper lost authenticated/service_role execute';
   end if;
   select prosrc into strict src from pg_proc
-    where oid='public.find_dam_order_list_row(text,jsonb,jsonb)'::regprocedure;
+    where oid='public.find_dam_order_list_row(text,jsonb,jsonb,integer)'::regprocedure;
   if position('sort_only_columns constant text[] := array[''sales_order_received_date'']' in src)=0 then
     raise exception 'Find must accept sales_order_received_date as a sort-only key';
   end if;

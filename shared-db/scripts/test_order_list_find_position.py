@@ -13,6 +13,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / 'supabase/migrations/20260911081204_dam_order_list_find_position.sql'
 SO_DATE_SORT_MIGRATION = ROOT / 'supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql'
+OCCURRENCE_MIGRATION = ROOT / 'supabase/migrations/20261102180759_orderlist_find_occurrence.sql'
 
 
 def main():
@@ -105,6 +106,33 @@ begin
     select * into r from public.find_dam_order_list_row(c.term);
     if r.order_line_id is distinct from expected or r.row_index is distinct from expected_index then raise exception 'independent ranking parity failed'; end if;
   end loop;
+  -- Occurrence navigation (#5467): the requested 1-based match, its position,
+  -- and the total number of matches, under default sort, explicit sort, filters
+  -- and literal wildcards. Zero rows when the occurrence exceeds the matches.
+  for c in select * from (values
+    ('target',1,'[]','[]','00000000-0000-0000-0000-000000000002',1,2),
+    ('target',2,'[]','[]','00000000-0000-0000-0000-000000000003',2,2),
+    ('target',3,'[]','[]',null,null,null),
+    ('target',1,'[]','[{"column":"sales_order_received_date","ascending":false}]','00000000-0000-0000-0000-000000000003',1,2),
+    ('target',2,'[]','[{"column":"sales_order_received_date","ascending":false}]','00000000-0000-0000-0000-000000000002',3,2),
+    ('target',1,'[{"column":"customer_name","operator":"eq","value":"North"}]','[]','00000000-0000-0000-0000-000000000002',1,1),
+    ('target',2,'[{"column":"customer_name","operator":"eq","value":"North"}]','[]',null,null,null),
+    ('%',1,'[]','[]','00000000-0000-0000-0000-000000000002',1,1),
+    ('zeta',1,'[]','[{"column":"sales_order_received_date","ascending":false}]','00000000-0000-0000-0000-000000000004',2,1)
+  ) as cases(search,occ,filters,sort,id,idx,cnt) loop
+    select * into r from public.find_dam_order_list_row(c.search,c.filters::jsonb,c.sort::jsonb,c.occ);
+    if c.id is null then
+      if exists(select from public.find_dam_order_list_row(c.search,c.filters::jsonb,c.sort::jsonb,c.occ)) then
+        raise exception 'occurrence case unexpectedly returned a row';
+      end if;
+    elsif r.order_line_id is distinct from c.id::uuid or r.row_index is distinct from c.idx::bigint
+      or r.match_count is distinct from c.cnt::bigint then
+      raise exception 'occurrence case % failed', c.occ;
+    end if;
+  end loop;
+  if (select match_count from public.find_dam_order_list_row('target')) is distinct from 2::bigint then
+    raise exception 'three-argument default occurrence failed';
+  end if;
   for c in select * from (values
     ('[{"column":"sku; drop table public.find_fixture;--","operator":"eq","value":"x"}]','[]'),
     ('[{"column":"sku","operator":"eq) or true--","value":"x"}]','[]'),
@@ -117,6 +145,11 @@ begin
     begin
       perform * from public.find_dam_order_list_row('target',c.filters::jsonb,c.sort::jsonb);
       raise exception 'invalid input was accepted';
+    exception when invalid_parameter_value then null; end;
+  end loop;
+  for c in select * from (values (0),(null),(-1)) t(occ) loop
+    begin
+      perform * from public.find_dam_order_list_row('target','[]'::jsonb,'[]'::jsonb,c.occ); raise exception 'invalid occurrence accepted';
     exception when invalid_parameter_value then null; end;
   end loop;
   if exists(select from public.find_dam_order_list_row('target','[{"column":"sku","operator":"eq","value":"x'' OR true --"}]')) then raise exception 'literal injection matched'; end if;
@@ -137,8 +170,8 @@ reset role;
     try:
         run(url, f'CREATE DATABASE "{name}";')
         created = True
-        run(test_url, fixture + migration + SO_DATE_SORT_MIGRATION.read_text() + (ROOT/'supabase/tests/dam_order_list_find_position.sql').read_text() + checks)
-        print('OrderList Find: 19 expected-position cases (5 SO Date sort), 4 independent ranking parity cases, wildcard/null/RLS/auth/injection/SO-Date-filter-refusal contracts passed; 0 skipped.')
+        run(test_url, fixture + migration + SO_DATE_SORT_MIGRATION.read_text() + OCCURRENCE_MIGRATION.read_text() + (ROOT/'supabase/tests/dam_order_list_find_position.sql').read_text() + checks)
+        print('OrderList Find: 19 expected-position cases (5 SO Date sort), 9 occurrence/match_count cases, 4 independent ranking parity cases, wildcard/null/RLS/auth/injection/occurrence-validation/SO-Date-filter-refusal contracts passed; 0 skipped.')
     finally:
         if created:
             run(url, f'DROP DATABASE "{name}";')

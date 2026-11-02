@@ -3,7 +3,7 @@
 do $$
 declare p pg_proc;
 begin
-  select * into strict p from pg_proc where oid='public.find_dam_order_list_row(text,jsonb,jsonb)'::regprocedure;
+  select * into strict p from pg_proc where oid='public.find_dam_order_list_row(text,jsonb,jsonb,integer)'::regprocedure;
   if p.prosecdef or p.provolatile <> 's' or not p.proretset then
     raise exception 'Find must remain stable, invoker-secure and set-returning';
   end if;
