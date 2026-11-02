@@ -1,6 +1,6 @@
 import LibrarySearchError from "@/components/library/LibrarySearchError";
 import SearchAccessNotice from "@/components/library/SearchAccessNotice";
-import { searchAccessStatus } from "@/lib/dam-search";
+import { invalidateSearchMode, searchAccessStatus } from "@/lib/dam-search";
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
@@ -146,6 +146,7 @@ export default function LibraryPage() {
   }, []);
 
   const handleRefresh = useCallback(() => {
+    invalidateSearchMode();
     queryClient.invalidateQueries({ queryKey: ["style-groups"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-asset-count"] });

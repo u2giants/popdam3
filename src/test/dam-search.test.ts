@@ -136,6 +136,15 @@ describe("DAM hybrid search", () => {
     await expect(getSearchMode()).rejects.toMatchObject({ context: expect.any(Response) });
   });
 
+  it("lets explicit retry recover immediately after a cold mode-probe failure", async () => {
+    const unavailable = { context: new Response(null, { status: 503 }) };
+    invoke.mockResolvedValueOnce({ data: null, error: unavailable });
+    await expect(getSearchMode()).rejects.toBe(unavailable);
+    invalidateSearchMode();
+    invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
+    await expect(getSearchMode()).resolves.toBe("hybrid");
+  });
+
   it("cancels a stalled semantic request after 30 seconds, retries once, then reports failure", async () => {
     vi.useFakeTimers();
     try {
