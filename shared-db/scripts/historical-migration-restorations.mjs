@@ -5,6 +5,27 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
+  // #4508: unchanged preview-applied bytes, before disjoint OrderList 03158 landed.
+  // Pre-merge byte/provenance pin only; this grants no production eligibility.
+  '20261102003027': Object.freeze({
+    filename: "supabase/migrations/20261102003027_dam_dense_group_vectors.sql",
+    name: "dam_dense_group_vectors",
+    previewProject: "mvpkijzfmfcxhnzqogzs",
+    previewApplyRun: "41368010464",
+    previewDispatchCommit: "523222ab1584d252c7ea387a5ebf2f5389c6cdea",
+    previewAppliedCommit: "0d86e722c8098bb4f25df09b36762fc3612df6f9",
+    statementBytes: 21984,
+    statementSha256: "1db6ba83d2bc353b03d82776ecca4233b561fddc7d9d6319617513bfeb714f85",
+    fileSha256: "1b6de5834005b8ace1a829d2f53e91adda59cbc333743a568d4f7671af8b62d4",
+    objects: Object.freeze([
+        "function dam.sync_search_group_vectors",
+        "function public.dam_search_semantic_anchor",
+        "function public.search_dam_documents",
+        "table dam.search_group_vectors",
+        "table public.dam_search_documents",
+        "trigger trg_sync_search_group_vectors on public.dam_search_documents"
+    ])
+}),
   // #2336. The exact migration bytes were preview-applied before PR #4206
   // merged. This pre-merge pin lets the unchanged SQL remain the one approved
   // historical body; production producer provenance is intentionally omitted

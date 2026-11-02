@@ -1,6 +1,14 @@
 {
   "schema_version": 1,
   "migrations": {
+    "20261102003027": {
+      "sha256": "1b6de5834005b8ace1a829d2f53e91adda59cbc333743a568d4f7671af8b62d4",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "strip_outer_transaction": true
+    },
     "20260816110750": {
       "sha256": "0b178fab222aec93b0c06cd676c83a6d4cdfdeac62a0af68184e6ed24c08eca2",
       "targets": [
@@ -75,20 +83,20 @@
       ]
     },
     "20261101182210": {
-   "sha256": "9d255c0409f383d0639629b60f430aa303e6e858845a8ccdd076e76cb9858b5c",
-   "targets": [
-    "preview",
-    "production"
-   ]
-  },
-  "20261101161640": {
-   "sha256": "1555fdc368bdb864f6dac86a9c070db8d973bccf536f002b958f8fb60edfcb86",
-   "targets": [
-    "preview",
-    "production"
-   ]
-  },
-  "20261101123510": {
+      "sha256": "9d255c0409f383d0639629b60f430aa303e6e858845a8ccdd076e76cb9858b5c",
+      "targets": [
+        "preview",
+        "production"
+      ]
+    },
+    "20261101161640": {
+      "sha256": "1555fdc368bdb864f6dac86a9c070db8d973bccf536f002b958f8fb60edfcb86",
+      "targets": [
+        "preview",
+        "production"
+      ]
+    },
+    "20261101123510": {
       "sha256": "c2e8680c46c4e3a7ed1dd35478bc3c08dbebe671e3aa17bbe09556f16878b02e",
       "targets": [
         "preview",

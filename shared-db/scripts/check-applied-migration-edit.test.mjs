@@ -1,8 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { HISTORICAL_RESTORATIONS } from './historical-migration-restorations.mjs'
-import { EDIT_STATUSES, findingsFor, restorationAllows, formatReport, main, MIGRATIONS_DIR, parseArgs, parseEditedMigrations, PROJECT_REFS, runCheck, Unknown, versionOf, editedMigrations, fileMatchesLedgerStatements, fetchLedgerStatements } from './check-applied-migration-edit.mjs'
+import { EDIT_STATUSES, findingsFor, restorationAllows, formatReport, main, MIGRATIONS_DIR, parseArgs, parseEditedMigrations, PROJECT_REFS, runCheck, Unknown, versionOf, editedMigrations, fileMatchesLedgerStatements, fetchLedgerStatements, atomicPreviewStatements } from './check-applied-migration-edit.mjs'
 
 const APPLIED = '20260831234750'
 const NEW = '20260903120000'
@@ -312,4 +315,58 @@ test('pre-merge preview apply: the statements reader refuses production and malf
   await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: rows([]) }), /exactly one/)
   await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: rows([{ statements: null }]) }), /exactly one/)
   await assert.rejects(fetchLedgerStatements(PROJECT_REFS.preview, PRE, 't', { fetchImpl: async () => ({ ok: false, status: 500, text: async () => '' }) }), /500/)
+})
+
+// Exercise the real canonical Python loader, not a second SQL parser or a stub.
+function atomicFixture(t, { body = 'BEGIN;\nselect 1;\nselect 2;\nCOMMIT;\n', policy = {} } = {}) {
+  const root = mkdtempSync(path.join(tmpdir(), 'atomic-preview-edit-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(path.join(root, MIGRATIONS_DIR), { recursive: true })
+  mkdirSync(path.join(root, 'config'))
+  const entry = { targets: ['preview'], strip_outer_transaction: true,
+    sha256: createHash('sha256').update(body.replaceAll('\r\n', '\n')).digest('hex'), ...policy }
+  writeFileSync(path.join(root, PRE_FILE), body)
+  writeFileSync(path.join(root, 'config/atomic-migration-allowlist.json'), JSON.stringify({ schema_version: 1, migrations: { [PRE]: entry } }))
+  return { body, root, read: (file, raw) => atomicPreviewStatements(file, raw, { cwd: root }) }
+}
+
+test('atomic preview wrapper: the canonical loader permits only identical ordered inner statements', async t => {
+  const fixture = atomicFixture(t)
+  assert.deepEqual(fixture.read(PRE_FILE, fixture.body), ['select 1', 'select 2'])
+  const io = { ...preIo({ body: fixture.body, statements: ['select 1', 'select 2'] }), atomicPreviewStatements: fixture.read }
+  assert.equal((await runCheck({ io })).findings.length, 0)
+  for (const statements of [['select 2', 'select 1'], ['select 1'], ['select 1', 'select 3'], ['select 1', 'select 2 ']]) {
+    assert.equal((await runCheck({ io: { ...io, previewStatements: async () => statements } })).findings.length, 1)
+  }
+  assert.equal(fixture.read(PRE_FILE, fixture.body.replace('select 2', 'select 3')), null, 'input must match current bytes')
+  const changed = atomicFixture(t, { body: 'BEGIN; select 1; select 3; COMMIT;' })
+  assert.equal((await runCheck({ io: { ...preIo({ body: changed.body, statements: ['select 1', 'select 2'] }), atomicPreviewStatements: changed.read } })).findings.length, 1, 'even newly authorized changed SQL must match the immutable ledger')
+  assert.deepEqual(fixture.read(PRE_FILE, fixture.body.replaceAll('\n', '\r\n')), ['select 1', 'select 2'])
+})
+
+test('atomic preview wrapper: missing/wrong hashes, policy and wrapper shape fail closed', t => {
+  for (const options of [
+    { policy: { sha256: undefined } }, { policy: { sha256: '0'.repeat(64) } },
+    { policy: { strip_outer_transaction: false } }, { policy: { targets: ['production'] } },
+    { body: 'select 0; BEGIN; select 1; COMMIT;' },
+    { body: 'BEGIN; select 1; COMMIT; select 2;' },
+    { body: 'BEGIN; select \'unterminated; COMMIT;' },
+  ]) {
+    const fixture = atomicFixture(t, options)
+    assert.equal(fixture.read(PRE_FILE, fixture.body), null)
+  }
+  const fixture = atomicFixture(t)
+  rmSync(path.join(fixture.root, 'config/atomic-migration-allowlist.json'))
+  assert.equal(fixture.read(PRE_FILE, fixture.body), null)
+})
+
+test('atomic preview wrapper: production or modified files never invoke fallback', async t => {
+  const fixture = atomicFixture(t)
+  for (const options of [{ kind: 'modified' }, { production: new Set([APPLIED, PRE]) }]) {
+    let calls = 0
+    const io = { ...preIo({ body: fixture.body, statements: ['select 1', 'select 2'], ...options }),
+      atomicPreviewStatements: () => { calls++; return ['select 1', 'select 2'] } }
+    assert.equal((await runCheck({ io })).findings.length, 1)
+    assert.equal(calls, 0)
+  }
 })
