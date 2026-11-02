@@ -28,8 +28,12 @@ verifies the complete result. Originals remain during preparation and until the
 archive-aware coordinator is merged.
 
 Application refuses any original/archived SHA change or a new unbacked original
-ref. It deletes only the recorded original refs, atomically, with per-ref
-compare-and-swap protection. It then verifies the original namespace is empty
+ref. It deletes only the recorded original refs in bounded 50-record atomic
+batches, with per-ref compare-and-swap protection. GitHub's unchanged secret
+scanner can time out on a bulk deletion as well as a bulk copy. All records
+are preserved before deletion begins; a retry accepts a partially retired
+snapshot only when every recorded SHA is still preserved and every remaining
+original is unchanged and backed up. It then verifies the original namespace is empty
 and all archived SHAs still match. Other coordination refs are untouched.
 Keep the bundle and manifest until the issue's live migration proof is recorded;
 the remote evidence refs remain the durable recovery copy afterward. A restore

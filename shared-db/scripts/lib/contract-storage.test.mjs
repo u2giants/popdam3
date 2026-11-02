@@ -4,7 +4,7 @@ import childProcess from 'node:child_process'
 import { syncBuiltinESMExports } from 'node:module'
 import { contractLogicalRef, contractStorageRef } from './contract-storage.mjs'
 import { readPublishedContractFromGit } from '../agent-work-contract-git-evidence.mjs'
-import { deletionArguments, parseRefs, retirementPlan } from '../retire-contract-refs.mjs'
+import { deletionArguments, parseRefs, retirementPlan, remainingRetirementPlan } from '../retire-contract-refs.mjs'
 import { contractIo } from '../agent-work-contract.mjs'
 
 const old = 'refs/db-contracts/42/3', archive = 'refs/db-evidence/contracts/42/3', sha = 'a'.repeat(40)
@@ -59,4 +59,15 @@ test('deletion requires unchanged originals and matching preservation for every 
 test('malformed or duplicate advertised refs cannot become a deletion plan', () => {
   assert.throws(() => parseRefs(`bad ${old}`), /Malformed/)
   assert.throws(() => parseRefs(`${sha} ${old}\n${sha} ${old}`), /duplicate/)
+})
+test('a partial retirement resumes only preserved unchanged originals and can verify a completed retirement', () => {
+  const second = { ref: 'refs/db-contracts/43/1', sha, target: 'refs/db-evidence/contracts/43/1' }
+  const plan = [{ ref: old, sha, target: archive }, second]
+  const preserved = new Map([[archive, sha], [second.target, sha]])
+  assert.deepEqual(remainingRetirementPlan(plan, new Map([[second.ref, sha]]), preserved), [second])
+  assert.deepEqual(remainingRetirementPlan(plan, new Map(), preserved), [])
+  assert.throws(() => remainingRetirementPlan(plan, new Map([[second.ref, 'b'.repeat(40)]]), preserved), /changed/)
+  assert.throws(() => remainingRetirementPlan(plan, new Map([['refs/db-contracts/44/1', sha]]), preserved), /not backed up/)
+  assert.throws(() => remainingRetirementPlan(plan, new Map(), new Map()), /Preserved record changed/)
+  assert.throws(() => remainingRetirementPlan([...plan, plan[0]], new Map(), preserved), /Invalid backup/)
 })

@@ -35,6 +35,22 @@ export function deletionArguments(plan, live, archived) {
   // Atomic deletion with per-ref compare-and-swap. Never force an unobserved ref.
   return ['push', '--atomic', ...plan.map(row => `--force-with-lease=${row.ref}:${row.sha}`), 'origin', ...plan.map(row => `:${row.ref}`)]
 }
+export function remainingRetirementPlan(plan, live, archived) {
+  if (!plan.length) throw Error('Empty backup manifest')
+  const recorded = new Map()
+  for (const row of plan) {
+    if (!REF.test(row.ref) || !SHA.test(row.sha) || row.target !== contractStorageRef(row.ref) || recorded.has(row.ref)) throw Error('Invalid backup manifest')
+    if (archived.get(row.target) !== row.sha) throw Error(`Preserved record changed: ${row.ref}`)
+    recorded.set(row.ref, row)
+  }
+  const remaining = []
+  for (const [ref, sha] of live) {
+    const row = recorded.get(ref)
+    if (!row || row.sha !== sha) throw Error(`Original changed or not backed up: ${ref}`)
+    remaining.push(row)
+  }
+  return remaining
+}
 export function main(argv, run = args => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 180000, stdio: ['ignore', 'pipe', 'pipe'] })) {
   const [mode, backup] = argv
   if (!['--prepare', '--apply', '--audit'].includes(mode) || !backup || argv.length !== 2) throw Error('Usage: retire-contract-refs.mjs --prepare|--apply|--audit ABSOLUTE_BACKUP_BUNDLE')
@@ -88,7 +104,16 @@ export function main(argv, run = args => execFileSync('git', args, { encoding: '
   if (!retired) throw Error('Coordinator move has not merged; originals retained')
   const mapped = run(['show', 'origin/main:scripts/lib/contract-storage.mjs'])
   if (!mapped.includes(CONTRACT_STORAGE_PREFIX)) throw Error('Main lacks archive-aware contract storage')
-  run(deletionArguments(saved.plan, original, archived))
+  const remaining = remainingRetirementPlan(saved.plan, original, archived)
+  // GitHub's secret scanner can time out even on an all-deletion push. Keep
+  // the protection unchanged and use the same bounded batches as preparation.
+  // Every batch retains atomic compare-and-swap; the entire archive was proved
+  // before the first deletion. A retry accepts only already-preserved removals.
+  for (let offset = 0; offset < remaining.length; offset += 50) {
+    const batch = remaining.slice(offset, offset + 50)
+    run(deletionArguments(batch, new Map(batch.map(row => [row.ref, row.sha])), archived))
+    console.error(`Retired ${Math.min(offset + 50, remaining.length)}/${remaining.length} pending records`)
+  }
   if (read(LEGACY_CONTRACT_PREFIX).size) throw Error('Original refs remain after retirement')
   const after = read(CONTRACT_STORAGE_PREFIX)
   for (const row of saved.plan) if (after.get(row.target) !== row.sha) throw Error('Post-retirement archive verification failed')
