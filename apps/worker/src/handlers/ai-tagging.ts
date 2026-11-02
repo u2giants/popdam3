@@ -893,7 +893,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
     return { outcome: "failed", error: `Asset not found: ${fetchErr?.message ?? "no data"}` };
   }
 
-  // Parallel mode never retags a saved complete asset, even on a retried page.
+  // Parallel mode never retags a saved complete asset, even on a retried page, unless the exact run sets force.
   if (parallelModel && asset.ai_tagged_at && asset.ai_description?.trim() && asset.ai_model && acceptedModels?.includes(asset.ai_model)) {
     const savedTags = await client.from("asset_tags").select("id").eq("asset_id", assetId).eq("source", "ai").eq("status", "active").eq("model", asset.ai_model).limit(1);
     if (savedTags.error) return { outcome: "failed", error: "Saved tag verification failed" };
@@ -1115,7 +1115,7 @@ export async function handleBulkAiTag(
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
         }),
       );
