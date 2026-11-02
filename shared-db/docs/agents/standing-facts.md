@@ -233,7 +233,7 @@ have already happened in this repo, more than once.
     never acquires preview, merge, or production, and emits no structural lifecycle event. Unknown or
     non-document changes receive no status from that path. `scripts/check-exact-head-approval.mjs`
     — the gate the guarded merge waits on — uses the classifier to skip the reviewer requirement, and
-    `--assign-reviewer` in `scripts/manage-migration-coordination.mjs` refuses to draw for such a
+    `--assign-reviewer` (retired by #5409) in `scripts/manage-migration-coordination.mjs` refuses to draw for such a
     pull request. `scripts/lib/documents-only-change.test.mjs` fails if the classifier exempts a
     rulebook file or a mixed change.
 

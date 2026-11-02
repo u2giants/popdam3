@@ -2123,7 +2123,7 @@ Verbatim from Albert's chat (2026-10-02):
 at the exact reviewed head (the post-merge production-risk-assessment slot), with that merged
 state proven through the verified merged-PR issue binding (`SHARED_DB_MERGED_PR_ISSUE_BINDING`).
 The allocator still prefers any independent reviewer; only when none is left may
-`--assign-reviewer` or `--replace-failed-reviewer` draw one that already holds another slot on
+`--assign-reviewer` or `--replace-failed-reviewer` (both retired by #5409) draw one that already holds another slot on
 that head, in the ordinary rotation order. It never draws a reviewer that failed on this head, is
 unusable or preflight-excluded, conflicts with the implementing engine, or is retired. Both
 approval gates, `assertDurableReviewApproval` and `scripts/check-exact-head-approval.mjs` (the
@@ -2163,7 +2163,7 @@ Verbatim from Albert's chat:
 
 > "i allow one assignment to bootstrap that policy onto main" (2026-10-16)
 
-**Effect.** For `popcre/shared-db` only: this repository has no working reviewers (standing premise from the 2026-10-15 quote), so the exact-head approval gate (`scripts/check-exact-head-approval.mjs`) skips the external reviewer APPROVE requirement. This is not a per-run liveness probe. This ruling does not by itself change `--assign-reviewer` drawing rules. The exemption is from the reviewer POOL only. Every other required check, the guarded merge lane, the merge lock, and a durable refusal already recorded at the head still bind. One assignment is authorized to bootstrap this policy onto main. The policy is the committed file `config/owner-no-reviewer-policy.json` (schema-1) so the decision is auditable and cannot be toggled by a pull-request author or environment variable. This retires the one-review minimum from §6.27 for this repository only; §6.27 remains the rule for every other repository.
+**Effect.** For `popcre/shared-db` only: this repository has no working reviewers (standing premise from the 2026-10-15 quote), so the exact-head approval gate (`scripts/check-exact-head-approval.mjs`) skips the external reviewer APPROVE requirement. This is not a per-run liveness probe. This ruling does not by itself change `--assign-reviewer` (retired by #5409) drawing rules. The exemption is from the reviewer POOL only. Every other required check, the guarded merge lane, the merge lock, and a durable refusal already recorded at the head still bind. One assignment is authorized to bootstrap this policy onto main. The policy is the committed file `config/owner-no-reviewer-policy.json` (schema-1) so the decision is auditable and cannot be toggled by a pull-request author or environment variable. This retires the one-review minimum from §6.27 for this repository only; §6.27 remains the rule for every other repository.
 
 Posted by MiMo chat 0ffe5ebedd0b70ffe on edge-dev
 

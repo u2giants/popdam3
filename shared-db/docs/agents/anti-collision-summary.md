@@ -70,7 +70,8 @@ object/version/source protection. See the current procedure in the full text.
      authoring so version reservation and exact-object collision locking remain enforced.
    - **A verdict with no coverage statement is not review evidence** (issue #1220). An `APPROVE`
      with no findings and no statement of what was examined is a wrapper or provider failure, not
-     a clean review — treat it as `verdict=none` and use `--replace-failed-reviewer`. **Silence is
+     a clean review — treat it as `verdict=none`. (`--replace-failed-reviewer`
+     was retired by #5409; there is no replacement.) **Silence is
      never approval.**
    - Reviewer rotation, the business-risk gate, and the transport-failure rule (**a wrapper that
      cannot authenticate is a transport failure, not a review — replace it, never pause the
@@ -88,7 +89,7 @@ object/version/source protection. See the current procedure in the full text.
     not failed on the exact head, then fail closed with the exact blocker. The configured rotation is
     GLM 5.3, Qwen 3.8 Max, Muse Spark 1.3 Contributor,
     Gemini 3.8 Flash High, DeepSeek V4.1 Flash, and StepFun Step 5 (Linux machines only), minus the authoring engine (automation still keys this on the marker; see #3874) — exactly
-    `ACTIVE_REVIEWERS` in `scripts/manage-migration-author-lanes.mjs`.
+    `ACTIVE_REVIEWERS` in `scripts/lib/lanes/reviewer-roster.mjs`.
     **Preference (owner, 2026-09-27, issue #3592):** the allocator rotates
     among eligible non-Grok reviewers first; Grok was drawn only when that
     preferred pool could not take the exact review (also for slot 2 and replacements), and is

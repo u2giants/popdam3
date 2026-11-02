@@ -38,7 +38,7 @@ is additive and every named object lives in the app-owned `{crm, pim, dam, plm}`
 is enforced AT MERGE TIME by `scripts/check-self-service-additive-lane.mjs` inside the guarded
 merge, pre-lock — a declared route whose pull request fails the classifier never merges. The
 author session claims the lane (reserve and file a claim via `check-dispatch-collision.mjs`), draws one reviewer itself
-(`--assign-reviewer`), and dispatches the guarded merge itself; every existing gate (collision
+(`--assign-reviewer` was retired by #5409; there is no replacement), and dispatches the guarded merge itself; every existing gate (collision
 locks, version reservation, exact-head review, serial preview/merge/promotion) is unchanged. The
 orchestrator never dispatches, refills or reviews this route; `--queue-audit` prints it in its own
 section. Out of the lane: `api`/`core`/`public`/`ingest`/`storage`/`dflow`/`app`, any

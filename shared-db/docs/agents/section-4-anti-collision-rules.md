@@ -472,12 +472,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    migration files.
 
    After an issue reaches an exact reviewed head, atomically assign its external
-   reviewer with:
-
-   ```bash
-   node scripts/manage-migration-author-lanes.mjs --assign-reviewer \
-     --issue <issue> --pr <pr> --head-sha <exact-head>
-   ```
+   reviewer. (`--assign-reviewer` was retired by #5409; there is no replacement.)
 
    When the owner restricts one workstream to named reviewers, add
    `--reviewer-allowlist <canonical-name,...>` to assignment and replacement.
@@ -615,10 +610,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    provider), a reviewer never reviews a change authored by its own engine, and a
    provider `ai-review-preflight` does not report `usable` is not drawn.
 
-   A reviewer that is truthfully unusable for one pull request is excluded with
-   `--exclude-reviewer --issue <issue> --pr <pr> --reviewer <name> --reason
-   <independence-conflict|terminal-unavailable> --evidence-sha
-   <durable-assignment-or-replacement-sha>`. The exclusion is immutable,
+   A reviewer that is truthfully unusable for one pull request is excluded.
+   (`--exclude-reviewer` was retired by #5409; there is no replacement.) The exclusion is immutable,
    PR-local, requires an existing assignment or replacement for the same
    reviewer, and releases that exact active lease when present. It does not
    create a failure record. New heads skip the reviewer; if exclusions consume the
@@ -650,24 +643,17 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    namespace each of them lives in.
 
    To continue the same head after excluding slot N, draw a fresh reviewer for
-   that exact head and slot. WHICH COMMAND depends on what was returned, and
-   only one of the two will work:
-
-   - the returned record was the ORIGINAL assignment -> re-run
-     `--assign-reviewer` for that head and slot;
-   - the returned record was a REPLACEMENT -> re-run
-     `--replace-failed-reviewer` with the SAME `--failed-sequence`.
-     `--assign-reviewer` recreates the original ref, which the merge gate will
-     not accept as an answer for a returned replacement.
+   that exact head and slot. (`--assign-reviewer` and `--replace-failed-reviewer`
+   were both retired by #5409; there is no replacement.)
 
    Either way the excluded reviewer stays barred from this pull request, and the
    newly drawn reviewer must record its OWN durable APPROVE. A pull
    request excluded before returns existed is repaired by re-running the
-   IDENTICAL `--exclude-reviewer` command, which completes the return without
+   IDENTICAL `--exclude-reviewer` command (retired by #5409), which completes the return without
    recording a second exclusion.
 
-   ONE exclusion reason, and only one, can be lifted:
-   `--reinstate-reviewer-exclusion --issue <issue> --pr <pr> --reviewer <name>`.
+   ONE exclusion reason, and only one, can be lifted.
+   (`--reinstate-reviewer-exclusion` was retired by #5409; there is no replacement.)
    NO LIMIT ON REUSING A REVIEWER (owner ruling, marker #2893, 2026-09-14): the
    `already-reviewed` reason is retired. A new exclusion with it is refused, and a
    historical record of it still parses but never bars a draw -- the same
@@ -706,7 +692,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    the historical name unchanged), and each generation is barred until its OWN
    `-gen<N>` reinstatement lifts it. Nothing is deleted or rewritten: the whole
    history -- exclusion, lift, re-exclusion -- stays readable, and
-   `--reinstate-reviewer-exclusion` always answers the NEWEST generation, so an
+   `--reinstate-reviewer-exclusion` (retired by #5409) always answers the NEWEST generation, so an
    independence re-exclusion after a lift can never itself be lifted. Four
    generations are read; using all four is a refusal, not a silent overwrite.
 
@@ -722,7 +708,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    the next reviewer can record a verdict for that head normally and the raced
    object remains readable for audit. That re-filing is its own atomic
    compare-and-swap push, made after the push that records the exclusion and its
-   returns -- so if it fails, re-run the IDENTICAL `--exclude-reviewer` command.
+   returns -- so if it fails, re-run the IDENTICAL `--exclude-reviewer` command (retired by #5409).
    The re-run rebuilds the returned records from the return namespace and
    completes the re-filing, recording no second exclusion and no second return.
 
@@ -762,8 +748,8 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    - **Never record a bare verdict.** An `APPROVE` with no findings and no
      statement of what was actually examined is a wrapper or provider failure,
-     not a clean review. Treat it as `verdict=none` and use
-     `--replace-failed-reviewer` exactly as for a transport failure.
+     not a clean review. Treat it as `verdict=none`.
+     (`--replace-failed-reviewer` was retired by #5409; there is no replacement.)
    - **Require the reviewer to say what it covered** — which files, which
      migrations, which conditions — not merely what it concluded. A review whose
      coverage cannot be checked cannot be relied on to have missed nothing.
@@ -782,10 +768,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    starting, prove the selected wrapper can read its own authentication file and
    create its session directory. A permission denial, missing authentication,
    provider quota error, or wrapper timeout with no verdict is a transport failure,
-   not a review. Stop that process, record `verdict=none` and `artifact=none`, and
-   immediately use `--replace-failed-reviewer` with the matching terminal failure
-   code. Continue with the manager-selected replacement from the full-access
-   session in the same turn. Never leave an author, preview, merge, or
+   not a review. Stop that process, record `verdict=none` and `artifact=none`.
+   (`--replace-failed-reviewer` was retired by #5409; there is no replacement.)
+   Never leave an author, preview, merge, or
    production lane waiting on a reviewer process that cannot authenticate or
    write its own state. A real `REVISE` verdict is not a transport failure and
    must never be replaced.
@@ -795,24 +780,13 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    the reviewer's provider account has run out of credit. In that same reply,
    tell Albert in plain words which provider needs credits and where, quoting
    the `OUT OF CREDIT:` text as printed. Never make him open another session to
-   learn it. Then replace the reviewer with `--replace-failed-reviewer
-   --failure-code insufficient_quota --confirm-no-verdict --confirm-no-artifact`
-   and continue with the replacement.
+   learn it. (`--replace-failed-reviewer --failure-code insufficient_quota` was
+   retired by #5409; there is no replacement.)
 
-   **`--replace-failed-reviewer` is slot-aware, and the slot must be named.** It
-   defaults to `--review-slot 1`. Pass `--review-slot 2` to replace a failed
-   second reviewer; the request is then resolved only against slot 2's own
-   assignment and replacement refs, and the replacement is chosen to stay
-   independent of whoever currently holds slot 1. Naming the wrong slot is
-   refused with `durable reviewer assignment or replacement does not match the
-   replacement request` — that refusal is a correct fail-closed, not a bug, and
-   is never to be worked around by loosening the match. Before issue #1832 the
-   flag was silently ignored, so a slot-2 failure had no working replacement
-   route at all and a slot-2 request could only ever be answered from slot 1's
-   records. A slot-2 replacement still requires the issue open, the PR still at
-   the exact head, and no verdict yet recorded for that head — including slot 1's
-   own verdict. If slot 1 has already reported at that head, slot 2 cannot be
-   replaced there; assign against the current head instead.
+   **`--replace-failed-reviewer` was retired by #5409; there is no replacement.**
+   (Historical note: it was slot-aware and the slot had to be named. Naming the
+   wrong slot was refused — that refusal was a correct fail-closed, not a bug,
+   and was never to be worked around by loosening the match.)
 
    Append objective reviewer evidence through an `ai-devops` PR to
    `models_comparison_grok_kim_glm.md`: issue/PR, requested and proven model,
