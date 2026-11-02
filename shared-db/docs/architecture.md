@@ -63,7 +63,7 @@ Exposed PostgREST schemas today: `public, graphql_public, api, crm, pim, core, a
 ## Migration model
 
 - Every shape change is a **new** file `supabase/migrations/<14-digit-UTC>_<name>.sql`.
-- Versions are reserved through `scripts/manage-migration-author-lanes.mjs` so
+- Versions are reserved through `scripts/manage-migration-coordination.mjs` so
   two authors cannot collide (duplicate versions silently skip).
 - Applied migrations are immutable. Fix forward.
 - The ledger is **not** a clean-slate replay: empty marker migrations align with

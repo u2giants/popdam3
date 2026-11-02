@@ -2130,7 +2130,7 @@ approval gates, `assertDurableReviewApproval` and `scripts/check-exact-head-appr
 automatic-promotion re-proof), accept that shared reviewer only when the pull request is merged
 (not open) at the exact head. Once every independent reviewer is used, a reviewer may be reused
 for more than one later slot; slot 1 is not kept independent of slots 2 and above collectively. Open pull requests keep strict slot independence. Code:
-`mergedPrReviewerReuseAllowed` in `scripts/manage-migration-author-lanes.mjs`.
+`mergedPrReviewerReuseAllowed` in `scripts/lib/lanes/review-approval.mjs` (re-exported through `scripts/manage-migration-coordination.mjs`).
 
 **Promotion merge freeze.** Cap: 60 minutes. Owner rule, Albert Hazan in his chat 2026-10-21 (verbatim): "no session is allowed to freeze merges for more than 1hr. that's the new rule" `--acquire-promotion-freeze --issue <n> --pr <n> --owner <text>
 --ttl-minutes <1-60>` sets the create-only ref `refs/db-coordination/promotion-freeze` before the

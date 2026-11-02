@@ -44,7 +44,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    the single-holder preview/merge/production refs, all of which remain
    enforced. More authors never means more sessions touching a live database;
    it means more drafts queueing for the same serial stages. Do not reintroduce
-   a lane cap in `scripts/manage-migration-author-lanes.mjs`; a test refuses it.
+   a lane cap in `scripts/manage-migration-coordination.mjs`; a test refuses it.
 
    **Do not open a migration file first.** Reserve an object claim and a unique
    14-digit version as one dispatch operation:
@@ -294,7 +294,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Publish the record with the ONE command that does it, then close the issue:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --complete-work --issue <n> --report-file report.json
+   node scripts/manage-migration-coordination.mjs --complete-work --issue <n> --report-file report.json
    ```
 
    It re-derives the evidence rather than trusting the file: a `merged` record must
@@ -351,7 +351,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Record it, confirm the read-back, then close:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --complete-work --issue 2824 --report-file report.json
+   node scripts/manage-migration-coordination.mjs --complete-work --issue 2824 --report-file report.json
    ```
 
    #### Changing a scope `status:` — `--set-scope-status` (issue #2824)
@@ -367,7 +367,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Hand editing a scope block is no longer the sanctioned route. Use:
 
    ```bash
-   node scripts/manage-migration-author-lanes.mjs --set-scope-status --issue <n> --status <ready|blocked|owner-decision> --reason "<one line>"
+   node scripts/manage-migration-coordination.mjs --set-scope-status --issue <n> --status <ready|blocked|owner-decision> --reason "<one line>"
    ```
 
    It takes the author mutex, re-parses the block, writes exactly the one
@@ -402,7 +402,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    claim database objects.
 
    **Each non-structural work type has a named exit** (AGENTS.md §0.0-C, and
-   `NON_STRUCTURAL_EXITS` in `scripts/manage-migration-author-lanes.mjs`, which is
+   `NON_STRUCTURAL_EXITS` in `scripts/lib/lanes/queue-routing.mjs`, which is
    the enforced form):
 
    | work type | exit | who does it |
@@ -439,7 +439,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
 
    A malformed slug is a hard parse error; a missing one is reported as
    `NO RETURN ADDRESS` and makes `--queue-audit` exit `2`. Return the issue with
-   `node scripts/manage-migration-author-lanes.mjs --return-issue <n>`, which
+   `node scripts/manage-migration-coordination.mjs --return-issue <n>`, which
    files it in the owning repository first and only then closes it here. Never
    close a rejected issue by hand. `return_to` is forbidden on structural work,
    which stays here.
@@ -732,7 +732,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    each in its own session and sandbox. Never treat another live review by the
    same provider as a reason to skip, wait for, or replace it. Historical Qwen assignments, failures, and
    replacement evidence remain readable and must be recovered or replaced
-   through `scripts/manage-migration-author-lanes.mjs`, never hand-edited. Use
+   through `scripts/manage-migration-coordination.mjs`, never hand-edited. Use
    only the wrapper returned by the manager and its fixed model settings. Reuse
    one named session for rebuttals. Require
    a current exact-head re-read and `APPROVE` or `REVISE` with evidence. Verify
@@ -1138,7 +1138,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **DOES** recover a post-merge rehearsal **when the rehearsal ran AT the authoring merge commit**.
    Measured that day on `20260820165926` (PR #1335): merged via the guarded lane to `1247d125`,
    rehearsed immediately from that exact tip, then an unrelated PR (#1340) moved main and changed
-   `scripts/manage-migration-author-lanes.mjs`. The production gate refused on the producer-file
+   `scripts/manage-migration-author-lanes.mjs` (now `manage-migration-coordination.mjs`). The production gate refused on the producer-file
    pin, re-rehearsing was impossible (`BLOCKED: already applied on production`), and the recovery
    lane then **succeeded** — run 32402833543 — because the rehearsal commit *was* the authoring
    merge commit. Production applied as run 32402996954.

@@ -47,7 +47,7 @@ browser roles on `crm`/`pim` objects without RLS.
 
 **No → `accept` is never one of the exits. Each non-structural work type names where it goes
 instead.** The machine-readable form of this table is `NON_STRUCTURAL_EXITS` in
-`scripts/manage-migration-author-lanes.mjs`; the two must agree.
+`scripts/manage-migration-coordination.mjs`; the two must agree.
 
 - **REJECT** — the work belongs to another repository and must leave this queue. `application-data`
   and `source-data`. **Rejection FORWARDS the task; it never merely closes it** — see "A reject is
@@ -124,7 +124,7 @@ therefore moves the task to the repository that owns it:
    makes the audit exit `2`, so an unaddressed reject cannot sit quietly.
 2. **Return it with the guarded command**, never by hand:
 
-       node scripts/manage-migration-author-lanes.mjs --return-issue <n>
+       node scripts/manage-migration-coordination.mjs --return-issue <n>
 
    It files the full issue body in the owning repository **first**, then comments the new issue's
    URL here, then closes this one. **That order is the safety property** — any failure at any step
