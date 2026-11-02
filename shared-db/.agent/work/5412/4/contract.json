@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "work_issue": 5412,
+  "generation": 4,
+  "evidence_parent": {
+    "work_issue": 5412,
+    "generation": 3,
+    "contract_sha256": "f4c2faf941281ba5fb61938b6a27d17aa78e8dcd94ffdf6e70a11ab15bd333a2"
+  },
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "branch": "codex/dam-provenance-4508",
+  "worker": "Codex chat 01a199a4-7411-70e0-abf3-b9aa8cd7c6c7 on hetz",
+  "worktree": "/tmp/shared-db-coir-preview",
+  "dispatcher": "Albert requested full delivery of the DAM cold search fix; this resolves its measured preview release deadlock",
+  "base_sha": "de6b2136acc0f9b72d612e88cb6b31e76a71ac22",
+  "goal": "Bind the existing byte-pinned DAM original preview to its actual merged source using the supported historical provenance path",
+  "file_writes": [
+    "scripts/historical-migration-restorations.mjs",
+    "scripts/historical-migration-restorations.test.mjs"
+  ],
+  "allowed_paths": [
+    "scripts/historical-migration-restorations.mjs",
+    "scripts/historical-migration-restorations.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "assumptions": [
+    "Root PR5397 is merged at de6b2136acc0f9b72d612e88cb6b31e76a71ac22",
+    "Original actual preview run41368010464 is immutable; no SQL or ledger changes"
+  ],
+  "required_checks": [
+    "node --test scripts/historical-migration-restorations.test.mjs",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "prohibited_actions": [
+    "No migration edits",
+    "No manual database apply or ledger repair",
+    "No change to production authority or qualification"
+  ],
+  "stop_conditions": [
+    "Hash mismatch for the merged source",
+    "Any regression in production-stage routing"
+  ]
+}
