@@ -204,6 +204,22 @@ def gh_issues(repository: str, pr: int, sources=SOURCES, settle: float = SETTLE_
     return reads
 
 
+def blocking_findings(issues: list[dict[str, Any]], repository: str, pr: int, now: datetime | None = None,
+                      verify_invalid: Callable[..., bool] | None = None) -> list[dict[str, Any]]:
+    verify_invalid = verify_invalid or invalid_verifier()
+    invalid_cache: dict[str, bool] = {}
+    def invalid(issue):
+        # Preserve the existing "any blocking read wins" policy when snapshots
+        # disagree; only identical closed candidates share a proof lookup.
+        if not invalid_candidate(issue):
+            return False
+        key = json.dumps(issue, sort_keys=True)
+        if key not in invalid_cache:
+            invalid_cache[key] = verify_invalid(issue, repository, pr)
+        return invalid_cache[key]
+    return holds(issues, repository, pr, now or datetime.now(timezone.utc), invalid)
+
+
 def main(argv: list[str] | None = None, fetch: Callable[[str, int], list[dict[str, Any]]] = gh_issues,
          now: datetime | None = None, verify_invalid: Callable[..., bool] | None = None) -> int:
     parser = argparse.ArgumentParser()
@@ -218,18 +234,7 @@ def main(argv: list[str] | None = None, fetch: Callable[[str, int], list[dict[st
     except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as exc:
         print(f"::error::review-finding hold: could not query issues ({exc}); treating as held", file=sys.stderr)
         return 2
-    verify_invalid = verify_invalid or invalid_verifier()
-    invalid_cache: dict[str, bool] = {}
-    def invalid(issue):
-        # Preserve the existing "any blocking read wins" policy when snapshots
-        # disagree; only identical closed candidates share a proof lookup.
-        if not invalid_candidate(issue):
-            return False
-        key = json.dumps(issue, sort_keys=True)
-        if key not in invalid_cache:
-            invalid_cache[key] = verify_invalid(issue, args.repo, args.pr)
-        return invalid_cache[key]
-    found = holds(issues, args.repo, args.pr, now or datetime.now(timezone.utc), invalid)
+    found = blocking_findings(issues, args.repo, args.pr, now, verify_invalid)
     if found:
         for issue in found:
             why = "open" if issue.get("state") == "open" else "closed as not planned within 24 hours"

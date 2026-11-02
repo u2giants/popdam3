@@ -10,8 +10,11 @@ That run's `automatic-production-promotion` job then qualifies and dispatches
 the production apply, which re-checks the review-finding hold immediately
 before applying.
 
-It stops at the first PR it cannot move (held, in flight, or out of retries),
-so migrations are never promoted out of order. It never writes a database.
+A PR held by a blocking review finding holds back only its own migrations:
+the selector moves past it to the next merged PR, still oldest first (#5457
+froze every release for hours on one finding). It stops at a PR that is in
+flight or out of retries. A PR held longer than ALERT_AFTER fails this run as
+a loud advisory alert instead of skipping silently. It never writes a database.
 
     automatic_promotion_candidates.py [--dry-run]
 """
@@ -23,12 +26,16 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+import review_finding_hold
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
 WORKFLOW = "shared-supabase-migrations.yml"
 MIGRATION_RE = re.compile(r"^supabase/migrations/(\d{14})_[^/]+\.sql$")
 MAX_ATTEMPTS = 3
+ALERT_AFTER = timedelta(minutes=30)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -99,10 +106,13 @@ def run_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
 
 
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
-           applied: callable = lambda run: False, main_sha: str = "") -> tuple[str, dict[str, Any] | None, str]:
-    """Return (action, pr, reason); action is dispatch, wait or idle."""
+           applied: callable = lambda run: False, main_sha: str = "",
+           skipped: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, Any] | None, str]:
+    """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
+    are passed over and appended to `skipped` with their blocking findings."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
+    passed_over = 0
     for pr in prs:
         tag = f"PR{pr['number']} "
         titles = [(r.get("display_title") or "") + " " for r in runs]
@@ -111,8 +121,12 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             continue
         if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
             continue
-        if held(pr["number"]):
-            return "wait", pr, f"PR #{pr['number']} is held by a blocking review finding"
+        findings = held(pr["number"])
+        if findings:
+            passed_over += 1
+            if skipped is not None:
+                skipped.append({**pr, "findings": findings if isinstance(findings, list) else []})
+            continue
         # Attempts count per main commit: a later merge may be the cure, so it earns fresh tries.
         attempts = sum(1 for t, r in zip(titles, runs)
                        if t.startswith("DB preview apply") and tag in t and r.get("created_at", "") > pr["merged_at"]
@@ -121,6 +135,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         if attempts >= MAX_ATTEMPTS:
             return "wait", pr, f"ENGINEER ACTION REQUIRED: PR #{pr['number']} failed {attempts} automatic attempts"
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
+    if passed_over:
+        return "idle", None, "every merged migration PR not held by a review finding is in production"
     return "idle", None, "every merged migration PR since activation is in production"
 
 
@@ -142,9 +158,34 @@ def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
     return min(post_merge or hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
 
 
-def is_held(pr: int) -> bool:
-    rc = subprocess.run([sys.executable, os.path.join(HERE, "review_finding_hold.py"), "--pr", str(pr)]).returncode
-    return rc != 0
+def _time(text: str) -> datetime:
+    return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
+    """One line per PR held longer than ALERT_AFTER. A PR is held from the later
+    of its merge and its oldest blocking finding (unknown findings: the merge)."""
+    lines = []
+    for pr in skipped:
+        opened = [_time(f["created_at"]) for f in pr["findings"] if f.get("created_at")]
+        since = max(_time(pr["merged_at"]), min(opened)) if opened else _time(pr["merged_at"])
+        if now - since > ALERT_AFTER:
+            refs = ", ".join(f"#{f.get('number')}" for f in pr["findings"]) or "an unreadable finding query"
+            minutes = int((now - since).total_seconds() // 60)
+            lines.append(f"PR #{pr['number']} (versions {','.join(pr['versions'])}) held {minutes} min by {refs}")
+    return lines
+
+
+def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
+    """The blocking findings for this PR; True (held, findings unknown) when the
+    query fails, so an unreadable hold never promotes."""
+    try:
+        found = review_finding_hold.blocking_findings(review_finding_hold.gh_issues(repo, pr), repo, pr)
+    except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+        print(f"::warning::review-finding hold query for PR #{pr} failed ({exc}); treating as held")
+        return True
+    # The two index reads repeat an issue; report each finding once.
+    return list({f.get("number"): f for f in found}.values())
 
 
 def main() -> int:
@@ -153,11 +194,24 @@ def main() -> int:
     args = parser.parse_args()
     repo = os.environ["GITHUB_REPOSITORY"]
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
-    action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), is_held,
-                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])), main_sha)
+    skipped: list[dict[str, Any]] = []
+    action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), lambda n: is_held(repo, n),
+                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])), main_sha,
+                                skipped)
+    for held in skipped:
+        refs = ", ".join(f"#{f.get('number')}" for f in held["findings"]) or "an unreadable finding query"
+        print(f"held: PR #{held['number']} by {refs}; later PRs still promote")
     print(f"{action}: {reason}")
-    if action != "dispatch" or args.dry_run:
-        return 0
+    alerts = overdue_holds(skipped, datetime.now(timezone.utc))
+    if action == "dispatch" and not args.dry_run:
+        dispatch(repo, pr, main_sha)
+    for line in alerts:
+        print(f"::error title=Production release held over 30 minutes::{line}")
+    # A failing run is the advisory alert; it blocks nothing.
+    return 1 if alerts else 0
+
+
+def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
     source = [f"merged_preview_source_pr={pr['number']}"]
     original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: any(
         j.get("name") == "preview" and j.get("conclusion") == "success" for j in run_jobs(repo, run["id"])))
@@ -174,7 +228,6 @@ def main() -> int:
         check=True,
     )
     print(f"Dispatched the post-merge preview rehearsal for PR #{pr['number']} at {main_sha}.")
-    return 0
 
 
 if __name__ == "__main__":

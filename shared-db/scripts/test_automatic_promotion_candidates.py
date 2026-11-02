@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import sys
 import unittest
@@ -16,6 +18,82 @@ class AttemptsPerMainCommit(unittest.TestCase):
         held = lambda n: False
         self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "wait")
         self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "dispatch")
+
+
+class PerMigrationHold(unittest.TestCase):
+    first = {"number": 5456, "merged_at": "2026-11-02T17:00:00Z", "versions": ["20261102170000"]}
+    second = {"number": 5460, "merged_at": "2026-11-02T17:10:00Z", "versions": ["20261102171000"]}
+    third = {"number": 5461, "merged_at": "2026-11-02T17:20:00Z", "versions": ["20261102172000"]}
+    finding = {"number": 5457, "created_at": "2026-11-02T17:30:00Z"}
+
+    def test_a_finding_holds_only_the_pr_it_names(self):
+        skipped = []
+        held = lambda n: [self.finding] if n == 5456 else []
+        action, pr, _ = m.decide([self.first, self.second, self.third], [], held, skipped=skipped)
+        self.assertEqual((action, pr["number"]), ("dispatch", 5460))
+        self.assertEqual([p["number"] for p in skipped], [5456])
+
+    def test_later_prs_still_promote_in_order(self):
+        runs = [{"status": "completed", "conclusion": "success", "display_title": "DB production apply a PR5460 20261102171000"}]
+        held = lambda n: [self.finding] if n == 5456 else []
+        action, pr, _ = m.decide([self.first, self.second, self.third], runs, held)
+        self.assertEqual((action, pr["number"]), ("dispatch", 5461))
+
+    def test_only_held_prs_left_is_idle(self):
+        skipped = []
+        action, pr, reason = m.decide([self.first], [], lambda n: True, skipped=skipped)
+        self.assertEqual((action, pr), ("idle", None))
+        self.assertIn("not held", reason)
+        self.assertEqual(skipped[0]["findings"], [])
+
+    def test_in_flight_and_exhausted_still_stop_the_lane(self):
+        self.assertEqual(m.decide([self.first, self.second], [{"status": "queued"}], lambda n: [])[0], "wait")
+        fails = [{"display_title": "DB preview apply x PR5460 v", "status": "completed", "conclusion": "failure",
+                  "created_at": "2026-11-02T18:00:00Z"}] * 3
+        action, pr, _ = m.decide([self.second, self.third], fails, lambda n: [])
+        self.assertEqual((action, pr["number"]), ("wait", 5460))
+
+
+class OverdueHoldAlert(unittest.TestCase):
+    pr = {"number": 5456, "merged_at": "2026-11-02T17:00:00Z", "versions": ["20261102170000"],
+          "findings": [{"number": 5457, "created_at": "2026-11-02T17:30:00Z"}]}
+
+    def at(self, text):
+        return m._time(text)
+
+    def test_no_alert_within_thirty_minutes_of_the_finding(self):
+        self.assertEqual(m.overdue_holds([self.pr], self.at("2026-11-02T18:00:00Z")), [])
+
+    def test_alerts_once_held_over_thirty_minutes(self):
+        [line] = m.overdue_holds([self.pr], self.at("2026-11-02T18:01:00Z"))
+        self.assertIn("PR #5456", line)
+        self.assertIn("#5457", line)
+        self.assertIn("31 min", line)
+
+    def test_unknown_findings_count_from_the_merge(self):
+        pr = {**self.pr, "findings": []}
+        self.assertEqual(len(m.overdue_holds([pr], self.at("2026-11-02T17:31:00Z"))), 1)
+
+    def test_main_fails_the_run_when_a_hold_is_overdue(self):
+        pr = {k: v for k, v in self.pr.items() if k != "findings"}
+        saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        m.gh = lambda *a: {"sha": "abc"}
+        m.merged_migration_prs = lambda repo: [pr]
+        m.workflow_runs = lambda repo: []
+        m.is_held = lambda repo, n: self.pr["findings"]
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(m.main(), 1)
+                m.is_held = lambda repo, n: []
+                self.assertEqual(m.main(), 0)
+            self.assertIn("::error title=Production release held over 30 minutes::PR #5456", out.getvalue())
+        finally:
+            m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv = saved[:5]
+            if saved[5] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[5]
 
 
 class WorkflowRunsWindow(unittest.TestCase):

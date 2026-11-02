@@ -298,8 +298,8 @@ class TriggerDecision(unittest.TestCase):
         self.assertEqual(self.run_([])[0], "dispatch")
 
     def test_held_pr_is_not_dispatched(self):
-        action, _pr, reason = self.run_([], held=True)
-        self.assertEqual(action, "wait")
+        action, pr, reason = self.run_([], held=True)
+        self.assertEqual((action, pr), ("idle", None))
         self.assertIn("review finding", reason)
 
     def test_promoted_pr_is_skipped(self):
