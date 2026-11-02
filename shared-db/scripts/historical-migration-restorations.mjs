@@ -5,6 +5,29 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
+  // #5079: unchanged preview-applied bytes, version 20261102012258 reserved and
+  // preview-applied (claim 5419) before disjoint DAM dense-vector work landed on
+  // main past it. Pre-merge pin: production producer provenance is intentionally
+  // omitted until source PR #5417 merges (same posture as the #2336 pin). It
+  // grants no production eligibility — production already holds these rows from
+  // 20261030153101; this restore is preview-only.
+  '20261102012258': Object.freeze({
+    filename: 'supabase/migrations/20261102012258_curated_licensor_scrape_characters_side_rows.sql',
+    name: 'curated_licensor_scrape_characters_side_rows',
+    previewProject: 'mvpkijzfmfcxhnzqogzs',
+    previewApplyRun: '41462537697',
+    previewDispatchCommit: 'aaf6e417d1936b96ef6bf95c5a1639b538209974',
+    previewAppliedCommit: '3f3f4c6b5a28484292518d80e17ab85b9c118c71',
+    sourcePr: 5417,
+    statementBytes: 11898,
+    statementSha256: '7e3fbee4334feaed31da9efabef8fd186ccbb6e9428e5c5137a6a35cd1bdc1da',
+    fileSha256: '4fd173ee8f1e925f6f9ac42cf3b432bd00ccecb9e787fe7028959025d4ad03af',
+    objects: Object.freeze([
+      'table core.property_character_associations',
+      'table core.property_character_source_edge',
+      'table core.taxonomy_source_ref',
+    ]),
+  }),
   // #4508: unchanged preview-applied bytes, before disjoint OrderList 03158 landed.
   // Post-merge production-provenance pin: original preview run and exact PR #5397 merge.
   '20261102003027': Object.freeze({
