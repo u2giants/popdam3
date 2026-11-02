@@ -22,7 +22,7 @@
 do $characters$
 declare
   v_issue constant text := 'popcre/shared-db#5079';
-  v_actor constant text := 'shared-db migration 20261102135312';
+  v_actor constant text := 'shared-db migration 20261102191923';
   v_meta jsonb := jsonb_build_object('loaded_by', v_actor, 'issue', v_issue);
 begin
   create temporary table pg_temp.new_chars on commit drop as
