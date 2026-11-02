@@ -188,7 +188,7 @@ def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
     return list({f.get("number"): f for f in found}.values())
 
 
-def main() -> int:
+def main(now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -202,7 +202,7 @@ def main() -> int:
         refs = ", ".join(f"#{f.get('number')}" for f in held["findings"]) or "an unreadable finding query"
         print(f"held: PR #{held['number']} by {refs}; later PRs still promote")
     print(f"{action}: {reason}")
-    alerts = overdue_holds(skipped, datetime.now(timezone.utc))
+    alerts = overdue_holds(skipped, now or datetime.now(timezone.utc))
     if action == "dispatch" and not args.dry_run:
         dispatch(repo, pr, main_sha)
     for line in alerts:

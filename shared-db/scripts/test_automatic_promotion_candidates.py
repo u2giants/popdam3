@@ -3,6 +3,7 @@ import io
 import os
 import sys
 import unittest
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import automatic_promotion_candidates as m  # noqa: E402
@@ -84,9 +85,10 @@ class OverdueHoldAlert(unittest.TestCase):
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(m.main(), 1)
+                now = datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)
+                self.assertEqual(m.main(now), 1)
                 m.is_held = lambda repo, n: []
-                self.assertEqual(m.main(), 0)
+                self.assertEqual(m.main(now), 0)
             self.assertIn("::error title=Production release held over 30 minutes::PR #5456", out.getvalue())
         finally:
             m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv = saved[:5]
