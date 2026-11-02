@@ -476,7 +476,28 @@ export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
   }
 }
 
-export async function fetchPaged(url, apiKey, fetchImpl = fetch) {
+// One dropped connection or vendor 5xx on one page must not lose a whole sweep:
+// retry that page, serially, before giving up. Other HTTP errors fail immediately.
+const FETCH_PAGE_ATTEMPTS = 4;
+const FETCH_PAGE_RETRY_MS = 15000;
+
+async function fetchPage(pagedUrl, apiKey, fetchImpl, retryMs) {
+  for (let attempt = 1; ; attempt += 1) {
+    let failure;
+    try {
+      const response = await fetchImpl(pagedUrl, { headers: { "X-API-Key": apiKey } });
+      if (response.status < 500) return response;
+      failure = new Error(`${pagedUrl} returned HTTP ${response.status}`);
+    } catch (error) {
+      failure = error;
+    }
+    if (attempt >= FETCH_PAGE_ATTEMPTS) throw failure;
+    console.error(`${pagedUrl.pathname} page ${pagedUrl.searchParams.get("page")} attempt ${attempt} failed (${failure.message}); retrying`);
+    await new Promise((resolve) => setTimeout(resolve, retryMs * attempt));
+  }
+}
+
+export async function fetchPaged(url, apiKey, fetchImpl = fetch, { retryMs = FETCH_PAGE_RETRY_MS } = {}) {
   const rows = [];
   let page = 0;
   let terminalReached = false;
@@ -484,7 +505,7 @@ export async function fetchPaged(url, apiKey, fetchImpl = fetch) {
     const pagedUrl = new URL(url);
     pagedUrl.searchParams.set("page", String(page));
     if (!pagedUrl.searchParams.has("size")) pagedUrl.searchParams.set("size", "200");
-    const response = await fetchImpl(pagedUrl, { headers: { "X-API-Key": apiKey } });
+    const response = await fetchPage(pagedUrl, apiKey, fetchImpl, retryMs);
     if (!response.ok) throw new Error(`${pagedUrl} returned HTTP ${response.status}`);
     const payload = await response.json();
     if (Array.isArray(payload)) {

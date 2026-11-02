@@ -46,6 +46,35 @@ test("fetchPaged follows content pages until the terminal page", async () => {
   assert.equal(calls[0].options.headers["X-API-Key"], "fixture-key");
 });
 
+test("fetchPaged retries a dropped connection and a 5xx on the same page", async () => {
+  const pages = [];
+  let calls = 0;
+  const result = await fetchPaged("http://example.test/items", "fixture-key", async (url) => {
+    calls += 1;
+    pages.push(url.searchParams.get("page"));
+    if (calls === 1) throw new TypeError("fetch failed");
+    if (calls === 2) return { ok: false, status: 503 };
+    return response({ content: [{ itemCode: "A" }], last: true });
+  }, { retryMs: 0 });
+  assert.deepEqual(pages, ["0", "0", "0"]);
+  assert.equal(result.rows.length, 1);
+});
+
+test("fetchPaged gives up after bounded retries and never retries a 4xx", async () => {
+  let calls = 0;
+  await assert.rejects(fetchPaged("http://example.test/items", "fixture-key", async () => {
+    calls += 1;
+    throw new TypeError("fetch failed");
+  }, { retryMs: 0 }), /fetch failed/);
+  assert.equal(calls, 4);
+  calls = 0;
+  await assert.rejects(fetchPaged("http://example.test/items", "fixture-key", async () => {
+    calls += 1;
+    return { ok: false, status: 401 };
+  }, { retryMs: 0 }), /HTTP 401/);
+  assert.equal(calls, 1);
+});
+
 test("fetchPaged accepts the merchGroupHeaders plain-array response", async () => {
   const result = await fetchPaged("http://example.test/headers", "fixture-key", async () => response([{ mgTypeCode: "05" }]));
   assert.equal(result.rows.length, 1);
