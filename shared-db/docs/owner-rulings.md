@@ -2234,3 +2234,13 @@ Albert confirmed the move of existing rows, verbatim (2026-11-01): "Yes, move th
 **SKU codes stay.** `DC` and `HP` remain valid ColdLion codes and SKU characters 6-7. They resolve to `WB`; the two `core.licensor` rows stay `inactive` so those codes and old history still have a referent. Every prior row is archived in `archive.dc_hp_wb_repoint_20261101`.
 
 Posted by Claude chat 8b15975b-42fa-4ebc-acab-6338808d482a on hetz
+
+### 6.35 OWNER RULING — A claim idle for 10 days may be taken over (Albert Hazan, 2026-11-02)
+
+Verbatim from Albert, relayed to the takeover session (2026-11-02):
+
+> "If a session is idle for 10 days it obviously is not coming back. spin up a nested session to take it over"
+
+**Effect.** A claim with no activity for 10 days does not need its old owner. A successor session first checks for unpublished work, then records the takeover on the claim, quoting this ruling, and releases it. Applied to claim #4723, which held up #5436 and #5079.
+
+**Case notes (#5436).** Items absent from the ColdLion feed are not reached by the import, so a licensor move needs a live count of items left on the old licensor, and a direct fix for the remainder. A data-only migration can end its production run red at post-apply catalog verification although the rows changed: judge it by a live read of the rows and the ledger.
