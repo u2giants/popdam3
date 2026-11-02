@@ -4,7 +4,7 @@ import { CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useColdLionLinkCandidates, useColdLionTriage, useResolveColdLionTriage } from "@/hooks/useColdLionTriage";
+import { useColdLionTriageEditRow, useColdLionLinkCandidates, useColdLionTriage, useResolveColdLionTriage } from "@/hooks/useColdLionTriage";
 import {
   TRIAGE_KIND_LABEL,
   describeColdLionSource,
@@ -14,6 +14,12 @@ import {
   type TriageItem,
   type TriageKind,
 } from "@/lib/coldlion-triage";
+
+import { OrderEditorDialog } from "@/components/orders/OrderEditorDialog";
+import { useUpdateOrder } from "@/hooks/useOrderList";
+import { useDamCustomers } from "@/hooks/useDamCustomers";
+import { useQueryClient } from "@tanstack/react-query";
+import { COLDLION_TRIAGE_QUERY_KEY } from "@/hooks/useColdLionTriage";
 
 const KINDS: TriageKind[] = ["quantity", "import_po", "unmatched"];
 
@@ -134,6 +140,15 @@ function UnmatchedStep({ item, resolve, busy }: { item: TriageItem; resolve: (ac
 export default function ReconcilePage() {
   const { data: items = [], isLoading, error, refetch, isFetching } = useColdLionTriage();
   const resolver = useResolveColdLionTriage();
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const editRow = useColdLionTriageEditRow(editingLineId);
+  const customers = useDamCustomers();
+  const queryClient = useQueryClient();
+  const updateOrder = useUpdateOrder(() => {
+    void queryClient.invalidateQueries({ queryKey: COLDLION_TRIAGE_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: ["coldlion-triage-candidates"] });
+    void queryClient.invalidateQueries({ queryKey: ["coldlion-triage-edit"] });
+  });
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [lastIndex, setLastIndex] = useState(0);
 
@@ -176,6 +191,26 @@ export default function ReconcilePage() {
         </Card>
       ) : null}
 
+      {editingLineId && editRow.isLoading ? <p role="status">Loading order line…</p> : null}
+      {editingLineId && editRow.error ? (
+        <div role="alert" className="space-y-2 text-destructive">
+          <p>Could not load this order line. No changes were made.</p>
+          <Button variant="outline" size="sm" onClick={() => editRow.refetch()}>Try again</Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditingLineId(null)}>Cancel</Button>
+        </div>
+      ) : null}
+      {editingLineId && editRow.data && !editRow.isFetching && !editRow.error ? (
+        <OrderEditorDialog key={editingLineId} mode="edit" row={editRow.data}
+          isSaving={updateOrder.isPending} customerOptions={customers.data ?? []}
+          onClose={() => setEditingLineId(null)}
+          onSubmit={({ order, line }) => updateOrder.mutate({
+            p_order_id: editRow.data.order_id,
+            p_order_patch: order,
+            p_line_patches: [{ id: editRow.data.order_line_id, ...line }],
+          }, { onSuccess: () => setEditingLineId(null) })}
+        />
+      ) : null}
+
       {items.length ? (
         <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
           <Card className="max-h-[75vh] overflow-auto">
@@ -209,6 +244,13 @@ export default function ReconcilePage() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <LineFacts item={current} />
+                <div className="space-y-2 rounded-md border p-3">
+                  <p className="text-sm text-muted-foreground">Wrong SKU or Customer PO? Correct the order line before choosing a reconciliation answer.</p>
+                  <Button variant="outline" size="sm" disabled={resolver.isPending || updateOrder.isPending}
+                    onClick={() => setEditingLineId(current.row.order_line_id)}>
+                    Edit this order line
+                  </Button>
+                </div>
                 {current.kind === "unmatched" ? (
                   <UnmatchedStep key={current.key} item={current} resolve={resolve} busy={resolver.isPending} />
                 ) : (

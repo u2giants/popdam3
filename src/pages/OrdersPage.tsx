@@ -457,6 +457,8 @@ export default function OrdersPage() {
       <div className="min-h-0 flex-1 p-3">
         <div className="h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
           <OrderListGrid
+            key={user?.id ?? "anonymous"}
+            userId={user?.id}
             ref={gridRef}
             datasource={datasource}
             search={search}

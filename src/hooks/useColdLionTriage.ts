@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { ORDER_LIST_SUMMARY_QUERY_KEY } from "@/hooks/useOrderList";
+import { ORDER_LIST_SELECT, ORDER_LIST_SUMMARY_QUERY_KEY } from "@/hooks/useOrderList";
+import type { OrderListRow } from "@/types/order-list";
 import { TRIAGE_SELECT, buildTriageItems, type TriageAction, type TriageRow } from "@/lib/coldlion-triage";
 
 export const COLDLION_TRIAGE_QUERY_KEY = ["coldlion-triage"] as const;
@@ -65,6 +66,24 @@ export function useResolveColdLionTriage() {
     onError: (error: Error) => {
       toast.error(error.message);
       void queryClient.invalidateQueries({ queryKey: COLDLION_TRIAGE_QUERY_KEY });
+    },
+  });
+}
+
+/** Load the complete, current line before opening the existing order editor. */
+export function useColdLionTriageEditRow(lineId: string | null) {
+  return useQuery({
+    queryKey: ["coldlion-triage-edit", lineId],
+    enabled: Boolean(lineId),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const { data, error } = await orderListTable()
+        .select(ORDER_LIST_SELECT)
+        .eq("order_line_id", lineId)
+        .single();
+      if (error) throw error;
+      return data as OrderListRow;
     },
   });
 }

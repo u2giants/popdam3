@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTriageItems, describeColdLionSource, rankLinkCandidates, type TriageRow } from "@/lib/coldlion-triage";
 
 const rpc = vi.fn();
+const editSave = vi.fn();
+let editRowError: Error | null = null;
 let listRows: TriageRow[] = [];
 let candidateRows: TriageRow[] = [];
 
@@ -12,6 +14,7 @@ function builder(result: () => TriageRow[]) {
   const chain: any = {
     select: () => chain, or: () => chain, eq: () => chain, not: () => chain, is: () => chain,
     limit: () => Promise.resolve({ data: result(), error: null }),
+    single: () => Promise.resolve({ data: { ...result()[0], order_person: "Preserved person", assortment_id: "AS1" }, error: editRowError }),
   };
   return chain;
 }
@@ -23,7 +26,11 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/hooks/useOrderList", () => ({ ORDER_LIST_SUMMARY_QUERY_KEY: ["order-list-summary"] }));
+vi.mock("@/hooks/useOrderList", () => ({
+  ORDER_LIST_SUMMARY_QUERY_KEY: ["order-list-summary"], ORDER_LIST_SELECT: "order_line_id,order_id,sku,customer_po_number,order_person,assortment_id",
+  useUpdateOrder: () => ({ isPending: false, mutate: editSave }),
+}));
+vi.mock("@/hooks/useDamCustomers", () => ({ useDamCustomers: () => ({ data: [] }) }));
 
 const row = (over: Partial<TriageRow>): TriageRow => ({
   order_line_id: "l1", order_id: "o1", production_order_number: "D3708", customer_name: "Ross", company_id: "c1",
@@ -59,6 +66,8 @@ describe("triage items", () => {
 describe("To reconcile page", () => {
   beforeEach(() => {
     rpc.mockReset();
+    editSave.mockReset();
+    editRowError = null;
     candidateRows = [];
   });
 
@@ -87,4 +96,29 @@ describe("To reconcile page", () => {
     fireEvent.click(await screen.findByTestId("keep-separate"));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("resolve_coldlion_triage", { p_line: "l1", p_action: "keep_separate", p_target: null }));
   });
+  it("opens the current order line so a wrong SKU or customer PO can be corrected", async () => {
+    listRows = [row({ coldlion_unmatched: true })];
+    await renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit this order line" }));
+    const sku = await screen.findByLabelText("Style #");
+    expect((sku as HTMLInputElement).value).toBe("HSD88DYWP02");
+    fireEvent.change(sku, { target: { value: "CORRECTSKU" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(editSave).toHaveBeenCalledWith(expect.objectContaining({
+      p_order_id: "o1",
+      p_line_patches: [expect.objectContaining({ id: "l1", sku: "CORRECTSKU", order_person: "Preserved person", assortment_id: "AS1" })],
+    }), expect.anything());
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not open a partial editor when loading the full line fails", async () => {
+    listRows = [row({ coldlion_unmatched: true })];
+    editRowError = new Error("unavailable");
+    await renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit this order line" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No changes were made");
+    expect(screen.queryByLabelText("Style #")).toBeNull();
+    expect(editSave).not.toHaveBeenCalled();
+  });
+
 });
