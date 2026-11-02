@@ -1,10 +1,11 @@
 # apps/image-embed-worker — PopDAM image-similarity GPU poller
 
 Pull-based GPU worker for the image-similarity feature (issue #486,
-`plan_image_similarity_upload_search.md` Step 3). Runs on an owner GPU
+`plan_image_similarity_upload_search.md` Step 3) and the durable
+search-document embedding lane (issue #646 cure (d)). Runs on an owner GPU
 desktop (today: **edge-dev**, RTX 3060 Ti), connects out to the shared
-Supabase database **through the pooler** and drains two job lanes from
-`dam.image_embed_jobs`:
+Supabase database **through the pooler** and drains three lanes — two job
+lanes from `dam.image_embed_jobs`:
 
 - **query lane** — uploaded pictures from the `image-similarity` edge
   function. Claim 1 row / lease 30 s / poll 1 s. Payload is magic-byte
@@ -16,6 +17,25 @@ Supabase database **through the pooler** and drains two job lanes from
   `trg_assets_enqueue_image_embed` trigger (or the backfill op). Claim
   batch 32 / lease 300 s / poll 5 s, thumbnail downloaded from Spaces,
   border-cropped, embedded, vectors upserted with the exact model stamp.
+- **search-document lane** (`public.dam_search_documents`, popdam3 #646) —
+  claims unembedded rows via `public.claim_dam_search_embedding_documents`
+  (batch 64 / lease 900 s / poll 5 s; **style-group docs claim first**,
+  ordered server-side), embeds the doc thumbnail with the SigLIP2 tower
+  only (no border-crop — the existing ~150k-doc corpus is uncropped and
+  mixed treatment would skew similarity) and writes `vector(768)` through
+  `public.upsert_dam_search_embedding` with the stamp
+  `google/siglip2-base-patch16-naflex` (pinned by `search_dam_documents`'
+  SQL — NOT `IMAGE_SIM_EMBEDDING_MODEL`). Errors go through
+  `public.mark_dam_search_embedding_error` (missing thumbnail = permanent,
+  download/decode = transient). This lane is what keeps group vectors from
+  re-starving after every nightly style-group rebuild; it runs whenever the
+  service is up (semantic search is a separate feature from
+  `IMAGE_EMBED_ENABLED`), and `--no-search-lane` disables it.
+
+  Requires the shared-db EXECUTE grants for `dam_image_embed_worker` on the
+  four `*_dam_search_embedding*` RPCs. Without them the lane logs one
+  `search_lane_error`, cools down 10 minutes and retries — the other lanes
+  keep working.
 
 Heartbeat: `dam.image_embed_worker_heartbeat(worker_id)` every **30 s**;
 `public.image_embed_status().workers_fresh` reports the fleet available
@@ -95,6 +115,15 @@ Proven environment: Python 3.13 + `.venv` in `D:\ai\siglip2-embed`.
      /TR "cmd /c D:\ai\popdam-image-embed-worker\run_service.cmd" /F
    ```
 
+   **Then remove the execution time limit** (the 2026-10-29 outage: Task
+   Scheduler's default 72-hour `ExecutionTimeLimit` killed the service
+   exactly three days after boot-start, silently). One-time, per task:
+
+   ```powershell
+   Set-ScheduledTask -TaskName PopDAM-ImageEmbedWorker -Settings `
+     (New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0))
+   ```
+
    `run_service.cmd` (create alongside the script):
 
    ```bat
@@ -121,8 +150,10 @@ Proven environment: Python 3.13 + `.venv` in `D:\ai\siglip2-embed`.
   --stamp-file worker.stamp --once-drain
 ```
 
-`--once-drain` exits after 6 consecutive empty index polls and never
-touches the query lane (uploads need the always-on service, not a drain).
+`--once-drain` drains the search-document lane first (style-group docs
+first, server-side claim order), then the index lane; it exits after 6
+consecutive empty polls on both and never touches the query lane (uploads
+need the always-on service, not a drain).
 
 ## Long-term placement
 
