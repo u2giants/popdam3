@@ -2,6 +2,18 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## Open 2026-11-01: DAM picture search times out under cold database load
+
+The exact query `spiderman coir` intermittently fails in `dam-search-ai`, causing the app to fall back to broader word matching. The earlier planning-cost repair (shared-db #5075) is live; this is a separate execution-I/O regression as style-group picture coverage grows.
+
+Authenticated production reproduction: the semantic anchor hit its 5-second statement limit and ranked search hit its 30-second limit. A direct exact style-group vector scan also exceeded 15 seconds, with active queries waiting on database disk reads. At reproduction the mixed search-document table occupied about 1.2 GB and held 9,641 non-null style-group vectors.
+
+Shared-db [PR #5397](https://github.com/popcre/shared-db/pull/5397), tracked on [#4508](https://github.com/popcre/shared-db/issues/4508), adds a compact private vector projection maintained by a transactional trigger. Exact group scans use the same vectors and distance formula; word matching, asset ANN, visibility, ranks, counts, thresholds and time limits stay unchanged. Insert, vector replacement, key change, invalidation and deletion update the projection in the same transaction. Vectors remain inline so the scan is sequential rather than fetching scattered heap/TOAST values.
+
+Local PostgreSQL17/pgvector checks cover migration with existing vectors, projection parity and lifecycle/privilege contracts. A 9,641-vector synthetic test returned identical top-2,000 candidates (zero symmetric difference); the compact exact scan took 12.235 ms. Those local numbers are not production acceptance.
+
+- [ ] live proof: after automatic promotion, verify the exact query in a fresh authenticated browser before any query prewarming, then repeat under live load. Record actual groups, response times and whether fallback occurred. The separate missing-artwork/ERP recall work remains on #616.
+
 ## Resolved 2026-10-29: Master Data first load slow, then a false "could not be loaded"
 
 What happened: the first Master Data load (Licensed tab) took a long time and often ended in "Master Data could not be loaded."; waiting triggered an automatic reload that succeeded. Users navigated away believing it failed.
