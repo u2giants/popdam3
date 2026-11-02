@@ -196,3 +196,37 @@ describe("OrderList PO bands in dark appearance", () => {
     }
   });
 });
+
+describe("OrderList automatic column persistence", () => {
+  it("restores a user's chosen visibility, order, width and pinning after reopening without changing another user's layout", async () => {
+    localStorage.clear();
+    const datasource = { getRows: (params: any) => void Promise.resolve().then(() => params.successCallback([], 0)) };
+    const mount = (userId: string) => {
+      const ref = createRef<AgGridReact<OrderListRow>>();
+      const view = render(<div style={{ height: 360, width: 720 }}><OrderListGrid ref={ref} userId={userId} datasource={datasource} onCellEdited={vi.fn()} onRelink={vi.fn()} onEditOrder={vi.fn()} /></div>);
+      return { ref, ...view };
+    };
+    const first = mount("column-owner");
+    await waitFor(() => expect(first.ref.current?.api).toBeTruthy());
+    act(() => {
+      first.ref.current!.api.applyColumnState({ state: [
+        { colId: "vendor_name", hide: false, width: 311, pinned: "left" },
+        { colId: "sku", hide: true },
+      ], applyOrder: true });
+    });
+    await waitFor(() => expect(localStorage.getItem("popdam:order-list:columns:v1:column-owner")).toContain('"width":311'));
+    first.unmount();
+
+    const reopened = mount("column-owner");
+    await waitFor(() => expect(reopened.ref.current?.api?.getColumnState().find((column) => column.colId === "vendor_name")).toMatchObject({ hide: false, width: 311, pinned: "left" }));
+    expect(reopened.ref.current!.api.getColumnState().find((column) => column.colId === "sku")?.hide).toBe(true);
+    expect(reopened.ref.current!.api.getColumnState().filter((column) => column.colId !== "ag-Grid-SelectionColumn").slice(0, 2).map((column) => column.colId)).toEqual(["vendor_name", "sku"]);
+    reopened.unmount();
+
+    const otherUser = mount("another-owner");
+    await waitFor(() => expect(otherUser.ref.current?.api).toBeTruthy());
+    expect(otherUser.ref.current!.api.getColumnState().find((column) => column.colId === "sku")?.hide).toBe(false);
+    otherUser.unmount();
+    localStorage.clear();
+  });
+});

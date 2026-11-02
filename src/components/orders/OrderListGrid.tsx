@@ -22,6 +22,7 @@ import {
   orderListRowMatchesSearch,
   type OrderListColumn,
 } from "@/lib/order-list";
+import { readOrderListColumns, saveOrderListColumns } from "@/lib/order-list-column-storage";
 import { buildOrderListPOBands } from "@/lib/order-list-po-groups";
 import type { OrderListRow } from "@/types/order-list";
 
@@ -153,6 +154,7 @@ const SIDE_BAR = {
 
 export type OrderListGridProps = {
   datasource: IDatasource;
+  userId?: string;
   onCellEdited: (event: CellValueChangedEvent<OrderListRow>) => void;
   onRelink: (row: OrderListRow) => void;
   onEditOrder: (row: OrderListRow) => void;
@@ -163,10 +165,11 @@ export type OrderListGridProps = {
 };
 
 export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGridProps>(function OrderListGrid(
-  { datasource, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged, onSelectionChanged, search = "", highlightedRowId = null },
+  { datasource, userId, onCellEdited, onRelink, onEditOrder, onDisplayedRowsChanged, onSelectionChanged, search = "", highlightedRowId = null },
   ref,
 ) {
   const { theme } = useAppearance();
+  const columnsReady = useRef(false);
   const poBands = useRef<ReturnType<typeof buildOrderListPOBands>>(new Map());
 
   const columnDefs = useMemo<ColDef<OrderListRow>[]>(
@@ -299,6 +302,17 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
       theme={theme === "dark" ? darkGridTheme : lightGridTheme}
       columnDefs={columnDefs}
       defaultColDef={DEFAULT_COL_DEF}
+      onGridReady={(event) => {
+        const state = readOrderListColumns(userId);
+        if (state) event.api.applyColumnState({ state, applyOrder: true });
+        columnsReady.current = true;
+      }}
+      onStateUpdated={(event) => {
+        if (columnsReady.current) saveOrderListColumns(userId, event.api.getColumnState());
+      }}
+      onGridPreDestroyed={(event) => {
+        if (columnsReady.current) saveOrderListColumns(userId, event.api.getColumnState());
+      }}
       // Bounded blocks: sorting, filtering and search happen in the database.
       rowModelType="infinite"
       datasource={datasource}

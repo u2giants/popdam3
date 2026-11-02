@@ -82,6 +82,14 @@ while production details retain it. The live API can be newer than the saved
 landing snapshot. Reconciliation and live proof remain on PopDAM #527 and
 shared-db #4858; do not close them based on documentation alone.
 
+## Automatic column settings
+
+The last-used column visibility, order, width, pinning and sorting are automatically
+saved per signed-in user in this browser and restored when the OrderList is
+refreshed or reopened. Named saved views remain available independently; applying
+one becomes the browser's last-used column layout. Filters are restored only by
+explicitly applying a named saved view. A new browser starts with the defaults.
+
 ## Database contract
 
 All objects are owned by canonical `popcre/shared-db`. Nothing here may be changed from
