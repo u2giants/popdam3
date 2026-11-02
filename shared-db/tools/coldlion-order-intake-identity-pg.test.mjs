@@ -54,7 +54,7 @@ create table plm.production_order_line (id uuid primary key default gen_random_u
   line_number text, sku text, quantity_ordered numeric, order_person text, order_type text,
   customer_po_number text, assortment_id text, assortment_component_ordinal integer, case_pack numeric,
   ship_to text, start_ship_date date, cancel_date date, metadata jsonb, source_system text, source_id text,
-  source_style_type text, item_id uuid, master_data_match_status text,
+  source_style_type text, item_id uuid, master_data_match_status text, voided_at timestamptz, status text,
   sku_normalized text generated always as (nullif(btrim(lower(sku)), '')) stored,
   updated_at timestamptz default now(), unique (source_system, source_id));
 create table plm.production_order_line_source_ref (production_order_line_id uuid references plm.production_order_line (id) on delete cascade, source_system text,
@@ -354,3 +354,165 @@ select pl.id, 'coldlion', 'coldlion:so:${SO}:line:1:component:9', true, '{}' fro
 
 // The #5004 guided resolver runs in the same isolated PostgreSQL step.
 import "./coldlion-triage-resolver-pg.test.mjs";
+
+test("source-bound corrections survive replay, reject changed source, and travel on consolidated refs", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  psql(stage(run(), ['RAW-SKU']));
+  write();
+  const source = psql(`select source_id from plm.production_order_line_source_ref`);
+  const correction = JSON.stringify({ version: 1, source_id: source, original_sku: 'RAW-SKU', canonical_sku: 'INTERNAL-SKU',
+    original_customer_po: '62004433', canonical_customer_po: '62004433', evidence_ref: 'issue-636-exact-owner-note' });
+  psql(`update plm.production_order_line_source_ref set metadata=metadata || jsonb_build_object('orderlist_source_correction','${correction}'::jsonb)`);
+  psql(buildWriteSql({ runId: run(), order: SO, write: true }));
+  assert.equal(psql(`select sku from plm.production_order_line`), 'INTERNAL-SKU');
+  assert.equal(psql(`select metadata->>'sub_item_no' from plm.production_order_line_source_ref`), 'RAW-SKU');
+  assert.equal(psql(`select sub_item_no from coldlion.intake_order_component`), 'RAW-SKU');
+  assert.deepEqual(psql(buildIdentityGuardSql()).split('|').slice(0, 4), ['0', '0', '0', '0']);
+  const corrected = linesBySku();
+  psql(buildWriteSql({ runId: run(), order: SO, write: true }));
+  assert.deepEqual(linesBySku(), corrected);
+
+  // Two candidate targets are an ambiguity, even with an exact correction.
+  psql(`insert into plm.production_order(production_order_number) values ('D1');
+    insert into plm.production_order_line(production_order_id,sku,customer_po_number)
+      select id,'INTERNAL-SKU','62004433' from plm.production_order where production_order_number='D1';
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select id,'google_order_list','google:1',true,'{}' from plm.production_order_line where sku='INTERNAL-SKU' and source_system is null;
+    insert into plm.production_order_line(production_order_id,sku,customer_po_number)
+      select id,'INTERNAL-SKU','62004433' from plm.production_order where production_order_number='D1';
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select l.id,'google_order_list','google:2',true,'{}' from plm.production_order_line l
+      where l.sku='INTERNAL-SKU' and l.source_system is null and not exists(select 1 from plm.production_order_line_source_ref r where r.production_order_line_id=l.id);`);
+  psql(buildAutoMergeSql({ runId: run(), write: true }));
+  assert.equal(psql(`select count(*) from plm.production_order_line`), '3');
+  psql(`delete from plm.production_order_line where id=(select production_order_line_id from plm.production_order_line_source_ref where source_id='google:2')`);
+  psql(buildAutoMergeSql({ runId: run(), write: true }));
+  assert.equal(psql(`select count(*) from plm.production_order_line`), '1');
+  assert.equal(psql(`select count(*) from plm.production_order_line_source_ref where metadata ? 'orderlist_source_correction'`), '1');
+  psql(buildWriteSql({ runId: run(), order: SO, write: true }));
+  assert.equal(psql(`select count(*) from plm.production_order_line`), '1');
+  assert.deepEqual(psql(buildIdentityGuardSql()).split('|').slice(0, 4), ['0', '0', '0', '0']);
+
+  // The source changed its PO: the correction cannot silently apply to it.
+  psql(`update coldlion.intake_order_line set po_number='SOURCE-CHANGED'`);
+  const before = linesBySku();
+  assert.throws(() => psql(buildWriteSql({ runId: run(), order: SO, write: true })), /source correction no longer matches/);
+  assert.deepEqual(linesBySku(), before);
+});
+
+
+test("voided superseded source components stay historical and never auto-merge", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  psql(stage(run(), ['OLD-COMPONENT']));
+  write();
+  psql(`update plm.production_order_line set voided_at=now();
+    insert into plm.production_order(production_order_number) values ('D1');
+    insert into plm.production_order_line(production_order_id,sku,customer_po_number)
+      select id,'OLD-COMPONENT','62004433' from plm.production_order where production_order_number='D1';
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select id,'google_order_list','google:historical',true,'{}' from plm.production_order_line where source_system is null;`);
+  psql(buildAutoMergeSql({ runId: run(), write: true }));
+  assert.equal(psql(`select count(*) from plm.production_order_line`), '2');
+  assert.equal(psql(`select count(*) from plm.production_order_line where voided_at is not null`), '1');
+});
+
+
+test("verified source cancellation survives replay and changed cancellation demands review", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  psql(stage(run(), ['CANCELLED-COMPONENT']));
+  write();
+  psql(`update coldlion.intake_order_line set line_cancelled_qty=line_qty;
+    update plm.production_order_line l set status='cancelled',metadata=l.metadata || jsonb_build_object(
+      'orderlist_source_cancellation',jsonb_build_object('version',1,'source_id',r.source_id,
+        'line_qty',96,'line_cancelled_qty',96,'evidence_ref','issue636'))
+      from plm.production_order_line_source_ref r where r.production_order_line_id=l.id;`);
+  psql(buildWriteSql({ runId: run(), order: SO, write: true }));
+  assert.equal(psql(`select status from plm.production_order_line`), 'cancelled');
+  psql(`update coldlion.intake_order_line set line_cancelled_qty=0`);
+  assert.throws(() => psql(buildWriteSql({ runId: run(), order: SO, write: true })), /source cancellation changed; review required/);
+  assert.equal(psql(`select status from plm.production_order_line`), 'cancelled');
+});
+
+
+test("component versions use observation time when UUID order is reversed", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  const oldRun='ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const newRun='11111111-1111-1111-1111-111111111111';
+  psql(stage(oldRun,['SAME-COMPONENT']));
+  psql(`update coldlion.sync_run set started_at='2026-01-01' where id='${oldRun}'`);
+  write();
+  const originalRef=psql(`select source_id from plm.production_order_line_source_ref`);
+  psql(`insert into coldlion.sync_run(id,started_at) values('${newRun}','2026-02-01');
+    update coldlion.intake_order_line set last_seen_run='${newRun}';
+    insert into coldlion.intake_order_component(line_id,sub_item_no,sub_label_code,order_qty,component_source_hash,last_seen_run)
+      select id,'SAME-COMPONENT',null,50,'newer-component-hash','${newRun}' from coldlion.intake_order_line;`);
+  psql(buildWriteSql({runId:run(),order:SO,write:true}));
+  assert.equal(psql(`select quantity_ordered from plm.production_order_line`),'50');
+  assert.equal(psql(`select source_id from plm.production_order_line_source_ref`),originalRef);
+  psql(buildWriteSql({runId:run(),order:SO,write:true}));
+  assert.equal(psql(`select quantity_ordered from plm.production_order_line`),'50');
+});
+
+test("newer low-UUID observation replaces a source manifest without resurrecting voided components", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  const oldRun='ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const newRun='11111111-1111-1111-1111-111111111112';
+  psql(stage(oldRun,['OLD-COMPONENT']));
+  psql(`update coldlion.sync_run set started_at='2026-01-01' where id='${oldRun}';
+    update coldlion.intake_order_line set master_item_no='OLD-PACK';`);
+  write();
+  const oldRef=psql(`select source_id from plm.production_order_line_source_ref`);
+  psql(stage(newRun,['REPLACEMENT-COMPONENT']));
+  psql(`update coldlion.sync_run set started_at='2026-02-01' where id='${newRun}'`);
+  psql(buildWriteSql({runId:run(),order:SO,write:true}));
+  psql(`update plm.production_order_line set voided_at=now() where sku='OLD-COMPONENT'`);
+  const before=linesBySku();
+  psql(buildWriteSql({runId:run(),order:SO,write:true}));
+  assert.deepEqual(linesBySku(),before);
+  assert.equal(psql(`select count(*) from plm.production_order_line where sku='OLD-COMPONENT' and voided_at is null`),'0');
+  assert.equal(psql(`select count(*) from plm.production_order_line where sku='REPLACEMENT-COMPONENT' and voided_at is null`),'1');
+  assert.equal(psql(`select r.source_id from plm.production_order_line_source_ref r join plm.production_order_line l on l.id=r.production_order_line_id where l.sku='OLD-COMPONENT'`),oldRef);
+  assert.equal(psql(`select count(*) from plm.production_order_line_source_ref`),'2');
+});
+
+
+test("automatic merge preserves exact recipe hash, keeps conflicting hashes, and abstains on assortment mismatch", { skip: !container }, () => {
+  psql(`drop database if exists ${DB}`, "postgres");
+  psql(`create database ${DB}`, "postgres");
+  psql(SCHEMA);
+  psql(stage(run(),['HASH-MISSING','HASH-CONFLICT','ASSORTMENT-DIFF']));
+  write();
+  psql(`insert into plm.production_order(production_order_number) values('D-HASH');
+    insert into plm.production_order_line(production_order_id,sku,customer_po_number,assortment_id,metadata)
+      select p.id,l.sku,l.customer_po_number,
+        case when l.sku='ASSORTMENT-DIFF' then 'ANOTHER-PACK' else l.assortment_id end,
+        case when l.sku='HASH-CONFLICT' then '{"component_source_hash":"preserve-existing-hash"}'::jsonb else '{}'::jsonb end
+      from plm.production_order_line l cross join plm.production_order p where p.production_order_number='D-HASH';
+    insert into plm.production_order_line_source_ref(production_order_line_id,source_system,source_id,is_primary,metadata)
+      select l.id,'google_order_list','google:hash:'||l.sku,true,'{}'::jsonb
+      from plm.production_order_line l join plm.production_order p on p.id=l.production_order_id
+      where p.production_order_number='D-HASH';`);
+  psql(buildAutoMergeSql({runId:run(),write:true}));
+  assert.equal(psql(`select metadata->>'component_source_hash' from plm.production_order_line where sku='HASH-MISSING'`),'hash-HASH-MISSING');
+  assert.equal(psql(`select metadata->>'component_source_hash' from plm.production_order_line where sku='HASH-CONFLICT'`),'preserve-existing-hash');
+  assert.equal(psql(`select metadata ? 'component_source_hash' from plm.production_order_line where sku='ASSORTMENT-DIFF'`),'f');
+  // Reader provenance: exact source ref + SKU + assortment + copied hash
+  // resolves exactly one order-time component, without a current-recipe guess.
+  assert.equal(psql(`select count(*) from plm.production_order_line l
+    join plm.production_order_line_source_ref r on r.production_order_line_id=l.id and r.source_system='coldlion'
+    join coldlion.intake_order_line h on h.sales_order_no=split_part(r.source_id,':',3)::bigint
+      and h.sales_order_line_no=split_part(r.source_id,':',5)::integer and h.master_item_no=l.assortment_id
+    join coldlion.intake_order_component c on c.line_id=h.id and c.sub_item_no=l.sku
+      and c.component_source_hash=l.metadata->>'component_source_hash'
+    where l.sku='HASH-MISSING'`),'1');
+});

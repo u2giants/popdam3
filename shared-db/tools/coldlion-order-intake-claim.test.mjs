@@ -79,15 +79,16 @@ test("poNumber normalization: both padding shapes, raw preserved, all-zero/empty
   // RAW text in customer_po_number (letters and leading zeros are the
   // customer's identifiers, preserved as text).
   assert.match(sql, /nullif\(ltrim\(regexp_replace\(wl\.po_number, '\^\[\[:space:\]\]\+\|\[\[:space:\]\]\+\$', '', 'g'\), '0'\), ''\) as po_number_normalized/);
-  assert.match(sql, /cl\.po_number, cl\.assortment_id/);
+  assert.match(sql, /cl\.corrected_po, cl\.assortment_id/);
+  // Raw source text is still projected first; only an exact per-source
+  // correction may supply a different effective customer PO.
+  assert.match(cteBlock(sql, "source_canonical_lines"), /wl\.po_number/);
+  assert.match(sql, /\ncanonical_lines as \([\s\S]*?as corrected_po/);
 });
 
-test("winning-version selection: DISTINCT ON per identity with the two-key tiebreak on BOTH grains", () => {
-  // Line grain, first tier: winning version of every staged line per
-  // (sales_order_no, sales_order_line_no, master_item_no) = greatest
-  // last_seen_run, then line_source_hash — exactly the two keys the Phase A
-  // coldlion_intake_order_line_winner_idx declares, so two runs can never
-  // mint different winners for the same logical line.
+test("winning-version selection uses observation time with deterministic run/hash ties on both grains", () => {
+  // The latest actual observation supplies every sibling at the line
+  // grain. Run UUIDs and content hashes only make tied selections stable.
   const versionWinners = sql.slice(sql.indexOf("line_version_winners as ("), sql.indexOf("winning_lines as ("));
   // Prepack siblings (one staged row per component, same identity, distinct
   // hashes) are NOT versions: every row of the latest run is kept, ranked by
@@ -100,7 +101,7 @@ test("winning-version selection: DISTINCT ON per identity with the two-key tiebr
   // sub_label_code) across sibling rows, NULLS LAST on the identity keys.
   const components = sql.slice(sql.indexOf("winning_components as ("), sql.indexOf("ordinalled as ("));
   assert.match(components, /select distinct on \(wl\.sales_order_no, wl\.sales_order_line_no,\s*wl\.master_item_no, c\.sub_item_no, c\.sub_label_code\)/);
-  assert.match(components, /order by wl\.sales_order_no, wl\.sales_order_line_no, wl\.master_item_no,\s*c\.sub_item_no asc nulls last, c\.sub_label_code asc nulls last,\s*c\.last_seen_run desc, wl\.line_source_hash, c\.component_source_hash/);
+  assert.match(components, /order by wl\.sales_order_no, wl\.sales_order_line_no, wl\.master_item_no,\s*c\.sub_item_no asc nulls last, c\.sub_label_code asc nulls last,\s*component_run\.started_at desc nulls last, c\.last_seen_run desc,\s*wl\.line_source_hash, c\.component_source_hash/);
   // Constancy: within one hash group the staging identity uniques hold the
   // projection constant (one row per identity+hash), so the writer MERGES
   // NOTHING and SUMS NOTHING — a version fork is resolved by winner
