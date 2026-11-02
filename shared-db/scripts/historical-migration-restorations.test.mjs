@@ -630,8 +630,29 @@ test('#4508 pins unchanged preview-rehearsed dense vectors after a disjoint migr
   assert.equal(validateHistoricalRestorationFile(row.filename,raw),row)
   assert.throws(()=>validateHistoricalRestorationFile(row.filename,raw.replace('set storage plain','set storage external')),/hash mismatch/)
   assert.throws(()=>validateHistoricalRestorationFile(row.filename,raw+'select 1;\n'),/hash mismatch/)
-  assert.equal(row.sourcePr,undefined)
-  assert.equal(row.sourceMergeCommit,undefined)
+  assert.equal(row.sourcePr,5397)
+  assert.equal(row.sourceMergeCommit,'de6b2136acc0f9b72d612e88cb6b31e76a71ac22')
+  const evidence={
+    version:'20261102003027',
+    previewApplyRun:'41368010464',
+    previewDispatchCommit:'523222ab1584d252c7ea387a5ebf2f5389c6cdea',
+    previewAppliedCommit:'0d86e722c8098bb4f25df09b36762fc3612df6f9',
+    sourcePr:5397,
+    sourceMergeCommit:'de6b2136acc0f9b72d612e88cb6b31e76a71ac22',
+    artifactFileSha256:'1b6de5834005b8ace1a829d2f53e91adda59cbc333743a568d4f7671af8b62d4',
+  }
+  assert.equal(validateHistoricalProductionProvenance(row.filename,raw,evidence),row)
+  for(const [key,value] of [
+    ['previewApplyRun','41368010465'],
+    ['previewDispatchCommit','d'.repeat(40)],
+    ['previewAppliedCommit','a'.repeat(40)],
+    ['sourcePr',5398],
+    ['sourceMergeCommit','b'.repeat(40)],
+    ['artifactFileSha256','c'.repeat(64)],
+  ])assert.throws(
+    ()=>validateHistoricalProductionProvenance(row.filename,raw,{...evidence,[key]:value}),
+    new RegExp(`mismatch for ${key}`),
+  )
   assert.equal(Object.isFrozen(row),true)
   assert.equal(Object.isFrozen(row.objects),true)
 })

@@ -324,13 +324,27 @@ export async function writeAssetAiTags(
   model: string,
   tagData: Record<string, unknown>,
 ) {
-  const result = await client.rpc("replace_asset_ai_tag_result", {
+  const result = await retryStatementTimeout(() => client.rpc("replace_asset_ai_tag_result", {
     p_asset_id: assetId,
     p_source: "ai",
     p_model: model,
     p_tags: assetTagsForRpc(tagData),
-  });
+  }));
   if (result.error) throw Object.assign(new Error(`Atomic AI tag write failed: ${result.error.message}`), { code: (result.error as { code?: string }).code });
+}
+
+/** The save is one atomic transaction, so a statement timeout left nothing behind; keep the paid AI result and retry. */
+export async function retryStatementTimeout<T extends { error: unknown }>(
+  save: () => PromiseLike<T>,
+  delaysMs: number[] = [2_000, 5_000, 15_000],
+): Promise<T> {
+  let result = await save();
+  for (const delayMs of delaysMs) {
+    if ((result.error as { code?: string } | null)?.code !== "57014") break;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    result = await save();
+  }
+  return result;
 }
 
 export interface AiTagRpcClient {

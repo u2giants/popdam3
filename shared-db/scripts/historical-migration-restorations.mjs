@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 export const HISTORICAL_RESTORATIONS = Object.freeze({
   // #4508: unchanged preview-applied bytes, before disjoint OrderList 03158 landed.
-  // Pre-merge byte/provenance pin only; this grants no production eligibility.
+  // Post-merge production-provenance pin: original preview run and exact PR #5397 merge.
   '20261102003027': Object.freeze({
     filename: "supabase/migrations/20261102003027_dam_dense_group_vectors.sql",
     name: "dam_dense_group_vectors",
@@ -14,6 +14,8 @@ export const HISTORICAL_RESTORATIONS = Object.freeze({
     previewApplyRun: "41368010464",
     previewDispatchCommit: "523222ab1584d252c7ea387a5ebf2f5389c6cdea",
     previewAppliedCommit: "0d86e722c8098bb4f25df09b36762fc3612df6f9",
+    sourcePr: 5397,
+    sourceMergeCommit: "de6b2136acc0f9b72d612e88cb6b31e76a71ac22",
     statementBytes: 21984,
     statementSha256: "1db6ba83d2bc353b03d82776ecca4233b561fddc7d9d6319617513bfeb714f85",
     fileSha256: "1b6de5834005b8ace1a829d2f53e91adda59cbc333743a568d4f7671af8b62d4",

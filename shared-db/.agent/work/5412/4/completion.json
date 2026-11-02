@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "work_issue": 5412,
+  "pr": 5421,
+  "base_sha": "de6b2136acc0f9b72d612e88cb6b31e76a71ac22",
+  "head_sha": "70b02e2d9089d196733988a9d3a505868dcb9a0e",
+  "contract_ref": "refs/db-contracts/5412/4",
+  "contract_sha256": "923e3d8842492e736f1cfec73cebb711e15d605e278940952a7374c1a8174315",
+  "files_changed": [
+    "scripts/historical-migration-restorations.mjs",
+    "scripts/historical-migration-restorations.test.mjs"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "migration_versions": [],
+  "checks": [
+    {
+      "command": "node --test scripts/historical-migration-restorations.test.mjs",
+      "exit_code": 0,
+      "evidence": "22 tests pass, including exact actual original run/head/merge/digest acceptance and mismatched evidence refusal."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "Truth audit passes; all semantic dispositions retained."
+    }
+  ],
+  "assumptions_resolved": [
+    "Root PR5397 is merged at de6b2136acc0f9b72d612e88cb6b31e76a71ac22",
+    "Original actual preview run41368010464 is immutable; no SQL or ledger changes"
+  ],
+  "stop_conditions_hit": [],
+  "outcome": "ready-for-merge"
+}
