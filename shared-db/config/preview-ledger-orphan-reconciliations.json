@@ -395,6 +395,17 @@
       "issue_state": "open",
       "claim_state": "closed",
       "note": "Never applied to preview or production; re-versioned by PR 5479 so its preview evidence matches the current workflow. The file no longer exists, so promotion must skip this PR."
+    },
+    {
+      "issue": 5283,
+      "claim": 5451,
+      "source_pr": 5443,
+      "mode": "replacement_pending",
+      "orphan_version": "20261102155541",
+      "replacement_version": "20261102181554",
+      "issue_state": "closed",
+      "claim_state": "open",
+      "note": "Derived from an outdated function body, so it would revert the #5305 search corrections (#5444). Applied on preview only. The replacement carries the corrected body."
     }
   ]
 }
