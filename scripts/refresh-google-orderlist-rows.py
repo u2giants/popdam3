@@ -46,28 +46,37 @@ def source_rows(path):
     return [m.SourceRow(sheet_row=i,values=tuple(row)) for i,row in enumerate(rows[1:],2)]
 
 
+def validated_google_correction(old, desired, source_id):
+    """An exact per-source correction is the only exception to raw-SKU identity."""
+    correction=((old or {}).get('metadata') or {}).get('orderlist_google_correction')
+    if correction is None:
+        return None
+    original=correction.get('original') if isinstance(correction,dict) else None
+    corrected=correction.get('corrected') if isinstance(correction,dict) else None
+    keys={'sku','customer_po_number'}
+    if (not isinstance(correction,dict) or correction.get('version')!=1
+            or correction.get('source_id')!=source_id or not source_id
+            or not str(correction.get('evidence_ref') or '').strip()
+            or not isinstance(original,dict) or set(original)!=keys
+            or not isinstance(corrected,dict) or set(corrected)!=keys
+            or any(not isinstance(corrected[k],str) or not corrected[k].strip() for k in keys)
+            or any(desired.get(k)!=original[k] for k in keys)
+            or any(old.get(k)!=corrected[k] for k in keys)):
+        raise ValueError('OrderList source correction no longer matches source cells or current correction; held without changes: '+str(source_id))
+    return corrected
+
+
 def merged_payload(old,desired,metadata,columns,source_id=None):
     result={key:desired.get(key) for key in columns}
     prior=(old or {}).get('metadata') or {}
-    correction=prior.get('orderlist_google_correction')
-    if correction is not None and 'sku' in columns:
-        original=correction.get('original') if isinstance(correction,dict) else None
-        corrected=correction.get('corrected') if isinstance(correction,dict) else None
-        keys={'sku','customer_po_number'}
-        if (not isinstance(correction,dict) or correction.get('version')!=1
-                or correction.get('source_id')!=source_id or not source_id
-                or not str(correction.get('evidence_ref') or '').strip()
-                or not isinstance(original,dict) or set(original)!=keys
-                or not isinstance(corrected,dict) or set(corrected)!=keys
-                or any(not isinstance(corrected[k],str) or not corrected[k].strip() for k in keys)
-                or any(desired.get(k)!=original[k] for k in keys)):
-            raise ValueError('OrderList source correction no longer matches source cells; held without changes: '+str(source_id))
-        result.update(corrected)
+    correction=validated_google_correction(old,desired,source_id) if 'sku' in columns else None
+    if correction is not None:
+        result.update(correction)
     result['metadata']={**prior,**metadata}
     if (old and 'order_list_snapshot' in prior and
             prior['order_list_snapshot'] != metadata.get('order_list_snapshot')):
         result['metadata']['original_order_list_snapshot']=prior.get('original_order_list_snapshot',prior['order_list_snapshot'])
-    if old and 'sku' in columns and normalized(old['sku'])==normalized(desired.get('sku')):
+    if old and 'sku' in columns and normalized(old['sku'])==normalized(result.get('sku')):
         # Preserve an established item link and its decision; the sheet has no
         # authority to turn a confirmed product relationship into a weaker guess.
         if old.get('item_id'):
@@ -153,7 +162,9 @@ def allowed_parent_move(old_order, line):
 
 def assert_existing_identity(old, line, expected_parent, old_order=None):
     """Physical sheet positions are not authority to replace real line identity."""
-    if old and (normalized(old.get('sku')) != normalized(line.payload.get('sku'))
+    correction=validated_google_correction(old,line.payload,line.source_id) if old else None
+    expected_sku=(correction or line.payload).get('sku')
+    if old and (normalized(old.get('sku')) != normalized(expected_sku)
                 or (old['production_order_id'] != expected_parent
                     and not allowed_parent_move(old_order, line))):
         raise ValueError('Existing Google source identity changed; reviewed reconciliation required: '+line.source_id)
