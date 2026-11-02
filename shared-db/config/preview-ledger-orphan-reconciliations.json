@@ -380,7 +380,7 @@
       "source_pr": 5417,
       "mode": "replacement_pending",
       "orphan_version": "20261102012258",
-      "replacement_version": "20261102191923",
+      "replacement_version": "20261102225602",
       "issue_state": "open",
       "claim_state": "open",
       "note": "Preview-only restore of Disney side rows production already holds; its preview evidence predates later workflow changes, so the production gate refuses it and it holds the promotion line."
@@ -391,7 +391,7 @@
       "source_pr": 5424,
       "mode": "replacement_pending",
       "orphan_version": "20261102135312",
-      "replacement_version": "20261102191923",
+      "replacement_version": "20261102225602",
       "issue_state": "open",
       "claim_state": "closed",
       "note": "Never applied to preview or production; re-versioned by PR 5479 so its preview evidence matches the current workflow. The file no longer exists, so promotion must skip this PR."
@@ -406,6 +406,17 @@
       "issue_state": "closed",
       "claim_state": "open",
       "note": "Derived from an outdated function body, so it would revert the #5305 search corrections (#5444). Applied on preview only. The replacement carries the corrected body."
+    },
+    {
+      "issue": 5079,
+      "claim": 5423,
+      "source_pr": 5479,
+      "mode": "replacement_pending",
+      "orphan_version": "20261102191923",
+      "replacement_version": "20261102225602",
+      "issue_state": "open",
+      "claim_state": "closed",
+      "note": "Never applied anywhere. It landed as a rename, which automatic promotion does not count as an added version, so it could never promote. The replacement adds the same body as a new file."
     }
   ]
 }
