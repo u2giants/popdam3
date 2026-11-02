@@ -367,7 +367,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const rows = (licensorChars ?? []) as { id: string; name: string }[];
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
-  characters = [...new Map(characters.map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  // Licensor-retired labels ("Venom - Do Not Use") must never be offered as characters.
+  characters = [...new Map(characters.filter(c => !/do not use/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
