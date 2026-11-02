@@ -350,6 +350,18 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = ((links ?? []) as unknown as { character: { id: string; name: string } | null }[])
       .map(link => link.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
+    // Scrape asset co-occurrence narrows the list too; it never becomes a canonical link.
+    const { data: edges, error: edgesError } = await checkedQuery(client
+      .schema("core")
+      .from("property_character_source_edge")
+      .select("character:character_id(id, name)")
+      .eq("property_id", scope.property_id)
+      .eq("evidence_kind", "co_occurrence")
+      .eq("is_current", true));
+    checkedCharacterRead(edgesError, edges);
+    characters = characters.concat(((edges ?? []) as unknown as { character: { id: string; name: string } | null }[])
+      .map(edge => edge.character)
+      .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name));
     if (!scope.licensor_id && characters.length === 0) {
       const { data: property } = await checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle());
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
