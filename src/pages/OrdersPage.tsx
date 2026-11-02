@@ -14,6 +14,7 @@ import {
 import { MasterDataLinkDialog } from "@/components/orders/MasterDataLinkDialog";
 import { OrderListGrid } from "@/components/orders/OrderListGrid";
 import { GridAiHelperDialog, type GridAiPlan } from "@/components/grid/GridAiHelperDialog";
+import { GridFindStepper } from "@/components/grid/GridFindStepper";
 import { OrderListSummary } from "@/components/orders/OrderListSummary";
 import { OrderListViewsMenu } from "@/components/orders/OrderListViewsMenu";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,10 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"orders" | "tracking" | "settings">("orders");
   const [search, setSearch] = useState("");
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  // Google-Sheets-style Find state: which match (1-based) is on, and how many
+  // matches the database saw. count null = not known yet (or legacy fallback).
+  const [findResult, setFindResult] = useState<{ position: number; count: number | null } | null>(null);
+  const findGeneration = useRef(0);
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
@@ -195,10 +200,49 @@ export default function OrdersPage() {
     return () => window.clearTimeout(timer);
   }, [hasLoadedRows]);
 
+  /** Current filters/sort in the exact shape Find sends to the database. */
+  const buildFindRequest = useCallback(() => {
+    const api = gridRef.current?.api;
+    return {
+      search: search.trim(),
+      filterModel: api?.getFilterModel() ?? {},
+      sortModel: (api?.getColumnState() ?? [])
+        .filter((column) => column.sort)
+        .sort((left, right) => (left.sortIndex ?? 0) - (right.sortIndex ?? 0))
+        .map((column) => ({ colId: column.colId, sort: column.sort! })),
+    };
+  }, [search]);
+
+  /** Fetch one match (1-based, wrapping like Google Sheets) and scroll to it. */
+  const goToFindMatch = useCallback((position: number) => {
+    const request = buildFindRequest();
+    if (!request.search) return;
+    const total = findResult?.count;
+    const target = total && total > 0 ? ((position - 1) % total + total) % total + 1 : position;
+    const generation = ++findGeneration.current;
+    void (async () => {
+      const api = gridRef.current?.api;
+      if (!api) return;
+      try {
+        const match = await findOrderListRow({ ...request, occurrence: target });
+        if (generation !== findGeneration.current) return;
+        if (!match) return;
+        setFindResult({ position: target, count: match.matchCount ?? total ?? null });
+        setHighlightedRowId(match.rowId);
+        navigateToOrderListMatch(api, match.index);
+      } catch (error) {
+        if (generation !== findGeneration.current) return;
+        toast.error((error as Error).message);
+      }
+    })();
+  }, [buildFindRequest, findResult?.count]);
+
   useEffect(() => {
     const term = search.trim();
     if (!term) {
+      findGeneration.current += 1;
       setHighlightedRowId(null);
+      setFindResult(null);
       return;
     }
     let cancelled = false;
@@ -206,20 +250,15 @@ export default function OrdersPage() {
       const api = gridRef.current?.api;
       if (!api) return;
       try {
-        const match = await findOrderListRow({
-          search: term,
-          filterModel: api.getFilterModel(),
-          sortModel: api.getColumnState()
-            .filter((column) => column.sort)
-            .sort((left, right) => (left.sortIndex ?? 0) - (right.sortIndex ?? 0))
-            .map((column) => ({ colId: column.colId, sort: column.sort! })),
-        });
+        const match = await findOrderListRow(buildFindRequest());
         if (cancelled) return;
         if (!match) {
           setHighlightedRowId(null);
+          setFindResult({ position: 0, count: 0 });
           toast.info(`No OrderList row contains "${term}"`);
           return;
         }
+        setFindResult({ position: 1, count: match.matchCount });
         setHighlightedRowId(match.rowId);
         navigateToOrderListMatch(api, match.index);
       } catch (error) {
@@ -231,7 +270,7 @@ export default function OrdersPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [search]);
+  }, [search, buildFindRequest]);
 
   const counts = useMemo(
     () => ({
@@ -383,11 +422,27 @@ export default function OrdersPage() {
             ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                goToFindMatch((findResult?.position ?? 1) + (event.shiftKey ? -1 : 1));
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                setSearch("");
+              }
+            }}
             placeholder="Find in orders (Ctrl+F)"
             aria-label="Find in orders"
             className="h-8 w-56 pl-7 text-xs"
           />
         </div>
+
+        <GridFindStepper
+          position={search.trim() ? (findResult?.position ?? 1) : null}
+          total={findResult?.count ?? null}
+          onPrev={() => goToFindMatch((findResult?.position ?? 1) - 1)}
+          onNext={() => goToFindMatch((findResult?.position ?? 1) + 1)}
+        />
 
         <GridAiHelperDialog pageName="OrderList" selectedRowCount={selectedRows.length} fields={ORDER_LIST_COLUMNS.filter((column) => column.editable).map((column) => ({ key: column.field, label: column.header }))} onApply={applyAiBulkEdit} />
 

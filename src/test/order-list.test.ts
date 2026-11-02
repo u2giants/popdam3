@@ -492,7 +492,19 @@ describe("OrderList database query building", () => {
         { column: "order_date", ascending: true },
         { column: "order_line_id", ascending: true },
       ],
+      p_occurrence: 1,
     });
+  });
+
+  it("clamps the Find occurrence to a positive integer", () => {
+    const base = {
+      search: "D0644",
+      filterModel: null,
+      sortModel: [],
+    };
+    expect(buildOrderListFindPayload(base).p_occurrence).toBe(1);
+    expect(buildOrderListFindPayload({ ...base, occurrence: 2 }).p_occurrence).toBe(2);
+    expect(buildOrderListFindPayload({ ...base, occurrence: 0 }).p_occurrence).toBe(1);
   });
 
   it("keeps every page size aligned to whole fetched blocks", () => {

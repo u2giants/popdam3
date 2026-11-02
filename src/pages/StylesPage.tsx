@@ -9,6 +9,7 @@ import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GridAiHelperDialog, type GridAiPlan } from "@/components/grid/GridAiHelperDialog";
+import { GridFindStepper } from "@/components/grid/GridFindStepper";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,8 @@ export default function StylesPage() {
   const [showVendorStatistics, setShowVendorStatistics] = useState(false);
   const [quickFilter, setQuickFilter] = useState("");
   const normalizedGridSearch = quickFilter.trim().toLocaleLowerCase();
+  // Google-Sheets-style Find state: 1-based position within the loaded matches.
+  const [matchPosition, setMatchPosition] = useState(1);
   const [showAllPageRows, setShowAllPageRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
@@ -109,11 +112,41 @@ export default function StylesPage() {
     return () => window.removeEventListener("keydown", focusGridSearch);
   }, []);
 
+  // Every loaded match, in grid order: the Find counter counts these and the
+  // arrows step through them. Pages keep loading in the background, so the
+  // total grows toward the whole sheet until hasNextPage clears.
+  const searchMatchIds = useMemo(
+    () => (normalizedGridSearch
+      ? rows.flatMap((row) => (JSON.stringify(row).toLocaleLowerCase().includes(normalizedGridSearch) ? [row.id] : []))
+      : []),
+    [rows, normalizedGridSearch],
+  );
+  const searchMatchIdSet = useMemo(() => new Set(searchMatchIds), [searchMatchIds]);
+  const currentMatchId = searchMatchIds[matchPosition - 1] ?? null;
+
+  // A new term restarts at the first match; refreshed rows keep the position
+  // only while it still exists.
+  useEffect(() => {
+    setMatchPosition(1);
+  }, [normalizedGridSearch]);
+  useEffect(() => {
+    setMatchPosition((position) => Math.min(position, Math.max(searchMatchIds.length, 1)));
+  }, [searchMatchIds.length]);
+
   const navigateGridSearch = useCallback(() => {
     const api = gridRef.current?.api;
-    if (!api || !gridReady || !normalizedGridSearch) return;
-    navigateToStyleTrackerMatch(api, rows, normalizedGridSearch);
-  }, [gridReady, normalizedGridSearch, rows]);
+    if (!api || !gridReady || !currentMatchId) return;
+    navigateToStyleTrackerMatch(api, rows, normalizedGridSearch, matchPosition);
+  }, [gridReady, currentMatchId, rows, normalizedGridSearch, matchPosition]);
+
+  /** Step to the previous/next match, wrapping around like Google Sheets. */
+  const stepMatch = useCallback((delta: 1 | -1) => {
+    setMatchPosition((position) => {
+      const total = searchMatchIds.length;
+      if (total < 2) return Math.max(position, 1);
+      return (((position - 1 + delta) % total) + total) % total + 1;
+    });
+  }, [searchMatchIds.length]);
 
   useEffect(() => {
     navigateGridSearch();
@@ -814,8 +847,30 @@ export default function StylesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input ref={searchRef} value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Find in master data (Ctrl+F)" />
+              <Input
+                ref={searchRef}
+                value={quickFilter}
+                onChange={(event) => setQuickFilter(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    stepMatch(event.shiftKey ? -1 : 1);
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setQuickFilter("");
+                  }
+                }}
+                className="h-9 pl-8"
+                placeholder="Find in master data (Ctrl+F)"
+              />
             </div>
+            <GridFindStepper
+              position={normalizedGridSearch ? matchPosition : null}
+              total={normalizedGridSearch ? searchMatchIds.length : null}
+              loading={Boolean(hasNextPage || isFetchingNextPage)}
+              onPrev={() => stepMatch(-1)}
+              onNext={() => stepMatch(1)}
+            />
             <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
               <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />
             </Button>
@@ -1063,8 +1118,13 @@ export default function StylesPage() {
             }}
             getRowId={(params) => params.data.id}
             getRowStyle={(params) => {
-              if (normalizedGridSearch && JSON.stringify(params.data).toLocaleLowerCase().includes(normalizedGridSearch)) {
-                return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+              if (normalizedGridSearch && params.data) {
+                if (params.data.id === currentMatchId) {
+                  return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b, inset 0 0 0 2px #f59e0b" };
+                }
+                if (searchMatchIdSet.has(params.data.id)) {
+                  return { backgroundColor: "#fde68a", color: "#78350f", boxShadow: "inset 4px 0 #f59e0b" };
+                }
               }
               const approval = approvalHighlightForRow(params.data);
               if (approval === "production") return { backgroundColor: "#dcfce7", color: "#14532d" };
