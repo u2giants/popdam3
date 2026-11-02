@@ -118,6 +118,8 @@ Storage:
 
 DigitalOcean Spaces remains canonical for PopDAM thumbnails/files through `admin_config` keys and agent/worker code. Do not migrate object storage at the same time as the schema merge unless a separate storage rehearsal is completed.
 
+`app.file_object` (created in `20260621150815_app_core.sql`) is a reserved, unadopted central file register: 0 rows in production as of 2026-11-08. Live file records stay in the legacy PopDAM tables (`public.assets`, `public.style_guide_files`, `public.pdf_text_samples`) which carry their own path/URL/checksum columns. Do NOT backfill or migrate those records into `app.file_object`, and do not repoint the nullable `file_object_id` foreign keys on `dam.asset` / `dam.style_guide_file` / `plm.item_attachment`, unless a dedicated adoption project with an application cutover is explicitly commissioned. Actual file bytes live only in DigitalOcean Spaces, never in Postgres.
+
 ## Current CRM Inventory
 
 Generated from `popcrm-web/src/lib/types.ts` and `src/features/crm/api.ts`.
