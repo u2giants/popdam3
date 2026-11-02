@@ -15,6 +15,15 @@ pooler (IPv4, TLS, TCP 5432), heartbeats every 30 s, claims query jobs
 loop 5 s), computes BOTH model legs on the GPU and writes one atomic
 dual-leg result per job via dam.complete_image_embed_job.
 
+Third lane — search documents (popdam3 #646 cure (d)): claims rows from
+public.dam_search_documents through claim_dam_search_embedding_documents
+(style_group docs first, server-side), embeds the doc thumbnail with the
+SigLIP2 tower only (no border-crop, matching the existing corpus) and
+writes vector(768) via upsert_dam_search_embedding / errors via
+mark_dam_search_embedding_error. Requires the shared-db EXECUTE grants for
+dam_image_embed_worker on those RPCs; without them the lane logs one
+search_lane_error, cools down and the other lanes continue.
+
 The model stamp is NOT invented here: admin_config.IMAGE_SIM_EMBEDDING_MODEL
 is the single source of truth. The DB login role cannot read admin_config,
 so the exact value is copied into a protected stamp file at install time
@@ -192,6 +201,31 @@ def halfvec_text(vec) -> str:
     return "[" + ",".join(f"{x:.5f}" for x in vec) + "]"
 
 
+def search_vector_text(vec) -> str:
+    """vector(768) literal for upsert_dam_search_embedding (7-decimal form,
+    matching the vectors already in dam_search_documents.embedding)."""
+    return "[" + ",".join(f"{x:.7f}" for x in vec) + "]"
+
+
+@torch.no_grad()
+def embed_siglip_only(images, models, batch_size=config.SEARCH_INFERENCE_BATCH):
+    """images: list[PIL.Image] -> numpy [n,768] SigLIP2 vectors, L2-normalized.
+
+    Same math as the SigLIP leg of embed_both (get_image_features ->
+    pooler_output -> L2 normalize); used by the search-document lane, whose
+    column holds single-tower vector(768) values (popdam3 #646).
+    """
+    _dino_model, _dino_proc, sig_model, sig_proc, device = models
+    out = []
+    for i in range(0, len(images), batch_size):
+        chunk = images[i : i + batch_size]
+        s_inputs = {k: v.to(device) for k, v in sig_proc(images=chunk, return_tensors="pt").items()}
+        s_feats = _pooler(sig_model.get_image_features(**s_inputs))
+        s_feats = torch.nn.functional.normalize(s_feats, dim=-1)
+        out.extend(s_feats.cpu().to(torch.float32).tolist())
+    return np.asarray(out, dtype=np.float32)
+
+
 class Heartbeat(threading.Thread):
     def __init__(self, conn_provider, worker_id, interval=config.HEARTBEAT_INTERVAL_S):
         super().__init__(daemon=True)
@@ -256,6 +290,8 @@ class Poller:
         self.hb = None
         self.enabled_cache = (False, 0.0)
         self.done = self.failed = 0
+        self.search_done = self.search_failed = self.search_stale = 0
+        self.search_cooldown_until = 0.0
         self.t0 = time.time()
         self.pool = ThreadPoolExecutor(max_workers=args.download_threads)
 
@@ -455,15 +491,129 @@ class Poller:
         if self.args.limit and self.done + self.failed >= self.args.limit:
             raise StopIteration
 
+    # -- search-document lane (public.dam_search_documents, popdam3 #646) --------
+    # Claim/upsert/mark-error go through the documented public RPCs only; no
+    # direct writes to dam_search_documents. Requires the shared-db EXECUTE
+    # grants for dam_image_embed_worker (see README). Until those grants reach
+    # the target database the lane logs one lane_error, cools down
+    # (SEARCH_LANE_ERROR_COOLDOWN_S) and leaves the other lanes untouched.
+    def claim_search_docs(self):
+        def _q(c):
+            with c.cursor() as cur:
+                cur.execute(
+                    "select document_type, entity_id, search_text, thumbnail_url,"
+                    " content_sha256, lease_token, lease_expires_at, attempt"
+                    " from public.claim_dam_search_embedding_documents(%s, %s, %s)",
+                    (self.args.search_batch, self.args.worker_id, self.args.search_lease_seconds),
+                )
+                return cur.fetchall()
+        return self._run(_q)
+
+    def search_upsert(self, row, vector) -> bool:
+        document_type, entity_id, _text, _thumb, content_sha256, lease_token = row[0], row[1], row[2], row[3], row[4], row[5]
+        def _q(c):
+            with c.cursor() as cur:
+                cur.execute(
+                    "select public.upsert_dam_search_embedding(%s, %s, %s, %s, %s::extensions.vector, %s)",
+                    (document_type, entity_id, content_sha256, lease_token,
+                     search_vector_text(vector), config.SEARCH_DOC_MODEL_STAMP),
+                )
+                return bool(cur.fetchone()[0])
+        return self._run(_q)
+
+    def search_mark_error(self, row, message: str, category: str) -> None:
+        document_type, entity_id, content_sha256, lease_token = row[0], row[1], row[4], row[5]
+        try:
+            def _q(c):
+                with c.cursor() as cur:
+                    cur.execute(
+                        "select public.mark_dam_search_embedding_error(%s, %s, %s, %s, %s, %s)",
+                        (document_type, entity_id, content_sha256, lease_token,
+                         message[:500], category),
+                    )
+                    return cur.fetchone()[0]
+            self._run(_q)
+        except Exception as exc:
+            log(event="search_mark_error_failed", entity=str(entity_id), error=str(exc)[:160])
+
+    def process_search_batch(self, rows) -> None:
+        # rows: (document_type, entity_id, search_text, thumbnail_url,
+        #        content_sha256, lease_token, lease_expires_at, attempt)
+        for row in rows:
+            if not row[3]:
+                self.search_failed += 1
+                self.search_mark_error(row, "Permanent: missing thumbnail_url", "permanent")
+
+        to_download = [(row, self.pool.submit(fetch_url, row[3])) for row in rows if row[3]]
+        decoded = []
+        for row, fut in to_download:
+            try:
+                data = fut.result()
+                img = Image.open(io.BytesIO(data))
+                img.load()
+                decoded.append((row, img.convert("RGB")))
+            except Exception as exc:
+                self.search_failed += 1
+                self.search_mark_error(
+                    row, f"download/decode: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+
+        if not decoded:
+            return
+        # No border-crop here: the existing corpus in dam_search_documents was
+        # embedded uncropped, and mixed treatment would skew similarity.
+        try:
+            vectors = embed_siglip_only([img for _row, img in decoded], self.models)
+        except Exception as exc:
+            for row, _img in decoded:
+                self.search_failed += 1
+                self.search_mark_error(row, f"embed batch: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+            return
+
+        for idx, (row, _img) in enumerate(decoded):
+            vec = vectors[idx]
+            if not (np.isfinite(vec).all() and len(vec) == config.DIM):
+                self.search_failed += 1
+                self.search_mark_error(row, f"bad vector dim {len(vec)}", "permanent")
+                continue
+            try:
+                if self.search_upsert(row, vec):
+                    self.search_done += 1
+                else:
+                    self.search_stale += 1  # lease lost or content hash changed: skip
+            except Exception as exc:
+                self.search_failed += 1
+                self.search_mark_error(row, f"upsert: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+
+    def poll_search_lane(self) -> str:
+        """One search-lane cycle. Returns 'claimed', 'empty', or 'error'
+        (claim-level failure, e.g. grants not yet applied -> cooldown)."""
+        try:
+            rows = self.claim_search_docs()
+        except Exception as exc:
+            log(event="search_lane_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
+            return "error"
+        if rows:
+            self.process_search_batch(rows)
+            rate = self.search_done / max(time.time() - self.t0, 1e-6)
+            log(event="search_batch", claimed=len(rows), done=self.search_done,
+                failed=self.search_failed, stale=self.search_stale, rate=round(rate, 2))
+            return "claimed"
+        return "empty"
+
     # -- main loops ---------------------------------------------------------------
     def run_service(self) -> int:
-        """Forever mode: query lane every 1 s, index lane every 5 s, gated on
-        admin_config.IMAGE_EMBED_ENABLED via dam.image_embed_enabled()."""
+        """Forever mode: query lane every 1 s, index lane every 5 s, search-doc
+        lane every SEARCH_POLL_S. The image-similarity lanes stay gated on
+        admin_config.IMAGE_EMBED_ENABLED via dam.image_embed_enabled(); the
+        search-doc lane (semantic search, a separate feature) runs whenever
+        the poller is up, unless --no-search-lane was passed."""
         self.connect()
         self.hb = Heartbeat(self.conn_provider, self.args.worker_id)
         self.hb.start()
-        log(event="service_start", worker=self.args.worker_id, stamp=self.args.stamp)
+        log(event="service_start", worker=self.args.worker_id, stamp=self.args.stamp,
+            search_lane=not self.args.no_search_lane)
         last_index = 0.0
+        last_search = 0.0
         while True:
             try:
                 if self.embed_enabled():
@@ -479,6 +629,11 @@ class Poller:
                                 rate=round(rate, 2))
                 else:
                     self.enabled_cache = (False, 0.0)  # force re-check next tick
+                if not self.args.no_search_lane and time.time() >= self.search_cooldown_until \
+                        and time.time() - last_search >= config.SEARCH_POLL_S:
+                    last_search = time.time()
+                    if self.poll_search_lane() == "error":
+                        self.search_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
             except StopIteration:
                 break
             except Exception as exc:
@@ -488,19 +643,35 @@ class Poller:
         return 0
 
     def run_drain(self) -> int:
-        """--once-drain: backfill mode (index lane only) until idle N polls."""
+        """--once-drain: backfill mode. Drains the search-document lane first
+        (style-group docs claim first server-side), then index jobs, exiting
+        after N consecutive empty polls on both. Never touches the query
+        lane."""
         self.connect()
         self.hb = Heartbeat(self.conn_provider, self.args.worker_id)
         self.hb.start()
         log(event="drain_start", worker=self.args.worker_id, stamp=self.args.stamp)
         idle = 0
         try:
+            if not self.args.no_search_lane:
+                search_idle = 0
+                while search_idle < self.args.idle_exit_polls:
+                    status = self.poll_search_lane()
+                    if status == "error":
+                        log(event="search_lane_unavailable",
+                            note="search RPCs not granted yet? moving to the index lane")
+                        break
+                    search_idle = 0 if status == "claimed" else search_idle + 1
+                    if status == "empty":
+                        time.sleep(config.SEARCH_POLL_S)
             while True:
                 jobs = self.claim_index_jobs()
                 if not jobs:
                     idle += 1
                     if idle >= self.args.idle_exit_polls:
-                        log(event="drain_complete", done=self.done, failed=self.failed)
+                        log(event="drain_complete", done=self.done, failed=self.failed,
+                            search_done=self.search_done, search_failed=self.search_failed,
+                            search_stale=self.search_stale)
                         break
                     time.sleep(config.INDEX_POLL_S)
                     continue
@@ -531,6 +702,12 @@ def main() -> int:
     ap.add_argument("--worker-id", default=config.DEFAULT_WORKER_ID)
     ap.add_argument("--batch", type=int, default=config.INDEX_CLAIM_BATCH)
     ap.add_argument("--lease-seconds", type=int, default=config.INDEX_LEASE_S)
+    ap.add_argument("--search-batch", type=int, default=config.SEARCH_CLAIM_BATCH,
+                    help="search-document claims per cycle (dam_search_documents lane)")
+    ap.add_argument("--search-lease-seconds", type=int, default=config.SEARCH_LEASE_S,
+                    help="search-document lease seconds (DB clamps 30..3600)")
+    ap.add_argument("--no-search-lane", action="store_true",
+                    help="disable the dam_search_documents lane (image-similarity lanes only)")
     ap.add_argument("--idle-exit-polls", type=int, default=config.IDLE_EXIT_POLLS, help="exit after N consecutive empty polls (drain mode)")
     ap.add_argument("--download-threads", type=int, default=config.DOWNLOAD_THREADS)
     ap.add_argument("--selftest", action="store_true")

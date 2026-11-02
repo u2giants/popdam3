@@ -180,3 +180,138 @@ def test_halfvec_text_dims():
     text = poller.halfvec_text(np.zeros(config.DIM, dtype=np.float32))
     assert text.startswith("[") and text.endswith("]")
     assert len(text[1:-1].split(",")) == config.DIM
+
+
+# ---------------------------------------------------------------------------
+# search-document lane (popdam3 #646): claim -> thumbnail -> SigLIP2 -> upsert
+# ---------------------------------------------------------------------------
+
+def test_search_vector_text_format():
+    import numpy as np
+    vec = np.full(config.DIM, 0.5, dtype=np.float32)
+    text = poller.search_vector_text(vec)
+    assert text.startswith("[") and text.endswith("]")
+    parts = text[1:-1].split(",")
+    assert len(parts) == config.DIM
+    assert parts[0] == "0.5000000"  # 7-decimal form, matches existing corpus writes
+
+
+class _FakeCursor:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, sql, params=None):
+        self.calls.append((sql, params))
+
+    def fetchone(self):
+        return (True,)
+
+    def fetchall(self):
+        return []
+
+
+class _FakeConn:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def cursor(self):
+        return _FakeCursor(self.calls)
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
+
+    def close(self):
+        pass
+
+
+def _search_poller(monkeypatch, rows, vectors=None):
+    """Poller with a recording fake connection and embedded fetch/embed."""
+    import argparse
+    args = argparse.Namespace(
+        dsn="postgresql://x", stamp="stamp", worker_id="test-search",
+        batch=32, lease_seconds=300, search_batch=64, search_lease_seconds=900,
+        no_search_lane=False, idle_exit_polls=1, download_threads=2, limit=0,
+    )
+    p = poller.Poller(args, models=None)
+    calls = []
+    p.conn = _FakeConn(calls)
+    monkeypatch.setattr(p, "_run", lambda fn: fn(p.conn))
+    monkeypatch.setattr(p, "claim_search_docs", lambda: rows)
+
+    import io as _io
+    from PIL import Image
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (16, 16), (10, 20, 30)).save(buf, format="PNG")
+
+    def fake_fetch(url, timeout=None):
+        return buf.getvalue()
+
+    monkeypatch.setattr(poller, "fetch_url", fake_fetch)
+    if vectors is not None:
+        monkeypatch.setattr(poller, "embed_siglip_only", lambda images, models, batch_size=None: vectors)
+    else:
+        def fake_embed(images, models, batch_size=None):
+            import numpy as np
+            return np.asarray([[0.25] * config.DIM for _ in images], dtype=np.float32)
+        monkeypatch.setattr(poller, "embed_siglip_only", fake_embed)
+    return p, calls
+
+
+def _row(entity, thumb="https://cdn/x.jpg"):
+    import datetime, uuid
+    return ("style_group", uuid.uuid4(), "text", thumb, "sha-" + str(entity)[:8],
+            uuid.uuid4(), None, 1)
+
+
+def test_search_batch_marks_missing_thumbnail_permanent(monkeypatch):
+    import uuid
+    rows = [_row(uuid.uuid4(), thumb=None)]
+    p, calls = _search_poller(monkeypatch, rows)
+    p.process_search_batch(rows)
+    marks = [c for c in calls if "mark_dam_search_embedding_error" in c[0]]
+    assert len(marks) == 1
+    assert marks[0][1][5] == "permanent"          # category
+    assert "missing thumbnail_url" in marks[0][1][4]
+    assert p.search_failed == 1 and p.search_done == 0
+    assert not any("upsert_dam_search_embedding(" in c[0] for c in calls)
+
+
+def test_search_batch_upserts_each_document(monkeypatch):
+    import uuid
+    rows = [_row(uuid.uuid4()), _row(uuid.uuid4())]
+    p, calls = _search_poller(monkeypatch, rows)
+    p.process_search_batch(rows)
+    upserts = [c for c in calls if "upsert_dam_search_embedding" in c[0]]
+    assert len(upserts) == 2
+    for c in upserts:
+        sql, params = c
+        assert "::extensions.vector" in sql
+        assert params[5] == config.SEARCH_DOC_MODEL_STAMP
+        assert len(params[4][1:-1].split(",")) == config.DIM
+    assert p.search_done == 2 and p.search_failed == 0
+
+
+def test_search_batch_download_failure_is_transient(monkeypatch):
+    import uuid
+    rows = [_row(uuid.uuid4())]
+    p, calls = _search_poller(monkeypatch, rows)
+
+    def boom(url, timeout=None):
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(poller, "fetch_url", boom)
+    p.process_search_batch(rows)
+    marks = [c for c in calls if "mark_dam_search_embedding_error" in c[0]]
+    assert len(marks) == 1
+    assert marks[0][1][5] == "transient"
+    assert p.search_failed == 1

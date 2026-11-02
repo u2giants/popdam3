@@ -47,6 +47,23 @@ DOWNLOAD_TIMEOUT_S = 45
 USER_AGENT = "PopDAM-ImageEmbed/1.0"
 
 # ---------------------------------------------------------------------------
+# Search-document lane (public.dam_search_documents — popdam3 #646 cure (d)).
+# SigLIP2 single tower -> vector(768), written ONLY through the documented
+# claim/upsert/mark-error RPCs. The claim function orders style_group docs
+# first server-side. The model stamp is pinned by search_dam_documents' SQL
+# (embedding_model = the literal below) — it is NOT admin_config
+# .IMAGE_SIM_EMBEDDING_MODEL, which governs the dual-tower image-similarity
+# vectors only. Thumbnails are embedded WITHOUT border-crop so new vectors
+# stay consistent with the existing corpus.
+# ---------------------------------------------------------------------------
+SEARCH_POLL_S = 5.0                     # search-doc lane claim cadence
+SEARCH_LEASE_S = 900                    # search-doc lease (DB clamps 30..3600)
+SEARCH_CLAIM_BATCH = 64                 # docs claimed per cycle (DB clamps to 1000)
+SEARCH_INFERENCE_BATCH = 32             # images per SigLIP2 forward
+SEARCH_DOC_MODEL_STAMP = "google/siglip2-base-patch16-naflex"
+SEARCH_LANE_ERROR_COOLDOWN_S = 600      # after a lane error, pause the lane before retrying
+
+# ---------------------------------------------------------------------------
 # Upload payload guards (query lane). The edge re-checks size + magic bytes;
 # the poller re-validates with Pillow and rejects permanently on abuse.
 # ---------------------------------------------------------------------------
