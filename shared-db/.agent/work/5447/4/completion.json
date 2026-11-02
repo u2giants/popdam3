@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "work_issue": 5447,
+  "outcome": "ready-for-merge",
+  "pr": 5450,
+  "migration_versions": [
+    "20261102163736"
+  ],
+  "contract_ref": "refs/db-contracts/5447/4",
+  "contract_sha256": "d56106687d6d81477f35b24d901527553586240254fa0b34576a4cdf9f818990",
+  "head_sha": "cf9d6ffd7b7fbd280d8370ab2d74d323756f395d",
+  "base_sha": "90e6b1df001f44a90fe1b6020539fcea3647f4a3",
+  "files_changed": [
+    ".github/live-proofs/5447.sql",
+    "docs/customs-benchmark.md",
+    "supabase/migrations/20261102163736_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "tools/test_customs_benchmark.py",
+    "config/db-data-admin-property-source-coverage.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.customs_benchmark_dataset",
+    "table plm.customs_benchmark_artifact",
+    "table plm.customs_benchmark_observation"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "python3 -m unittest discover -s tools -p test_customs_benchmark.py",
+      "exit_code": 0,
+      "evidence": "Three tests passed: full context retention, source mutation/symlink refusal, target mismatch refusal."
+    },
+    {
+      "command": "node scripts/check-db-data-admin-property-source-coverage.mjs",
+      "exit_code": 0,
+      "evidence": "Private customs archive explicitly classified outside source Property vocabulary; no existing selectors widened."
+    }
+  ],
+  "assumptions_resolved": [
+    "plm schema confirmed independently on shared production and DesignFlow nonprod via Management API; no private content committed."
+  ],
+  "stop_conditions_hit": []
+}

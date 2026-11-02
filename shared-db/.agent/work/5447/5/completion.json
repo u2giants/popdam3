@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_issue": 5447,
+  "outcome": "ready-for-merge",
+  "pr": 5450,
+  "migration_versions": [
+    "20261102163736"
+  ],
+  "contract_ref": "refs/db-contracts/5447/5",
+  "contract_sha256": "c524472c4a61fac0e263c93033a203a2688d2adce6f0883266d73fa392f4c136",
+  "head_sha": "d7a260b4184e04eba915e6448948918ca1c7deec",
+  "base_sha": "90e6b1df001f44a90fe1b6020539fcea3647f4a3",
+  "files_changed": [
+    ".github/live-proofs/5447.sql",
+    "config/db-data-admin-property-source-coverage.json",
+    "docs/customs-benchmark.md",
+    "supabase/migrations/20261102163736_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "tools/test_customs_benchmark.py"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.customs_benchmark_dataset",
+    "table plm.customs_benchmark_artifact",
+    "table plm.customs_benchmark_observation"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed."
+    },
+    {
+      "command": "python3 -m unittest discover -s tools -p test_customs_benchmark.py",
+      "exit_code": 0,
+      "evidence": "Three tests passed: full context retention, source mutation/symlink refusal, target mismatch refusal."
+    },
+    {
+      "command": "node scripts/check-db-data-admin-property-source-coverage.mjs",
+      "exit_code": 0,
+      "evidence": "Private customs archive explicitly classified outside source Property vocabulary; no existing selectors widened."
+    },
+    {
+      "command": "private object-storage smoke and disposable PostgreSQL integration",
+      "exit_code": 0,
+      "evidence": "Dedicated private DigitalOcean bucket; generic uploader verified full bytes, parsed JSON, repeat reads and anonymous denial. Database schema contains no bytea/file content column; migration, private access test, first/repeat import and read-only verification passed on disposable PostgreSQL 17."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "Final object-storage implementation: 1,770 tests passed, 46 environment-dependent skips; three loader preservation tests also passed."
+    },
+    {
+      "command": "private source archive and recovery manifest reconciliation",
+      "exit_code": 0,
+      "evidence": "All 150 original files (58,797,711 bytes) downloaded with matching SHA-256, private ACLs and anonymous denial; separate private recovery manifest verified. No original corruption or database file bytes."
+    }
+  ],
+  "assumptions_resolved": [
+    "Owner correction adopted: originals in dedicated private DigitalOcean Spaces; only structured data and checked object pointers in database. Existing full extraction preserved. PopDAM Indra integration and its configured runtime documented; no live service deployment or new OCR run performed."
+  ],
+  "stop_conditions_hit": []
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "generation": 4,
+  "work_issue": 5447,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Losslessly preserve private historical customs evidence and a queryable authoritative historical benchmark",
+  "base_sha": "90e6b1df001f44a90fe1b6020539fcea3647f4a3",
+  "dispatcher": "Codex chat 01a19d14-dc7c-7900-b022-b86940d5547d on edge-dev3",
+  "worker": "same session",
+  "branch": "codex/customs-benchmark",
+  "worktree": "/home/ahazan/repos/shared-db-customs-benchmark",
+  "allowed_paths": [
+    "supabase/migrations/20261102163736_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "docs/customs-benchmark.md",
+    ".github/live-proofs/5447.sql",
+    ".agent/work/5447/1/contract.json",
+    ".agent/work/5447/4/completion.json",
+    "tools/test_customs_benchmark.py",
+    ".agent/work/5447/2/contract.json",
+    ".agent/work/5447/3/contract.json",
+    ".agent/work/5447/4/contract.json",
+    "config/db-data-admin-property-source-coverage.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261102163736_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "docs/customs-benchmark.md",
+    ".github/live-proofs/5447.sql",
+    ".agent/work/5447/1/contract.json",
+    ".agent/work/5447/4/completion.json",
+    "tools/test_customs_benchmark.py",
+    ".agent/work/5447/2/contract.json",
+    ".agent/work/5447/3/contract.json",
+    ".agent/work/5447/4/contract.json",
+    "config/db-data-admin-property-source-coverage.json"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.customs_benchmark_dataset",
+    "table plm.customs_benchmark_artifact",
+    "table plm.customs_benchmark_observation"
+  ],
+  "prohibited_actions": [
+    "No private source rows or bytes in GitHub",
+    "No item-master changes",
+    "No manual production DDL"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest discover -s tools -p test_customs_benchmark.py"
+  ],
+  "assumptions": [
+    "Existing plm schema verified on both DesignFlow nonprod and shared production",
+    "Private benchmark is separate from privacy-sanitized shared HTS learning"
+  ],
+  "stop_conditions": [
+    "Target identity mismatch",
+    "Source byte or row verification mismatch"
+  ],
+  "evidence_parent": {
+    "work_issue": 5447,
+    "generation": 3,
+    "contract_sha256": "75c43a7b8782f19932d5ab9f39ea738c49f313ca4b9ddd1ca3d73f986321be17"
+  }
+}

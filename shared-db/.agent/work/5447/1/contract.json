@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "generation": 1,
+  "work_issue": 5447,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Losslessly preserve private historical customs evidence and a queryable authoritative historical benchmark",
+  "base_sha": "90e6b1df001f44a90fe1b6020539fcea3647f4a3",
+  "dispatcher": "Codex chat 01a19d14-dc7c-7900-b022-b86940d5547d on edge-dev3",
+  "worker": "same session",
+  "branch": "codex/customs-benchmark",
+  "worktree": "/home/ahazan/repos/shared-db-customs-benchmark",
+  "allowed_paths": [
+    "supabase/migrations/20261102163526_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "docs/customs-benchmark.md",
+    ".github/live-proofs/5447.sql",
+    ".agent/work/5447/1/contract.json",
+    ".agent/work/5447/1/completion.json",
+    "tools/test_customs_benchmark.py"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261102163526_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "docs/customs-benchmark.md",
+    ".github/live-proofs/5447.sql",
+    ".agent/work/5447/1/contract.json",
+    ".agent/work/5447/1/completion.json",
+    "tools/test_customs_benchmark.py"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table hts_rag.customs_benchmark_dataset",
+    "table hts_rag.customs_benchmark_artifact",
+    "table hts_rag.customs_benchmark_observation"
+  ],
+  "prohibited_actions": [
+    "No private source rows or bytes in GitHub",
+    "No item-master changes",
+    "No manual production DDL"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python3 -m unittest discover -s tools -p test_customs_benchmark.py"
+  ],
+  "assumptions": [
+    "Existing hts_rag schema and runtime roles are established deployment prerequisites"
+  ],
+  "stop_conditions": [
+    "Target identity mismatch",
+    "Source byte or row verification mismatch"
+  ],
+  "evidence_parent": null
+}

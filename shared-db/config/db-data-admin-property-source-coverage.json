@@ -377,6 +377,14 @@
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_names": ["stage_list", "stage", "stage_duration", "stage_dependency", "licensor_stage_option", "prod_stage_progress"],
       "reason": "Application data (#4350): stage lists, stages, durations, dependencies, per-licensor stage options and user-ticked stage progress maintained by designflow-tracking; not a licensor portal Property vocabulary."
+    },
+    {
+      "family": "customs_historical_benchmark",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Private historical customs evidence and HTS evaluation benchmark",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["customs_benchmark_dataset", "customs_benchmark_artifact", "customs_benchmark_observation"],
+      "reason": "Private application evidence archive (#5447), including original customs documents and historical style associations; not a licensor portal Property vocabulary."
     }
   ]
 }

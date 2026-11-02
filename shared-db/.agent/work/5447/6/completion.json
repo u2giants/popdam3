@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_issue": 5447,
+  "outcome": "ready-for-merge",
+  "pr": 5450,
+  "migration_versions": [
+    "20261102172618"
+  ],
+  "contract_ref": "refs/db-contracts/5447/6",
+  "contract_sha256": "74e8cce27f655d69a4cf68b142e378395e05d3cdc69467014b660a0d30db4ec0",
+  "head_sha": "930e541aacfc79abc1b88ee0f1f9061bf9832dfa",
+  "base_sha": "aafc801f92f5fc6fed97736a54b51a356dcad267",
+  "files_changed": [
+    ".github/live-proofs/5447.sql",
+    "config/db-data-admin-property-source-coverage.json",
+    "docs/customs-benchmark.md",
+    "supabase/migrations/20261102172618_customs_benchmark.sql",
+    "supabase/tests/customs_benchmark_contract.sql",
+    "tools/load-customs-benchmark.py",
+    "tools/test_customs_benchmark.py"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table plm.customs_benchmark_dataset",
+    "table plm.customs_benchmark_artifact",
+    "table plm.customs_benchmark_observation"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Migration 20261102172618 sorts after current upstream 20261102165731; static guards passed."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_*.py",
+      "exit_code": 0,
+      "evidence": "Fresh upstream-composed implementation: 1,772 tests passed, 46 skips."
+    },
+    {
+      "command": "python3 -m unittest discover -s tools -p test_customs_benchmark.py",
+      "exit_code": 0,
+      "evidence": "Three preservation and target-refusal tests passed."
+    },
+    {
+      "command": "disposable PostgreSQL integration and private DigitalOcean object reconciliation",
+      "exit_code": 0,
+      "evidence": "No-file-bytes schema, private access, initial/repeat metadata import and independent verification passed. All 150 original files (58,797,711 bytes) recovered with matching SHA-256, private ACLs and anonymous denial; private recovery manifest verified."
+    }
+  ],
+  "assumptions_resolved": [
+    "Old version 20261102163736 and target table confirmed absent on production, actual development and shared preview via fresh target-specific reads. New 20261102172618 version centrally reserved and same-owner exact-object claim refreshed through native claimBody generator. Migration SQL is unchanged by the rename."
+  ],
+  "stop_conditions_hit": []
+}
