@@ -537,7 +537,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    Codex GPT-5.6 Sol was retired from the rotation on 2026-09-06 (issue #2485)
    by owner instruction and is no longer drawable.
    That is exactly `ACTIVE_REVIEWERS` in
-   [`scripts/manage-migration-author-lanes.mjs`](../../scripts/manage-migration-author-lanes.mjs),
+   [`scripts/lib/lanes/reviewer-roster.mjs`](../../scripts/lib/lanes/reviewer-roster.mjs),
    which is `REVIEWERS` minus `RETIRED_REVIEWERS` and `QUARANTINED_REVIEWERS`;
    the code is the truth and this sentence must be re-derived from it, never the
    other way round.
@@ -1065,7 +1065,7 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **What that lock does NOT do, stated exactly.** It does not exclude a merge
    or a production promotion. `EXCLUSIVE_REFS` gives merge and production their
    own refs, and only two cross-checks exist — both inside `acquireExclusive` in
-   [`scripts/manage-migration-author-lanes.mjs`](../../scripts/manage-migration-author-lanes.mjs),
+   [`scripts/lib/lanes/exclusive-locks.mjs`](../../scripts/lib/lanes/exclusive-locks.mjs),
    findable by their refusal text rather than by a line number, which drifts:
    a promotion waits for the merge ref (`a guarded merge is active; production
    promotion must wait`), and a merge waits for the production ref
