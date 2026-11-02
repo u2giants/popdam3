@@ -129,7 +129,7 @@ describe("OrderList grid: opening an existing order", () => {
 
   it("labels verified source cancellation and preserves the active sibling", async () => {
     const { container } = renderGrid([
-      row({ order_line_id: "cancelled", line_status: "cancelled", production_order_number: "OLD", cancel_date: "2026-07-23" }),
+      row({ order_line_id: "cancelled", coldlion_source_id: "coldlion:so:123:line:0:component:1", line_status: "cancelled", production_order_number: "OLD", cancel_date: "2026-07-23" }),
       row({ order_line_id: "active", line_status: null, production_order_number: "ACTIVE", cancel_date: "2026-07-23" }),
     ]);
     expect(await screen.findByTitle("Cancelled in ColdLion")).toHaveTextContent("Cancelled");

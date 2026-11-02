@@ -225,7 +225,7 @@ export const OrderListGrid = forwardRef<AgGridReact<OrderListRow>, OrderListGrid
             ...base,
             cellRenderer: (params: CustomCellRendererProps<OrderListRow>) =>
               params.data?.line_status === "cancelled" ? (
-                <span className="rounded border border-amber-700 px-1.5 py-0.5 text-xs" title="Cancelled in ColdLion">
+                <span className="rounded border border-amber-700 px-1.5 py-0.5 text-xs" title={params.data.coldlion_source_id ? "Cancelled in ColdLion" : "Cancelled order line"}>
                   Cancelled
                 </span>
               ) : (params.valueFormatted ?? params.value ?? null),
