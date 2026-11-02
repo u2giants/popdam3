@@ -236,6 +236,7 @@ export function useStyleGroups(
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
 
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate],
     queryFn: async () => {
       const from = page * effectivePageSize;
@@ -243,34 +244,29 @@ export function useStyleGroups(
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       const searchMode = searchTerm ? await getSearchMode() : "keyword";
       if (searchTerm && searchMode === "hybrid") {
-        try {
-          const ranked = await fetchHybridSearchPage({
-            query: searchTerm,
-            documentType: "style_group",
-            limit: effectivePageSize,
-            offset: from,
-            filters: buildDamSearchFilters(filters),
-          });
-          const { data, error } = await supabase
-            .from("style_groups")
-            .select(`*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`)
-            .in("id", ranked.ids.length ? ranked.ids : [NO_MATCH_UUID]);
-          if (error) throw error;
-          const groups = sortByConceptThenRank(
-            sortByRank((data ?? []).map((row: any) => ({
-              ...row,
-              asset_count: row.asset_count ?? 0,
-              workflow_status: row.workflow_status ?? "other",
-              thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
-            })) as StyleGroup[], ranked.ids, (group) => group.id),
-            searchTerm,
-            (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
-          );
-          return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
-        } catch (error) {
-          if (searchAccessStatus(error)) throw error;
-          // Preserve the existing keyword path if semantic search is unavailable.
-        }
+        const ranked = await fetchHybridSearchPage({
+          query: searchTerm,
+          documentType: "style_group",
+          limit: effectivePageSize,
+          offset: from,
+          filters: buildDamSearchFilters(filters),
+        });
+        const { data, error } = await supabase
+          .from("style_groups")
+          .select(`*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`)
+          .in("id", ranked.ids.length ? ranked.ids : [NO_MATCH_UUID]);
+        if (error) throw error;
+        const groups = sortByConceptThenRank(
+          sortByRank((data ?? []).map((row: any) => ({
+            ...row,
+            asset_count: row.asset_count ?? 0,
+            workflow_status: row.workflow_status ?? "other",
+            thumbnail_url: row.primary_asset?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
+          })) as StyleGroup[], ranked.ids, (group) => group.id),
+          searchTerm,
+          (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
+        );
+        return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
       }
       const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
@@ -329,22 +325,18 @@ export function useStyleGroups(
 
 export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["style-group-count", filters, visibilityDate],
     queryFn: async () => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
-        try {
-          const ranked = await fetchHybridSearchPage({
-            query: searchTerm,
-            documentType: "style_group",
-            limit: 1,
-            filters: buildDamSearchFilters(filters),
-          });
-          return ranked.totalCount;
-        } catch (error) {
-          if (searchAccessStatus(error)) throw error;
-          // Continue through keyword fallback.
-        }
+        const ranked = await fetchHybridSearchPage({
+          query: searchTerm,
+          documentType: "style_group",
+          limit: 1,
+          filters: buildDamSearchFilters(filters),
+        });
+        return ranked.totalCount;
       }
       let query = supabase
         .from("style_groups")
@@ -365,6 +357,7 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
 
 export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: string, enabled = true) {
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["style-group-asset-count", filters, visibilityDate],
     enabled,
     queryFn: async () => {

@@ -1,3 +1,4 @@
+import LibrarySearchError from "@/components/library/LibrarySearchError";
 import SearchAccessNotice from "@/components/library/SearchAccessNotice";
 import { searchAccessStatus } from "@/lib/dam-search";
 import { useState, useCallback, useMemo } from "react";
@@ -75,7 +76,7 @@ export default function LibraryPage() {
   const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
   const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
-  const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
+  const { data: totalGroupCount, error: groupCountError } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
   const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
@@ -88,6 +89,7 @@ export default function LibraryPage() {
   const groups = sgData?.groups ?? [];
   const assets = assetData?.assets ?? [];
   const isLoading = isGroupsMode ? sgLoading : assetLoading;
+  const activeQueryError = isGroupsMode ? sgError : assetError;
   const activeFilterCount = countActiveFilters(filters);
   const hasLibraryFilters = hasActiveFilters(filters);
   const count = isGroupsMode
@@ -146,12 +148,13 @@ export default function LibraryPage() {
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["style-groups"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
+    queryClient.invalidateQueries({ queryKey: ["style-group-asset-count"] });
     queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
     queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
     queryClient.invalidateQueries({ queryKey: ["assets"] });
   }, [queryClient]);
 
-  const { data: filteredGroupAssetCount } = useStyleGroupAssetCount(filters, visibilityDate, isGroupsMode && hasLibraryFilters);
+  const { data: filteredGroupAssetCount, error: groupAssetCountError } = useStyleGroupAssetCount(filters, visibilityDate, isGroupsMode && hasLibraryFilters);
   const selectedGroups = groups.filter((g) => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
@@ -167,6 +170,7 @@ export default function LibraryPage() {
   return (
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col">
       <LibraryTopBar
+        resultsUnavailable={Boolean(activeQueryError || (filters.search.trim() && isGroupsMode && (groupCountError || groupAssetCountError)))}
         search={searchInput}
         onSearchChange={handleSearchChange}
         viewMode={viewMode}
@@ -240,6 +244,8 @@ export default function LibraryPage() {
         <div className="flex flex-1 flex-col overflow-auto min-w-[400px]">
           {isDamAccessDenied(isGroupsMode ? sgError : assetError) || searchAccessStatus(isGroupsMode ? sgError : assetError) === 401 ? (
             <SearchAccessNotice expired={searchAccessStatus(isGroupsMode ? sgError : assetError) === 401} />
+          ) : activeQueryError ? (
+            <LibrarySearchError searching={Boolean(filters.search.trim())} onRetry={handleRefresh} />
           ) : isGroupsMode ? (
             viewMode === "grid" ? (
               <StyleGroupGrid
@@ -278,7 +284,7 @@ export default function LibraryPage() {
             )
           )}
 
-          <div className="mt-auto">
+          {!activeQueryError && <div className="mt-auto">
             <PaginationBar
               page={page}
               totalCount={count}
@@ -286,7 +292,7 @@ export default function LibraryPage() {
               onPageChange={setPage}
               onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
             />
-          </div>
+          </div>}
         </div>
 
         {/* Drag handle — only when a panel is docked side-by-side (desktop). */}

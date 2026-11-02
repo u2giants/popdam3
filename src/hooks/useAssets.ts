@@ -372,6 +372,7 @@ export function useAssets(
 ) {
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize],
     enabled,
     queryFn: async ({ signal }) => {
@@ -381,33 +382,28 @@ export function useAssets(
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       const searchMode = searchTerm ? await getSearchMode() : "keyword";
       if (searchTerm && searchMode === "hybrid") {
-        try {
-          const ranked = await fetchHybridSearchPage({
-            query: searchTerm,
-            documentType: "asset",
-            limit: effectivePageSize,
-            offset: from,
-            filters: buildDamSearchFilters(filters),
-          });
-          const { data, error } = await supabase.from("assets").select("*").in(
-            "id",
-            ranked.ids.length ? ranked.ids : [NO_MATCH_UUID],
-          );
-          if (error) throw error;
-          return {
-            assets: sortByConceptThenRank(
-              sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
-              searchTerm,
-              (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
-            ),
-            totalCount: ranked.totalCount,
-            pageSize: effectivePageSize,
-            page,
-          };
-        } catch (error) {
-          if (searchAccessStatus(error)) throw error;
-          // Preserve the existing keyword path if semantic search is unavailable.
-        }
+        const ranked = await fetchHybridSearchPage({
+          query: searchTerm,
+          documentType: "asset",
+          limit: effectivePageSize,
+          offset: from,
+          filters: buildDamSearchFilters(filters),
+        });
+        const { data, error } = await supabase.from("assets").select("*").in(
+          "id",
+          ranked.ids.length ? ranked.ids : [NO_MATCH_UUID],
+        );
+        if (error) throw error;
+        return {
+          assets: sortByConceptThenRank(
+            sortByRank((data ?? []) as Asset[], ranked.ids, (asset) => asset.id),
+            searchTerm,
+            (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
+          ),
+          totalCount: ranked.totalCount,
+          pageSize: effectivePageSize,
+          page,
+        };
       }
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
@@ -472,22 +468,18 @@ export function useAssets(
 
 export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["asset-count", filters, visibilityDate],
     queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
-        try {
-          const ranked = await fetchHybridSearchPage({
-            query: searchTerm,
-            documentType: "asset",
-            limit: 1,
-            filters: buildDamSearchFilters(filters),
-          });
-          return ranked.totalCount;
-        } catch (error) {
-          if (searchAccessStatus(error)) throw error;
-          // Continue through keyword fallback.
-        }
+        const ranked = await fetchHybridSearchPage({
+          query: searchTerm,
+          documentType: "asset",
+          limit: 1,
+          filters: buildDamSearchFilters(filters),
+        });
+        return ranked.totalCount;
       }
       const minDate = visibilityDate ?? "2020-01-01";
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
@@ -511,22 +503,18 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
  */
 export function useFilterCounts(filters: AssetFilters) {
   return useQuery({
+    retry: filters.search ? false : undefined,
     queryKey: ["filter-counts", filters],
     queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
-        try {
-          const ranked = await fetchHybridSearchPage({
-            query: searchTerm,
-            documentType: "asset",
-            limit: 1,
-            filters: buildDamSearchFilters(filters),
-          });
-          return parseDamSearchFacets(ranked.facets);
-        } catch (error) {
-          if (searchAccessStatus(error)) throw error;
-          // Continue through keyword fallback.
-        }
+        const ranked = await fetchHybridSearchPage({
+          query: searchTerm,
+          documentType: "asset",
+          limit: 1,
+          filters: buildDamSearchFilters(filters),
+        });
+        return parseDamSearchFacets(ranked.facets);
       }
       const filterPayload: Record<string, unknown> = {};
       if (filters.search) filterPayload.search = filters.search;

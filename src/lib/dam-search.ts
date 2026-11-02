@@ -169,8 +169,8 @@ export async function fetchSearchIds(
         // One immediate retry: a single cold start or timeout must not flip
         // the result set to the keyword fallback between refreshes.
         if (attempt === 1) {
-          // A persistently unavailable edge function still degrades to keyword search.
-          return fetchKeywordIds();
+          // Preserve the failure: a different search can falsely report no matches.
+          throw error;
         }
       }
     }

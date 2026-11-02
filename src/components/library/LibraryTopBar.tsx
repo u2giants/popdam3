@@ -88,6 +88,7 @@ interface LibraryTopBarProps {
   scanBlockedReason: string | null;
   cardStyle: CardStyle;
   onCardStyleChange: (v: CardStyle) => void;
+  resultsUnavailable?: boolean;
   groupCount: number;
   fileCount: number;
   scanProgress?: ScanProgress | null;
@@ -190,6 +191,7 @@ export default function LibraryTopBar({
   scanBlockedReason,
   cardStyle,
   onCardStyleChange,
+  resultsUnavailable = false,
   groupCount,
   fileCount,
   scanProgress,
@@ -567,7 +569,7 @@ export default function LibraryTopBar({
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {libraryMode === "groups" ? (
+        {resultsUnavailable ? "Results unavailable" : libraryMode === "groups" ? (
           <>
             <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
               {formatCount(groupCount)}

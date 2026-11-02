@@ -128,29 +128,29 @@ describe("DAM hybrid search", () => {
     await expect(getSearchMode()).rejects.toBe(denied);
   });
 
-  it("uses keyword fallback for provider outage", async () => {
+  it("preserves provider outage instead of returning a different search", async () => {
     invoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 503 }) } });
     const keyword = vi.fn().mockResolvedValue(["keyword"]);
-    await expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).resolves.toEqual(["keyword"]);
-    expect(keyword).toHaveBeenCalledOnce();
+    await expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).rejects.toMatchObject({ context: expect.any(Response) });
+    expect(keyword).not.toHaveBeenCalled();
     await expect(getSearchMode()).resolves.toBe("keyword");
   });
 
-  it("cancels a stalled semantic request after 30 seconds, retries once, then falls back to keyword", async () => {
+  it("cancels a stalled semantic request after 30 seconds, retries once, then reports failure", async () => {
     vi.useFakeTimers();
     try {
       invoke.mockImplementation((_name, options) => new Promise((_resolve, reject) => {
         options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
       }));
       const keyword = vi.fn().mockResolvedValue(["retained-keyword"]);
-      const pending = fetchSearchIds("hybrid", "snowman", "asset", 50, keyword);
+      const pending = expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).rejects.toMatchObject({ name: "AbortError" });
       await vi.advanceTimersByTimeAsync(29_999);
       expect(keyword).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
       // First attempt aborted; the immediate retry also stalls for 30 seconds.
       await vi.advanceTimersByTimeAsync(30_000);
-      await expect(pending).resolves.toEqual(["retained-keyword"]);
-      expect(keyword).toHaveBeenCalledOnce();
+      await pending;
+      expect(keyword).not.toHaveBeenCalled();
       expect(invoke).toHaveBeenCalledTimes(2);
     } finally { vi.useRealTimers(); }
   });
