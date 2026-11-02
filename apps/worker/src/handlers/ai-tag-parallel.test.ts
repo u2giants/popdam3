@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parallelTagRun, parallelModel, parallelTrialOrder } from "./ai-tag-parallel.js";
+import { retryStatementTimeout } from "./ai-tagging.js";
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const setting = { run_id: "run", models: ["openai/gpt-6-luna", "qwen/qwen3.8-flash", "google/gemini-2.5-flash"], concurrency: 6 };
 test("parallel distribution is opt-in and limited to its exact explicit-ID run", () => {
@@ -45,4 +46,15 @@ test("single-model forced run is valid and keeps exact-run identity", () => {
   assert.equal(parallelTagRun({...single, force: undefined}, "run", [id])!.force, undefined);
   assert.throws(() => parallelTagRun({...single, force: "yes"}, "run", [id]));
   assert.throws(() => parallelTagRun({...single, models: []}, "run", [id]));
+});
+
+test("tag save retries only statement timeouts, within its bound", async () => {
+  const run = async (codes: Array<string | null>) => {
+    let calls = 0;
+    const result = await retryStatementTimeout(async () => { const code = codes[Math.min(calls++, codes.length - 1)]; return { error: code ? { code } : null }; }, [0, 0, 0]);
+    return { calls, code: result.error?.code ?? null };
+  };
+  assert.deepEqual(await run(["57014", null]), { calls: 2, code: null });
+  assert.deepEqual(await run(["23505"]), { calls: 1, code: "23505" });
+  assert.deepEqual(await run(["57014"]), { calls: 4, code: "57014" });
 });
