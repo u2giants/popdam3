@@ -91,10 +91,10 @@ export function getSearchMode(): Promise<SearchMode> {
         return lastKnownGoodMode;
       } catch (error) {
         if (searchAccessStatus(error)) throw error;
-        // A transient failure must not flip the whole library between hybrid
-        // and keyword result sets every TTL window: sticky-return the last
-        // mode that actually loaded (keyword before the first success).
-        return lastKnownGoodMode ?? "keyword";
+        // Preserve an established mode during a transient probe failure. A cold
+        // failure has no trustworthy mode: report it instead of assuming keyword.
+        if (lastKnownGoodMode) return lastKnownGoodMode;
+        throw error;
       }
     })();
   }

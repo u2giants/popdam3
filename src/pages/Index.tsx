@@ -170,7 +170,8 @@ export default function LibraryPage() {
   return (
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col">
       <LibraryTopBar
-        resultsUnavailable={Boolean(activeQueryError || (filters.search.trim() && isGroupsMode && (groupCountError || groupAssetCountError)))}
+        resultsUnavailable={Boolean(activeQueryError)}
+        countsUnavailable={Boolean(filters.search.trim() && isGroupsMode && (groupCountError || groupAssetCountError))}
         search={searchInput}
         onSearchChange={handleSearchChange}
         viewMode={viewMode}

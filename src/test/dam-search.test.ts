@@ -133,7 +133,7 @@ describe("DAM hybrid search", () => {
     const keyword = vi.fn().mockResolvedValue(["keyword"]);
     await expect(fetchSearchIds("hybrid", "snowman", "asset", 50, keyword)).rejects.toMatchObject({ context: expect.any(Response) });
     expect(keyword).not.toHaveBeenCalled();
-    await expect(getSearchMode()).resolves.toBe("keyword");
+    await expect(getSearchMode()).rejects.toMatchObject({ context: expect.any(Response) });
   });
 
   it("cancels a stalled semantic request after 30 seconds, retries once, then reports failure", async () => {

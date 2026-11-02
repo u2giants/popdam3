@@ -1,5 +1,17 @@
 # PopDAM Hybrid Search — Safe Implementation and Rollout Plan
 
+> **Current failure contract — November 1, 2026 (#564 / PR #641).** Albert requested:
+> "Also make the page show an error rather than a false '0 results' when search fails."
+> This supersedes the browser fallback passages below and the historical October 18
+> readiness evidence: a failed ranked search stays unavailable, with an error and Retry;
+> it must not silently run a different keyword search. A failed initial search-mode
+> probe also reports an error; a previously verified mode may remain sticky during
+> a transient probe outage. The server still supports keyword search when query
+> embedding is unavailable; no keyword capability, matching or scoring is removed.
+> Live search-latency repair remains with shared-db #4508 / PR #5397. Current proof
+> and remaining delivery checks live on the same application issue, #564.
+
+
 **Combined continuation:** [PopDAM and PopSG semantic-search delivery](plan_semantic_search_popdam_popsg.md) coordinates completion and independent corpus rollout. Read its STATUS and this plan’s historical STATUS; do not redo landed foundations.
 
 **Tracking:** [PopDAM issue #97](https://github.com/u2giants/popdam3/issues/97)

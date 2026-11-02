@@ -33,6 +33,19 @@ describe("library search failures", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
+  it("hides numeric counts when only the count request fails", () => {
+    render(<LibraryTopBar {...topBarProps} countsUnavailable />);
+    expect(screen.getByText("Counts unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Results unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("prioritizes result failure over count failure", () => {
+    render(<LibraryTopBar {...topBarProps} resultsUnavailable countsUnavailable />);
+    expect(screen.getByText("Results unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Counts unavailable")).not.toBeInTheDocument();
+  });
+
   it("preserves successful empty counts", () => {
     render(<LibraryTopBar {...topBarProps} />);
     expect(screen.queryByText("Results unavailable")).not.toBeInTheDocument();
