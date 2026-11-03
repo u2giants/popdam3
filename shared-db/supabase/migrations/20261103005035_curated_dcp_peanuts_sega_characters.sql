@@ -17,13 +17,17 @@
 -- so they stay source edges: core.property_character_associations requires direct evidence.
 --
 -- Insert-only and idempotent. RECOVERY: retire edges whose metadata issue
--- and loaded_by match, then remove the characters and source refs with the same marker.
+-- and loaded_by match. Before deleting any marked character, reset EVERY character
+-- resolution referencing its id to 'unresolved' through plm.set_source_resolution()
+-- (clear core_character_id), including resolutions that predate this migration.
+-- Then delete marked source refs, then marked characters. Never delete reused rows.
 
 create function pg_temp.slug_name(p_slug text) returns text language plpgsql immutable as $fn$
 declare
   v_out text := '';
   v_word text;
   v_part text;
+  v_last text;
 begin
   foreach v_word in array string_to_array(p_slug, '-') loop
     continue when v_word = '';
@@ -34,8 +38,9 @@ begin
       when v_word = 'de' and v_out <> '' then 'de'
       else initcap(v_word) end;
     -- Codes keep their hyphen: a short prefix before a digit token, as the slug has it.
-    if v_word ~ '[0-9]' and length(v_out) > 0 and split_part(v_out, ' ', -1) ~ '^[A-Za-z0-9]{1,2}$' then
-      v_out := regexp_replace(v_out, '[^ ]+$', upper(split_part(v_out, ' ', -1))) || '-' || v_part;
+    v_last := substring(v_out from '[^ ]+$');
+    if v_word ~ '[0-9]' and v_last ~ '^[A-Za-z0-9]{1,2}$' then
+      v_out := regexp_replace(v_out, '[^ ]+$', upper(v_last)) || '-' || v_part;
     else
       v_out := btrim(v_out || ' ' || v_part);
     end if;
@@ -84,6 +89,16 @@ begin
     join core.licensor l on l.code = s.lic
    where nullif(btrim(s.name), '') is not null;
 
+  -- Pin DY cardinality. Distinct portal identities can share a display name (20 within this
+  -- load, 75 with earlier OPA rows, measured on production 2026-11-02); each keeps its own code.
+  -- A jump past these bounds means the name logic or the scrape changed.
+  if (select count(*) from (select 1 from pg_temp.new_chars n join core.licensor l on l.id = n.licensor_id
+       where l.code = 'DY' group by n.licensor_id, n.name having count(distinct n.code) > 1) d) > 25
+     or (select count(*) from pg_temp.new_chars n join core.licensor l on l.id = n.licensor_id
+       join core.character ch on ch.licensor_id = n.licensor_id and ch.name = n.name
+       where l.code = 'DY' and ch.code is distinct from n.code) > 100
+    then raise exception '#5079: DY display-name collisions exceed the measured bound'; end if;
+
   insert into core.character (licensor_id, name, code, status, metadata)
   select n.licensor_id, n.name, n.code, 'active',
          v_meta || jsonb_build_object('source_system', n.source_system, 'source_table', n.source_table, 'source_id', n.source_id)
@@ -101,7 +116,7 @@ begin
 
   -- plm.source_resolution supports the two DCP vaults only.
   perform plm.set_source_resolution(n.source_system, 'character', n.source_id, 'matched',
-                                    null, ch.id, null, null, '#5079 licensor scrape promotion', null)
+                                    null, ch.id, null, null, v_issue || ' licensor scrape promotion; loaded_by=' || v_actor, null)
      from pg_temp.new_chars n
      join core.character ch on ch.licensor_id = n.licensor_id and ch.code = n.code
     where n.source_system in ('disney_dcpvault', 'lucasfilm_dcpvault')
@@ -144,16 +159,36 @@ begin
 
   -- Fail closed when a scrape holds rows but nothing eligible landed.
   if exists (select 1 from plm.dcp_character) and not exists
-     (select 1 from core.character ch join core.licensor l on l.id = ch.licensor_id where l.code = 'DY' and ch.metadata ->> 'issue' = v_issue and ch.metadata ->> 'source_system' = 'disney_dcpvault')
+     (select 1 from pg_temp.new_chars n
+       join core.character ch on ch.licensor_id = n.licensor_id and ch.code = n.code
+      where n.source_system = 'disney_dcpvault')
     then raise exception '#5079: no DY characters loaded'; end if;
   if exists (select 1 from plm.lucasfilm_dcp_character) and not exists
-     (select 1 from core.character ch join core.licensor l on l.id = ch.licensor_id where l.code = 'SW' and ch.metadata ->> 'source_system' = 'lucasfilm_dcpvault')
+     (select 1 from pg_temp.new_chars n
+       join core.character ch on ch.licensor_id = n.licensor_id and ch.code = n.code
+      where n.source_system = 'lucasfilm_dcpvault')
     then raise exception '#5079: no SW characters loaded'; end if;
   if exists (select 1 from plm.peanuts_character) and not exists
-     (select 1 from core.character ch join core.licensor l on l.id = ch.licensor_id where l.code = 'PN')
+     (select 1 from pg_temp.new_chars n
+       join core.character ch on ch.licensor_id = n.licensor_id and ch.code = n.code
+      where n.source_system = 'peanuts')
     then raise exception '#5079: no PN characters loaded'; end if;
   if exists (select 1 from plm.sega_character_candidate) and not exists
-     (select 1 from core.character ch join core.licensor l on l.id = ch.licensor_id where l.code = 'SE')
+     (select 1 from pg_temp.new_chars n
+       join core.character ch on ch.licensor_id = n.licensor_id and ch.code = n.code
+      where n.source_system = 'sega')
     then raise exception '#5079: no SE characters loaded'; end if;
+  -- Every eligible identity must resolve to its intended character and source ref.
+  if exists (
+    select 1 from pg_temp.new_chars n
+    where not exists (
+      select 1 from core.character ch
+      join core.taxonomy_source_ref r on r.entity_id = ch.id
+       and r.entity_schema = 'core' and r.entity_table = 'character'
+       and r.source_system = n.source_system and r.source_table = n.source_table
+       and r.source_id = n.source_id
+      where ch.licensor_id = n.licensor_id and ch.code = n.code and ch.name = n.name
+    )
+  ) then raise exception '#5079: eligible character or source reference missing'; end if;
 end
 $characters$;
