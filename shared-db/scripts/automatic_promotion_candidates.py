@@ -97,7 +97,12 @@ def workflow_runs(repo: str) -> list[dict[str, Any]]:
 
 # A production apply whose atomic apply step succeeded but whose only failed
 # step is the post-apply catalog check has written its versions (observed
-# 2026-10-31: PR #5104, a pure-data load the catalog lexer cannot read).
+# 2026-10-31: PR #5104, a pure-data load the catalog lexer cannot read). The
+# signature is judged PER ATTEMPT and ANY attempt suffices: a re-run must not
+# erase the attempt that wrote the versions (2026-11-03: run 41545991868
+# attempt 1 applied 20261102202014 and failed only its catalog check; a re-run
+# replaced the step signature and the selector retried an already-applied PR
+# into ENGINEER ACTION REQUIRED).
 APPLY_STEP = "Fresh dry-run, then apply"
 CATALOG_STEP = "Post-apply catalog verification"
 
@@ -109,8 +114,24 @@ def applied_despite_catalog_check(jobs: list[dict[str, Any]]) -> bool:
     return applied and failed == {CATALOG_STEP}
 
 
-def run_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
-    return gh(f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
+def run_jobs(repo: str, run_id: int, attempt: int | None = None) -> list[dict[str, Any]]:
+    suffix = f"/attempts/{attempt}" if attempt is not None else ""
+    return gh(f"repos/{repo}/actions/runs/{run_id}{suffix}/jobs?per_page=100").get("jobs", [])
+
+
+def attempt_jobs(repo: str, run: dict[str, Any]) -> list[list[dict[str, Any]]]:
+    """One job list per attempt. The runs endpoint lists only the LATEST
+    attempt, so a re-run hides what earlier attempts did."""
+    return [run_jobs(repo, run["id"], a) for a in range(1, int(run.get("run_attempt") or 1) + 1)]
+
+
+def applied_in_any_attempt(repo: str, run: dict[str, Any]) -> bool:
+    return any(applied_despite_catalog_check(jobs) for jobs in attempt_jobs(repo, run))
+
+
+def preview_job_succeeded_in_any_attempt(repo: str, run: dict[str, Any]) -> bool:
+    return any(any(j.get("name") == "preview" and j.get("conclusion") == "success" for j in jobs)
+               for jobs in attempt_jobs(repo, run))
 
 
 def names_pr(pr: dict[str, Any], title: str) -> bool:
@@ -230,7 +251,7 @@ def main(now: datetime | None = None) -> int:
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
     skipped: list[dict[str, Any]] = []
     action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), lambda n: is_held(repo, n),
-                                lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])), main_sha,
+                                lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped)
     for entry in skipped:
         if entry.get("exhausted"):
@@ -255,8 +276,7 @@ def main(now: datetime | None = None) -> int:
 
 def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
     source = [f"merged_preview_source_pr={pr['number']}"]
-    original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: any(
-        j.get("name") == "preview" and j.get("conclusion") == "success" for j in run_jobs(repo, run["id"])))
+    original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: preview_job_succeeded_in_any_attempt(repo, run))
     if original:
         # A retry after a failed production apply: preview already holds the
         # versions, so only the historical-recovery lane can re-prove them.

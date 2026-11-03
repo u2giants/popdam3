@@ -267,6 +267,38 @@ class AppliedDespiteCatalogCheck(unittest.TestCase):
         self.assertEqual((action, pr["number"]), ("dispatch", 5104))
 
 
+class ReRunMustNotEraseApplied(unittest.TestCase):
+    """Run 41545991868 applied 20261102202014 in attempt 1 (apply step success,
+    only its catalog check failed), then a re-run replaced the step signature
+    and the selector retried an already-applied PR all the way into ENGINEER
+    ACTION REQUIRED (#5532). The latest attempt alone is never the record."""
+
+    rerun_jobs = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "skipped"},
+                             {"name": "Acquire the exclusive production lane and freeze merges", "conclusion": "failure"}]}]
+
+    def test_an_earlier_attempt_still_counts_after_a_re_run(self):
+        run = {"id": 41545991868, "run_attempt": 2}
+        with mock.patch.object(m, "run_jobs",
+                               side_effect=lambda repo, run_id, attempt=None: APPLIED if attempt == 1 else self.rerun_jobs):
+            self.assertTrue(m.applied_in_any_attempt("o/r", run))
+
+    def test_a_run_that_never_applied_stays_unapplied(self):
+        run = {"id": 1, "run_attempt": 2}
+        with mock.patch.object(m, "run_jobs", side_effect=lambda repo, run_id, attempt=None: self.rerun_jobs):
+            self.assertFalse(m.applied_in_any_attempt("o/r", run))
+
+    def test_a_single_attempt_run_reads_like_before(self):
+        with mock.patch.object(m, "run_jobs", side_effect=lambda repo, run_id, attempt=None: APPLIED):
+            self.assertTrue(m.applied_in_any_attempt("o/r", {"id": 7}))
+
+    def test_preview_success_in_an_earlier_attempt_still_counts(self):
+        ok = [{"name": "preview", "conclusion": "success"}]
+        run = {"id": 2, "run_attempt": 2}
+        with mock.patch.object(m, "run_jobs",
+                               side_effect=lambda repo, run_id, attempt=None: ok if attempt == 1 else []):
+            self.assertTrue(m.preview_job_succeeded_in_any_attempt("o/r", run))
+
+
 class EarlierPreviewApply(unittest.TestCase):
     def test_finds_the_oldest_successful_post_merge_preview_apply(self):
         pr = {"number": 5165, "merged_at": "2026-10-31T00:00:00Z", "versions": ["20261030190639"]}
