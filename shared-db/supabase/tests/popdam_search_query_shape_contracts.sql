@@ -155,3 +155,15 @@ begin
   delete from public.assets where id = v_id;
 end $$;
 
+
+-- Keyword-only calls must skip the HNSW walk: the null-embedding test belongs in
+-- the picture leg's WHERE, where it becomes a one-time filter (popdam3 #97).
+do $$
+begin
+  if position('where p_query_embedding is not null' in (
+    select prosrc from pg_proc
+    where oid='public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure
+  )) = 0 then
+    raise exception 'semantic_ann lost its one-time null-embedding gate';
+  end if;
+end $$;
