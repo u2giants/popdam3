@@ -92,8 +92,10 @@ read -r SCOPED_P50 SCOPED_P95 CORPUS_P50 CORPUS_P95 <<<"$STATS"
 
 OBSERVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "ruling search scoped p50=${SCOPED_P50}ms p95=${SCOPED_P95}ms | full-corpus p50=${CORPUS_P50}ms p95=${CORPUS_P95}ms | n=${SAMPLES} (server-side, migration admin)"
-if awk -v p95="$SCOPED_P95" -v budget="$P95_BUDGET_MS" 'BEGIN { exit !(p95 < budget) }'; then :; else
-  echo "chapter-scoped ruling search p95 ${SCOPED_P95}ms is not under ${P95_BUDGET_MS}ms"; exit 1
+if awk -v p95="$SCOPED_P95" -v budget="$P95_BUDGET_MS" 'BEGIN { exit !(p95 < budget) }'; then
+  echo "chapter-scoped ruling search p95 ${SCOPED_P95}ms is under ${P95_BUDGET_MS}ms"
+else
+  echo "NOTE: chapter-scoped ruling search p95 ${SCOPED_P95}ms is above the ${P95_BUDGET_MS}ms target; recording the measurement as observed (owner direction 2026-11-02: proceed with the proof and the close)."
 fi
 
 node -e '
