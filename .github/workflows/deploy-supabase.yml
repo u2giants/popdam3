@@ -76,7 +76,7 @@ jobs:
             fi
             bash scripts/verify-supabase-deploy-target.sh linked
             echo "Deploying function: $func_name"
-            supabase functions deploy "$func_name" --no-verify-jwt || {
+            supabase functions deploy "$func_name" --no-verify-jwt --yes || {
               echo "❌ Failed to deploy $func_name"
               failed=1
             }
