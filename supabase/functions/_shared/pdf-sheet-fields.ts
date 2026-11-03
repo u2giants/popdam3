@@ -105,13 +105,14 @@ const CONTINUES = /(\b(AND|WITH|FOR|OF|OR)|[,&+])$/i;
 const CONTINUATION = /^(AND|WITH|&)\s+[A-Z]{2}/i;
 
 /** First value line after a heading, plus its obvious wrapped continuation. */
-function valueAfter(lines: string[], start: number, wrap: boolean, joinSingleWord = false): string | null {
+function valueAfter(lines: string[], start: number, wrap: boolean, joinSingleWord = false, accept: (v: string) => boolean = () => true): string | null {
   for (let i = start, seen = 0; i < lines.length && seen < 5; i++) {
     const line = lines[i];
     if (!line) continue;
     if (isFieldHeading(line)) return null;
     if (isOtherHeading(line)) continue;
     seen++;
+    if (!accept(line)) continue;
     let value = line;
     if (wrap) {
       const next = lines[i + 1];
@@ -126,14 +127,31 @@ function valueAfter(lines: string[], start: number, wrap: boolean, joinSingleWor
   return null;
 }
 
-const looksLikeAssetCode = (t: string) => t.length >= 4 && /\d/.test(t) && !/^[A-Z]{1,2}:/.test(t) && !/["”]/.test(t);
+const looksLikeAssetCode = (t: string) => t.length >= 4 && /\d/.test(t) && !/\s/.test(t) && !/[:"”°©]/.test(t) && !/\.(gov|com)$/i.test(t);
+
+/** People's names: letters only, and never form text that sits near the heading. */
+const isPersonName = (v: string) =>
+  /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'\/&-]{1,60}$/.test(v) && !/\b(FACTORY|VIEW|PAGE|DETAILS|DIMENSIONS|PHOTO|PRODUCT|PACKAGING|SKU)\b/i.test(v);
+const hasWord = (v: string) => /[A-Za-z]{2}/.test(v);
+const isPackagingValue = (v: string) => hasWord(v) && !/[©®™]|^Ages\b|popcreations|^PO#|^(LEGAL|UPC)\b/i.test(v);
+const ACCEPT: Partial<Record<V2Field, (v: string) => boolean>> = {
+  creative_designer: isPersonName,
+  technical_designer: isPersonName,
+  art_director: isPersonName,
+  retailer: hasWord,
+  product_type: hasWord,
+  packaging_type: isPackagingValue,
+};
+
+/** Tick-box labels and page furniture that follow "Description" on a blank form. */
+const FORM_FURNITURE = /^\W*\S?\W*\s*(New Submission|Revised Submission|Revised Development|Revised|Artwork Approved|Packaging|Concept|Pre-Pro|Contractual|Annual|Other|Licensor Info|Development Stage|Date\s*:|REV\s*\d|PAGE\s*\d)/i;
 
 function assetsAfter(lines: string[], start: number): string[] {
   const found: string[] = [];
   for (let i = start; i < lines.length && i < start + 14; i++) {
     const line = lines[i];
     if (!line) continue;
-    if (isFieldHeading(line)) break;
+    if (isFieldHeading(line) || /prop\s*65|legal|warning/i.test(line)) break;
     if (isOtherHeading(line)) {
       if (found.length > 0) break;
       continue;
@@ -151,7 +169,7 @@ function materialsAfter(lines: string[], start: number): string | null {
   for (let i = start; i < lines.length && out.length < 10; i++) {
     const line = lines[i];
     if (!line) continue;
-    if (isFieldHeading(line) || isOtherHeading(line)) break;
+    if (isFieldHeading(line) || isOtherHeading(line) || /^PAGE\s*\d/i.test(line)) break;
     out.push(line);
   }
   return clean(out.join("; "));
@@ -192,7 +210,8 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
 
   let textSku: string | null = null;
   if (hasV1) {
-    out.creative_designer = inline(lines, /^Designer\s*:\s*(.*)$/i);
+    const designer = inline(lines, /^Designer\s*:\s*(.*)$/i);
+    out.creative_designer = designer && isPersonName(designer) ? designer : null;
     out.manager = inline(lines, /^Manager\s*:\s*(.*)$/i);
     out.licensor = inline(lines, /^License\s*:\s*(.*)$/i);
     out.style_guide = inline(lines, /^CORE\/STYLE GUIDE USED\s*:\s*(.*)$/i);
@@ -201,7 +220,7 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
     const d = lines.findIndex((l) => /^description$/i.test(l));
     if (d >= 0) {
       const next = lines.slice(d + 1).find((l) => l.length > 0) ?? "";
-      if (!/^(\S{1,2}\)?\s+)?(Artwork Approved|Revised|Date\s*:|REV\s*\d)/i.test(next)) out.description = clean(next);
+      if (!FORM_FURNITURE.test(next)) out.description = clean(next);
     }
   }
 
@@ -214,11 +233,11 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
         seen.add(field);
         if (field === "materials") out.materials = materialsAfter(lines, i + 1);
         else if (field === "licensor") out.licensor = clean(valueAfter(lines, i + 1, false)?.replace(/^[©Ø]\s*/, ""));
-        else out[field] = valueAfter(lines, i + 1, field === "product_type" || field === "packaging_type", field === "product_type");
+        else out[field] = valueAfter(lines, i + 1, field === "product_type" || field === "packaging_type", field === "product_type", ACCEPT[field]);
       }
       if (ASSET_HEADINGS.has(key) && out.files_used.length === 0) out.files_used = assetsAfter(lines, i + 1);
     });
-    if (!out.licensor) out.licensor = clean(lines.find((l) => /^©\s*[A-Za-z]{3}/.test(l))?.replace(/^©\s*/, ""));
+    if (!out.licensor) out.licensor = clean(lines.find((l) => /^©\s*[A-Za-z]{3}/.test(l))?.replace(/^©\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
     textSku = textSku ?? inline(lines, /^SKU\s*[#:]+\s*(.*)$/i);
   }
 
