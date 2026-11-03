@@ -25,6 +25,20 @@ export const INDRA_OCR_SCRIPT = [
   "sys.stdout.buffer.write(page.text.encode('utf-8'))",
 ].join("\n");
 
+/** Same engine for several pages in one process, so the models load once. Prints a JSON array of page texts. */
+export const INDRA_OCR_PAGES_SCRIPT = [
+  "import sys, cv2, json",
+  "from indra_ocr import OrtOCR, model_dir",
+  "ocr = OrtOCR(model_dir(), threads=4)",
+  "out = []",
+  "for p in sys.argv[1:]:",
+  "    gray = cv2.imread(p, cv2.IMREAD_GRAYSCALE)",
+  "    if gray is None:",
+  "        raise SystemExit('indra: unreadable image')",
+  "    out.append(ocr(gray).text)",
+  "sys.stdout.buffer.write(json.dumps(out).encode('utf-8'))",
+].join("\n");
+
 /** Returns the configured Python executable, or null when Indra is not installed here. */
 export function indraPython(): string | null {
   const p = (process.env.INDRA_OCR_PYTHON || "").trim();
@@ -46,6 +60,27 @@ export async function ocrPngWithIndra(pythonExe: string, png: Buffer): Promise<s
       );
     });
     return stdout.trim();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** OCR several page PNGs, in order. Throws on failure; never substitutes another engine. */
+export async function ocrPngsWithIndra(pythonExe: string, pngs: Buffer[]): Promise<string[]> {
+  if (pngs.length === 0) return [];
+  const dir = await mkdtemp(path.join(tmpdir(), "indra-"));
+  try {
+    const files = pngs.map((_, i) => path.join(dir, `page-${i}.png`));
+    await Promise.all(pngs.map((png, i) => writeFile(files[i], png)));
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(
+        pythonExe,
+        ["-c", INDRA_OCR_PAGES_SCRIPT, ...files],
+        { timeout: 60_000 + 90_000 * pngs.length, maxBuffer: 64 * 1024 * 1024, encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } },
+        (err, out, stderr) => (err ? reject(new Error(`${err.message}${stderr ? `: ${String(stderr).slice(-500)}` : ""}`)) : resolve(out)),
+      );
+    });
+    return JSON.parse(stdout) as string[];
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

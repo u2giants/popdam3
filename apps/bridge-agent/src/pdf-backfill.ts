@@ -52,7 +52,7 @@ async function processOne(
       const sentinelText = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
       return {
         asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-        extraction_method: "pdf_text", extracted_text: sentinelText,
+        extraction_method: "pdf_text", ocr_engine: "embedded", extracted_text: sentinelText,
         page_count: 1, char_count: sentinelText.length, extraction_error: null,
         sample_thumbnail_url: null, asset_thumbnail_url: null,
       };
@@ -121,7 +121,7 @@ async function processOne(
   if (rawText.length >= 100) {
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "pdf_text", extracted_text: rawText,
+      extraction_method: "pdf_text", ocr_engine: "embedded", extracted_text: rawText,
       page_count: numPages, char_count: rawText.length, extraction_error: null,
       sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
     };
@@ -129,6 +129,7 @@ async function processOne(
 
   // Step 3: OCR via Indra (tesseract.js only where Indra is not installed)
   let ocrText = "";
+  let ocrEngine: "indra" | "tesseract" = "indra";
   if (pngBuffer) {
     const indra = indraPython();
     let indraFailed = false;
@@ -146,6 +147,7 @@ async function processOne(
         const result = await worker.recognize(pngBuffer);
         await worker.terminate();
         ocrText = result.data.text.trim();
+        ocrEngine = "tesseract";
       } catch (e) {
         logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
       }
@@ -155,7 +157,7 @@ async function processOne(
   if (ocrText.length >= 100) {
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "ocr_text", extracted_text: ocrText,
+      extraction_method: "ocr_text", ocr_engine: ocrEngine, extracted_text: ocrText,
       page_count: numPages, char_count: ocrText.length, extraction_error: null,
       sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
     };
@@ -175,7 +177,7 @@ async function processOne(
   if (aiText.length > 0) {
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "ai_vision", extracted_text: aiText,
+      extraction_method: "ai_vision", ocr_engine: "ai_vision", extracted_text: aiText,
       page_count: numPages, char_count: aiText.length, extraction_error: null,
       sample_thumbnail_url: sampleThumbnailUrl, asset_thumbnail_url: assetThumbnailUrl,
     };
@@ -187,7 +189,7 @@ async function processOne(
 
   return {
     asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-    extraction_method: method,
+    extraction_method: method, ocr_engine: ocrText.length > 0 ? ocrEngine : "embedded",
     extracted_text: finalCount > 0 ? finalText : null,
     page_count: numPages, char_count: finalCount,
     extraction_error: aiErr ? aiErr.slice(0, 500) : null,

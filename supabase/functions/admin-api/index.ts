@@ -1552,6 +1552,11 @@ async function handleResumePdfBackfill() {
 
 async function handleGetPdfBackfillStatus() {
   const db = serviceClient();
+  const { data: modeRow } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const countRpc = (modeRow?.value as Record<string, unknown> | null)?.mode === "indra_rescan"
+    ? "count_pdf_rescan_remaining"
+    : "count_pdf_backfill_remaining";
   const [{ data: row }, { data: agents }, { data: remainingCount }] = await Promise.all([
     db.from("admin_config")
       .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle(),
@@ -1560,7 +1565,7 @@ async function handleGetPdfBackfillStatus() {
       .select("agent_name, agent_type, last_heartbeat")
       .eq("agent_type", "windows-render")
       .order("last_heartbeat", { ascending: false }),
-    db.rpc("count_pdf_backfill_remaining"),
+    db.rpc(countRpc),
   ]);
 
   const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min

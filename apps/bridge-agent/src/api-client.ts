@@ -494,6 +494,7 @@ export interface BackfillResult {
   relative_path: string;
   extraction_method: string;
   extracted_text: string | null;
+  ocr_engine?: string | null;
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;

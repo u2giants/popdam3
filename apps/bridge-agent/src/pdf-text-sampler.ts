@@ -54,6 +54,7 @@ export interface PdfTextSampleResult {
   relative_path: string;
   extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision" | "skipped";
   extracted_text: string | null;
+  ocr_engine?: string | null;
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;
@@ -270,7 +271,7 @@ async function processSinglePdf(
       if (info.isSentinel) {
         return {
           asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-          extraction_method: "pdf_text", extracted_text: SENTINEL_PHRASE,
+          extraction_method: "pdf_text", ocr_engine: "embedded", extracted_text: SENTINEL_PHRASE,
           page_count: info.pageCount || 1, char_count: SENTINEL_PHRASE.length, extraction_error: null,
         };
       }
@@ -278,7 +279,7 @@ async function processSinglePdf(
       const aiText = info.pageText.trim();
       return {
         asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-        extraction_method: "pdf_text",
+        extraction_method: "pdf_text", ocr_engine: "embedded",
         extracted_text: aiText || null,
         page_count: info.pageCount, char_count: aiText.length,
         extraction_error: null,
@@ -340,7 +341,7 @@ async function processSinglePdf(
     });
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "pdf_text", extracted_text: text,
+      extraction_method: "pdf_text", ocr_engine: "embedded", extracted_text: text,
       page_count: numPages, char_count: charCount, extraction_error: null,
     };
   }
@@ -374,6 +375,7 @@ async function processSinglePdf(
 
   // ── Step 3: OCR via Indra (tesseract.js only where Indra is not installed) ────────────────────────────────────
   let ocrText = "";
+  let ocrEngine: "indra" | "tesseract" = "indra";
   if (pngBuffer) {
     await reportProgress(index, total, asset.filename, "ocr", fileResults);
     const indra = indraPython();
@@ -392,6 +394,7 @@ async function processSinglePdf(
         const ocrResult = await worker.recognize(pngBuffer);
         await worker.terminate();
         ocrText = ocrResult.data.text.trim();
+        ocrEngine = "tesseract";
       } catch (ocrErr) {
         logger.warn("PDF text sample: OCR failed", { filename: asset.filename, error: (ocrErr as Error).message });
       }
@@ -404,7 +407,7 @@ async function processSinglePdf(
     });
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "ocr_text", extracted_text: ocrText,
+      extraction_method: "ocr_text", ocr_engine: ocrEngine, extracted_text: ocrText,
       page_count: numPages, char_count: ocrText.length, extraction_error: null,
       thumbnail_url: thumbnailUrl,
     };
@@ -431,7 +434,7 @@ async function processSinglePdf(
     });
     return {
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "ai_vision", extracted_text: aiText,
+      extraction_method: "ai_vision", ocr_engine: "ai_vision", extracted_text: aiText,
       page_count: numPages, char_count: aiText.length, extraction_error: null,
       thumbnail_url: thumbnailUrl,
     };
@@ -444,7 +447,7 @@ async function processSinglePdf(
 
   return {
     asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-    extraction_method: method,
+    extraction_method: method, ocr_engine: ocrText.length > 0 ? ocrEngine : "embedded",
     extracted_text: finalCount > 0 ? finalText : null,
     page_count: numPages, char_count: finalCount,
     extraction_error: aiErrMsg ? aiErrMsg.slice(0, 500) : null,

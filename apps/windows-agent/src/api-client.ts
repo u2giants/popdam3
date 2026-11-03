@@ -255,6 +255,7 @@ export interface BackfillResult {
   relative_path: string;
   extraction_method: string;
   extracted_text: string | null;
+  ocr_engine?: string | null;
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;
@@ -267,15 +268,17 @@ export async function claimPdfBackfillBatch(): Promise<{
   remaining: number;
   total: number;
   status: string;
+  mode?: string;
 }> {
   const data = await callApi("claim-pdf-backfill-batch", {});
-  return data as { assets: BackfillAsset[]; remaining: number; total: number; status: string };
+  return data as { assets: BackfillAsset[]; remaining: number; total: number; status: string; mode?: string };
 }
 
 export async function completePdfBackfillBatch(
   results: BackfillResult[],
+  mode?: string,
 ): Promise<{ remaining: number }> {
-  const data = await callApi("complete-pdf-backfill-batch", { results });
+  const data = await callApi("complete-pdf-backfill-batch", { results, ...(mode ? { mode } : {}) });
   return { remaining: (data.remaining as number) ?? 0 };
 }
 
