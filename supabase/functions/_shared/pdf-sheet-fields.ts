@@ -152,7 +152,7 @@ function assetsAfter(lines: string[], start: number): string[] {
   for (let i = start; i < lines.length && i < start + 14; i++) {
     const line = lines[i];
     if (!line) continue;
-    if (isFieldHeading(line) || /prop\s*65|legal|warning/i.test(line)) break;
+    if (isFieldHeading(line) || /prop\s*65|warning/i.test(line)) break;
     if (isOtherHeading(line)) {
       if (found.length > 0) break;
       continue;
@@ -233,11 +233,23 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
       if (field && !seen.has(field)) {
         seen.add(field);
         if (field === "materials") out.materials = materialsAfter(lines, i + 1);
-        else if (field === "licensor") out.licensor = clean(valueAfter(lines, i + 1, false)?.replace(/^[©Ø]\s*/, ""));
+        else if (field === "licensor") out.licensor = clean(valueAfter(lines, i + 1, false)?.replace(/^[©Ø]\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
         else out[field] = valueAfter(lines, i + 1, field === "product_type" || field === "packaging_type", field === "product_type", ACCEPT[field]);
       }
       if (ASSET_HEADINGS.has(key) && out.files_used.length === 0) out.files_used = assetsAfter(lines, i + 1);
     });
+    // OCR sometimes reads both designer headings first, then both names, in order.
+    if (!out.creative_designer && out.technical_designer) {
+      const t = lines.findIndex((l) => norm(l) === "TECHNICALDESIGNER");
+      const names: string[] = [];
+      for (let i = t + 1; i < lines.length && i <= t + 6 && !isFieldHeading(lines[i]); i++) {
+        if (lines[i] && !isOtherHeading(lines[i]) && isPersonName(lines[i])) names.push(lines[i]);
+      }
+      if (names.length >= 2) {
+        out.creative_designer = clean(names[0]);
+        out.technical_designer = clean(names[1]);
+      }
+    }
     if (!out.licensor) out.licensor = clean(lines.find((l) => /^©\s*[A-Za-z]{3}/.test(l))?.replace(/^©\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
     textSku = textSku ?? inline(lines, /^SKU\s*[#:]+\s*(.*)$/i);
   }
