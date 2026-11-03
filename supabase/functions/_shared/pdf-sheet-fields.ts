@@ -144,7 +144,8 @@ const ACCEPT: Partial<Record<V2Field, (v: string) => boolean>> = {
 };
 
 /** Tick-box labels and page furniture that follow "Description" on a blank form. */
-const FORM_FURNITURE = /^\W*\S?\W*\s*(New Submission|Revised Submission|Revised Development|Revised|Artwork Approved|Packaging|Concept|Pre-Pro|Contractual|Annual|Other|Licensor Info|Development Stage|Date\s*:|REV\s*\d|PAGE\s*\d)/i;
+const FORM_FURNITURE =
+  /^\W*\S?\W*\s*(New Submission|Revised Submission|Revised Development|Revised|Artwork Approved|Packaging|Concept|Pre-Pro|Contractual|Annual|Other|Licensor Info|Development Stage|Date\s*:|REV\s*\d|PAGE\s*\d)/i;
 
 function assetsAfter(lines: string[], start: number): string[] {
   const found: string[] = [];
