@@ -20,6 +20,15 @@ describe("DAM list/count/facet auth_denial_never_keyword_fallback", () => {
     expect(useStyleGroupCount(filters, undefined, false)).toMatchObject({ enabled: false });
     expect(mocks.ranked).not.toHaveBeenCalled();
   });
+  it("runs groups-view facets on the group search, files-view facets on the asset search", async () => {
+    mocks.ranked.mockResolvedValue({ ids: [], totalCount: 0, hasMore: false, facets: {} });
+    const run = (query: unknown) => (query as { queryFn: (context: { signal: AbortSignal }) => Promise<unknown> }).queryFn({ signal: new AbortController().signal });
+    await run(useFilterCounts(filters, "style_group"));
+    expect(mocks.ranked).toHaveBeenLastCalledWith(expect.objectContaining({ documentType: "style_group", limit: 1 }));
+    await run(useFilterCounts(filters));
+    expect(mocks.ranked).toHaveBeenLastCalledWith(expect.objectContaining({ documentType: "asset", limit: 1 }));
+    expect(mocks.ranked).toHaveBeenCalledTimes(2);
+  });
   it.each([401, 403, 503])("propagates HTTP %s on every ranked query surface", async (status) => {
     const error = { context: new Response(null, { status }) };
     mocks.ranked.mockRejectedValue(error);
