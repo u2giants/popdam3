@@ -98,8 +98,20 @@ export function isDocumentationPath(path) {
 const PRODUCTION_INERT_EVIDENCE = /^\.agent\/(?:work\/[1-9]\d*\/[1-9]\d*\/)?[^/]+\.json$/
 const PRODUCTION_INERT_TEST_FILE = /^scripts\/(?:[^/]+\/)*(?:test_[^/]+\.py|[^/]+\.test\.mjs)$/
 
+// Queue-selection and sandbox automation no production job runs or imports. Exact
+// paths only, each guarded by a test that the production workflow never names it:
+// merges of these restarted in-flight production runs for nothing.
+export const PRODUCTION_INERT_AUTOMATION = new Set([
+  '.github/workflows/automatic-production-trigger.yml',
+  'scripts/automatic_promotion_candidates.py',
+  '.github/workflows/designflow-sandbox-migrations.yml',
+  'scripts/sandbox-migration-binding.mjs',
+  'scripts/sandbox_migration_preflight.py',
+])
+
 export function isProductionInertPath(path) {
   if (isDocumentationPath(path)) return true
+  if (PRODUCTION_INERT_AUTOMATION.has(path)) return true
   if (typeof path !== 'string' || path.includes('\n') || path.includes('\0')) return false
   return PRODUCTION_INERT_EVIDENCE.test(path) || PRODUCTION_INERT_TEST_FILE.test(path)
 }
@@ -230,7 +242,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
       ok: false,
       reason:
         `REFUSED: origin/main (${tipSha}) has moved past the dispatched commit ` +
-        `(${mainSha}) with changes that are not ${production ? 'production-inert (documentation, .agent evidence or test files)' : 'documentation'}: ` +
+        `(${mainSha}) with changes that are not ${production ? 'production-inert (documentation, .agent evidence, test files or non-production automation)' : 'documentation'}: ` +
         `${shown.join(', ')}${suffix}. Re-dispatch against the current tip.`,
       movedBy: paths,
     }
@@ -251,7 +263,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
     ok: true,
     reason:
       `origin/main has advanced to ${tipSha}, but every change since ${mainSha} is ` +
-      `${production ? 'production-inert (documentation, .agent evidence or test files)' : 'documentation'} (${paths.length} file${paths.length === 1 ? '' : 's'}), so the dispatched ` +
+      `${production ? 'production-inert (documentation, .agent evidence, test files or non-production automation)' : 'documentation'} (${paths.length} file${paths.length === 1 ? '' : 's'}), so the dispatched ` +
       'commit is still current for the purposes of this gate.',
     movedBy: paths,
   }

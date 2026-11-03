@@ -7,13 +7,13 @@
 // claimed to.
 
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { classifyBranchFreshness, classifyMainTip, isDocumentationPath, isProductionInertPath } from './check-main-tip-freshness.mjs'
+import { PRODUCTION_INERT_AUTOMATION, classifyBranchFreshness, classifyMainTip, isDocumentationPath, isProductionInertPath } from './check-main-tip-freshness.mjs'
 
 // #2758: a main that moved is not a refusal when the PR is independent of it.
 // Fixture: dispatched main D; PR branch off D adds a migration + .agent evidence.
@@ -424,6 +424,32 @@ test('#3153: production tip moved only by a test file and .agent evidence is acc
     assert.match(verdict.reason, /production-inert/)
   } finally {
     rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+test('production tip moved only by named non-production automation is accepted in production mode only', () => {
+  for (const path of PRODUCTION_INERT_AUTOMATION) {
+    const { repo, sha } = makeRepo()
+    try {
+      const tip = commitFiles(repo, { [path]: 'changed\n' }, 'automation')
+      assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
+      const verdict = classifyMainTip({ mainSha: sha, tipSha: tip, gitRunner: (args) => git(repo, args), production: true })
+      assert.equal(verdict.ok, true, verdict.reason)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  }
+})
+
+test('no production-lane file names the non-production automation', () => {
+  const root = new URL('..', import.meta.url)
+  const readers = ['.github/workflows/shared-supabase-migrations.yml', 'scripts/production_business_risk_gate.py']
+  for (const reader of readers) {
+    const text = readFileSync(new URL(reader, root), 'utf8')
+    for (const path of PRODUCTION_INERT_AUTOMATION) {
+      const stem = path.split('/').at(-1).replace(/\.[^.]+$/, '')
+      assert.equal(text.includes(stem), false, `${reader} names ${stem}`)
+    }
   }
 })
 
