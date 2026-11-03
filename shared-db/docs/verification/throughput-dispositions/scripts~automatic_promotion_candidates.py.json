@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "scripts/automatic_promotion_candidates.py",
+  "sites": [
+    {
+      "site": "scripts/automatic_promotion_candidates.py:160",
+      "semantic_key": "scripts/automatic_promotion_candidates.py:2a05684955505e20b64410e96c76684b33ca5f35add01eaea737ed3efb7abebc:context-fb4525197ecc87aeb61f9bf2f7572c37171a353cf16b87985b017eaf64254b7f",
+      "line_sha256": "2a05684955505e20b64410e96c76684b33ca5f35add01eaea737ed3efb7abebc",
+      "disposition": "excluded",
+      "reason": "Warning fallback when a production run's job log cannot be read: the selector deliberately treats the versions as not applied so a PR is never skipped on unreadable evidence. Logging only; it asserts nothing about the database.",
+      "legacy_semantic_key": "scripts/automatic_promotion_candidates.py:2a05684955505e20b64410e96c76684b33ca5f35add01eaea737ed3efb7abebc:1"
+    }
+  ]
+}

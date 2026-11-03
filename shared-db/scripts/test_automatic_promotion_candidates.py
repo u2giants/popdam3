@@ -170,6 +170,24 @@ class ExhaustedAlert(unittest.TestCase):
         self.assertEqual(m.overdue_holds([entry], m._time("2026-11-02T20:00:00Z")), [])
 
 
+class ProductionApplyRefusesReRuns(unittest.TestCase):
+    """A production apply run is never re-run: the re-run hides what earlier
+    attempts did (2026-11-03, run 41545991868). Both write-path jobs must
+    refuse it before anything runs; the queue's fresh dispatch is the only
+    retry path."""
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".github", "workflows", "shared-supabase-migrations.yml"), encoding="utf-8") as fh:
+            cls.text = fh.read()
+
+    def test_both_production_jobs_refuse_a_re_run(self):
+        self.assertEqual(self.text.count("Refuse a re-run of a production apply run"), 2)
+        self.assertEqual(self.text.count("if: github.run_attempt > 1"), 2)
+        self.assertIn("NO MIGRATION WAS APPLIED", self.text)
+
+
 class TriggerReactsToFailures(unittest.TestCase):
     def test_the_trigger_runs_the_selector_after_a_failed_dispatch(self):
         # The 2026-11-02 idle gap: the job only ran when a dispatched run
@@ -297,6 +315,47 @@ class ReRunMustNotEraseApplied(unittest.TestCase):
         with mock.patch.object(m, "run_jobs",
                                side_effect=lambda repo, run_id, attempt=None: ok if attempt == 1 else []):
             self.assertTrue(m.preview_job_succeeded_in_any_attempt("o/r", run))
+
+
+class ProductionReRunAlert(unittest.TestCase):
+    """Nothing tracked recurrences of the 2026-11-03 production apply re-run.
+    The queue now checks on every run and alerts loudly for a day after one."""
+
+    rerun = {"id": 41545991868, "display_title": "DB production apply x PR5494 20261102202014",
+             "run_attempt": 2, "status": "completed", "conclusion": "failure",
+             "created_at": "2026-11-02T23:30:46Z", "updated_at": "2026-11-03T03:05:53Z"}
+
+    def test_a_recent_re_run_is_flagged(self):
+        self.assertEqual(len(m.recent_re_runs([self.rerun], m._time("2026-11-03T13:30:00Z"))), 1)
+
+    def test_an_old_re_run_stops_being_flagged(self):
+        self.assertEqual(m.recent_re_runs([self.rerun], m._time("2026-11-04T04:00:00Z")), [])
+
+    def test_a_first_attempt_is_never_a_re_run(self):
+        single = {**self.rerun, "run_attempt": 1}
+        self.assertEqual(m.recent_re_runs([single], m._time("2026-11-03T13:30:00Z")), [])
+
+    def test_main_fails_the_run_on_a_re_run(self):
+        saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, m.applied_in_any_attempt,
+                 sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        m.gh = lambda *a: {"sha": "abc"}
+        m.merged_migration_prs = lambda repo: []
+        m.workflow_runs = lambda repo: [self.rerun]
+        m.is_held = lambda repo, n: []
+        m.applied_in_any_attempt = lambda repo, run: False
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(m.main(m._time("2026-11-03T13:30:00Z")), 1)
+            self.assertIn("::error title=ENGINEER ACTION REQUIRED: production apply re-run::run 41545991868",
+                          out.getvalue())
+        finally:
+            (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held,
+             m.applied_in_any_attempt, sys.argv) = saved[:6]
+            if saved[6] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[6]
 
 
 class EarlierPreviewApply(unittest.TestCase):

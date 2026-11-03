@@ -291,14 +291,29 @@ def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
     return list({f.get("number"): f for f in found}.values())
 
 
+def recent_re_runs(runs: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
+    """Production apply runs that were RE-RUN within the last day. A re-run is
+    never the retry path -- the queue dispatches a fresh run with fresh
+    evidence -- and it hides what earlier attempts did (2026-11-03: run
+    41545991868 attempt 1 applied 20261102202014 and failed only its catalog
+    check; the re-run blinded the selector until #5537). Tracked here on every
+    queue run, so a repeat is never silent again."""
+    return [r for r in runs
+            if (r.get("display_title") or "").startswith("DB production apply")
+            and int(r.get("run_attempt") or 1) > 1
+            and now - _time(r.get("updated_at") or r.get("created_at") or "1970-01-01T00:00:00Z") < timedelta(hours=24)]
+
+
 def main(now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     repo = os.environ["GITHUB_REPOSITORY"]
+    now = now or datetime.now(timezone.utc)
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
+    runs = workflow_runs(repo)
     skipped: list[dict[str, Any]] = []
-    action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), lambda n: is_held(repo, n),
+    action, pr, reason = decide(merged_migration_prs(repo), runs, lambda n: is_held(repo, n),
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run))
     for entry in skipped:
@@ -308,7 +323,7 @@ def main(now: datetime | None = None) -> int:
         refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "an unreadable finding query"
         print(f"held: PR #{entry['number']} by {refs}; later PRs still promote")
     print(f"{action}: {reason}")
-    alerts = overdue_holds(skipped, now or datetime.now(timezone.utc))
+    alerts = overdue_holds(skipped, now)
     if action == "dispatch" and not args.dry_run:
         dispatch(repo, pr, main_sha)
     for line in alerts:
@@ -318,8 +333,14 @@ def main(now: datetime | None = None) -> int:
         print(f"::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::"
               f"PR #{entry['number']} (versions {','.join(entry['versions'])}) failed {entry['exhausted']} "
               f"automatic attempts at this main commit; later PRs still promote")
+    reruns = recent_re_runs(runs, now)
+    for r in reruns:
+        print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"
+              f"run {r['id']} ({r.get('display_title')}) was re-run (attempt {r.get('run_attempt')}); "
+              f"a re-run is never the retry path -- the queue dispatches a fresh run with fresh evidence -- "
+              f"and it hides what earlier attempts did")
     # A failing run is the advisory alert; it blocks nothing.
-    return 1 if alerts or exhausted else 0
+    return 1 if alerts or exhausted or reruns else 0
 
 
 def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
