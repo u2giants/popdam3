@@ -2131,6 +2131,18 @@ export type Database = {
         }
         Relationships: []
       }
+      known_designer_first_name: {
+        Row: {
+          first_name: string
+        }
+        Insert: {
+          first_name: string
+        }
+        Update: {
+          first_name?: string
+        }
+        Relationships: []
+      }
       licensors: {
         Row: {
           created_at: string
@@ -4986,6 +4998,7 @@ export type Database = {
       }
       image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
+      is_known_designer_value: { Args: { p_value: string }; Returns: boolean }
       is_plausible_source_file_name: {
         Args: { p_name: string }
         Returns: boolean
