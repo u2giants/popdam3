@@ -132,6 +132,7 @@ const looksLikeAssetCode = (t: string) => t.length >= 4 && /\d/.test(t) && !/\s/
 
 /** People's names: letters only, and never form text that sits near the heading. */
 const isPersonName = (v: string) =>
+  // eslint-disable-next-line no-useless-escape -- deno fmt keeps the escaped slash
   /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'\/&-]{1,60}$/.test(v) &&
   !/\b(FACTORY|VIEW|PAGE|DETAILS|DIMENSIONS|PHOTO|PRODUCT|PACKAGING|SKU|TOP|BOTTOM|BODY|LID|FRONT|BACK|SIDE|INSIDE|OUTSIDE)\b/i.test(v);
 const hasWord = (v: string) => /[A-Za-z]{2}/.test(v);
