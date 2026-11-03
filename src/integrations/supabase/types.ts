@@ -576,6 +576,27 @@ export type Database = {
           },
         ]
       }
+      asset_designer_sheet_backup: {
+        Row: {
+          asset_id: string
+          backed_up_at: string
+          designer_name: string | null
+          technical_designer_name: string | null
+        }
+        Insert: {
+          asset_id: string
+          backed_up_at?: string
+          designer_name?: string | null
+          technical_designer_name?: string | null
+        }
+        Update: {
+          asset_id?: string
+          backed_up_at?: string
+          designer_name?: string | null
+          technical_designer_name?: string | null
+        }
+        Relationships: []
+      }
       asset_effective_tags: {
         Row: {
           asset_id: string
@@ -4326,6 +4347,10 @@ export type Database = {
         }[]
       }
       apply_erp_item_updates: { Args: { p_items: Json }; Returns: Json }
+      apply_sheet_designers: {
+        Args: { p_asset_id: string; p_creative: string; p_technical: string }
+        Returns: Record<string, unknown>
+      }
       approve_licensor_alias: {
         Args: {
           p_alias: string
@@ -4344,6 +4369,10 @@ export type Database = {
       }
       backfill_pdf_files_used: { Args: never; Returns: number }
       backfill_pdf_files_used_v2: { Args: never; Returns: number }
+      backfill_pdf_sheet_designers: {
+        Args: { p_after: string; p_limit?: number }
+        Returns: Json
+      }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
