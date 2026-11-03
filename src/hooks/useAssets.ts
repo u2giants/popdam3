@@ -4,7 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { type DamDocumentType, searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 
 const PAGE_SIZE = 200;
@@ -501,16 +501,19 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
  * covering-index fast path otherwise. Counts therefore stay in parity with the
  * list query by construction.
  */
-export function useFilterCounts(filters: AssetFilters) {
+export function useFilterCounts(filters: AssetFilters, documentType: DamDocumentType = "asset") {
   return useQuery({
     retry: filters.search ? false : undefined,
-    queryKey: ["filter-counts", filters],
+    queryKey: ["filter-counts", filters, documentType],
     queryFn: async ({ signal }) => {
       const searchTerm = filters.search?.replace(/[(),]/g, " ").trim();
       if (searchTerm && await getSearchMode() === "hybrid") {
         const ranked = await fetchHybridSearchPage({
           query: searchTerm,
-          documentType: "asset",
+          // Facets count member files either way. In the groups view the asset
+          // search this used to run outlasts the 30 s browser limit on compound
+          // queries, leaving a database job running for nothing.
+          documentType,
           limit: 1,
           filters: buildDamSearchFilters(filters),
         });

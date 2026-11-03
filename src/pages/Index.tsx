@@ -81,7 +81,7 @@ export default function LibraryPage() {
   const { data: totalAssets } = useTotalAssetCount();
   const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
-  const { data: facetCounts } = useFilterCounts(filters);
+  const { data: facetCounts } = useFilterCounts(filters, isGroupsMode ? "style_group" : "asset");
   const { data: pathFacets } = usePathFacets(filters.customer);
   const { data: materialOptions } = useProductMaterials();
   const { data: damCustomerFacets } = useDamCustomerFacets();
