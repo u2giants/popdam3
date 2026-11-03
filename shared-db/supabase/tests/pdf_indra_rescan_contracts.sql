@@ -64,8 +64,23 @@ BEGIN
     THEN RAISE EXCEPTION 'unsampled file not inserted'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=good AND designer_name='ROBIN' AND technical_designer_name='KIM')
     THEN RAISE EXCEPTION 'blank designer not filled'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=filled AND designer_name='Existing Person')
-    THEN RAISE EXCEPTION 'existing designer overwritten'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=filled AND designer_name='ROBIN')
+    THEN RAISE EXCEPTION 'sheet designer did not replace existing value'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.asset_designer_sheet_backup WHERE asset_id=filled AND designer_name='Existing Person')
+    THEN RAISE EXCEPTION 'old designer not kept'; END IF;
+  -- Blank and junk readings never erase; a later reading keeps the first-seen undo copy.
+  PERFORM public.apply_sheet_designers(filled, NULL, '  ');
+  PERFORM public.apply_sheet_designers(filled, 'null', '12');
+  IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=filled AND designer_name='ROBIN' AND technical_designer_name IS NULL)
+    THEN RAISE EXCEPTION 'blank or junk reading changed a designer'; END IF;
+  PERFORM public.apply_sheet_designers(filled, 'SAM', NULL);
+  IF NOT EXISTS (SELECT 1 FROM public.asset_designer_sheet_backup WHERE asset_id=filled AND designer_name='Existing Person')
+    THEN RAISE EXCEPTION 'undo copy overwritten'; END IF;
+  -- Backfill from stored fields replaces a literal null text value.
+  UPDATE public.assets SET designer_name='null' WHERE id=good;
+  PERFORM public.backfill_pdf_sheet_designers(NULL, 100000);
+  IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=good AND designer_name='ROBIN')
+    THEN RAISE EXCEPTION 'backfill did not replace literal null'; END IF;
   IF EXISTS (SELECT 1 FROM public.assets WHERE id=ordinary AND designer_name IS NOT NULL)
     THEN RAISE EXCEPTION 'non-sheet PDF wrote a designer'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.sku_files_used WHERE sku='ZZRESCAN1' AND file_name='CC100001')
