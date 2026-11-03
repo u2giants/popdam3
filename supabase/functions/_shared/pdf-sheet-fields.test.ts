@@ -125,9 +125,14 @@ describe("parsePdfSheetFields", () => {
   });
 
   it("assigns two names read after both designer headings, in order", () => {
-    const f = parsePdfSheetFields("CREATIVE DESIGNER\n3/4 View\nTECHNICAL DESIGNER\nROBIN\nKIM\nRETAILER\nX", "x.pdf");
+    const f = parsePdfSheetFields("CREATIVE DESIGNER\n3/4 View\nTECHNICAL DESIGNER\nROBIN\nTOP\nKIM\nRETAILER\nX", "x.pdf");
     expect(f.creative_designer).toBe("ROBIN");
     expect(f.technical_designer).toBe("KIM");
+  });
+
+  it("reads packaging format and skips packaging notes", () => {
+    expect(parsePdfSheetFields("RETAILER\nX\nPACKAGING FORMAT\nJ-CARD", "x.pdf").packaging_type).toBe("J-CARD");
+    expect(parsePdfSheetFields("RETAILER\nX\nPACKAGING TYPE\nTHERE’S A BARCODE ON THE BAG\nTRAYBOX", "x.pdf").packaging_type).toBe("TRAYBOX");
   });
 
   it("rejects a text SKU that is not SKU-shaped", () => {
