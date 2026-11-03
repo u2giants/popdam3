@@ -18,8 +18,29 @@ class AttemptsPerMainCommit(unittest.TestCase):
         pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
         runs = [{"display_title": "DB preview apply old PR7 1", "status": "completed", "conclusion": "failure", "created_at": "2026-01-02"}] * 3
         held = lambda n: False
-        self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "wait")
+        self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "idle")
         self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "dispatch")
+
+    def test_production_failures_count_as_attempts(self):
+        # A failed production apply re-enters through a historical recovery
+        # preview that succeeds, so counting only preview failures could never
+        # bound the cycle (#5532).
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        fail = {"display_title": "DB production apply old PR7 1", "status": "completed",
+                "conclusion": "failure", "created_at": "2026-01-02"}
+        action, got, _ = m.decide([pr], [fail] * 2, lambda n: [], main_sha="old")
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+        self.assertEqual(m.decide([pr], [fail] * 3, lambda n: [], main_sha="old")[0], "idle")
+
+    def test_recovery_run_failures_count_as_attempts(self):
+        # Recovery runs title themselves "PR " with no number; only the
+        # versions name the PR. Those failures must count too (#5532).
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["20261102170000"]}
+        fail = {"display_title": "DB preview apply old PR 20261102170000", "status": "completed",
+                "conclusion": "failure", "created_at": "2026-01-02"}
+        action, got, _ = m.decide([pr], [fail] * 2, lambda n: [], main_sha="old")
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+        self.assertEqual(m.decide([pr], [fail] * 3, lambda n: [], main_sha="old")[0], "idle")
 
 
 class ForeignTargetVersions(unittest.TestCase):
@@ -62,12 +83,17 @@ class PerMigrationHold(unittest.TestCase):
         self.assertIn("not held", reason)
         self.assertEqual(skipped[0]["findings"], [])
 
-    def test_in_flight_and_exhausted_still_stop_the_lane(self):
+    def test_in_flight_still_stops_the_lane_but_exhausted_passes_over(self):
         self.assertEqual(m.decide([self.first, self.second], [{"status": "queued"}], lambda n: [])[0], "wait")
         fails = [{"display_title": "DB preview apply x PR5460 v", "status": "completed", "conclusion": "failure",
                   "created_at": "2026-11-02T18:00:00Z"}] * 3
-        action, pr, _ = m.decide([self.second, self.third], fails, lambda n: [])
-        self.assertEqual((action, pr["number"]), ("wait", 5460))
+        skipped = []
+        action, pr, _ = m.decide([self.second, self.third], fails, lambda n: [], skipped=skipped)
+        # A PR out of automatic attempts must not park every later promotion
+        # (#5532): it is passed over like a held PR and reported for an engineer.
+        self.assertEqual((action, pr["number"]), ("dispatch", 5461))
+        self.assertEqual([p["number"] for p in skipped], [5460])
+        self.assertEqual(skipped[0]["exhausted"], 3)
 
 
 class OverdueHoldAlert(unittest.TestCase):
@@ -111,6 +137,50 @@ class OverdueHoldAlert(unittest.TestCase):
                 os.environ.pop("GITHUB_REPOSITORY", None)
             else:
                 os.environ["GITHUB_REPOSITORY"] = saved[5]
+
+
+class ExhaustedAlert(unittest.TestCase):
+    pr = {"number": 5460, "merged_at": "2026-11-02T17:10:00Z", "versions": ["20261102171000"]}
+    fails = [{"display_title": "DB preview apply abc PR5460 20261102171000", "status": "completed",
+              "conclusion": "failure", "created_at": "2026-11-02T18:00:00Z"}] * 3
+
+    def test_main_fails_the_run_with_engineer_action_required(self):
+        saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        m.gh = lambda *a: {"sha": "abc"}
+        m.merged_migration_prs = lambda repo: [self.pr]
+        m.workflow_runs = lambda repo: self.fails
+        m.is_held = lambda repo, n: []
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)), 1)
+            text = out.getvalue()
+            self.assertIn("exhausted: PR #5460 out of automatic attempts", text)
+            self.assertIn("::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::PR #5460", text)
+        finally:
+            m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv = saved[:5]
+            if saved[5] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[5]
+
+    def test_overdue_hold_alerts_ignore_exhausted_entries(self):
+        entry = {**self.pr, "findings": [], "exhausted": 3}
+        self.assertEqual(m.overdue_holds([entry], m._time("2026-11-02T20:00:00Z")), [])
+
+
+class TriggerReactsToFailures(unittest.TestCase):
+    def test_the_trigger_runs_the_selector_after_a_failed_dispatch(self):
+        # The 2026-11-02 idle gap: the job only ran when a dispatched run
+        # succeeded, so a failed preview left the queue unattended for up to an
+        # hour (#5532). PR and merge-group validations must stay excluded.
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            ".github", "workflows", "automatic-production-trigger.yml")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", text)
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", text)
+        self.assertIn("github.event.workflow_run.conclusion == 'failure'", text)
 
 
 class WorkflowRunsWindow(unittest.TestCase):

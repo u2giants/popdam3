@@ -12,9 +12,12 @@ before applying.
 
 A PR held by a blocking review finding holds back only its own migrations:
 the selector moves past it to the next merged PR, still oldest first (#5457
-froze every release for hours on one finding). It stops at a PR that is in
-flight or out of retries. A PR held longer than ALERT_AFTER fails this run as
-a loud advisory alert instead of skipping silently. It never writes a database.
+froze every release for hours on one finding). It waits while a migration
+workflow run is in flight (one dispatch at a time). A PR out of automatic
+attempts is passed over the same way, with a loud ENGINEER ACTION REQUIRED
+alert, so one dead PR cannot park every later promotion (#5532). A PR held
+longer than ALERT_AFTER fails this run as a loud advisory alert instead of
+skipping silently. It never writes a database.
 
     automatic_promotion_candidates.py [--dry-run]
 """
@@ -110,14 +113,24 @@ def run_jobs(repo: str, run_id: int) -> list[dict[str, Any]]:
     return gh(f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
 
 
+def names_pr(pr: dict[str, Any], title: str) -> bool:
+    """True when the run title names every migration version this PR authored.
+    Recovery runs title themselves "PR " with no number, so match the versions;
+    several versions are one comma-joined word in the title."""
+    words = {v for word in title.split() for v in word.split(",")}
+    return all(v in words for v in pr["versions"])
+
+
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
            applied: callable = lambda run: False, main_sha: str = "",
            skipped: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
-    are passed over and appended to `skipped` with their blocking findings."""
+    and PRs out of automatic attempts are passed over and appended to `skipped`
+    (the latter carry an `exhausted` count instead of `findings`)."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
+    out_of_attempts: list[dict[str, Any]] = []
     for pr in prs:
         tag = f"PR{pr['number']} "
         titles = [(r.get("display_title") or "") + " " for r in runs]
@@ -133,28 +146,41 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
                 skipped.append({**pr, "findings": findings if isinstance(findings, list) else []})
             continue
         # Attempts count per main commit: a later merge may be the cure, so it earns fresh tries.
+        # The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
+        # production apply re-enters through a historical recovery preview that succeeds
+        # by design, so counting only preview failures could never bound that loop. A
+        # recovery run titles itself "PR " with no number, hence the version match.
         attempts = sum(1 for t, r in zip(titles, runs)
-                       if t.startswith("DB preview apply") and tag in t and r.get("created_at", "") > pr["merged_at"]
+                       if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
+                       and (tag in t or names_pr(pr, t))
+                       and r.get("created_at", "") > pr["merged_at"]
                        and (not main_sha or f" {main_sha} " in t)
                        and r.get("conclusion") != "success")
         if attempts >= MAX_ATTEMPTS:
-            return "wait", pr, f"ENGINEER ACTION REQUIRED: PR #{pr['number']} failed {attempts} automatic attempts"
+            # Out of automatic attempts: passed over like a held PR, with a loud
+            # alert in main(), so one dead PR cannot park every later promotion
+            # while still refusing to retry it (#5532).
+            passed_over += 1
+            entry = {**pr, "findings": [], "exhausted": attempts}
+            out_of_attempts.append(entry)
+            if skipped is not None:
+                skipped.append(entry)
+            continue
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
     if passed_over:
-        return "idle", None, "every merged migration PR not held by a review finding is in production"
+        base = "every merged migration PR not held by a review finding or out of automatic attempts is in production"
+        if out_of_attempts:
+            names = ", ".join(f"PR #{e['number']} ({e['exhausted']} attempts)" for e in out_of_attempts)
+            return "idle", None, f"ENGINEER ACTION REQUIRED: {names} out of automatic attempts at this main commit; {base}"
+        return "idle", None, base
     return "idle", None, "every merged migration PR since activation is in production"
 
 
 def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
                           preview_ok: callable = lambda run: False) -> int | None:
     """The oldest preview apply of this PR whose preview job succeeded, if any."""
-    # Recovery runs title themselves "PR " with no number, so match the versions.
-    def names_pr(title: str) -> bool:
-        # Several versions are one comma-joined word in the title.
-        words = {v for word in title.split() for v in word.split(",")}
-        return all(v in words for v in pr["versions"])
     hits = [r for r in runs
-            if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(r.get("display_title") or "")
+            if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(pr, r.get("display_title") or "")
             # A run can fail after preview applied, e.g. at the review-finding hold.
             and (r.get("conclusion") == "success" or preview_ok(r))]
     # A pre-merge rehearsal also leaves the versions on preview, so it is the
@@ -169,9 +195,12 @@ def _time(text: str) -> datetime:
 
 def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     """One line per PR held longer than ALERT_AFTER. A PR is held from the later
-    of its merge and its oldest blocking finding (unknown findings: the merge)."""
+    of its merge and its oldest blocking finding (unknown findings: the merge).
+    PRs out of automatic attempts are not holds and alert on their own."""
     lines = []
     for pr in skipped:
+        if pr.get("exhausted"):
+            continue
         opened = [_time(f["created_at"]) for f in pr["findings"] if f.get("created_at")]
         since = max(_time(pr["merged_at"]), min(opened)) if opened else _time(pr["merged_at"])
         if now - since > ALERT_AFTER:
@@ -203,17 +232,25 @@ def main(now: datetime | None = None) -> int:
     action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), lambda n: is_held(repo, n),
                                 lambda run: applied_despite_catalog_check(run_jobs(repo, run["id"])), main_sha,
                                 skipped)
-    for held in skipped:
-        refs = ", ".join(f"#{f.get('number')}" for f in held["findings"]) or "an unreadable finding query"
-        print(f"held: PR #{held['number']} by {refs}; later PRs still promote")
+    for entry in skipped:
+        if entry.get("exhausted"):
+            print(f"exhausted: PR #{entry['number']} out of automatic attempts; later PRs still promote")
+            continue
+        refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "an unreadable finding query"
+        print(f"held: PR #{entry['number']} by {refs}; later PRs still promote")
     print(f"{action}: {reason}")
     alerts = overdue_holds(skipped, now or datetime.now(timezone.utc))
     if action == "dispatch" and not args.dry_run:
         dispatch(repo, pr, main_sha)
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
+    exhausted = [e for e in skipped if e.get("exhausted")]
+    for entry in exhausted:
+        print(f"::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::"
+              f"PR #{entry['number']} (versions {','.join(entry['versions'])}) failed {entry['exhausted']} "
+              f"automatic attempts at this main commit; later PRs still promote")
     # A failing run is the advisory alert; it blocks nothing.
-    return 1 if alerts else 0
+    return 1 if alerts or exhausted else 0
 
 
 def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
