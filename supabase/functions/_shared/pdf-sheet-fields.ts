@@ -238,6 +238,18 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
       }
       if (ASSET_HEADINGS.has(key) && out.files_used.length === 0) out.files_used = assetsAfter(lines, i + 1);
     });
+    // OCR sometimes reads both designer headings first, then both names, in order.
+    if (!out.creative_designer && out.technical_designer) {
+      const t = lines.findIndex((l) => norm(l) === "TECHNICALDESIGNER");
+      const names: string[] = [];
+      for (let i = t + 1; i < lines.length && i <= t + 6 && !isFieldHeading(lines[i]); i++) {
+        if (lines[i] && !isOtherHeading(lines[i]) && isPersonName(lines[i])) names.push(lines[i]);
+      }
+      if (names.length >= 2) {
+        out.creative_designer = clean(names[0]);
+        out.technical_designer = clean(names[1]);
+      }
+    }
     if (!out.licensor) out.licensor = clean(lines.find((l) => /^©\s*[A-Za-z]{3}/.test(l))?.replace(/^©\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
     textSku = textSku ?? inline(lines, /^SKU\s*[#:]+\s*(.*)$/i);
   }

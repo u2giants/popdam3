@@ -124,6 +124,12 @@ describe("parsePdfSheetFields", () => {
     expect(f.files_used).toEqual(["AB_0010.ai"]);
   });
 
+  it("assigns two names read after both designer headings, in order", () => {
+    const f = parsePdfSheetFields("CREATIVE DESIGNER\n3/4 View\nTECHNICAL DESIGNER\nROBIN\nKIM\nRETAILER\nX", "x.pdf");
+    expect(f.creative_designer).toBe("ROBIN");
+    expect(f.technical_designer).toBe("KIM");
+  });
+
   it("rejects a text SKU that is not SKU-shaped", () => {
     const f = parsePdfSheetFields("Designer: X\nStyle#/SKU: N/A", "x.pdf");
     expect(f.sku).toBeNull();
