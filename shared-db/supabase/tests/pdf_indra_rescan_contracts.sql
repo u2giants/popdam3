@@ -13,6 +13,7 @@ DECLARE
   result jsonb;
   before_count bigint := public.count_pdf_rescan_remaining();
 BEGIN
+  INSERT INTO public.known_designer_first_name VALUES ('ROBIN'),('SAM') ON CONFLICT DO NOTHING;
   INSERT INTO public.assets(id,filename,relative_path,file_type,quick_hash,modified_at,is_deleted,sku,designer_name)
   SELECT i, n, 'ZZRESCAN/' || i, 'pdf'::public.file_type, i::text, now(), false, s, d
   FROM (VALUES
@@ -71,6 +72,7 @@ BEGIN
   -- Blank and junk readings never erase; a later reading keeps the first-seen undo copy.
   PERFORM public.apply_sheet_designers(filled, NULL, '  ');
   PERFORM public.apply_sheet_designers(filled, 'null', '12');
+  PERFORM public.apply_sheet_designers(filled, 'BATTERY BOX', 'MOCK UP');
   IF NOT EXISTS (SELECT 1 FROM public.assets WHERE id=filled AND designer_name='ROBIN' AND technical_designer_name IS NULL)
     THEN RAISE EXCEPTION 'blank or junk reading changed a designer'; END IF;
   PERFORM public.apply_sheet_designers(filled, 'SAM', NULL);
