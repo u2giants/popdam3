@@ -1554,9 +1554,7 @@ async function handleGetPdfBackfillStatus() {
   const db = serviceClient();
   const { data: modeRow } = await db.from("admin_config")
     .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
-  const countRpc = (modeRow?.value as Record<string, unknown> | null)?.mode === "indra_rescan"
-    ? "count_pdf_rescan_remaining"
-    : "count_pdf_backfill_remaining";
+  const countRpc = (modeRow?.value as Record<string, unknown> | null)?.mode === "indra_rescan" ? "count_pdf_rescan_remaining" : "count_pdf_backfill_remaining";
   const [{ data: row }, { data: agents }, { data: remainingCount }] = await Promise.all([
     db.from("admin_config")
       .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle(),

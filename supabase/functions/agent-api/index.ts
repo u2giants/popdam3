@@ -597,7 +597,9 @@ async function handleHeartbeat(
       windowsHealthy = true;
       const vInfo = wMeta.version_info as Record<string, unknown> | undefined;
       if (versionGte(vInfo?.version as string | undefined, [0, 16, 0])) windowsBackfillCapable = true;
-      if (versionGte(vInfo?.version as string | undefined, [0, 17, 0]) && (wMeta.ocr_indra as Record<string, unknown> | undefined)?.state === "ready") windowsRescanCapable = true;
+      if (versionGte(vInfo?.version as string | undefined, [0, 17, 0]) && (wMeta.ocr_indra as Record<string, unknown> | undefined)?.state === "ready") {
+        windowsRescanCapable = true;
+      }
     }
   }
 

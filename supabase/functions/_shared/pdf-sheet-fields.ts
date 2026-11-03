@@ -24,8 +24,15 @@ export interface PdfSheetFields {
 }
 
 type V2Field =
-  | "creative_designer" | "technical_designer" | "art_director" | "retailer"
-  | "product_type" | "product_size" | "packaging_type" | "materials" | "licensor";
+  | "creative_designer"
+  | "technical_designer"
+  | "art_director"
+  | "retailer"
+  | "product_type"
+  | "product_size"
+  | "packaging_type"
+  | "materials"
+  | "licensor";
 
 const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9&/]+/g, "");
 
@@ -50,10 +57,27 @@ const ASSET_HEADINGS = new Set(["ASSET/STYLEGUIDE", "ASSETS/STYLEGUIDE", "ASSETS
 
 /** Headings that hold no requested value. Skipped between a field heading and its value. */
 const OTHER_HEADINGS = new Set([
-  "PRODUCTDESIGN", "PRODUCTEXAMPLEPHOTO", "EXAMPLEPHOTOOFTHEPRODUCTTYPE", "EXAMPLEOFTHEPRODUCTTYPE",
-  "PACKAGINGDESIGN", "LEGALLINE", "PACKAGINGLEGALLINE", "PANTONEREFERENCE", "ADDITIONALCALLOUTS",
-  "PACKAGINGSIZE", "DIMENSIONS", "PRODUCTDIMENSIONS", "PACKAGINGDIMENSIONS", "FRONTVIEW", "BACKVIEW",
-  "SIDE", "FRONT", "BACK", "CONSTRUCTION", "UPCSTICKER", "POP",
+  "PRODUCTDESIGN",
+  "PRODUCTEXAMPLEPHOTO",
+  "EXAMPLEPHOTOOFTHEPRODUCTTYPE",
+  "EXAMPLEOFTHEPRODUCTTYPE",
+  "PACKAGINGDESIGN",
+  "LEGALLINE",
+  "PACKAGINGLEGALLINE",
+  "PANTONEREFERENCE",
+  "ADDITIONALCALLOUTS",
+  "PACKAGINGSIZE",
+  "DIMENSIONS",
+  "PRODUCTDIMENSIONS",
+  "PACKAGINGDIMENSIONS",
+  "FRONTVIEW",
+  "BACKVIEW",
+  "SIDE",
+  "FRONT",
+  "BACK",
+  "CONSTRUCTION",
+  "UPCSTICKER",
+  "POP",
 ]);
 
 const isFieldHeading = (line: string) => norm(line) in V2_FIELD_HEADINGS || ASSET_HEADINGS.has(norm(line));
@@ -91,7 +115,9 @@ function valueAfter(lines: string[], start: number, wrap: boolean, joinSingleWor
     let value = line;
     if (wrap) {
       const next = lines[i + 1];
-      if (next && !isFieldHeading(next) && !isOtherHeading(next) && (CONTINUES.test(value) || CONTINUATION.test(next) || (joinSingleWord && !/\s/.test(value)))) {
+      if (
+        next && !isFieldHeading(next) && !isOtherHeading(next) && (CONTINUES.test(value) || CONTINUATION.test(next) || (joinSingleWord && !/\s/.test(value)))
+      ) {
         value = `${value} ${next}`;
       }
     }
@@ -108,7 +134,10 @@ function assetsAfter(lines: string[], start: number): string[] {
     const line = lines[i];
     if (!line) continue;
     if (isFieldHeading(line)) break;
-    if (isOtherHeading(line)) { if (found.length > 0) break; continue; }
+    if (isOtherHeading(line)) {
+      if (found.length > 0) break;
+      continue;
+    }
     const stripped = line.replace(/^ASSETS?\s*:\s*/i, "");
     for (const token of splitFiles(stripped)) {
       if (looksLikeAssetCode(token)) found.push(token);
@@ -137,9 +166,20 @@ export function skuFromFilename(filename: string): string | null {
 }
 
 const EMPTY: Omit<PdfSheetFields, "sku" | "sku_source"> = {
-  layout: null, description: null, files_used: [], creative_designer: null, technical_designer: null,
-  art_director: null, manager: null, retailer: null, product_type: null, product_size: null,
-  materials: null, packaging_type: null, licensor: null, style_guide: null,
+  layout: null,
+  description: null,
+  files_used: [],
+  creative_designer: null,
+  technical_designer: null,
+  art_director: null,
+  manager: null,
+  retailer: null,
+  product_type: null,
+  product_size: null,
+  materials: null,
+  packaging_type: null,
+  licensor: null,
+  style_guide: null,
 };
 
 export function parsePdfSheetFields(text: string, filename: string): PdfSheetFields {
@@ -184,7 +224,12 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
 
   out.files_used = [...new Set(out.files_used)];
   const fileSku = skuFromFilename(filename);
-  if (fileSku) { out.sku = fileSku; out.sku_source = "filename"; }
-  else if (textSku) { out.sku = textSku; out.sku_source = "text"; }
+  if (fileSku) {
+    out.sku = fileSku;
+    out.sku_source = "filename";
+  } else if (textSku) {
+    out.sku = textSku;
+    out.sku_source = "text";
+  }
   return out;
 }

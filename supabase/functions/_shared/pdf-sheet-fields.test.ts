@@ -46,9 +46,15 @@ describe("parsePdfSheetFields", () => {
   it("reads the older same-line form and prefers the filename SKU", () => {
     const f = parsePdfSheetFields(V1, "VSZ70ABCD01 tech pack.pdf");
     expect(f).toMatchObject({
-      layout: "v1", sku: "VSZ70ABCD01", sku_source: "filename", creative_designer: "Sam Designer",
-      manager: "Pat Manager", licensor: "Acme", style_guide: "Sample Guide",
-      description: '10" X 20" SAMPLE CANVAS', files_used: ["AB_0010 P1", "AB 0029.psd"],
+      layout: "v1",
+      sku: "VSZ70ABCD01",
+      sku_source: "filename",
+      creative_designer: "Sam Designer",
+      manager: "Pat Manager",
+      licensor: "Acme",
+      style_guide: "Sample Guide",
+      description: '10" X 20" SAMPLE CANVAS',
+      files_used: ["AB_0010 P1", "AB 0029.psd"],
     });
   });
 
@@ -63,9 +69,14 @@ describe("parsePdfSheetFields", () => {
   it("reads the newer form, skipping non-field headings between title and value", () => {
     const f = parsePdfSheetFields(V2, "AAA66ABCD01_LICENSING SHEET.pdf");
     expect(f).toMatchObject({
-      layout: "v2", creative_designer: "ROBIN", technical_designer: "KIM", retailer: "SAMPLE STORE FW26",
-      product_type: "GREYBOARD STORAGE CHEST WITH MAGNETIC CLOSURE", product_size: 'W: 16”X H: 16" X D: 1”',
-      packaging_type: "CARDBOARD CORNERS AND STICKERS", materials: "190 GSM FABRIC",
+      layout: "v2",
+      creative_designer: "ROBIN",
+      technical_designer: "KIM",
+      retailer: "SAMPLE STORE FW26",
+      product_type: "GREYBOARD STORAGE CHEST WITH MAGNETIC CLOSURE",
+      product_size: 'W: 16”X H: 16" X D: 1”',
+      packaging_type: "CARDBOARD CORNERS AND STICKERS",
+      materials: "190 GSM FABRIC",
       files_used: ["CC100001", "CC100002", "AB_GE4_0029"],
     });
   });
