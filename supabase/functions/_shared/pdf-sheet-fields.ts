@@ -132,7 +132,8 @@ const looksLikeAssetCode = (t: string) => t.length >= 4 && /\d/.test(t) && !/\s/
 
 /** People's names: letters only, and never form text that sits near the heading. */
 const isPersonName = (v: string) =>
-  /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'\/&-]{1,60}$/.test(v) && !/\b(FACTORY|VIEW|PAGE|DETAILS|DIMENSIONS|PHOTO|PRODUCT|PACKAGING|SKU|TOP|BOTTOM|BODY|LID|FRONT|BACK|SIDE|INSIDE|OUTSIDE)\b/i.test(v);
+  /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'\/&-]{1,60}$/.test(v) &&
+  !/\b(FACTORY|VIEW|PAGE|DETAILS|DIMENSIONS|PHOTO|PRODUCT|PACKAGING|SKU|TOP|BOTTOM|BODY|LID|FRONT|BACK|SIDE|INSIDE|OUTSIDE)\b/i.test(v);
 const hasWord = (v: string) => /[A-Za-z]{2}/.test(v);
 const isPackagingValue = (v: string) => hasWord(v) && !/[©®™]|^Ages\b|popcreations|^PO#|^(LEGAL|UPC|THERE)\b/i.test(v);
 const ACCEPT: Partial<Record<V2Field, (v: string) => boolean>> = {
