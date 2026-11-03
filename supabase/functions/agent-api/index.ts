@@ -52,7 +52,8 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 import { sha256Hex, toHex } from "../_shared/crypto.ts";
-import { isPdfBackfillComplete } from "../_shared/pdf-backfill-state.ts";
+import { isPdfBackfillComplete, isPdfRescanMode, isPdfRescanQuietHour } from "../_shared/pdf-backfill-state.ts";
+import { parsePdfSheetFields } from "../_shared/pdf-sheet-fields.ts";
 import { assertPopSgPdfVisionLease, transcribePopSgPdfPage, validatePopSgPdfPage } from "../_shared/popsg-pdf-vision.ts";
 import {
   buildSgCrawlCompletionUpdate,
@@ -575,6 +576,7 @@ async function handleHeartbeat(
   // the bridge agent automatic and gap-free — the bridge keeps doing it until the Windows
   // agent has actually self-updated to a capable build.
   let windowsBackfillCapable = false;
+  let windowsRescanCapable = false;
   const versionGte = (v: string | undefined, target: [number, number, number]): boolean => {
     if (!v) return false;
     const p = v.split(".").map((n) => parseInt(n, 10));
@@ -595,6 +597,9 @@ async function handleHeartbeat(
       windowsHealthy = true;
       const vInfo = wMeta.version_info as Record<string, unknown> | undefined;
       if (versionGte(vInfo?.version as string | undefined, [0, 16, 0])) windowsBackfillCapable = true;
+      if (versionGte(vInfo?.version as string | undefined, [0, 17, 0]) && (wMeta.ocr_indra as Record<string, unknown> | undefined)?.state === "ready") {
+        windowsRescanCapable = true;
+      }
     }
   }
 
@@ -830,6 +835,8 @@ async function handleHeartbeat(
       trigger_pdf_backfill: (() => {
         const bf = configMap.PDF_BACKFILL as Record<string, unknown> | undefined;
         if (bf?.status !== "running") return false;
+        // The rescan needs the Windows build that OCRs with Indra only; it never moves to the bridge.
+        if (isPdfRescanMode(bf)) return agentType === "windows-render" && windowsRescanCapable;
         // Prefer the Windows agent once it's actually capable; otherwise the bridge keeps it.
         const target = windowsBackfillCapable ? "windows-render" : "bridge";
         return agentType === target;
@@ -3816,6 +3823,25 @@ async function handleClaimPdfBackfillBatch() {
     return json({ ok: true, assets: [], remaining: 0, total: bf.total ?? 0, status: (bf.status as string) ?? "idle" });
   }
 
+  if (isPdfRescanMode(bf)) {
+    // Throttle: the nightly grouping job runs at 1:00 AM New York time. The agent's
+    // loop exits on a non-running status and the next heartbeat tries again.
+    if (isPdfRescanQuietHour(new Date())) {
+      return json({ ok: true, assets: [], remaining: 0, total: bf.total ?? 0, status: "quiet_hours", mode: "indra_rescan" });
+    }
+    const processed = Number(bf.processed ?? 0);
+    const stopAfter = Number(bf.stop_after ?? 0);
+    if (stopAfter > 0 && processed >= stopAfter) {
+      return json({ ok: true, assets: [], remaining: 0, total: bf.total ?? 0, status: "stop_after_reached", mode: "indra_rescan" });
+    }
+    const limit = stopAfter > 0 ? Math.min(10, stopAfter - processed) : 10;
+    const { data: claimed, error: rescanErr } = await db.rpc("claim_pdf_rescan_batch", { p_limit: limit });
+    if (rescanErr) return err(`claim_pdf_rescan_batch failed: ${rescanErr.message}`, 500);
+    const { data: left, error: leftErr } = await db.rpc("count_pdf_rescan_remaining");
+    if (leftErr) return err(`count_pdf_rescan_remaining failed: ${leftErr.message}`, 500);
+    return json({ ok: true, assets: claimed ?? [], remaining: (left as number) ?? 0, total: bf.total ?? 0, status: "running", mode: "indra_rescan" });
+  }
+
   // Fetch next batch of PDFs not yet in pdf_text_samples.
   // Surface RPC errors as 5xx so the agent retries (and logs a real reason) instead of
   // receiving an ok:true response with empty/garbage data — the latter previously crashed
@@ -3848,6 +3874,12 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const results = (body.results as Record<string, unknown>[]) || [];
   if (results.length === 0) return json({ ok: true, remaining: 0 });
 
+  if (body.mode === "indra_rescan") {
+    const { data: cfg } = await db.from("admin_config").select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+    if (!isPdfRescanMode(cfg?.value as Record<string, unknown> | null)) return err("PDF rescan is not the active mode", 409);
+    return completePdfRescanBatch(db, results);
+  }
+
   let filesUsedAdded = 0;
 
   // 1. Insert into pdf_text_samples (skip assets already there)
@@ -3862,6 +3894,7 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     extraction_error: (r.extraction_error as string) || null,
     thumbnail_url: (r.sample_thumbnail_url as string) || null,
     sampled_at: new Date().toISOString(),
+    ocr_engine: (r.ocr_engine as string) || null,
   }));
   // Use the same bounded bulk path as the PDF sampler. A direct REST upsert
   // fires the expensive per-row FILES USED parser and can exceed the normal
@@ -3955,6 +3988,57 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   if (bfCfgErr) return err(`PDF_BACKFILL progress update failed: ${bfCfgErr.message}`, 500);
 
   console.log(`[complete-pdf-backfill-batch] committed ${results.length} results, remaining=${remaining}`);
+  return json({ ok: true, remaining });
+}
+
+// Backup, the keep-good-text guard and the designer/files-used writes are one
+// transaction in commit_pdf_rescan_batch.
+async function completePdfRescanBatch(db: ReturnType<typeof serviceClient>, results: Record<string, unknown>[]) {
+  const rows = results.map((r) => {
+    const text = (r.extracted_text as string) || "";
+    return {
+      asset_id: r.asset_id,
+      filename: r.filename,
+      relative_path: r.relative_path,
+      extracted_text: text || null,
+      page_count: r.page_count ?? null,
+      thumbnail_url: r.sample_thumbnail_url ?? null,
+      error: r.extraction_error ?? null,
+      fields: text ? parsePdfSheetFields(text, r.filename as string) : null,
+    };
+  });
+  const { data: committed, error: commitErr } = await db.rpc("commit_pdf_rescan_batch", { p_rows: rows });
+  if (commitErr) return err(`commit_pdf_rescan_batch failed: ${commitErr.message}`, 500);
+  const stats = (committed ?? {}) as Record<string, number>;
+
+  const thumbs = results.filter((r) => r.asset_thumbnail_url && r.asset_id);
+  const thumbResults = await Promise.all(thumbs.map((r) =>
+    db.from("assets")
+      .update({ thumbnail_url: r.asset_thumbnail_url as string, thumbnail_error: null })
+      .eq("id", r.asset_id as string)
+      .is("thumbnail_url", null)
+  ));
+  const thumbErr = thumbResults.find((res) => res.error)?.error;
+  if (thumbErr) return err(`assets thumbnail update failed: ${thumbErr.message}`, 500);
+
+  // An unreadable count must not read as zero, which would end the run as completed.
+  const { data: left, error: leftErr } = await db.rpc("count_pdf_rescan_remaining");
+  if (leftErr || left == null) return err(`count_pdf_rescan_remaining failed: ${leftErr?.message ?? "no result"}`, 500);
+  const remaining = left as number;
+  const nowIso = new Date().toISOString();
+  const bfSet: Record<string, unknown> = { last_batch_at: nowIso, remaining };
+  if (isPdfBackfillComplete(remaining)) {
+    bfSet.status = "completed";
+    bfSet.completed_at = nowIso;
+    bfSet.live_current_file = null;
+    bfSet.live_current_step = "completed";
+  }
+  const { error: cfgErr } = await db.rpc("admin_config_apply_counters", {
+    p_key: "PDF_BACKFILL",
+    p_increments: { processed: rows.length, files_used_added: stats.files_used_added ?? 0, stats },
+    p_set: bfSet,
+  });
+  if (cfgErr) return err(`PDF_BACKFILL progress update failed: ${cfgErr.message}`, 500);
   return json({ ok: true, remaining });
 }
 
@@ -4152,6 +4236,7 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     char_count: (r.char_count as number) || 0,
     extraction_error: (r.extraction_error as string) || null,
     thumbnail_url: (r.thumbnail_url as string) || null,
+    ocr_engine: (r.ocr_engine as string) || null,
   }));
 
   // Use the bulk RPC which bypasses the per-row trigger, then calls

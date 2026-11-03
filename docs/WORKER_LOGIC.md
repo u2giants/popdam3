@@ -263,6 +263,18 @@ All results are sent to the edge function in a single call to `bulk_insert_pdf_t
 | `failed` | Cascade exhausted; 0 chars found |
 | `skipped` | File > 100 MB size limit |
 
+`pdf_text_samples.ocr_engine` records who produced the text: `indra`, `tesseract`, `ai_vision` or `embedded`. NULL means the row predates the column.
+
+### Indra rescan (`PDF_BACKFILL.mode = "indra_rescan"`)
+
+The full-library loop re-OCRs every non-deleted PDF, licensing sheets and tech packs first, on the Windows agent only (build 0.17.0 or newer with Indra ready; never the bridge).
+
+- Up to 12 pages per file go through Indra at 2x, grayscale. There is no other engine in this mode. Indra missing stops the loop; a whole failed batch stops it without committing.
+- `agent-api` parses fields with `_shared/pdf-sheet-fields.ts` into `pdf_text_samples.extracted_fields`, then `commit_pdf_rescan_batch` runs as one transaction: first-seen row copied to `pdf_text_samples_backup`; text replaced unless OCR is empty or under 100 characters against 100 or more stored; `assets.designer_name` and `technical_designer_name` filled only when blank; `sku_files_used` added from sheets.
+- Outcome per file is in `indra_rescan_outcome` (`replaced`, `kept_existing`, `failed`), with the error in `indra_rescan_error`. Rerun failures by clearing `indra_rescan_at` on those rows.
+- Throttle: 2 seconds between batches of 10, no claims from 12:30 to 3:00 AM New York time. `stop_after` in the config limits a trial run.
+- Pause: the Pause button on Settings → PDF backfill, or set `PDF_BACKFILL.status = "paused"`. The current batch finishes first. Starting a normal backfill from the button clears the mode.
+
 ---
 
 ## 9) Golden Rule: File Date Preservation (Non-Negotiable)

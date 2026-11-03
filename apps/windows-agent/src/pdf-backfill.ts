@@ -18,7 +18,7 @@ import { logger } from "./logger";
 import * as api from "./api-client";
 import { uploadPdfPage, uploadThumbnail } from "./uploader";
 import { type AiConfig, callAiVision } from "./pdf-text-sampler";
-import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
+import { indraPython, ocrPngWithIndra, ocrPngsWithIndra } from "./common/indra-ocr.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
@@ -145,7 +145,7 @@ export async function processOne(
   if (rawText.length >= 100) {
     return {
       ...base,
-      extraction_method: "pdf_text",
+      extraction_method: "pdf_text", ocr_engine: "embedded",
       extracted_text: rawText,
       page_count: numPages,
       char_count: rawText.length,
@@ -157,6 +157,7 @@ export async function processOne(
 
   // Step 3: OCR via Indra (tesseract.js only where Indra is not installed)
   let ocrText = "";
+  let ocrEngine: "indra" | "tesseract" = "indra";
   if (pngBuffer) {
     const indra = indraPython();
     let indraFailed = false;
@@ -178,6 +179,7 @@ export async function processOne(
         const result = await worker.recognize(pngBuffer);
         await worker.terminate();
         ocrText = (result.data.text as string).trim();
+        ocrEngine = "tesseract";
       } catch (e) {
         extractionErrors.push(`ocr: ${(e as Error).message}`);
         logger.warn("PDF backfill: OCR failed", { filename: asset.filename, error: (e as Error).message });
@@ -188,7 +190,7 @@ export async function processOne(
   if (ocrText.length >= 100) {
     return {
       ...base,
-      extraction_method: "ocr_text",
+      extraction_method: "ocr_text", ocr_engine: ocrEngine,
       extracted_text: ocrText,
       page_count: numPages,
       char_count: ocrText.length,
@@ -213,7 +215,7 @@ export async function processOne(
   if (aiText.length > 0) {
     return {
       ...base,
-      extraction_method: "ai_vision",
+      extraction_method: "ai_vision", ocr_engine: "ai_vision",
       extracted_text: aiText,
       page_count: numPages,
       char_count: aiText.length,
@@ -229,7 +231,7 @@ export async function processOne(
 
   return {
     ...base,
-    extraction_method: method,
+    extraction_method: method, ocr_engine: ocrText.length > 0 ? ocrEngine : "embedded",
     extracted_text: finalCount > 0 ? finalText : null,
     page_count: numPages,
     char_count: finalCount,
@@ -237,6 +239,73 @@ export async function processOne(
     sample_thumbnail_url: sampleThumbnailUrl,
     asset_thumbnail_url: assetThumbnailUrl,
   };
+}
+
+// ── Indra rescan of one PDF ───────────────────────────────────────────────────
+
+const RESCAN_MAX_PAGES = 12;
+const RESCAN_MAX_RENDER_PX = 4000;
+const RESCAN_BATCH_PAUSE_MS = 2_000;
+
+/**
+ * Every page goes through Indra at 2x, with no other engine: a failure comes back as
+ * extraction_error with no text, and the server keeps the stored text.
+ */
+export async function processOneForRescan(
+  asset: api.BackfillAsset,
+  fullPath: string,
+  indra: string,
+): Promise<api.BackfillResult> {
+  const base = {
+    asset_id: asset.id,
+    filename: asset.filename,
+    relative_path: asset.relative_path,
+    extraction_method: "ocr_text",
+    ocr_engine: "indra",
+    sample_thumbnail_url: null,
+    asset_thumbnail_url: null as string | null,
+  };
+  const fileStat = await stat(fullPath);
+  if (fileStat.size > PDF_SIZE_LIMIT_BYTES) {
+    return { ...base, extracted_text: null, page_count: null, char_count: 0, extraction_error: "file_over_100mb" };
+  }
+
+  const mupdf = await dynamicImport("mupdf");
+  const doc = mupdf.Document.openDocument(await readFile(fullPath), "application/pdf");
+  let numPages = 0;
+  const pngs: Buffer[] = [];
+  try {
+    numPages = doc.countPages();
+    for (let p = 0; p < Math.min(numPages, RESCAN_MAX_PAGES); p++) {
+      const page = doc.loadPage(p);
+      const [x0, y0, x1, y1] = page.getBounds() as number[];
+      const scale = Math.min(2, RESCAN_MAX_RENDER_PX / Math.max(x1 - x0, y1 - y0, 1));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pixmap = page.toPixmap([scale, 0, 0, scale, 0, 0] as any, mupdf.ColorSpace.DeviceRGB, false);
+      pngs.push(Buffer.from(pixmap.asPNG() as Uint8Array));
+      pixmap.destroy?.();
+      page.destroy?.();
+    }
+  } finally {
+    doc.destroy?.();
+  }
+
+  if (asset.needs_thumbnail && pngs[0]) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sharpLib: any = await dynamicImport("sharp").catch(() => null);
+      const sharp = sharpLib?.default ?? sharpLib;
+      if (sharp) {
+        const jpeg = await sharp(pngs[0]).resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+        base.asset_thumbnail_url = await uploadThumbnail(asset.id, jpeg);
+      }
+    } catch (e) {
+      logger.warn("PDF rescan: thumbnail failed (non-fatal)", { filename: asset.filename, error: (e as Error).message });
+    }
+  }
+
+  const text = (await ocrPngsWithIndra(indra, pngs)).join("\n").trim();
+  return { ...base, extracted_text: text || null, page_count: numPages, char_count: text.length, extraction_error: null };
 }
 
 // ── Main backfill loop ────────────────────────────────────────────────────────
@@ -264,14 +333,26 @@ export async function runPdfBackfill(mountRoot: string, aiConfig: AiConfig): Pro
       break;
     }
 
-    logger.info("PDF backfill: batch claimed", { count: batch.assets.length, remaining: batch.remaining });
+    logger.info("PDF backfill: batch claimed", { count: batch.assets.length, remaining: batch.remaining, mode: batch.mode ?? "backfill" });
+
+    // The rescan is Indra or nothing. Without Indra stop without touching any row.
+    const isRescan = batch.mode === "indra_rescan";
+    const indra = indraPython();
+    if (isRescan && !indra) {
+      logger.error("PDF rescan: Indra is not available — stopping");
+      await api.reportPdfBackfillProgress(totalProcessed, batch.total, null, "indra_unavailable");
+      break;
+    }
 
     const results: api.BackfillResult[] = [];
     for (let i = 0; i < batch.assets.length; i++) {
       const asset = batch.assets[i];
       await api.reportPdfBackfillProgress(totalProcessed + i, batch.total, asset.filename, "processing");
       try {
-        const result = await processOne(asset, resolveUnderRoot(mountRoot, asset.relative_path), aiConfig);
+        const fullPath = resolveUnderRoot(mountRoot, asset.relative_path);
+        const result = isRescan
+          ? await processOneForRescan(asset, fullPath, indra as string)
+          : await processOne(asset, fullPath, aiConfig);
         results.push(result);
         logger.info("PDF backfill: file done", { filename: asset.filename, method: result.extraction_method, chars: result.char_count });
       } catch (e) {
@@ -292,8 +373,16 @@ export async function runPdfBackfill(mountRoot: string, aiConfig: AiConfig): Pro
       }
     }
 
+    // A whole batch failing means the share or Indra is down, not ten bad files.
+    // Commit nothing, so those files stay in the queue.
+    if (isRescan && results.length > 1 && results.every((r) => r.extraction_error)) {
+      logger.error("PDF rescan: every file in the batch failed — stopping without commit", { firstError: results[0].extraction_error });
+      await api.reportPdfBackfillProgress(totalProcessed, batch.total, null, "batch_failed");
+      break;
+    }
+
     try {
-      const { remaining } = await api.completePdfBackfillBatch(results);
+      const { remaining } = await api.completePdfBackfillBatch(results, batch.mode);
       totalProcessed += results.length;
       await api.reportPdfBackfillProgress(totalProcessed, batch.total, null, "idle");
       logger.info("PDF backfill: batch committed", { totalProcessed, remaining });
@@ -301,6 +390,7 @@ export async function runPdfBackfill(mountRoot: string, aiConfig: AiConfig): Pro
         logger.info("PDF backfill: all files processed", { totalProcessed });
         break;
       }
+      if (isRescan) await new Promise((resolve) => setTimeout(resolve, RESCAN_BATCH_PAUSE_MS));
     } catch (e) {
       logger.error("PDF backfill: commit failed — stopping (will retry on next heartbeat)", { error: (e as Error).message });
       break;
