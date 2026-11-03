@@ -1,6 +1,7 @@
 import contextlib
 import io
 import os
+import re
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -181,6 +182,63 @@ class TriggerReactsToFailures(unittest.TestCase):
         self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", text)
         self.assertIn("github.event.workflow_run.conclusion == 'success'", text)
         self.assertIn("github.event.workflow_run.conclusion == 'failure'", text)
+
+
+class MigrationsWorkflowPokesTheTrigger(unittest.TestCase):
+    """GitHub never delivers workflow_run events for completions of runs the
+    GITHUB_TOKEN dispatched -- how every selector-dispatched preview, recovery
+    and production apply starts (verified 2026-11-03). The migrations workflow
+    must therefore emit one production-queue nudge after every dispatched run
+    (#5532), or the queue idles until the hourly schedule or a merge whatever
+    the trigger's job filter says. The lane must also keep its distance from the
+    queue-selection automation: check-main-tip-freshness classifies those files
+    production-inert and forbids this workflow from naming them."""
+
+    FORBIDDEN_STEMS = (
+        "automatic-production-trigger",
+        "automatic_promotion_candidates",
+        "designflow-sandbox-migrations",
+        "sandbox-migration-binding",
+        "sandbox_migration_preflight",
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".github", "workflows", "shared-supabase-migrations.yml"), encoding="utf-8") as fh:
+            cls.text = fh.read()
+        with open(os.path.join(root, ".github", "workflows", "automatic-production-trigger.yml"), encoding="utf-8") as fh:
+            cls.trigger = fh.read()
+
+    def notify_body(self):
+        parts = self.text.split("\n  notify-production-queue:", 1)
+        self.assertEqual(len(parts), 2, "the migrations workflow must carry the notify job")
+        return parts[1]
+
+    def test_dispatch_runs_nudge_the_queue_when_they_finish(self):
+        body = self.notify_body()
+        self.assertIn("if: always() && github.event_name == 'workflow_dispatch'", body)
+        self.assertIn("-f event_type=production-queue-nudge", body)
+        # Never poison the reported run's conclusion: a red run that actually
+        # applied would burn automatic attempts and retry an applied batch.
+        self.assertIn("continue-on-error: true", body)
+
+    def test_the_trigger_listens_for_the_nudge(self):
+        self.assertIn("repository_dispatch:", self.trigger)
+        self.assertIn("production-queue-nudge", self.trigger)
+
+    def test_the_production_lane_names_no_production_inert_automation(self):
+        for stem in self.FORBIDDEN_STEMS:
+            self.assertNotIn(stem, self.text, f"the production lane names {stem}")
+
+    def test_the_notify_waits_for_every_job(self):
+        body = self.notify_body()
+        match = re.search(r"needs: \[([^\]]+)\]", body)
+        self.assertIsNotNone(match, "the notify job must declare needs")
+        needed = {name.strip() for name in match.group(1).split(",")}
+        job_ids = set(re.findall(r"(?m)^  ([a-z][a-z0-9-]+):$", self.text))
+        self.assertIn("notify-production-queue", job_ids)
+        self.assertEqual(job_ids - {"notify-production-queue"}, needed)
 
 
 class WorkflowRunsWindow(unittest.TestCase):
