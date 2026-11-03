@@ -45,6 +45,7 @@ from production_catalog_verification import (  # noqa: E402
     parse_dynamic_acl,
     load_behavior_sidecars,
     mark_superseded_contract_checks,
+    normalize_function_acl_signature,
     render_report,
     split_statements,
     verify,
@@ -1169,6 +1170,144 @@ class PrivilegeDerivationTests(unittest.TestCase):
     def test_objtype_array_refuses_an_unknown_code(self):
         with self.assertRaises(GuardError):
             _objtype_array(["r; drop table x"])
+
+
+class MultilineGrantStatementTests(unittest.TestCase):
+    """Issue #5514: a GRANT whose routine list spans lines must derive targets.
+
+    Production apply run 41545991868 (migration `20261102202014`) applied green
+    and the post-apply catalog verification failed ONLY because the lexer could
+    not cross a newline inside one statement, derived nothing, and enforcing
+    mode refused to report evidence it never gathered. These tests pin the exact
+    statement shape from that migration plus the edges around it; anything the
+    lexer still cannot read keeps refusing (fail-closed is unchanged).
+    """
+
+    # Verbatim object-list shape of 20261102202014 (types as written in the
+    # migration, including the schema-qualified extensions.vector).
+    WORKER_GRANT_SQL = (
+        "grant execute on function public.claim_dam_search_embedding_documents(integer, text, integer),\n"
+        "                      public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text),\n"
+        "                      public.mark_dam_search_embedding_error(text, uuid, text, uuid, text, text),\n"
+        "                      public.get_dam_search_embedding_status()\n"
+        "  to dam_image_embed_worker;\n"
+    )
+
+    def test_the_20261102202014_statement_derives_all_four_routines(self):
+        t = targets_for(self.WORKER_GRANT_SQL)
+        self.assertEqual(
+            t.functions,
+            [
+                "public.claim_dam_search_embedding_documents",
+                "public.get_dam_search_embedding_status",
+                "public.mark_dam_search_embedding_error",
+                "public.upsert_dam_search_embedding",
+            ],
+        )
+        self.assertFalse(t.is_empty())
+        self.assertEqual(
+            {(e.target, e.function_signature) for e in t.privileges},
+            {
+                ("public.claim_dam_search_embedding_documents",
+                 "public.claim_dam_search_embedding_documents(integer, text, integer)"),
+                ("public.upsert_dam_search_embedding",
+                 "public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text)"),
+                ("public.mark_dam_search_embedding_error",
+                 "public.mark_dam_search_embedding_error(text, uuid, text, uuid, text, text)"),
+                ("public.get_dam_search_embedding_status",
+                 "public.get_dam_search_embedding_status()"),
+            },
+        )
+        for e in t.privileges:
+            self.assertEqual((e.kind, e.grantee, e.privileges, e.expect_held),
+                             ("function", "dam_image_embed_worker", ("EXECUTE",), True))
+        self.assertFalse([n for n in t.notes if "unparseable" in n or "unreadable" in n])
+
+    def test_multiline_and_collapsed_forms_derive_identically(self):
+        collapsed = targets_for(" ".join(self.WORKER_GRANT_SQL.split()))
+        spread = targets_for(self.WORKER_GRANT_SQL)
+        self.assertEqual(spread.functions, collapsed.functions)
+        self.assertEqual(spread.tables, collapsed.tables)
+        self.assertEqual(spread.roles, collapsed.roles)
+        self.assertEqual(
+            sorted(e.key for e in spread.privileges),
+            sorted(e.key for e in collapsed.privileges),
+        )
+
+    def test_single_line_multi_function_grant_is_unchanged(self):
+        t = targets_for(
+            "grant execute on function plm.f(bigint), plm.g(text) to anon;"
+        )
+        self.assertEqual(t.functions, ["plm.f", "plm.g"])
+        self.assertEqual(
+            sorted((e.target, e.grantee) for e in t.privileges),
+            [("plm.f", "anon"), ("plm.g", "anon")],
+        )
+
+    def test_multiline_revoke_over_routine_list_is_derived(self):
+        t = targets_for(
+            "revoke all on function plm.f(bigint),\n"
+            "                      plm.g(text)\n"
+            "  from anon, authenticated;"
+        )
+        self.assertEqual(t.functions, ["plm.f", "plm.g"])
+        self.assertEqual({e.grantee for e in t.privileges}, {"anon", "authenticated"})
+        self.assertTrue(all(not e.expect_held for e in t.privileges))
+
+    def test_routine_argument_list_wrapped_across_lines_is_derived(self):
+        t = targets_for(
+            "grant execute on function plm.load_pmt_capture_chunk(bigint,\n"
+            "                                                jsonb)\n"
+            "  to service_role;"
+        )
+        self.assertEqual(t.functions, ["plm.load_pmt_capture_chunk"])
+        # The expectation keeps the literal argument text; the catalog SQL
+        # round-trips it through normalize_function_acl_signature before
+        # to_regprocedure, so the wrapped form must normalize cleanly.
+        normalized, unassertable = normalize_function_acl_signature(
+            t.privileges[0].function_signature
+        )
+        self.assertIsNone(unassertable)
+        self.assertEqual(normalized, "plm.load_pmt_capture_chunk(bigint,jsonb)")
+
+    def test_multiline_relation_grant_is_derived(self):
+        t = targets_for(
+            "grant select, update on plm.widget,\n"
+            "                    plm.widget_part\n"
+            "  to authenticated;"
+        )
+        self.assertEqual(sorted(t.tables), ["plm.widget", "plm.widget_part"])
+        self.assertEqual(
+            sorted((e.target, e.grantee, e.privileges) for e in t.privileges),
+            [
+                ("plm.widget", "authenticated", ("SELECT", "UPDATE")),
+                ("plm.widget_part", "authenticated", ("SELECT", "UPDATE")),
+            ],
+        )
+
+    def test_multiline_alter_default_privileges_is_derived(self):
+        t = targets_for(
+            "alter default privileges for role postgres in schema plm\n"
+            "  revoke truncate on tables\n"
+            "  from service_role;"
+        )
+        self.assertEqual(t.default_acls, [("plm", "postgres", "r")])
+        self.assertTrue(t.privileges)
+        self.assertTrue(all(not e.expect_held for e in t.privileges))
+
+    def test_quoted_identifier_grant_still_refuses(self):
+        # Fail-closed is untouched: a quoted or mixed-case identifier stays
+        # outside this lexer and must keep refusing, never silently pass.
+        t = targets_for(
+            'grant execute on function public."Odd Name"(int)\n  to worker;'
+        )
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("unparseable" in n or "unreadable" in n for n in t.notes))
+
+    def test_column_level_privileges_still_refuse_across_lines(self):
+        t = targets_for("grant select (a, b) on plm.widget\n  to anon;")
+        self.assertEqual(t.privileges, [])
+        self.assertTrue(any("column-level" in n for n in t.notes))
 
 
 class PrivilegeAssertionTests(unittest.TestCase):

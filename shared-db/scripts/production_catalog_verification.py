@@ -314,15 +314,25 @@ GRANT_ROLES_RE = re.compile(r"\b(?:to|from)\s+([a-z0-9_,\s]+?)(?:\bwith\b|$)")
 ALTER_DEFAULT_PRIVILEGES_RE = re.compile(r"^\s*alter\s+default\s+privileges\b")
 ADP_FOR_ROLE_RE = re.compile(r"\bfor\s+(?:role|user)\s+([a-z0-9_,\s]+?)\s+(?=in\s+schema\b|grant\b|revoke\b)")
 ADP_IN_SCHEMA_RE = re.compile(r"\bin\s+schema\s+([a-z0-9_,\s]+?)\s+(?=grant\b|revoke\b)")
+# Issue #5514: statements are already `;`-split with comments, string literals
+# and dollar-quoted bodies stripped (see strip_sql/split_statements), so a
+# newline inside one statement is ordinary whitespace -- a grant whose routine
+# list spans lines is the canonical migration shape (20261102202014). `re.DOTALL`
+# lets the lazy groups cross those newlines; it changes nothing for single-line
+# statements, and anything still unmatched keeps refusing loudly as before.
 ADP_ACTION_RE = re.compile(
     r"\b(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(.*?)\s+on\s+"
-    r"(tables|sequences|functions|routines|types|schemas)\b\s+(to|from)\s+(.*)$"
+    r"(tables|sequences|functions|routines|types|schemas)\b\s+(to|from)\s+(.*)$",
+    re.DOTALL,
 )
 # A whole GRANT/REVOKE statement, split into privileges / object list / roles.
 GRANT_STATEMENT_RE = re.compile(
-    r"^\s*(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(.*?)\s+on\s+(.*?)\s+(to|from)\s+(.*)$"
+    r"^\s*(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(.*?)\s+on\s+(.*?)\s+(to|from)\s+(.*)$",
+    re.DOTALL,
 )
-ROUTINE_OBJECT_RE = re.compile(r"^\s*(?:function|procedure|routine)\s+(.*)$")
+ROUTINE_OBJECT_RE = re.compile(
+    r"^\s*(?:function|procedure|routine)\s+(.*)$", re.DOTALL
+)
 PLAIN_OBJECT_RE = re.compile(rf"^\s*(?:table\s+|view\s+)?{QUALIFIED}\s*$")
 
 # `alter default privileges ... on <what>` -> the pg_default_acl `defaclobjtype`
@@ -2518,7 +2528,10 @@ def normalize_function_acl_signature(signature: str) -> tuple[str | None, str | 
     unassertable, never mapped to another overload or represented as a success.
     A supported exact signature that resolves to no routine remains a hard FAIL.
     """
-    match = re.fullmatch(rf"\s*{QUALIFIED}\s*\((.*)\)\s*", signature)
+    # `(?s)` (issue #5514): a routine signature wrapped across lines carries the
+    # same meaning as the collapsed form, and the argument loop below already
+    # whitespace-normalizes each type.
+    match = re.fullmatch(rf"(?s)\s*{QUALIFIED}\s*\((.*)\)\s*", signature)
     if not match: return None, "routine signature syntax is outside the conservative type lexer"
     arguments = match.group(3)
     builtin = set("bigint int8 bigserial serial8 bit bool boolean bytea char character cidr date decimal float float4 float8 double inet int int2 int4 integer interval json jsonb macaddr macaddr8 money name numeric oid real record regclass regcollation regconfig regdictionary regnamespace regoper regoperator regproc regprocedure regrole regtype serial serial2 serial4 smallint smallserial text time timestamp timestamptz timetz tsquery tsvector uuid varchar varbit void xml anyelement anyarray anynonarray anyenum anyrange anymultirange anycompatible anycompatiblearray anycompatiblenonarray anycompatiblerange anycompatiblemultirange".split())
@@ -2580,7 +2593,7 @@ def parse_grant_statement(
 
     routine_match = ROUTINE_OBJECT_RE.match(objects)
     if routine_match:
-        routine_rows = [re.fullmatch(rf"\s*{QUALIFIED}\s*(\(.*\))?\s*", part) for part in split_routine_acl_targets(routine_match.group(1))]
+        routine_rows = [re.fullmatch(rf"(?s)\s*{QUALIFIED}\s*(\(.*\))?\s*", part) for part in split_routine_acl_targets(routine_match.group(1))]
         if not routine_rows or any(row is None for row in routine_rows):
             return [], set(), set(), notes + ["unreadable routine target list: `" + statement.strip() + "`"]
         # Preserve each literal argument list. PostgreSQL resolves type aliases
