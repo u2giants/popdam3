@@ -101,6 +101,24 @@ describe("parsePdfSheetFields", () => {
     expect(f.files_used).toEqual([]);
   });
 
+  it("rejects form text sitting where a value belongs", () => {
+    const f = parsePdfSheetFields(
+      "CREATIVE DESIGNER\nFACTORY: SEE PAGE 2 FOR CONSTRUCTION DETAILS\nTECHNICAL DESIGNER\n12\n())\nRETAILER\n10\nPRODUCT TYPE\nCANVAS\nPACKAGING TYPE\n©Acme\nAges 4+\nASSET/STYLE GUIDE\nASSETS: AB_0010.ai\nProp 65 Label\n7pt type\n5Warnings.ca.gov",
+      "x.pdf",
+    );
+    expect(f.creative_designer).toBeNull();
+    expect(f.technical_designer).toBeNull();
+    expect(f.retailer).toBeNull();
+    expect(f.packaging_type).toBeNull();
+    expect(f.files_used).toEqual(["AB_0010.ai"]);
+  });
+
+  it("treats tick-box labels after Description as blank", () => {
+    for (const label of ["_] New Submission", "Packaging", "_) Packaging"]) {
+      expect(parsePdfSheetFields(`Designer: X Y\nDescription\n${label}`, "x.pdf").description).toBeNull();
+    }
+  });
+
   it("rejects a text SKU that is not SKU-shaped", () => {
     const f = parsePdfSheetFields("Designer: X\nStyle#/SKU: N/A", "x.pdf");
     expect(f.sku).toBeNull();
