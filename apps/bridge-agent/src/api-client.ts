@@ -246,6 +246,7 @@ export interface IngestPayload {
 export interface IngestResult {
   action: "created" | "updated" | "moved" | "noop" | "rejected_subfolder" | "skipped";
   asset_id: string;
+  stale_candidates?: Array<{ id: string; relative_path: string }>;
   licensing?: {
     unresolved_licensor: boolean;
     unresolved_property: boolean;
@@ -259,7 +260,17 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
     action: data.action as IngestResult["action"],
     asset_id: data.asset_id as string,
     licensing: data.licensing as IngestResult["licensing"],
+    stale_candidates: data.stale_candidates as IngestResult["stale_candidates"],
   };
+}
+
+export async function retireStaleAsset(assetId: string, survivingAssetId: string, confirmedAbsentPath: string): Promise<{ retired: boolean; reason?: string }> {
+  const data = await callApi("retire-stale-asset", {
+    asset_id: assetId,
+    surviving_asset_id: survivingAssetId,
+    confirmed_absent_path: confirmedAbsentPath,
+  });
+  return { retired: data.retired as boolean, reason: data.reason as string | undefined };
 }
 
 export async function scanProgress(

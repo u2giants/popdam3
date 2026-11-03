@@ -12,6 +12,7 @@
  * Per PROJECT_BIBLE: outbound HTTPS only, no inbound networking.
  */
 
+import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
@@ -1279,6 +1280,15 @@ async function processFile(file: FileCandidate) {
       pdf_page2_url: thumb.pdfPage2Url,
       skip_move_detection: skipMoveDetection,
     }));
+
+    if (result.stale_candidates?.length) {
+      const mountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
+      await retireConfirmedStaleRecords(result.stale_candidates, result.asset_id, file.absolutePath, mountRoot, {
+        stat,
+        retire: api.retireStaleAsset,
+        warn: (message, details) => logger.warn(message, details),
+      });
+    }
 
     // Update counters based on API response
     switch (result.action) {
