@@ -320,5 +320,56 @@ class EarlierPreviewApply(unittest.TestCase):
         self.assertEqual(m.earlier_preview_apply(pr, runs + [held], lambda r: r["id"] == 2), 2)
 
 
+class AlreadyInProduction(unittest.TestCase):
+    pr = {"number": 5494, "merged_at": "2026-11-02T21:11:27Z", "versions": ["20261102202014"]}
+    pair = {"number": 8, "merged_at": "2026-11-02T21:11:27Z", "versions": ["20261102202014", "20261102202015"]}
+
+    @staticmethod
+    def run_(conclusion, pr, versions, run_id=1):
+        return {"id": run_id, "display_title": f"DB production apply abc PR{pr} {versions}", "status": "completed",
+                "conclusion": conclusion, "created_at": "2026-11-03T00:00:00Z"}
+
+    def test_another_prs_successful_run_counts(self):
+        runs = [self.run_("success", 5511, "20261102202014")]
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [])[0], "idle")
+
+    def test_refusal_as_already_applied_counts(self):
+        runs = [self.run_("failure", 5494, "20261102202014")]
+        action = m.decide([self.pr], runs, lambda n: [], refused=lambda r: {"20261102202014"})[0]
+        self.assertEqual(action, "idle")
+
+    def test_any_other_production_failure_still_retries(self):
+        runs = [self.run_("failure", 5494, "20261102202014")]
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [])[0], "dispatch")
+
+    def test_partial_coverage_still_dispatches(self):
+        runs = [self.run_("success", 5511, "20261102202014")]
+        self.assertEqual(m.decide([self.pair], runs, lambda n: [])[0], "dispatch")
+
+    def test_coverage_may_span_several_runs(self):
+        runs = [self.run_("success", 1, "20261102202014"), self.run_("failure", 8, "20261102202015", 2)]
+        action = m.decide([self.pair], runs, lambda n: [], refused=lambda r: {"20261102202015"} if r["id"] == 2 else set())[0]
+        self.assertEqual(action, "idle")
+
+    def test_failed_run_of_another_pr_does_not_count(self):
+        runs = [self.run_("failure", 5511, "20261102202014")]
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [])[0], "dispatch")
+
+    def test_preview_success_does_not_count(self):
+        runs = [{"display_title": "DB preview apply abc PR5494 20261102202014", "status": "completed",
+                 "conclusion": "success", "created_at": "2026-11-03T00:00:00Z"}]
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [])[0], "dispatch")
+
+    def test_refusal_line_is_read_only_from_the_guard_output(self):
+        log = ("review\tpreflight\t2026-11-03T06:08:44.2Z BLOCKED: already applied on production: 20261102202014, 20261102202015\r\n"
+               "2026-11-03T06:08:44.3Z BLOCKED: already applied on preview: 20261102202016\n"
+               "2026-11-03T06:08:44.4Z echo BLOCKED: already applied on production: 20261102202017\n")
+        self.assertEqual(m.refused_versions(log), {"20261102202014", "20261102202015"})
+
+    def test_unreadable_log_counts_as_not_applied(self):
+        with mock.patch.object(m, "run_jobs", side_effect=ValueError("bad")), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(m.refused_as_applied("o/r", {"id": 1}), set())
+
+
 if __name__ == "__main__":
     unittest.main()

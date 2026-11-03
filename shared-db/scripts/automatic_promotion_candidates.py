@@ -134,6 +134,33 @@ def preview_job_succeeded_in_any_attempt(repo: str, run: dict[str, Any]) -> bool
                for jobs in attempt_jobs(repo, run))
 
 
+# The production guard reads the real ledger and prints this when a version is
+# already there. It is the only ledger evidence the selector can see: this job
+# holds no database credential (observed 2026-11-03: PR #5494 reached production
+# under no run titled with its version, and was re-picked on every new main commit).
+PREFLIGHT_STEP = "Hard guard preflight"
+REFUSED_RE = re.compile(r"(?:^|\t)\S+ BLOCKED: already applied on production: (\d{14}(?:, \d{14})*)\r?$", re.M)
+
+
+def refused_versions(log: str) -> set[str]:
+    return {v for m in REFUSED_RE.finditer(log) for v in m.group(1).split(", ")}
+
+
+def refused_as_applied(repo: str, run: dict[str, Any]) -> set[str]:
+    """Versions this run's production preflight refused as already applied. An
+    unreadable log proves nothing: the PR is retried and the guard refuses again."""
+    found: set[str] = set()
+    try:
+        for job in (j for jobs in attempt_jobs(repo, run) for j in jobs):
+            if any(s.get("name") == PREFLIGHT_STEP and s.get("conclusion") == "failure" for s in job.get("steps") or []):
+                found |= refused_versions(subprocess.run(
+                    ["gh", "run", "view", "--repo", repo, "--job", str(job["id"]), "--log-failed"],
+                    check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace").stdout)
+    except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+        print(f"::warning::reading production run {run['id']} failed ({exc}); treating its versions as not applied")
+    return found
+
+
 def names_pr(pr: dict[str, Any], title: str) -> bool:
     """True when the run title names every migration version this PR authored.
     Recovery runs title themselves "PR " with no number, so match the versions;
@@ -142,12 +169,20 @@ def names_pr(pr: dict[str, Any], title: str) -> bool:
     return all(v in words for v in pr["versions"])
 
 
+def title_versions(title: str) -> set[str]:
+    return {v for word in title.split() for v in word.split(",") if re.fullmatch(r"\d{14}", v)}
+
+
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
            applied: callable = lambda run: False, main_sha: str = "",
-           skipped: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, Any] | None, str]:
+           skipped: list[dict[str, Any]] | None = None,
+           refused: callable = lambda run: set()) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
-    (the latter carry an `exhausted` count instead of `findings`)."""
+    (the latter carry an `exhausted` count instead of `findings`). A PR whose
+    versions are all in production is done, whichever run put them there: a
+    successful run naming them (a follow-up PR's included) or a production
+    preflight that `refused` them as already applied."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
@@ -159,6 +194,19 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         if any(r.get("conclusion") == "success" for r in prod):
             continue
         if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
+            continue
+        wanted = set(pr["versions"])
+        in_production: set[str] = set()
+        for t, r in zip(titles, runs):
+            if not t.startswith("DB production apply") or not (named := title_versions(t)) & wanted:
+                continue
+            if r.get("conclusion") == "success":
+                in_production |= named
+            elif r.get("conclusion") == "failure":
+                in_production |= refused(r)
+            if wanted <= in_production:
+                break
+        if wanted <= in_production:
             continue
         findings = held(pr["number"])
         if findings:
@@ -252,7 +300,7 @@ def main(now: datetime | None = None) -> int:
     skipped: list[dict[str, Any]] = []
     action, pr, reason = decide(merged_migration_prs(repo), workflow_runs(repo), lambda n: is_held(repo, n),
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
-                                skipped)
+                                skipped, lambda run: refused_as_applied(repo, run))
     for entry in skipped:
         if entry.get("exhausted"):
             print(f"exhausted: PR #{entry['number']} out of automatic attempts; later PRs still promote")
