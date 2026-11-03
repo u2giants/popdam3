@@ -67,6 +67,7 @@ import {
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
+import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 
@@ -1075,7 +1076,7 @@ async function handleIngest(
   const { data: existingByPath, error: existingByPathErr } = await db
     .from("assets")
     .select(
-      `id, style_group_id, style_groups!assets_style_group_id_fkey(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`,
+      `id, is_deleted, style_group_id, style_groups!assets_style_group_id_fkey(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`,
     )
     .eq("relative_path", relativePath)
     .maybeSingle();
@@ -1196,7 +1197,22 @@ async function handleIngest(
       }
     }
 
+    // A file back at the path of a record retired as stale is live again. Other
+    // soft deletes (purges, duplicates) stay deleted.
+    let revive = false;
+    if (existingByPath.is_deleted) {
+      const { data: lastHistory } = await db
+        .from("asset_path_history")
+        .select("new_relative_path")
+        .eq("asset_id", existingByPath.id)
+        .order("detected_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      revive = lastHistory?.new_relative_path?.startsWith(RETIRED_STALE_MARKER) ?? false;
+    }
+
     const updateFields: Record<string, unknown> = {
+      ...(revive ? { is_deleted: false } : {}),
       filename,
       file_type: fileType,
       file_size: fileSize,
@@ -1270,7 +1286,104 @@ async function handleIngest(
 
   await assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, licensing, db);
 
-  return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true, licensing });
+  // The bridge checks these paths on disk and retires the ones that are gone (#81).
+  let staleCandidates: Array<{ id: string; relative_path: string }> = [];
+  if (fileSize > 0) {
+    const { data: sameIdentity } = await db
+      .from("assets")
+      .select("id, relative_path")
+      .eq("quick_hash", quickHash)
+      .eq("filename", filename)
+      .eq("file_size", fileSize)
+      .eq("is_deleted", false)
+      .neq("id", newAsset.id)
+      .limit(20);
+    staleCandidates = sameIdentity ?? [];
+  }
+
+  return json({ ok: true, action: "created", stale_candidates: staleCandidates, asset_id: newAsset.id, needs_group_rebuild: true, licensing });
+}
+
+// ── Route: retire-stale-asset ───────────────────────────────────────
+//
+// The agent calls this only after confirming on disk that the stale path is
+// gone and the survivor's file exists (#81). This never moves a record, so the
+// #51 move guard is unaffected. Copies come first: a failure leaves it live.
+
+async function handleRetireStaleAsset(body: Record<string, unknown>) {
+  const staleId = requireString(body, "asset_id");
+  const survivorId = requireString(body, "surviving_asset_id");
+  const absentPath = requireString(body, "confirmed_absent_path");
+  const db = serviceClient();
+
+  const columns = ["id", "filename", "quick_hash", "file_size", "relative_path", "is_deleted", ...AI_INHERITANCE_COLUMNS].join(", ");
+  const { data: rows, error: readError } = await db.from("assets").select(columns).in("id", [staleId, survivorId]);
+  if (readError) return err(readError.message, 500);
+  const stale = rows?.find((r: { id: string }) => r.id === staleId);
+  const survivor = rows?.find((r: { id: string }) => r.id === survivorId);
+  if (!stale || !survivor) return json({ ok: true, retired: false, reason: "not_found" });
+
+  const refusal = staleRetirementRefusal(stale, survivor, absentPath);
+  if (refusal) return json({ ok: true, retired: false, reason: refusal });
+
+  const { count: openCheckouts, error: checkoutError } = await db
+    .from("asset_checkouts")
+    .select("id", { count: "exact", head: true })
+    .eq("asset_id", staleId)
+    .is("checked_in_at", null);
+  if (checkoutError) return err(checkoutError.message, 500);
+  if (openCheckouts) return json({ ok: true, retired: false, reason: "open_checkout" });
+
+  const inherited = inheritedAiFields(stale, survivor);
+  if (Object.keys(inherited).length > 0) {
+    const { error } = await db.from("assets").update(inherited).eq("id", survivorId);
+    if (error) return err(error.message, 500);
+  }
+
+  const { count: survivorTags, error: tagCountError } = await db
+    .from("asset_tags")
+    .select("id", { count: "exact", head: true })
+    .eq("asset_id", survivorId);
+  if (tagCountError) return err(tagCountError.message, 500);
+  if (!survivorTags) {
+    const { data: tags, error } = await db
+      .from("asset_tags")
+      .select("tag, source, category, status, confidence, model, evidence")
+      .eq("asset_id", staleId)
+      .eq("status", "active");
+    if (error) return err(error.message, 500);
+    if (tags?.length) {
+      const { error: insertError } = await db.from("asset_tags").insert(
+        tags.map((t: Record<string, unknown>) => ({ ...t, asset_id: survivorId })),
+      );
+      if (insertError) return err(insertError.message, 500);
+    }
+  }
+
+  for (const table of ["asset_characters", "asset_licensor_characters"]) {
+    const { count, error } = await db.from(table).select("asset_id", { count: "exact", head: true }).eq("asset_id", survivorId);
+    if (error) return err(error.message, 500);
+    if (count) continue;
+    const { data: links, error: linkError } = await db.from(table).select("*").eq("asset_id", staleId);
+    if (linkError) return err(linkError.message, 500);
+    if (links?.length) {
+      const { error: insertError } = await db.from(table).insert(
+        links.map((l: Record<string, unknown>) => ({ ...l, asset_id: survivorId })),
+      );
+      if (insertError) return err(insertError.message, 500);
+    }
+  }
+
+  const { error: historyError } = await db.from("asset_path_history").insert({
+    asset_id: staleId,
+    old_relative_path: stale.relative_path,
+    new_relative_path: `${RETIRED_STALE_MARKER}${survivorId}`,
+  });
+  if (historyError) return err(historyError.message, 500);
+
+  const { error: retireError } = await db.from("assets").update({ is_deleted: true }).eq("id", staleId).eq("is_deleted", false);
+  if (retireError) return err(retireError.message, 500);
+  return json({ ok: true, retired: true });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────
@@ -4839,6 +4952,8 @@ corsServe(async (req: Request) => {
         return await handleReportUpdateStatus(body, agentId, agentType);
       case "ingest":
         return await handleIngest(body, agentId);
+      case "retire-stale-asset":
+        return await handleRetireStaleAsset(body);
       case "update-asset":
         return await handleUpdateAsset(body);
       case "move-asset":
