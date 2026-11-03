@@ -3874,7 +3874,11 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const results = (body.results as Record<string, unknown>[]) || [];
   if (results.length === 0) return json({ ok: true, remaining: 0 });
 
-  if (body.mode === "indra_rescan") return completePdfRescanBatch(db, results);
+  if (body.mode === "indra_rescan") {
+    const { data: cfg } = await db.from("admin_config").select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+    if (!isPdfRescanMode(cfg?.value as Record<string, unknown> | null)) return err("PDF rescan is not the active mode", 409);
+    return completePdfRescanBatch(db, results);
+  }
 
   let filesUsedAdded = 0;
 
@@ -4005,10 +4009,22 @@ async function completePdfRescanBatch(db: ReturnType<typeof serviceClient>, resu
   });
   const { data: committed, error: commitErr } = await db.rpc("commit_pdf_rescan_batch", { p_rows: rows });
   if (commitErr) return err(`commit_pdf_rescan_batch failed: ${commitErr.message}`, 500);
-  const stats = committed as Record<string, number>;
+  const stats = (committed ?? {}) as Record<string, number>;
 
-  const { data: left } = await db.rpc("count_pdf_rescan_remaining");
-  const remaining = (left as number) ?? 0;
+  const thumbs = results.filter((r) => r.asset_thumbnail_url && r.asset_id);
+  const thumbResults = await Promise.all(thumbs.map((r) =>
+    db.from("assets")
+      .update({ thumbnail_url: r.asset_thumbnail_url as string, thumbnail_error: null })
+      .eq("id", r.asset_id as string)
+      .is("thumbnail_url", null)
+  ));
+  const thumbErr = thumbResults.find((res) => res.error)?.error;
+  if (thumbErr) return err(`assets thumbnail update failed: ${thumbErr.message}`, 500);
+
+  // An unreadable count must not read as zero, which would end the run as completed.
+  const { data: left, error: leftErr } = await db.rpc("count_pdf_rescan_remaining");
+  if (leftErr || left == null) return err(`count_pdf_rescan_remaining failed: ${leftErr?.message ?? "no result"}`, 500);
+  const remaining = left as number;
   const nowIso = new Date().toISOString();
   const bfSet: Record<string, unknown> = { last_batch_at: nowIso, remaining };
   if (isPdfBackfillComplete(remaining)) {

@@ -101,6 +101,12 @@ describe("parsePdfSheetFields", () => {
     expect(f.files_used).toEqual([]);
   });
 
+  it("rejects a text SKU that is not SKU-shaped", () => {
+    const f = parsePdfSheetFields("Designer: X\nStyle#/SKU: N/A", "x.pdf");
+    expect(f.sku).toBeNull();
+    expect(f.sku_source).toBeNull();
+  });
+
   it("finds the SKU in filenames", () => {
     expect(skuFromFilename("VS162ABCD02 tech pack 090524.pdf")).toBe("VS162ABCD02");
     expect(skuFromFilename("15x20x1.25Glass_techpack copy.pdf")).toBeNull();

@@ -224,6 +224,7 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
 
   out.files_used = [...new Set(out.files_used)];
   const fileSku = skuFromFilename(filename);
+<<<<<<< HEAD
   if (fileSku) {
     out.sku = fileSku;
     out.sku_source = "filename";
@@ -231,5 +232,9 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
     out.sku = textSku;
     out.sku_source = "text";
   }
+=======
+  if (fileSku) { out.sku = fileSku; out.sku_source = "filename"; }
+  else if (textSku && /^[A-Z0-9]{8,14}$/i.test(textSku) && /\d/.test(textSku)) { out.sku = textSku; out.sku_source = "text"; }
+>>>>>>> 98855616 (fix(pdf): apply review of the Indra rescan (#668))
   return out;
 }

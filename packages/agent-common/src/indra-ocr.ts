@@ -80,7 +80,11 @@ export async function ocrPngsWithIndra(pythonExe: string, pngs: Buffer[]): Promi
         (err, out, stderr) => (err ? reject(new Error(`${err.message}${stderr ? `: ${String(stderr).slice(-500)}` : ""}`)) : resolve(out)),
       );
     });
-    return JSON.parse(stdout) as string[];
+    const pages: unknown = JSON.parse(stdout);
+    if (!Array.isArray(pages) || pages.length !== pngs.length || pages.some((p) => typeof p !== "string")) {
+      throw new Error(`indra: expected ${pngs.length} page texts`);
+    }
+    return pages as string[];
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
