@@ -233,8 +233,9 @@ export function parsePdfSheetFields(text: string, filename: string): PdfSheetFie
       if (field && !seen.has(field)) {
         seen.add(field);
         if (field === "materials") out.materials = materialsAfter(lines, i + 1);
-        else if (field === "licensor") out.licensor = clean(valueAfter(lines, i + 1, false)?.replace(/^[©Ø]\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
-        else out[field] = valueAfter(lines, i + 1, field === "product_type" || field === "packaging_type", field === "product_type", ACCEPT[field]);
+        else if (field === "licensor") {
+          out.licensor = clean(valueAfter(lines, i + 1, false)?.replace(/^[©Ø]\s*/, "").replace(/\s+(LLC|Inc|All Rights)\b.*$/i, ""));
+        } else out[field] = valueAfter(lines, i + 1, field === "product_type" || field === "packaging_type", field === "product_type", ACCEPT[field]);
       }
       if (ASSET_HEADINGS.has(key) && out.files_used.length === 0) out.files_used = assetsAfter(lines, i + 1);
     });
