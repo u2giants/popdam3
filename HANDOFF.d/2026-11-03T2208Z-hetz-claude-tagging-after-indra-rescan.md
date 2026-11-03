@@ -29,7 +29,7 @@ Albert wants trustworthy tags before spending on about 110,500 files. He asked (
 ## 3. Current state (checked 2026-11-03, 5:08 PM EST)
 **Live:** Indra rescan with field extraction (PRs 667-679, all merged and deployed). Stale duplicates retired: 5,683, with NAS backup; active PDFs 19,094. Sheet designers overwrite existing values, with undo table `asset_designer_sheet_backup` (212 files changed by 1:14 PM EST). Character load is live (shared-db PRs 5539, 5544, 5546). Tagger model is GLM.
 
-**Running:** rescan, config `admin_config.PDF_BACKFILL`, mode `indra_rescan`, status running, 6,700 processed, 12,696 remaining, 618 failed, about 20 files a minute, expected finish about 5:30 AM EST Nov 4. None of the files read has used Tesseract.
+**Running:** rescan, config `admin_config.PDF_BACKFILL`, mode `indra_rescan`, status running, 6,700 processed, 12,696 remaining, 618 failed, about 20 files a minute, expected finish about 4:00 AM EST Nov 4. None of the files read has used Tesseract.
 
 **Not started:** every request in section 2 is unbuilt. The full run has not started; `AI_TAG_PARALLEL_RUN` is `{"enabled":false}`.
 
