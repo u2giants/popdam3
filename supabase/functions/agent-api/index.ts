@@ -1301,8 +1301,7 @@ async function handleIngest(
     staleCandidates = sameIdentity ?? [];
   }
 
-  return json({ ok: true, action: "created",
-      stale_candidates: staleCandidates, asset_id: newAsset.id, needs_group_rebuild: true, licensing });
+  return json({ ok: true, action: "created", stale_candidates: staleCandidates, asset_id: newAsset.id, needs_group_rebuild: true, licensing });
 }
 
 // ── Route: retire-stale-asset ───────────────────────────────────────
