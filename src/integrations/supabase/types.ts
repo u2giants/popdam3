@@ -602,6 +602,38 @@ export type Database = {
           },
         ]
       }
+      asset_licensor_characters: {
+        Row: {
+          asset_id: string
+          character_id: string
+          model: string | null
+          source: string
+          tagged_at: string
+        }
+        Insert: {
+          asset_id: string
+          character_id: string
+          model?: string | null
+          source?: string
+          tagged_at?: string
+        }
+        Update: {
+          asset_id?: string
+          character_id?: string
+          model?: string | null
+          source?: string
+          tagged_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_licensor_characters_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_path_history: {
         Row: {
           asset_id: string
@@ -2139,11 +2171,16 @@ export type Database = {
         Row: {
           asset_id: string | null
           char_count: number
+          extracted_fields: Json | null
           extracted_text: string | null
           extraction_error: string | null
           extraction_method: string
           filename: string
           id: string
+          indra_rescan_at: string | null
+          indra_rescan_error: string | null
+          indra_rescan_outcome: string | null
+          ocr_engine: string | null
           page_count: number | null
           relative_path: string
           sampled_at: string
@@ -2152,11 +2189,16 @@ export type Database = {
         Insert: {
           asset_id?: string | null
           char_count?: number
+          extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
           extraction_method: string
           filename: string
           id?: string
+          indra_rescan_at?: string | null
+          indra_rescan_error?: string | null
+          indra_rescan_outcome?: string | null
+          ocr_engine?: string | null
           page_count?: number | null
           relative_path: string
           sampled_at?: string
@@ -2165,11 +2207,16 @@ export type Database = {
         Update: {
           asset_id?: string | null
           char_count?: number
+          extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
           extraction_method?: string
           filename?: string
           id?: string
+          indra_rescan_at?: string | null
+          indra_rescan_error?: string | null
+          indra_rescan_outcome?: string | null
+          ocr_engine?: string | null
           page_count?: number | null
           relative_path?: string
           sampled_at?: string
@@ -2184,6 +2231,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdf_text_samples_backup: {
+        Row: {
+          asset_id: string
+          backed_up_at: string
+          char_count: number | null
+          extracted_text: string | null
+          extraction_error: string | null
+          extraction_method: string | null
+          filename: string | null
+          page_count: number | null
+          relative_path: string | null
+          sampled_at: string | null
+          thumbnail_url: string | null
+        }
+        Insert: {
+          asset_id: string
+          backed_up_at?: string
+          char_count?: number | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          filename?: string | null
+          page_count?: number | null
+          relative_path?: string | null
+          sampled_at?: string | null
+          thumbnail_url?: string | null
+        }
+        Update: {
+          asset_id?: string
+          backed_up_at?: string
+          char_count?: number | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          filename?: string | null
+          page_count?: number | null
+          relative_path?: string | null
+          sampled_at?: string | null
+          thumbnail_url?: string | null
+        }
+        Relationships: []
       }
       popdam_item_state: {
         Row: {
@@ -2716,6 +2805,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sku_style_guide_links: {
+        Row: {
+          core_style_guide_id: string | null
+          created_at: string
+          file_name: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          match_confidence: number
+          match_method: string
+          matched_asset_count: number
+          sku: string
+          source_style_guide_key: string
+          source_system: string
+          style_guide_label: string
+          updated_at: string
+        }
+        Insert: {
+          core_style_guide_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          match_confidence?: number
+          match_method: string
+          matched_asset_count?: number
+          sku: string
+          source_style_guide_key: string
+          source_system: string
+          style_guide_label: string
+          updated_at?: string
+        }
+        Update: {
+          core_style_guide_id?: string | null
+          created_at?: string
+          file_name?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          match_confidence?: number
+          match_method?: string
+          matched_asset_count?: number
+          sku?: string
+          source_style_guide_key?: string
+          source_system?: string
+          style_guide_label?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       style_group_tags: {
         Row: {
@@ -4203,6 +4343,7 @@ export type Database = {
         }[]
       }
       backfill_pdf_files_used: { Args: never; Returns: number }
+      backfill_pdf_files_used_v2: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
@@ -4250,6 +4391,15 @@ export type Database = {
         }
       }
       claim_pdf_backfill_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          filename: string
+          id: string
+          needs_thumbnail: boolean
+          relative_path: string
+        }[]
+      }
+      claim_pdf_rescan_batch: {
         Args: { p_limit?: number }
         Returns: {
           filename: string
@@ -4358,6 +4508,7 @@ export type Database = {
           last_id: string
         }[]
       }
+      commit_pdf_rescan_batch: { Args: { p_rows: Json }; Returns: Json }
       complete_style_guide_pdf_text: {
         Args: {
           p_content_identity: string
@@ -4381,14 +4532,55 @@ export type Database = {
         Returns: boolean
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
+      count_pdf_rescan_remaining: { Args: never; Returns: number }
       create_dam_order: {
         Args: { p_lines?: Json; p_order: Json }
         Returns: string
+      }
+      dam_asset_matches_filters: {
+        Args: {
+          p_art_source: Database["public"]["Enums"]["art_source"]
+          p_asset_type: Database["public"]["Enums"]["asset_type"]
+          p_content_type: string
+          p_customer: string
+          p_customer_id: string
+          p_file_created_at: string
+          p_file_type: Database["public"]["Enums"]["file_type"]
+          p_filters: Json
+          p_id: string
+          p_is_deleted: boolean
+          p_is_licensed: boolean
+          p_licensor_id: string
+          p_min_date: string
+          p_modified_at: string
+          p_product_category: string
+          p_product_material: string[]
+          p_program: string
+          p_property_id: string
+          p_relative_path: string
+          p_sg_customer_id: string
+          p_sg_licensor_id: string
+          p_sg_property_id: string
+          p_stage: string
+          p_status: Database["public"]["Enums"]["asset_status"]
+          p_style_group_id: string
+          p_thumbnail_error: string
+          p_thumbnail_url: string
+          p_workflow_status: Database["public"]["Enums"]["workflow_status"]
+        }
+        Returns: boolean
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
+      }
+      delete_style_tracker_rows: {
+        Args: { p_row_ids: string[] }
+        Returns: {
+          deleted_count: number
+          skipped_count: number
+        }[]
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       expand_dam_search_queries: {
@@ -4397,6 +4589,7 @@ export type Database = {
           query_text: string
         }[]
       }
+      file_name_norm: { Args: { p_name: string }; Returns: string }
       filter_effective_assets: {
         Args: { p_filters?: Json }
         Returns: {
@@ -4568,8 +4761,14 @@ export type Database = {
         }[]
       }
       find_dam_order_list_row: {
-        Args: { p_filters?: Json; p_search: string; p_sort?: Json }
+        Args: {
+          p_filters?: Json
+          p_occurrence?: number
+          p_search: string
+          p_sort?: Json
+        }
         Returns: {
+          match_count: number
           order_line_id: string
           row_index: number
         }[]
@@ -4629,6 +4828,13 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_dam_order_vendor_ids: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          order_line_id: string
+          vendor_code: string
+        }[]
       }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
@@ -4751,6 +4957,10 @@ export type Database = {
       }
       image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
+      is_plausible_source_file_name: {
+        Args: { p_name: string }
+        Returns: boolean
+      }
       is_style_guide_source_pdf: {
         Args: { p_file_type: string; p_filename: string }
         Returns: boolean
@@ -4803,7 +5013,12 @@ export type Database = {
       }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
+      parse_pdf_declared_style_guide: {
+        Args: { p_asset_id: string }
+        Returns: number
+      }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
+      parse_pdf_files_used_v2: { Args: { p_asset_id: string }; Returns: number }
       preview_stale_sg_files: {
         Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
         Returns: {
@@ -5142,6 +5357,7 @@ export type Database = {
         Args: { p_threshold?: number }
         Returns: number
       }
+      resolve_sku_style_guide_links: { Args: never; Returns: Json }
       retry_sg_render_errors:
         | { Args: { p_file_ids?: string[] }; Returns: number }
         | { Args: { p_file_ids?: string[]; p_limit?: number }; Returns: number }
@@ -5282,6 +5498,7 @@ export type Database = {
         Args: { p_relative_path: string }
         Returns: string
       }
+      style_guide_label_norm: { Args: { p_label: string }; Returns: string }
       style_guide_tag_input_fingerprint: {
         Args: {
           p_file_extension: string
