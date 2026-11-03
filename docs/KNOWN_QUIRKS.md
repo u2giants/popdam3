@@ -1297,3 +1297,13 @@ dedupe staging rows by order + line alone.
 **Fix:** shared-db promotion change plus a re-run of promotion for the
 affected orders (tracked in `popcre/shared-db`). Re-running corrects existing
 rows in place and adds the missing items.
+
+## 81. PDFs missing at their recorded path are mostly stale duplicate records (2026-11-03)
+
+**Looks like**: A PDF rescan reports thousands of `ENOENT` failures, as if the files were lost.
+
+**Actually**: A file index of edgesynology1 on 2026-11-03 checked all 24,777 live PDF records. 6,137 were not at their recorded path. 5,683 of those had a filename, size and `quick_hash` match at a path that already has its own live record, and that record had text. They are old records left behind by folder reorganizations, so their content is not unread. The remaining 454: 2 unique and corrected, 63 found only in an `_old` folder (superseded, not repointed), 37 with several copies, 178 with the same name but a different size, and 174 gone from `Decor/`.
+
+**Why**: The move guard in `agent-api` (#51) refuses a move when two records share `(quick_hash, filename)`, and the bridge sends `skip_move_detection` for repeated copies. The new path then gets a new record. Nothing retires a record whose path has vanished, so the old one stays live.
+
+**What to do**: Run `scripts/list-missing-pdfs.sql`, then start a nested session that builds one index, following the `synology-long-running-operations` skill: `nice -n 19 find /volume1/mac -type d -name '@*' -prune -o -type f -iname '*.pdf' -printf '%s\t%T@\t%p\n'`. Only `Decor/` outside `#recycle` is live; `#snapshot`, `Old` and `Archive` are not current locations. Check `/volume1/docker/popdam/manual-scans/pdf-index-20261103/` for the format. Repoint a record only for one match by name, size and `quick_hash` whose target path has no record, and write `asset_path_history` so it can be undone. Never repoint onto a path that has a record: `relative_path` is unique, and that record is the real one. A repointed record that has `indra_rescan_at` set needs it cleared to be read again during a rescan; never reset `PDF_BACKFILL`. Clear it before the run completes, because a completed run does not restart by itself.
