@@ -2677,7 +2677,11 @@ def read_sandbox_dependencies(ledger_name, project_ref, token, query=None, fetch
                      "User-Agent": "shared-db-sandbox-dependency-proof/1",
                      "Content-Type": "application/json"})
         with urllib.request.urlopen(request, timeout=60) as response:
-            return json.loads(response.read().decode("utf-8"))
+            body = response.read()
+        try:
+            return json.loads(body.decode("utf-8"))
+        except ValueError as exc:
+            raise GuardError(f"sandbox Management API returned unreadable JSON: {exc}") from exc
     if fetch:
         project = fetch(project_ref, token)
     else:

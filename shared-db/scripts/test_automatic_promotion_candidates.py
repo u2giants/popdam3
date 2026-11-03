@@ -4,6 +4,7 @@ import os
 import sys
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import automatic_promotion_candidates as m  # noqa: E402
@@ -19,6 +20,20 @@ class AttemptsPerMainCommit(unittest.TestCase):
         held = lambda n: False
         self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "wait")
         self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "dispatch")
+
+
+class ForeignTargetVersions(unittest.TestCase):
+    def prs(self, *versions):
+        files = [[{"status": "added", "filename": f"supabase/migrations/{v}_x.sql"} for v in versions]]
+        pulls = [{"number": 5503, "merged_at": "2026-11-02T22:31:03Z"}]
+        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+            return m.merged_migration_prs("o/r")
+
+    def test_sandbox_only_pr_is_never_a_production_candidate(self):
+        self.assertEqual(self.prs("20261102215524"), [])
+
+    def test_mixed_pr_promotes_only_its_shared_versions(self):
+        self.assertEqual(self.prs("20261102215524", "20261102224413")[0]["versions"], ["20261102224413"])
 
 
 class PerMigrationHold(unittest.TestCase):

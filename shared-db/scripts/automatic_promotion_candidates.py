@@ -30,6 +30,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import review_finding_hold
+from production_migration_guard import FOREIGN_TARGET_MIGRATIONS
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
 WORKFLOW = "shared-supabase-migrations.yml"
@@ -68,6 +69,10 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             m.group(1)
             for page in files for f in page
             if f.get("status") == "added" and (m := MIGRATION_RE.match(f.get("filename", "")))
+            # A version registered for another database (#5504: the DesignFlow
+            # sandbox) never reaches production; promoting it would only fail
+            # until MAX_ATTEMPTS parks the lane.
+            and m.group(1) not in FOREIGN_TARGET_MIGRATIONS
         )
         # Superseded-by-manifest (#5128/#5213): a merged PR whose every added
         # version is a registered preview-ledger orphan (a governed replacement

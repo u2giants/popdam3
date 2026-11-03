@@ -34,6 +34,13 @@ class SandboxDependencies(unittest.TestCase):
         self.assertEqual(query.get_method(), "POST")
         self.assertIs(json.loads(query.data)["read_only"], True)
 
+    def test_non_json_api_response_refuses_as_guard_error(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b"<html>Cloudflare</html>"
+        with patch("production_migration_guard.urllib.request.urlopen", return_value=response):
+            with self.assertRaises(GuardError):
+                read_sandbox_dependencies("sandbox", "xupnyeifmpsacrqahwwm", "test-token")
+
     def test_other_targets_and_wrong_returned_identity_refuse(self):
         for args in ({"ledger": "production"}, {"ledger": "preview"},
                      {"target": "qsllyeztdwjgirsysgai"}, {"returned": "wrong-project"}):

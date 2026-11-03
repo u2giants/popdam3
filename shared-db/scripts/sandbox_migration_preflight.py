@@ -8,8 +8,9 @@ lanes. `.github/workflows/designflow-sandbox-migrations.yml` is the only caller.
 
 The ordinary bounded-apply machinery (`production_migration_guard.py` preflight /
 prepare / assert-bounded / verify-dry-run and `production_catalog_verification.py`)
-is REUSED unchanged by that workflow. This file adds only what the sandbox needs
-and the shared guard does not provide:
+is REUSED by that workflow; the guard's one sandbox-only gate is its live
+dependency catalog (`--sandbox-live-dependencies`, issue #4578). This file adds
+only what the sandbox needs and the shared guard does not provide:
 
   identity       prove the target ref is the sandbox, is not production or
                  preview, and is the project the Management API returns.
