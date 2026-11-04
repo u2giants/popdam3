@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
 
 const tag = (name: string) => ({ tag: name, category: "other", confidence: 0.9, evidence: ["x"] });
 const finish = (over: Record<string, unknown> = {}, ids: string[] = [], filename = "a.psd", licensed = true) =>
@@ -94,4 +94,32 @@ test("group shot links as its own character once it exists", () => {
   assert.deepEqual(finishTagResult({ ...base, groupShotCharacterExists: true }).characterIds, ["a", GROUP_SHOT_CHARACTER_ID]);
   assert.deepEqual(finishTagResult(base).characterIds, ["a"]);
   assert.deepEqual(finishTagResult({ ...base, characterIds: ["a"], groupShotCharacterExists: true }).characterIds, ["a"]);
+});
+
+test("scan debris and form text never become tags", () => {
+  for (const junk of ["mdsh7sesc02", "c0010dynx01", "art_piece", "____new structure", "classic_glu_13_cmyk", "pantone 186 c", "pms 267 c", "legal line", "upc sticker", "prop 65 label", "dimensions 24 x 36", "page 2 of 3", "wip version 3", "dollar general fw26", "burlington ss 2026", "dollar general summer 2027", "ey friends and al related character", "character licensed", "pop creations", "albert hazan", "sarbani ghosh"]) {
+    assert.ok(isJunkTag(junk), junk);
+  }
+});
+
+test("real search words survive the junk rule", () => {
+  for (const good of ["blue", "spider-man 2099", "r2-d2", "c-3po", "bb-8", "pals4ever", "friday the 13th", "route 66", "95", "16x20", "80s style", "disney 100", "toy story 4", "dimensional", "dimensional art", "peter parker", "marvel's spidey and his amazing friends", "summer", "winter holiday", "class of 2026", "space jam 2", "tech pack", "licensing sheet", "packaging design"]) {
+    assert.ok(!isJunkTag(good), good);
+  }
+});
+
+test("a character sharing a designer's first name keeps its tag", () => {
+  const r = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("peter pan"), tag("amy rose"), tag("luis"), tag("legal line")] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, designerFirstNames: new Set(["peter", "amy", "luis"]) });
+  assert.deepEqual(tags(r), ["peter pan", "amy rose"]);
+});
+
+test("sheet packaging survives even though the same words are blocked from the model", () => {
+  const r = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("upc sticker")] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, sheet: { packaging_type: "UPC Sticker" } });
+  assert.deepEqual(tags(r), ["upc sticker"]);
+});
+
+test("a known name with stray model text is rejected", () => {
+  const known = new Set(["luis"]);
+  assert.ok(isKnownDesigner("Luis Herrera", known));
+  for (const bad of ["LUIS', \"art_source\": null}", "LUIS (UPDATED BY DANILO MAR12)", "LUIS_x", "LUIS provides more color to your hair while adding body and volume"]) assert.ok(!isKnownDesigner(bad, known), bad);
 });
