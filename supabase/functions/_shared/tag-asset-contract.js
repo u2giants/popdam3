@@ -77,7 +77,7 @@ export const TAG_ASSET_SCHEMA = {
     character_ids: {
       type: "array",
       items: { type: "string" },
-      description: "UUIDs of identified characters from taxonomy",
+      description: "UUIDs of identified characters from taxonomy, most prominent character first",
     },
     designer_name: {
       type: ["string", "null"],
@@ -108,6 +108,7 @@ export function buildTaggingSystemPrompt(context) {
     erpDescription = null,
     itemDescription = null,
     extractedPdfText = null,
+    sheetFacts = null,
     customInstructions = null,
     licensorName = null,
     propertyName = null,
@@ -118,6 +119,16 @@ export function buildTaggingSystemPrompt(context) {
   const itemDescriptionContext = itemDescription
     ? `\nAuthoritative product/item description for this SKU's group (context only — do NOT restate or override it; use it to inform tags/classification): "${itemDescription}"\n`
     : "";
+  const sheetLines = sheetFacts
+    ? [
+      sheetFacts.description && `Product description: ${sheetFacts.description}`,
+      sheetFacts.product_type && `Product type: ${sheetFacts.product_type}`,
+      sheetFacts.materials && `Material: ${sheetFacts.materials}`,
+    ].filter(Boolean)
+    : [];
+  const sheetContext = sheetLines.length
+    ? `\nFrom this product's licensing sheet or tech pack (scanned text, so ignore anything that reads as nonsense):\n${sheetLines.join("\n")}\n`
+    : "";
   const pdfContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
 
   return `You are a design asset tagger for a consumer products company that sells licensed and unlicensed products.
@@ -127,7 +138,7 @@ Analyze the thumbnail image and file metadata to produce structured file-only ta
 File: ${asset.filename ?? ""}
 Path: ${asset.relative_path ?? ""}
 Type: ${asset.file_type ?? ""}
-${licensingContext}${erpContext}${itemDescriptionContext}${pdfContext}
+${licensingContext}${erpContext}${itemDescriptionContext}${sheetContext}${pdfContext}
 Known taxonomy:
 ${taxonomyContext}
 
@@ -138,6 +149,8 @@ Description rules:
 - scene_description: one literal visual sentence, 10-24 words. Describe only what is visible: subject, composition, pose/action, product area, angle, colors, readable text, and photo/render/document cues.
 - Recognize asset kinds such as source art, icons, badges, patterns, allover prints, style-guide art, full product photos, renders, mockups, professional/lifestyle photography, close-ups/details, tech packs, licensing sheets, spec/layout documents, packaging art, stickers, and J-cards.
 - Product context: PopDAM often includes wall art/canvas/framed prints, clocks, storage boxes/bins, lap desks/desktop items, mats, tabletop/garden decor, and packaging. Use this only as context; never force a product type if it is not visible or supported by filename/path/ERP metadata.
+- Every character you select must be named in ai_description. If more than three characters are selected, name the most prominent one and the words "group shot".
+- If a product description or material is given from a sheet, ERP, or PDF text, use those words in ai_description. State a material only when one of those sources gives it. Never invent a product name; call the product only what those sources or the file name call it.
 - Avoid marketing copy, subjective praise, long lists, tiny irrelevant details, vague words, and multi-sentence answers.
 
 Tag rules:
@@ -146,33 +159,28 @@ Tag rules:
     ASSET_TAG_CATEGORIES.join(", ")
   }.
 - Always include the licensor and property names as tags when they are given in the licensing context. If the licensor and property share a name, tag it once. With no licensing context, do not tag any licensor or property. Do not return SKUs or IDs as tags, and do not restate the authoritative product description.
-- Include every applicable category label from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
-- Include useful visible characters, image category, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
-- Never use filler tags such as "image", "design", "art", "asset", "colorful", "nice", "graphic", or "product" by themselves.
+- Include every applicable asset type from the controlled list below exactly as written. Do not create synonyms or near-duplicates for these labels.
+- Include useful visible characters, asset type, view, asset kind, visual style/treatment, motif/theme, and 1-3 dominant colors when supported.
+- Never use filler tags such as "image", "design", "asset", "colorful", "nice", "graphic", or "product" by themselves.
 - Do not guess. A filename/path/ERP description may establish product context, but visual categories and photography views must be supported by the image. If a character, view, readable word, or asset kind is unclear, omit that tag. A property named in the licensing context is never unclear.
 
-Controlled image categories:
-- Professional photography: include "professional photography" plus exactly one applicable view tag: "straight view", "3/4 view", "close-up view", "back view", "lifestyle / in-use image", or "person holding item / size scale image". Use "person holding item / size scale image" when a person deliberately holds or presents the item mainly to communicate its physical size or scale relative to a hand or body. Use "lifestyle / in-use image" instead when the person is naturally using or wearing the product in context. Do not call a clean computer-generated product image photography.
-- Design assets: include "design asset" plus the best applicable subtype: "product mockup", "artwork", "tech pack", "packaging design", "embellishment placement design", or "freelancer illustration".
+Controlled asset types (use these exact words; the file name often states them):
+- Product photography: include "product photography" plus every applicable view: "front view", "3/4 view", "close-up", "back view", or "side view". Never write "product photo". Do not call a clean computer-generated product image photography.
+- "lifestyle photo": the product shown in use or in a room or setting.
+- "size scale image": a person deliberately holds or presents the item to show its size.
 - "product mockup": a rendered or composited preview showing artwork applied to a product.
-- "artwork": standalone creative art not shown applied to a product.
+- "art": standalone creative art not shown applied to a product.
 - "tech pack": a technical specification sheet with dimensions, callouts, materials, construction notes, or multiple technical views.
+- "licensing sheet": a sheet submitted to a licensor, also called a costing sheet.
 - "packaging design": a package, label, box, card, wrap, dieline, or packaging layout.
 - "embellishment placement design": a product/layout image with magenta overlays, guides, boxes, outlines, or callouts showing where an embellishment should be placed. Magenta placement overlays take priority over "product mockup".
 - "freelancer illustration": standalone commissioned illustration or clearly identified freelancer art. Also set art_source to freelancer. Do not infer freelancer status from illustration style alone; require filename, path, document text, or metadata support.
 
-Category examples:
-- Front-facing studio product photo: tags include "professional photography" and "straight view"; content_type is product_photo. The Style Group supplies the product type.
-- Product worn or used by a person: tags include "professional photography" and "lifestyle / in-use image"; content_type is lifestyle_photo.
-- Person deliberately holding an item to demonstrate its physical size: tags include "professional photography" and "person holding item / size scale image"; content_type is product_photo.
-- Standalone character composition not applied to merchandise: tags include "design asset" and "artwork"; content_type is source_art or style_guide_art as supported by metadata.
-- Product rendering with art applied: tags include "design asset" and "product mockup"; content_type is render_mockup.
-- Specification page with dimensions and callouts: tags include "design asset" and "tech pack"; content_type is tech_pack.
-- Product/layout with magenta placement overlays: tags include "design asset" and "embellishment placement design"; content_type is spec_layout_doc.
+Content type for each: product photography is product_photo; lifestyle photo is lifestyle_photo; size scale image is product_photo; product mockup is render_mockup; art is source_art or style_guide_art; tech pack is tech_pack; licensing sheet is licensing_sheet; embellishment placement design is spec_layout_doc.
 
 Based on the image and metadata, identify:
-1. Characters visible: only a character clearly drawn on this file and present in the supplied list. Never infer a character from a motif (spiders, webs, colors, costumes), from the property name, or from a similar-looking character.
-2. Controlled image category and photography view/design-asset subtype
+1. Characters visible: only a character clearly drawn on this file and present in the supplied list. Never infer a character from a motif (spiders, webs, colors, costumes), from the property name, or from a similar-looking character. Do not take a character from an example photo or reference picture on a sheet, and a logo is not a character. List the most prominent character first.
+2. Controlled asset type and photography view
 3. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
 4. Color palette keywords
 5. Scene description (literal visual content only)

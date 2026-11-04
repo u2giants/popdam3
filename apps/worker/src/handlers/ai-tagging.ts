@@ -61,11 +61,13 @@ import {
   fetchImageData,
   getAiTaggingApiKey,
   isStyleGuideSourcePdf,
+  loadSheetFacts,
   parseJsonObject,
   TAG_ASSET_SCHEMA,
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
+import { finishTagResult, isKnownDesigner } from "./tag-finish.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
@@ -238,20 +240,48 @@ async function buildBatchAssetRequest(
   };
 }
 
+let knownDesignerCache: { names: Set<string>; expires: number } | null = null;
+async function knownDesignerFirstNames(client: ReturnType<typeof db>): Promise<Set<string>> {
+  if (knownDesignerCache && Date.now() < knownDesignerCache.expires) return knownDesignerCache.names;
+  const { data, error } = await client.from("known_designer_first_name").select("first_name");
+  if (error || !data) return knownDesignerCache?.names ?? new Set();
+  const names = new Set((data as Array<{ first_name: string }>).map(row => row.first_name.toLowerCase()));
+  knownDesignerCache = { names, expires: Date.now() + 600_000 };
+  return names;
+}
+
+/** Character names and licensing state the post-model rules need. */
+async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null }, characterIds: string[]) {
+  const characterNames = new Map<string, string>();
+  if (characterIds.length) {
+    const { data, error } = await client.schema("core").from("character").select("id, name").in("id", characterIds);
+    if (error) throw new CharacterCatalogDependencyError(error.code);
+    for (const row of (data ?? []) as Array<{ id: string; name: string }>) characterNames.set(row.id.toLowerCase(), row.name);
+  }
+  let licensed = !!asset.licensor_id;
+  if (asset.style_group_id) {
+    const { data } = await client.from("style_groups").select("is_licensed").eq("id", asset.style_group_id).maybeSingle();
+    if (typeof data?.is_licensed === "boolean") licensed = data.is_licensed;
+  }
+  return { characterNames, licensed, sheet: await loadSheetFacts(client, asset) };
+}
+
 const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);
 
 export async function applyBatchTagResult(
   assetId: string,
-  tagData: Record<string, unknown>,
+  rawTagData: Record<string, unknown>,
   model: string,
   injectedClient?: ReturnType<typeof db>,
   characterCatalogIds?: string[],
 ): Promise<{ fileSourcesFailed: boolean }> {
-  validateTagAssetData(tagData, "batch");
+  validateTagAssetData(rawTagData, "batch");
   const client = injectedClient ?? db();
-  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku").eq("id", assetId).single();
+  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, designer_name, technical_designer_name").eq("id", assetId).single();
   if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
-  const characterIds = await validateCharacterReferences(tagData.character_ids, characterCatalogIds, client);
+  const validatedCharacterIds = await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client);
+  const finished = finishTagResult({ tagData: rawTagData, characterIds: validatedCharacterIds, filename: asset.filename, ...await loadFinishContext(client, asset, validatedCharacterIds) });
+  const { tagData, characterIds } = finished;
   // Tags and character links are written first; the asset is marked "tagged"
   // LAST. Style-guide sources (sku_files_used) are supplementary and are
   // written before metadata but are allowed to fail without blocking the
@@ -297,7 +327,12 @@ export async function applyBatchTagResult(
     }
   }
   const updates: Record<string, unknown> = { status: "tagged", ai_tagged_at: new Date().toISOString(), ai_model: model };
-  for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "designer_name", "technical_designer_name", "freelancer_name"]) {
+  // The PDF rescan owns designers from sheet headings. The model may only fill a blank, with a known person.
+  const knownDesigners = await knownDesignerFirstNames(client);
+  for (const [key, current] of [["designer_name", asset.designer_name], ["technical_designer_name", asset.technical_designer_name]] as const) {
+    if (!current && isKnownDesigner(tagData[key], knownDesigners)) updates[key] = tagData[key];
+  }
+  for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "freelancer_name"]) {
     if (tagData[key]) updates[key] = tagData[key];
     // AI-only text: an empty result must not leave an older run's value behind.
     else if (AI_ONLY_TEXT_FIELDS.has(key)) updates[key] = null;

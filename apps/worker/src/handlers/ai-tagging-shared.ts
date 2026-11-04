@@ -379,8 +379,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const rows = (licensorChars ?? []) as { id: string; name: string }[];
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
-  // Licensor-retired labels ("Venom - Do Not Use") must never be offered as characters.
-  characters = [...new Map(characters.filter(c => !/do not use/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  // Licensor-retired labels ("Venom - Do Not Use") and logos must never be offered as characters.
+  characters = [...new Map(characters.filter(c => !/do not use|\blogo\b/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
@@ -432,6 +432,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .limit(1)
     .maybeSingle();
   const extractedPdfText = pdfSample?.extracted_text ?? null;
+  const sheetFacts = await loadSheetFacts(client, asset);
   const { licensorName, propertyName } = await resolveLicensingNames(client, asset);
   return buildTaggingSystemPrompt({
     asset,
@@ -441,8 +442,31 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     erpDescription,
     itemDescription,
     extractedPdfText,
+    sheetFacts,
     customInstructions,
   });
+}
+
+export interface SheetFacts {
+  description?: string | null; product_type?: string | null; materials?: string | null;
+  packaging_type?: string | null; retailer?: string | null;
+}
+
+/** Fields read from this file's own sheet, else from a sheet for the same SKU. A failed read just means no sheet facts. */
+export async function loadSheetFacts(client: ReturnType<typeof db>, asset: Pick<TaggingPromptAsset, "id" | "sku">): Promise<SheetFacts | null> {
+  const newest = (ids: string[]) => client.from("pdf_text_samples").select("extracted_fields").in("asset_id", ids)
+    .not("extracted_fields", "is", null).order("sampled_at", { ascending: false }).limit(1).maybeSingle();
+  try {
+    const own = await newest([asset.id]);
+    if (own.data?.extracted_fields) return own.data.extracted_fields as SheetFacts;
+    if (!asset.sku) return null;
+    const { data: sheets } = await client.from("assets").select("id").eq("sku", asset.sku).eq("file_type", "pdf").eq("is_deleted", false).limit(10);
+    if (!sheets?.length) return null;
+    const shared = await newest(sheets.map(sheet => sheet.id));
+    return (shared.data?.extracted_fields as SheetFacts | undefined) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function buildImageTaggingMessages(systemPrompt: string, image: ImageData, userText: string): ChatMessage[] {
