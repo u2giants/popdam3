@@ -67,3 +67,10 @@ test("known designers only", () => {
   assert.ok(!isKnownDesigner("BUYER", known));
   assert.ok(!isKnownDesigner(null, known));
 });
+
+test("junk tags go, aka names shorten, and a named licensing sheet is not a tech pack", () => {
+  const r = finish({ asset_tags: [tag("character id 8ca8"), tag("psd"), tag("tech pack"), tag("blue")] }, [], "X_LICENSING SHEET.pdf");
+  assert.deepEqual(tags(r), ["blue", "licensing sheet", "costing sheet"]);
+  assert.equal(displayCharacterName("Rick Sanchez aka Rick"), "Rick Sanchez");
+  assert.deepEqual(labelsFromFilename("VSZ66DYMM08_ARTWORK.ai"), ["art"]);
+});
