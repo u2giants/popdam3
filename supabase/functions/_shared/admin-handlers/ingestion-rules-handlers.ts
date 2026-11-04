@@ -1,4 +1,4 @@
-import { normalizeIngestionRules, validateIngestionRuleValue, type IngestionRule } from "../ingestion-rules.ts";
+import { type IngestionRule, normalizeIngestionRules, validateIngestionRuleValue } from "../ingestion-rules.ts";
 
 export const INGESTION_RULES_KEY = "INGESTION_RULES";
 const HISTORY_LIMIT = 50;
@@ -95,8 +95,6 @@ export async function countAssetsMatchingExclusion(db: Db, kind: unknown, value:
   const text = String(value ?? "").trim().replace(/[\\%_]/g, "\\$&");
   if (!text) return 0;
   const query = db.from("assets").select("id", { count: "planned", head: true }).eq("is_deleted", false);
-  const { count, error } = kind === "folder_exclude"
-    ? await query.ilike("relative_path", `%/${text}/%`)
-    : await query.ilike("filename", `%${text}%`);
+  const { count, error } = kind === "folder_exclude" ? await query.ilike("relative_path", `%/${text}/%`) : await query.ilike("filename", `%${text}%`);
   return error ? null : count ?? 0;
 }

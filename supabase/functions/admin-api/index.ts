@@ -1,7 +1,11 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_shared/admin-auth.ts";
 import {
-  countAssetsMatchingExclusion, getIngestionRules, INGESTION_RULES_KEY, IngestionRulesError, saveIngestionRules,
+  countAssetsMatchingExclusion,
+  getIngestionRules,
+  INGESTION_RULES_KEY,
+  IngestionRulesError,
+  saveIngestionRules,
 } from "../_shared/admin-handlers/ingestion-rules-handlers.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
