@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Lock holders sleep 3 s (was 1.25 s): on GitHub-hosted runners the gap between the
+# ready file and the timed call ate ~0.8 s and the 700 ms floor failed (2026-11-04).
 
 # Required two-client proof for issue #1607. The workflow supplies credentials
 # for its throwaway Supabase CLI database; this script never accepts a URL.
@@ -91,7 +93,7 @@ begin;
 select 1 from dflow.sample_remote_request_item
  where sample_remote_request_item_id='16070000-0000-4000-8000-000000000001' for update;
 \! touch "$FLOW4_EVENT_READY"
-select pg_sleep(1.25);
+select pg_sleep(3);
 update dflow.sample_remote_request_item set current_state='awaiting_qc',updated_at=now()
  where sample_remote_request_item_id='16070000-0000-4000-8000-000000000001';
 insert into dflow.sample_remote_request_history(
@@ -102,7 +104,7 @@ insert into dflow.sample_remote_request_history(
 commit;
 SQL
 event_pid=$!
-for _ in $(seq 1 100); do [[ -f "$event_ready" ]] && break; sleep 0.02; done
+for _ in $(seq 1 500); do [[ -f "$event_ready" ]] && break; sleep 0.02; done
 [[ -f "$event_ready" ]] || { echo 'event writer never proved it held the row lock' >&2; exit 1; }
 event_started=$(date +%s%3N)
 event_returned=$(psql -v ON_ERROR_STOP=1 --no-psqlrc -Atqc "select sample_remote_request_history_id from dflow.post_sample_remote_request_event('16070000-0000-4000-8000-000000000001','awaiting_qc','nyo-user','nyo','event-overlap','event-overlap-hash')")
@@ -120,7 +122,7 @@ begin;
 select 1 from dflow.sample_remote_request_item
  where sample_remote_request_item_id='16070000-0000-4000-8000-000000000002' for update;
 \! touch "$FLOW4_RESERVE_READY"
-select pg_sleep(1.25);
+select pg_sleep(3);
 insert into dflow.sample_reservation(
   sample_reservation_id,sample_remote_request_item_id,sample_id_fk,reserved_by_user,idempotency_key,request_hash
 )
@@ -138,7 +140,7 @@ insert into dflow.sample_remote_request_history(
 commit;
 SQL
 reserve_pid=$!
-for _ in $(seq 1 100); do [[ -f "$reserve_ready" ]] && break; sleep 0.02; done
+for _ in $(seq 1 500); do [[ -f "$reserve_ready" ]] && break; sleep 0.02; done
 [[ -f "$reserve_ready" ]] || { echo 'reservation writer never proved it held the row lock' >&2; exit 1; }
 reserve_started=$(date +%s%3N)
 reserve_returned=$(psql -v ON_ERROR_STOP=1 --no-psqlrc -Atqc "select sample_reservation_id from dflow.reserve_sample_remote_request_item('16070000-0000-4000-8000-000000000002','ningbo-user','ningbo','reserve-overlap','reserve-overlap-hash')")
@@ -175,11 +177,11 @@ select sample_reservation_id
     'pack-overlap','pack-overlap-hash'
   );
 \! touch "$FLOW4_PACK_READY"
-select pg_sleep(1.25);
+select pg_sleep(3);
 commit;
 SQL
 pack_pid=$!
-for _ in $(seq 1 100); do [[ -f "$pack_ready" ]] && break; sleep 0.02; done
+for _ in $(seq 1 500); do [[ -f "$pack_ready" ]] && break; sleep 0.02; done
 [[ -f "$pack_ready" ]] || { echo 'pack writer never proved it held the reservation lock' >&2; exit 1; }
 pack_started=$(date +%s%3N)
 pack_returned=$(psql -v ON_ERROR_STOP=1 --no-psqlrc -Atqc "select sample_reservation_id::text||'|'||packed_shipment_line_id::text from dflow.pack_sample_reservation('16070000-0000-4000-8000-000000000003',160700001,160700000001,'ningbo','office','nyo','ningbo_to_nyc','ningbo-user','ningbo','pack-overlap','pack-overlap-hash')")
@@ -200,11 +202,11 @@ begin;
 select 1 from dflow.sample_reservation
  where sample_reservation_id='16070000-0000-4000-8000-000000000003' for update;
 \! touch "$FLOW4_COMPETING_PACK_READY"
-select pg_sleep(1.25);
+select pg_sleep(3);
 commit;
 SQL
 competing_pack_pid=$!
-for _ in $(seq 1 100); do [[ -f "$competing_pack_ready" ]] && break; sleep 0.02; done
+for _ in $(seq 1 500); do [[ -f "$competing_pack_ready" ]] && break; sleep 0.02; done
 [[ -f "$competing_pack_ready" ]] || { echo 'competing pack blocker never proved it held the reservation lock' >&2; exit 1; }
 competing_pack_started=$(date +%s%3N)
 set +e
