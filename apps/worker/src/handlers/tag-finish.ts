@@ -116,7 +116,7 @@ export interface FinishTagInput {
   sheet?: SheetTagFacts | null;
   /** True once the shared Group Shot character exists, so a link cannot fail the save. */
   groupShotCharacterExists?: boolean;
-  /** Lower-case customer names; a sheet retailer becomes a tag only when it starts with one. */
+  /** Lower-case customer names and aliases; a sheet retailer becomes a tag only when it starts with one. */
   customerNames?: string[];
   /** Lower-case designer first names; a person is never a packaging or customer tag. */
   designerFirstNames?: Set<string>;
@@ -130,14 +130,34 @@ const JUNK_TAG = /^(page \d+( of \d+)?|made in\b.*|price point|source file|chara
 
 /** Season or date wording that follows a customer's name on a sheet ("Burlington SS26"). */
 function matchingCustomer(retailer: string, customerNames: string[]): string | null {
-  return customerNames.filter(name => retailer === name || retailer.startsWith(`${name} `)).sort((a, b) => b.length - a.length)[0] ?? null;
+  const wording = apostropheFree(retailer);
+  const match = customerNames.filter(name => {
+    const form = apostropheFree(name);
+    return wording === form || wording.startsWith(`${form} `);
+  }).sort((a, b) => b.length - a.length)[0];
+  return match ? SHEET_SPELLINGS[match] ?? match : null;
+}
+
+function apostropheFree(value: string): string {
+  return value.replace(/'/g, "");
+}
+
+/** Spellings sheets use that customer records lack, and the tag each one means. */
+const SHEET_SPELLINGS: Record<string, string> = { "4 season": "4 seasons", "gabriel brothers": "gabriel brothers", ollie: "ollie's", olies: "ollie's" };
+/** A real alias ("General" for Dollar General), but as sheet wording it means nothing. */
+const AMBIGUOUS_CUSTOMER_FORMS = new Set(["general"]);
+
+/** Customer records are legal names ("ROSS STORES INC SUPPLIERS"); sheets use the short names. */
+export function customerMatchForms(names: Array<string | null | undefined>): string[] {
+  const forms = [...names, ...Object.keys(SHEET_SPELLINGS)].map(name => (name ?? "").replace(/\u2019/g, "'").replace(/\s+/g, " ").trim().toLowerCase());
+  return [...new Set(forms)].filter(form => form.length >= 3 && !AMBIGUOUS_CUSTOMER_FORMS.has(form) && !form.includes("do not use"));
 }
 
 /** Sheet OCR can be junk; only short, wordy values become search tags. */
-function sheetTagValue(value: string | null | undefined): string | null {
-  const cleaned = (value ?? "").replace(/\s+/g, " ").trim();
+function sheetTagValue(value: string | null | undefined, firstChar = /^\p{L}/u): string | null {
+  const cleaned = (value ?? "").replace(/\u2019/g, "'").replace(/\s+/g, " ").trim();
   const value_ = cleaned.toLowerCase();
-  return cleaned.length >= 3 && cleaned.length <= 40 && /^[\p{L}][\p{L}\p{N} &'./-]*$/u.test(cleaned) && !JUNK_TAG.test(value_) ? value_ : null;
+  return cleaned.length >= 3 && cleaned.length <= 40 && firstChar.test(cleaned) && /^[\p{L}\p{N} &'./-]+$/u.test(cleaned) && !JUNK_TAG.test(value_) ? value_ : null;
 }
 
 export function finishTagResult(input: FinishTagInput): { tagData: Record<string, unknown>; characterIds: string[] } {
@@ -153,7 +173,7 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
     if (!tags.has(tag)) tags.set(tag, existing ? { ...existing, tag } : { tag, category, confidence: 1, evidence: [evidence] });
   };
   for (const item of (tagData.asset_tags as Array<Record<string, unknown>>) ?? []) {
-    let raw = String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    let raw = String(item.tag ?? "").replace(/\u2019/g, "'").trim().replace(/\s+/g, " ").toLowerCase();
     // "comic-book-cover" is a slug, not a search term; "close-up" and "spider-man" stay.
     if ((raw.match(/-/g) ?? []).length >= 2) raw = raw.replace(/-/g, " ");
     if (JUNK_TAG.test(raw)) continue;
@@ -189,7 +209,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   if (groupShot) add(GROUP_SHOT_TAG, "visible_content", "more than three characters");
   const packaging = sheetTagValue(sheet?.packaging_type);
   if (packaging && !designerFirstNames.has(packaging.split(/\s+/)[0])) add(packaging, "other", "sheet packaging type");
-  const retailer = sheetTagValue(sheet?.retailer);
+  // Customers can start with a digit ("4 Seasons"); the customer match below still gates it.
+  const retailer = sheetTagValue(sheet?.retailer, /^[\p{L}\p{N}]/u);
   const customer = retailer ? matchingCustomer(retailer, customerNames) : null;
   if (customer) add(customer, "other", "sheet original customer");
 
