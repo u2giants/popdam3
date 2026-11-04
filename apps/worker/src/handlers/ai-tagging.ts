@@ -69,7 +69,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, customerMatchForms, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
@@ -269,12 +269,21 @@ async function customerNames(client: ReturnType<typeof db>): Promise<string[]> {
   if (customerCache && Date.now() < customerCache.expires) return customerCache.names;
   // Customer tags are optional: a failed read must never lose a paid result.
   try {
-    const { data, error } = await client.schema("core").from("customer").select("name");
-    if (error || !data) return customerCache?.names ?? [];
-    const names = (data as Array<{ name: string | null }>).map(row => (row.name ?? "").trim().toLowerCase()).filter(name => name.length >= 3);
+    const core = client.schema("core");
+    const [customers, aliases] = await Promise.all([core.from("customer").select("name, display_name"), core.from("customer_alias").select("alias")]);
+    const code = customers.error?.code ?? aliases.error?.code;
+    if (code || !customers.data || !aliases.data) {
+      logger.warn("ai-tag: customer names unavailable, keeping last known", { code });
+      return customerCache?.names ?? [];
+    }
+    const names = customerMatchForms([
+      ...(customers.data as Array<{ name: string | null; display_name: string | null }>).flatMap(row => [row.name, row.display_name]),
+      ...(aliases.data as Array<{ alias: string | null }>).map(row => row.alias),
+    ]);
     customerCache = { names, expires: Date.now() + 600_000 };
     return names;
-  } catch {
+  } catch (error) {
+    logger.warn("ai-tag: customer names unavailable, keeping last known", { error: String(error) });
     return customerCache?.names ?? [];
   }
 }

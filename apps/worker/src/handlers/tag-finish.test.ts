@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, isManagerNotTechnicalDesigner, labelsFromFilename } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, customerMatchForms, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, isManagerNotTechnicalDesigner, labelsFromFilename } from "./tag-finish.js";
+import { NOT_A_CHARACTER } from "./ai-tagging-shared.js";
 
 const tag = (name: string) => ({ tag: name, category: "other", confidence: 0.9, evidence: ["x"] });
 const finish = (over: Record<string, unknown> = {}, ids: string[] = [], filename = "a.psd", licensed = true) =>
@@ -144,4 +145,21 @@ test("a known name with stray model text is rejected", () => {
 test("the manager is not saved as technical designer", () => {
   for (const manager of ["Albert Hazan", "ALBERT", "albert hazan "]) assert.ok(isManagerNotTechnicalDesigner(manager), manager);
   for (const designer of ["Zarit Calderon", "Alberta Smith", "Danilo"]) assert.ok(!isManagerNotTechnicalDesigner(designer), designer);
+});
+
+test("sheet retailers match customers by legal name, display name or alias", () => {
+  const customerNames = customerMatchForms(["ROSS STORES INC SUPPLIERS", "Ross", "OLLIE'S BARGAIN OUTLET INC", "Ollies", "Ollie’s", "General", "DO NOT USE ROBERTS VARIETY", "DD", "dd's", "DDs"]);
+  const tagFor = (retailer: string) => (finishTagResult({ tagData: { ai_description: "x", asset_tags: [] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, customerNames, sheet: { retailer } }).tagData.asset_tags as Array<{ tag: string }>).map(item => item.tag);
+  assert.deepEqual(tagFor("ROSS FW26"), ["ross"]);
+  assert.deepEqual(tagFor("Ollie’s January 2026"), ["ollie's"]);
+  assert.deepEqual(tagFor("Ollies FW25"), ["ollie's"]);
+  assert.deepEqual(tagFor("DD’s Wall SS26"), ["dd's"]);
+  assert.deepEqual(tagFor("Gabriel Brother’s May 26"), ["gabriel brothers"]);
+  assert.deepEqual(tagFor("4 Season"), ["4 seasons"]);
+  for (const notCustomer of ["General Purpose", "Rossi", "Do Not Use Roberts Variety", "Felt backing with PVC dots", "Danilo", "Marvel"]) assert.deepEqual(tagFor(notCustomer), [], notCustomer);
+});
+
+test("licensor label rows are never offered as characters", () => {
+  for (const label of ["Mickey - No Character Likeness", "Venom - Do Not Use", "Marvel Logo"]) assert.equal(NOT_A_CHARACTER.test(label), true, label);
+  for (const name of ["Spider-Man", "Logan", "Likeness Larry"]) assert.equal(NOT_A_CHARACTER.test(name), false, name);
 });

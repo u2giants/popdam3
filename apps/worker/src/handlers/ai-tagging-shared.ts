@@ -249,7 +249,7 @@ export async function validateCharacterReferences(
   return ids;
 }
 /** Licensor list rows that are labels, not someone a person could draw. */
-const NOT_A_CHARACTER = /do not use|\blogo\b|no character likeness|no reportable elements|\(general\)|\bno likeness\b|\bwith likeness\b|general \(no name|film elements/i;
+export const NOT_A_CHARACTER = /do not use|\blogo\b|no character likeness|no reportable elements|\(general\)|\bno likeness\b|\bwith likeness\b|general \(no name|film elements/i;
 
 function normalizedCharacterName(name: string): string {
   return displayCharacterName(name).toLowerCase().replace(/^the\s+/, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
