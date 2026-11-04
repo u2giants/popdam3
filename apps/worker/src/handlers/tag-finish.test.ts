@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, isManagerNotTechnicalDesigner, labelsFromFilename } from "./tag-finish.js";
 
 const tag = (name: string) => ({ tag: name, category: "other", confidence: 0.9, evidence: ["x"] });
 const finish = (over: Record<string, unknown> = {}, ids: string[] = [], filename = "a.psd", licensed = true) =>
@@ -139,4 +139,9 @@ test("a known name with stray model text is rejected", () => {
   const known = new Set(["luis"]);
   assert.ok(isKnownDesigner("Luis Herrera", known));
   for (const bad of ["LUIS', \"art_source\": null}", "LUIS (UPDATED BY DANILO MAR12)", "LUIS_x", "LUIS provides more color to your hair while adding body and volume"]) assert.ok(!isKnownDesigner(bad, known), bad);
+});
+
+test("the manager is not saved as technical designer", () => {
+  for (const manager of ["Albert Hazan", "ALBERT", "albert hazan "]) assert.ok(isManagerNotTechnicalDesigner(manager), manager);
+  for (const designer of ["Zarit Calderon", "Alberta Smith", "Danilo"]) assert.ok(!isManagerNotTechnicalDesigner(designer), designer);
 });
