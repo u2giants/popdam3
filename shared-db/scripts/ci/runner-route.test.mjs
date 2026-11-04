@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { decideRunner, SELF_HOSTED } from './runner-route.mjs'
 
 const now = 1_800_000_000
-const base = { eventName: 'pull_request', headRepo: 'popcre/shared-db', repository: 'popcre/shared-db', fallback: 'blacksmith-2vcpu-ubuntu-2404', nowSeconds: now }
+const base = { eventName: 'pull_request', headRepo: 'popcre/shared-db', repository: 'popcre/shared-db', fallback: 'ubuntu-latest', nowSeconds: now }
 const hb = (s, b, t = now - 30) => `${s},${b},${t}`
 
 test('online and idle routes to the self-hosted runner', () => {
