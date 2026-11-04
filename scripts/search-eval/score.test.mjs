@@ -25,9 +25,10 @@ test("nonsense must return nothing", () => {
 });
 
 test("a misspelling must find at least half of what the right spelling finds", () => {
-  const testCase = { id: "1", kind: "misspelling", expected_total: 100 };
-  assert.equal(scoreSearch(testCase, judged, ["a"], { total: 20 }).pass, false);
-  assert.equal(scoreSearch(testCase, judged, ["a"], { total: 60 }).pass, true);
+  const testCase = { id: "1", kind: "misspelling" };
+  const withTotal = { ...judged, expected_total: 100 };
+  assert.equal(scoreSearch(testCase, withTotal, ["a"], { total: 20 }).pass, false);
+  assert.equal(scoreSearch(testCase, withTotal, ["a"], { total: 60 }).pass, true);
 });
 
 test("errors fail and too many unjudged results warn", () => {

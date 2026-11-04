@@ -27,15 +27,15 @@ export function scoreSearch(testCase, judged, hits, { error = null, total = hits
     must_found: found,
     first_relevant_rank: hits.findIndex((id) => relevant.has(id)) + 1 || null,
   };
-  row.pass = passes(testCase, row);
+  row.pass = passes(testCase, row, judged);
   return row;
 }
 
-function passes(testCase, row) {
+function passes(testCase, row, judged) {
   if (row.error) return false;
   if (testCase.expect_empty) return row.total === 0;
   if (testCase.kind === "code" && testCase.exact) return row.first_relevant_rank === 1;
-  if (testCase.expected_total && row.total < testCase.expected_total * 0.5) return false;
+  if (judged?.expected_total && row.total < judged.expected_total * 0.5) return false;
   if (row.relevant_top10 === 0) return false;
   const judgedTop = row.relevant_top10 + row.irrelevant_top10;
   if (judgedTop > 0 && row.relevant_top10 / judgedTop < 0.5) return false;
