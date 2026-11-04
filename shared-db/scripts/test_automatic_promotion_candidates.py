@@ -406,6 +406,40 @@ class SkipDecisionsAreLogged(unittest.TestCase):
         self.assertIn("skip: PR #7 has a successful production apply", out.getvalue())
 
 
+class ManualReRunInFlight(unittest.TestCase):
+    """2026-11-03 race (#5560): run 41661658015 attempt 1 failed in the guards,
+    attempt 2 was started by hand and still ran while the trigger judged PR 5539
+    not yet in production and dispatched a second preview -> production chain."""
+    PR = {"number": 5539, "merged_at": "2026-11-03T14:00:00Z", "versions": ["20261103142609"]}
+
+    def _run(self, status, conclusion):
+        return {"id": 41661658015, "display_title": "DB production apply abc123 PR5539 20261103142609",
+                "status": status, "conclusion": conclusion, "run_attempt": 2,
+                "created_at": "2026-11-03T15:13:35Z"}
+
+    def test_attempt_two_in_progress_waits(self):
+        for status in ("queued", "in_progress", "waiting"):
+            action, pr, _ = m.decide([self.PR], [self._run(status, None)], lambda n: [])
+            self.assertEqual((action, pr), ("wait", None), status)
+
+    def test_attempt_two_in_progress_even_if_api_still_reports_attempt_one_failure(self):
+        action, pr, _ = m.decide([self.PR], [self._run("in_progress", "failure")], lambda n: [])
+        self.assertEqual((action, pr), ("wait", None))
+
+    def test_main_never_dispatches_while_attempt_two_runs(self):
+        busy = self._run("in_progress", None)
+        with mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [self.PR]), \
+             mock.patch.object(m, "workflow_runs", lambda repo: [busy]), \
+             mock.patch.object(m, "is_held", lambda repo, n: []), \
+             mock.patch.object(m, "dispatch") as sent, \
+             mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            m.main(m._time("2026-11-03T15:16:00Z"))
+        sent.assert_not_called()
+
+
 class EarlierPreviewApply(unittest.TestCase):
     def test_finds_the_oldest_successful_post_merge_preview_apply(self):
         pr = {"number": 5165, "merged_at": "2026-10-31T00:00:00Z", "versions": ["20261030190639"]}

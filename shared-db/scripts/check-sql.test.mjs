@@ -1400,7 +1400,7 @@ test('protected SQL source validates actual PR SQL and never executes PR helper 
  const directory=mkdtempSync(path.join(process.env.TMPDIR??'/tmp','protected-sql-data-'))
  const source=path.join(directory,'source'),data=path.join(directory,'data'),marker=path.join(directory,'executed')
  const git=(root,args)=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
- const init=root=>{mkdirSync(root,{recursive:true});git(root,['init','-q']);git(root,['config','user.name','Test']);git(root,['config','user.email','test@example.invalid'])}
+ const init=root=>{mkdirSync(root,{recursive:true});git(root,['init','-q']);git(root,['config','gc.auto','0']);git(root,['config','maintenance.auto','false']);git(root,['config','user.name','Test']);git(root,['config','user.email','test@example.invalid'])}
  try {
   init(source);cpSync(path.join(repoRoot,'scripts'),path.join(source,'scripts'),{recursive:true});git(source,['add','scripts']);git(source,['commit','-qm','trusted source']);const sourceSha=git(source,['rev-parse','HEAD'])
   init(data);mkdirSync(path.join(data,'supabase/migrations'),{recursive:true});writeFileSync(path.join(data,'supabase/migrations/20260101000000_initial.sql'),'select 1;');for(const name of ['20260621150714_foundation.sql','20260621150815_app_core.sql','20260621151024_domain_tables.sql','20260621151155_api_rls_realtime.sql'])cpSync(path.join(repoRoot,'supabase/migrations',name),path.join(data,'supabase/migrations',name));git(data,['add','.']);git(data,['commit','-qm','base']);git(data,['update-ref','refs/remotes/origin/main','HEAD'])
@@ -1416,5 +1416,5 @@ test('protected SQL source validates actual PR SQL and never executes PR helper 
   assert.equal(existsSync(marker),false,'PR executable was run for valid data')
   assert.equal(git(source,['status','--porcelain']),'','protected source was mutated')
   assert.equal(git(source,['rev-parse','HEAD']),sourceSha)
- } finally {rmSync(directory,{recursive:true,force:true,maxRetries:5,retryDelay:200})}
+ } finally {rmSync(directory,{recursive:true,force:true,maxRetries:20,retryDelay:250})}
 })
