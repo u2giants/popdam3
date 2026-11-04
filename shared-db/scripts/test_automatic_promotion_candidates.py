@@ -370,6 +370,42 @@ class ProductionReRunAlert(unittest.TestCase):
                 os.environ["GITHUB_REPOSITORY"] = saved[6]
 
 
+class FreshRecheckBeforeDispatch(unittest.TestCase):
+    PR = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+
+    def _main(self, snapshots):
+        with mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [self.PR]), \
+             mock.patch.object(m, "workflow_runs", mock.Mock(side_effect=snapshots)), \
+             mock.patch.object(m, "is_held", lambda repo, n: []), \
+             mock.patch.object(m, "dispatch") as sent, \
+             mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            m.main(m._time("2026-01-02T00:00:00Z"))
+        return sent, out.getvalue()
+
+    def test_a_run_started_after_the_snapshot_withdraws_the_dispatch(self):
+        busy = {"id": 1, "display_title": "DB production apply a PR7 20260101000000",
+                "status": "in_progress", "run_attempt": 1, "created_at": "2026-01-01T01:00:00Z"}
+        sent, text = self._main([[], [busy], [busy]])
+        sent.assert_not_called()
+        self.assertIn("dispatch withdrawn on the fresh recheck: wait", text)
+
+    def test_an_unchanged_queue_still_dispatches(self):
+        sent, _ = self._main([[], []])
+        sent.assert_called_once()
+
+
+class SkipDecisionsAreLogged(unittest.TestCase):
+    def test_a_pr_already_in_production_logs_its_skip(self):
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        run = {"display_title": "DB production apply a PR7 1", "status": "completed", "conclusion": "success"}
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            m.decide([pr], [run], lambda n: [])
+        self.assertIn("skip: PR #7 has a successful production apply", out.getvalue())
+
+
 class EarlierPreviewApply(unittest.TestCase):
     def test_finds_the_oldest_successful_post_merge_preview_apply(self):
         pr = {"number": 5165, "merged_at": "2026-10-31T00:00:00Z", "versions": ["20261030190639"]}

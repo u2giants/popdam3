@@ -197,8 +197,10 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         titles = [(r.get("display_title") or "") + " " for r in runs]
         prod = [r for t, r in zip(titles, runs) if t.startswith("DB production apply") and tag in t]
         if any(r.get("conclusion") == "success" for r in prod):
+            print(f"skip: PR #{pr['number']} has a successful production apply")
             continue
         if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
+            print(f"skip: PR #{pr['number']} applied; only its post-apply catalog check failed")
             continue
         wanted = set(pr["versions"])
         in_production: set[str] = set()
@@ -212,6 +214,7 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if wanted <= in_production:
                 break
         if wanted <= in_production:
+            print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in production via another run")
             continue
         findings = held(pr["number"])
         if findings:
@@ -346,6 +349,14 @@ def main(now: datetime | None = None) -> int:
         print(f"held: PR #{entry['number']} by {refs}; later PRs still promote")
     print(f"{action}: {reason}")
     alerts = overdue_holds(skipped, now)
+    if action == "dispatch":
+        # Selecting takes minutes; a run started meanwhile must count (#5558:
+        # a re-run began after the snapshot and PR #5539 was dispatched again).
+        action, pr, reason = decide([pr], workflow_runs(repo), lambda n: is_held(repo, n),
+                                    lambda run: applied_in_any_attempt(repo, run), main_sha,
+                                    None, lambda run: refused_as_applied(repo, run))
+        if action != "dispatch":
+            print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
         dispatch(repo, pr, main_sha)
     for line in alerts:
