@@ -55,6 +55,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
+- plan_vector_consolidation.md — ALL vector/semantic search work (DAM + PopSG): one durable embedding pipeline, scorecard, PopSG activation; read STATUS first
 - plan_hybrid_search_rollout.md — keyword + pgvector discovery
 - plan_image_similarity_upload_search.md — upload an image, find same artwork (dual vision embeddings, GPU workers); read STATUS first
 - plan_semantic_search_popdam_popsg.md — combined semantic-search delivery plan and package assessment; read STATUS first
@@ -82,6 +83,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Work on Master Data / style tracker / Google Sheet replica | `AGENTS.md`, `docs/MASTER_DATA.md`; shared backend changes also need `shared-db/docs/app-migration-notes/master-data-style-tracker-20260624.md` | PopSG/ERP docs unless the task touches them |
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
 | Work on image similarity (upload-to-find, embeddings, GPU poller) | `AGENTS.md`, `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` | PopSG search docs (image search is PopDAM-only by plan) |
+| Work on search embeddings / semantic search (DAM or PopSG) | `AGENTS.md`, `plan_vector_consolidation.md` (STATUS first) | older semantic-search plans except as history |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
 | Work on the item-page product mockup tool | `AGENTS.md`, `docs/MOCKUP_TOOL.md`; auto-matching work → `plan_mockup_auto_match.md` (read its STATUS table first) | pop-mock repo internals (edit there, vendor here) |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
