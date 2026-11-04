@@ -75,3 +75,32 @@ test("a trial cap heartbeat never restores the pre-page cursor or progress", asy
   try {await tick();assert.equal(providerCalls,0);assert.equal(pages,1);assert.equal(ops["ai-tag-parallel"].cursor,6);assert.equal(ops["ai-tag-parallel"].progress?.skipped,6);assert.equal(ops["ai-tag-parallel"].status,"running");}
   finally {globalThis.fetch=original;}
 });
+
+test("a running tagging run steps aside for queued nightly grouping, keeping its cursor", async () => {
+  const original = globalThis.fetch;
+  const ops: Record<string, import("./types.js").OpState> = {
+    "ai-tag-parallel": {status:"running",run_id:"p",cursor:"keep",state_revision:1,updated_at:new Date().toISOString()},
+    "rebuild-style-groups": {status:"queued",run_id:"g",cursor:0,state_revision:1,queue_position:5,updated_at:new Date().toISOString()},
+  };
+  let providerCalls = 0;
+  globalThis.fetch = async(input, init) => {
+    const u = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    const response = (x: unknown) => new Response(JSON.stringify(x), {headers:{"Content-Type":"application/json"}});
+    if (u.hostname !== "localhost") { if (u.hostname !== "www.seafile.com") providerCalls++; return new Response(""); }
+    if (u.pathname.endsWith("/admin_config")) {
+      const filter=u.searchParams.get("key")??"";const all: Record<string, unknown>={BULK_OPERATIONS:ops};
+      const keys=filter.startsWith("eq.")?[filter.slice(3)]:filter.slice(4,-1).split(",");
+      return response(keys.filter(k=>k in all).map(k=>({key:k,value:all[k]})));
+    }
+    if (u.pathname.endsWith("/rpc/update_bulk_operation")) {
+      const b=JSON.parse(String(init?.body));ops[b.p_op_key]={...b.p_op_state,state_revision:(ops[b.p_op_key].state_revision??0)+1};return response(true);
+    }
+    return response([]);
+  };
+  try {
+    await tick();
+    assert.equal(ops["ai-tag-parallel"].status,"queued");
+    assert.equal(ops["ai-tag-parallel"].cursor,"keep");
+    assert.equal(providerCalls,0);
+  } finally { globalThis.fetch = original; }
+});
