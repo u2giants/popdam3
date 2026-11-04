@@ -148,9 +148,10 @@ export function isModelSpecificError(msg: string): boolean {
  * only errors raised by the model call, never database or storage errors.
  */
 export function isModelOutageError(msg: string): boolean {
-  if (/^OpenRouter (408|425|429|5\d\d):/.test(msg)) return true;
-  if (/^OpenRouter 40[0-4]:/.test(msg) && /not a valid model|no endpoints|model.*(not found|does not exist)/i.test(msg)) return true;
-  return /aborted|timed? ?out|fetch failed|econnreset|econnrefused|enotfound|socket hang up|network/i.test(msg);
+  if (/\bOpenRouter (408|425|429|5\d\d):/.test(msg)) return true;
+  if (/\bOpenRouter 40[0-4]:/.test(msg) && /not a valid model|no endpoints|model.*(not found|does not exist)/i.test(msg)) return true;
+  if (/^Model .+ is not available in the OpenRouter account catalog$/.test(msg)) return true;
+  return /\b(?:AbortError|request (?:was )?aborted|operation (?:was )?aborted)\b|timed? ?out|fetch failed|econnreset|econnrefused|enotfound|socket hang up|\bnetwork (?:error|connection|request failed)\b/i.test(msg);
 }
 
 export function isRetryableStructuredOutputError(msg: string): boolean {
