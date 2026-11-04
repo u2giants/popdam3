@@ -253,11 +253,16 @@ async function knownDesignerFirstNames(client: ReturnType<typeof db>): Promise<S
 let customerCache: { names: string[]; expires: number } | null = null;
 async function customerNames(client: ReturnType<typeof db>): Promise<string[]> {
   if (customerCache && Date.now() < customerCache.expires) return customerCache.names;
-  const { data, error } = await client.schema("core").from("customer").select("name");
-  if (error || !data) return customerCache?.names ?? [];
-  const names = (data as Array<{ name: string | null }>).map(row => (row.name ?? "").trim().toLowerCase()).filter(name => name.length >= 3);
-  customerCache = { names, expires: Date.now() + 600_000 };
-  return names;
+  // Customer tags are optional: a failed read must never lose a paid result.
+  try {
+    const { data, error } = await client.schema("core").from("customer").select("name");
+    if (error || !data) return customerCache?.names ?? [];
+    const names = (data as Array<{ name: string | null }>).map(row => (row.name ?? "").trim().toLowerCase()).filter(name => name.length >= 3);
+    customerCache = { names, expires: Date.now() + 600_000 };
+    return names;
+  } catch {
+    return customerCache?.names ?? [];
+  }
 }
 
 /** Character names and licensing state the post-model rules need. */
