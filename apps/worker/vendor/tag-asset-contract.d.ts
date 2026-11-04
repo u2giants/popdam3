@@ -1,5 +1,5 @@
 export const TAG_ASSET_REQUIRED_FIELDS: readonly string[];
-export const TAG_ASSET_SCHEMA: Record<string, unknown>;
+export const TAG_ASSET_SCHEMA: Record<string, any>;
 export const CONTENT_TYPE_VALUES: readonly string[];
 
 export interface AssetTagResult {
@@ -20,6 +20,7 @@ export interface TaggingPromptContext {
   erpDescription?: string | null;
   itemDescription?: string | null;
   extractedPdfText?: string | null;
+  sheetFacts?: { description?: string | null; product_type?: string | null; materials?: string | null } | null;
   customInstructions?: string | null;
   licensorName?: string | null;
   propertyName?: string | null;
