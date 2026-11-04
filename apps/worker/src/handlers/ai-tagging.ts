@@ -141,6 +141,18 @@ export function isModelSpecificError(msg: string): boolean {
   );
 }
 
+/**
+ * True only for a model-call error showing the primary model or its provider is
+ * unavailable: rate limited, down, timed out or retired. Account faults (bad key,
+ * no credit) are excluded, since the backup would fail the same way. Callers pass
+ * only errors raised by the model call, never database or storage errors.
+ */
+export function isModelOutageError(msg: string): boolean {
+  if (/^OpenRouter (408|425|429|5\d\d):/.test(msg)) return true;
+  if (/^OpenRouter 40[0-4]:/.test(msg) && /not a valid model|no endpoints|model.*(not found|does not exist)/i.test(msg)) return true;
+  return /aborted|timed? ?out|fetch failed|econnreset|econnrefused|enotfound|socket hang up|network/i.test(msg);
+}
+
 export function isRetryableStructuredOutputError(msg: string): boolean {
   const lower = msg.toLowerCase();
   if (
@@ -1000,7 +1012,11 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   }
 
   // Get model from admin_config (cached for 1 min)
-  const selected = parallelModel ? { primary: parallelModel, fallback: null, providerPin: null } : await getVisionModels();
+  // A parallel run keeps its assigned model as primary but shares the saved backup.
+  const configuredVision = await getVisionModels();
+  const selected = parallelModel
+    ? { primary: parallelModel, fallback: configuredVision.fallback === parallelModel ? null : configuredVision.fallback, providerPin: null }
+    : configuredVision;
   const { primary: primaryModel, fallback: fallbackModel, providerPin } = selected;
   const providerOverride = buildProviderPin(providerPin);
 
@@ -1076,8 +1092,9 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   // If the primary model failed with a model-specific error and a fallback is configured, retry once
   const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
   // No batch-only model (legacy OpenRouter `:batch` or direct Gemini) can answer synchronously.
-  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && isModelSpecificError(rawMsg)) {
-    logger.info("ai-tag: primary model failed with model-specific error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
+  const primaryUnavailable = primaryResult._rawMsg !== undefined && isModelOutageError(primaryResult._rawMsg);
+  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && (isModelSpecificError(rawMsg) || primaryUnavailable)) {
+    logger.info("ai-tag: primary model failed with model-specific or outage error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
     const fallbackResult = await attemptTag(fallbackModel);
     if (fallbackResult.outcome === "tagged") return fallbackResult;
     // Both failed — return the primary error (more informative) with a note
@@ -1186,7 +1203,7 @@ export async function handleBulkAiTag(
       const chunk = page.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, "meta-direct/muse-spark-1.3-contributor"] : undefined);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : []), "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
         }),
       );
