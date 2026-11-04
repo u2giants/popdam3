@@ -32,7 +32,8 @@ const FILENAME_LABELS: Array<[RegExp, string]> = [
   [/3[ _/-]4/, "3/4 view"],
   [/front/, "front view"],
   [/back/, "back view"],
-  [/art/, "art"],
+  [/art(?:work|file)?/, "art"],
+  [/packaging/, "packaging design"],
 ];
 
 /** Asset-type words a file name states outright; a word must stand alone ("Front", not "FRoom"). */
@@ -47,7 +48,7 @@ export function labelsFromFilename(filename: string | null | undefined): string[
 
 /** "Spider-Man (Spidey and His Amazing Friends)" reads as "Spider-Man" in text and tags. */
 export function displayCharacterName(name: string): string {
-  return name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name.trim();
+  return name.replace(/\s*\([^)]*\)\s*$/, "").replace(/\s+aka\s+.*$/i, "").trim() || name.trim();
 }
 
 function joinNames(names: string[]): string {
@@ -95,9 +96,13 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   for (const item of (tagData.asset_tags as Array<Record<string, unknown>>) ?? []) {
     const raw = String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase();
     const renamed = raw in LABEL_RENAMES ? LABEL_RENAMES[raw] : raw;
-    if (renamed) add(renamed, String(item.category), "model", item);
+    // Internal ids and file formats are not search terms.
+    if (renamed && !/^character id\b/.test(renamed) && !/^(psd|pdf|ai)$/.test(renamed)) add(renamed, String(item.category), "model", item);
   }
-  for (const label of labelsFromFilename(filename)) add(label, "file_type", "file name");
+  const fileLabels = labelsFromFilename(filename);
+  for (const label of fileLabels) add(label, "file_type", "file name");
+  // A file named as a licensing sheet is one sheet, not also a tech pack.
+  if (fileLabels.includes("licensing sheet") && !fileLabels.includes("tech pack")) tags.delete("tech pack");
   if (licensed && (tags.has("licensing sheet") || tags.has("costing sheet"))) {
     add("licensing sheet", "file_type", "paired sheet label");
     add("costing sheet", "file_type", "paired sheet label");
