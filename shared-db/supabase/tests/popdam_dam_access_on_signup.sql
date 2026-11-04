@@ -12,6 +12,7 @@ declare
   v_upper uuid := gen_random_uuid();
   v_owner uuid := gen_random_uuid();
   v_null uuid := gen_random_uuid();
+  v_password uuid := gen_random_uuid();
 begin
   insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
   values (v_emp, 'zz-signup-test-' || v_emp || '@' || 'popcre.com', '{}', '{"provider":"azure"}'),
@@ -56,6 +57,22 @@ begin
   if exists (select 1 from app.app_access a join app.profile p on p.id = a.profile_id
              where p.auth_user_id = v_multi and a.app = 'dam') then
     raise exception 'multi-at address was granted dam access';
+  end if;
+  -- u2giants/popdam3#545: pm goes only to Microsoft-SSO popcre.com addresses.
+  if not exists (select 1 from app.app_access a join app.profile p on p.id = a.profile_id
+                 where p.auth_user_id = v_emp and a.app = 'pm') then
+    raise exception 'new SSO popcre.com user did not get pm access';
+  end if;
+  if exists (select 1 from app.app_access a join app.profile p on p.id = a.profile_id
+             where p.auth_user_id in (v_out, v_multi, v_null) and a.app = 'pm') then
+    raise exception 'non-employee user was granted pm access';
+  end if;
+  insert into public.invitations (email) values ('zz-signup-test-' || v_password || '@' || 'popcre.com');
+  insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data)
+  values (v_password, 'zz-signup-test-' || v_password || '@' || 'popcre.com', '{}', '{"provider":"email"}');
+  if exists (select 1 from app.app_access a join app.profile p on p.id = a.profile_id
+             where p.auth_user_id = v_password and a.app = 'pm') then
+    raise exception 'non-SSO popcre.com user was granted pm access';
   end if;
   if exists (select 1 from app.user_role ur join app.profile p on p.id = ur.profile_id
              join app.role r on r.id = ur.role_id
