@@ -144,8 +144,7 @@ async function processOne(
     if (!indra || indraFailed) {
       try {
         const worker = await createWorker("eng");
-        const result = await worker.recognize(pngBuffer);
-        await worker.terminate();
+        const result = await worker.recognize(pngBuffer).finally(() => worker.terminate());
         ocrText = result.data.text.trim();
         ocrEngine = "tesseract";
       } catch (e) {

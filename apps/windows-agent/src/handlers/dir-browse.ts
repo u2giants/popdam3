@@ -9,7 +9,7 @@ export async function handleDirBrowse(cmd: { request_id: string; path: string },
   logger.info("Dir browse requested", { requestId: cmd.request_id, path: target });
 
   try {
-    const { readdir, stat: fsStat } = await import("node:fs/promises");
+    const { readdir, realpath, stat: fsStat } = await import("node:fs/promises");
     let entries: api.DirEntry[];
 
     if (!target) {
@@ -18,6 +18,11 @@ export async function handleDirBrowse(cmd: { request_id: string; path: string },
       const rawEntries = await readdir(mountRoot, { withFileTypes: true });
       entries = rawEntries.map((e) => ({ name: e.name, is_dir: e.isDirectory() }));
     } else {
+      const base = await realpath(getMountRoot());
+      const rel = path.relative(base, await realpath(target));
+      if (rel !== "" && (rel.startsWith("..") || path.isAbsolute(rel))) {
+        throw new Error("Path is outside the configured NAS root");
+      }
       const rawEntries = await readdir(target, { withFileTypes: true });
       entries = await Promise.all(
         rawEntries.map(async (e) => {

@@ -400,8 +400,7 @@ async function processSinglePdf(
         const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
         if (!tesseractLib) throw new Error("tesseract.js not installed");
         const worker = await tesseractLib.createWorker("eng");
-        const ocrResult = await worker.recognize(pngBuffer);
-        await worker.terminate();
+        const ocrResult = await worker.recognize(pngBuffer).finally(() => worker.terminate());
         ocrText = (ocrResult.data.text as string).trim();
         ocrEngine = "tesseract";
       } catch (ocrErr) {

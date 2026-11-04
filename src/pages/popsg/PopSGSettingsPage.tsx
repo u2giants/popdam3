@@ -28,6 +28,8 @@ import {
 } from "@/components/settings/WindowsAgentTab";
 import { UsersSection, InvitationSection } from "@/components/settings/UsersTab";
 
+const MAX_BATCH_LOOPS = 10_000;
+
 /** Browser-safe NAS config from admin-api; the password itself is never returned (#194). */
 interface SgNasConfigView {
   host: string;
@@ -284,7 +286,8 @@ function SgRenderErrorsTable({ totalErrored }: { totalErrored?: number }) {
       let total = 0;
       // Loop in batches of 500 — each call is bounded so it completes within
       // the DB proxy's statement timeout. Stops when the function returns 0.
-      while (true) {
+      for (let batch = 0; ; batch++) {
+        if (batch >= MAX_BATCH_LOOPS) throw new Error("Stopped after too many batches; run it again to continue.");
         const { data, error } = await supabase.rpc("retry_sg_render_errors", { p_limit: 500 });
         if (error) throw error;
         const queued = data as number;
@@ -502,7 +505,8 @@ function SgRenderJobsTable({
     mutationFn: async () => {
       // Loop in 500-row batches — proxy statement timeout applies per call (KNOWN_QUIRKS #33).
       let total = 0;
-      while (true) {
+      for (let batch = 0; ; batch++) {
+        if (batch >= MAX_BATCH_LOOPS) throw new Error("Stopped after too many batches; run it again to continue.");
         const { data, error } = await supabase.rpc("requeue_all_failed_sg_jobs", { p_limit: 500 });
         if (error) throw error;
         const count = data as number;

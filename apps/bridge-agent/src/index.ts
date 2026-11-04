@@ -510,6 +510,10 @@ async function writeMarkerViaDocker(
   ], { timeout: 30_000 } as never);
 }
 
+// A read-only root fails every heartbeat; do not start a container each time.
+const MARKER_DOCKER_RETRY_MS = 60 * 60 * 1000;
+const markerDockerRetryAfter = new Map<string, number>();
+
 async function ensureRootMarkers(
   rootMappings: Array<{ root_id: string; display_name: string; server_path: string }>,
 ): Promise<void> {
@@ -590,11 +594,18 @@ async function ensureRootMarkers(
         markerStatuses[rm.root_id] = { ok: false, error: `direct_write_failed:${code}_no_host_path`, at: new Date().toISOString() };
         continue;
       }
+      const retryAfter = markerDockerRetryAfter.get(rm.root_id) ?? 0;
+      if (Date.now() < retryAfter) {
+        markerStatuses[rm.root_id] = { ok: false, error: "docker_write_backoff", at: new Date().toISOString() };
+        continue;
+      }
       try {
         await writeMarkerViaDocker(rootPath, mountRoot, nasHostPath, marker);
+        markerDockerRetryAfter.delete(rm.root_id);
         logger.info("Root marker written (Docker fallback)", { rootId: rm.root_id, path: markerPath });
         markerStatuses[rm.root_id] = { ok: true, method: "docker", at: new Date().toISOString() };
       } catch (dockerErr) {
+        markerDockerRetryAfter.set(rm.root_id, Date.now() + MARKER_DOCKER_RETRY_MS);
         logger.error("Root marker: Docker fallback also failed", {
           rootId: rm.root_id, error: (dockerErr as Error).message,
         });

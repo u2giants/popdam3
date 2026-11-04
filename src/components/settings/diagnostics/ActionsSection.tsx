@@ -15,6 +15,8 @@ import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
 
+const MAX_BATCH_LOOPS = 10_000;
+
 export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void; requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -98,7 +100,8 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     let totalGroupsRemoved = 0;
     let totalGroupsUpdated = 0;
     try {
-      while (true) {
+      for (let batch = 0; ; batch++) {
+        if (batch >= MAX_BATCH_LOOPS) throw new Error("Stopped after too many batches; run it again to continue.");
         const result = await call("purge-excluded-subfolder-assets");
         totalPurged += result.assets_purged ?? 0;
         totalGroupsRemoved += result.groups_removed ?? 0;
