@@ -16,7 +16,7 @@ jobs:
   review:
     uses: popcre/ai-devops/.github/workflows/ai-review.yml@main
     with:
-      runner_labels: '["self-hosted", "popdam3-linux"]'
+      runner_labels: '["self-hosted", "Linux", "X64", "ai-devops-linux"]'
     permissions:
       contents: read
       checks: write

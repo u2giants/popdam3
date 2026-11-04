@@ -15,18 +15,44 @@
 export const SUPPORTED_EXTENSIONS = [".psd", ".ai", ".pdf", ".png", ".jpg", ".jpeg"] as const;
 export const RASTER_EXTENSIONS = [".png", ".jpg", ".jpeg"] as const;
 export const PDF_KEYWORDS = [
-  "tech pack", "tech_pack", "techpack", "tech-pack",
-  "licensing sheet", "licensing-sheet", "licensing_sheet",
-  "_comp view", "_compview",
+  "tech pack",
+  "tech_pack",
+  "techpack",
+  "tech-pack",
+  "licensing sheet",
+  "licensing-sheet",
+  "licensing_sheet",
+  "_comp view",
+  "_compview",
 ] as const;
 export const IMAGE_KEYWORDS = ["comp-view", "compview"] as const;
 export const EXCLUDED_FOLDER_PREFIXES = [".", "$", "@", "#"] as const;
 /** Display and tester copy of the blocklist in packages/path-filters (test-enforced). */
 export const EXCLUDED_FOLDERS = [
-  "system volume information", "recycler", "$recycle.bin", "#recycle", "#snapshot", "#snapshots",
-  "@eadir", "@sharebin", "@tmp", ".synologyworkingdirectory", "__macosx", ".spotlight-v100",
-  ".trashes", ".fseventsd", ".appledouble", ".appledb", ".temporaryitems", "node_modules", ".git",
-  ".svn", "recovered", "adobe premiere pro auto-save", "_old", "sample",
+  "system volume information",
+  "recycler",
+  "$recycle.bin",
+  "#recycle",
+  "#snapshot",
+  "#snapshots",
+  "@eadir",
+  "@sharebin",
+  "@tmp",
+  ".synologyworkingdirectory",
+  "__macosx",
+  ".spotlight-v100",
+  ".trashes",
+  ".fseventsd",
+  ".appledouble",
+  ".appledb",
+  ".temporaryitems",
+  "node_modules",
+  ".git",
+  ".svn",
+  "recovered",
+  "adobe premiere pro auto-save",
+  "_old",
+  "sample",
 ] as const;
 
 export type IngestionRuleKind = "pdf_include" | "image_include" | "filename_exclude" | "folder_exclude";
