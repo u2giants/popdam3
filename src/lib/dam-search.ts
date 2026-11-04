@@ -213,6 +213,8 @@ export function expandFallbackTerms(rawTerm: string): Promise<string[]> {
         for (const row of (data ?? []) as Array<{ query_text?: string }>) {
           if (row?.query_text) add(row.query_text);
         }
+        const spelling = await invokeSearch({ action: "spelling", query: term });
+        if (typeof spelling.data?.corrected === "string") add(spelling.data.corrected);
       } catch {
         expandTermsCache.delete(key); // transient failure: allow a later retry
       }

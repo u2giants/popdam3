@@ -59,6 +59,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_hybrid_search_rollout.md — keyword + pgvector discovery
 - plan_image_similarity_upload_search.md — upload an image, find same artwork (dual vision embeddings, GPU workers); read STATUS first
 - plan_semantic_search_popdam_popsg.md — combined semantic-search delivery plan and package assessment; read STATUS first
+- docs/SEARCH_EVAL.md — scored search test set; run before and after anything changing search or tags
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
 - plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance

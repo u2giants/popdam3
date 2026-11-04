@@ -1,0 +1,44 @@
+name: Search test set
+
+# Manual only: run before and after the full tagging run. About 250 searches, no AI tagging cost.
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Name for this run, such as before-full-tagging"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Score live search
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SEARCH_EVAL_PUBLISHABLE_KEY }}
+          SEARCH_EVAL_EMAIL: ${{ secrets.SEARCH_EVAL_EMAIL }}
+          SEARCH_EVAL_PASSWORD: ${{ secrets.SEARCH_EVAL_PASSWORD }}
+          LABEL: ${{ inputs.label }}
+        run: node scripts/search-eval/run.mjs --label "$LABEL" --report report.json > /dev/null
+      - name: Summarize
+        run: |
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("report.json", "utf8"));
+            const lines = [`### ${r.label} (${r.checked_at})`, "", "| Search | Passed | Top-10 precision | Unjudged | Slow (p95) |", "|---|---|---|---|---|"];
+            for (const [name, e] of Object.entries(r.engines)) {
+              const o = e.overall;
+              lines.push(`| ${name} | ${o.passed}/${o.cases} | ${o.precision_top10} | ${o.unjudged_share} | ${o.p95_ms} ms |`);
+              if (e.warning) lines.push(`| ${e.warning} | | | | |`);
+            }
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: search-eval-report
+          path: report.json

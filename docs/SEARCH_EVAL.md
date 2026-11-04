@@ -1,0 +1,37 @@
+# Search test set
+
+A saved, scored definition of good search for PopDAM and PopSG. Run it before and after anything
+that changes search or tags, above all the full AI tagging run.
+
+- **Cases and judgments:** database `admin_config` key `SEARCH_EVAL_SET_V1`, never this public repo.
+  Licensed names, product codes and file IDs stay out of the repo, issues and reports.
+- **Run:** Actions → *Search test set* → Run workflow, with a label such as `before-full-tagging`.
+  Compare the job summaries. Reports hold case IDs and scores only.
+- **Cost:** live searches at normal speed as the viewer tester. No tagging and no paid model.
+
+## What counts as a pass
+
+| Kind | Pass |
+|---|---|
+| Exact product code | The right style group is first |
+| Nonsense | Nothing returned |
+| Misspelling | Rule below, and at least half as many results as the right spelling |
+| Everything else | A relevant top-10 result; at least half of judged top-10 results are relevant |
+
+Results that are not judged are reported as *unjudged*. Over 30% unjudged prints a warning: tagging
+legitimately changes results, so judge them before comparing scores.
+
+## Judging new results
+
+Run `scripts/search-eval/run.mjs --raw <private file>`, then `scripts/search-eval/label.py`, which
+applies each case's stored rule and keeps existing labels, then save the output back to the key.
+Store new judgments as a new `version` value inside the key. Keep raw files out of the repo.
+
+## How the first judgments were made
+
+119 searches were written from real catalog names and judged against each file's catalog fields,
+folder path and tags. The top 10 of the 65 character searches were also checked by eye on contact
+sheets of the actual thumbnails; that overrides the rule when they disagree. Product-form queries
+rely on catalog fields because flat art does not show the product. PopSG hits are judged by folder,
+file name and tags, so a guide that only mentions a character in its PDF body counts as irrelevant.
+Only the style-group view is scored, not the single-file view.
