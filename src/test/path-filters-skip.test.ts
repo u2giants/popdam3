@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldSkipPath } from "./index";
+import { shouldSkipPath } from "../../packages/path-filters/index";
 
 describe("shouldSkipPath", () => {
   it("does not apply folder prefix rules to filenames", () => {
