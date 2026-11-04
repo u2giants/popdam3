@@ -82,12 +82,24 @@ export interface FinishTagInput {
   customerNames?: string[];
   /** Lower-case designer first names; a person is never a packaging or customer tag. */
   designerFirstNames?: Set<string>;
+  /** Licensing names from the file's records; always tags, whatever the model wrote. */
+  licensorName?: string | null;
+  propertyName?: string | null;
+}
+
+/** Sheet furniture and legal boilerplate, never something a person searches for. */
+const JUNK_TAG = /^(page \d+( of \d+)?|made in\b.*|price point|source file|character art|product design|example photos?|sawtooth hanger|keyhole hanger)$/;
+
+/** Season or date wording that follows a customer's name on a sheet ("Burlington SS26"). */
+function matchingCustomer(retailer: string, customerNames: string[]): string | null {
+  return customerNames.filter(name => retailer === name || retailer.startsWith(`${name} `)).sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
 /** Sheet OCR can be junk; only short, wordy values become search tags. */
 function sheetTagValue(value: string | null | undefined): string | null {
   const cleaned = (value ?? "").replace(/\s+/g, " ").trim();
-  return cleaned.length >= 3 && cleaned.length <= 40 && /^[\p{L}][\p{L}\p{N} &'./-]*$/u.test(cleaned) ? cleaned.toLowerCase() : null;
+  const value_ = cleaned.toLowerCase();
+  return cleaned.length >= 3 && cleaned.length <= 40 && /^[\p{L}][\p{L}\p{N} &'./-]*$/u.test(cleaned) && !JUNK_TAG.test(value_) ? value_ : null;
 }
 
 export function finishTagResult(input: FinishTagInput): { tagData: Record<string, unknown>; characterIds: string[] } {
@@ -103,7 +115,12 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
     if (!tags.has(tag)) tags.set(tag, existing ? { ...existing, tag } : { tag, category, confidence: 1, evidence: [evidence] });
   };
   for (const item of (tagData.asset_tags as Array<Record<string, unknown>>) ?? []) {
-    const raw = String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    let raw = String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    // "comic-book-cover" is a slug, not a search term; "close-up" and "spider-man" stay.
+    if ((raw.match(/-/g) ?? []).length >= 2) raw = raw.replace(/-/g, " ");
+    if (JUNK_TAG.test(raw)) continue;
+    const seasonCustomer = /\d|\b(ss|fw|spring|summer|fall|winter|holiday|phase)\b/.test(raw) ? matchingCustomer(raw, customerNames) : null;
+    if (seasonCustomer) raw = seasonCustomer;
     const renamed = raw in LABEL_RENAMES ? LABEL_RENAMES[raw] : raw;
     // Internal ids and file formats are not search terms.
     // So is scanned text in another alphabet, and a designer's own name.
@@ -113,18 +130,31 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   for (const label of fileLabels) add(label, "file_type", "file name");
   // A file named as a licensing sheet is one sheet, not also a tech pack.
   if (fileLabels.includes("licensing sheet") && !fileLabels.includes("tech pack")) tags.delete("tech pack");
+  if (fileLabels.includes("tech pack") && !fileLabels.includes("licensing sheet")) { tags.delete("licensing sheet"); tags.delete("costing sheet"); }
+  // A sheet shows example photos; the file itself is a document, not product photography.
+  if (fileLabels.includes("licensing sheet") || fileLabels.includes("tech pack")) tags.delete("product photography");
+  for (const name of [input.licensorName, input.propertyName]) {
+    const licensing = (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    if (licensing) add(licensing, "other", "licensing record");
+  }
   if (licensed && (tags.has("licensing sheet") || tags.has("costing sheet"))) {
     add("licensing sheet", "file_type", "paired sheet label");
     add("costing sheet", "file_type", "paired sheet label");
   }
   for (const name of names) add(name.toLowerCase(), "visible_content", "selected character");
+  // A character the licensor records lack (Chase, Chucky) still has to be findable in search.
+  for (const name of Array.isArray(tagData.character_names) ? tagData.character_names : []) {
+    const seen = typeof name === "string" ? sheetTagValue(name) : null;
+    if (seen && seen !== GROUP_SHOT_TAG) add(seen, "visible_content", "named character");
+  }
   // "Group shot" means more than three characters, whatever the model wrote.
   if (!groupShot) tags.delete(GROUP_SHOT_TAG);
   if (groupShot) add(GROUP_SHOT_TAG, "visible_content", "more than three characters");
   const packaging = sheetTagValue(sheet?.packaging_type);
   if (packaging && !isPerson(packaging)) add(packaging, "other", "sheet packaging type");
   const retailer = sheetTagValue(sheet?.retailer);
-  if (retailer && customerNames.some(name => retailer === name || retailer.startsWith(`${name} `))) add(retailer, "other", "sheet original customer");
+  const customer = retailer ? matchingCustomer(retailer, customerNames) : null;
+  if (customer) add(customer, "other", "sheet original customer");
 
   let description = String(tagData.ai_description ?? "").trim();
   // "Sally" already names "Sally Doll"; only a wholly absent character is added.

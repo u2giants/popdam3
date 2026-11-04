@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handleBulkAiTag, isRetryableStructuredOutputError, isVisualAnalysisUnavailableError, type AiTagRpcClient } from "./ai-tagging.js";
+import { addNamedCharacters } from "./ai-tagging-shared.js";
 
 test("new executor aggregate errors retain same-model retry behavior", () => {
   assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: no parsable JSON"), true);
@@ -275,4 +276,13 @@ test("parallel operation refuses to infer without its matching configuration", a
     client: fakeClient([], []), tagAsset: async () => { submitted = true; return {outcome: "tagged"}; },
   }, true, true);
   assert.equal(result.ok, false); assert.equal(submitted, false);
+});
+
+test("a named character links only on an exact match in the licensor's records", async () => {
+  const rows = [{ id: "11111111-1111-4111-8111-111111111111", name: "Venom ( Spider-Man )", status: "active" }, { id: "22222222-2222-4222-8222-222222222222", name: "Venom - Do Not Use", status: "active" }, { id: "33333333-3333-4333-8333-333333333333", name: "Dumbo (2019) - Live Action Film Elements", status: "active" }];
+  const chain = (result: unknown): any => new Proxy(() => undefined, { get: (_t, key) => key === "then" ? (done: (v: unknown) => void) => done(result) : key === "maybeSingle" ? async () => result : () => chain(result), apply: () => chain(result) });
+  const client = { schema: () => ({ from: () => chain({ data: rows, error: null }) }), from: () => chain({ data: null, error: null }) } as never;
+  const asset = { licensor_id: "44444444-4444-4444-8444-444444444444", property_id: null, style_group_id: null, sku: null };
+  assert.deepEqual(await addNamedCharacters(client, asset, [], ["Venom", "Dumbo", "Somebody Else"]), ["11111111-1111-4111-8111-111111111111"]);
+  assert.deepEqual(await addNamedCharacters(client, asset, [], "nope"), []);
 });
