@@ -50,7 +50,9 @@ describe("search spelling", () => {
 
   it("fails open when the lookup breaks", async () => {
     const broken: SpellingLookup = {
-      countDocs: async () => { throw new Error("down"); },
+      countDocs: async () => {
+        throw new Error("down");
+      },
       vocabulary: async () => vocabulary,
     };
     expect(await checkSpelling("xqzvplm", broken)).toEqual({ corrected: null, meaningful: true });

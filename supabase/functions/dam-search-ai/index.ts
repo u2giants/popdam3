@@ -19,12 +19,32 @@ const SIGLIP2_MODEL = "google/siglip2-base-patch16-naflex";
 const SIGLIP2_DIM = 768;
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
-const PRODUCT_WORDS = ["canvas", "hamper", "mat", "doormat", "coir", "rug", "clock", "chest", "storage", "frame", "framed", "plaque", "banner", "lenticular", "glass", "tray", "desk", "print", "sign"];
+const PRODUCT_WORDS = [
+  "canvas",
+  "hamper",
+  "mat",
+  "doormat",
+  "coir",
+  "rug",
+  "clock",
+  "chest",
+  "storage",
+  "frame",
+  "framed",
+  "plaque",
+  "banner",
+  "lenticular",
+  "glass",
+  "tray",
+  "desk",
+  "print",
+  "sign",
+];
 let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
 
 async function loadNames(table: string, column: string, weightOf: (row: Record<string, unknown>) => number, vocabulary: Map<string, number>) {
   const pageSize = 1000;
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0;; from += pageSize) {
     const { data, error } = await serviceClient().from(table).select("*").range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
     for (const row of (data ?? []) as Record<string, unknown>[]) {
@@ -46,7 +66,9 @@ const spellingLookup: SpellingLookup = {
       await loadNames("characters", "name", (row) => Number(row.usage_count) || 0, vocabulary);
       return vocabulary;
     })();
-    words.catch(() => { vocabularyCache = null; });
+    words.catch(() => {
+      vocabularyCache = null;
+    });
     vocabularyCache = { expires: Date.now() + VOCABULARY_TTL_MS, words };
     return words;
   },
@@ -213,9 +235,7 @@ corsServe(async (req) => {
       query,
       async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
     );
-    const spelling = productCodeSearch
-      ? { corrected: null, meaningful: true }
-      : await checkSpelling(query, spellingLookup);
+    const spelling = productCodeSearch ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
     const usePictures = !productCodeSearch && spelling.meaningful;
     const [embedding, floorConfig] = await Promise.all([
       usePictures ? embedQueryText(query) : Promise.resolve(null),
