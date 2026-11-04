@@ -8,7 +8,7 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 0 | Confirm the finding is still open on `main` | ⬜ open | Checked 2026-11-04 4:45 PM EST: `main` (4409e2d3) still has the 100 MB rescan limit at `apps/windows-agent/src/pdf-backfill.ts:269-274`; PR #718 is OPEN, unmerged, reviewer verdict REVISE |
-| 1 | Branch from `main`, carry PR #718's two-line change onto it | ⬜ open | |
+| 1 | Branch from `main`, carry PR #718's two-line change onto it | ✅ landed | #718 merged as `4970cdeb`, Nov 4, 5:34 PM EST; branch from `main`, skip this step |
 | 2 | Pure policy module `apps/windows-agent/src/pdf-rescan-policy.ts` (limit, per-file outcome, batch-stop rule) | ⬜ open | |
 | 3 | Rescan reads through `readFileWithinLimit` (bounded), never blind `readFile` | ⬜ open | |
 | 4 | All-failed batch rule ignores per-file size skips (no stall) | ⬜ open | |
@@ -19,6 +19,8 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | 9 | Live proof on the 792 MB file, then requeue the 192 oversized rows; close #723 and tick the #680 checklist | ⬜ open | |
 
 Where a fresh session starts: Step 0 (re-verify, because PR #718 or a fixer bot may have moved first), then Step 1.
+
+**Correction (verified on `origin/main` `e037dd7a` (Nov 4, 2026, 6:05 PM EST)):** PR #718 was merged unrevised, and "Publish Windows Agent" succeeded for `4970cdeb`. So the 1 GiB limit and `file_over_1gb` are on `main` and the blind read (`pdf-backfill.ts:275`) and all-failed rule (`:379`) may already be running on the render PC. This raises the priority: both review findings are now live risks, not hazards to avoid before merging. Before starting, read the agent's reported version and whether any `file_over_100mb` rows were requeued; if they were, the Step 9 counts change. Do not requeue until Step 4 is deployed. §5's PR #718 paragraph, Step 8's "supersedes #718, close #718" and §13's "#718 closed as superseded" no longer apply. §7's "merging #718 as-is" was rejected here but happened. Step 3's replacement range is now `:269-275`, and the constant moves from `pdf-backfill.ts:247`.
 
 ---
 

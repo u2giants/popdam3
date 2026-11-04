@@ -188,6 +188,8 @@ shared-db), the repeat sign-out if needed, the personal-login review, docs, live
   - Revoked personal logins with live sessions: for the two UUIDs recorded on #545
     (`385fda19-…`, `7f7699e8-…`), `count(*) from auth.sessions` and `auth.refresh_tokens where revoked = false`.
   - Personal (non-popcre.com, non-azure) logins holding any active `app.app_access` row.
+  - `devopswithkube@gmail.com` (excluded and flagged on 2026-10-27 as a possible tooling identity; nothing since resolved it): sessions, last sign-in, access rows, and any reference to it in 1Password item titles or repo config.
+  - Which login `7f7699e8-…` is (the issue names `deborah.asalles@gmail.com` as the second live case and the sign-out comment says password login at a gmail address; confirm rather than assume), and whether that person now has an @popcre.com SSO account.
 - Record counts only (UUID prefixes allowed, no emails) on #545 with the EST time.
 - Gate: the comment shows the three numbers; the step-2 target list is held in the
   session, not posted.
@@ -244,7 +246,7 @@ shared-db), the repeat sign-out if needed, the personal-login review, docs, live
 ### Step 5 — Personal logins still holding access (report → owner)
 - For each of the (4) logins from step 1: SSO counterpart exists? last sign-in (EST)?
   which apps? Post a table keyed by UUID prefix on #545. Ask Albert ONE question in the
-  session: which of these should keep access. Execute his answer as a step-4-style
+  session: which of these should keep access. Include `devopswithkube` as its own row marked tooling or person, even if it holds no access, so the flag is closed. Also ask whether the person behind `7f7699e8-…` still needs access if step 1 found no SSO account (the 2026-10-27 comment left this open); if yes, that is a normal SSO invite, not a reactivated personal login. Execute his answer as a step-4-style
   sign-out (plus soft revocation of `app.app_access` via `revoked_at`, count-asserted)
   for those he removes.
 - Gate: Albert's answer quoted verbatim on #545; actions executed with evidence.
@@ -260,9 +262,12 @@ shared-db), the repeat sign-out if needed, the personal-login review, docs, live
 ### Step 7 — Live proof and close
 - AI-side proof: under one new hire's claims (session-injection pattern from memory
   `project_popsg_tester_login`) PopDAM search RPC returns rows and PopPIM opens.
-- Employee confirmation: the `- [ ] live proof` item on #545 names the designer
-  confirming search/filters and PopPIM with her Microsoft login. Ask Albert to relay her
-  confirmation (a business confirmation, not a click). Tick the item, close #545.
+- Employee confirmation: the `- [ ] live proof` item on #545 reads "Elizabeth (and each
+  affected employee)". Ask Albert to relay Elizabeth's confirmation of search/filters and
+  PopPIM with her Microsoft login, and the second affected person's if step 1 shows she has
+  an SSO account (a business confirmation, not a click). For the other grantees, the
+  AI-side evidence is one read per grantee of `pm` and `dam` active plus SSO sign-in
+  since the grant; list anyone not signed in as unproven rather than proven. Tick the item, close #545.
 - Gate: #545 closed; all STATUS rows cite artifacts.
 
 Adversarial cases (trust boundary: signup-hook inputs from Supabase Auth):

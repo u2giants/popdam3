@@ -7,7 +7,7 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 | # | Step | State | Evidence / notes |
 |---|------|-------|------------------|
-| 0 | Land PR #713 (five dead files) onto `main` | ⬜ open | PR #713 is OPEN, mergeable, all required checks green as of 2026-11-04 4:50 PM EST; files still present on `main` tip `4409e2d3` |
+| 0 | Land PR #713 (five dead files) onto `main` | ✅ done | merged 2026-11-04 5:12 PM EST as `2287f1b5`; its file list deletes all five. §5 describes the pre-merge state |
 | 1 | Worktree + branch from post-#713 `main` | ⬜ open | |
 | 2 | Delete `supabase/functions/_shared/types.ts` | ⬜ open | zero importers (grep, §6) |
 | 3 | Delete `apps/bridge-agent/src/constants.ts` | ⬜ open | zero importers (grep, §6) |
@@ -18,7 +18,7 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | 8 | PR, CI, merge, deploy verification | ⬜ open | |
 | 9 | Live proof on #471 and close | ⬜ open | `- [ ] live proof` stays on #471 until §13 proof exists |
 
-**Where a fresh session starts:** Step 0. Check `gh pr view 713 --json state,mergedAt`. If merged, start at Step 1. If still open and green, merge it (Albert does not merge; the AI does) and then start at Step 1. Duplicate-code work is NOT here; it is `docs/plans/issue-708-remove-duplicated-code.md`.
+**Where a fresh session starts:** Step 1 (#713 is merged). Duplicate-code work is NOT here; it is `docs/plans/issue-708-remove-duplicated-code.md`.
 
 ---
 
@@ -47,6 +47,7 @@ The 2026-10-21 full-codebase audit (PR #458, written up in `docs/audit-2026-10-2
 - One PR.
 
 **NOT in this plan:**
+- The issue's "Baseline observations" (full-run test flakiness, disk at 97–100%): the issue scope dropped them; disk is now 75%.
 - Any duplicate consolidation (`nas-config` queries, search helpers, retry helpers, pairing-code generators, bridge/Windows agent module drift, `UsersAndInvitations` vs `UsersTab`). That is issue #708 → `docs/plans/issue-708-remove-duplicated-code.md`.
 - The #468 security items (`browse_dir` containment, `claim-render` identity, helper deep links) — #713 carries those; do not reopen them here.
 - #469 (correctness) and #470 (efficiency) items.

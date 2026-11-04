@@ -234,7 +234,7 @@ touch any of the lines above.
 ### Step 5 — Recover or re-derive truncated finding 4
 - Try, in order: `gh api repos/u2giants/popdam3/issues/596 --jq .body` (already known
   truncated); the ai-review run's artifacts `gh run download 40989969957 -R u2giants/popdam3`
-  (if any artifact exists); the reviewer's PR comment on #595 (`gh pr view 595 --comments`).
+  (if any artifact exists); the reviewer's PR comment on #595 (`gh pr view 595 --comments`; checked 2026-11-04 6:05 PM EST: it is cut at the same characters, so do not expect text there).
 - If the text is not recoverable: re-review `licensing-resolution.ts:173–230` yourself
   for the most likely candidates and record the verdict on #596: (a) `licensorByCode`
   fallback (line 184) ignores `erp.division_code` — codes are global in `core.licensor`,

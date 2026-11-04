@@ -64,7 +64,7 @@ Nothing in code needs to change for the rotation itself. Every consumer reads th
 
 Correction to carry forward: HANDOFF.d/2026-10-07 §3 says "Railway worker env + three edge functions secrets" must be updated. That is wrong on main today — there is no Railway env var and no edge-function secret for Spaces; the only runtime store is `admin_config`. Also `docs/INFRASTRUCTURE.md:34` claims the keys "are never stored in admin_config and are never returned by any API" — false; fix it in step 8.
 
-Related file state: `fix_admin_config_secret_rotation.md` (repo root) is the July handoff; PR #713 (open, branch `claude/audit-backlog-fixes`) updates its status line to say only the DO pair remains. Deleting the file belongs to this plan's step 8, after rotation.
+Related file state: `fix_admin_config_secret_rotation.md` (repo root) is the July handoff; PR #713 (merged Nov 4, 5:12 PM EST) updated its status line to say only the DO pair remains. Deleting the file belongs to this plan's step 8, after rotation.
 
 ## 6. Key findings and root cause
 
@@ -118,6 +118,7 @@ Sign in to the admin API as the PopDAM admin tester (1Password `vibe_coding`, ad
 - Agents: next heartbeat delivers it (`agent-api/index.ts:750`). Gate: `agent_registrations.last_heartbeat` for `synology-bridge-1` and `windows-render-agent` advances past the step-4 timestamp, and a thumbnail generated after that time has a `thumbnail_url` under `cdn.designflow.app`/`popdam.nyc3…` that returns HTTP 200.
 - Edge delete path: handled by step 6.
 - Worker: `seadrive-mirror` runs weekly; no action, but it reads `admin_config` live (`seadrive-mirror.ts:57`). Gate: none now; note it in the close-out.
+- Railway and edge secrets: #714 lists both as consumers. Code reads no such variable (`apps/worker/src/config.ts`, no `Deno.env` read of `DO_SPACES_*`; re-verified on `e037dd7a`), but a stale copy could still sit in the live settings. List variable **names only** on the Railway worker service and in Supabase function secrets. Gate: no `DO_SPACES_*` name, or any found is updated now and recorded on #714, so the old value survives nowhere. If Railway access is down, record this line as unverified on #714; it does not block the rotation.
 - Bridge local `.env` on the NAS: if `DO_SPACES_KEY` is set there it is only a fallback overridden by heartbeat (`tenant-supervisor.ts:129`). Do not edit the NAS; if an SSH read shows the old key in `.env`, record it as a follow-up `- [ ]` on #714 to be cleared when the bridge is next redeployed (#681 owns bridge updates).
 
 ### Step 6 — Live proof (upload + delete)
