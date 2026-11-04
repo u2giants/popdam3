@@ -208,6 +208,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "SCAN_REQUEST",
   "SCAN_ALLOWED_SUBFOLDERS",
   "SCAN_MIN_DATE",
+  "INGESTION_RULES",
   "STYLE_GUIDE_SCAN_ROOTS",
   "STYLE_GUIDE_CRAWL_REQUEST",
   "ANTHROPIC_API_KEY",
@@ -763,6 +764,7 @@ async function handleHeartbeat(
         batch_size: (guard.batch_size as number) || pollingConfig.batch_size || DEFAULT_BATCH_SIZE,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
         allowed_subfolders: (configMap.SCAN_ALLOWED_SUBFOLDERS as string[]) || [],
+        ingestion_rules: (configMap.INGESTION_RULES as { rules?: unknown } | undefined)?.rules ?? [],
         adaptive_polling: {
           idle_seconds: pollingConfig.idle_seconds ?? ADAPTIVE_IDLE_SECONDS,
           active_seconds: pollingConfig.active_seconds ?? ADAPTIVE_ACTIVE_SECONDS,

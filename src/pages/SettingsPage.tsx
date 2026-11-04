@@ -20,6 +20,7 @@ import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
 import PopSGAgentTab from "@/components/settings/PopSGAgentTab";
 import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
+import IngestionRulesTab from "@/components/settings/IngestionRulesTab";
 import PackagingTypesTab from "@/components/settings/PackagingTypesTab";
 import { AgentStatusSection } from "./settings/AgentStatusSection";
 import { AgentThroughputChart } from "./settings/AgentThroughputChart";
@@ -107,6 +108,7 @@ export default function SettingsPage() {
             tabs={[
               { id: "nas", label: "NAS & Folders" },
               { id: "scanning", label: "Scanning" },
+              { id: "ingestion-rules", label: "Ingestion Rules" },
               { id: "image-output", label: "Image Output" },
               { id: "paths", label: "Path Tester" },
             ]}
@@ -115,6 +117,7 @@ export default function SettingsPage() {
           />
           {storageSubTab === "nas" && <NasStorageTab />}
           {storageSubTab === "scanning" && <ScanningTab />}
+          {storageSubTab === "ingestion-rules" && <IngestionRulesTab />}
           {storageSubTab === "image-output" && <ImageOutputTab />}
           {storageSubTab === "paths" && <PathTesterSection />}
         </TabsContent>

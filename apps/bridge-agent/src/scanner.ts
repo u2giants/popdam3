@@ -16,26 +16,31 @@ import { logger } from "./logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 
-const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai", ".pdf", ".png", ".jpg", ".jpeg"]);
-const RASTER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
+import {
+  isFilenameExcludedByRules, isFolderExcludedByRules, matchesImageRules, matchesPdfRules,
+  normalizeIngestionRules, RASTER_EXTENSIONS as RASTER_LIST, SUPPORTED_EXTENSIONS as SUPPORTED_LIST,
+  type IngestionRule,
+} from "./common/ingestion-rules.js";
 
-// PDF keyword filter: only ingest PDFs whose filename matches these keywords
-const PDF_KEYWORDS = [
-  "tech pack", "tech_pack", "techpack", "tech-pack",
-  "licensing sheet", "licensing-sheet", "licensing_sheet",
-  "_comp view", "_compview",
-];
+const SUPPORTED_EXTENSIONS = new Set<string>(SUPPORTED_LIST);
+const RASTER_EXTENSIONS = new Set<string>(RASTER_LIST);
+
+// Admin-managed extras from Settings → Storage → Ingestion Rules. A damaged
+// setting normalizes to none, leaving the built-in rules in force.
+let activeRules: IngestionRule[] = [];
+
+export function setIngestionRules(raw: unknown): void {
+  activeRules = normalizeIngestionRules(raw);
+}
 
 // Raster keyword filter: only ingest png/jpg files that are comp views.
 // These become the style group's default cover (see selectPrimaryAsset).
 export function isCompViewFilename(filename: string): boolean {
-  const lower = filename.toLowerCase();
-  return lower.includes("comp-view") || lower.includes("compview");
+  return matchesImageRules(filename, activeRules);
 }
 
 export function isPdfCandidate(filename: string): boolean {
-  const lower = filename.toLowerCase();
-  return PDF_KEYWORDS.some(kw => lower.includes(kw));
+  return !isFilenameExcludedByRules(filename, activeRules) && matchesPdfRules(filename, activeRules);
 }
 
 export interface FileCandidate {
@@ -172,7 +177,7 @@ async function* scanDirectory(
 
     if (entry.isDirectory()) {
       // Skip excluded directories using centralized path-filters
-      if (shouldSkipFolder(entry.name)) {
+      if (shouldSkipFolder(entry.name) || isFolderExcludedByRules(entry.name, activeRules)) {
         logger.debug("Skipping excluded directory", { dirPath: fullPath, folder: entry.name });
         counters.dirs_skipped_excluded++;
         continue;
@@ -216,6 +221,11 @@ async function* scanDirectory(
     // Check full path for excluded segments (catches files nested inside excluded dirs)
     if (shouldSkipPath(fullPath, logger.warn)) {
       counters.rejected_junk_file++;
+      continue;
+    }
+
+    if (isFilenameExcludedByRules(entry.name, activeRules)) {
+      counters.rejected_wrong_type++;
       continue;
     }
 
