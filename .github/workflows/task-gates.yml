@@ -10,8 +10,16 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  route:
+    uses: popcre/ai-devops/.github/workflows/edge-dev3-route.yml@main
+    with:
+      heartbeat: ${{ vars.EDGE_DEV3_RUNNER_HEARTBEAT }}
+      fallback: ubuntu-latest
+
   verify:
-    runs-on: ubuntu-latest
+    needs: route
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON(needs.route.outputs.runs_on || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
       - name: Check out PopDAM
