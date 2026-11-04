@@ -108,6 +108,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
     add("costing sheet", "file_type", "paired sheet label");
   }
   for (const name of names) add(name.toLowerCase(), "visible_content", "selected character");
+  // "Group shot" means more than three characters, whatever the model wrote.
+  if (!groupShot) tags.delete(GROUP_SHOT_TAG);
   if (groupShot) add(GROUP_SHOT_TAG, "visible_content", "more than three characters");
   const packaging = sheetTagValue(sheet?.packaging_type);
   if (packaging) add(packaging, "other", "sheet packaging type");

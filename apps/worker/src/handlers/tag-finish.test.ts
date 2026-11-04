@@ -74,3 +74,7 @@ test("junk tags go, aka names shorten, and a named licensing sheet is not a tech
   assert.equal(displayCharacterName("Rick Sanchez aka Rick"), "Rick Sanchez");
   assert.deepEqual(labelsFromFilename("VSZ66DYMM08_ARTWORK.ai"), ["art"]);
 });
+
+test("the model cannot call three characters a group shot", () => {
+  assert.ok(!tags(finish({ asset_tags: [tag("group shot")] }, ["a", "b", "c"])).includes("group shot"));
+});
