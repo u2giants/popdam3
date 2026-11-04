@@ -380,7 +380,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
   // Licensor-retired labels ("Venom - Do Not Use") and logos must never be offered as characters.
-  characters = [...new Map(characters.filter(c => !["archived", "deleted"].includes(c.status ?? "") && !/do not use|\blogo\b/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  characters = [...new Map(characters.filter(c => !["archived", "deleted"].includes(c.status ?? "") && !/do not use|\blogo\b|no character likeness/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
