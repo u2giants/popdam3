@@ -165,8 +165,10 @@ corsServe(async (req) => {
     }
     // A real product code has no visual meaning: its picture leg only returns
     // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
-    const exactProductCode = await isExactProductCode(query, async (pattern) =>
-      await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1));
+    const exactProductCode = await isExactProductCode(
+      query,
+      async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+    );
     const [embedding, floorConfig] = await Promise.all([
       exactProductCode ? Promise.resolve(null) : embedQueryText(query),
       // Server-side only: callers cannot override the admin-configured floor.

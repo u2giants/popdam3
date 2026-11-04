@@ -9,10 +9,12 @@ describe("isExactProductCode", () => {
 
   it("does not query for a blank search", async () => {
     let called = false;
-    expect(await isExactProductCode("  ", async () => {
-      called = true;
-      return { data: [], error: null };
-    })).toBe(false);
+    expect(
+      await isExactProductCode("  ", async () => {
+        called = true;
+        return { data: [], error: null };
+      }),
+    ).toBe(false);
     expect(called).toBe(false);
   });
 
@@ -28,8 +30,10 @@ describe("isExactProductCode", () => {
 
   it("fails open on a lookup error or throw", async () => {
     expect(await isExactProductCode("A1", async () => ({ data: null, error: { message: "down" } }))).toBe(false);
-    expect(await isExactProductCode("A1", async () => {
-      throw new Error("down");
-    })).toBe(false);
+    expect(
+      await isExactProductCode("A1", async () => {
+        throw new Error("down");
+      }),
+    ).toBe(false);
   });
 });
