@@ -1,4 +1,4 @@
--- popdam3#680, replaces 20261104000346 and 20261104013452, neither applied to production
+-- popdam3#680, replaces 20261104000346, 20261104013452 and 20261104022015, none applied to production
 -- (review findings #5549, #5553). "Child" and "Grogu" are one Star Wars character.
 -- Retiring is a status change. Safe if an earlier version removed the Child row in rehearsal.
 create table if not exists archive.character_child_grogu_links_20261104 (
@@ -16,9 +16,15 @@ declare
   v_child_licensor uuid;
   v_dependents bigint;
 begin
+  -- Preview holds no scraped Star Wars characters: nothing to merge there. Production has both.
+  if not exists (select 1 from core."character" where id = c_grogu)
+     and not exists (select 1 from core."character" where id = c_child) then
+    raise notice 'Child and Grogu absent in this database; nothing to retire';
+    return;
+  end if;
   select licensor_id into v_licensor from core."character" where id = c_grogu;
   if v_licensor is null then
-    raise exception 'Grogu must exist';
+    raise exception 'Grogu must exist with a licensor';
   end if;
   select licensor_id into v_child_licensor from core."character" where id = c_child;
   if v_child_licensor is distinct from v_licensor and v_child_licensor is not null then
