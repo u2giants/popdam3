@@ -53,6 +53,8 @@ import {
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
   validateCharacterReferences,
+  addNamedCharacters,
+  resolveLicensingNames,
   AssetTagApplyError,
   CharacterReferenceValidationError,
   CharacterCatalogDependencyError,
@@ -278,7 +280,7 @@ async function customerNames(client: ReturnType<typeof db>): Promise<string[]> {
 }
 
 /** Character names and licensing state the post-model rules need. */
-async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null }, characterIds: string[]) {
+async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null; property_id?: string | null }, characterIds: string[]) {
   const characterNames = new Map<string, string>();
   if (characterIds.length) {
     const { data, error } = await client.schema("core").from("character").select("id, name").in("id", characterIds);
@@ -297,7 +299,8 @@ async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: str
     if (error) throw new CharacterCatalogDependencyError(error.code);
     groupShotCharacterExists = !!data;
   }
-  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames, groupShotCharacterExists };
+  const { licensorName, propertyName } = await resolveLicensingNames(client, { licensor_id: asset.licensor_id ?? null, property_id: asset.property_id ?? null, style_group_id: asset.style_group_id ?? null });
+  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames, groupShotCharacterExists, licensorName, propertyName };
 }
 
 const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);
@@ -311,9 +314,9 @@ export async function applyBatchTagResult(
 ): Promise<{ fileSourcesFailed: boolean }> {
   validateTagAssetData(rawTagData, "batch");
   const client = injectedClient ?? db();
-  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, designer_name, technical_designer_name").eq("id", assetId).single();
+  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, property_id, designer_name, technical_designer_name").eq("id", assetId).single();
   if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
-  const validatedCharacterIds = await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client);
+  const validatedCharacterIds = await addNamedCharacters(client, asset, await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client), rawTagData.character_names);
   const finished = finishTagResult({ tagData: rawTagData, characterIds: validatedCharacterIds, filename: asset.filename, ...await loadFinishContext(client, asset, validatedCharacterIds) });
   const { tagData, characterIds } = finished;
   // Tags and character links are written first; the asset is marked "tagged"

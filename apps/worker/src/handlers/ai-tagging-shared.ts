@@ -15,6 +15,7 @@ import {
 } from "../../../../supabase/functions/_shared/tag-asset-contract.js";
 import { ASSET_TAG_CATEGORIES, normalizeMetadataTag } from "../tagging-metadata-policy.js";
 import { canonicalItems } from "../canonical-erp-items.js";
+import { displayCharacterName } from "./tag-finish.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 
@@ -247,6 +248,53 @@ export async function validateCharacterReferences(
   if (ids.some(id => !existing.has(id))) throw new CharacterReferenceValidationError();
   return ids;
 }
+/** Licensor list rows that are labels, not someone a person could draw. */
+const NOT_A_CHARACTER = /do not use|\blogo\b|no character likeness|no reportable elements|\(general\)|\bno likeness\b|\bwith likeness\b|general \(no name|film elements/i;
+
+function normalizedCharacterName(name: string): string {
+  return displayCharacterName(name).toLowerCase().replace(/^the\s+/, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+/**
+ * The offered list is empty for a large licensor whose property has no links, and can
+ * miss a character the licensor's own records hold. The model's named characters are
+ * matched exactly against that licensor's records, so a name can only ever become a
+ * licensed character, never free text. A failed read keeps the ids already chosen.
+ */
+export async function addNamedCharacters(
+  client: ReturnType<typeof db>,
+  asset: Pick<TaggingPromptAsset, "licensor_id" | "property_id" | "style_group_id" | "sku">,
+  characterIds: string[],
+  names: unknown,
+): Promise<string[]> {
+  const wanted = [...new Set((Array.isArray(names) ? names : []).filter((name): name is string => typeof name === "string").map(normalizedCharacterName).filter(name => name.length >= 2 && name !== "group shot"))];
+  if (!wanted.length) return characterIds;
+  try {
+    const unchecked = async <T>(query: PromiseLike<T>) => query;
+    const scope = await resolveCharacterScope(client, asset, unchecked, () => undefined);
+    if (scope.unlicensed) return characterIds;
+    if (!scope.licensor_id && scope.property_id) {
+      const { data } = await client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle();
+      scope.licensor_id = (data as { licensor_id: string | null } | null)?.licensor_id ?? null;
+    }
+    if (!scope.licensor_id) return characterIds;
+    const chosen = characterIds.length ? (await client.schema("core").from("character").select("id, name").in("id", characterIds)).data ?? [] : [];
+    const have = new Set((chosen as Array<{ name: string }>).map(row => normalizedCharacterName(row.name)));
+    const added: string[] = [];
+    for (const name of wanted) {
+      if (have.has(name)) continue;
+      const pattern = `${name.replace(/[%_\\]/g, "").replace(/ /g, "%")}%`;
+      const { data } = await client.schema("core").from("character").select("id, name, status").eq("licensor_id", scope.licensor_id).ilike("name", pattern).order("name").limit(200);
+      const match = ((data ?? []) as Array<{ id: string; name: string; status?: string | null }>)
+        .filter(row => !["archived", "deleted"].includes(row.status ?? "") && !NOT_A_CHARACTER.test(row.name) && normalizedCharacterName(row.name) === name)[0];
+      if (match) { added.push(match.id.toLowerCase()); have.add(name); }
+    }
+    return [...characterIds, ...added];
+  } catch {
+    return characterIds;
+  }
+}
+
 export interface TaggingPromptOptions {
   onCharacterCatalog?: (ids: string[]) => void;
   requireCharacterReadSuccess?: boolean;
@@ -380,7 +428,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
   // Licensor-retired labels ("Venom - Do Not Use") and logos must never be offered as characters.
-  characters = [...new Map(characters.filter(c => !["archived", "deleted"].includes(c.status ?? "") && !/do not use|\blogo\b|no character likeness/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  characters = [...new Map(characters.filter(c => !["archived", "deleted"].includes(c.status ?? "") && !NOT_A_CHARACTER.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
