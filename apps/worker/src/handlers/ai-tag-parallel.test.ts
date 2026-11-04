@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parallelTagRun, parallelModel, parallelTrialOrder } from "./ai-tag-parallel.js";
+import { handleBulkAiTag } from "./ai-tagging.js";
 import { retryStatementTimeout } from "./ai-tagging.js";
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const setting = { run_id: "run", models: ["openai/gpt-6-luna", "qwen/qwen3.8-flash", "google/gemini-2.5-flash"], concurrency: 6 };
@@ -63,4 +64,19 @@ test("a whole-library run needs no explicit IDs, only its discover flag", () => 
   const run = parallelTagRun({run_id:"r",models:["z-ai/glm-5.3-flash"],concurrency:8,force:true,discover:true},"r",undefined);
   assert.equal(run?.discover,true);assert.equal(run?.concurrency,8);
   assert.throws(()=>parallelTagRun({run_id:"r",models:["z-ai/glm-5.3-flash"],concurrency:8},"r",undefined));
+});
+
+test("a whole-library run tags a candidate page instead of demanding asset IDs", async () => {
+  const seen: Array<[string, string | undefined]> = [];
+  const rows = Array.from({length: 8}, (_, i) => ({id: `00000000-0000-4000-8000-00000000000${i}`, thumbnail_url: "u", filename: "f", relative_path: "p", style_group_id: null, primary_sort_tier: 1}));
+  const limits: number[] = [];
+  const result = await handleBulkAiTag({status: "running", run_id: "r", cursor: 0, params: {}} as never, true, {
+    parallelConfig: {run_id: "r", models: ["z-ai/glm-5.3-flash"], concurrency: 8, force: true, discover: true},
+    client: {rpc: async (_: string, args: {p_limit: number}) => { limits.push(args.p_limit); return {data: rows, error: null}; }} as never,
+    tagAsset: async (id: string, _force: boolean, model?: string) => { seen.push([id, model]); return {outcome: "tagged"}; },
+  } as never, true, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.tagged, 8);
+  assert.deepEqual(limits, [8]);
+  assert.ok(seen.every(([, model]) => model === "z-ai/glm-5.3-flash"));
 });
