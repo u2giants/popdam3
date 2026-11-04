@@ -391,8 +391,7 @@ async function processSinglePdf(
     if (!indra || indraFailed) {
       try {
         const worker = await createWorker("eng");
-        const ocrResult = await worker.recognize(pngBuffer);
-        await worker.terminate();
+        const ocrResult = await worker.recognize(pngBuffer).finally(() => worker.terminate());
         ocrText = ocrResult.data.text.trim();
         ocrEngine = "tesseract";
       } catch (ocrErr) {

@@ -4,6 +4,7 @@ import { serviceClient } from "../_shared/service-client.ts";
 import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
+import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
@@ -113,6 +114,26 @@ corsServe(async (req) => {
     } catch (error) {
       return err("Search mode unavailable", searchAccessStatus(error) ?? 503);
     }
+  }
+
+  if (action === "popsg-query-embedding") {
+    // PopSG users need not have DAM access, so this stays apart from search-modes.
+    // search_style_guide_library_v2 enforces its own access; this only reads
+    // the two search switches and embeds the words the caller typed.
+    if (auth.serviceRole) return err("A user session is required", 403);
+    const { data, error } = await serviceClient().from("admin_config").select("key, value")
+      .in("key", ["POPSG_SEARCH_MODE", "POPSG_SEARCH_MIN_SEMANTIC_SCORE"]);
+    if (error) return err("Search mode unavailable", 503);
+    const stored = (key: string) => data?.find((row) => row.key === key)?.value;
+    const mode = unwrapConfigValue(stored("POPSG_SEARCH_MODE")) === "hybrid" ? "hybrid" : "keyword";
+    const query = typeof body.query === "string" ? body.query.trim() : "";
+    const embedding = mode === "hybrid" && query && !isProductCodeSearch(query) ? await embedQueryText(query) : null;
+    return json({
+      ok: true,
+      mode,
+      embedding,
+      min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
+    });
   }
 
   if (action === "embed-batch") {

@@ -53,6 +53,8 @@ import {
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
   validateCharacterReferences,
+  addNamedCharacters,
+  resolveLicensingNames,
   AssetTagApplyError,
   CharacterReferenceValidationError,
   CharacterCatalogDependencyError,
@@ -67,7 +69,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
@@ -278,7 +280,7 @@ async function customerNames(client: ReturnType<typeof db>): Promise<string[]> {
 }
 
 /** Character names and licensing state the post-model rules need. */
-async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null }, characterIds: string[]) {
+async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null; property_id?: string | null }, characterIds: string[]) {
   const characterNames = new Map<string, string>();
   if (characterIds.length) {
     const { data, error } = await client.schema("core").from("character").select("id, name").in("id", characterIds);
@@ -297,7 +299,8 @@ async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: str
     if (error) throw new CharacterCatalogDependencyError(error.code);
     groupShotCharacterExists = !!data;
   }
-  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames, groupShotCharacterExists };
+  const { licensorName, propertyName } = await resolveLicensingNames(client, { licensor_id: asset.licensor_id ?? null, property_id: asset.property_id ?? null, style_group_id: asset.style_group_id ?? null });
+  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames, groupShotCharacterExists, licensorName, propertyName };
 }
 
 const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);
@@ -311,9 +314,9 @@ export async function applyBatchTagResult(
 ): Promise<{ fileSourcesFailed: boolean }> {
   validateTagAssetData(rawTagData, "batch");
   const client = injectedClient ?? db();
-  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, designer_name, technical_designer_name").eq("id", assetId).single();
+  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, property_id, designer_name, technical_designer_name").eq("id", assetId).single();
   if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
-  const validatedCharacterIds = await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client);
+  const validatedCharacterIds = await addNamedCharacters(client, asset, await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client), rawTagData.character_names);
   const finished = finishTagResult({ tagData: rawTagData, characterIds: validatedCharacterIds, filename: asset.filename, ...await loadFinishContext(client, asset, validatedCharacterIds) });
   const { tagData, characterIds } = finished;
   // Tags and character links are written first; the asset is marked "tagged"
@@ -364,7 +367,7 @@ export async function applyBatchTagResult(
   // The PDF rescan owns designers from sheet headings. The model may only fill a blank, with a known person.
   const knownDesigners = await knownDesignerFirstNames(client);
   for (const [key, current] of [["designer_name", asset.designer_name], ["technical_designer_name", asset.technical_designer_name]] as const) {
-    if (!current && isKnownDesigner(tagData[key], knownDesigners)) updates[key] = tagData[key];
+    if (!current && isKnownDesigner(tagData[key], knownDesigners) && !(key === "technical_designer_name" && isManagerNotTechnicalDesigner(tagData[key]))) updates[key] = tagData[key];
   }
   for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "freelancer_name"]) {
     if (tagData[key]) updates[key] = tagData[key];
@@ -1116,7 +1119,7 @@ export async function handleBulkAiTag(
 ): Promise<BatchResult> {
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
-  const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
+  let BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
   let CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
   const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
 
@@ -1132,6 +1135,8 @@ export async function handleBulkAiTag(
     try { parallel = parallelTagRun(setting, opState.run_id, opState.params?.asset_ids); }
     catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
     if (parallel) CONCURRENCY = parallel.concurrency;
+    // One page per concurrent chunk, so every chunk is checkpointed.
+    if (parallel?.discover) BATCH_SIZE = parallel.concurrency;
   }
   if (requireParallel && !parallel) return {ok: false, done: false, error: "Parallel operation requires its exact-run model configuration and no provider receipt"};
   if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
@@ -1183,7 +1188,7 @@ export async function handleBulkAiTag(
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
   const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
 
-  if (requireAssetIds && (!assetIds || assetIds.length === 0)) {
+  if (requireAssetIds && !parallel?.discover && (!assetIds || assetIds.length === 0)) {
     return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
   }
 
@@ -1328,7 +1333,9 @@ export async function handleBulkAiTag(
     const chunk = assets.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       chunk.map(async (asset) => {
-        const result = await tagAsset(asset.id as string, tagAll);
+        const result = parallel
+          ? await tagAsset(asset.id as string, tagAll, parallelModel(parallel, asset.id as string), parallel.force ? undefined : [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : [])])
+          : await tagAsset(asset.id as string, tagAll);
         return { ...result, asset };
       }),
     );

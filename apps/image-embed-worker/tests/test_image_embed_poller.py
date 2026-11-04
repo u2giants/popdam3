@@ -273,14 +273,14 @@ def _row(entity, thumb="https://cdn/x.jpg"):
             uuid.uuid4(), None, 1)
 
 
-def test_search_batch_marks_missing_thumbnail_permanent(monkeypatch):
+def test_search_batch_marks_missing_thumbnail_transient(monkeypatch):
     import uuid
     rows = [_row(uuid.uuid4(), thumb=None)]
     p, calls = _search_poller(monkeypatch, rows)
     p.process_search_batch(rows)
     marks = [c for c in calls if "mark_dam_search_embedding_error" in c[0]]
     assert len(marks) == 1
-    assert marks[0][1][5] == "permanent"          # category
+    assert marks[0][1][5] == "transient"          # category
     assert "missing thumbnail_url" in marks[0][1][4]
     assert p.search_failed == 1 and p.search_done == 0
     assert not any("upsert_dam_search_embedding(" in c[0] for c in calls)

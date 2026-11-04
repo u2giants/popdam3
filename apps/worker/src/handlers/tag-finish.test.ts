@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isJunkTag, isKnownDesigner, isManagerNotTechnicalDesigner, labelsFromFilename } from "./tag-finish.js";
 
 const tag = (name: string) => ({ tag: name, category: "other", confidence: 0.9, evidence: ["x"] });
 const finish = (over: Record<string, unknown> = {}, ids: string[] = [], filename = "a.psd", licensed = true) =>
@@ -62,7 +62,7 @@ test("only clean sheet values become tags", () => {
   const r2 = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("claudia"), tag("әmarvel")] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, customerNames: ["ross"], designerFirstNames: new Set(["claudia"]), sheet: { packaging_type: "Claudia", retailer: "All Aboard For Sale" } });
   assert.deepEqual(tags(r2), []);
   const r3 = finishTagResult({ tagData: { ai_description: "x", asset_tags: [] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, customerNames: ["ross"], sheet: { retailer: "Ross FW26" } });
-  assert.deepEqual(tags(r3), ["ross fw26"]);
+  assert.deepEqual(tags(r3), ["ross"]);
 });
 
 test("known designers only", () => {
@@ -96,6 +96,23 @@ test("group shot links as its own character once it exists", () => {
   assert.deepEqual(finishTagResult({ ...base, characterIds: ["a"], groupShotCharacterExists: true }).characterIds, ["a"]);
 });
 
+test("sheet boilerplate, slugs and seasons do not become tags; licensing names always do", () => {
+  const r = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("page 2 of 2"), tag("made in c"), tag("comic-book-cover"), tag("close-up"), tag("burlington ss26")] }, characterIds: [], characterNames: new Map(), filename: null, licensed: true, customerNames: ["burlington"], licensorName: "MARVEL", propertyName: "AVENGERS GROUP" });
+  const tags = (r.tagData.asset_tags as Array<{ tag: string }>).map(item => item.tag);
+  assert.deepEqual(tags, ["comic book cover", "close-up", "burlington", "marvel", "avengers group"]);
+});
+
+test("a named tech pack is not a sheet, and a sheet is not product photography", () => {
+  const tp = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("licensing sheet"), tag("costing sheet"), tag("product photography")] }, characterIds: [], characterNames: new Map(), filename: "A tech pack.pdf", licensed: true });
+  assert.deepEqual((tp.tagData.asset_tags as Array<{ tag: string }>).map(item => item.tag), ["tech pack"]);
+});
+
+test("a named character outside the records is still a search tag", () => {
+  const r = finish({ character_names: ["Chase", "Group Shot"] });
+  const tags = (r.tagData.asset_tags as Array<{ tag: string }>).map(item => item.tag);
+  assert.ok(tags.includes("chase") && !tags.includes("group shot"));
+});
+
 test("scan debris and form text never become tags", () => {
   for (const junk of ["mdsh7sesc02", "c0010dynx01", "art_piece", "____new structure", "classic_glu_13_cmyk", "pantone 186 c", "pms 267 c", "legal line", "upc sticker", "prop 65 label", "dimensions 24 x 36", "page 2 of 3", "wip version 3", "dollar general fw26", "burlington ss 2026", "dollar general summer 2027", "ey friends and al related character", "character licensed", "pop creations", "albert hazan", "sarbani ghosh"]) {
     assert.ok(isJunkTag(junk), junk);
@@ -122,4 +139,9 @@ test("a known name with stray model text is rejected", () => {
   const known = new Set(["luis"]);
   assert.ok(isKnownDesigner("Luis Herrera", known));
   for (const bad of ["LUIS', \"art_source\": null}", "LUIS (UPDATED BY DANILO MAR12)", "LUIS_x", "LUIS provides more color to your hair while adding body and volume"]) assert.ok(!isKnownDesigner(bad, known), bad);
+});
+
+test("the manager is not saved as technical designer", () => {
+  for (const manager of ["Albert Hazan", "ALBERT", "albert hazan "]) assert.ok(isManagerNotTechnicalDesigner(manager), manager);
+  for (const designer of ["Zarit Calderon", "Alberta Smith", "Danilo"]) assert.ok(!isManagerNotTechnicalDesigner(designer), designer);
 });

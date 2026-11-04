@@ -162,6 +162,16 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "polling" | "success" | "error">("idle");
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  const testMountedRef = useRef(true);
+  const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    testMountedRef.current = true;
+    return () => {
+      testMountedRef.current = false;
+      if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    };
+  }, []);
+
   const sendTestJob = async () => {
     setTestStatus("sending");
     setTestResult(null);
@@ -173,8 +183,18 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
       let attempts = 0;
       const maxAttempts = 12;
       const poll = async () => {
+        if (!testMountedRef.current) return;
         attempts++;
-        const status = await call("check-render-job", { job_id: jobId });
+        let status: Record<string, unknown>;
+        try {
+          status = await call("check-render-job", { job_id: jobId });
+        } catch (e: unknown) {
+          if (!testMountedRef.current) return;
+          setTestStatus("error");
+          setTestResult(e instanceof Error ? e.message : "Could not check the test job");
+          return;
+        }
+        if (!testMountedRef.current) return;
         if (status.status === "completed") {
           setTestStatus("success");
           setTestResult(status.thumbnail_url as string || "Completed successfully");
@@ -190,9 +210,9 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
           setTestResult("Timed out after 60 seconds. The agent may be offline or busy.");
           return;
         }
-        setTimeout(poll, 5000);
+        testTimerRef.current = setTimeout(poll, 5000);
       };
-      poll();
+      void poll();
     } catch (e: unknown) {
       setTestStatus("error");
       setTestResult(e instanceof Error ? e.message : "Unknown error");

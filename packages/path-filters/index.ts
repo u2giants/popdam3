@@ -93,8 +93,11 @@ export function shouldSkipPath(
   // Normalize separators and split
   const segments = fullPath.replace(/\\/g, "/").split("/").filter(Boolean);
 
-  for (const seg of segments) {
-    if (shouldSkipFolder(seg)) {
+  for (const [index, seg] of segments.entries()) {
+    // The last segment is a file. Folder rules do not apply to it, except that
+    // hidden files (.DS_Store, ._foo.psd) are never artwork.
+    const isFile = index === segments.length - 1;
+    if (isFile ? seg.startsWith(".") : shouldSkipFolder(seg)) {
       // Log once per unique path per session
       if (logFn && !warnedPaths.has(fullPath)) {
         warnedPaths.add(fullPath);

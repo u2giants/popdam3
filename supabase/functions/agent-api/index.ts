@@ -1768,8 +1768,7 @@ async function failExhaustedRenderJobs(db: ReturnType<typeof serviceClient>, now
   }
 }
 
-async function handleClaimRender(body: Record<string, unknown>) {
-  const agentId = requireString(body, "agent_id");
+async function handleClaimRender(body: Record<string, unknown>, agentId: string) {
   const batchSize = Math.min((body.batch_size as number) || 1, MAX_CLAIM_BATCH);
   const db = serviceClient();
 
@@ -3609,10 +3608,8 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
 
 // ── Route: claim-sg-render ───────────────────────────────────────
 
-async function handleClaimSgRender(body: Record<string, unknown>) {
+async function handleClaimSgRender(_body: Record<string, unknown>, agentId: string) {
   const db = serviceClient();
-  const agentId = body.agent_id as string;
-  if (!agentId) return err("agent_id is required");
 
   // Jobs whose last attempt died with the agent are never reclaimed; fail them
   // so they surface in PopSG. A sweep problem must not stop claiming.
@@ -4967,7 +4964,7 @@ corsServe(async (req: Request) => {
       case "queue-render":
         return await handleQueueRender(body);
       case "claim-render":
-        return await handleClaimRender(body);
+        return await handleClaimRender(body, agentId);
       case "complete-render":
         return await handleCompleteRender(body);
       case "trigger-scan":
@@ -5022,7 +5019,7 @@ corsServe(async (req: Request) => {
       case "complete-style-guide-crawl":
         return await handleCompleteStyleGuideCrawl(body);
       case "claim-sg-render":
-        return await handleClaimSgRender(body);
+        return await handleClaimSgRender(body, agentId);
       case "complete-sg-render":
         return await handleCompleteSgRender(body);
       case "claim-style-guide-pdf-text":

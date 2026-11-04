@@ -9,7 +9,7 @@
  * All actions are dispatched to the checkout manager after the URL is parsed.
  */
 
-import { app } from "electron";
+import { app, dialog } from "electron";
 import { log } from "./logger";
 import { checkout, checkin, discard, revealFile, openFile } from "./checkoutManager";
 import { showWindow, sendToRenderer, showNotification } from "./tray";
@@ -82,6 +82,7 @@ export async function handleDeepLink(url: string): Promise<void> {
 
       case "checkin":
         if (!link.checkoutId) throw new Error("checkin link missing checkoutId");
+        if (!(await confirmDeepLink("Check in this file?", "A link asked PopDAM Helper to check in your local copy."))) break;
         await checkin(link.checkoutId);
         break;
 
@@ -95,6 +96,7 @@ export async function handleDeepLink(url: string): Promise<void> {
 
       case "discard":
         if (!link.checkoutId) throw new Error("discard link missing checkoutId");
+        if (!(await confirmDeepLink("Discard this checkout?", "A link asked PopDAM Helper to discard your local changes. This cannot be undone."))) break;
         await discard(link.checkoutId);
         break;
     }
@@ -103,6 +105,19 @@ export async function handleDeepLink(url: string): Promise<void> {
     log.error(`Deep link action "${link.action}" failed:`, msg);
     notifyActionError(link.action, msg);
   }
+}
+
+/** Check-in and discard change the user's work, and any web page can open a popdam:// link. */
+async function confirmDeepLink(message: string, detail: string): Promise<boolean> {
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Continue", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    message,
+    detail,
+  });
+  return response === 0;
 }
 
 export function registerProtocol(): void {

@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { SpacesConfigSettings, FolderManager } from "./SpacesAndFolders";
 import { ResourceGuardSettings, PollingConfig } from "./ResourceAndPolling";
 
+const MAX_BATCH_LOOPS = 10_000;
+
 export function DateCutoffSettings() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -79,7 +81,8 @@ export function DateCutoffSettings() {
     let totalGroupsRemoved = 0;
     let totalGroupsUpdated = 0;
     try {
-      while (true) {
+      for (let batch = 0; ; batch++) {
+        if (batch >= MAX_BATCH_LOOPS) throw new Error("Stopped after too many batches; run it again to continue.");
         const result = await call("purge-old-assets", {
           cutoff_date: thumbVal,
         });

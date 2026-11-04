@@ -79,6 +79,11 @@ export const TAG_ASSET_SCHEMA = {
       items: { type: "string" },
       description: "UUIDs of identified characters from taxonomy, most prominent character first",
     },
+    character_names: {
+      type: "array",
+      items: { type: "string" },
+      description: "Common name of every recognizable licensed character drawn in this file's product or art, including small and secondary ones, whether or not the character is in the supplied list. Just the name, such as Venom or Dumbo. Empty when no character is drawn.",
+    },
     designer_name: {
       type: ["string", "null"],
       description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
@@ -179,7 +184,7 @@ Controlled asset types (use these exact words; the file name often states them):
 Content type for each: product photography is product_photo; lifestyle photo is lifestyle_photo; size scale image is product_photo; product mockup is render_mockup; art is source_art or style_guide_art; tech pack is tech_pack; licensing sheet is licensing_sheet; embellishment placement design is spec_layout_doc.
 
 Based on the image and metadata, identify:
-1. Characters visible: only a character clearly drawn on this file and present in the supplied list. Never infer a character from a motif (spiders, webs, colors, costumes), from the property name, or from a similar-looking character. Do not take a character from an example photo or reference picture on a sheet, and a logo is not a character. List the most prominent character first.
+1. Characters visible: scan the whole product art, then list every character clearly drawn on this file, including a small or secondary character held by or standing beside the main one; a second character is as important as the first. Put each one in character_names by its common name, and in character_ids when it is in the supplied list. Identify a character by how it looks even when no list is supplied. A generic animal, object, or logo is not a character. Never infer a character from a motif (spiders, webs, colors, costumes), from the property name, or from a similar-looking character. Do not take a character from an example photo or reference picture on a sheet, and a logo is not a character. List the most prominent character first.
 2. Controlled asset type and photography view
 3. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
 4. Color palette keywords

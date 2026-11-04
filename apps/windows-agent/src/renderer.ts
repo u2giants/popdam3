@@ -283,7 +283,7 @@ async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
 
     // Bounded read (#232): a sentinel is a tiny text-only placeholder; anything
     // over the in-memory cap is real artwork, so never buffer it whole.
-    const fileBuffer = await readFileWithinLimit(withLongPathPrefix(filePath));
+    const fileBuffer = await readFileWithinLimit(withLongPathPrefix(filePath), 16 * 1024 * 1024);
     if (!fileBuffer) return false;
     const doc = mupdf.Document.openDocument(fileBuffer, "application/pdf");
     if (doc.countPages() === 0) return false;

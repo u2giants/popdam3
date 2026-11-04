@@ -34,6 +34,7 @@ export const AI_SENTINEL_MARKER = "saved without PDF Content";
  * separates the two while biasing toward "not a sentinel".
  */
 const MAX_SENTINEL_PAINT_OPS = 3;
+const SENTINEL_READ_LIMIT_BYTES = 16 * 1024 * 1024;
 
 export interface AiPageInfo {
   /** True only for genuine text-only placeholders (safe to clean up). */
@@ -76,7 +77,7 @@ export async function inspectAiPage(filePath: string): Promise<AiPageInfo> {
   // Modern format: PDF-wrapped.
   // Bounded read (#232): a real sentinel is a tiny text-only placeholder, so a
   // file over the in-memory cap is real artwork — never buffer it whole.
-  const fileBuffer = await readFileWithinLimit(filePath);
+  const fileBuffer = await readFileWithinLimit(filePath, SENTINEL_READ_LIMIT_BYTES);
   if (!fileBuffer) {
     return { isSentinel: false, oldFormat: false, pageCount: 0, pageText: "" };
   }

@@ -1,6 +1,9 @@
 # Handoff: rotate the 8 admin_config credentials that were exposed
 
-**Status:** OPEN — owner action required. Written 2026-07-24.
+**Status (re-verified 2026-11-04):** OpenAI, OpenRouter, Google AI, Anthropic and both NAS
+values are replaced, revoked or gone from `admin_config`. **Only the DigitalOcean Spaces pair
+remains:** live fingerprint still equals the July snapshot, and no DigitalOcean API token or
+signed-in browser session is available. Written 2026-07-24.
 **Why this exists:** the RLS leak below is already FIXED and live in production, but the
 credentials that were readable during the exposure window must still be **rotated**.
 Delete this file once all 8 are rotated and 1Password is updated.

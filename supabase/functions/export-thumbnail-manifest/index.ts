@@ -50,6 +50,7 @@ corsServe(async (req) => {
         .select(columns.join(","))
         .not("thumbnail_url", "is", null)
         .eq("is_deleted", false)
+        .order("id")
         .range(offset, offset + PAGE - 1);
 
       if (error) return err(error.message, 500);

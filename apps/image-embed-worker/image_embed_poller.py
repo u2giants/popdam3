@@ -298,7 +298,11 @@ class Poller:
     # -- connection lifecycle -------------------------------------------------
     def connect(self):
         import psycopg
-        self.conn = psycopg.connect(self.args.dsn, autocommit=False)
+        # Without these a dead socket blocks every lane and the heartbeat forever
+        # (popdam3 #663: process alive, silent for hours).
+        self.conn = psycopg.connect(self.args.dsn, autocommit=False, connect_timeout=30,
+                                    keepalives=1, keepalives_idle=30, keepalives_interval=10,
+                                    keepalives_count=3, tcp_user_timeout=120000)
         return self.conn
 
     def conn_provider(self):
@@ -542,7 +546,9 @@ class Poller:
         for row in rows:
             if not row[3]:
                 self.search_failed += 1
-                self.search_mark_error(row, "Permanent: missing thumbnail_url", "permanent")
+                # Thumbnails can arrive after the document does, and nothing clears
+                # a permanent mark when one does (popdam3 #663).
+                self.search_mark_error(row, "Transient: missing thumbnail_url", "transient")
 
         to_download = [(row, self.pool.submit(fetch_url, row[3])) for row in rows if row[3]]
         decoded = []
