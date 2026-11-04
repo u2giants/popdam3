@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { displayCharacterName, finishTagResult, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, displayCharacterName, finishTagResult, isKnownDesigner, labelsFromFilename } from "./tag-finish.js";
 
 const tag = (name: string) => ({ tag: name, category: "other", confidence: 0.9, evidence: ["x"] });
 const finish = (over: Record<string, unknown> = {}, ids: string[] = [], filename = "a.psd", licensed = true) =>
@@ -87,4 +87,11 @@ test("a first name already in the description counts as naming the character", (
   const r = finishTagResult({ tagData: { ai_description: "Jack and Sally print.", asset_tags: [] }, characterIds: ["x"], characterNames: new Map([["x", "Sally Doll"]]), filename: null, licensed: false });
   assert.equal(r.tagData.ai_description, "Jack and Sally print.");
   assert.ok(tags(r).includes("sally doll"));
+});
+
+test("group shot links as its own character once it exists", () => {
+  const base = { tagData: { ai_description: "x", asset_tags: [] }, characterIds: ["a", "b", "c", "d"], characterNames: new Map([["a", "Belle"]]), filename: null, licensed: true };
+  assert.deepEqual(finishTagResult({ ...base, groupShotCharacterExists: true }).characterIds, ["a", GROUP_SHOT_CHARACTER_ID]);
+  assert.deepEqual(finishTagResult(base).characterIds, ["a"]);
+  assert.deepEqual(finishTagResult({ ...base, characterIds: ["a"], groupShotCharacterExists: true }).characterIds, ["a"]);
 });

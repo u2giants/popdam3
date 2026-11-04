@@ -67,7 +67,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { finishTagResult, isKnownDesigner } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner } from "./tag-finish.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
@@ -279,7 +279,13 @@ async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: str
     if (typeof data?.is_licensed === "boolean") licensed = data.is_licensed;
   }
   const [sheet, customers, designerFirstNames] = await Promise.all([loadSheetFacts(client, asset), customerNames(client), knownDesignerFirstNames(client)]);
-  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames };
+  let groupShotCharacterExists = false;
+  if (characterIds.length > 3) {
+    const { data, error } = await client.schema("core").from("character").select("id").eq("id", GROUP_SHOT_CHARACTER_ID).maybeSingle();
+    if (error) throw new CharacterCatalogDependencyError(error.code);
+    groupShotCharacterExists = !!data;
+  }
+  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames, groupShotCharacterExists };
 }
 
 const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);

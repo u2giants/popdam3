@@ -3,6 +3,8 @@
  * these rules spend no tokens. Owner rules from 2026-11-03 (issue #680).
  */
 export const GROUP_SHOT_TAG = "group shot";
+/** Owner ruling Nov 3, 2026: "group shot" is itself a character. It belongs to no licensor. */
+export const GROUP_SHOT_CHARACTER_ID = "90f4dfa8-b4f9-4880-b2f7-e772f5e40ca7";
 const CHARACTER_LIMIT = 3;
 
 /** Albert's asset-type words. Older or near-miss model wording maps onto them; null drops the label. */
@@ -74,6 +76,8 @@ export interface FinishTagInput {
   /** True only when the file's style is known to be licensed. */
   licensed: boolean;
   sheet?: SheetTagFacts | null;
+  /** True once the shared Group Shot character exists, so a link cannot fail the save. */
+  groupShotCharacterExists?: boolean;
   /** Lower-case customer names; a sheet retailer becomes a tag only when it starts with one. */
   customerNames?: string[];
   /** Lower-case designer first names; a person is never a packaging or customer tag. */
@@ -128,7 +132,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   if (missing.length) description = `${description.replace(/[.\s]+$/, "")}, featuring ${joinNames(missing)}.`;
   if (groupShot && !mentions(description, GROUP_SHOT_TAG)) description = `${description.replace(/[.\s]+$/, "")}, ${GROUP_SHOT_TAG}.`;
 
-  return { tagData: { ...tagData, asset_tags: [...tags.values()], ai_description: description, character_ids: characterIds }, characterIds };
+  const linkedIds = groupShot && input.groupShotCharacterExists ? [...characterIds, GROUP_SHOT_CHARACTER_ID] : characterIds;
+  return { tagData: { ...tagData, asset_tags: [...tags.values()], ai_description: description, character_ids: linkedIds }, characterIds: linkedIds };
 }
 
 /** A person's first name must be on the known list; sheet misreads ("BUYER") must not become designers. */
