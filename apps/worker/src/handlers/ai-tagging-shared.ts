@@ -331,7 +331,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .maybeSingle();
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
-  let characters: { id: string; name: string }[] = [];
+  let characters: { id: string; name: string; status?: string | null }[] = [];
   const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
   // Characters come only from the licensor-scraped master list (core.character):
@@ -343,7 +343,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const { data: links, error: linksError } = await checkedQuery(client
       .schema("core")
       .from("property_character_associations")
-      .select("character:character_id(id, name)")
+      .select("character:character_id(id, name, status)")
       .eq("property_id", scope.property_id)
       .eq("is_current", true));
     checkedCharacterRead(linksError, links);
@@ -354,7 +354,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const { data: edges, error: edgesError } = await checkedQuery(client
       .schema("core")
       .from("property_character_source_edge")
-      .select("character:character_id(id, name)")
+      .select("character:character_id(id, name, status)")
       .eq("property_id", scope.property_id)
       .eq("evidence_kind", "co_occurrence")
       .eq("is_current", true));
@@ -371,7 +371,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     const { data: licensorChars, error: licensorError } = await checkedQuery(client
       .schema("core")
       .from("character")
-      .select("id, name")
+      .select("id, name, status")
       .eq("licensor_id", scope.licensor_id)
       .order("name")
       .limit(LICENSOR_CHARACTER_LIST_LIMIT + 1));
@@ -380,7 +380,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];
   }
   // Licensor-retired labels ("Venom - Do Not Use") and logos must never be offered as characters.
-  characters = [...new Map(characters.filter(c => !/do not use|\blogo\b/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  characters = [...new Map(characters.filter(c => !["archived", "deleted"].includes(c.status ?? "") && !/do not use|\blogo\b/i.test(c.name)).map(c => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (options.onCharacterCatalog) {
     let ids: string[];
