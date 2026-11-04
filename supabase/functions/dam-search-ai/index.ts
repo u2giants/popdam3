@@ -6,6 +6,7 @@ import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
+import { isExactProductCode } from "../_shared/product-code.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 
 /**
@@ -162,8 +163,14 @@ corsServe(async (req) => {
     if (typeof filters !== "object" || Array.isArray(filters)) {
       return err("Invalid filters", 400);
     }
+    // A real product code has no visual meaning: its picture leg only returns
+    // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
+    const exactProductCode = await isExactProductCode(
+      query,
+      async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+    );
     const [embedding, floorConfig] = await Promise.all([
-      embedQueryText(query),
+      exactProductCode ? Promise.resolve(null) : embedQueryText(query),
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
     ]);
@@ -184,7 +191,7 @@ corsServe(async (req) => {
     const variantEmbeddings = new Map<string, number[] | null>();
     await Promise.all(
       expanded.map(async ({ query: variant, semantic }) => {
-        variantEmbeddings.set(variant, !semantic ? null : variant === query ? embedding : await embedQueryText(variant));
+        variantEmbeddings.set(variant, !semantic || exactProductCode ? null : variant === query ? embedding : await embedQueryText(variant));
       }),
     );
 

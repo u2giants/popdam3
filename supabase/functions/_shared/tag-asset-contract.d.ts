@@ -20,6 +20,7 @@ export interface TaggingPromptContext {
   erpDescription?: string | null;
   itemDescription?: string | null;
   extractedPdfText?: string | null;
+  sheetFacts?: { description?: string | null; product_type?: string | null; materials?: string | null } | null;
   customInstructions?: string | null;
   licensorName?: string | null;
   propertyName?: string | null;
