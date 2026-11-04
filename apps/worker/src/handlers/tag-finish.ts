@@ -74,6 +74,10 @@ export interface FinishTagInput {
   /** True only when the file's style is known to be licensed. */
   licensed: boolean;
   sheet?: SheetTagFacts | null;
+  /** Lower-case customer names; a sheet retailer becomes a tag only when it starts with one. */
+  customerNames?: string[];
+  /** Lower-case designer first names; a person is never a packaging or customer tag. */
+  designerFirstNames?: Set<string>;
 }
 
 /** Sheet OCR can be junk; only short, wordy values become search tags. */
@@ -83,7 +87,8 @@ function sheetTagValue(value: string | null | undefined): string | null {
 }
 
 export function finishTagResult(input: FinishTagInput): { tagData: Record<string, unknown>; characterIds: string[] } {
-  const { tagData, filename, licensed, sheet, characterNames } = input;
+  const { tagData, filename, licensed, sheet, characterNames, customerNames = [], designerFirstNames = new Set<string>() } = input;
+  const isPerson = (value: string) => designerFirstNames.has(value.split(/\s+/)[0]);
   const groupShot = input.characterIds.length > CHARACTER_LIMIT;
   // The prompt asks for the most prominent character first.
   const characterIds = groupShot ? input.characterIds.slice(0, 1) : input.characterIds;
@@ -97,7 +102,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
     const raw = String(item.tag ?? "").trim().replace(/\s+/g, " ").toLowerCase();
     const renamed = raw in LABEL_RENAMES ? LABEL_RENAMES[raw] : raw;
     // Internal ids and file formats are not search terms.
-    if (renamed && !/^character id\b/.test(renamed) && !/^(psd|pdf|ai)$/.test(renamed)) add(renamed, String(item.category), "model", item);
+    // So is scanned text in another alphabet, and a designer's own name.
+    if (renamed && !/^character id\b/.test(renamed) && !/^(psd|pdf|ai)$/.test(renamed) && !/[\u0400-\u052F]/.test(renamed) && !isPerson(renamed)) add(renamed, String(item.category), "model", item);
   }
   const fileLabels = labelsFromFilename(filename);
   for (const label of fileLabels) add(label, "file_type", "file name");
@@ -112,12 +118,13 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   if (!groupShot) tags.delete(GROUP_SHOT_TAG);
   if (groupShot) add(GROUP_SHOT_TAG, "visible_content", "more than three characters");
   const packaging = sheetTagValue(sheet?.packaging_type);
-  if (packaging) add(packaging, "other", "sheet packaging type");
+  if (packaging && !isPerson(packaging)) add(packaging, "other", "sheet packaging type");
   const retailer = sheetTagValue(sheet?.retailer);
-  if (retailer) add(retailer, "other", "sheet original customer");
+  if (retailer && customerNames.some(name => retailer === name || retailer.startsWith(`${name} `))) add(retailer, "other", "sheet original customer");
 
   let description = String(tagData.ai_description ?? "").trim();
-  const missing = names.filter(name => !mentions(description, name));
+  // "Sally" already names "Sally Doll"; only a wholly absent character is added.
+  const missing = names.filter(name => !mentions(description, name) && !(name.split(" ")[0].length >= 4 && mentions(description, name.split(" ")[0])));
   if (missing.length) description = `${description.replace(/[.\s]+$/, "")}, featuring ${joinNames(missing)}.`;
   if (groupShot && !mentions(description, GROUP_SHOT_TAG)) description = `${description.replace(/[.\s]+$/, "")}, ${GROUP_SHOT_TAG}.`;
 

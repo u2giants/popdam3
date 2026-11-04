@@ -59,6 +59,10 @@ test("file names give asset types only for whole words", () => {
 test("only clean sheet values become tags", () => {
   const r = finishTagResult({ tagData: { ai_description: "x", asset_tags: [] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, sheet: { packaging_type: "Polybag", retailer: "©© 4 @#" } });
   assert.deepEqual(tags(r), ["polybag"]);
+  const r2 = finishTagResult({ tagData: { ai_description: "x", asset_tags: [tag("claudia"), tag("әmarvel")] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, customerNames: ["ross"], designerFirstNames: new Set(["claudia"]), sheet: { packaging_type: "Claudia", retailer: "All Aboard For Sale" } });
+  assert.deepEqual(tags(r2), []);
+  const r3 = finishTagResult({ tagData: { ai_description: "x", asset_tags: [] }, characterIds: [], characterNames: new Map(), filename: null, licensed: false, customerNames: ["ross"], sheet: { retailer: "Ross FW26" } });
+  assert.deepEqual(tags(r3), ["ross fw26"]);
 });
 
 test("known designers only", () => {
@@ -77,4 +81,10 @@ test("junk tags go, aka names shorten, and a named licensing sheet is not a tech
 
 test("the model cannot call three characters a group shot", () => {
   assert.ok(!tags(finish({ asset_tags: [tag("group shot")] }, ["a", "b", "c"])).includes("group shot"));
+});
+
+test("a first name already in the description counts as naming the character", () => {
+  const r = finishTagResult({ tagData: { ai_description: "Jack and Sally print.", asset_tags: [] }, characterIds: ["x"], characterNames: new Map([["x", "Sally Doll"]]), filename: null, licensed: false });
+  assert.equal(r.tagData.ai_description, "Jack and Sally print.");
+  assert.ok(tags(r).includes("sally doll"));
 });

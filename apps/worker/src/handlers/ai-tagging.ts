@@ -250,6 +250,16 @@ async function knownDesignerFirstNames(client: ReturnType<typeof db>): Promise<S
   return names;
 }
 
+let customerCache: { names: string[]; expires: number } | null = null;
+async function customerNames(client: ReturnType<typeof db>): Promise<string[]> {
+  if (customerCache && Date.now() < customerCache.expires) return customerCache.names;
+  const { data, error } = await client.schema("core").from("customer").select("name");
+  if (error || !data) return customerCache?.names ?? [];
+  const names = (data as Array<{ name: string | null }>).map(row => (row.name ?? "").trim().toLowerCase()).filter(name => name.length >= 3);
+  customerCache = { names, expires: Date.now() + 600_000 };
+  return names;
+}
+
 /** Character names and licensing state the post-model rules need. */
 async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: string; sku: string | null; style_group_id?: string | null; licensor_id?: string | null }, characterIds: string[]) {
   const characterNames = new Map<string, string>();
@@ -263,7 +273,8 @@ async function loadFinishContext(client: ReturnType<typeof db>, asset: { id: str
     const { data } = await client.from("style_groups").select("is_licensed").eq("id", asset.style_group_id).maybeSingle();
     if (typeof data?.is_licensed === "boolean") licensed = data.is_licensed;
   }
-  return { characterNames, licensed, sheet: await loadSheetFacts(client, asset) };
+  const [sheet, customers, designerFirstNames] = await Promise.all([loadSheetFacts(client, asset), customerNames(client), knownDesignerFirstNames(client)]);
+  return { characterNames, licensed, sheet, customerNames: customers, designerFirstNames };
 }
 
 const AI_ONLY_TEXT_FIELDS = new Set(["ai_description", "cover_description", "scene_description", "design_style"]);
