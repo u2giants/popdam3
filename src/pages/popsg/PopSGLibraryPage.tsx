@@ -39,6 +39,7 @@ import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import {
   buildPopSGV2Args,
+  parsePopSGQueryEmbedding,
   buildPopSGSummaryIdentityFilters,
   buildPopSGV2WebsearchQuery,
   canUsePopSGV2,
@@ -118,6 +119,7 @@ function formatBytes(n: number | null): string {
 }
 
 const POPSG_SEARCH_DEBOUNCE_MS = 350;
+const POPSG_QUERY_EMBED_TIMEOUT_MS = 6_000;
 
 interface LibraryFilters {
   licensor: string;
@@ -125,6 +127,22 @@ interface LibraryFilters {
   nameSearch: string;
   fileTypes: string[];
   thumbStatus: ThumbStatus;
+}
+
+async function fetchPopSGQueryEmbedding(query: string, signal?: AbortSignal) {
+  if (!query) return parsePopSGQueryEmbedding(null);
+  try {
+    const { data, error } = await supabase.functions.invoke("dam-search-ai", {
+      body: { action: "popsg-query-embedding", query },
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS)]) : AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS),
+    });
+    if (error) throw error;
+    return parsePopSGQueryEmbedding(data);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    console.warn("PopSG meaning-based search unavailable; using keyword search", error);
+    return parsePopSGQueryEmbedding(null);
+  }
 }
 
 async function fetchPopSGV2Page(
@@ -137,9 +155,11 @@ async function fetchPopSGV2Page(
   signal?: AbortSignal,
 ) {
   const pageOffset = page * pageSize;
-  const expandedTerms = filters.nameSearch
-    ? await expandFallbackTerms(filters.nameSearch)
-    : [];
+  // Embed the words as typed: the expansion below is keyword OR-syntax.
+  const [expandedTerms, semantic] = await Promise.all([
+    filters.nameSearch ? expandFallbackTerms(filters.nameSearch) : Promise.resolve([]),
+    fetchPopSGQueryEmbedding(filters.nameSearch.trim(), signal),
+  ]);
   const searchFilters = {
     licensor: filters.licensor,
     property: filters.property,
@@ -155,6 +175,7 @@ async function fetchPopSGV2Page(
       sortDirection,
       limit,
       offset,
+      ...semantic,
     })).abortSignal(signal);
     if (error) throw error;
     const payload = parsePopSGV2Payload(data);

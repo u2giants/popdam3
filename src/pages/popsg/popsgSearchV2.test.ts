@@ -10,6 +10,7 @@ import {
   getPopSGV2Sort,
   mapPopSGV2File,
   mapPopSGV2Guide,
+  parsePopSGQueryEmbedding,
   parsePopSGV2Payload,
 } from "./popsgSearchV2";
 
@@ -175,5 +176,33 @@ describe("PopSG search v2 adapter", () => {
       total_size_bytes: 4096,
       member_directory_paths: ["Licensor/Property/Guide"],
     });
+  });
+});
+
+describe("PopSG meaning-based search args", () => {
+  const base = {
+    mode: "files" as const,
+    filters: { licensor: "all", property: "all", query: "cute", extensions: [], preview: "any" as const },
+    sortField: "modified_at" as const,
+    sortDirection: "desc" as const,
+    limit: 50,
+    offset: 0,
+  };
+
+  it("uses a valid vector only while the switch is hybrid", () => {
+    const embedding = new Array(768).fill(0.5);
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", embedding, min_semantic_score: 0.3 }).queryEmbedding).toMatch(/^\[0\.5,/);
+    expect(parsePopSGQueryEmbedding({ mode: "keyword", embedding }).queryEmbedding).toBeNull();
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", embedding: [1, 2] }).queryEmbedding).toBeNull();
+    expect(parsePopSGQueryEmbedding(null).queryEmbedding).toBeNull();
+  });
+
+  it("sends the floor only with a vector, so keyword search stays unchanged", () => {
+    const keyword = buildPopSGV2Args({ ...base, queryEmbedding: null, minSemanticScore: 0.3 });
+    expect(keyword.p_query_embedding).toBeUndefined();
+    expect(keyword.p_min_semantic_score).toBeUndefined();
+    const hybrid = buildPopSGV2Args({ ...base, queryEmbedding: "[1]", minSemanticScore: 0.3 });
+    expect(hybrid.p_query_embedding).toBe("[1]");
+    expect(hybrid.p_min_semantic_score).toBe(0.3);
   });
 });
