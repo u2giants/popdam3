@@ -24,6 +24,7 @@ skipping silently. It never writes a database.
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -76,6 +77,10 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             # sandbox) never reaches production; promoting it would only fail
             # until MAX_ATTEMPTS parks the lane.
             and m.group(1) not in FOREIGN_TARGET_MIGRATIONS
+            # A version later deleted from main can never apply: the workflow
+            # refuses it as unknown until MAX_ATTEMPTS alerts, again on every
+            # new main commit (#5558: PR #5548, replaced by PR #5552).
+            and version_on_main(m.group(1))
         )
         # Superseded-by-manifest (#5128/#5213): a merged PR whose every added
         # version is a registered preview-ledger orphan (a governed replacement
@@ -291,16 +296,33 @@ def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
     return list({f.get("number"): f for f in found}.values())
 
 
-def recent_re_runs(runs: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
+def version_on_main(version: str) -> bool:
+    """True when this checkout of main still holds the migration file."""
+    return bool(glob.glob(os.path.join(os.path.dirname(HERE), "supabase", "migrations", f"{version}_*.sql")))
+
+
+# Run id -> highest attempt an engineer has recorded a disposition for (#5558).
+# A listed attempt stops failing this trigger; an unlisted run or a higher attempt
+# still fails it. The workflow's refusal steps do not read this.
+ACKNOWLEDGED_RE_RUNS = {
+    41545991868: 2,  # PR 5494, before the refusal existed; attempt 1 applied 20261102202014
+    41661658015: 2,  # PR 5539, before the refusal existed; attempt 2 succeeded
+}
+
+
+def recent_re_runs(runs: list[dict[str, Any]], now: datetime,
+                   acknowledged: dict[int, int] = {}) -> list[dict[str, Any]]:
     """Production apply runs that were RE-RUN within the last day. A re-run is
     never the retry path -- the queue dispatches a fresh run with fresh
     evidence -- and it hides what earlier attempts did (2026-11-03: run
     41545991868 attempt 1 applied 20261102202014 and failed only its catalog
     check; the re-run blinded the selector until #5537). Tracked here on every
-    queue run, so a repeat is never silent again."""
+    queue run, so a repeat is never silent again. An attempt already recorded in
+    `acknowledged` stops alerting (#5558: an unactionable red hides real alerts);
+    a further re-run of the same run alerts again."""
     return [r for r in runs
             if (r.get("display_title") or "").startswith("DB production apply")
-            and int(r.get("run_attempt") or 1) > 1
+            and int(r.get("run_attempt") or 1) > max(1, acknowledged.get(r.get("id"), 1))
             and now - _time(r.get("updated_at") or r.get("created_at") or "1970-01-01T00:00:00Z") < timedelta(hours=24)]
 
 
@@ -333,7 +355,7 @@ def main(now: datetime | None = None) -> int:
         print(f"::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::"
               f"PR #{entry['number']} (versions {','.join(entry['versions'])}) failed {entry['exhausted']} "
               f"automatic attempts at this main commit; later PRs still promote")
-    reruns = recent_re_runs(runs, now)
+    reruns = recent_re_runs(runs, now, ACKNOWLEDGED_RE_RUNS)
     for r in reruns:
         print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"
               f"run {r['id']} ({r.get('display_title')}) was re-run (attempt {r.get('run_attempt')}); "
