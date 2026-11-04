@@ -127,9 +127,7 @@ corsServe(async (req) => {
     const stored = (key: string) => data?.find((row) => row.key === key)?.value;
     const mode = unwrapConfigValue(stored("POPSG_SEARCH_MODE")) === "hybrid" ? "hybrid" : "keyword";
     const query = typeof body.query === "string" ? body.query.trim() : "";
-    const embedding = mode === "hybrid" && query && !isProductCodeSearch(query)
-      ? await embedQueryText(query)
-      : null;
+    const embedding = mode === "hybrid" && query && !isProductCodeSearch(query) ? await embedQueryText(query) : null;
     return json({
       ok: true,
       mode,

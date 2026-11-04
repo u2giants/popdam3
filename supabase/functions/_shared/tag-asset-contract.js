@@ -82,7 +82,8 @@ export const TAG_ASSET_SCHEMA = {
     character_names: {
       type: "array",
       items: { type: "string" },
-      description: "Common name of every recognizable licensed character drawn in this file's product or art, including small and secondary ones, whether or not the character is in the supplied list. Just the name, such as Venom or Dumbo. Empty when no character is drawn.",
+      description:
+        "Common name of every recognizable licensed character drawn in this file's product or art, including small and secondary ones, whether or not the character is in the supplied list. Just the name, such as Venom or Dumbo. Empty when no character is drawn.",
     },
     designer_name: {
       type: ["string", "null"],
