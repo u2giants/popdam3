@@ -26,7 +26,7 @@ lanes from `dam.image_embed_jobs`:
   `public.upsert_dam_search_embedding` with the stamp
   `google/siglip2-base-patch16-naflex` (pinned by `search_dam_documents`'
   SQL — NOT `IMAGE_SIM_EMBEDDING_MODEL`). Errors go through
-  `public.mark_dam_search_embedding_error` (missing thumbnail = permanent,
+  `public.mark_dam_search_embedding_error` (missing thumbnail = transient,
   download/decode = transient). This lane is what keeps group vectors from
   re-starving after every nightly style-group rebuild; it runs whenever the
   service is up (semantic search is a separate feature from
