@@ -211,3 +211,8 @@ export function isKnownDesigner(value: unknown, knownFirstNames: Set<string>): v
   const first = value.trim().split(/[\s/&]+/)[0]?.toLowerCase();
   return !!first && knownFirstNames.has(first);
 }
+
+/** Owner ruling Nov 4, 2026: Albert is the manager on older tech packs, never the technical designer. */
+export function isManagerNotTechnicalDesigner(value: string): boolean {
+  return /^(?:manager\s*:\s*)?albert\b/i.test(value.trim());
+}

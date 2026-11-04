@@ -69,7 +69,7 @@ import {
   TAG_ASSET_TOOL,
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
-import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner } from "./tag-finish.js";
+import { GROUP_SHOT_CHARACTER_ID, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
 import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
@@ -367,7 +367,7 @@ export async function applyBatchTagResult(
   // The PDF rescan owns designers from sheet headings. The model may only fill a blank, with a known person.
   const knownDesigners = await knownDesignerFirstNames(client);
   for (const [key, current] of [["designer_name", asset.designer_name], ["technical_designer_name", asset.technical_designer_name]] as const) {
-    if (!current && isKnownDesigner(tagData[key], knownDesigners)) updates[key] = tagData[key];
+    if (!current && isKnownDesigner(tagData[key], knownDesigners) && !(key === "technical_designer_name" && isManagerNotTechnicalDesigner(tagData[key]))) updates[key] = tagData[key];
   }
   for (const key of ["ai_description", "cover_description", "scene_description", "asset_type", "content_type", "art_source", "design_style", "design_ref", "freelancer_name"]) {
     if (tagData[key]) updates[key] = tagData[key];
