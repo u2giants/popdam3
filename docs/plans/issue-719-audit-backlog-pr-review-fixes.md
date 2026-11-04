@@ -7,7 +7,7 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 | # | Step | State | Evidence / notes |
 |---|------|-------|------------------|
-| 1 | Bring PR #713's branch up to date with `origin/main` | ⬜ open | Branch `claude/audit-backlog-fixes` (head `73196e65`) is behind `origin/main` `4409e2d3` by #717/#721 + a shared-db sync |
+| 1 | New branch `fix/719-audit-review-findings` from current `origin/main` | ⬜ open | #713 merged unrevised as `2287f1b5`; its branch is finished, do not push to it |
 | 2 | Finding 1 (must fix): Windows hygiene walker skips excluded directories again | ⬜ open | `apps/windows-agent/src/index.ts:1365` on the PR head still calls `shouldSkipPath(entry.name)` |
 | 3 | Finding 1 test: directory-name case in the path-filter test | ⬜ open | `src/test/path-filters-skip.test.ts` has only file cases |
 | 4 | Finding 2: out-of-root `browse_dir` reports an error, not an empty folder | ⬜ open | both agents call `reportDirBrowse(id, target, [])` in the catch |
@@ -15,10 +15,12 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | 6 | Finding 4: `handleClaim` takes identity from the key, not the body | ⬜ open | `supabase/functions/agent-api/index.ts:1936-1942` on PR head |
 | 7 | Finding 5: `useScanLifecycle` records an honest status for a scan that ended without a result | ⬜ open | `src/hooks/useScanLifecycle.tsx:76` |
 | 8 | Finding 6: `docs/API_CONTRACTS.md` `claim-render` request field | ⬜ open | `:175-176` still lists `agent_id` |
-| 9 | CI green on #713, merge #713, close #719 with evidence | ⬜ open | #713 is OPEN, mergeable, CI was green at `73196e65` |
+| 9 | New PR `Closes #719`, CI green, merge, deploys and agent publish green | ⬜ open | |
 | 10 | Live proof after release | ⬜ open | agents reach machines only at their next release (#681 bridge); `- [ ] live proof` stays on #719 |
 
-Where a fresh session starts: Step 1. Nothing from this plan is committed. **The findings are against an OPEN pull request, not `main`;** none of PR #713's changes (good or bad) are on `main` yet, so the regression in Finding 1 has not shipped. Verified 2026-11-04 against `origin/claude/audit-backlog-fixes` = `73196e65` and `origin/main` = `4409e2d3`.
+Where a fresh session starts: Step 1, Finding 1 first.
+
+**Correction (verified on `origin/main` `e037dd7a` (Nov 4, 2026, 6:05 PM EST)):** PR #713 merged at 5:12 PM EST as `2287f1b5` with none of the six findings fixed. All six are confirmed on `main` (`windows-agent/src/index.ts:1365`; both dir-browse catches; `ApisTab.tsx` imports; `agent-api/index.ts:1936,4973`; `useScanLifecycle.tsx` `setLastScanStatus`; `API_CONTRACTS.md:171-176`). **The Finding 1 regression has shipped:** "Publish Windows Agent" succeeded for `2287f1b5` and `4970cdeb`, and the agent self-updates, so the next hygiene scan may crawl `#snapshot`. Check the agent's version; until the fix is released, do not start a hygiene scan. Everything below that says "PR #713's branch", "merge #713", "PR head" or "never merge with Finding 1 unfixed" now means: a new PR from `main`. §7's rejection of a new PR and §8's fourth LOCKED item are void. Skip §9's prerequisite and Step 1's merge; line numbers are from `73196e65`, so re-grep. Step 9 pushes the new branch, runs `bin/ai-pr-wait <pr>`, merges, and confirms `publish-windows-agent.yml` as well as the frontend and edge workflows. Step 10's hygiene-scan proof is now the priority proof.
 
 ---
 

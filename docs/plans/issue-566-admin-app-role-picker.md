@@ -182,11 +182,12 @@ Users). Locate the viewer tester's row (its email is in the viewer item's
 Designer; wait for the success toast; reload; dropdown shows Designer; change
 back to Viewer; reload; shows Viewer. Confirm in the DB via
 `api.crm_admin_user_directory` (same admin session) after each change.
+**Takes effect live (the issue's wording; the 2026-10-28 proof read the directory only):** with the viewer tester's own session, call admin-api `get-sibling-scan-by-folder` at each stage. It is gated by `app.has_any_role(designer, administrator)` (`supabase/functions/admin-api/index.ts:211`): expect 403 as Viewer, non-403 as Designer, 403 again after reverting, without the tester re-signing in. If a stale token keeps the old result, that is a finding to report, not to retry around.
 **Do not screenshot the PopSG Settings page** (NAS password renders in the
 Setup tab); on PopDAM crop the screenshot to the Active Users card only, and
 only rows for test accounts — no employee emails in the image.
 Gate: three directory reads show viewer → designer → viewer for the test
-account; cropped screenshot saved under `$TMPDIR/issue-566/`; post the
+account, and the viewer tester's own calls return 403 → non-403 → 403; cropped screenshot saved under `$TMPDIR/issue-566/`; post the
 sequence (times in EST) on #566 signed with `$AI_GH_SIGNATURE`; tick the
 `- [ ] live proof` box.
 

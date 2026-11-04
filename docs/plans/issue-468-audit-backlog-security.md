@@ -9,17 +9,17 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 |---|---|---|---|
 | i | `admin-api` user-accessible actions let any JWT relink/queue scans | ✅ done, live-proved 2026-10-22 7:15 AM EST | Owner ruling "designers and admins only"; PR #472; gate at `supabase/functions/admin-api/index.ts:216` (403 "designer or admin role required"); proof comment on #468 |
 | ii | `TAXONOMY_SYNC_CONFIG` plaintext API keys | ✅ disproved 2026-11-04 (no keys in production); retired UI removed in PR #713 | `docs/audit-2026-10-21.md` (PR #713 version) "Disproved" paragraph; `src/components/settings/ApisTab.tsx` SyncSource editor deleted in #713 |
-| iii | `browse_dir` lists any absolute path | 🟡 fixed in PR #713 (OPEN, CI green, not merged) | bridge `apps/bridge-agent/src/handlers/path-tools.ts` `isInsideAllowedRoots`; Windows `apps/windows-agent/src/handlers/dir-browse.ts` realpath check |
-| iv | `claim-render`/`claim-sg-render` trust body `agent_id` | 🟡 fixed in PR #713 (OPEN) | `supabase/functions/agent-api/index.ts` `handleClaimRender(body, agentId)` / `handleClaimSgRender(_body, agentId)` with `agentId` from `authenticateAgent` (`:93-125`, router `:4946-4948`) |
-| v | Helper `popdam://checkin` / `popdam://discard` run unconfirmed | 🟡 fixed in PR #713 (OPEN) | `apps/popdam-helper/src/main/protocol.ts` `confirmDeepLink` dialog before `checkin`/`discard` |
-| 1 | Merge PR #713 (after verifying it still applies cleanly on `main`) | ⬜ open | §9 step 1 |
+| iii | `browse_dir` lists any absolute path | 🟡 fixed in PR #713 (merged 2026-11-04 5:12 PM EST as `2287f1b5`); live proof open | bridge `apps/bridge-agent/src/handlers/path-tools.ts` `isInsideAllowedRoots`; Windows `apps/windows-agent/src/handlers/dir-browse.ts` realpath check |
+| iv | `claim-render`/`claim-sg-render` trust body `agent_id` | 🟡 fixed in PR #713 (merged 2026-11-04 5:12 PM EST as `2287f1b5`); live proof open | `supabase/functions/agent-api/index.ts` `handleClaimRender(body, agentId)` / `handleClaimSgRender(_body, agentId)` with `agentId` from `authenticateAgent` (`:93-125`, router `:4946-4948`) |
+| v | Helper `popdam://checkin` / `popdam://discard` run unconfirmed | 🟡 fixed in PR #713 (merged 2026-11-04 5:12 PM EST as `2287f1b5`); live proof open | `apps/popdam-helper/src/main/protocol.ts` `confirmDeepLink` dialog before `checkin`/`discard` |
+| 1 | Merge PR #713 | ✅ done | merged 2026-11-04 5:12 PM EST as `2287f1b5`; deploy verification still belongs to step 3–5 |
 | 2 | Add the missing tests for iii, iv, v (none exist in #713) | ⬜ open | §9 step 2, §10 |
 | 3 | Live proof iv (edge, deploys on merge): claim with a mismatched body `agent_id` is ignored; real agents still claim | ⬜ open | `- [ ] live proof` on #468 |
 | 4 | Live proof iii: installed bridge (next in-app update, #681) and Windows agent (auto-release) refuse a browse outside the NAS root; Settings folder picker still browses | ⬜ open | `- [ ] live proof` on #468 |
 | 5 | Live proof v: installed Helper (post-merge build) shows the confirmation on a `popdam://discard` link; Cancel does nothing | ⬜ open | `- [ ] live proof` on #468 |
 | 6 | Close #468 with evidence | ⬜ open | |
 
-Where a fresh session starts: **Step 1** (merge #713), then step 2 in a follow-up PR, then steps 3–5 as each deploy lands.
+Where a fresh session starts: **Step 2** (#713 merged after this plan was written; §5 below describes the pre-merge code) in a follow-up PR, then steps 3–5 as each deploy lands.
 
 ---
 

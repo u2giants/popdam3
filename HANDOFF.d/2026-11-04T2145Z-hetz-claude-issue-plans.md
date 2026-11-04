@@ -17,7 +17,7 @@ PopDAM (and PopSG, same codebase) — see `AGENTS.md`. Repo u2giants/popdam3.
 Albert asked for a detailed, self-standing implementation plan for every open GitHub issue, written to the `implementation-plan-writer` standard, so any fresh session can pick an issue and build it without chat context.
 
 ## 3. Current state
-Every open issue as of Nov 4, 2026, 4:41 PM EST has a plan under [`docs/plans/`](../docs/plans/) named `issue-<number>-<slug>.md`. Each plan opens with a STATUS table (all rows open — no implementation has started) and ends with its self-audit. No code was changed. Plans are indexed in `AGENTS.md` → Active plans.
+Every open issue as of Nov 4, 2026, 6:02 PM EST has a plan under [`docs/plans/`](../docs/plans/) named `issue-<number>-<slug>.md`. Each plan opens with a STATUS table (all rows open — no implementation has started) and ends with its self-audit. No code was changed. Plans are indexed in `AGENTS.md` → Active plans.
 
 ## 4. What did not work
 N/A — planning only.

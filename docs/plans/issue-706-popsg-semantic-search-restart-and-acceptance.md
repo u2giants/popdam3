@@ -10,20 +10,34 @@ Parent plans (read their STATUS first, do not duplicate them): [plan_semantic_se
 | Step | State | Evidence |
 |---|---|---|
 | 1. Fresh baseline of live op/coverage/config | ⬜ open | — |
-| 2. Worker: consecutive-failure auto-resume accounting + one bounded claim retry | ⬜ open | — |
-| 3. Restart `sg-embed-search` and drain to full active coverage | ⬜ open | — |
-| 4. Edge: `popsg-search` action + per-app `search-modes` | ⬜ open | — |
-| 5. Frontend: SG mode adapter, hybrid request path, error/Retry contract | ⬜ open | — |
+| 2. Worker: consecutive-failure auto-resume accounting + one bounded claim retry | 🔄 partial | Reset landed for `sg-embed-search` only (#730, `operation-loop.ts:1749`); claim retry (2b) not landed |
+| 3. Restart `sg-embed-search` and drain to full active coverage | 🔄 running | Restarted Nov 4, 4:46 PM EST; claim fix shared-db PR 5588 merged; re-measure coverage |
+| 4. Edge: `popsg-search` action + per-app `search-modes` | 🔄 superseded in part | #730 shipped `popsg-query-embedding` instead; see §5a |
+| 5. Frontend: SG mode adapter, hybrid request path, error/Retry contract | 🔄 partial | Request path landed (#730), switch off; silent keyword fallback violates the contract, see §5a |
 | 6. Admin: SG coverage card and SG floor card | ⬜ open | — |
 | 7. Re-measure latency at full coverage (broad queries) | ⬜ open | — |
-| 8. Relevance gates (fixed suite, NDCG/recall) | ⬜ open | — |
+| 8. Relevance gates (fixed suite, NDCG/recall) | 🔄 first run failed | 119-case run at 64% coverage: keyword matches displaced (fix: shared-db PR 5594, OPEN) and nonsense queries return results (floor needed) |
 | 9. Activate `POPSG_SEARCH_MODE=hybrid`, observe, rehearse rollback | ⬜ open | — |
-| 10. Delete tester `sg-qa-semantic-20261028@popcre.com` | ⬜ open | — |
+| 10. Delete tester `sg-qa-semantic-20261028@popcre.com` | ✅ done | #706 comment Nov 4, 5:05 PM EST: account and invitation deleted; re-check with the step 10 gate only |
 | 11. Live proof, docs, STATUS updates, issue checklist | ⬜ open | — |
 
 **Where a fresh session starts:** step 1, then step 2. Steps 2 and 4–6 are independent code work and may run in parallel branches; step 3 needs step 2 deployed; steps 7–9 need step 3 at 100% active coverage and steps 4–6 deployed. Step 10 is independent and may run any time after step 8's drills no longer need the tester.
 
 ---
+
+## 5a. Corrections since this plan was written (verified on `origin/main` `e037dd7a` (Nov 4, 2026, 6:05 PM EST) and the #706 comment of 5:05 PM EST)
+
+This overrides §3, §5, §6 and §9 wherever they differ.
+
+- **Claim root cause was wrong in §6.2.** Measured: the claim plans a hash join and full sort of all ~79k pending rows (38.9 s; 4.2 s cold with the ordered index walk). It is a plan problem, not only a transient. Fix: shared-db PR 5588 (merged), pinned plan plus more frequent autovacuum.
+- **Wiring exists behind a switch that is off.** #730 added `popsg-query-embedding` (`supabase/functions/dam-search-ai/index.ts:119-137`), which returns the vector to the browser; the browser calls the RPC itself with its own session (`src/pages/popsg/PopSGLibraryPage.tsx:132-178`). Do not also build `popsg-search`; §9 step 4b is superseded unless step 5c below needs it. The vector goes to the browser, but the text-embed key does not, so finding §6.4 still holds.
+- **Contract violation to fix.** `fetchPopSGQueryEmbedding` catches every failure and runs keyword only (`PopSGLibraryPage.tsx:142-146`), and `parsePopSGQueryEmbedding` documents the same. That is the silent downgrade the November 1 contract forbids (§6.6, §8 LOCKED). Step 5c must change it before activation: an outage in hybrid mode shows error and Retry. Exception to keep: a product-code query, which skips the embedding on purpose. Test: "a failed embedding in hybrid mode shows an error and Retry, not keyword results". Embedding failure must also be distinguishable from mode `keyword`, so the edge action needs to report it (today `embedding: null` covers both).
+- **Parent plan.** `plan_vector_consolidation.md` (#735, owner request Nov 4) now also tracks #706: its Step 2 replaces the `sg-embed-search` lane, Step 5 is the scorecard, Step 6 is activation. Read its STATUS first. Where both cover the same work, it wins; use this file for the #706 checklist and the corrections here. Steps 2b and 6 here are dropped if its Step 2 lands first; say so on #706.
+
+**Gates added by the comment:**
+- Step 8 prerequisite: shared-db PR 5594 merged and live. Do not activate before it. Owner: shared-db #4437, claim-first.
+- Step 8: choose the floor only after coverage completes; gate "nonsense queries return 0 meaning-only rows" is the case that failed.
+- Step 7: hybrid p95 was 10-11 s against the 3 s target. §9 step 7's rule (continue only if hybrid adds no regression over keyword) does **not** pass on this number unless keyword measures the same. Hold activation and record the measured gap on #706; do not close #706 with the target silently unmet.
 
 ## 1. The ultimate goal
 

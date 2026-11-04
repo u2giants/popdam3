@@ -43,7 +43,7 @@ In: widen the name filter to the canonical markers; express it once as an export
 
 **NOT in this plan:**
 - A DB-level retirement flag on `core.character` (e.g. `status='retired'`, a `retired_at` column or scrape-time classification). That is shared-db territory (claim-first in `popcre/shared-db`) and a bigger change; record it in section 13 as the long-term direction, do not start it here.
-- Changing what happens to existing `asset_characters` links that point at retired rows (re-tag already replaces machine links, `apps/worker/src/handlers/ai-tagging.ts:264-275`).
+- Changing what happens to existing `asset_licensor_characters` links that point at retired rows (re-tag already replaces machine links, `apps/worker/src/handlers/ai-tagging.ts:328-340`).
 - The `logo` / `no character likeness` parts of the same regex (kept as-is; they were added by later PRs #691/#696/#697 and have their own rules).
 - Any prompt-wording change beyond the catalog contents.
 
@@ -111,7 +111,7 @@ Adversarial cases (external input = licensor-scraped names):
 
 **Step 4 — ship.** Branch `fix/worker-retired-labels-dnu`, PR referencing #652, `bin/ai-pr-wait <pr>` in background, merge. Railway rebuilds the worker on push to `main`; verify the Railway deployment shows the merged SHA (Railway dashboard/API per `docs/INFRASTRUCTURE.md` → Railway Worker; the `railway` MCP failed to connect in the planning session — use the API path from the doc). Gate: worker running merged SHA.
 
-**Step 5 — live proof + close.** Pick one asset whose property has DNU rows (query: `select p.name, count(*) from core.character c join core.property_character_associations a on a.character_id=c.id join core.property p on p.id=a.property_id where c.name ~* '\bdnu\b' group by 1 order by 2 desc limit 3;` read-only) and run a single-asset re-tag from the admin UI path the worker exposes (Settings → diagnostics bulk op, `docs/BULK_JOBS.md`) or the worker's documented one-asset handler; confirm in the worker log that the prompt's character list omits every DNU/Do-Not-Use name and the resulting `asset_characters` has none. Post evidence on #652, tick `- [ ] live proof`, close with `$AI_GH_SIGNATURE`. Update STATUS and the handoff; mention the shared-db flag follow-up in the closing comment (no new issue unless Albert's business rules session decides it).
+**Step 5 — live proof + close.** Pick one asset whose property has DNU rows (query: `select p.name, count(*) from core.character c join core.property_character_associations a on a.character_id=c.id join core.property p on p.id=a.property_id where c.name ~* '\bdnu\b' group by 1 order by 2 desc limit 3;` read-only) and run a single-asset re-tag from the admin UI path the worker exposes (Settings → diagnostics bulk op, `docs/BULK_JOBS.md`) or the worker's documented one-asset handler; confirm in the worker log that the prompt's character list omits every DNU/Do-Not-Use name and the asset's rows in `public.asset_licensor_characters` (the table tagging writes, `ai-tagging.ts:331,340`; `asset_characters` is only ever deleted from now) join to no retired `core.character` name. Post evidence on #652, tick `- [ ] live proof`, close with `$AI_GH_SIGNATURE`. Update STATUS and the handoff; mention the shared-db flag follow-up in the closing comment (no new issue unless Albert's business rules session decides it).
 
 ## 10. Tests required
 

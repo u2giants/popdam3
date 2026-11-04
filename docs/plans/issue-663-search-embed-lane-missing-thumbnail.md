@@ -5,6 +5,8 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 Parent plan for the whole image-similarity / GPU-poller feature: [`plan_image_similarity_upload_search.md`](../../plan_image_similarity_upload_search.md) (read its STATUS first; it is complete through Step 7 and this plan does not restate it). The search-document lane itself was issue #646 (closed) and PR #662 (merged as `2043c55d`).
 
+**Coordination:** `plan_vector_consolidation.md` on `origin/main` (PR #735, tagged #706 and #663) also claims the one-shot errored-document reset (its step 4) and closing #663 (its step 8). Read both before Step 1, and run the reset once only, under one plan.
+
 **Drift note (Nov 4, 2026, 5:00 PM EST):** PR #728 merged to `main` at 4:48 PM EST as `1ce8f675` (`apps/image-embed-worker/image_embed_poller.py`: missing thumbnail is now transient; tests in `tests/test_image_embed_poller.py`). Finding 2's worker side is landed; the stranded-row recovery, the migration-side marker behaviour and finding 3 remain. Re-verify line numbers against `1ce8f675`.
 
 ## STATUS
@@ -13,8 +15,8 @@ Parent plan for the whole image-similarity / GPU-poller feature: [`plan_image_si
 |---|---|---|
 | 0. Confirm finding 1 (grants) is landed in production | ⬜ open | — (expected: migration `20261102202014` present in `supabase_migrations.schema_migrations`; verified by the planner on 2026-11-04 via a read-only query, re-verify) |
 | 1. shared-db: refresh functions clear embed-error markers when a document's thumbnail changes, plus one-time reset of the stranded rows | ⬜ open | — |
-| 2. Poller: missing thumbnail is `transient`, never `permanent` | ⬜ open | — |
-| 3. Poller tests (rename + new cases) and README wording | ⬜ open | — |
+| 2. Poller: missing thumbnail is `transient`, never `permanent` | ✅ done | PR #728 `1ce8f675`; `image_embed_poller.py:548-552`, message `Transient: missing thumbnail_url` |
+| 3. Poller tests and README wording | 🟡 partly | Rename and README `:29` landed in #728; mixed-batch test, empty-string case and README `:35-38` remain |
 | 4. Finding 3: a real-contract test for the RPC call shapes | ⬜ open | — |
 | 5. Deploy poller to edge-dev, drain, live proof | ⬜ open | — |
 | 6. Close #663 with evidence; `- [ ] live proof` ticked on #663 | ⬜ open | — |
@@ -111,7 +113,7 @@ All on `main` at `01fcfc34` (2026-11-04), deployed:
 ## 8. Design decisions (dated 2026-11-04)
 
 - **LOCKED:** The durable rule lives in shared-db: in both refresh functions' `ON CONFLICT … DO UPDATE`, when `coalesce(dam_search_documents.metadata->>'thumbnail_url','') is distinct from coalesce(excluded.metadata->>'thumbnail_url','')` **and `dam_search_documents.embedding is null`**, set `embedding_error=null, embedding_error_category=null, embedding_attempts=0, embedding_next_retry_at=null` (the existing lease columns are already nulled). The `embedding is null` guard keeps this from touching already-embedded documents (stale-vector invalidation is out of scope).
-- **LOCKED:** The poller marks a missing thumbnail `transient` with message `transient: thumbnail not generated yet` (lower-case, searchable). No `permanent` writes for this case.
+- **LOCKED (superseded by PR #728, Nov 4):** The poller marks a missing thumbnail `transient` with the landed message `Transient: missing thumbnail_url`. Keep that text: the one-time reset's case-insensitive `ilike '%missing thumbnail_url%'` then also catches rows that exhausted their attempts and flipped to `permanent` under the new wording (`20260825082910:2697`). No `permanent` writes for this case.
 - **LOCKED:** The same shared-db migration performs the one-time reset of currently stranded rows: `where embedding is null and embedding_error_category='permanent' and embedding_error ilike '%missing thumbnail_url%'` → clear the four markers (do **not** restrict to rows that already have a thumbnail: rows still without one will simply be re-marked transient by the fixed poller, and the new rule rescues them when a thumbnail arrives).
 - **LOCKED:** No change to `claim_dam_search_embedding_documents`, `mark_dam_search_embedding_error`, grants, or the `auth.role()` guards.
 - **OPEN (implementer's call):** whether the poller should also log a per-batch count of "no thumbnail yet" rows (`search_no_thumbnail`) in the `search_batch` log line. Recommended yes; harmless.
@@ -153,7 +155,7 @@ Gate: `select version from supabase_migrations.schema_migrations where version='
 
 ### Phase B — poller (this repo, can run in parallel with Phase A)
 
-**Step 2 — `apps/image-embed-worker/image_embed_poller.py`.**
+**Step 2 — `apps/image-embed-worker/image_embed_poller.py`. Landed by PR #728; do not re-apply the code below.** It is kept as the original intent. #728 counts the row in `search_failed` and uses the message in section 8. What remains here, optional: the `search_no_thumbnail` counter and the comment at `:495-499`. Gate: `grep -n 'missing thumbnail_url' apps/image-embed-worker/image_embed_poller.py` shows the `transient` mark.
 - `:543-545`: replace with
   ```python
   if not row[3]:
@@ -165,16 +167,16 @@ Gate: `select version from supabase_migrations.schema_migrations where version='
 Behaviour when done: a claimed row without a thumbnail gets `transient` with server-side backoff; after a thumbnail arrives the DB rule (Phase A) resets it and the next claim picks it up. Gate: Step 3 tests.
 
 **Step 3 — tests + README.**
-- `apps/image-embed-worker/tests/test_image_embed_poller.py:276-286`: rename to `test_search_batch_marks_missing_thumbnail_transient`; assert category `"transient"`, message contains `thumbnail not generated yet`, `search_done == 0`, no upsert call, and (if adopted) `search_no_thumbnail == 1` with `search_failed == 0`.
+- `apps/image-embed-worker/tests/test_image_embed_poller.py:276`: `test_search_batch_marks_missing_thumbnail_transient` landed in #728 (asserts `missing thumbnail_url`). Extend it only if the optional counter is adopted.
 - New `test_search_batch_never_marks_permanent_for_missing_thumbnail`: a batch mixing one null-thumb row and one good row → exactly one mark call, category transient, one upsert for the good row.
-- README `apps/image-embed-worker/README.md:29`: "(missing thumbnail = transient; the database clears the marker when a thumbnail arrives)"; `:35-38`: state that the grants landed in shared-db `20261102202014`.
+- README `apps/image-embed-worker/README.md:29`: says transient since #728; add that the database clears the marker when a thumbnail arrives (true only after Phase A). `:35-38`: state that the grants landed in shared-db `20261102202014`.
 - Run: `cd apps/image-embed-worker && python -m pytest tests -q` (needs `pip install -r requirements.txt` minus torch is **not** enough — the tests import the poller which imports torch/transformers; use a venv with the pinned requirements, or run on `edge-dev` where the venv exists). Gate: suite green, count up by one.
 
 **Step 4 — finding 3: RPC call-shape test.** Add `test_search_lane_rpc_call_shapes` that, using `_FakeConn`, calls `p.claim_search_docs()` (do **not** monkeypatch it in this test), `p.search_upsert(row, vec)` and `p.search_mark_error(row, "m", "transient")` and asserts the exact SQL fragments and parameter tuples:
 - claim: SQL contains `public.claim_dam_search_embedding_documents(%s, %s, %s)` and params `== (64, "test-search", 900)`;
 - upsert: params `(document_type, entity_id, content_sha256, lease_token, "<vector text>", stamp)` positions 0–5 as in `:518-519`;
 - mark-error: params `(document_type, entity_id, content_sha256, lease_token, message, category)` as in `:531-532`, message truncated at 500 chars (pass a 600-char message).
-These positions mirror the RPC signatures in `20261101005850:174` and `20260825082910:2692-2693`; cite them in the test docstring so a signature change is noticed. Gate: test passes; deliberately swapping two params fails it.
+These positions mirror the RPC signatures in `20261101005850:174` and `20260825082910:2692-2693`; cite them in the test docstring so a signature change is noticed. The grant half of finding 3 needs no poller test: `shared-db/supabase/tests/dam_search_embed_worker_execute_grants_contracts.sql` is the real-database check; cite its result in the closing comment. Gate: test passes; deliberately swapping two params fails it.
 
 ### Phase C — deploy and prove
 

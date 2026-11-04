@@ -13,12 +13,14 @@ Parent plan: [plan_popsg_production_readiness.md](../../plan_popsg_production_re
 | 7b. Review the 311 terminal skips (223 size-limit, 88 no-text) as accepted terminal reasons | ⬜ open | — |
 | 7c. Resolve the Meta credential question and finish the PDF recovery route | ⬜ open | — |
 | 7d. Source resolution: run/verify the fuzzy resolver, review 9,226 unresolved rows | ⬜ open | — |
+| 7e. PopDAM licensing/tech-pack PDF backfill: prove actionable count is zero | ⬜ open | — |
 | 8a. Verify which Guides repair body is live; signed-in broad Guides proof | ⬜ open | — |
 | 8b. Second-slice filters (modified-date, content availability) wired in the UI | ⬜ open | — |
 | 8c. Semantic half (depends on #706) | ⬜ open | #706 plan |
 | 9a. Changed-night proof from the 8 consecutive ordinary crawls | ⬜ open | — |
 | 9b. Same-window NAS/DB comparison with explained-difference ledger | ⬜ open | — |
 | 9c. Signed-in role/filter/page journeys, desktop + mobile, both modes | ⬜ open | — |
+| 9c2. Observation, keyword rollback, saved-data freshness | ⬜ open | — |
 | 9d. `verification/popsg-readiness/final-acceptance.md` | ⬜ open | — |
 | 10. Docs, STATUS, close #107, retire handoffs | ⬜ open | — |
 
@@ -63,6 +65,9 @@ Gates 7–10 as listed in STATUS: PDF/source coverage acceptance, keyword search
 - Archival state for old style guides (AGENTS.md "Style Guide Sources archival readiness" row, separate).
 - Deleting `legacy_ungated` rows or acting on `sg_archive_usage` (parent plan §9.9 forbids until match quality is reviewed; the review is 7d, the delete is a later owner decision).
 - Credential rotation beyond what the standing rule requires (see 7c).
+- PopDAM Library UI showing 0 groups / 0 files for a fresh user (defect 2 in the October 28 drill): closed separately as #564; 9c does not re-prove it.
+- Semantic outage fallback, rollback rehearsal, broad-query latency, the meter nuance and tester deletion from that drill: #706 steps 7, 9, 10.
+- Shared-db contracts #2506, #2507, #2509 named on #107: all CLOSED (checked 2026-11-04 6:05 PM EST); cite them in 9d, no work remains.
 
 ## 5. Current state of the code (main `01fcfc34`)
 
@@ -117,6 +122,8 @@ Gates 7–10 as listed in STATUS: PDF/source coverage acceptance, keyword search
 
 **7d. Source resolution.** Read-only: `select max(last_match_attempt_at), count(*) filter (where match_attempts=0) from sku_files_used where style_guide_file_id is null` — if `match_attempts=0` dominates, the nightly resolver is not reaching them (check the pg_cron job that calls `resolve_sku_files_used_fuzzy`; if it is missing/failed, that is a shared-db cron fix on a new shared-db issue referencing #107). If attempts exist with `match_best_score` < 0.6, sample 50 privately and apply the OPEN rule in §8. Gate: `verification/popsg-readiness/sources-<ts>.json` with resolved/unresolved by `source`, attempt coverage 100% (every unresolved row has ≥ 1 attempt), and a written disposition for the remainder; the PopDAM "Files Used" panel opens the correct PopSG file for 5 sampled resolved rows (private evidence).
 
+**7e. PopDAM PDF backlog.** The issue body lists 23,353 eligible licensing/tech-pack PDFs needing extraction, and the September comments left that backlog running (22,311 at last report); parent §9.11 gate 5 requires actionable backfill to be zero. Nothing above measures it, since 7a–7c count PopSG PDFs only. Read it through admin-api `get-pdf-backfill-status` (`supabase/functions/admin-api/index.ts:1576`, card `PdfBackfillCard.tsx`) with the administrator login, and cross-check against a direct count of the same predicate. Report it separately; never add it to PopSG totals. If actionable is above zero and the job is idle, resume through the normal admin route, one Windows workload at a time, and do this before 7c. Gate: `verification/popsg-readiness/popdam-pdf-<ts>.json` shows actionable 0, with failed rows carrying a stored error (the September false-completion check: no failed row with a null error and null page count).
+
 ### Gate 8 — comprehensive search
 
 **8a. Which Guides body is live + signed-in proof.** `select md5(prosrc) from pg_proc where proname='search_style_guide_library_v2'` and compare with the md5 the stage-2 mirror pins (`20261027183509…sql` contract section; the parked handoff cites `1dfc9194a2288feb3a0feace89487f78` for the draft — recompute from the mirror). Then, signed in as the user-role tester on sg.designflow.app, run broad `disney` in Guides and Files, `logo`, a tag-only phrase, a PDF-text phrase (from a private known-extracted PDF), and a no-match: record HTTP status, total, elapsed, console errors. Pass: 200s, totals equal direct RPC totals, Guides broad ≤ 8 s (role ceiling) with no 57014; note the 3 s target is #706's latency gate. Post the result on shared-db #4210 (closes MiMo's outstanding item) and #107. Artifact: `verification/popsg-readiness/search-qa-<date>.json` (aggregate).
@@ -133,7 +140,9 @@ Gates 7–10 as listed in STATUS: PDF/source coverage acceptance, keyword search
 
 **9c. Signed-in journeys.** Playwright MCP with the user-role tester, then the administrator item (`ai-admin@designflow.app`) for Settings: browse guide → switch Files/Guides → each filter alone → combined filters → search by filename/path/tag/PDF phrase → paginate/sort → open preview → observe a terminal-exception file → Admin health (crawl, preview, PDF cards). Desktop 1440×900 and mobile 390×844; console/network must show 0 errors and 0 4xx/5xx (known-quirk admin-api 403s for the user role are allowed only on the user-role pass, per `docs/KNOWN_QUIRKS.md`). Artifact: `verification/popsg-readiness/journeys-<date>.md` with screenshots (never Setup tab; no licensed names in filenames).
 
-**9d. Final acceptance file.** `verification/popsg-readiness/final-acceptance.md` per parent §9.11: timestamp (EST), deployed SHAs (frontend header, edge run id, worker Railway SHA, bridge heartbeat build, Windows release), project URL, links to 7a–9c artifacts and the private ledger hash, and the eight parent gates each marked with its evidence.
+**9c2. Observation, rollback, saved data.** The October 18 checklists on #107 require these on top of the journeys; the semantic half is #706 step 9, this is the rest. Observation: at least one ordinary nightly crawl after the 8b frontend deploy, re-running the 9a row and one signed-in search. Rollback: name the previous frontend image in the acceptance file and confirm it is still pullable from GHCR; confirm inactive rows are retained (count of inactive `style_guide_files`, none deleted) so the parent's reactivation route still works. Saved-data freshness: after a changed night, the aggregate refresh timestamp is later than that crawl's reconcile time, and the Library totals, Guides count and filter facets match direct counts. Gate: `verification/popsg-readiness/observation-<date>.md` with all three, times in EST.
+
+**9d. Final acceptance file.** `verification/popsg-readiness/final-acceptance.md` per parent §9.11: timestamp (EST), deployed SHAs (frontend header, edge run id, worker Railway SHA, bridge heartbeat build, Windows release), project URL, links to 7a–9c2 artifacts and the private ledger hash, and the eight parent gates each marked with its evidence.
 
 ### Gate 10 — land and retire
 
@@ -171,7 +180,7 @@ Adversarial cases (trust boundary: NAS scan and PDF text are external input):
 
 ## 13. Definition of done, risks, open questions
 
-Done: all STATUS rows cite artifacts; 7a–7d files exist and reconcile; 8a posted on #4210 and #107; 8b merged, deployed (frontend SHA verified) and journey-tested; #706 live proof ticked; 9a–9d files exist with zero unexplained differences; docs/plan/AGENTS rows updated; four handoffs retired; #107 closed with `live proof` ticked.
+Done: all STATUS rows cite artifacts; 7a–7e files exist and reconcile; 9c2 file exists; 8a posted on #4210 and #107; 8b merged, deployed (frontend SHA verified) and journey-tested; #706 live proof ticked; 9a–9d files exist with zero unexplained differences; docs/plan/AGENTS rows updated; four handoffs retired; #107 closed with `live proof` ticked.
 
 Risks: (1) Windows agent offline (`edge-alien`) blocks 7c — report `Blocked —` with the last heartbeat time, do not run extraction elsewhere. (2) The 24 row-less PDFs may be new nightly arrivals — then 7c is a wait, not a defect. (3) 9b NAS scan collides with the nightly crawl window — run it in the afternoon EST after the previous night's crawl, same as September. (4) Second-slice filters change query keys — verify no cache leakage between filter states (8b test).
 

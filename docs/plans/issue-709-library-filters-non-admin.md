@@ -78,7 +78,7 @@ show a failure rather than silently empty lists; live proof.
 
 ## 5. Current state of the code (verified on main 01fcfc34, 2026-11-04)
 
-- Auth-level dispatch: `supabase/functions/admin-api/index.ts:2046-2050`
+- Auth-level dispatch (lines as of `e037dd7a`: 2059-2063, action case 2136): `supabase/functions/admin-api/index.ts:2046-2050`
   picks `authenticateDesignerOrAdmin` if the action is in
   `DESIGNER_OR_ADMIN_ACTIONS` (line 188), else `authenticateUser` if in
   `USER_ACCESSIBLE_ACTIONS` (lines 173-180: `sync-group-tags`,

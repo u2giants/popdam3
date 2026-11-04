@@ -7,14 +7,16 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 | # | Step | State | Evidence / notes |
 |---|------|-------|------------------|
-| 1 | Re-land the fixer's predicate change on a branch cut from current `origin/main` | ⬜ open | Fixer PR #716 targets the already-merged source branch, not `main` (see §5) |
+| 1 | Finish the predicate on a branch cut from current `origin/main` (findings 2 and 3; finding 1's phrase landed in #724) | ⬜ open | #716 is closed unmerged; see the correction below |
 | 2 | Move the predicate tests into the worker's real test suite (`.ts`, not `.mjs`) | ⬜ open | `apps/worker/package.json:9` only globs `*.test.ts` |
 | 3 | Add the end-to-end catalog-miss test that drives `tagSingleAsset` to the backup | ⬜ open | Finding 1 asked for it; none exists |
 | 4 | Update `docs/MODEL_RULES.md` wording if behavior text changes | ⬜ open | |
-| 5 | Open PR to `main`, CI green, merge, close #716 as superseded | ⬜ open | |
+| 5 | Open PR to `main`, CI green, merge | ⬜ open | #716 already closed |
 | 6 | Live proof on Railway worker log (fallback line after a forced catalog miss) | ⬜ open | `- [ ] live proof` stays on #711 until done |
 
 Where a fresh session starts: Step 1. Nothing from this plan is on `main` yet. Verified 2026-11-04 against `origin/main` = `4409e2d3` and fixer branch `origin/review-fix/711` = `f4d60098`.
+
+**Correction (verified on `origin/main` `e037dd7a` (Nov 4, 2026, 6:05 PM EST)):** PR #724 (`ef8ca260`) added `/not available in the OpenRouter account catalog/` to `isModelOutageError` and one row to the scope test, so finding 1's predicate is fixed. PR #716 is CLOSED. Still open on `main`: finding 1's handler-level test (Step 3), finding 2 (both `^OpenRouter` anchors), finding 3 (bare `network` and `aborted`). Do not cherry-pick `f4d60098`: edit the function by hand to the behaviour listed in Step 1, keeping #724's line. No `.mjs` file arrives, so Step 2's delete, the §13 `.mjs` line and Step 5's `gh pr close 716` do not apply. Line numbers below are from `4409e2d3`; re-grep. §3, §4 and §7 describe #716 as it stood before this.
 
 ---
 

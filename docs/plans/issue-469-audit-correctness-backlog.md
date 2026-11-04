@@ -12,19 +12,20 @@ state OPEN, mergeable, check `lint-test-build` SUCCESS, head
 `73196e65`). So *nothing* attributed to #713 is on `main` yet. Step 1 of this
 plan is therefore to land #713.
 
-## STATUS — 2026-11-04 (nothing started)
+**Update 2026-11-04 6:05 PM EST: PR #713 merged 2026-11-04 5:12 PM EST as `2287f1b5`.** Sections saying "NOT on main" describe the pre-merge state. Confirmed on `origin/main`: all three terminal saves use `onlyIfRunning` (`operation-loop.ts:1297,1661,1818`); sentinel cap 16 MB (`ai-sentinel-detect.ts:37`); the merge touches `path-utils.ts`, `path-filters/index.ts`, `admin-api/index.ts`, the Tesseract files, `AgentSetup.tsx`, `useScanLifecycle.tsx`, `useAgentStatus.ts`, `AiTaggingSection.tsx` and the three loop-cap files. **No test for the Stop guard landed** (no test references `onlyIfRunning`), so the §10 test is required, not conditional.
+
+## STATUS — 2026-11-04
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Merge PR #713 (carries 12 findings incl. Stop-overwrite guard, .ai sentinel cap) and verify the deploys | ⬜ open | — |
+| 1 | Merge PR #713 (carries 12 findings incl. Stop-overwrite guard, .ai sentinel cap) and verify the deploys | 🟡 merged; deploy verification open | merged 2026-11-04 5:12 PM EST as `2287f1b5` |
 | 2 | Download all: batch checkout token so every file opens | ⬜ open | — |
 | 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | ⬜ open | — |
 | 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | ⬜ open | — |
 | 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | ⬜ open | — |
 | 6 | Update `docs/audit-2026-10-21.md` backlog + this STATUS; close #469 with evidence | ⬜ open | — |
 
-Where a fresh session starts: step 1 (merge #713) — it is independent of the
-rest and unblocks the issue's "fixed" claims.
+Where a fresh session starts: step 1's deploy gate (the merge is done), then step 2.
 
 ---
 
@@ -78,9 +79,7 @@ tests, the audit-doc update, closing #469 with evidence.
 - Security items (`admin-api`, `browse_dir`, `claim-render`, helper deep-link
   tokens) — separate issue; not re-verified here.
 - Dead-code/duplication cleanup.
-- Items the 2026-11-04 comment marks **disproved**: `ResourceAndPolling`
-  slider reset and `PopSGLibraryPage` search debounce — not re-verified here;
-  do not reopen without new evidence.
+- Items the 2026-11-04 comment marks **disproved**. `ResourceAndPolling` (issue scope: verify-or-drop) was verified and dropped: `ResourceAndPolling.tsx:48-58` syncs on `[loaded]`, and `loaded` is the query's `data` object, which React Query keeps by reference when a refetch returns identical content. A sibling card's invalidation therefore does not reset unsaved edits; only a real change to `RESOURCE_GUARD` does, which is acceptable. `PopSGLibraryPage` search debounce: the issue scope says fixed; do not reopen without new evidence.
 - Any new helper feature beyond the batch checkout (no UI redesign).
 - Any DB change in this repo (step 4's RPC change goes through shared-db).
 

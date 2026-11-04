@@ -5,12 +5,14 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 **Drift note (Nov 4, 2026, 5:00 PM EST):** PR #727 merged to `main` at 4:53 PM EST as `4720dd2e` (guard at `apps/worker/src/handlers/ai-tagging.ts` now skips the asset-ID check for discover runs). Treat any step that says "merge #727" as done pending worker heartbeat SHA ≥ `4720dd2e`; re-verify the remaining findings against that commit.
 
+**Re-verified on `origin/main` `e037dd7a` (Nov 4, 2026, 6:05 PM EST):** findings 2, 3 and 4 are still present: discovered path `ai-tagging.ts:1338` lacks the Meta-direct model that the explicit path `:1212` has; `ai-tag-parallel.ts` has no `discover` type check and the `max_cursor` bound is still 0; `operation-loop.ts:1229` still returns after a refused yield. Lines in §5 and §9 are one lower than these. "Four edits" in §13 is now three.
+
 ## STATUS
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 0 | Confirm each finding is still open on `main` | ⬜ open | Checked 2026-11-04 4:45 PM EST on `origin/main` 4409e2d3 (PR #717 merged 4:41 PM EST): all four findings still present, see §5. No fixer-bot PR for #722 exists |
-| 1 | Finding 1 — discover run passes the explicit-ID guard (`ai-tagging.ts:1191`) | ⬜ open | |
+| 1 | Finding 1 — discover run passes the explicit-ID guard | ✅ landed | #727 `4720dd2e`, `ai-tagging.ts:1192`, test `a whole-library run tags a candidate page instead of demanding asset IDs`. Skip Step 1; keep only `a non-discover parallel run with no asset IDs still fails closed` if absent |
 | 2 | Finding 2 — one `acceptedModels` list for both paths (`:1211`, `:1337`) | ⬜ open | |
 | 3 | Finding 3 — `discover` type-checked; `max_cursor` rejected clearly in discover mode (`ai-tag-parallel.ts:10,15`) | ⬜ open | |
 | 4 | Finding 4 — refused yield falls through to promotion (`operation-loop.ts:1226-1229`) | ⬜ open | |

@@ -13,15 +13,16 @@ Predecessor handoffs (read for history, not for state): [2026-11-03T2208Z taggin
 | P1 | Tagging rules built and live (group shot, paired labels, asset-type words, sheet facts, junk filter, named characters) | ✅ done (prior sessions) | PRs #691 #694–#697 #700 #710 #712 #721 merged; worker heartbeat `admin_config.WORKER_HEARTBEAT.sha = 4409e2d3` at 4:46 PM EST |
 | P2 | Indra rescan finished | ✅ done | `admin_config.PDF_BACKFILL.status = completed`, 19,434 processed, 1,043 failed, `completed_at 2026-11-04T21:24Z` |
 | P3 | Backup model saved and failover proven | ✅ done | `AI_TASK_MODELS.vision_tagging_fallback = openai/gpt-6-luna`; issue comment 4:40 PM EST Nov 4 (live 503 proof) |
-| 0 | Owner go for the paid run confirmed in Albert's words | ⬜ open | — (see section 0) |
-| 1 | Fix the guard that failed the run at 4:43 PM EST (PR #727) merged and running on the worker | ⬜ open | PR #727 open, mergeable, CI running at 4:47 PM EST |
-| 2 | Run re-queued from cursor 0 and tagging files | ⬜ open | op `ai-tag-parallel` is `failed`, error "Single-asset tag operation has no asset ID", 0 tagged |
+| 0 | Owner go for the paid run confirmed in Albert's words | ✅ done | #680 comment 5:00 PM EST Nov 4: "Start the full run", relayed by the coordinator |
+| 1 | Fix the guard that failed the run at 4:43 PM EST (PR #727) merged and running on the worker | ✅ done | Merged `4720dd2e` 4:53 PM EST; run started on it |
+| 2 | Run re-queued from cursor 0 and tagging files | ✅ done | Started 4:55 PM EST: 117,535 files, 8 at a time, GLM, force; 48 files by 5:00 PM EST, 0 failed |
 | 3 | First-hour check: throughput, failures, backup use, quality sample | ⬜ open | — |
 | 4 | Daily checks until done; nightly-grouping yield observed | ⬜ open | — |
 | 5 | Completion: leftovers retried, setting disabled, live sample passes, review page updated | ⬜ open | — |
 | 6 | Closeout: issue comment, handoff, docs, undo backups released | ⬜ open | — |
+| 7 | Rescan follow-ups and leftovers each have a named owner on #680 | ⬜ open | — |
 
-Where a fresh session starts: section 9 step 0 (re-read live state), then step 1.
+Where a fresh session starts: section 9 step 0 (re-read live state), then step 3. Steps 0–2 are done; the section 0 question, section 5 live data and PR #727 text below are history from before the start.
 
 ---
 
@@ -50,10 +51,11 @@ Albert asked on Nov 3 for trustworthy tags before paying for the whole library (
 In: landing the guard fix, re-queueing and running the whole-library run to completion, monitoring, live quality proof, disabling the setting, closeout on #680.
 
 **NOT in this plan** (each stays tracked on #680 or its own issue; do not pick up while babysitting the run)
-- Rescan failures: 634 live files (438 moved/renamed on the NAS, 192 over 100 MB, 4 empty). PR #718 raises the agent limit to 1 GB; needs the NAS/Windows-agent update path (#681 owns agent updates) and a requeue without pressing start.
+- Rescan failures: 634 live files (438 moved/renamed on the NAS, 192 over 100 MB, 4 empty). PR #718 (merged) raises the agent limit to 1 GB; still needs the NAS/Windows-agent update path (#681 owns agent updates) and a requeue without pressing start.
 - Loading missing character records (Care Bears, Paw Patrol, NBC, Viacom, Asha alias) — `popcre/shared-db`, claim-first, `shared-db-change` skill; largest remaining accuracy gain, but a second tagging pass would be needed to use them.
 - Group-shot under-counting and crowded-art variance (model behaviour, not fixed).
-- 1,123 files with Albert in the technical designer field (likely Manager line readings) — decision pending.
+- Albert in the technical designer field: **done, not open.** Albert ruled Nov 4; 1,462 files and 964 style groups cleared 5:05 PM EST, PR #732 merged. Step 3 checks it stays clear.
+- Albert's identity answers on the 21 remaining designer names — pending with him, tracked on #680 (step 7).
 - Review-finding issues from this stream: #722 (PR 717), #723 (PR 718), #715 (PR 712), #711 (PR 710), #698 (PR 697) — fixer bot or separate sessions.
 - Parser findings #671 and #673 — their own plans in `docs/plans/`.
 - PR #726 is an Entire "shadow" draft PR backing a trail — never merge or close it by hand.
@@ -75,13 +77,13 @@ Live data (4:46 PM EST Nov 4):
 - `BULK_OPERATIONS["ai-tag-parallel"]`: `status failed`, `run_id full-run-680-20261104`, `cursor 0`, `params {}`, `requested_by issue-680-full-run`, `progress.total 117535`, all counters 0.
 - `AI_TASK_MODELS`: `vision_tagging z-ai/glm-5.3-flash`, `vision_tagging_fallback openai/gpt-6-luna`, provider pin empty.
 - `assets`: 113,063 with `ai_tagged_at`; 135,514 not deleted with a thumbnail (includes files outside the two skipped groups and other exclusions the RPC applies — use `progress.total`, not this, as the denominator); 61 tagged in the last 24 h, last at 4:39 PM EST (the 2-file failover proof).
-- Undo copies that must survive until the run proves out: `admin_config.NULL_DESIGNER_CLEANUP_BACKUP_2026_11_04`, `admin_config.DESIGNER_SPELLING_CLEANUP_BACKUP_2026_11_04`, table `asset_designer_sheet_backup`, `archive.*_20261102` (removed links).
+- Undo copies that must survive until the run proves out: `admin_config.NULL_DESIGNER_CLEANUP_BACKUP_2026_11_04`, `admin_config.DESIGNER_SPELLING_CLEANUP_BACKUP_2026_11_04`, table `asset_designer_sheet_backup`, `archive.*_20261102` (removed links), `admin_config.ALBERT_TECHNICAL_REMOVAL_BACKUP_2026_11_04`.
 - Review page for Albert: https://claude.ai/artifact/PLsjGCL8kMPu12NKdrqwdT (private until shared).
 
 ## 6. Key findings
 
 - The failure is deterministic and cheap: no file was touched, no spend. Re-queueing before the fix is on the worker will fail the same way within a second.
-- Throughput expectation: GLM averaged 22 s per file in the bake-off at concurrency 8 → ~0.36 files/s ≈ 31,000/day ≈ 3.8 days for 117,535; earlier handoffs said 6.5–6.9 days from a slower sample. Plan for 4–7 days; alarm only if an hourly count falls under 600 for two consecutive hours outside the 1:00 AM EST grouping window.
+- Throughput expectation: GLM averaged 22 s per file in the bake-off at concurrency 8 → ~0.36 files/s ≈ 31,000/day ≈ 3.8 days for 117,535; earlier handoffs said 6.5–6.9 days from a slower sample. Plan for 4–7 days; alarm only if an hourly count falls under 400 for two consecutive hours outside the 1:00 AM EST grouping window. **Measured at the real start: about 10 files a minute (600/h), so about 8 days, not 4–7** (#680, 5:00 PM EST Nov 4).
 - Cost: bake-off measured $0.00032/file on GLM → ~$38; the standing estimate is $87. Backup Luna is $0.00161/file; if every file fell to Luna it would be ~$192 — a sign of a GLM outage worth stopping for.
 - Quality baseline to compare against: 163-file picture audit — 82.8% character-correct after PR #721, junk tags 9 of 7,400, 0 runs missing licensor/property tags (issue comment 4:26 PM EST Nov 4). Known residual errors: Jellyfish, Pico, House The Encanto, Loki, Trace-E, group-shot misses.
 - Grouping: nightly `rebuild-style-groups` is queued around 1:00 AM EST; the run yields and resumes from its cursor (PR #717). Expect a dip in that hour, not a stall.
@@ -110,13 +112,15 @@ OPEN: whether to retry leftovers once or twice (criterion: retry once with `forc
 
 **Step 2 — re-queue the run.** Keep `AI_TAG_PARALLEL_RUN` as it is (run id must match). Write the op through the RPC from the live failed row, changing only: `status: "queued"`, `cursor: 0`, `error: null`, `interruption_reason_code: null`, `progress` counters 0 (keep `total`), `updated_at` now, `queue_position: 1`, `started_at` now; keep `run_id`, `requested_by`, `params: {}`. SQL shape: `select public.update_bulk_operation('ai-tag-parallel', <jsonb>)` — this is an application-data write to `admin_config`, not a schema change, so it is in the app session's authority (declare class `production` with `ai-task-gates` first). Never do this during the 1:00 AM EST grouping window. Gate: within 2 minutes `status = running`, `progress.tagged` rising, and `select count(*) from assets where ai_tagged_at > <queue time>` > 0; `ai_model = 'z-ai/glm-5.3-flash'` on those rows.
 
-**Step 3 — first-hour check (about 60 minutes after step 2).** Read-only queries: files tagged since start (expect 1,000–1,400/h), `progress.failed` and `failure_samples`, count of `ai_model = 'openai/gpt-6-luna'` since start (expect near 0; > 10% means GLM trouble — read `failure_samples`, check OpenRouter status, do not change models), `visual_analysis_unavailable`. Quality: pick 20 files tagged in that hour across licensors, view their thumbnails, check tags, description and characters against the section 6 baseline; post the numbers on #680. Gate: throughput ≥ 600/h, failures < 2%, sample has no junk tags and licensor/property tags present on every licensed file.
+**Step 3 — first-hour check (about 60 minutes after step 2).** Read-only queries: files tagged since start (expect about 600/h, as measured), `progress.failed` and `failure_samples`, count of `ai_model = 'openai/gpt-6-luna'` since start (expect near 0; > 10% means GLM trouble — read `failure_samples`, check OpenRouter status, do not change models), `visual_analysis_unavailable`. Quality: pick 20 files tagged in that hour across licensors, view their thumbnails, check tags, description and characters against the section 6 baseline; post the numbers on #680. Also confirm on run-tagged files: PR #721's named-character links appear (not yet re-checked on live files as of 4:41 PM EST), and no file has Albert as technical designer (PR #732). Gate: throughput ≥ 400/h, failures < 2%, sample has no junk tags and licensor/property tags present on every licensed file.
 
-**Step 4 — daily checks until done.** Once per day (not a polling loop; a scheduled check or a fresh session each day): tagged count, failed count, backup share, cursor advancing, and after 1:00 AM EST that the op went `queued` then back to `running` (the yield). If the op shows `failed` or `interrupted`: read `error`/`interruption_reason_code`; a transport or statement-timeout failure is re-queued from its `last_successful_cursor` (same RPC, keep cursor); a code failure gets a PR first. Thirty minutes with no cursor movement outside the grouping window is broken — diagnose from worker logs (Railway connector has failed on hetz; use `WORKER_HEARTBEAT` and the op's `last_stage`, `failure_samples`), never just wait again. Gate per day: numbers posted on #680 with EST times.
+**Step 4 — daily checks until done.** Once per day (not a polling loop; a scheduled check or a fresh session each day): tagged count, failed count, backup share, cursor advancing, and after 1:00 AM EST that the op went `queued` then back to `running` (the yield; PR #717 is not yet seen live, so the first night's result is its proof, posted on #680). If the op shows `failed` or `interrupted`: read `error`/`interruption_reason_code`; a transport or statement-timeout failure is re-queued from its `last_successful_cursor` (same RPC, keep cursor); a code failure gets a PR first. Thirty minutes with no cursor movement outside the grouping window is broken — diagnose from worker logs (Railway connector has failed on hetz; use `WORKER_HEARTBEAT` and the op's `last_stage`, `failure_samples`), never just wait again. Gate per day: numbers posted on #680 with EST times.
 
 **Step 5 — completion.** When `status = completed`: (a) count in-scope files whose `ai_tagged_at` is older than the run start — these are leftovers; (b) if > 0, set `AI_TAG_PARALLEL_RUN` to the same JSON **without** `force` and re-queue the op with a new `run_id` (`full-run-680-retry-1`) in both places; completed same-model files are skipped, so only leftovers cost money; (c) set `AI_TAG_PARALLEL_RUN` to `{"enabled":false}`; (d) live sample: re-score the 163-file audit set and the 59 review-page files from live data (characters right / missing / wrong, junk tags, paired labels, asset-type words), update the review page, compare with the section 6 baseline; (e) confirm search: three searches on dam.designflow.app a tester would run (a character, a customer, a product word) return tagged results. Gate: leftovers ≤ 0.5% or each remaining one has a recorded reason (no thumbnail, refused content); setting disabled; sample numbers posted; `- [ ] live proof` on #680 ticked by the person who viewed the files.
 
 **Step 6 — closeout.** Comment on #680 with totals, cost (OpenRouter dashboard figure), duration, sample result, leftovers, and that the setting is disabled — signed `$AI_GH_SIGNATURE`. Decide the undo backups (section 8 OPEN) and record it. Update this plan's STATUS, the handoff linked at the top, and `docs/MODEL_RULES.md` only if the run taught something new about the lane. Close #680 only when every "NOT in this plan" item has its own issue or a line on #680 saying who owns it; otherwise leave #680 open with those as the remaining checklist.
+
+**Step 7 — account for what #680 still tracks.** #680's body says it also tracks the rescan's follow-ups, and they are not part of the paid run, so each gets one line on #680 naming its owner and state: the 634 failed rescan files (requeue, without pressing start); missing character records and the Asha and Lucky aliases (`popcre/shared-db`; say whether files already tagged need another pass, which is a spending question for Albert); `HXP83WBNE01` filed under Warner Bros though it shows Michael Myers; Albert's answers on the 21 names; the Group Shot under-count; Fish still offered as a character; sheets scanned after the one-time `pdf_sheet` style-tag load. Gate: every line has an owner, or the item has its own issue; #680 closes only then (run proof alone does not clear these).
 
 ## 10. Tests required
 
