@@ -63,6 +63,44 @@ function mentions(text: string, phrase: string): boolean {
   return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:[^\\p{L}\\p{N}]|$)`, "iu").test(text);
 }
 
+/** Staff written out in full. First names alone can't decide this: "Peter Parker" and "Amy Rose" are characters. */
+const STAFF_FULL_NAMES = new Set([
+  "albert hazan", "sarbani ghosh", "nimesh niyomal", "james ashley", "isaac clark", "khim tugas", "peter paul", "jessica pinilla",
+  "beckett schiaparelli", "danilo moreno", "malachi cameron", "jen chaffier", "derrick smith", "deborah salles", "tanisha shah", "zarit calderon",
+]);
+
+/** Section headings and print furniture that appear on every sheet, so they tell two files apart for nobody. */
+const FORM_TEXT_TAGS = new Set([
+  "dimensions", "dimension callouts", "dimensions callouts", "dimension diagram", "dimensions text", "callouts", "measurements",
+  "legal line", "legal information", "legal text", "legal sticker", "legal sticker artwork", "copyright text", "made in china",
+  "upc sticker", "upc label", "upc placement", "barcode", "sticker placement", "placement instructions",
+  "prop 65", "prop 65 label", "prop 65 warning", "prop 65 sticker", "prop 65 warning label", "tsca label",
+  "spec table", "spec sheet", "spec layout", "spec sheet layout", "specification table",
+  "pantone", "pantone reference", "pantone swatches", "pantone colors", "pantone palette", "color swatches",
+  "concept stage", "concept approved designs", "placeholder", "text", "title text", "black text", "white text",
+  // Folder names and the company's own name, read from the file path or legal line.
+  "character licensed", "new structure", "in development", "customer adopted", "pop creations",
+  "ai file", "psd file", "pdf file",
+]);
+
+const JUNK_TAG_PATTERNS: RegExp[] = [
+  /_/, // machine words: art_piece, ____new structure
+  /^(?=[a-z0-9]*\d[a-z0-9]*[a-z])[a-z0-9]{7,10}\d{2}$/, // style codes: mdsh7sesc02
+  /^(?:pantone|pms)\b/, // ink references: pantone 186 c
+  /^dimensions?\b/,
+  /^page \d+(?: of \d+)?$/,
+  /^(?:wip|rev|version)\b/,
+  /\b(?:ss|fw|fh|aw|sp)\s?(?:20)?\d{2}\b/, // customer seasons: dollar general fw26
+  /\b(?:spring|summer|fall|winter)\s+(?:20\d{2})\b/,
+  /©|™|®|\ball rights reserved\b|\brelated characters?\b/, // pieces of the legal line
+  /[\u0400-\u052F]/, // scanned text in another alphabet
+];
+
+/** True for scan debris and form text. Selected characters and sheet facts are added after this check. */
+export function isJunkTag(tag: string): boolean {
+  return tag.length > 40 || FORM_TEXT_TAGS.has(tag) || STAFF_FULL_NAMES.has(tag) || JUNK_TAG_PATTERNS.some(pattern => pattern.test(tag));
+}
+
 export interface SheetTagFacts {
   packaging_type?: string | null;
   retailer?: string | null;
@@ -104,7 +142,7 @@ function sheetTagValue(value: string | null | undefined): string | null {
 
 export function finishTagResult(input: FinishTagInput): { tagData: Record<string, unknown>; characterIds: string[] } {
   const { tagData, filename, licensed, sheet, characterNames, customerNames = [], designerFirstNames = new Set<string>() } = input;
-  const isPerson = (value: string) => designerFirstNames.has(value.split(/\s+/)[0]);
+  const isFirstName = (value: string) => designerFirstNames.has(value);
   const groupShot = input.characterIds.length > CHARACTER_LIMIT;
   // The prompt asks for the most prominent character first.
   const characterIds = groupShot ? input.characterIds.slice(0, 1) : input.characterIds;
@@ -122,9 +160,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
     const seasonCustomer = /\d|\b(ss|fw|spring|summer|fall|winter|holiday|phase)\b/.test(raw) ? matchingCustomer(raw, customerNames) : null;
     if (seasonCustomer) raw = seasonCustomer;
     const renamed = raw in LABEL_RENAMES ? LABEL_RENAMES[raw] : raw;
-    // Internal ids and file formats are not search terms.
-    // So is scanned text in another alphabet, and a designer's own name.
-    if (renamed && !/^character id\b/.test(renamed) && !/^(psd|pdf|ai)$/.test(renamed) && !/[\u0400-\u052F]/.test(renamed) && !isPerson(renamed)) add(renamed, String(item.category), "model", item);
+    // Internal ids and file formats are not search terms, and neither is a designer's own name.
+    if (renamed && !/^character id\b/.test(renamed) && !/^(psd|pdf|ai)$/.test(renamed) && !isJunkTag(renamed) && !isFirstName(renamed)) add(renamed, String(item.category), "model", item);
   }
   const fileLabels = labelsFromFilename(filename);
   for (const label of fileLabels) add(label, "file_type", "file name");
@@ -151,7 +188,7 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
   if (!groupShot) tags.delete(GROUP_SHOT_TAG);
   if (groupShot) add(GROUP_SHOT_TAG, "visible_content", "more than three characters");
   const packaging = sheetTagValue(sheet?.packaging_type);
-  if (packaging && !isPerson(packaging)) add(packaging, "other", "sheet packaging type");
+  if (packaging && !designerFirstNames.has(packaging.split(/\s+/)[0])) add(packaging, "other", "sheet packaging type");
   const retailer = sheetTagValue(sheet?.retailer);
   const customer = retailer ? matchingCustomer(retailer, customerNames) : null;
   if (customer) add(customer, "other", "sheet original customer");
@@ -169,6 +206,8 @@ export function finishTagResult(input: FinishTagInput): { tagData: Record<string
 /** A person's first name must be on the known list; sheet misreads ("BUYER") must not become designers. */
 export function isKnownDesigner(value: unknown, knownFirstNames: Set<string>): value is string {
   if (typeof value !== "string") return false;
+  // A real first name followed by stray model text ("LUIS', art_source...") is not a name.
+  if (value.trim().length > 40 || !/^[\p{L}][\p{L} .'/&-]*$/u.test(value.trim()) || /'\s*$/.test(value.trim())) return false;
   const first = value.trim().split(/[\s/&]+/)[0]?.toLowerCase();
   return !!first && knownFirstNames.has(first);
 }
