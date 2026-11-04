@@ -6,6 +6,7 @@ import { validateTagAssetData } from "./ai-tagging-shared.js";
 import {
   applyBatchTagResult,
   assetTagsForRpc,
+  isModelOutageError,
   isModelSpecificError,
   writeAssetAiTags,
 } from "./ai-tagging.js";
@@ -262,6 +263,23 @@ test("a model-specific failure falls back to the second model; an infrastructure
   ]) {
     assert.equal(isModelSpecificError(infraFault), false, infraFault);
   }
+});
+
+test("a model outage triggers the backup; account faults and bad input do not", () => {
+  for (const outage of [
+    "OpenRouter 429: Rate limited after retries",
+    "OpenRouter 502: bad gateway",
+    "OpenRouter 503: unavailable",
+    "OpenRouter 400: {\"error\":{\"message\":\"x/y is not a valid model ID\"}}",
+    "The operation was aborted due to timeout",
+    "fetch failed",
+  ]) assert.equal(isModelOutageError(outage), true, outage);
+  for (const notOutage of [
+    "OpenRouter 401: User not found",
+    "OpenRouter 402: Insufficient credits",
+    "OpenRouter 400: invalid image",
+    "No parsable JSON",
+  ]) assert.equal(isModelOutageError(notOutage), false, notOutage);
 });
 
 test("the batch writer marks the asset tagged only after its tags are written", async () => {
