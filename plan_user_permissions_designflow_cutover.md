@@ -92,7 +92,7 @@ per-app feature permissions beyond the existing `app.app_role` tiers and
   - PopPIM: no user UI found this session (verify in Phase 0).
   - Legacy per-app axes: `public.profiles`/`public.user_roles`/
     `public.app_access` (PopDAM login gate, admin chrome; the signup hook
-    `app.handle_new_auth_user` auto-grants crm+dam; provisioning doc
+    `app.handle_new_auth_user` auto-grants crm+dam, plus pm for Microsoft-SSO employees (#545, first-login default only; Phase 5 keeps or moves it); provisioning doc
     docs/popdam-access-provisioning.md documents all three axes).
 - **Auth:** Microsoft SSO (azure) via Supabase Auth for staff; 24 SSO
   employees hold `pm` (granted 2026-10-27, #545); `designflow` app family
