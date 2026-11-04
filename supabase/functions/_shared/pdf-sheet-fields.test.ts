@@ -124,6 +124,16 @@ describe("parsePdfSheetFields", () => {
     expect(f.files_used).toEqual(["AB_0010.ai"]);
   });
 
+  it("accepts joint designer credits with a slash but not N/A or view labels", () => {
+    expect(parsePdfSheetFields("Designer: ROBIN/KIM", "x.pdf").creative_designer).toBe("ROBIN/KIM");
+    for (const placeholder of ["N/A", "n/a", "N / A"]) {
+      expect(parsePdfSheetFields(`Designer: ${placeholder}`, "x.pdf").creative_designer).toBeNull();
+    }
+    const v2 = parsePdfSheetFields("CREATIVE DESIGNER\nN/A\nROBIN/KIM\nTECHNICAL DESIGNER\n3/4 View\nKIM\nRETAILER\nX", "x.pdf");
+    expect(v2.creative_designer).toBe("ROBIN/KIM");
+    expect(v2.technical_designer).toBe("KIM");
+  });
+
   it("assigns two names read after both designer headings, in order", () => {
     const f = parsePdfSheetFields("CREATIVE DESIGNER\n3/4 View\nTECHNICAL DESIGNER\nROBIN\nTOP\nKIM\nRETAILER\nX", "x.pdf");
     expect(f.creative_designer).toBe("ROBIN");
