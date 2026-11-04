@@ -151,6 +151,7 @@ export function isModelSpecificError(msg: string): boolean {
  */
 export function isModelOutageError(msg: string): boolean {
   if (/^OpenRouter (408|425|429|5\d\d):/.test(msg)) return true;
+  if (/not available in the OpenRouter account catalog/.test(msg)) return true;
   if (/^OpenRouter 40[0-4]:/.test(msg) && /not a valid model|no endpoints|model.*(not found|does not exist)/i.test(msg)) return true;
   return /aborted|timed? ?out|fetch failed|econnreset|econnrefused|enotfound|socket hang up|network/i.test(msg);
 }
