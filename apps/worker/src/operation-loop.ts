@@ -1744,6 +1744,9 @@ export async function tick(): Promise<void> {
       retry_page_size: undefined,
       last_stage: result.last_stage,
       last_stage_started_at: result.last_stage_started_at,
+      // A long drain meets occasional timeouts; only attempts with no batch
+      // finished in between mean it is stuck (#706).
+      ...(opKey === "sg-embed-search" ? { auto_resume_attempts: 0 } : {}),
     };
 
     // Advance cursor

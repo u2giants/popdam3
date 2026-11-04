@@ -18,6 +18,8 @@ export interface PopSGSearchRequest {
   sortDirection: PopSGSearchSortDirection;
   limit: number;
   offset: number;
+  queryEmbedding?: string | null;
+  minSemanticScore?: number | null;
 }
 
 export interface PopSGSearchPayload {
@@ -160,6 +162,20 @@ export function buildPopSGSummaryIdentityFilters(guides: PopSGV2GuideViewRow[]):
   return filters;
 }
 
+/**
+ * Meaning-based search is an addition to keyword search: anything short of a
+ * valid vector (switch off, product code, embedding outage) runs keyword only.
+ */
+export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null } {
+  const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const vector = Array.isArray(row.embedding) && row.embedding.length === 768
+    && row.embedding.every((n) => typeof n === "number" && Number.isFinite(n)) ? row.embedding : null;
+  return {
+    queryEmbedding: row.mode === "hybrid" && vector ? `[${vector.join(",")}]` : null,
+    minSemanticScore: typeof row.min_semantic_score === "number" ? row.min_semantic_score : null,
+  };
+}
+
 export function buildPopSGV2Args(request: PopSGSearchRequest) {
   const sort = getPopSGV2Sort(request.sortField, request.sortDirection, request.filters.query);
   if (!sort) throw new Error("The requested sort is not supported by PopSG search v2.");
@@ -182,6 +198,10 @@ export function buildPopSGV2Args(request: PopSGSearchRequest) {
     p_sort: sort,
     p_limit: Math.max(1, Math.min(request.limit, POPSG_SEARCH_RPC_LIMIT)),
     p_offset: Math.max(0, request.offset),
+    p_query_embedding: request.queryEmbedding || undefined,
+    p_min_semantic_score: request.queryEmbedding && request.minSemanticScore != null
+      ? request.minSemanticScore
+      : undefined,
   };
 }
 
