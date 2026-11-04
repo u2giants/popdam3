@@ -244,6 +244,8 @@ export async function processOne(
 // ── Indra rescan of one PDF ───────────────────────────────────────────────────
 
 const RESCAN_MAX_PAGES = 12;
+/** The rescan renders at most RESCAN_MAX_PAGES, so large print-ready sheets are readable (largest live: 792 MB). */
+const RESCAN_SIZE_LIMIT_BYTES = 1024 * 1024 * 1024;
 const RESCAN_MAX_RENDER_PX = 4000;
 const RESCAN_BATCH_PAUSE_MS = 2_000;
 
@@ -266,8 +268,8 @@ export async function processOneForRescan(
     asset_thumbnail_url: null as string | null,
   };
   const fileStat = await stat(fullPath);
-  if (fileStat.size > PDF_SIZE_LIMIT_BYTES) {
-    return { ...base, extracted_text: null, page_count: null, char_count: 0, extraction_error: "file_over_100mb" };
+  if (fileStat.size > RESCAN_SIZE_LIMIT_BYTES) {
+    return { ...base, extracted_text: null, page_count: null, char_count: 0, extraction_error: "file_over_1gb" };
   }
 
   const mupdf = await dynamicImport("mupdf");
