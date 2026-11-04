@@ -273,6 +273,7 @@ test("a model outage triggers the backup; account faults and bad input do not", 
     "OpenRouter 400: {\"error\":{\"message\":\"x/y is not a valid model ID\"}}",
     "The operation was aborted due to timeout",
     "fetch failed",
+    "Model z-ai/glm-5.3-flash is not available in the OpenRouter account catalog",
   ]) assert.equal(isModelOutageError(outage), true, outage);
   for (const notOutage of [
     "OpenRouter 401: User not found",
