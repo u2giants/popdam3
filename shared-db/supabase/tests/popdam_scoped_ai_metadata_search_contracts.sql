@@ -128,8 +128,8 @@ begin
   end if;
 
   -- Real leases are exclusive; stale hashes/tokens refuse writes; expiry permits recovery.
-  insert into public.dam_search_documents(document_type,entity_id,title,path,search_text,content_sha256,indexed_at)
-  values('asset',v_doc,'fixture','','lease fixture','fixture-hash','1900-01-01');
+  insert into public.dam_search_documents(document_type,entity_id,title,path,search_text,content_sha256,indexed_at,metadata)
+  values('asset',v_doc,'fixture','','lease fixture','fixture-hash','1900-01-01','{"thumbnail_url":"https://example.test/t.jpg"}');
   select * into v_claim from public.claim_dam_search_embedding_documents(1,'worker-a',60);
   if v_claim.entity_id<>v_doc or v_claim.lease_token is null then raise exception 'claim did not lease fixture'; end if;
   if exists(select 1 from public.claim_dam_search_embedding_documents(1,'worker-b',60) where entity_id=v_doc) then
@@ -147,6 +147,14 @@ begin
   if exists(select 1 from public.claim_dam_search_embedding_documents(1000,'worker-c',60) where entity_id=v_doc) then
     raise exception 'retry-exhausted document was claimed';
   end if;
+
+  -- A document with no thumbnail waits, unclaimed and with its attempts unspent.
+  update public.dam_search_documents set embedding_attempts=0,metadata='{}' where entity_id=v_doc;
+  if exists(select 1 from public.claim_dam_search_embedding_documents(1000,'worker-d',60) where entity_id=v_doc)
+     or (select embedding_attempts from public.dam_search_documents where entity_id=v_doc)<>0 then
+    raise exception 'document without a thumbnail was claimed';
+  end if;
+  update public.dam_search_documents set embedding_attempts=embedding_max_attempts where entity_id=v_doc;
 
   -- Least privilege and public-schema access surface.
   if has_function_privilege('authenticated','public.replace_asset_ai_tag_result(uuid,text,text,jsonb)','EXECUTE') then
