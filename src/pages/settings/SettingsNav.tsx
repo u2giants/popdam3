@@ -41,6 +41,7 @@ export const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; 
   { label: "Packaging Types", desc: "Shared packaging lookup values", tab: "reference-data", subTab: "packaging-types", requiresPackagingTypesAccess: true },
   { label: "NAS & Folders", desc: "Volume mapping, scan folders, subfolder filters", tab: "storage", subTab: "nas" },
   { label: "Scanning", desc: "Auto-scan intervals, batch size, date cutoffs, resource guard", tab: "storage", subTab: "scanning" },
+  { label: "Ingestion Rules", desc: "Which files enter the library; add, test, disable, and undo rules", tab: "storage", subTab: "ingestion-rules" },
   { label: "Image Output", desc: "Thumbnail and preview output settings", tab: "storage", subTab: "image-output" },
   { label: "Path Tester", desc: "Test and validate NAS paths", tab: "storage", subTab: "paths" },
   { label: "Bridge Agent (NAS)", desc: "Status, pairing codes, throughput, live scan monitor", tab: "agents", subTab: "bridge" },

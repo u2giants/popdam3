@@ -1,5 +1,8 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { authenticateUser as sharedAuthenticateUser, requireAdmin } from "../_shared/admin-auth.ts";
+import {
+  countAssetsMatchingExclusion, getIngestionRules, INGESTION_RULES_KEY, IngestionRulesError, saveIngestionRules,
+} from "../_shared/admin-handlers/ingestion-rules-handlers.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
@@ -360,6 +363,9 @@ async function handleSetConfig(
   }
   if (Object.prototype.hasOwnProperty.call(entries, "BULK_OPERATIONS")) {
     return err("BULK_OPERATIONS must be changed through update-bulk-op", 400);
+  }
+  if (Object.prototype.hasOwnProperty.call(entries, INGESTION_RULES_KEY)) {
+    return err("INGESTION_RULES must be changed through save-ingestion-rules", 400);
   }
   const taskModels = entries.AI_TASK_MODELS;
   const selectsDirectGemini = taskModels && typeof taskModels === "object" && !Array.isArray(taskModels) &&
@@ -2054,6 +2060,24 @@ corsServe(async (req: Request) => {
         return await handleGetConfig(body);
       case "set-config":
         return await handleSetConfig(body, userId);
+      case "get-ingestion-rules":
+        return json({ ok: true, ...(await getIngestionRules(serviceClient())) });
+      case "save-ingestion-rules":
+        try {
+          return json({
+            ok: true,
+            ...(await saveIngestionRules(serviceClient(), {
+              rules: body.rules,
+              expectedRevision: body.expected_revision,
+              summary: body.summary,
+            }, userId)),
+          });
+        } catch (e) {
+          if (e instanceof IngestionRulesError) return err(e.message, e.status);
+          throw e;
+        }
+      case "preview-ingestion-exclusion":
+        return json({ ok: true, count: await countAssetsMatchingExclusion(serviceClient(), body.kind, body.value) });
       case "get-sg-nas-config":
         return json({ ok: true, ...(await handleGetSgNasConfig(serviceClient())) });
       case "set-sg-nas-config":

@@ -20,7 +20,7 @@ import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";
 import { exec } from "node:child_process";
 import { stat, readFile, writeFile, mkdir } from "node:fs/promises";
-import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
+import { setIngestionRules, validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
@@ -458,7 +458,7 @@ function onRealtimeScanRequest() {
 
 interface CloudConfig {
   do_spaces?: { key?: string; secret?: string; bucket: string; region: string; endpoint: string };
-  scanning?: { container_mount_root?: string; nas_host_path?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+  scanning?: { container_mount_root?: string; nas_host_path?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; ingestion_rules?: unknown; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
   windows_render_mode?: "fallback_only" | "primary";
@@ -632,6 +632,9 @@ function applyCloudConfig(cfg: CloudConfig) {
     if (cfg.scanning.scan_min_date !== undefined) {
       // Explicitly assign even when null — null means "clear the date filter"
       cloudScanMinDate = cfg.scanning.scan_min_date ?? null;
+    }
+    if (cfg.scanning.ingestion_rules !== undefined) {
+      setIngestionRules(cfg.scanning.ingestion_rules);
     }
   }
 
