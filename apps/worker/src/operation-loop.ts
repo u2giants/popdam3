@@ -1218,6 +1218,17 @@ export async function tick(): Promise<void> {
 
   const runningKeys = new Set(runningEntries.map(([k]) => k));
 
+  // Nightly grouping must not wait days behind a whole-library tagging run.
+  // The run steps aside at its checkpoint and resumes from its cursor after grouping.
+  const parallelRun = allOps["ai-tag-parallel"];
+  if (parallelRun?.status === "running" && allOps["rebuild-style-groups"]?.status === "queued") {
+    const yielded: OpState = {...parallelRun, status: "queued", queue_position: Number.MAX_SAFE_INTEGER, updated_at: new Date().toISOString()};
+    if (await persistOpState("ai-tag-parallel", yielded, {onlyIfRunning: true, expectedRevision: parallelRun.state_revision ?? 0})) {
+      logger.info("tick: parallel tagging yielded to style group rebuild");
+    }
+    return;
+  }
+
   for (const [nextOpKey, nextOp] of queuedEntries) {
     const lane = getLane(nextOpKey);
     if (activeLanes.has(lane)) continue;

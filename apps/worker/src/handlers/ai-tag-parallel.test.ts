@@ -58,3 +58,9 @@ test("tag save retries only statement timeouts, within its bound", async () => {
   assert.deepEqual(await run(["23505"]), { calls: 1, code: "23505" });
   assert.deepEqual(await run(["57014"]), { calls: 4, code: "57014" });
 });
+
+test("a whole-library run needs no explicit IDs, only its discover flag", () => {
+  const run = parallelTagRun({run_id:"r",models:["z-ai/glm-5.3-flash"],concurrency:8,force:true,discover:true},"r",undefined);
+  assert.equal(run?.discover,true);assert.equal(run?.concurrency,8);
+  assert.throws(()=>parallelTagRun({run_id:"r",models:["z-ai/glm-5.3-flash"],concurrency:8},"r",undefined));
+});

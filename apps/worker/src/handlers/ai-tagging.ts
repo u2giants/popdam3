@@ -1119,7 +1119,7 @@ export async function handleBulkAiTag(
 ): Promise<BatchResult> {
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
-  const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
+  let BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
   let CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
   const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
 
@@ -1135,6 +1135,8 @@ export async function handleBulkAiTag(
     try { parallel = parallelTagRun(setting, opState.run_id, opState.params?.asset_ids); }
     catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
     if (parallel) CONCURRENCY = parallel.concurrency;
+    // One page per concurrent chunk, so every chunk is checkpointed.
+    if (parallel?.discover) BATCH_SIZE = parallel.concurrency;
   }
   if (requireParallel && !parallel) return {ok: false, done: false, error: "Parallel operation requires its exact-run model configuration and no provider receipt"};
   if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
@@ -1331,7 +1333,9 @@ export async function handleBulkAiTag(
     const chunk = assets.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       chunk.map(async (asset) => {
-        const result = await tagAsset(asset.id as string, tagAll);
+        const result = parallel
+          ? await tagAsset(asset.id as string, tagAll, parallelModel(parallel, asset.id as string), parallel.force ? undefined : [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : [])])
+          : await tagAsset(asset.id as string, tagAll);
         return { ...result, asset };
       }),
     );
