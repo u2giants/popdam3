@@ -7,6 +7,7 @@ import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_K
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
+import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 
 /**
@@ -16,6 +17,49 @@ import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/da
  */
 const SIGLIP2_MODEL = "google/siglip2-base-patch16-naflex";
 const SIGLIP2_DIM = 768;
+
+const VOCABULARY_TTL_MS = 60 * 60 * 1000;
+const PRODUCT_WORDS = ["canvas", "hamper", "mat", "doormat", "coir", "rug", "clock", "chest", "storage", "frame", "framed", "plaque", "banner", "lenticular", "glass", "tray", "desk", "print", "sign"];
+let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
+
+async function loadNames(table: string, column: string, weightOf: (row: Record<string, unknown>) => number, vocabulary: Map<string, number>) {
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await serviceClient().from(table).select("*").range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      if (typeof row[column] === "string") addNameToVocabulary(vocabulary, row[column] as string, weightOf(row));
+    }
+    if ((data?.length ?? 0) < pageSize) return;
+  }
+}
+
+/** Licensor, property and character names plus product words, refreshed hourly. */
+const spellingLookup: SpellingLookup = {
+  vocabulary() {
+    if (vocabularyCache && vocabularyCache.expires > Date.now()) return vocabularyCache.words;
+    const words = (async () => {
+      const vocabulary = new Map<string, number>();
+      PRODUCT_WORDS.forEach((word) => vocabulary.set(word, 1_000_000));
+      await loadNames("licensors", "name", () => 1_000_000, vocabulary);
+      await loadNames("properties", "name", () => 1_000_000, vocabulary);
+      await loadNames("characters", "name", (row) => Number(row.usage_count) || 0, vocabulary);
+      return vocabulary;
+    })();
+    words.catch(() => { vocabularyCache = null; });
+    vocabularyCache = { expires: Date.now() + VOCABULARY_TTL_MS, words };
+    return words;
+  },
+  async countDocs(word) {
+    const { data, error } = await serviceClient()
+      .from("dam_search_documents")
+      .select("entity_id")
+      .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
+      .limit(RARE_WORD_DOCS);
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
+  },
+};
 
 async function authenticateCaller(req: Request) {
   // Shared helper: exact match on the deployed service key (sb_secret_), plus the
@@ -169,8 +213,12 @@ corsServe(async (req) => {
       query,
       async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
     );
+    const spelling = productCodeSearch
+      ? { corrected: null, meaningful: true }
+      : await checkSpelling(query, spellingLookup);
+    const usePictures = !productCodeSearch && spelling.meaningful;
     const [embedding, floorConfig] = await Promise.all([
-      productCodeSearch ? Promise.resolve(null) : embedQueryText(query),
+      usePictures ? embedQueryText(query) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
     ]);
@@ -186,12 +234,13 @@ corsServe(async (req) => {
     // Product-type phrases ("floor covering") also run as catalog nouns
     // ("mat", "rug") so compound queries do not drop real mats.
     // Keyword-only variants skip the picture leg (no embedding).
-    const expanded = expandProductQueries(query);
+    const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
+      .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
     const queryVariants = expanded.map((v) => v.query);
     const variantEmbeddings = new Map<string, number[] | null>();
     await Promise.all(
       expanded.map(async ({ query: variant, semantic }) => {
-        variantEmbeddings.set(variant, !semantic || productCodeSearch ? null : variant === query ? embedding : await embedQueryText(variant));
+        variantEmbeddings.set(variant, !semantic || !usePictures ? null : variant === query ? embedding : await embedQueryText(variant));
       }),
     );
 
@@ -281,7 +330,15 @@ corsServe(async (req) => {
       has_more: merged.has_more,
       facets: merged.facets,
       semantic: embedding ? "siglip2" : "skipped",
+      corrected_query: spelling.corrected,
     });
+  }
+
+  // PopSG runs its own library search but shares this spelling help.
+  if (action === "spelling") {
+    const query = typeof body.query === "string" ? body.query.trim() : "";
+    if (!query) return err("Missing query", 400);
+    return json({ ok: true, ...(await checkSpelling(query, spellingLookup)) });
   }
 
   return err(`Unknown action: ${action}`, 404);
