@@ -62,8 +62,12 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
         if (curr === "completed_with_errors") {
           toast.warning("Scan completed with errors", { description: summary });
         } else {
-          toast.success("Scan complete", { description: summary });
+          toast.success(curr === "idle" ? "Scan ended" : "Scan complete", { description: summary });
         }
+      } else if (curr === "idle") {
+        // No terminal status arrived, so we cannot claim the scan finished.
+        summary = "Scan ended without a final result. Check the agent if files are missing.";
+        toast.info("Scan ended", { description: summary });
       } else {
         summary = "Nothing new to sync — all assets are up to date.";
         toast.success("Scan complete", { description: summary });

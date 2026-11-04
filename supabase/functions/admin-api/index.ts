@@ -614,16 +614,29 @@ async function handleSetUserApps(body: Record<string, unknown>, _userId: string)
   const db = serviceClient();
 
   // Replace the user's app_access rows with exactly the requested set
-  const { error: delErr } = await db
+  // Grant first, then revoke, so a failed write can never leave the user with no access.
+  const { data: current, error: readErr } = await db
     .from("app_access")
-    .delete()
+    .select("app")
     .eq("user_id", targetUserId);
-  if (delErr) return err(delErr.message, 500);
+  if (readErr) return err(readErr.message, 500);
+  const held = new Set((current ?? []).map((row: { app: string }) => row.app));
 
-  if (apps.length > 0) {
-    const rows = apps.map((app) => ({ user_id: targetUserId, app, granted_by: _userId }));
+  const missing = apps.filter((app) => !held.has(app));
+  if (missing.length > 0) {
+    const rows = missing.map((app) => ({ user_id: targetUserId, app, granted_by: _userId }));
     const { error: insErr } = await db.from("app_access").insert(rows);
     if (insErr) return err(insErr.message, 500);
+  }
+
+  const extra = [...held].filter((app) => !apps.includes(app as typeof validApps[number]));
+  if (extra.length > 0) {
+    const { error: delErr } = await db
+      .from("app_access")
+      .delete()
+      .eq("user_id", targetUserId)
+      .in("app", extra);
+    if (delErr) return err(delErr.message, 500);
   }
 
   return json({ ok: true, apps });

@@ -75,6 +75,8 @@ function parseCounters(raw: unknown): ScanCounters | null {
     rejected_wrong_type: Number(r.rejected_wrong_type ?? 0),
     rejected_junk_file: Number(r.rejected_junk_file ?? 0),
     noop_unchanged: Number(r.noop_unchanged ?? 0),
+    rejected_subfolder: Number(r.rejected_subfolder ?? 0),
+    skipped_before_min_date: Number(r.skipped_before_min_date ?? 0),
   };
 }
 

@@ -176,8 +176,7 @@ export async function processOne(
         const tesseractLib: any = await dynamicImport("tesseract.js").catch(() => null);
         if (!tesseractLib) throw new Error("tesseract.js not installed");
         const worker = await tesseractLib.createWorker("eng");
-        const result = await worker.recognize(pngBuffer);
-        await worker.terminate();
+        const result = await worker.recognize(pngBuffer).finally(() => worker.terminate());
         ocrText = (result.data.text as string).trim();
         ocrEngine = "tesseract";
       } catch (e) {

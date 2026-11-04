@@ -30,7 +30,7 @@ export function normalizeRelativePath(input: string): string {
   p = p.replace(/\/+/g, "/");
   p = p.replace(/^\//, "").replace(/\/$/, "");
   p = p.trim();
-  if (p.includes("..")) throw new Error("Path traversal (..) not allowed");
+  if (p.split("/").includes("..")) throw new Error("Path traversal (..) not allowed");
   return p;
 }
 

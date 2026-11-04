@@ -203,7 +203,7 @@ function GroupProfileProgress({ op }: { op: ReturnType<typeof usePersistentOpera
         {unavailable > 0 && <> · {unavailable.toLocaleString()} without usable images</>}
         {failed > 0 && <> · {failed.toLocaleString()} failed</>}
         {pct !== null && <> · {pct}%</>}
-        {rate > 0 && op.isActive && <> · {rate.toFixed(1)}/s</>}
+        {rate > 0 && op.isActive && <> · {Math.round(rate).toLocaleString()}/min</>}
       </div>
       {s.error && <p className="text-xs text-destructive">{s.error}</p>}
       {s.result_message && !op.isActive && <p className="text-xs text-muted-foreground">{s.result_message}</p>}

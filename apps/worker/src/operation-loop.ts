@@ -1294,7 +1294,7 @@ export async function tick(): Promise<void> {
       error: "Operation state has no cursor and cannot be resumed safely",
       updated_at: new Date().toISOString(),
     };
-    if (await persistOpState(opKey, failedState)) await recordStyleGroupTerminalOutcome(opKey, failedState, "failed");
+    if (await persistOpState(opKey, failedState, { onlyIfRunning: true })) await recordStyleGroupTerminalOutcome(opKey, failedState, "failed");
     logger.warn("tick: legacy op failed", { opKey });
     return;
   }
@@ -1658,7 +1658,7 @@ export async function tick(): Promise<void> {
         error: `Auto-stopped: ${killReason}`,
         updated_at: new Date().toISOString(),
       };
-      if (await persistOpState(opKey, failureState)) await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
+      if (await persistOpState(opKey, failureState, { onlyIfRunning: true })) await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
 
@@ -1815,7 +1815,7 @@ export async function tick(): Promise<void> {
         result_message: buildResultMessage(opKey, progress),
         updated_at: new Date().toISOString(),
       };
-      if (await persistOpState(opKey, completedState)) await recordStyleGroupTerminalOutcome(opKey, completedState, "succeeded");
+      if (await persistOpState(opKey, completedState, { onlyIfRunning: true })) await recordStyleGroupTerminalOutcome(opKey, completedState, "succeeded");
       return;
     }
 

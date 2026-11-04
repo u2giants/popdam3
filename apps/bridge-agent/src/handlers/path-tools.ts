@@ -1,5 +1,6 @@
 /** Moved out of index.ts (#234) — pure move, no behavior change. */
-import { stat, readdir } from "node:fs/promises";
+import { stat, readdir, realpath } from "node:fs/promises";
+import path from "node:path";
 import * as api from "../api-client.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -39,6 +40,18 @@ export async function handlePathTest(cmd: { request_id: string; container_mount_
   logger.info("Path test completed", { mountRootValid, scanRootResults });
 }
 
+async function isInsideAllowedRoots(target: string, roots: Array<string | undefined>): Promise<boolean> {
+  const resolved = await realpath(target);
+  for (const root of roots) {
+    if (!root) continue;
+    const base = await realpath(root).catch(() => null);
+    if (!base) continue;
+    const rel = path.relative(base, resolved);
+    if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) return true;
+  }
+  return false;
+}
+
 export async function handleDirBrowse(cmd: { request_id: string; path: string }) {
   const target = cmd.path.trim();
   logger.info("Dir browse requested", { requestId: cmd.request_id, path: target });
@@ -60,6 +73,9 @@ export async function handleDirBrowse(cmd: { request_id: string; path: string })
         })
       );
     } else {
+      if (!(await isInsideAllowedRoots(target, [config.nasContainerMountRoot, ...(config.scanRoots ?? [])]))) {
+        throw new Error("Path is outside the configured NAS roots");
+      }
       const rawEntries = await readdir(target, { withFileTypes: true });
       entries = await Promise.all(
         rawEntries.map(async (e) => {
