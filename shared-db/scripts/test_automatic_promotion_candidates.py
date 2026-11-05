@@ -121,7 +121,7 @@ class OverdueHoldAlert(unittest.TestCase):
         pr = {**self.pr, "findings": []}
         self.assertEqual(len(m.overdue_holds([pr], self.at("2026-11-02T17:31:00Z"))), 1)
 
-    def test_main_fails_the_run_when_a_hold_is_overdue(self):
+    def test_main_reports_an_overdue_hold_without_failing_the_run(self):
         pr = {k: v for k, v in self.pr.items() if k != "findings"}
         saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
@@ -132,7 +132,7 @@ class OverdueHoldAlert(unittest.TestCase):
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 now = datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)
-                self.assertEqual(m.main(now), 1)
+                self.assertEqual(m.main(now), 0)
                 m.is_held = lambda repo, n: []
                 self.assertEqual(m.main(now), 0)
             self.assertIn("::error title=Production release held over 30 minutes::PR #5456", out.getvalue())
@@ -149,7 +149,7 @@ class ExhaustedAlert(unittest.TestCase):
     fails = [{"display_title": "DB preview apply abc PR5460 20261102171000", "status": "completed",
               "conclusion": "failure", "created_at": "2026-11-02T18:00:00Z"}] * 3
 
-    def test_main_fails_the_run_with_engineer_action_required(self):
+    def test_main_reports_engineer_action_required_without_failing_the_run(self):
         saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: [self.pr]
@@ -158,7 +158,7 @@ class ExhaustedAlert(unittest.TestCase):
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)), 1)
+                self.assertEqual(m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)), 0)
             text = out.getvalue()
             self.assertIn("exhausted: PR #5460 out of automatic attempts", text)
             self.assertIn("::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::PR #5460", text)
@@ -351,7 +351,7 @@ class ProductionReRunAlert(unittest.TestCase):
         self.assertTrue(m.version_on_main("20261103174555"))
 
     @mock.patch.object(m, "ACKNOWLEDGED_RE_RUNS", {})
-    def test_main_fails_the_run_on_a_re_run(self):
+    def test_main_reports_a_re_run_without_failing_the_run(self):
         saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, m.applied_in_any_attempt,
                  sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
@@ -362,7 +362,7 @@ class ProductionReRunAlert(unittest.TestCase):
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(m.main(m._time("2026-11-03T13:30:00Z")), 1)
+                self.assertEqual(m.main(m._time("2026-11-03T13:30:00Z")), 0)
             self.assertIn("::error title=ENGINEER ACTION REQUIRED: production apply re-run::run 41545991868",
                           out.getvalue())
         finally:

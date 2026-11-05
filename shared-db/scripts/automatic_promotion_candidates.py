@@ -16,8 +16,12 @@ froze every release for hours on one finding). It waits while a migration
 workflow run is in flight (one dispatch at a time). A PR out of automatic
 attempts is passed over the same way, with a loud ENGINEER ACTION REQUIRED
 alert, so one dead PR cannot park every later promotion (#5532). A PR held
-longer than ALERT_AFTER fails this run as a loud advisory alert instead of
-skipping silently. It never writes a database.
+longer than ALERT_AFTER is reported as a loud advisory annotation instead of
+skipping silently. Advisory findings (holds, exhausted attempts, re-runs) are
+annotations, never exit status: this step starts the next promotion and a red
+run must mean the selector itself broke, not that findings exist (queue-hygiene
+idiom; #5558: an unactionable red hides real alerts). It never writes a
+database.
 
 Known cross-PR derivation bases wait for production evidence before a child
 consumes attempts (#5608/#5651). Canonical declared_bases resolves historical
@@ -439,8 +443,13 @@ def main(now: datetime | None = None) -> int:
               f"run {r['id']} ({r.get('display_title')}) was re-run (attempt {r.get('run_attempt')}); "
               f"a re-run is never the retry path -- the queue dispatches a fresh run with fresh evidence -- "
               f"and it hides what earlier attempts did")
-    # A failing run is the advisory alert; it blocks nothing.
-    return 1 if alerts or exhausted or reruns else 0
+    # Advisory findings above are annotations, not exit status. A failing run
+    # used to be the alert channel, but these findings are long-lived PR states
+    # evaluated only on runs that reach queue selection -- runs that early-return
+    # "wait" (a migration workflow run in flight) never see them -- so the step
+    # flapped red/green on unrelated timing while the hold gate itself (checked
+    # at decide, again before dispatch, again before the apply) kept working.
+    return 0
 
 
 def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
