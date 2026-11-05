@@ -9,7 +9,7 @@
  * Last reviewed: 2026-02-24
  */
 
-import { readdir, stat, lstat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { join, extname, basename, relative } from "node:path";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
@@ -166,14 +166,8 @@ async function* scanDirectory(
 
     const fullPath = join(dirPath, entry.name);
 
-    // §4.2: Do NOT follow symlinks
-    try {
-      const ls = await lstat(fullPath);
-      if (ls.isSymbolicLink()) continue;
-    } catch {
-      counters.files_stat_failed++;
-      continue;
-    }
+    // Dirent already tells us whether this entry is a symbolic link.
+    if (entry.isSymbolicLink()) continue;
 
     if (entry.isDirectory()) {
       // Skip excluded directories using centralized path-filters
