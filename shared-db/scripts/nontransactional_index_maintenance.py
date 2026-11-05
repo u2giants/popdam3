@@ -41,6 +41,9 @@ def operation(policy,operation_id):
     if operation_id.startswith('health-'):
         from health_initial_index_maintenance import validate_operation
         return validate_operation(entry,operation_id)
+    if operation_id.startswith('repack-'):
+        from table_repack_maintenance import validate_operation as validate_repack
+        return validate_repack(entry,operation_id)
     if not isinstance(entry,dict) or set(entry)!=FIELDS:
         raise Refusal('operation is absent or policy entry is malformed')
     for field in ['source_pr','work_issue','claim_issue','lock_timeout_ms','statement_timeout_ms','swap_timeout_ms','total_timeout_s']:
@@ -304,6 +307,9 @@ def workflow_gate(options,entry):
     if entry.get('kind')=='health-initial/v1':
         from health_initial_index_maintenance import claim_request
         admission=claim_request(entry,options.operation)
+    elif entry.get('kind')=='table-repack/v1':
+        from table_repack_maintenance import claim_request as repack_claim
+        admission=repack_claim(entry,options.operation)
     else:
         original,new,retired=names(options.operation)
         admission={'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
@@ -330,6 +336,8 @@ def executor_digest(operation_id=None):
            '.github/workflows/shared-supabase-migrations.yml']
     if operation_id and operation_id.startswith('health-'):
         paths+=['scripts/health_initial_index_maintenance.py','config/health-initial-index-definitions.json']
+    if operation_id and operation_id.startswith('repack-'):
+        paths+=['scripts/table_repack_maintenance.py']
     return digest({path:hashlib.sha256((ROOT/path).read_bytes()).hexdigest() for path in paths})
 
 
@@ -356,6 +364,9 @@ def main():
             from health_initial_index_maintenance import claim_request
             identity['claim_scope_sha256']=env['_HEALTH_CLAIM_SCOPE']
             selected_claim=claim_request(entry,options.operation)
+        elif entry.get('kind')=='table-repack/v1':
+            from table_repack_maintenance import claim_request as repack_claim
+            selected_claim=repack_claim(entry,options.operation)
         else:
             original,new,retired=names(options.operation)
             selected_claim={'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
@@ -375,6 +386,9 @@ def main():
                 if entry.get('kind')=='health-initial/v1':
                     from health_initial_index_maintenance import HealthInitial
                     HealthInitial(Database(connection),receipts,entry,identity,options.operation,fenced_gate).apply()
+                elif entry.get('kind')=='table-repack/v1':
+                    from table_repack_maintenance import TableRepack, RepackDatabase
+                    TableRepack(RepackDatabase(Database(connection)),receipts,entry,identity,options.operation,fenced_gate).apply(env)
                 else:
                     Maintenance(Database(connection),receipts,entry,identity,options.operation,fenced_gate).apply()
         finally:

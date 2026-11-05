@@ -43,3 +43,11 @@ test('actual native production manager refuses overlapping merge and preserves t
  assert.throws(()=>maintenanceExclusive('acquire',r,state),/guarded merge/)
  assert.equal(state.refs.get(EXCLUSIVE_REFS.merge),'foreign-merge')
 })
+const repackRequest={kind:'table-repack/v1',operation_id:'repack-assets-804',claim_issue:5742,work_issue:5745,objects:['table public.assets']}
+test('repack admits only the exact allowlisted table on its own open claim',()=>{
+ const own=claim(5742,5745,['table public.assets','extension pg_repack','schema repack'])
+ assert.deepEqual(verifyMaintenanceClaim(repackRequest,{openClaims:()=>[own]}),{admitted:true,claim_issue:5742,work_issue:5745,kind:'table-repack/v1'})
+ for(const bad of [{...repackRequest,objects:['table public.style_groups']},{...repackRequest,objects:['table public.assets','table public.assets']},{...repackRequest,operation_id:'sg-x'}])assert.throws(()=>verifyMaintenanceClaim(bad,{openClaims:()=>[own]}))
+ assert.throws(()=>verifyMaintenanceClaim(repackRequest,{openClaims:()=>[claim(5742,5745,['extension pg_repack'])]}))
+ assert.throws(()=>verifyMaintenanceClaim(repackRequest,{openClaims:()=>[own,claim(6000,6000,['table public.assets'])]}))
+})

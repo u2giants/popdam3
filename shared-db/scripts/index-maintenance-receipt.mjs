@@ -32,6 +32,7 @@ export function createReceipt(ref,value,io=githubIo){
 }
 export function verifyMaintenanceClaim(request,io=githubIo){
  if(request?.kind==='health-initial/v1')return verifyHealthInitialClaim(request,io)
+ if(request?.kind==='table-repack/v1')return verifyTableRepackClaim(request,io)
  if(!request||!Number.isSafeInteger(request.claim_issue)||!Number.isSafeInteger(request.work_issue)||!Array.isArray(request.objects)||request.objects.length!==4||new Set(request.objects).size!==4)throw Error('maintenance claim request refused')
  const claims=io.openClaims(),owner=claims.find(c=>c.number===request.claim_issue)
  if(!owner||claimWorkIssue(owner)!==request.work_issue)throw Error('exact open maintenance claim required')
@@ -43,6 +44,22 @@ export function verifyMaintenanceClaim(request,io=githubIo){
   if(request.objects.some(key=>(parsed.objects??[...parsed.writes,...parsed.reads]).includes(key)))throw Error('maintenance object collision with another protected claim')
  }
  return {admitted:true,claim_issue:owner.number,work_issue:request.work_issue}
+}
+// One allowlisted table rewritten in place by the pinned pg_repack client (popdam3#804).
+const REPACK_TABLES=['table public.assets']
+export function verifyTableRepackClaim(request,io=githubIo){
+ if(!Number.isSafeInteger(request.claim_issue)||!Number.isSafeInteger(request.work_issue)||!/^repack-[a-z0-9-]{1,32}$/.test(request.operation_id??'')
+    ||!Array.isArray(request.objects)||request.objects.length!==1||!REPACK_TABLES.includes(request.objects[0]))throw Error('exact repack table claim request refused')
+ const claims=io.openClaims(),owner=claims.find(c=>c.number===request.claim_issue)
+ if(!owner||claimWorkIssue(owner)!==request.work_issue)throw Error('exact open repack claim required')
+ const lease=parseAuthorLease(owner.body)
+ if(!lease.writes.includes(request.objects[0]))throw Error('repack claim does not cover the exact table')
+ for(const other of claims){
+  if(other.number===owner.number)continue
+  const parsed=parseAuthorLease(other.body)
+  if((parsed.objects??[...parsed.writes,...parsed.reads]).includes(request.objects[0]))throw Error('repack table collides with another protected claim')
+ }
+ return {admitted:true,claim_issue:owner.number,work_issue:request.work_issue,kind:request.kind}
 }
 export function verifyHealthInitialClaim(request,io=githubIo){
  const raw=readFileSync(new URL('../config/health-initial-index-definitions.json',import.meta.url))
