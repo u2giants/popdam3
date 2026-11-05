@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import atomic_migration_apply as atomic
+import production_business_risk_gate as risk
 
 
 class AtomicMigrationApplyTests(unittest.TestCase):
@@ -296,6 +297,39 @@ class AtomicMigrationApplyTests(unittest.TestCase):
     def test_repository_policy_entries_are_bound_to_committed_migrations(self):
         atomic.validate_policy_bindings(atomic.ROOT / "supabase" / "migrations")
 
+    def test_popdam_format_and_batch_singletons_bind_hash_budgets_and_one_ledger_transaction(self):
+        expected={"20261105144622":"a0785c344594a50d1233caa70735f59e904dffe5c9e116aa48a86b64ad79ca5f",
+                  "20261105150450":"6a42d62919fa0ddc5069a017dc4aeaf66143f468f3d0fcffaabf769ec9e0cb76"}
+        migration_dir=atomic.ROOT/'supabase/migrations'
+        for version,digest in expected.items():
+            self.assertEqual(atomic.read_policy()[version],{'sha256':digest,'targets':['preview','production'],'strip_outer_transaction':True})
+            for target in ['preview','production']:
+                self.assertEqual(atomic.classify_allowlist(version,target),version)
+                path,name,raw,statements=atomic.load_candidate(migration_dir,version,target)
+                self.assertEqual(hashlib.sha256(atomic.canonical_migration_bytes(path)).hexdigest(),digest)
+                controls=[atomic.control_tokens(x) for x in statements]
+                self.assertNotIn(['BEGIN'],controls);self.assertNotIn(['COMMIT'],controls)
+                self.assertIn("set local lock_timeout = '500ms'",raw.lower())
+                self.assertIn("set local statement_timeout = '2500ms'",raw.lower())
+                self.assertIn("set local transaction_timeout = '3s'",raw.lower())
+                wrapper=atomic.build_wrapper(version,name,raw,statements)
+                top=[atomic.control_tokens(x) for x in atomic.split_sql(wrapper.replace('\\set ON_ERROR_STOP on\n',''))]
+                self.assertEqual([x for x in top if x and x[0] in ['BEGIN','COMMIT']],[['BEGIN'],['COMMIT']])
+                self.assertLess(wrapper.lower().index("set local transaction_timeout"),wrapper.index('INSERT INTO supabase_migrations'))
+                self.assertLess(wrapper.index('INSERT INTO supabase_migrations'),wrapper.rindex('COMMIT;'))
+        with self.assertRaises(atomic.Refusal):atomic.classify_allowlist(','.join(expected),'preview')
+        with self.assertRaises(atomic.Refusal):atomic.classify_allowlist(','.join(expected),'production')
+
+    def test_popdam_atomic_policy_refuses_wrong_hash_or_unstripped_outer_control(self):
+        original=atomic.read_policy()
+        for version in ['20261105144622','20261105150450']:
+            for mutation in ['hash','outer']:
+                changed=json.loads(json.dumps(original))
+                if mutation=='hash':changed[version]['sha256']='0'*64
+                else:changed[version]['strip_outer_transaction']=False
+                with patch.object(atomic,'read_policy',return_value=changed):
+                    with self.assertRaises(atomic.Refusal):atomic.load_candidate(atomic.ROOT/'supabase/migrations',version,'preview')
+
     def test_orderlist_migration_is_exactly_allowlisted_for_both_targets(self):
         version = "20261009073649"
         expected_digest = "bbe83b7db3ac4eb67a1468da83f32d1d9a5a75695decdf09a2957bcf6b31e590"
@@ -435,6 +469,26 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         self.assertNotIn("secret", stderr.getvalue())
         self.assertNotIn("host", stderr.getvalue())
         self.assertIn("REDACTED", stderr.getvalue())
+
+    def test_policy_upgrade_requires_fresh_current_main_producer_not_original_source_producer(self):
+        original, current = "1" * 40, "3" * 40
+        policy_path = "config/atomic-migration-allowlist.json"
+        self.assertIn(policy_path, risk.PREVIEW_PRODUCER_PATHS)
+
+        def api(endpoint):
+            ref, _, query = endpoint.partition("?")
+            self.assertIn("recursive=1", query)
+            ref = ref.split("/git/trees/", 1)[1]
+            return {"truncated": False, "tree": [
+                {"path": path, "type": "blob", "sha":
+                 ("original-policy" if ref == original else "upgraded-policy")
+                 if path == policy_path else "unchanged"}
+                for path in risk.PREVIEW_PRODUCER_PATHS
+            ]}
+
+        risk.prove_preview_producer_matches_main(current, risk.exact_main(current), current, api)
+        with self.assertRaisesRegex(risk.RiskGateError, "different config/atomic-migration-allowlist.json"):
+            risk.prove_preview_producer_matches_main(original, risk.exact_main(current), current, api)
 
     def test_wrapper_places_sql_and_exact_ledger_row_in_one_transaction(self):
         wrapper = atomic.build_wrapper("29990101000000", "test", "create table x(id int);", ["create table x(id int)"])

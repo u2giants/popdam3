@@ -1731,6 +1731,24 @@ test('post-merge preview rehearsal accepts a merge commit that later commits sit
   releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
 })
 
+test('later atomic-policy producer preserves original migration source authority', () => {
+  const metadata = { owner: 'gha', pr: 5699, headSha: 'current-policy-main', versions: ['20261105144622'] }
+  const sourceFiles = {
+    5699: [{ status: 'added', filename: 'supabase/migrations/20261105144622_dam_catalog_code_format.sql' }],
+    5712: [{ status: 'added', filename: 'supabase/migrations/20261105150450_dam_batched_semantic_anchors.sql' }],
+  }
+  const io = rehearsalIo({
+    mainSha: () => 'current-policy-main',
+    getPrFiles: number => sourceFiles[Number(number)],
+    compareCommits: () => ({ status: 'ahead', ahead_by: 1, behind_by: 0 }),
+  })
+  const lock = acquireExclusive('preview-rehearsal', metadata, io)
+  assert.equal(lock.kind, 'preview-rehearsal')
+  releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
+  assert.throws(() => acquireExclusive('preview-rehearsal', { ...metadata, pr: 5712 }, io), /were not added by pull request #5712/)
+  assert.equal(io.refs.has(EXCLUSIVE_REFS.preview), false)
+})
+
 test('post-merge preview rehearsal never needs or reads a live author claim', () => {
   const io = rehearsalIo({ openClaims: () => { throw new Error('author claims must not be consulted') } })
   const lock = acquireExclusive('preview-rehearsal', REHEARSAL, io)
