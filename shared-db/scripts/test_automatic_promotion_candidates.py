@@ -512,5 +512,113 @@ class AlreadyInProduction(unittest.TestCase):
             self.assertEqual(m.refused_as_applied("o/r", {"id": 1}), set())
 
 
+class KnownProductionDependencies(unittest.TestCase):
+    BASE = "20261105044255"
+    CHILD = "20261105061627"
+    OTHER = "20261105070000"
+    base = {"number": 5619, "merged_at": "2026-11-05T01:00:00Z", "versions": [BASE]}
+    child = {"number": 5649, "merged_at": "2026-11-05T02:00:00Z", "versions": [CHILD],
+             "production_dependencies": {BASE: 5619}}
+    other = {"number": 5650, "merged_at": "2026-11-05T03:00:00Z", "versions": [OTHER]}
+
+    def run_for(self, kind="production", conclusion="success"):
+        return {"status": "completed", "conclusion": conclusion,
+                "display_title": f"DB {kind} apply main PR5619 {self.BASE}",
+                "created_at": "2026-11-05T01:30:00Z"}
+
+    def test_held_base_skips_child_and_advances_independent(self):
+        skipped = []
+        action, pr, _ = m.decide([self.base, self.child, self.other], [],
+                                  lambda n: [{"number": 1}] if n == 5619 else [], skipped=skipped)
+        self.assertEqual((action, pr["number"]), ("dispatch", 5650))
+        self.assertEqual(skipped[1]["pending_dependencies"], {self.BASE: 5619})
+        self.assertNotIn("findings", skipped[1])
+        self.assertNotIn("exhausted", skipped[1])
+        self.assertEqual(m.overdue_holds([skipped[1]], m._time("2026-11-06T00:00:00Z")), [])
+
+    def test_trustworthy_production_evidence_releases_child(self):
+        for conclusion, applied, refused in [
+            ("success", False, set()), ("failure", True, set()),
+            ("failure", False, {self.BASE})]:
+            with self.subTest(conclusion=conclusion, applied=applied, refused=refused):
+                action, pr, _ = m.decide([self.child], [self.run_for(conclusion=conclusion)],
+                    lambda n: [], applied=lambda r: applied, refused=lambda r: refused)
+                self.assertEqual((action, pr["number"]), ("dispatch", 5649))
+
+    def test_preview_and_unproven_failures_do_not_release_child(self):
+        for run in [self.run_for("preview"), self.run_for(conclusion="failure")]:
+            with self.subTest(run=run):
+                skipped = []
+                # Preview is never consulted, even if callbacks claim success.
+                applied = (lambda r: True) if "preview" in run["display_title"] else (lambda r: False)
+                refused = (lambda r: {self.BASE}) if "preview" in run["display_title"] else (lambda r: set())
+                self.assertEqual(m.decide([self.child], [run], lambda n: [], applied=applied,
+                                         refused=refused, skipped=skipped)[0], "idle")
+                self.assertEqual(skipped[0]["pending_dependencies"], {self.BASE: 5619})
+
+    def test_dependency_wait_precedes_attempt_exhaustion(self):
+        failed = {"status": "completed", "conclusion": "failure",
+                  "display_title": f"DB preview apply main PR5649 {self.CHILD}",
+                  "created_at": "2026-11-05T02:30:00Z"}
+        skipped = []
+        m.decide([self.child], [failed] * m.MAX_ATTEMPTS, lambda n: [], skipped=skipped)
+        self.assertIn("pending_dependencies", skipped[0])
+        self.assertNotIn("exhausted", skipped[0])
+
+    def discovered(self, grouped):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            scripts = Path(folder) / "scripts"
+            scripts.mkdir()
+            migrations = Path(folder) / "supabase/migrations"
+            migrations.mkdir(parents=True)
+            for versions in grouped:
+                for version in versions:
+                    (migrations / f"{version}_test.sql").write_text(
+                        f"-- derived-from: {self.BASE}\nselect 1;" if version == self.CHILD else
+                        "-- derived-from: none\nselect 1;")
+            pulls = [{"number": n + 10, "merged_at": "2026-11-05T01:00:00Z"} for n in range(len(grouped))]
+            pages = [[[{"status": "added", "filename": f"supabase/migrations/{v}_test.sql"} for v in vs]] for vs in grouped]
+            with mock.patch.object(m, "HERE", str(scripts)), mock.patch.object(m, "gh", side_effect=[pulls, *pages]):
+                return m.merged_migration_prs("o/r")
+
+    def test_discovery_retains_dependency_for_single_candidate_recheck(self):
+        base, child = self.discovered([[self.BASE], [self.CHILD]])
+        self.assertEqual(child["production_dependencies"], {self.BASE: base["number"]})
+        self.assertEqual(m.decide([child], [], lambda n: [])[0], "idle")
+        self.assertEqual(m.decide([child], [self.run_for()], lambda n: [])[0], "dispatch")
+
+    def test_same_pr_base_and_child_remain_allowed(self):
+        pr, = self.discovered([[self.BASE, self.CHILD]])
+        self.assertEqual(pr["production_dependencies"], {})
+        self.assertEqual(m.decide([pr], [], lambda n: [])[0], "dispatch")
+
+    def test_unknown_historical_base_stays_with_existing_guard(self):
+        pr, = self.discovered([[self.CHILD]])
+        self.assertEqual(pr["production_dependencies"], {})
+        self.assertEqual(m.decide([pr], [], lambda n: [])[0], "dispatch")
+
+    def test_unreadable_production_evidence_never_proves_base(self):
+        def unreadable(run):
+            raise OSError("evidence unreadable")
+        failed = self.run_for(conclusion="failure")
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            skipped = []
+            action, pr, _ = m.decide([self.child, self.other], [failed], lambda n: [],
+                                     applied=unreadable, refused=unreadable, skipped=skipped)
+            self.assertEqual((action, pr["number"]), ("dispatch", self.other["number"]))
+            self.assertEqual(skipped[0]["pending_dependencies"], {self.BASE: 5619})
+            self.assertEqual(m.decide([self.child], [failed], lambda n: [],
+                                     applied=unreadable, refused=unreadable)[0], "idle")
+            self.assertEqual(m.decide([self.child], [failed, self.run_for()], lambda n: [],
+                                     applied=unreadable, refused=unreadable)[0], "dispatch")
+            # A readable alternative receipt on the same failed run still counts.
+            self.assertEqual(m.decide([self.child], [failed], lambda n: [],
+                                     applied=unreadable, refused=lambda r: {self.BASE})[0], "dispatch")
+        self.assertIn("receipt as unproved", output.getvalue())
+        self.assertNotIn("evidence unreadable\n", output.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
