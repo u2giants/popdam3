@@ -10,11 +10,11 @@ Merges and replaces the 2026-11-04T2359Z tagging coordinator handoff and the 202
 ## 0. Business decisions only the owner can make
 Put all of these to Albert in ONE message, before starting work.
 
-**A wrong guess is recoverable (blocks only task 8):**
-- Who are these designer names: staff, outside artist or unknown? File counts: DS 5, A. Dweck 4, Lucy 3, Brian 2, Douglas Hernandez 2, Aaron 1, Adriana Nunez 1, Ali H 1, Allyson Lowery 1, Christina Schoonmaker 1, Dana 1, Jeff 1, Jerome 1, Jojo Siva 1, Julie/Alyssa 1, Marta Zabolotnaya 1, Rechelle 1, Shane 1, Simon 1, Stefanie Blondheim 1, Tyler 1. Recommendation: leave any he does not recognize as unknown.
-- Four PDFs have no readable content (MFH66PFRN01, BGZSFDYPN01, VSS52PFRA01 in two copies). Does anyone still need them re-exported from the source art? Recommendation: only if those products are still active; otherwise leave them unread.
+None open. Both earlier questions were answered Nov 4, 2026, about 10:40 PM EST.
 
 **Already settled, do not re-ask (all Nov 2026 unless noted):**
+- Designer names: DS is Derrick Smith; Marta Zabolotnaya is Marcel Zabolotniy (use the spelling in `core.creative_designer`); Shane is a customer who sometimes designs; the other 18 are not designers. Applied to 27 files and 6 groups; undo key `DESIGNER_OWNER_ANSWERS_BACKUP_2026_11_04`.
+- The four empty PDFs (0 bytes, 2023-2024) are disregarded: "old enough that they can be disregarded."
 - "Start the full run" (Albert, Nov 4, 4:16 PM EST). Running.
 - "new sheets should automatically get the free tags" (Albert, Nov 4). Live.
 - GLM 5.3 Flash is the primary tagging model. Backup GPT-6 Luna was chosen by bake-off.
@@ -99,7 +99,7 @@ Sessions must not edit each other's files. Never restart tagging from 1:00 to 3:
 5. **433 leftover records.** After task 4. Apply retirement rules to the 207 and 226 in `outcomes.csv`, at `/volume1/docker/popdam/manual-scans/pdf-index-20261104-rescan-failures/` on NAS `edgesynology1`. You'll know it worked when each is retired or kept with a reason on #680.
 6. **Moved:** search fixes and after-score are now Vector plan Step 5 (Track V below).
 7. **Blocked: exposed DigitalOcean Spaces key, [#714](https://github.com/u2giants/popdam3/issues/714).** No token in the vault or on hetz; signed out in all 3 connected browsers about 4:30 PM EST. When access exists: create a new key, update admin_config, Railway worker, edge functions and 1Password, prove thumbnail upload and delete, revoke the old key, delete `fix_admin_config_secret_rotation.md`. You'll know it worked when the old key is rejected and the new one proven in use.
-8. **Apply Albert's designer-name answers** from section 0, with a backup. You'll know it worked when each name is classified and applied.
+8. **Other spellings of the two designers.** Answers are applied. Deferred at wrap-up: files still carry variants such as Marz Zabolotniy (97), Maria Zabolotnaya (49), Marz Zabolotnaya (27), MARCEL, DERRICK (920). Albert said "use whatever is in the Creative Designers table." Map unambiguous variants to `core.creative_designer` names, with a backup; leave pairs like ERICA/MARCEL, and investigate oddities such as Marcel Hazan and Albert Zabolotniy. You'll know it worked when no unambiguous variant remains.
 9. **Audit backlog.** Fix in order [#469](https://github.com/u2giants/popdam3/issues/469) (rich-pdf failed extractions needs a shared-db function change; Download all; unordered export paging; StylesPage over-invalidation), then [#470](https://github.com/u2giants/popdam3/issues/470) and [#471](https://github.com/u2giants/popdam3/issues/471); prove agent and helper fixes and close [#468](https://github.com/u2giants/popdam3/issues/468) once machines update. Verify the OrderList test on main. You'll know it worked when each is fixed or dropped with evidence.
 
 ### Track V (exact wording, gates and files are in the plan)
@@ -135,7 +135,7 @@ Asked: agent update, proof. Did: confirmed update unnecessary. Worktree `reveren
 ### [Task 3](claude://claude.ai/epitaxy/local_e4bf75ef-50af-4276-9afc-13432b7fdb81)
 Asked: missing-record finish. Did: 2 corrected assets show replaced. Worktree `strange-franklin-10f6f6`. No PR. Not done: task 4's duplicate check.
 ### [Task 7](claude://claude.ai/epitaxy/local_bc4fb79a-ffa2-4738-b4e1-e0d2cd3fa1a8)
-Asked: failed files. Did: PR 718, 634 sorted. Worktree `youthful-euler-5e3545`. Not done: tasks 3, 5, section 0's four PDFs.
+Asked: failed files. Did: PR 718, 634 sorted. Worktree `youthful-euler-5e3545`. Not done: tasks 3, 5.
 ### [Picture check](claude://claude.ai/epitaxy/local_361fe4b9-548b-486d-9964-d7e8cd41b9a1)
 PR 721, verdicts. Worktree `loving-rubin-2129f2`. Did not verify fixes on live files (task 3).
 ### [Designer names](claude://claude.ai/epitaxy/local_e62de494-facb-4621-9446-b4ee578ec427)
@@ -156,4 +156,4 @@ Closed earlier, with nested promotion-trigger-fix and trace-5539-dispatch; outco
 Wrote the plan, PR 735, no execution. Its handoff is merged here.
 
 ## Self-audit
-1. Newcomer could continue: yes, sections 1 to 3 and 6 plus the plan. 2. As well as I could: yes, sections 4, 5, 9 and part (b). 3. Every detail: yes, with limits stated in sections 3 and 9. 4. Section 0 complete: walked all sections; only the 21 names and four PDFs need Albert; the DigitalOcean key is listed as blocked, and the search-failure behaviour is settled by his Nov 1 rule.
+1. Newcomer could continue: yes, sections 1 to 3 and 6 plus the plan. 2. As well as I could: yes, sections 4, 5, 9 and part (b). 3. Every detail: yes, with limits stated in sections 3 and 9. 4. Section 0 complete: walked all sections; nothing needs Albert; the DigitalOcean key is listed as blocked, and the search-failure behaviour is settled by his Nov 1 rule.
