@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { CardStyle } from "@/types/assets";
 import { ImageOff } from "lucide-react";
@@ -173,14 +173,14 @@ function cardStyle(selected: boolean, hovered: boolean): React.CSSProperties {
 
 // ─── Gallery card ────────────────────────────────────────────────────────────
 
-function GalleryCard({
+const GalleryCard = memo(function GalleryCard({
   g,
   selected,
   onSelect,
 }: {
   g: StyleGroup;
   selected: boolean;
-  onSelect: (e: React.MouseEvent) => void;
+  onSelect: (id: string, e: React.MouseEvent) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -191,7 +191,7 @@ function GalleryCard({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={(e) => onSelect(g.id, e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{ ...cardStyle(selected, hovered), flexDirection: "column" }}
@@ -272,18 +272,18 @@ function GalleryCard({
       </div>
     </button>
   );
-}
+});
 
 // ─── Editorial card ───────────────────────────────────────────────────────────
 
-function EditorialCard({
+const EditorialCard = memo(function EditorialCard({
   g,
   selected,
   onSelect,
 }: {
   g: StyleGroup;
   selected: boolean;
-  onSelect: (e: React.MouseEvent) => void;
+  onSelect: (id: string, e: React.MouseEvent) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -293,7 +293,7 @@ function EditorialCard({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={(e) => onSelect(g.id, e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{ ...cardStyle(selected, hovered), flexDirection: "column" }}
@@ -400,18 +400,18 @@ function EditorialCard({
       </div>
     </button>
   );
-}
+});
 
 // ─── Compact card ─────────────────────────────────────────────────────────────
 
-function CompactCard({
+const CompactCard = memo(function CompactCard({
   g,
   selected,
   onSelect,
 }: {
   g: StyleGroup;
   selected: boolean;
-  onSelect: (e: React.MouseEvent) => void;
+  onSelect: (id: string, e: React.MouseEvent) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -421,7 +421,7 @@ function CompactCard({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={(e) => onSelect(g.id, e)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{ ...cardStyle(selected, hovered), flexDirection: "row", alignItems: "stretch" }}
@@ -547,7 +547,7 @@ function SkeletonCard({ cardStyle: cs }: { cardStyle: CardStyle }) {
       )}
     </div>
   );
-}
+});
 
 // ─── StyleGroupGridProps ───────────────────────────────────────────────────────
 
@@ -618,10 +618,9 @@ export default function StyleGroupGrid({
     >
       {groups.map((g) => {
         const selected = selectedIds.has(g.id);
-        const handler = (e: React.MouseEvent) => onSelect(g.id, e);
-        if (cs === "editorial") return <EditorialCard key={g.id} g={g} selected={selected} onSelect={handler} />;
-        if (cs === "compact") return <CompactCard key={g.id} g={g} selected={selected} onSelect={handler} />;
-        return <GalleryCard key={g.id} g={g} selected={selected} onSelect={handler} />;
+        if (cs === "editorial") return <EditorialCard key={g.id} g={g} selected={selected} onSelect={onSelect} />;
+        if (cs === "compact") return <CompactCard key={g.id} g={g} selected={selected} onSelect={onSelect} />;
+        return <GalleryCard key={g.id} g={g} selected={selected} onSelect={onSelect} />;
       })}
     </div>
   );
