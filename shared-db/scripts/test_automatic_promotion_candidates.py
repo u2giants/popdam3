@@ -14,13 +14,23 @@ APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": 
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 
 
-class AttemptsPerMainCommit(unittest.TestCase):
-    def test_a_new_main_commit_earns_fresh_attempts(self):
+class AttemptsPerChange(unittest.TestCase):
+    def test_a_new_main_commit_does_not_earn_fresh_attempts(self):
+        # #5686: per-main resets retried a stuck change after every unrelated merge.
         pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
-        runs = [{"display_title": "DB preview apply old PR7 1", "status": "completed", "conclusion": "failure", "created_at": "2026-01-02"}] * 3
+        runs = [{"display_title": f"DB preview apply {sha} PR7 1", "status": "completed", "conclusion": "failure", "created_at": "2026-01-02"}
+                for sha in ("a", "b", "c")]
         held = lambda n: False
         self.assertEqual(m.decide([pr], runs, held, main_sha="old")[0], "idle")
-        self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "dispatch")
+        self.assertEqual(m.decide([pr], runs, held, main_sha="new")[0], "idle")
+
+    def test_a_stuck_change_is_passed_over_for_a_later_independent_one(self):
+        stuck = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        later = {"number": 8, "merged_at": "2026-01-01", "versions": ["2"]}
+        runs = [{"display_title": f"DB preview apply {sha} PR7 1", "status": "completed", "conclusion": "failure", "created_at": "2026-01-02"}
+                for sha in ("a", "b", "c")]
+        action, got, _ = m.decide([stuck, later], runs, lambda n: [], main_sha="d")
+        self.assertEqual((action, got["number"]), ("dispatch", 8))
 
     def test_production_failures_count_as_attempts(self):
         # A failed production apply re-enters through a historical recovery

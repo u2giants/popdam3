@@ -289,8 +289,10 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if skipped is not None:
                 skipped.append({**pr, "pending_dependencies": missing_bases})
             continue
-        # Attempts count per main commit: a later merge may be the cure, so it earns fresh tries.
-        # The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
+        # Attempts count per change since its merge, NOT per main commit (#5683/#5686,
+        # Nov 5 2026): resetting on every main advance let one stuck change be retried
+        # after each unrelated merge and starve every later promotion. A cure for a stuck
+        # change is a new governed version, which is a new candidate. The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
         # production apply re-enters through a historical recovery preview that succeeds
         # by design, so counting only preview failures could never bound that loop. A
         # recovery run titles itself "PR " with no number, hence the version match.
@@ -298,7 +300,6 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
                        if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
                        and (tag in t or names_pr(pr, t))
                        and r.get("created_at", "") > pr["merged_at"]
-                       and (not main_sha or f" {main_sha} " in t)
                        and r.get("conclusion") != "success")
         if attempts >= MAX_ATTEMPTS:
             # Out of automatic attempts: passed over like a held PR, with a loud
