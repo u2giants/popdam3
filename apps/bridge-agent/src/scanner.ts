@@ -33,7 +33,7 @@ export function setIngestionRules(raw: unknown): void {
   activeRules = normalizeIngestionRules(raw);
 }
 
-// Raster keyword filter: only ingest png/jpg files that are comp views.
+// Raster keyword filter: only ingest png/jpg/jpeg files matching comp-view or mockup keywords.
 // These become the style group's default cover (see selectPrimaryAsset).
 export function isCompViewFilename(filename: string): boolean {
   return matchesImageRules(filename, activeRules);
