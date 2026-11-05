@@ -11,6 +11,11 @@ Every production change follows this path:
 5. For Supabase edge-function changes: `deploy-supabase.yml` deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`. Shared database structure changes are authored in canonical `popcre/shared-db` on a feature branch and pull request, then applied through its governed workflow; they are never run from this repository.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required. GitHub's green `popdam / production` deployment badge is Railway worker status, not proof that the frontend has deployed.
 
+Railway worker watch patterns in `apps/worker/railway.toml` cover `/apps/worker/**` from the repository root, including when the service root is `apps/worker`. This includes the Dockerfile, package manifests, TypeScript configuration, source, six vendored contract files, and Railway configuration. The worker Dockerfile copies no build inputs from outside this directory. Canonical shared contracts imported at monorepo-relative paths are supplied inside the image by these vendored copies; update the copies together with their canonical source. Unrelated frontend, documentation and shared-db mirror changes must not replace the worker. Automatic deployment remains enabled for worker inputs. See [Railway watch paths](https://docs.railway.com/builds/build-configuration) and [config reference](https://docs.railway.com/config-as-code/reference).
+
+The watch-filter repair requires deployed configuration proof and a subsequent unrelated source update that leaves the worker deployment unchanged; source configuration alone is not acceptance. Existing TOML configuration is a legacy Railway interface with a documented December 1, 2026 cutoff; migrate through a separate scoped change before that date.
+
+
 Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by the same container. Traefik on the VPS routes both hostnames to `popdam-frontend`.
 
 ---
