@@ -9,7 +9,7 @@ vi.mock("node:child_process", () => ({
   execFile: vi.fn((exe: string, args: string[], _options: unknown, callback: (error: Error | null, stdout?: string, stderr?: string) => void) => {
     calls.push([exe, ...args]);
     if (exe !== "fixture-ghostscript") return callback(new Error("not installed in fixture"));
-    const output = args.find((arg) => arg.startsWith("-sOutputFile="))!.slice("-sOutputFile=".length);
+    const output = args.find((arg) => arg.startsWith("-sOutputFile="))!.slice("-sOutputFile=".length).replace("%d", "1");
     // A real image goes through the production resize/decode path after the
     // engine call. The fixture only substitutes the external GS executable.
     import("sharp").then(({ default: sharp }) => sharp({ create: { width: 8, height: 8, channels: 3, background: "#123456" } }).png().toFile(output))
@@ -52,6 +52,39 @@ function pdf(withArtwork: boolean): string {
 }
 
 describe("AI compatibility routing", () => {
+  it("routes PDF content named PSD through the existing PDF preview path", async () => {
+    const source = path.join(directory, "pdf-content.psd");
+    await writeFile(source, pdf(true));
+    const result = await renderFile(source, "psd");
+    const gs = calls.find(([exe]) => exe === "fixture-ghostscript")!;
+    expect(gs).toContain("-dLastPage=2");
+    expect(gs).toContain("-r200");
+    expect(result).toHaveProperty("hiresPage1Buffer");
+    expect(await readFile(source, "utf8")).toBe(pdf(true));
+  });
+
+  it("keeps actual PSD content on its normal renderer path", async () => {
+    const source = path.join(directory, "actual.psd");
+    const header = Buffer.alloc(26);
+    header.write("8BPS"); header.writeUInt16BE(1, 4);
+    header.writeUInt16BE(3, 12); header.writeUInt32BE(1, 14); header.writeUInt32BE(1, 18);
+    header.writeUInt16BE(8, 22); header.writeUInt16BE(3, 24);
+    const content = Buffer.concat([header, Buffer.alloc(14), Buffer.from([20, 40, 60])]);
+    await writeFile(source, content);
+    // This fixture has no Photoshop decoder installed; its ordinary fallback
+    // failure must remain a PSD failure, without invoking the PDF engine.
+    await expect(renderFile(source, "psd")).rejects.toThrow("render_failed: sharp:");
+    expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(false);
+    expect(await readFile(source)).toEqual(content);
+  });
+
+  it.each(["", "%PD"])("keeps empty or short PSD files on the normal failure path (%j)", async (content) => {
+    const source = path.join(directory, "short.psd");
+    await writeFile(source, content);
+    await expect(renderFile(source, "psd")).rejects.toThrow("render_failed: sharp:");
+    expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(false);
+  });
+
   it.each(["%!PS-Adobe-3.0", "%!PS-Adobe-2.0 EPSF-1.2"])("lets Ghostscript render native AI headed %s", async (header) => {
     const source = path.join(directory, "native.ai");
     await writeFile(source, `${header}\n%%BoundingBox: 0 0 8 8\n0 0 8 8 rectfill\nshowpage\n`);

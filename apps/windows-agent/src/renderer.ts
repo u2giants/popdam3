@@ -825,6 +825,25 @@ export async function renderFile(
     return renderPdf(uncPath);
   }
 
+  // A few source files named .psd contain PDF bytes. Render their actual
+  // content through the existing PDF path without changing source identity.
+  if (fileType === "psd") {
+    let isPdf = false;
+    try {
+      const fh = await open(withLongPathPrefix(uncPath), "r");
+      try {
+        const header = Buffer.alloc(5);
+        const { bytesRead } = await fh.read(header, 0, header.length, 0);
+        isPdf = bytesRead === header.length && header.toString("ascii") === "%PDF-";
+      } finally {
+        await fh.close();
+      }
+    } catch {
+      // Keep ordinary renderer error reporting for missing/unreadable files.
+    }
+    if (isPdf) return renderPdf(uncPath);
+  }
+
   const failures: string[] = [];
 
   // Windows MAX_PATH = 260. Copy to a short-path temp so all renderers can open the file.
