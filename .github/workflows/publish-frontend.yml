@@ -115,10 +115,14 @@ jobs:
       - name: Pin Coolify to the immutable image tag
         env:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_WRITE_TOKEN }}
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           IMAGE_TAG: sha-${{ github.sha }}
         run: |
+          if [ -z "${COOLIFY_TOKEN}" ]; then
+            echo "Missing dedicated PopDAM image-pin credential (COOLIFY_WRITE_TOKEN)."
+            exit 1
+          fi
           echo "Pinning Coolify to ghcr.io/u2giants/popdam-frontend:${IMAGE_TAG}..."
           response=$(curl -s -w "\n%{http_code}" \
             -X PATCH \
@@ -130,7 +134,7 @@ jobs:
 
           http_code=$(echo "$response" | tail -1)
           body=$(echo "$response" | head -n -1)
-          echo "Response: $body"
+          # The application response can contain runtime configuration; report status only.
 
           if [ "$http_code" != "200" ]; then
             echo "Coolify tag pin failed with HTTP ${http_code}"
