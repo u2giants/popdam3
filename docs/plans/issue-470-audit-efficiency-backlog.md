@@ -11,22 +11,21 @@ against this worktree (HEAD `01fcfc34`; `origin/main` `4409e2d3` differs only
 in tagging files unrelated to these lines, except `ai-tagging-shared.ts` —
 re-check its line numbers after rebasing).
 
-## STATUS — 2026-11-04 (nothing started)
+## STATUS — 2026-11-05
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Relevance-sorted search: rank server-side, fetch only the page | ⬜ open | — |
-| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | ⬜ open | — |
-| 3 | `get-filter-options`: one grouped count query instead of N+M counts | ⬜ open | — |
-| 4 | Tagging prompt: cache static reads; drop the per-call OpenRouter generation lookup | ⬜ open | — |
-| 5 | Order-list status counts: one RPC/grouped count | ⬜ open | — |
-| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | implemented; live proof open | Five repeated rows now fetch two unique URLs; workbook retains five images; concurrency four |
-| 7 | Grids: memoize cards; bridge scanner: drop the redundant `lstat` | cards implemented; scanner held | Cards receive stable parent callbacks; scanner patch waits scan completion before publishing bridge |
-| 8 | Heartbeat `render_queue` prune: once per hour, not per heartbeat (minor) | implemented; live proof open | Warm instances throttle to hourly; failure resets throttle for retry |
-| 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | ⬜ open | — |
+| 1 | Relevance-sorted search: rank server-side, fetch only the page | open with search owner | Reserved relevance paths; do not overlap the coordinator's search delivery |
+| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | old source held; replacement prepared/caller open | Old #5630/version20261105042549 must never apply; #5631 stays open. Replacement #5647 current forward version 20261105074303 / head 1c6c9a53, fresh full DB CI 41989521874 passed with actual order/populated-filter fixtures; prior unapplied reservation 20261105061837 and head 40487c693 / full DB CI41981017768 success retained as history. Retirement source prepared; actual delivered-producer candidate patch/rebase and live delivery remain |
+| 3 | `get-filter-options`: one grouped count query instead of N+M counts | old source held; replacement prepared/caller open | Same open #5628 replacement; preserve current nondeleted taxonomy scope |
+| 4 | Tagging prompt: cache static reads; avoid redundant generation lookup | lookup deployed; cache prepared/held | App #764 lookup, #782 cache head 59f8cbc9; 518 worker tests; live read-only prompt parity, repeated static reads 6→3, deployment pending |
+| 5 | Order-list status counts: one RPC/grouped count | old source held; replacement prepared/caller open | Same open #5628 replacement; five-status/NULL and populated access/filter fixtures in held #5644 |
+| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | live proof recorded | App #764/#770: five rows/two unique thumbnail URLs cause two fetches and five workbook image placements |
+| 7 | Grids: memoize cards; bridge scanner: drop redundant `lstat` | cards deployed; scanner held | All three card layouts preserve selection live; draft #766 must wait for verified full scan completion |
+| 8 | Heartbeat `render_queue` prune: once per hour | deployed; direct live efficiency proof open | App #764/#773; stateful repeated-heartbeat harness passes; hourly per warm instance with retry on failure |
+| 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | open | Do not close until every outstanding caller, search, machine/deployment and live proof is finished |
 
-Where a fresh session starts: step 1 (it needs a shared-db claim and is the
-longest pole), then 2 and 3 in parallel.
+Next: after the hold, deliver independent health #5623 receipts, then producer/character delivery. Reissue all three aggregate readers with exact category trimming/filtering; hard-retire unapplied 20261105042549 under the new producer. Test correction #5644 alone cannot resolve #5631; replacement live parity/access proof is required before dependent app callers. Cache #782 and all owned app/shared-db main merges remain held until after 3:30 AM EST. Canonical instruction/catalog cache freshness is up to five minutes; per-asset context stays fresh. Never stop or reset the full tagging run.
 
 ---
 
