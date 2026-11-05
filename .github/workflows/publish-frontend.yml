@@ -46,8 +46,13 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Prove the live-version check (matching passes, deliberately stale fails)
+        run: bash scripts/test-verify-live-version.sh
 
   build-and-push:
+    # Production images ship from main only; a dispatch from any other ref runs
+    # verify alone and must not publish or deploy.
+    if: github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
     permissions:
@@ -61,6 +66,7 @@ jobs:
         id: meta
         run: |
           echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "full_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "date=$(git log -1 --format=%cI)" >> "$GITHUB_OUTPUT"
           echo "sha_tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -77,6 +83,7 @@ jobs:
         run: npm run build
         env:
           APP_COMMIT: ${{ steps.meta.outputs.commit }}
+          APP_COMMIT_FULL: ${{ steps.meta.outputs.full_sha }}
           APP_DATE: ${{ steps.meta.outputs.date }}
 
       - name: Log in to GHCR
@@ -101,8 +108,35 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.meta.outputs.full_sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.commit }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+
+      - name: Pin Coolify to the immutable image tag
+        env:
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          echo "Pinning Coolify to ghcr.io/u2giants/popdam-frontend:${IMAGE_TAG}..."
+          response=$(curl -s -w "\n%{http_code}" \
+            -X PATCH \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APP_UUID}" \
+            -d "{\"docker_registry_image_tag\": \"${IMAGE_TAG}\"}")
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "Coolify tag pin failed with HTTP ${http_code}"
+            echo "Deploy stays fail-closed: refusing to deploy a mutable tag."
+            exit 1
+          fi
 
       - name: Deploy via Coolify
         env:
@@ -126,4 +160,11 @@ jobs:
             exit 1
           fi
 
-          echo "Coolify deployment queued. Coolify will pull ghcr.io/u2giants/popdam-frontend:latest and update the production container."
+          echo "Coolify deployment queued. Coolify will pull ghcr.io/u2giants/popdam-frontend:sha-${GITHUB_SHA} and update the production container."
+
+      - name: Verify production serves this commit
+        run: |
+          bash scripts/verify-live-version.sh \
+            --url "https://dam.designflow.app/version.json" \
+            --expected "${GITHUB_SHA}" \
+            --attempts 60 --interval 10
