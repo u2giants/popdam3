@@ -55,8 +55,20 @@ semantic execution with picture guesses. The unknown-code policy check does not
 judge those guesses relevant; keep them explicitly unjudged and outside the
 original 119-case denominator.
 
-The unknown-code picture-guess policy remains open on #680 and #706. The
-spelling/reliability repair preserves the deployed code-intent behavior; it does
-not establish complete unknown-code format coverage. A proposed catalog-format
-probe was withheld after its bounded full-miss read timed out. Keep these policy
-failures separate from spelling acceptance and from relevance judgments.
+The unknown-code picture-guess policy remains open on #680 and #706. The earlier
+unindexed format probe was withheld after its bounded full-miss timeout. The
+replacement indexed service-only reader from shared-db #5699 is verified installed;
+its application consumer is prepared for source review, not yet deployed. It
+normalizes only complete mixed ASCII letter/digit strings of 7–64 characters and
+requires a positive catalog-format response before preserving picture guesses.
+Existing catalog code/prefix identity behavior is unchanged. Unknown short
+partials retain existing behavior and remain an explicit coverage gap.
+
+The consumer bounds its required hint to 1000ms and the remaining original 30s
+request budget, with Request cancellation and a same-budget handler-entry fallback.
+A hint error, malformed response or deadline produces unavailable/Retry before
+embedding or downstream search; it never means an unsupported format or empty
+results. Local cancellation proof does not establish hosted gateway propagation
+or cancellation of already-started server SQL. Keep policy failures separate
+from spelling acceptance and relevance judgments; all 119 original and 21
+supplemental AFTER cases remain unstarted pending final deployment/readiness.
