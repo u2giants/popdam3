@@ -1,6 +1,7 @@
 import test, { before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
+import { readFileSync } from "node:fs";
 import { atomicAssetRelink } from "../atomic-ai-character-relink.mjs";
 process.env.SUPABASE_URL = "http://127.0.0.1:9";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "isolated-fixture-non-secret";
@@ -485,20 +486,33 @@ test("PostgreSQL17 total transaction budget closes the writer and requires point
 test("new tag committed after SERIALIZABLE snapshot but before asset lock must not escape comparison", async () => {
   const other = await foreign();
   const e = await entry();
+  let competing;
   try {
     await assert.rejects(
       run({
         entries: [e],
         hooks: {
-          beforeAssetLocks: () =>
-            other.query(
-              "insert into asset_tags(id,asset_id,tag) values($1,$2,'new')",
-              [id.other, id.asset],
-            ),
+          beforeAssetLocks: async () => {
+            competing = (
+              await other.query(
+                "insert into asset_tags(id,asset_id,tag) values($1,$2,'new') returning to_jsonb(asset_tags) row",
+                [id.other, id.asset],
+              )
+            ).rows[0].row;
+          },
         },
       }),
+      /Changed tags preimage/,
     );
     assert.equal(await count(), 0);
+    assert.deepEqual(
+      (
+        await c.query("select to_jsonb(t) row from asset_tags t where id=$1", [
+          id.other,
+        ])
+      ).rows[0].row,
+      competing,
+    );
   } finally {
     await other.end();
   }
@@ -510,20 +524,27 @@ test("fresh READ COMMITTED reader detects pre-lock canonical and legacy child ph
     [id.other, id.lic],
   );
   for (const table of ["asset_licensor_characters", "asset_characters"]) {
-    const other = await foreign();
-    const e = await entry();
+    const other = await foreign(),
+      e = await entry();
+    let competing;
     try {
       await assert.rejects(
         run({
           entries: [e],
           hooks: {
-            beforeAssetLocks: () =>
-              other.query(
-                `insert into ${table}(asset_id,character_id,source${table === "asset_licensor_characters" ? ",tagged_at" : ""}) values($1,$2,'manual'${table === "asset_licensor_characters" ? ",now()" : ""})`,
-                [id.asset, id.other],
-              ),
+            beforeAssetLocks: async () => {
+              competing = (
+                await other.query(
+                  `insert into ${table}(asset_id,character_id,source${table === "asset_licensor_characters" ? ",tagged_at" : ""}) values($1,$2,'manual'${table === "asset_licensor_characters" ? ",now()" : ""}) returning to_jsonb(${table}) row`,
+                  [id.asset, id.other],
+                )
+              ).rows[0].row;
+            },
           },
         }),
+        new RegExp(
+          `Changed ${table === "asset_licensor_characters" ? "links" : "legacy"} preimage`,
+        ),
       );
       assert.equal(
         +(
@@ -534,10 +555,79 @@ test("fresh READ COMMITTED reader detects pre-lock canonical and legacy child ph
         ).rows[0].n,
         0,
       );
+      assert.deepEqual(
+        (
+          await c.query(
+            `select to_jsonb(t) row from ${table} t where character_id=$1`,
+            [id.other],
+          )
+        ).rows[0].row,
+        competing,
+      );
       await c.query(`delete from ${table} where character_id=$1`, [id.other]);
     } finally {
       await other.end();
     }
+  }
+});
+
+test("negative control removing the fresh-read guard wrongly commits the reproduced tag phantom", async () => {
+  const source = readFileSync(
+    new URL("../atomic-ai-character-relink.mjs", import.meta.url),
+    "utf8",
+  );
+  const begin = source.indexOf(
+    '    await fresh.query("begin isolation level read committed read only");',
+  );
+  const end =
+    source.indexOf('    emit("fresh_inputs_verified");', begin) +
+    '    emit("fresh_inputs_verified");'.length;
+  assert.ok(begin > 0 && end > begin);
+  const mutant = source.slice(0, begin) + source.slice(end);
+  const absolute = mutant.replace(
+    '"./relink-existing-ai-characters-safety.mjs"',
+    JSON.stringify(
+      new URL("../relink-existing-ai-characters-safety.mjs", import.meta.url)
+        .href,
+    ),
+  );
+  const { atomicAssetRelink: unsafe } = await import(
+    "data:text/javascript;base64," + Buffer.from(absolute).toString("base64")
+  );
+  const other = await foreign(),
+    e = await entry();
+  let competing;
+  try {
+    const result = await unsafe({
+      connection: c,
+      entries: [e],
+      resolve: async () => ({ proof: "fixture resolver" }),
+      persist: () => {},
+      openFreshReader: () => foreign(),
+      apply: true,
+      hooks: {
+        beforeAssetLocks: async () => {
+          competing = (
+            await other.query(
+              "insert into asset_tags(id,asset_id,tag) values($1,$2,'new') returning to_jsonb(asset_tags) row",
+              [id.other, id.asset],
+            )
+          ).rows[0].row;
+        },
+      },
+    });
+    assert.equal(result.phase, "commit_confirmed");
+    assert.equal(await count(), 1);
+    assert.deepEqual(
+      (
+        await c.query("select to_jsonb(t) row from asset_tags t where id=$1", [
+          id.other,
+        ])
+      ).rows[0].row,
+      competing,
+    );
+  } finally {
+    await other.end();
   }
 });
 test("fresh native resolver catches a taxonomy phantom committed between snapshot and taxonomy locks", async () => {
