@@ -52,6 +52,20 @@ function pdf(withArtwork: boolean): string {
 }
 
 describe("AI compatibility routing", () => {
+  it("recovers the source's embedded original preview after its PDF notice and native render fail", async () => {
+    const source = path.join(directory, "embedded-preview.ai");
+    const { default: sharp } = await import("sharp");
+    const pixels = Buffer.alloc(32 * 24 * 3);
+    for (let i = 0; i < pixels.length; i++) pixels[i] = (i * 37 + Math.floor(i / 97)) % 256;
+    const jpeg = await sharp(pixels, { raw: { width: 32, height: 24, channels: 3 } }).jpeg().toBuffer();
+    const body = pdf(false) + `<xmpGImg:image>${jpeg.toString("base64")}</xmpGImg:image>`;
+    await writeFile(source, body);
+    const result = await renderFile(source, "ai");
+    expect(result.width).toBe(32); expect(result.height).toBe(24);
+    expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(false);
+    expect(await readFile(source, "utf8")).toBe(body);
+  });
+
   it("routes PDF content named PSD through the existing PDF preview path", async () => {
     const source = path.join(directory, "pdf-content.psd");
     await writeFile(source, pdf(true));
