@@ -373,24 +373,51 @@ begin
     end if;
   end loop;
 
-  -- Issue #963 adds exactly four fail-closed guards for the deprecated resolution columns.
-  -- Snapshot immutability still comes from privileges; no other user trigger is allowed.
+  -- #963's four resolution guards remain exact; #5608 adds only two narrow
+  -- key-maintenance triggers. Immutability still comes from unchanged privileges.
   select count(*) into v_n from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
     join pg_namespace n on n.oid = c.relnamespace
    where n.nspname='plm' and c.relname like 'nbcu\_%' and not tg.tgisinternal;
-  if v_n <> 4 then v_fail := v_fail+1;
-    raise warning 'FAIL % user trigger(s) on nbcu tables; expected four resolution guards', v_n;
+  if v_n <> 6 then v_fail := v_fail+1;
+    raise warning 'FAIL % user triggers on NBCU tables; expected exact four resolution plus two key triggers', v_n;
   else v_pass := v_pass+1; end if;
 
-  select count(*) into v_n from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-   where n.nspname='plm' and not tg.tgisinternal
-     and tg.tgname in (
-       'nbcu_property_resolution_immutable','nbcu_character_resolution_immutable',
-       'nbcu_style_guide_resolution_immutable','nbcu_asset_resolution_immutable'
-     );
+  select count(*) into v_n
+  from (values
+    ('plm.nbcu_property','nbcu_property_resolution_immutable'),
+    ('plm.nbcu_character','nbcu_character_resolution_immutable'),
+    ('plm.nbcu_style_guide','nbcu_style_guide_resolution_immutable'),
+    ('plm.nbcu_asset','nbcu_asset_resolution_immutable')
+  ) expected(relation_name,trigger_name)
+  join pg_trigger tg on tg.tgrelid=to_regclass(expected.relation_name)
+    and tg.tgname=expected.trigger_name
+  where not tg.tgisinternal and tg.tgenabled='O' and tg.tgtype=23
+    and tg.tgfoid='plm.reject_legacy_landing_resolution_write()'::regprocedure
+    and tg.tgnargs=0 and tg.tgqual is null and tg.tgattr::text=''
+    and not tg.tgdeferrable and not tg.tginitdeferred;
   if v_n <> 4 then v_fail := v_fail+1;
-    raise warning 'FAIL only % of four named NBCU resolution guards exist', v_n;
+    raise warning 'FAIL only % of four exact NBCU resolution guard definitions remain', v_n;
+  else v_pass := v_pass+1; end if;
+
+  select count(*) into v_n
+  from (values
+    ('plm.nbcu_asset','sku_sg_file_key','public.sku_sg_file_file_name_key()',
+      array['file_name','sku_sg_file_key']::text[]),
+    ('plm.nbcu_style_guide','sku_sg_label_key','public.sku_sg_label_style_guide_label_key()',
+      array['style_guide_label','sku_sg_label_key']::text[])
+  ) expected(relation_name,trigger_name,function_name,source_columns)
+  join pg_trigger tg on tg.tgrelid=to_regclass(expected.relation_name)
+    and tg.tgname=expected.trigger_name
+  where not tg.tgisinternal and tg.tgenabled='O' and tg.tgtype=23
+    and tg.tgfoid=to_regprocedure(expected.function_name)
+    and tg.tgnargs=0 and tg.tgqual is null
+    and not tg.tgdeferrable and not tg.tginitdeferred
+    and (select array_agg(a.attname::text order by key.ordinality)
+      from unnest(tg.tgattr::smallint[]) with ordinality key(attnum,ordinality)
+      join pg_attribute a on a.attrelid=tg.tgrelid and a.attnum=key.attnum)
+      =expected.source_columns;
+  if v_n <> 2 then v_fail := v_fail+1;
+    raise warning 'FAIL only % of two exact NBCU source/key-only trigger definitions remain', v_n;
   else v_pass := v_pass+1; end if;
 
   -- Functions: execute revoked from the browser roles, granted to service_role.

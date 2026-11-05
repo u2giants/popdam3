@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261105033827",
+  "migration_sha256": "ee739f9e5f70cc843d5136a6b5bf428b4e4ea25d3ffe0babf5b924dd9645c894",
+  "checks": [
+    {
+      "id": "assets_update_trigger_scoping_exact",
+      "kind": "catalog_contract",
+      "contract": "assets_update_trigger_scoping_v1",
+      "expected_count": 1
+    }
+  ]
+}

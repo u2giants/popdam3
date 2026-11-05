@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261105044255",
+  "migration_sha256": "b3a28f5774e7a0bf0fd246e9a955c95bc97d4b26665f292f66d2134eddca3e91",
+  "checks": [
+    {
+      "id": "sku_sg_backfill_exact_key_only_body",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_proc",
+      "filters": [
+        {
+          "column": "proname",
+          "type": "text",
+          "equals": "backfill_sku_style_guide_key_batch"
+        },
+        {
+          "column": "prosrc",
+          "type": "text",
+          "equals": "\ndeclare r record; n integer;\nbegin\n  if p_batch_size < 1 or p_batch_size > 10000 then raise exception 'Invalid key batch size'; end if;\n  perform pg_advisory_xact_lock(5608, 1);\n  for r in select * from (values\n    ('public.pdf_text_samples','extracted_text','declared_style_guide_key'),\n    ('plm.dcp_asset','file_name','sku_sg_file_key'),\n    ('plm.lucasfilm_dcp_asset','file_name','sku_sg_file_key'),\n    ('plm.marvel_dcp_asset','file_name','sku_sg_file_key'),\n    ('plm.marvel_asgard_node_asset_observation','exact_filename','sku_sg_file_key'),\n    ('plm.nbcu_asset','file_name','sku_sg_file_key'),\n    ('plm.wb_asset_normalized','file_name','sku_sg_file_key'),\n    ('plm.peanuts_asset','file_name','sku_sg_file_key'),\n    ('plm.sesame_asset','original_file_name','sku_sg_file_key'),\n    ('plm.dcp_style_guide','folder_name','sku_sg_label_key'),\n    ('plm.lucasfilm_dcp_style_guide','folder_name','sku_sg_label_key'),\n    ('plm.marvel_dcp_style_guide','folder_name','sku_sg_label_key'),\n    ('plm.marvel_asgard_style_guide','exact_label','sku_sg_label_key'),\n    ('plm.nbcu_style_guide','style_guide_label','sku_sg_label_key'),\n    ('plm.wb_style_guide_normalized','label','sku_sg_label_key'),\n    ('plm.peanuts_style_guide','value_label','sku_sg_label_key'),\n    ('plm.sesame_style_guide','value_label','sku_sg_label_key')) as sources(table_name, source_column, key_column)\n  loop\n    -- Reassign only our key: do not fire unrelated UPDATE OF source triggers.\n    execute format('with batch as (select ctid from %s where %I is null limit $1 for update) '\n      'update %s t set %I = t.%I from batch where t.ctid = batch.ctid',\n      r.table_name,r.key_column,r.table_name,r.key_column,r.key_column) using p_batch_size;\n    get diagnostics n = row_count;\n    if n > 0 then return n; end if;\n  end loop;\n  return 0;\nend;\n"
+        },
+        {
+          "column": "prosecdef",
+          "type": "boolean",
+          "equals": true
+        }
+      ],
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 933,
+      "line_end": 933,
+      "disposition": "checks",
+      "check_ids": [
+        "sku_sg_backfill_exact_key_only_body"
+      ],
+      "reason": "The runtime-only backfill UPDATE is bounded by the validated batch size and a fixed list of exactly seventeen source tables. The exact installed PL/pgSQL body is pinned by this check, including that fixed list, NULL-key-only selection, ctid row matching and format arguments that reassign only the key column. No source field is assigned, no caller-provided identifier is accepted, and no backfill runs inline during migration. Ordinary static catalog verification separately proves created keys, indexes, triggers and routine security settings; behavioral contracts and disposable interrupted-run fixtures prove the resulting matching output and committed progress."
+    }
+  ]
+}

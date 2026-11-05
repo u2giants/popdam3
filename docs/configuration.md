@@ -206,6 +206,7 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `META_API_KEY` | No | Fallback for direct Meta Image Tagging and content-lease-bound PopSG PDF transcription when no saved Settings key exists or the database read fails. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
 | `SCALEDOWN_API_KEY` | No | Worker fallback for the direct ScaleDown Vision Bake-Off when no saved Settings key exists or the database read fails. Agents do not read this variable: they receive only the saved `SCALEDOWN_API_KEY` row. |
+| `RICH_PDF_RETRY_AFTER_HOURS` | No | Failed rich-PDF extraction cooldown in hours; default 24, with non-finite/non-positive values falling back to 24. Successful unchanged extractions stay skipped. |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 
 **Critical:** the worker resolves OpenRouter, Google, Meta, and ScaleDown keys

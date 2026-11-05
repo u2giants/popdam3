@@ -2053,6 +2053,22 @@ test('stranded atomic split-recovery mutex is recognized and safely recoverable'
   const result=recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io)
   assert.equal(result.released,'4a69fbbc');assert.equal(io.refs.has(MUTEX_REF),false)
 })
+test('stranded preview-maintenance mutex is recoverable only with stale exact ownership',()=>{
+  const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc')
+  io.getCommit=()=>({message:'db-coordination preview-maintenance issue=5637 operation=sg-hnsw-rebuild',committer:{date:'2026-08-14T19:55:00Z'}})
+  const options={expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0}
+  assert.throws(()=>recoverStaleAuthorMutex({...options,serializedRecovery:false},io),/serialized recovery/)
+  assert.throws(()=>recoverStaleAuthorMutex({...options,confirmStale:false},io),/confirm-stale/)
+  assert.throws(()=>recoverStaleAuthorMutex({...options,expectedSha:'abcdef01'},io),/not expected/)
+  assert.equal(io.refs.get(MUTEX_REF),'4a69fbbc')
+  io.getCommit=()=>({message:'db-coordination preview-maintenance issue=5637',committer:{date:new Date(NOW-30000).toISOString()}})
+  assert.throws(()=>recoverStaleAuthorMutex(options,io),/only 30 seconds/)
+  assert.equal(io.refs.get(MUTEX_REF),'4a69fbbc')
+  io.getCommit=()=>({message:'db-coordination preview-maintenance issue=5637',committer:{date:'2026-08-14T19:55:00Z'}})
+  assert.equal(recoverStaleAuthorMutex(options,io).released,'4a69fbbc')
+  assert.equal(io.refs.has(MUTEX_REF),false)
+  assert.equal(io.refs.has(MUTEX_RECOVERY_ACTIVE_REF),false)
+})
 test('stranded reviewer assignment and replacement mutexes are recoverable',()=>{
   for(const kind of ['reviewer-assignment-lock','reviewer-replacement-lock']){
     const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.getCommit=()=>({message:`db-coordination ${kind} issue=1 pr=2 head=abcdef0`,committer:{date:'2026-08-14T19:55:00Z'}})
@@ -2119,7 +2135,7 @@ test('every owner-commit kind that acquires the author mutex is recoverable',asy
 
 // #2991 review: kinds that never hold the mutex must not ride a hyphen prefix.
 test('non-mutex record kinds that merely share a prefix are refused by mutex recovery',()=>{
-  for(const kind of ['reviewer-failure-release','reviewer-failure','preview-unknown','merge-queue','outcome-repairs']){
+  for(const kind of ['reviewer-failure-release','reviewer-failure','preview-unknown','preview-maintenance-unknown','merge-queue','outcome-repairs']){
     const io=memoryIo();io.refs.set(MUTEX_REF,'4a69fbbc');io.getCommit=()=>({message:`db-coordination ${kind} issue=1 pr=2`,committer:{date:'2026-08-14T19:55:00Z'}})
     assert.throws(()=>recoverStaleAuthorMutex({expectedSha:'4a69fbbc',confirmStale:true,serializedRecovery:true,now:NOW,quietMs:0},io),/not a recognized coordination lock/,kind)
     assert.equal(io.refs.get(MUTEX_REF),'4a69fbbc',kind)

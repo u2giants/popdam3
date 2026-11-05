@@ -31,9 +31,11 @@ import re
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import review_finding_hold
+from migration_derivation import parse_declaration
 from production_migration_guard import FOREIGN_TARGET_MIGRATIONS
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
@@ -90,6 +92,18 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
         # (observed 2026-10-31: PR #5129 vs stranded 20261030125352).
         if versions and not all(v in manifest_orphans for v in versions):
             found.append({"number": pr["number"], "merged_at": merged, "versions": versions})
+    owners = {v: pr["number"] for pr in found for v in pr["versions"]}
+    for pr in found:
+        bases = set()
+        for version in pr["versions"]:
+            paths = glob.glob(os.path.join(os.path.dirname(HERE), "supabase", "migrations", f"{version}_*.sql"))
+            if len(paths) != 1:
+                raise ValueError(f"ambiguous migration source for {version}")
+            bases.update(parse_declaration(Path(paths[0]).read_text(encoding="utf-8"), version) or ())
+        # Retain ownership on the candidate itself: the final fresh recheck only
+        # receives this PR, not the complete earlier candidate list.
+        pr["production_dependencies"] = {v: owners[v] for v in sorted(bases)
+                                         if v in owners and owners[v] != pr["number"]}
     return sorted(found, key=lambda p: p["merged_at"])
 
 
@@ -222,6 +236,31 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if skipped is not None:
                 skipped.append({**pr, "findings": findings if isinstance(findings, list) else []})
             continue
+        dependencies = pr.get("production_dependencies", {})
+        proven_bases = set()
+        for title, run in zip(titles, runs):
+            if not title.startswith("DB production apply") or not (named := title_versions(title)) & dependencies.keys():
+                continue
+            if run.get("conclusion") == "success":
+                proven_bases |= named
+            elif run.get("conclusion") == "failure":
+                # One unreadable dependency receipt proves nothing, but must not
+                # park unrelated releases or hide another trustworthy receipt.
+                try:
+                    if applied(run):
+                        proven_bases |= named
+                except (OSError, ValueError, subprocess.CalledProcessError):
+                    print("::warning::dependency apply evidence unreadable; treating this receipt as unproved")
+                try:
+                    proven_bases |= refused(run)
+                except (OSError, ValueError, subprocess.CalledProcessError):
+                    print("::warning::dependency ledger refusal evidence unreadable; treating this receipt as unproved")
+        missing_bases = {v: owner for v, owner in dependencies.items() if v not in proven_bases}
+        if missing_bases:
+            passed_over += 1
+            if skipped is not None:
+                skipped.append({**pr, "pending_dependencies": missing_bases})
+            continue
         # Attempts count per main commit: a later merge may be the cure, so it earns fresh tries.
         # The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
         # production apply re-enters through a historical recovery preview that succeeds
@@ -245,7 +284,7 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             continue
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
     if passed_over:
-        base = "every merged migration PR not held by a review finding or out of automatic attempts is in production"
+        base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
         if out_of_attempts:
             names = ", ".join(f"PR #{e['number']} ({e['exhausted']} attempts)" for e in out_of_attempts)
             return "idle", None, f"ENGINEER ACTION REQUIRED: {names} out of automatic attempts at this main commit; {base}"
@@ -273,10 +312,10 @@ def _time(text: str) -> datetime:
 def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     """One line per PR held longer than ALERT_AFTER. A PR is held from the later
     of its merge and its oldest blocking finding (unknown findings: the merge).
-    PRs out of automatic attempts are not holds and alert on their own."""
+    Dependency waits are not review holds; exhausted attempts alert on their own."""
     lines = []
     for pr in skipped:
-        if pr.get("exhausted"):
+        if pr.get("exhausted") or pr.get("pending_dependencies"):
             continue
         opened = [_time(f["created_at"]) for f in pr["findings"] if f.get("created_at")]
         since = max(_time(pr["merged_at"]), min(opened)) if opened else _time(pr["merged_at"])
@@ -342,6 +381,10 @@ def main(now: datetime | None = None) -> int:
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run))
     for entry in skipped:
+        if entry.get("pending_dependencies"):
+            refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
+            print(f"dependency: PR #{entry['number']} waiting on production evidence for {refs}; later independent PRs still promote")
+            continue
         if entry.get("exhausted"):
             print(f"exhausted: PR #{entry['number']} out of automatic attempts; later PRs still promote")
             continue

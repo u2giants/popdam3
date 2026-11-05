@@ -61,3 +61,24 @@ test("normalizeMaterialList handles non-arrays", () => {
   assert.deepEqual(normalizeMaterialList(undefined), []);
   assert.deepEqual(normalizeMaterialList("canvas"), []);
 });
+
+
+test("failed rich PDF hashes retry only after the bounded cooldown", async () => {
+  const { shouldExtractRichPdf } = await import("./rich-pdf.js");
+  const now = Date.parse("2026-01-02T12:00:00Z");
+  const success = { source_text_sha256: "same", parse_error: null, extracted_at: "2026-01-01T00:00:00Z" };
+  const failure = { ...success, parse_error: "temporary provider outage" };
+  assert.equal(shouldExtractRichPdf(success, "same", now), false);
+  assert.equal(shouldExtractRichPdf(failure, "same", now), true);
+  assert.equal(shouldExtractRichPdf({ ...failure, extracted_at: "2026-01-02T11:59:00Z" }, "same", now), false);
+  assert.equal(shouldExtractRichPdf({ ...failure, extracted_at: "2026-01-03T00:00:00Z" }, "same", now), false);
+  assert.equal(shouldExtractRichPdf({ ...failure, extracted_at: null }, "same", now), false);
+  assert.equal(shouldExtractRichPdf({ ...failure, extracted_at: "invalid" }, "same", now), false);
+  assert.equal(shouldExtractRichPdf(failure, "changed", now), true);
+  assert.equal(shouldExtractRichPdf(undefined, "same", now), true);
+  assert.equal(shouldExtractRichPdf(failure, "same", now, NaN), true);
+  const recent = { ...failure, extracted_at: "2026-01-02T10:00:00Z" };
+  assert.equal(shouldExtractRichPdf(recent, "same", now, NaN), false);
+  assert.equal(shouldExtractRichPdf(recent, "same", now, 0), false);
+  assert.equal(shouldExtractRichPdf(recent, "same", now, 1), true);
+});

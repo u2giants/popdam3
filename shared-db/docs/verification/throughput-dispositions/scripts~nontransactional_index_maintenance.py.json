@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source": "scripts/nontransactional_index_maintenance.py",
+  "sites": [
+    {
+      "site": "scripts/nontransactional_index_maintenance.py:263",
+      "semantic_key": "scripts/nontransactional_index_maintenance.py:d107a4b575bd33b44dce26bae8ab750df3132306609786a08b09ef3020bef084:context-bda7ff7cf5a7d856b52443c8179e471cf9344c14a8a80ca3ed67f947a1981692",
+      "line_sha256": "d107a4b575bd33b44dce26bae8ab750df3132306609786a08b09ef3020bef084",
+      "disposition": "excluded",
+      "reason": "Fail-closed configuration validation: an absent or malformed protected preview project reference refuses maintenance admission before any database write; this does not infer that a schema object is missing."
+    }
+  ]
+}

@@ -225,12 +225,23 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       else requireAdmission(metadata.admissionOptions,io,{pr:metadata.pr??null,mutexOwner:ownerSha})
     }
     if (kind === 'production') {
+      if(metadata.maintenanceClaim){
+        if(typeof io.verifyMaintenanceClaim!=='function')throw new LaneError('production maintenance requires exact native claim proof')
+        io.verifyMaintenanceClaim(metadata.maintenanceClaim)
+      }
       // #4845: the dispatched commit may be a verified prefix of main -- main moved
       // only by production-inert paths or migrations appended strictly after its
       // ledger, proven from local git; any other move or git failure refuses.
       const tip = io.mainSha?.()
       if (metadata.headSha !== tip && !(io.productionPrefixOk ?? productionPrefixOk)(metadata.headSha, tip)) throw new LaneError('production lane requires the exact current main SHA or a verified prefix of it')
       if (io.readRef(EXCLUSIVE_REFS.merge)) throw new LaneError(`a guarded merge is active; production promotion must wait; ${leaseHoldText('merge',io)}`)
+    } else if (kind === 'preview-maintenance') {
+      if(metadata.headSha!==io.mainSha?.())throw new LaneError('preview maintenance requires exact current main')
+      const pr=io.getPr?.(metadata.pr)
+      if(pr?.merged!==true||!pr.merge_commit_sha)throw new LaneError('preview maintenance requires a merged source PR')
+      assertMergeCommitInMainHistory(pr.merge_commit_sha,metadata.headSha,io)
+      if(typeof io.verifyMaintenanceClaim!=='function'||!metadata.maintenanceClaim)throw new LaneError('preview maintenance requires exact native claim proof')
+      io.verifyMaintenanceClaim(metadata.maintenanceClaim)
     } else if (kind === 'preview-rehearsal') {
       // POST-MERGE PREVIEW REHEARSAL -- the path that makes "merge first, then
       // rehearse on preview from merged main, then promote" executable. There is

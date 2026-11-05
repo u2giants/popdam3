@@ -680,6 +680,8 @@ def prove_preview_migration_contents(
 # silently fall behind.
 PREVIEW_PRODUCER_PATHS = (
     PREVIEW_WORKFLOW,
+    # Exact maintenance policy is runtime input to automatic preview selection.
+    "config/nontransactional-index-maintenance.json",
     "scripts/production_migration_guard.py",
     # Hash-bound verification declarations are read by the catalog verifier in
     # preview. Contents API directory responses are arrays, so pin each reviewed

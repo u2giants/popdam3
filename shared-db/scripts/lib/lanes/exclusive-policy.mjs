@@ -39,6 +39,7 @@ const PAIR_KIND_BY_EXCLUSIVE_KIND = Object.freeze({
   preview: 'preview',
   'preview-recovery': 'preview',
   'preview-rehearsal': 'preview',
+  'preview-maintenance': 'preview',
   merge: 'merge',
   production: 'production',
 })

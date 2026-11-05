@@ -161,3 +161,25 @@ describe("AI compatibility routing", () => {
     expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(true);
   });
 });
+
+it("recovers the original RGB PSD thumbnail after ordinary decoders reject damaged layers", async () => {
+  const sharp = (await import("sharp")).default;
+  const pixels = Buffer.alloc(32 * 24 * 3);
+  for (let i = 0; i < pixels.length; i++) pixels[i] = (i * 37 + Math.floor(i / 97)) % 256;
+  const jpeg = await sharp(pixels, { raw: { width: 32, height: 24, channels: 3 } }).jpeg().toBuffer();
+  const header = Buffer.alloc(26); header.write("8BPS"); header.writeUInt16BE(1, 4);
+  header.writeUInt16BE(3, 12); header.writeUInt32BE(1024, 14); header.writeUInt32BE(1024, 18);
+  header.writeUInt16BE(8, 22); header.writeUInt16BE(3, 24);
+  const preview = Buffer.alloc(28); preview.writeUInt32BE(1); preview.writeUInt32BE(32, 4);
+  preview.writeUInt32BE(24, 8); preview.writeUInt32BE(jpeg.length, 20); preview.writeUInt16BE(24, 24); preview.writeUInt16BE(1, 26);
+  const resource = Buffer.alloc(12); resource.write("8BIM"); resource.writeUInt16BE(1036, 4); resource.writeUInt32BE(28 + jpeg.length, 8);
+  const resources = Buffer.concat([resource, preview, jpeg, Buffer.alloc(jpeg.length % 2)]);
+  const length = Buffer.alloc(4); length.writeUInt32BE(resources.length);
+  const truncatedLayers = Buffer.alloc(4); truncatedLayers.writeUInt32BE(1_000_000_000);
+  const original = Buffer.concat([header, Buffer.alloc(4), length, resources, truncatedLayers]);
+  const source = path.join(directory, "damaged-layer-original.psd"); await writeFile(source, original);
+  const result = await renderFile(source, "psd");
+  expect([result.width, result.height]).toEqual([32, 24]);
+  expect(calls.some(call => call[0] === "fixture-imagemagick")).toBe(true);
+  expect(await readFile(source)).toEqual(original);
+});

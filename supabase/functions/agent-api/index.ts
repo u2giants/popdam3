@@ -49,6 +49,7 @@ import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts";
+import { writeWithRetry } from "../_shared/sg-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
@@ -1436,12 +1437,14 @@ async function handleUpdateAsset(body: Record<string, unknown>) {
   }
 
   const db = serviceClient();
-  const { error } = await db
-    .from("assets")
-    .update(updates)
-    .eq("id", assetId);
+  const saved = await writeWithRetry(() =>
+    db
+      .from("assets")
+      .update(updates)
+      .eq("id", assetId)
+  );
 
-  if (error) return err(error.message, 500);
+  if (!saved.ok) return err(saved.error.message, 500);
   return json({ ok: true, asset_id: assetId });
 }
 
