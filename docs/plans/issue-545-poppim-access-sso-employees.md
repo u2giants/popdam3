@@ -12,23 +12,29 @@ popcre/designflow-backend#250). This plan covers only what #545 still owes.
 
 | Step | State | Evidence / notes |
 |---|---|---|
-| 0. Record the reconciliation with the DesignFlow sole-writer contract on #250 and #545 | ⬜ open | |
-| 1. Re-measure live state (read-only): who lacks `pm`, revoked logins with live sessions, personal logins holding access | ⬜ open | |
-| 2. Grant `pm` to the employees hired since 2026-10-27 (production data write, gated) | ⬜ open | |
-| 3. shared-db: signup hook grants `pm` to Microsoft-SSO @popcre.com users | ⬜ open | claim-first on the existing shared-db lane; `shared-db-change` skill |
-| 4. Repeat sign-out of the revoked login `7f7699e8-…` if it has live sessions again | ⬜ open | covered by the 2026-10-27 owner authorization |
-| 5. Personal (non-SSO) logins that still hold app access: report; owner decides | ⬜ open | business question for Albert |
-| 6. Docs: `docs/AUTHENTICATION.md` provisioning text; access record for step 2 | ⬜ open | |
-| 7. Live proof + close #545 | ⬜ open | employee confirmation relayed by Albert |
+| 0. Reconcile the DesignFlow sole-writer contract | ✅ done 2026-11-04 | First-login bootstrap remains in the Auth hook; DesignFlow owns subsequent administration. [Delivery evidence](https://github.com/u2giants/popdam3/issues/545#issuecomment-6645690673). |
+| 1. Re-measure live state | ✅ rechecked 2026-11-04, 9:33 PM EST | Production: 28/28 active company Microsoft identities hold both apps; both revoked targets have zero sessions. |
+| 2. Grant the three newer hires PopPIM | ✅ done 2026-11-04 | `docs/access-records/2026-11-04-poppim-pm-three-sso-hires.md`; 28/28 independently rechecked. Do not repeat the grant. |
+| 3. First-login PopPIM default | ✅ live 2026-11-04 | popcre/shared-db#5587; live function independently checked: company domain + Azure provider, preserving prior revocations. Do not recreate the migration. |
+| 4. Repeat authorized sign-out | ✅ done; rechecked 2026-11-04 | Both original targets have zero sessions. Accounts remain intact and are not banned. |
+| 5. Review personal logins | ✅ done 2026-11-04 | Four active non-company identities are retained test accounts, per the delivery evidence above. No further blanket access decision is pending. |
+| 6. Provisioning docs and access record | ✅ done 2026-11-04 | Access record above and `docs/AUTHENTICATION.md` describe shared first-login defaults. |
+| 7. General access delivery / personal first-login proof | Partial | #545 is closed after production access verification. The remaining named employee's company login does not yet exist; personal first-sign-in and ordinary UI proof remain unverified. Keep that limitation on #545. |
 
-**Where a fresh session starts:** step 0 then step 1. Already DONE on this issue (do not
-redo): the 2026-10-27 `pm` grant to 24 SSO employees (record
-`docs/access-records/2026-10-27-poppim-pm-access-all-employees.md`, PR #558, `1549c634`);
-the forced sign-out of two revoked personal logins (2026-10-27 4:22 PM EDT); the
-per-user role picker (#566, PR #568); owner decisions 1–3 of 2026-10-27. Still OPEN per
-the 2026-11-04 scope comment: 3 newer hires lack `pm`; the signup hook still grants only
-`crm` + `dam`; one revoked login may reconnect; 4 personal logins still hold access;
-employee live proof.
+**Where a fresh session starts:** do not repeat steps 0–6. Check the latest comments
+on #545 before any action. The remaining company account was still absent at the
+9:33 PM EST production read; its first Microsoft sign-in is an external prerequisite.
+No additional production change is justified by the current evidence.
+
+The 9:33 PM EST recheck read production `qsllyeztdwjgirsysgai`, the deployed signup
+function, aggregate app grants, and the two revoked-session counts. It did not sign
+in as an employee. A read-only authenticated-role probe was refused by the available
+connection (`permission denied to set role "authenticated"`), so these are database
+state checks, not new ordinary-user search/filter proof.
+
+**Historical implementation detail below:** sections 3–12 preserve the original
+pre-delivery diagnosis and procedure. Their missing-grant/hook descriptions and
+open decisions are superseded by this STATUS; do not execute them again.
 
 ---
 
@@ -92,7 +98,7 @@ shared-db), the repeat sign-out if needed, the personal-login review, docs, live
 - `pm` for the two password-only @popcre.com staff (owner decision 2: no).
 - Retiring the PopDAM-local `public.*` axes (cutover plan §8 OPEN item).
 
-## 5. Current state (verified 2026-11-04 at `01fcfc34`, plus issue/live notes)
+## 5. Historical pre-delivery state (superseded by STATUS above)
 
 - Signup hook (`20261007171252…sql:109–162`): upserts `app.profile`; grants `crm` to
   everyone; grants `dam` when `lower(email) ~ '^[^@]+@popcre[.]com$'` (domain-only, no
@@ -171,7 +177,7 @@ shared-db), the repeat sign-out if needed, the personal-login review, docs, live
   `auth.users`, so existing users never re-trigger it — the 3 grants MUST be an explicit
   data write (step 2).
 
-## 9. The plan — ordered steps
+## 9. Original implementation procedure — completed steps must not be repeated
 
 ### Step 0 — Record the reconciliation (no code)
 - Post one signed comment on popcre/designflow-backend#250 and one on #545: "Signup

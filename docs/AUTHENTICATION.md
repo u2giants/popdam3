@@ -34,6 +34,15 @@ The shared backend also has its own trigger:
 
 - `on_auth_user_created` → `app.handle_new_auth_user()`
 
+This shared trigger creates the `app.profile` and grants `crm` at first signup.
+Company-domain accounts also receive `dam`; Microsoft/Azure accounts on that domain
+receive `pm` (PopPIM), delivered by `popcre/shared-db#5587` for #545. Each grant uses
+`on conflict do nothing`, preserving an existing revocation. These are first-login
+bootstrap defaults; DesignFlow remains the intended sole administrative writer of
+later role/access changes under the permissions-cutover plan. Linking Microsoft to
+an already-created password account does not rerun the signup trigger or grant
+PopPIM automatically. User-specific role selection remains separate.
+
 Do not reuse the generic `on_auth_user_created` trigger name for PopDAM. A shared CRM migration (`20260621162220_crm_auth_provision` in `/worksp/shared-db`) dropped/recreated that generic trigger and replaced PopDAM's profile/app-access provisioning. The PopDAM fix is migration `20260630173500_restore_popdam_auth_trigger.sql`, which adds the separate trigger name and backfills missing `public.profiles`, `public.user_roles`, and `public.app_access('popdam')` rows for managed SSO users.
 
 If Microsoft login shows `500: Database error granting user`, check Supabase Auth logs and Postgres logs for the exact wrapped error. On 2026-07-01 the actual cause was not the provisioning trigger; Postgres logged `duplicate key value violates unique constraint "refresh_tokens_pkey"`. The `auth.refresh_tokens_id_seq` sequence was behind `auth.refresh_tokens.max(id)` after the shared database import. The live repair and committed migration `20260701114000_repair_auth_refresh_token_sequence.sql` reset it with:
