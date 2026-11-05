@@ -33,11 +33,11 @@ declare
   v_failed boolean;
 begin
   v_job := 9;
-  insert into pg_temp.popsg_test_jobs values (v_job, 'refresh-style-guide-matviews', ' SELECT public.refresh_style_guide_matviews(); ', true, 'postgres', current_database(), '*/15 * * * *');
+  insert into pg_temp.popsg_test_jobs values (v_job, 'refresh-style-guide-matviews', ' SET LOCAL statement_timeout = ''10min''; SELECT public.refresh_style_guide_matviews_job(); ', true, 'postgres', current_database(), '*/15 * * * *');
   -- Isolate scheduler evidence only inside this rolled-back disposable test.
   delete from pg_temp.popsg_test_job_runs where jobid = v_job;
   update pg_temp.popsg_test_jobs set active = true, username = 'postgres', database = current_database(),
-    command = ' SELECT public.refresh_style_guide_matviews(); ' where jobid = v_job;
+    command = ' SET LOCAL statement_timeout = ''10min''; SELECT public.refresh_style_guide_matviews_job(); ' where jobid = v_job;
   insert into public.style_guide_crawl_runs (status, lifecycle_state, ingest_completed_at)
     values ('running', 'reconciling', clock_timestamp() - interval '1 minute') returning id into v_run;
   select ready, refreshed_at into v_ready, v_stamp from pg_temp.await_style_guide_matview_refresh(v_run);
@@ -76,7 +76,7 @@ begin
   insert into pg_temp.popsg_test_job_runs values (v_job, 20, 'running', clock_timestamp() - interval '1 minute', null);
   select ready into v_ready from pg_temp.await_style_guide_matview_refresh(v_expired);
   if v_ready then raise exception 'Hourly in-flight work was falsely completed'; end if;
-  update public.style_guide_crawl_runs set refresh_started_at = clock_timestamp() - interval '68 minutes' where id = v_expired;
+  update public.style_guide_crawl_runs set refresh_started_at = clock_timestamp() - interval '76 minutes' where id = v_expired;
   v_failed := false;
   begin perform pg_temp.await_style_guide_matview_refresh(v_expired);
   exception when raise_exception then v_failed := true; end;
@@ -95,7 +95,7 @@ begin
     values (v_job, 2, 'running', clock_timestamp() - interval '1 minute', null);
   select ready into v_ready from pg_temp.await_style_guide_matview_refresh(v_expired);
   if v_ready then raise exception 'In-flight work was falsely completed'; end if;
-  update public.style_guide_crawl_runs set refresh_started_at = clock_timestamp() - interval '23 minutes' where id = v_expired;
+  update public.style_guide_crawl_runs set refresh_started_at = clock_timestamp() - interval '31 minutes' where id = v_expired;
   v_failed := false;
   begin perform pg_temp.await_style_guide_matview_refresh(v_expired);
   exception when raise_exception then v_failed := true; end;
@@ -105,7 +105,7 @@ begin
     values (v_job, 3, 'succeeded', v_start, v_start - interval '1 second');
   select ready into v_ready from pg_temp.await_style_guide_matview_refresh(v_run);
   if v_ready then raise exception 'Anomalous scheduler chronology was accepted'; end if;
-  update pg_temp.popsg_test_jobs set command = 'select public.refresh_style_guide_matviews()' where jobid = v_job;
+  update pg_temp.popsg_test_jobs set command = 'set local statement_timeout = ''10min''; select public.refresh_style_guide_matviews_job()' where jobid = v_job;
   select ready into v_ready from pg_temp.await_style_guide_matview_refresh(v_run);
   if v_ready then raise exception 'Pending lowercase/semicolon-free command was falsely completed'; end if;
 
