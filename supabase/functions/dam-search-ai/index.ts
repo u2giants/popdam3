@@ -168,252 +168,260 @@ async function embedQueryText(input: string): Promise<number[] | null> {
   return attempt();
 }
 
-corsServe((req) => withSearchRequestBudget(req, async (requestSignal) => {
-  if (req.method !== "POST") return err("Method not allowed", 405);
+corsServe((req) =>
+  withSearchRequestBudget(req, async (requestSignal) => {
+    if (req.method !== "POST") return err("Method not allowed", 405);
 
-  const auth = await authenticateCaller(req);
-  if (!auth) return err("Unauthorized", 401);
+    const auth = await authenticateCaller(req);
+    if (!auth) return err("Unauthorized", 401);
 
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const action = typeof body.action === "string" ? body.action : "search";
+    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const action = typeof body.action === "string" ? body.action : "search";
 
-  if (action === "search-modes") {
-    if (auth.serviceRole) return err("A user session is required", 403);
-    try {
-      const dam = await loadDamSearchMode(
-        auth.client,
-        () => serviceClient().from("admin_config").select("value").eq("key", "SEARCH_MODE").maybeSingle(),
-      );
-      return json({ ok: true, modes: { dam } });
-    } catch (error) {
-      return err("Search mode unavailable", searchAccessStatus(error) ?? 503);
+    if (action === "search-modes") {
+      if (auth.serviceRole) return err("A user session is required", 403);
+      try {
+        const dam = await loadDamSearchMode(
+          auth.client,
+          () => serviceClient().from("admin_config").select("value").eq("key", "SEARCH_MODE").maybeSingle(),
+        );
+        return json({ ok: true, modes: { dam } });
+      } catch (error) {
+        return err("Search mode unavailable", searchAccessStatus(error) ?? 503);
+      }
     }
-  }
 
-  if (action === "popsg-query-embedding") {
-    // PopSG users need not have DAM access, so this stays apart from search-modes.
-    // search_style_guide_library_v2 enforces its own access; this only reads
-    // the two search switches and embeds the words the caller typed.
-    if (auth.serviceRole) return err("A user session is required", 403);
-    const { data, error } = await serviceClient().from("admin_config").select("key, value")
-      .in("key", ["POPSG_SEARCH_MODE", "POPSG_SEARCH_MIN_SEMANTIC_SCORE"]);
-    if (error) return err("Search mode unavailable", 503);
-    const stored = (key: string) => data?.find((row) => row.key === key)?.value;
-    const mode = unwrapConfigValue(stored("POPSG_SEARCH_MODE")) === "hybrid" ? "hybrid" : "keyword";
-    const query = typeof body.query === "string" ? body.query.trim() : "";
-    let semantic;
-    try {
-      semantic = await getPopSGQueryEmbedding(
+    if (action === "popsg-query-embedding") {
+      // PopSG users need not have DAM access, so this stays apart from search-modes.
+      // search_style_guide_library_v2 enforces its own access; this only reads
+      // the two search switches and embeds the words the caller typed.
+      if (auth.serviceRole) return err("A user session is required", 403);
+      const { data, error } = await serviceClient().from("admin_config").select("key, value")
+        .in("key", ["POPSG_SEARCH_MODE", "POPSG_SEARCH_MIN_SEMANTIC_SCORE"]);
+      if (error) return err("Search mode unavailable", 503);
+      const stored = (key: string) => data?.find((row) => row.key === key)?.value;
+      const mode = unwrapConfigValue(stored("POPSG_SEARCH_MODE")) === "hybrid" ? "hybrid" : "keyword";
+      const query = typeof body.query === "string" ? body.query.trim() : "";
+      let semantic;
+      try {
+        semantic = await getPopSGQueryEmbedding(
+          mode,
+          query,
+          async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+          embedQueryText,
+        );
+      } catch {
+        return err("Search unavailable. Please try again.", 503);
+      }
+      return json({
+        ok: true,
         mode,
+        ...semantic,
+        min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
+      });
+    }
+
+    if (action === "embed-batch") {
+      return err("embed-batch was retired; document picture vectors come from the GPU image pipeline", 410);
+    }
+
+    if (action === "embed-leased") {
+      // Document embeddings are picture vectors from thumbnails (SigLIP2 image
+      // tower on the GPU runner), not text vectors of search_text. Writing text
+      // vectors here would mix modalities and break ranking.
+      return err(
+        "embed-leased was retired for picture vectors; run the SigLIP2 GPU image re-embed instead",
+        410,
+      );
+    }
+
+    if (action === "embedding-status") {
+      if (!auth.admin) return err("Admin authorization required", 403);
+      const db = serviceClient();
+      const { data, error } = await db.rpc("get_dam_search_embedding_status");
+      if (error) throw error;
+      return json({ ok: true, status: data });
+    }
+
+    if (action === "reset-embedding-errors") {
+      if (!auth.admin) return err("Admin authorization required", 403);
+      const { data, error } = await serviceClient().rpc("reset_dam_search_embedding_errors", {
+        p_document_type: typeof body.document_type === "string" ? body.document_type : null,
+        p_entity_ids: null,
+      });
+      if (error) throw error;
+      return json({ ok: true, reset: data });
+    }
+
+    if (action === "search") {
+      const query = typeof body.query === "string" ? body.query.trim() : "";
+      if (!query) return err("Missing query", 400);
+      const limit = Math.min(200, Math.max(1, Math.trunc(Number(body.limit) || 50)));
+      const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
+      const minRank = Number.isFinite(Number(body.min_rank)) ? Math.min(1, Math.max(0, Number(body.min_rank))) : 0;
+      const documentTypes = Array.isArray(body.document_types)
+        ? body.document_types.filter((v): v is "asset" | "style_group" => v === "asset" || v === "style_group")
+        : null;
+      if (Array.isArray(body.document_types) && documentTypes?.length !== body.document_types.length) {
+        return err("Invalid document_types", 400);
+      }
+      const filters = body.filters === undefined || body.filters === null ? {} : body.filters;
+      if (typeof filters !== "object" || Array.isArray(filters)) {
+        return err("Invalid filters", 400);
+      }
+      // A real product code, whole or its start, has no visual meaning: its picture leg only returns
+      // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
+      const productCodeSearch = await isProductCodeSearch(
         query,
         async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
-        embedQueryText,
       );
-    } catch {
-      return err("Search unavailable. Please try again.", 503);
-    }
-    return json({
-      ok: true,
-      mode,
-      ...semantic,
-      min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
-    });
-  }
-
-  if (action === "embed-batch") {
-    return err("embed-batch was retired; document picture vectors come from the GPU image pipeline", 410);
-  }
-
-  if (action === "embed-leased") {
-    // Document embeddings are picture vectors from thumbnails (SigLIP2 image
-    // tower on the GPU runner), not text vectors of search_text. Writing text
-    // vectors here would mix modalities and break ranking.
-    return err(
-      "embed-leased was retired for picture vectors; run the SigLIP2 GPU image re-embed instead",
-      410,
-    );
-  }
-
-  if (action === "embedding-status") {
-    if (!auth.admin) return err("Admin authorization required", 403);
-    const db = serviceClient();
-    const { data, error } = await db.rpc("get_dam_search_embedding_status");
-    if (error) throw error;
-    return json({ ok: true, status: data });
-  }
-
-  if (action === "reset-embedding-errors") {
-    if (!auth.admin) return err("Admin authorization required", 403);
-    const { data, error } = await serviceClient().rpc("reset_dam_search_embedding_errors", {
-      p_document_type: typeof body.document_type === "string" ? body.document_type : null,
-      p_entity_ids: null,
-    });
-    if (error) throw error;
-    return json({ ok: true, reset: data });
-  }
-
-  if (action === "search") {
-    const query = typeof body.query === "string" ? body.query.trim() : "";
-    if (!query) return err("Missing query", 400);
-    const limit = Math.min(200, Math.max(1, Math.trunc(Number(body.limit) || 50)));
-    const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
-    const minRank = Number.isFinite(Number(body.min_rank)) ? Math.min(1, Math.max(0, Number(body.min_rank))) : 0;
-    const documentTypes = Array.isArray(body.document_types)
-      ? body.document_types.filter((v): v is "asset" | "style_group" => v === "asset" || v === "style_group")
-      : null;
-    if (Array.isArray(body.document_types) && documentTypes?.length !== body.document_types.length) {
-      return err("Invalid document_types", 400);
-    }
-    const filters = body.filters === undefined || body.filters === null ? {} : body.filters;
-    if (typeof filters !== "object" || Array.isArray(filters)) {
-      return err("Invalid filters", 400);
-    }
-    // A real product code, whole or its start, has no visual meaning: its picture leg only returns
-    // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
-    const productCodeSearch = await isProductCodeSearch(
-      query,
-      async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
-    );
-    let unknownCatalogFormat = false;
-    try {
-      if (!productCodeSearch) {
-        unknownCatalogFormat = await hasCatalogCodeFormat(query, (format, signal) =>
-          serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal), requestSignal);
-      }
-    } catch {
-      return err("Search unavailable", 503);
-    }
-    const spelling = productCodeSearch || unknownCatalogFormat
-      ? { corrected: null, meaningful: true }
-      : await checkSpelling(query, spellingLookup);
-    const usePictures = !productCodeSearch && spelling.meaningful;
-    const [embedding, floorConfig] = await Promise.all([
-      usePictures ? embedQueryText(query) : Promise.resolve(null),
-      // Server-side only: callers cannot override the admin-configured floor.
-      serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
-    ]);
-    // Fail open: a config read failure must not take search down; it only
-    // drops the optional floor for this request.
-    if (floorConfig.error) console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
-    const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
-    if (usePictures && !embedding) return err("Search unavailable", 503);
-
-    // The caller-scoped client is required here: the RPC enforces DAM access
-    // from auth.uid(), which a service-role client would bypass.
-    // A required embedding failure must remain unavailable, never a partial keyword answer.
-    // Product-type phrases ("floor covering") also run as catalog nouns
-    // ("mat", "rug") so compound queries do not drop real mats.
-    // Keyword-only variants skip the picture leg (no embedding).
-    const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
-      .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
-    const queryVariants = expanded.map((v) => v.query);
-    const variantEmbeddings = new Map<string, number[] | null>();
-    await Promise.all(
-      expanded.map(async ({ query: variant, semantic }) => {
-        variantEmbeddings.set(variant, !semantic || !usePictures ? null : variant === query ? embedding : await embedQueryText(variant));
-      }),
-    );
-
-    if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {
-      return err("Search unavailable", 503);
-    }
-
-    // One immediate retry per RPC call: statement timeouts under load are
-    // transient. After the retry, ANY failed variant fails the whole search —
-    // merging only the variants that happened to survive produced silently
-    // different result sets between refreshes ("13 groups" vs "140+").
-    const callSearch = async (variant: string) => {
-      const variantEmbedding = variantEmbeddings.get(variant) ?? null;
-      // Keep only picture matches near this query's best one. When the semantic
-      // leg is active the anchor is REQUIRED: failing open to no floor floods
-      // the result set with weak picture matches (measured live: 288 groups for
-      // "spiderman coir"), so an anchor that fails twice fails the search.
-      let bestSemanticScore: number | null = null;
-      let anchorError: unknown = null;
-      if (variantEmbedding) {
-        const anchorCall = () =>
-          auth.client.rpc("dam_search_semantic_anchor", {
-            p_query_embedding: variantEmbedding,
-            p_document_types: documentTypes,
-          });
-        let anchor = await anchorCall();
-        if (anchor.error) {
-          console.error("dam_search_semantic_anchor failed; retrying once", anchor.error.message);
-          anchor = await anchorCall();
+      let unknownCatalogFormat = false;
+      try {
+        if (!productCodeSearch) {
+          unknownCatalogFormat = await hasCatalogCodeFormat(query, (format, signal) =>
+            serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal), requestSignal);
         }
-        if (anchor.error) anchorError = anchor.error;
-        else if (typeof anchor.data !== "number") anchorError = new Error("dam_search_semantic_anchor returned no score");
-        else bestSemanticScore = anchor.data;
+      } catch {
+        return err("Search unavailable", 503);
       }
-      if (anchorError !== null) return { data: null, error: anchorError };
-      const floor = effectiveSemanticFloor(minSemanticScore, bestSemanticScore);
-      const invoke = () =>
-        auth.client.rpc("search_dam_documents", {
-          p_query: variant,
-          p_filters: filters,
-          p_limit: limit,
-          p_offset: offset,
-          p_document_types: documentTypes,
-          p_query_embedding: variantEmbedding,
-          p_min_rank: minRank,
-          p_min_semantic_score: floor,
-        });
-      let { data, error } = await invoke();
-      if (error) {
-        console.error(`search_dam_documents variant "${variant}" failed; retrying once`, error.message);
-        ({ data, error } = await invoke());
+      const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
+      const usePictures = !productCodeSearch && spelling.meaningful;
+      const [embedding, floorConfig] = await Promise.all([
+        usePictures ? embedQueryText(query) : Promise.resolve(null),
+        // Server-side only: callers cannot override the admin-configured floor.
+        serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
+      ]);
+      // Fail open: a config read failure must not take search down; it only
+      // drops the optional floor for this request.
+      if (floorConfig.error) {
+        console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
       }
-      return { data, error };
-    };
+      const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
+      if (usePictures && !embedding) {
+        return err("Search unavailable", 503);
+      }
 
-    const variantResults = await Promise.all(
-      queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) })),
-    );
-    const failed = variantResults.find(({ result }) => result.error);
-    if (failed) {
-      // Fail loud: a partial merge is a wrong answer, not a degraded one.
-      return err("Search unavailable", searchAccessStatus(failed.result.error) ?? 503);
+      // The caller-scoped client is required here: the RPC enforces DAM access
+      // from auth.uid(), which a service-role client would bypass.
+      // A required embedding failure must remain unavailable, never a partial keyword answer.
+      // Product-type phrases ("floor covering") also run as catalog nouns
+      // ("mat", "rug") so compound queries do not drop real mats.
+      // Keyword-only variants skip the picture leg (no embedding).
+      const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
+        .filter((variant, index, all) =>
+          all.findIndex((other) =>
+            other.query === variant.query
+          ) === index
+        );
+      const queryVariants = expanded.map((v) => v.query);
+      const variantEmbeddings = new Map<string, number[] | null>();
+      await Promise.all(
+        expanded.map(async ({ query: variant, semantic }) => {
+          variantEmbeddings.set(variant, !semantic || !usePictures ? null : variant === query ? embedding : await embedQueryText(variant));
+        }),
+      );
+
+      if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {
+        return err("Search unavailable", 503);
+      }
+
+      // One immediate retry per RPC call: statement timeouts under load are
+      // transient. After the retry, ANY failed variant fails the whole search —
+      // merging only the variants that happened to survive produced silently
+      // different result sets between refreshes ("13 groups" vs "140+").
+      const callSearch = async (variant: string) => {
+        const variantEmbedding = variantEmbeddings.get(variant) ?? null;
+        // Keep only picture matches near this query's best one. When the semantic
+        // leg is active the anchor is REQUIRED: failing open to no floor floods
+        // the result set with weak picture matches (measured live: 288 groups for
+        // "spiderman coir"), so an anchor that fails twice fails the search.
+        let bestSemanticScore: number | null = null;
+        let anchorError: unknown = null;
+        if (variantEmbedding) {
+          const anchorCall = () =>
+            auth.client.rpc("dam_search_semantic_anchor", {
+              p_query_embedding: variantEmbedding,
+              p_document_types: documentTypes,
+            });
+          let anchor = await anchorCall();
+          if (anchor.error) {
+            console.error("dam_search_semantic_anchor failed; retrying once", anchor.error.message);
+            anchor = await anchorCall();
+          }
+          if (anchor.error) anchorError = anchor.error;
+          else if (typeof anchor.data !== "number") anchorError = new Error("dam_search_semantic_anchor returned no score");
+          else bestSemanticScore = anchor.data;
+        }
+        if (anchorError !== null) return { data: null, error: anchorError };
+        const floor = effectiveSemanticFloor(minSemanticScore, bestSemanticScore);
+        const invoke = () =>
+          auth.client.rpc("search_dam_documents", {
+            p_query: variant,
+            p_filters: filters,
+            p_limit: limit,
+            p_offset: offset,
+            p_document_types: documentTypes,
+            p_query_embedding: variantEmbedding,
+            p_min_rank: minRank,
+            p_min_semantic_score: floor,
+          });
+        let { data, error } = await invoke();
+        if (error) {
+          console.error(`search_dam_documents variant "${variant}" failed; retrying once`, error.message);
+          ({ data, error } = await invoke());
+        }
+        return { data, error };
+      };
+
+      const variantResults = await Promise.all(
+        queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) })),
+      );
+      const failed = variantResults.find(({ result }) => result.error);
+      if (failed) {
+        // Fail loud: a partial merge is a wrong answer, not a degraded one.
+        return err("Search unavailable", searchAccessStatus(failed.result.error) ?? 503);
+      }
+
+      const pages: SearchPage[] = variantResults.map(({ result }) => {
+        const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+        const results: SearchHit[] = rows
+          .filter((row) => typeof row.entity_id === "string" && row.entity_id)
+          .map((row) => ({
+            document_type: String(row.document_type ?? ""),
+            entity_id: String(row.entity_id),
+            asset_id: (row.asset_id as string | null) ?? null,
+            style_group_id: (row.style_group_id as string | null) ?? null,
+            keyword_rank: (row.keyword_rank as number | null) ?? null,
+            semantic_rank: (row.semantic_rank as number | null) ?? null,
+            rank: Number(row.rank ?? 0),
+          }));
+        const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
+        return {
+          results,
+          total_count: typeof first?.total_count === "number" ? first.total_count : 0,
+          has_more: first?.has_more === true,
+          facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
+        } satisfies SearchPage;
+      });
+      const merged = mergeSearchPages(pages);
+      return json({
+        ok: true,
+        results: merged.results,
+        total_count: merged.total_count,
+        has_more: merged.has_more,
+        facets: merged.facets,
+        semantic: embedding ? "siglip2" : "skipped",
+        corrected_query: spelling.corrected,
+      });
     }
 
-    const pages: SearchPage[] = variantResults.map(({ result }) => {
-      const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
-      const results: SearchHit[] = rows
-        .filter((row) => typeof row.entity_id === "string" && row.entity_id)
-        .map((row) => ({
-          document_type: String(row.document_type ?? ""),
-          entity_id: String(row.entity_id),
-          asset_id: (row.asset_id as string | null) ?? null,
-          style_group_id: (row.style_group_id as string | null) ?? null,
-          keyword_rank: (row.keyword_rank as number | null) ?? null,
-          semantic_rank: (row.semantic_rank as number | null) ?? null,
-          rank: Number(row.rank ?? 0),
-        }));
-      const first = rows.find((row) => row.total_count !== undefined && row.total_count !== null) ?? rows[0] ?? null;
-      return {
-        results,
-        total_count: typeof first?.total_count === "number" ? first.total_count : 0,
-        has_more: first?.has_more === true,
-        facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
-      } satisfies SearchPage;
-    });
-    const merged = mergeSearchPages(pages);
-    return json({
-      ok: true,
-      results: merged.results,
-      total_count: merged.total_count,
-      has_more: merged.has_more,
-      facets: merged.facets,
-      semantic: embedding ? "siglip2" : "skipped",
-      corrected_query: spelling.corrected,
-    });
-  }
+    // PopSG runs its own library search but shares this spelling help.
+    if (action === "spelling") {
+      const query = typeof body.query === "string" ? body.query.trim() : "";
+      if (!query) return err("Missing query", 400);
+      return json({ ok: true, ...(await checkSpelling(query, spellingLookup)) });
+    }
 
-  // PopSG runs its own library search but shares this spelling help.
-  if (action === "spelling") {
-    const query = typeof body.query === "string" ? body.query.trim() : "";
-    if (!query) return err("Missing query", 400);
-    return json({ ok: true, ...(await checkSpelling(query, spellingLookup)) });
-  }
-
-  return err(`Unknown action: ${action}`, 404);
-}));
+    return err(`Unknown action: ${action}`, 404);
+  })
+);

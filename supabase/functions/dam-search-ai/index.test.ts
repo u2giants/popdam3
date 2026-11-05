@@ -126,7 +126,8 @@ describe("DAM search embedding availability", () => {
 
   it("keeps known full codes and prefixes keyword-only without probing formats", async () => {
     state.productCode = true;
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     for (const query of ["VDD83MVSP01", "VDD83"]) expect((await search(query)).status).toBe(200);
     expect(state.formatRpc).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
@@ -134,7 +135,8 @@ describe("DAM search embedding availability", () => {
 
   it("does not turn unsupported alternating nonsense into a picture query", async () => {
     state.meaningful = false;
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     expect((await search("x7q9v2n8")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledOnce();
     expect(fetch).not.toHaveBeenCalled();
@@ -144,46 +146,60 @@ describe("DAM search embedding availability", () => {
   for (const result of [{ data: null, error: { message: "unavailable" } }, { data: null, error: null }, { data: "false", error: null }]) {
     it("returns unavailable before provider or downstream search when the required hint fails", async () => {
       state.formatRpc.mockResolvedValue(result);
-      const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
       const response = await search("ZZZ83MVSP99");
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: "Search unavailable" });
-      expect(fetch).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(state.rpc).not.toHaveBeenCalled();
     });
   }
 
   it("cancels a pending hint when the actual Request is aborted and starts no downstream work", async () => {
     let begun!: () => void;
-    const pending = new Promise<void>(resolve => { begun = resolve; });
+    const pending = new Promise<void>((resolve) => {
+      begun = resolve;
+    });
     let readerSignal!: AbortSignal;
-    state.formatRpc.mockImplementation((_name, _args, signal) => { readerSignal = signal; begun(); return new Promise(() => {}); });
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    state.formatRpc.mockImplementation((_name, _args, signal) => {
+      readerSignal = signal;
+      begun();
+      return new Promise(() => {});
+    });
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const controller = new AbortController();
     const response = search("ZZZ83MVSP99", controller.signal);
-    await pending; controller.abort();
+    await pending;
+    controller.abort();
     expect((await response).status).toBe(503);
     expect(readerSignal.aborted).toBe(true);
-    expect(fetch).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 
   it("returns unavailable at the1000ms hint deadline before any provider or downstream call", async () => {
     vi.useFakeTimers();
     state.formatRpc.mockImplementation(() => new Promise(() => {}));
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const response = search("ZZZ83MVSP99");
     await vi.advanceTimersByTimeAsync(999);
     expect(state.formatRpc).toHaveBeenCalledOnce();
     expect(state.formatRpc.mock.calls[0][2].aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect((await response).status).toBe(503);
-    expect(fetch).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 
   it("a late authenticated request retains only its original remaining30s budget", async () => {
     vi.useFakeTimers();
-    state.authenticate.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ ok: true, via: "user", userId: "viewer" }), 29_700)));
+    state.authenticate.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true, via: "user", userId: "viewer" }), 29_700)));
     state.formatRpc.mockImplementation(() => new Promise(() => {}));
-    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const response = search("ZZZ83MVSP99");
     await vi.advanceTimersByTimeAsync(29_999);
     expect(state.formatRpc).toHaveBeenCalledOnce();
@@ -191,7 +207,8 @@ describe("DAM search embedding availability", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect((await response).status).toBe(503);
     expect(state.formatRpc.mock.calls[0][2].aborted).toBe(true);
-    expect(fetch).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 
   for (const scope of ["asset", "style_group"]) {
@@ -200,7 +217,10 @@ describe("DAM search embedding availability", () => {
       state.formatRpc.mockResolvedValue({ data: true, error: null });
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
       expect((await search("ZZZ83MVSP99", undefined, [scope])).status).toBe(200);
-      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_document_types: [scope], p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }));
+      expect(state.rpc).toHaveBeenCalledWith(
+        "search_dam_documents",
+        expect.objectContaining({ p_document_types: [scope], p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }),
+      );
     });
   }
 
@@ -211,5 +231,4 @@ describe("DAM search embedding availability", () => {
     expect((await search("ZZZ83MVSP99")).status).toBe(403);
     expect(state.rpc).not.toHaveBeenCalledWith("dam_catalog_code_format_exists", expect.anything());
   });
-
 });

@@ -9,7 +9,10 @@ export function completeCatalogCodeFormat(query: string): string | null {
   return code.replace(/[A-Za-z]/g, "A").replace(/[0-9]/g, "9");
 }
 
-export interface CatalogCodeFormatReply { data: unknown; error: unknown }
+export interface CatalogCodeFormatReply {
+  data: unknown;
+  error: unknown;
+}
 export type CatalogCodeFormatReader = (format: string, signal: AbortSignal) => PromiseLike<CatalogCodeFormatReply>;
 
 /** Required hint reads fail loudly; an unavailable catalog is never false. */
