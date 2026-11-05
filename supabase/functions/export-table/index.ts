@@ -8,7 +8,7 @@ import { createClient } from "../_shared/supabase-js.ts";
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
-import { tableSource, orderedTableSource } from "../_shared/export-tables.ts";
+import { orderedTableSource, tableSource } from "../_shared/export-tables.ts";
 
 const ALLOWED_TABLES = [
   "assets",

@@ -23,7 +23,7 @@ import { exportRange } from "../_shared/export-pagination.ts";
 import { createClient } from "../_shared/supabase-js.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
-import { tableSource, orderedTableSource } from "../_shared/export-tables.ts";
+import { orderedTableSource, tableSource } from "../_shared/export-tables.ts";
 
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
