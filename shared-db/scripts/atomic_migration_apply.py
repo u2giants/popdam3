@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply one exceptional migration and its Supabase ledger row atomically.
+"""Apply explicitly pinned migrations, each with its ledger row atomically.
 
 The normal migration lane remains Supabase CLI. This tool is fail-closed and only
 accepts an exact version+SHA256 entry in config/atomic-migration-allowlist.json.
@@ -73,13 +73,15 @@ def read_policy() -> dict[str, dict[str, object]]:
         validate_version(version)
         if not isinstance(entry, dict):
             raise Refusal(f"atomic policy entry {version} is not an object")
+        if "batch_group" in entry and (not isinstance(entry["batch_group"], str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", entry["batch_group"])):
+            raise Refusal(f"atomic policy batch group is invalid for {version}")
         if "strip_outer_transaction" in entry and not isinstance(entry["strip_outer_transaction"], bool):
             raise Refusal(f"atomic policy transaction flag is invalid for {version}")
     return migrations
 
 
 def classify_allowlist(raw: str, target: str | None = None) -> str:
-    """Return the sole atomic version, or an empty string for the normal CLI lane."""
+    """Return sorted explicitly grouped versions, or empty for the normal CLI lane."""
     items = raw.split(",")
     if not items or any(not item.strip() for item in items):
         raise Refusal("allowlist contains an empty or malformed entry")
@@ -89,14 +91,18 @@ def classify_allowlist(raw: str, target: str | None = None) -> str:
     policy = read_policy()
     eligible = {version for version, entry in policy.items()
                 if target is None or target in entry.get("targets", [])}
-    atomic = sorted(set(versions) & eligible)
-    if not atomic:
+    if len(versions) != len(set(versions)):
+        raise Refusal("allowlist contains duplicate versions")
+    opted = set(versions) & set(policy)
+    if not opted:
         return ""
-    if len(versions) != 1 or len(atomic) != 1:
-        raise Refusal(
-            "an atomically authorized migration must be the only allowlisted version"
-        )
-    return atomic[0]
+    if opted != set(versions) or not opted <= eligible:
+        raise Refusal("atomic allowlist mixes unpinned or unauthorized target versions")
+    if len(versions) > 1:
+        groups = {policy[v].get("batch_group") for v in versions}
+        if len(groups) != 1 or None in groups or not next(iter(groups)):
+            raise Refusal("an atomically authorized migration must be the only allowlisted version unless all share an explicit batch group")
+    return ",".join(sorted(versions))
 
 
 def validate_policy_bindings(migrations_dir: Path) -> None:
@@ -520,6 +526,7 @@ def main() -> int:
     parser.add_argument("--classify-allowlist")
     parser.add_argument("--linked-dir", type=Path)
     parser.add_argument("--version")
+    parser.add_argument("--versions")
     parser.add_argument("--target", choices=["preview", "production"])
     parser.add_argument("--expected-project-ref")
     parser.add_argument("--mode", choices=["check", "apply"])
@@ -532,7 +539,7 @@ def main() -> int:
             flag
             for flag, value in (
                 ("--linked-dir", args.linked_dir),
-                ("--version", args.version),
+                ("--version or --versions", args.version or args.versions),
                 ("--target", args.target),
                 ("--expected-project-ref", args.expected_project_ref),
                 ("--mode", args.mode),
@@ -541,38 +548,47 @@ def main() -> int:
         ]
         if missing:
             raise Refusal("missing required apply arguments: " + ", ".join(missing))
-        validate_version(args.version)
-        path, name, raw, statements = load_candidate(args.migrations_dir, args.version, args.target)
+        if args.version and args.versions:
+            raise Refusal("name --version OR --versions")
+        requested = args.versions or args.version
+        classified = classify_allowlist(requested, args.target)
+        if not classified:
+            raise Refusal("requested versions are not atomically authorized")
+        versions = classified.split(",")
+        # Validate every byte, target and ledger before the first mutation.
+        candidates = [(version, *load_candidate(args.migrations_dir, version, args.target)) for version in versions]
         url, env = linked_connection(args.linked_dir, args.expected_project_ref)
-        validate_remote(url, env, args.version)
-        print(f"ATOMIC PREFLIGHT OK: target={args.target} version={args.version} sha256={hashlib.sha256(path.read_bytes()).hexdigest()} statements={len(statements)}")
+        for version, path, name, raw, statements in candidates:
+            validate_remote(url, env, version)
+            print(f"ATOMIC PREFLIGHT OK: target={args.target} version={version} sha256={hashlib.sha256(canonical_migration_bytes(path)).hexdigest()} statements={len(statements)}")
         if args.mode == "check":
             return 0
-        wrapper = build_wrapper(args.version, name, raw, statements)
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".sql", delete=False) as handle:
-            handle.write(wrapper)
-            temp_name = handle.name
-        try:
-            result = subprocess.run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", temp_name], env=env, text=True, capture_output=True)
-            if result.returncode:
-                raise Refusal(
-                    "atomic apply failed; PostgreSQL rolled back DDL and ledger together:\n"
-                    + redact_psql_error(result.stderr or "", url, env)
-                )
-        finally:
-            Path(temp_name).unlink(missing_ok=True)
-        verify = psql(
-            url,
-            env,
-            "select count(*)||'|'||coalesce(max(cardinality(statements)),-1)||'|'||"
-            "coalesce(max(name),'') from supabase_migrations.schema_migrations where version='"
-            + args.version
-            + "';\n",
-        )
-        expected = f"1|{len(statements)}|{name}"
-        if verify != expected:
-            raise Refusal("post-commit ledger verification failed")
-        print(f"ATOMIC APPLY OK: target={args.target} version={args.version} ledger_row=1 statements={len(statements)}")
+        for version, path, name, raw, statements in candidates:
+            wrapper = build_wrapper(version, name, raw, statements)
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".sql", delete=False) as handle:
+                handle.write(wrapper)
+                temp_name = handle.name
+            try:
+                result = subprocess.run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", temp_name], env=env, text=True, capture_output=True)
+                if result.returncode:
+                    raise Refusal(
+                        "atomic apply failed; PostgreSQL rolled back DDL and ledger together:\n"
+                        + redact_psql_error(result.stderr or "", url, env)
+                    )
+            finally:
+                Path(temp_name).unlink(missing_ok=True)
+            verify = psql(
+                url,
+                env,
+                "select count(*)||'|'||coalesce(max(cardinality(statements)),-1)||'|'||"
+                "coalesce(max(name),'') from supabase_migrations.schema_migrations where version='"
+                + version
+                + "';\n",
+            )
+            expected = f"1|{len(statements)}|{name}"
+            if verify != expected:
+                raise Refusal("post-commit ledger verification failed")
+            print(f"ATOMIC APPLY OK: target={args.target} version={version} ledger_row=1 statements={len(statements)}")
         return 0
     except Refusal as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)

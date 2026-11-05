@@ -199,7 +199,11 @@ class AtomicMigrationApplyTests(unittest.TestCase):
                 for target in ("preview", "production"):
                     with self.subTest(target=target, targets=targets):
                         expected = "29990101000000" if target in targets else ""
-                        self.assertEqual(atomic.classify_allowlist("29990101000000", target), expected)
+                        if expected:
+                            self.assertEqual(atomic.classify_allowlist("29990101000000", target), expected)
+                        else:
+                            with self.assertRaises(atomic.Refusal):
+                                atomic.classify_allowlist("29990101000000", target)
                         if expected:
                             for raw in ("29990101000000,29990101000001", "29990101000000,29990101000000"):
                                 with self.assertRaises(atomic.Refusal):
@@ -209,6 +213,26 @@ class AtomicMigrationApplyTests(unittest.TestCase):
                                 atomic.classify_allowlist(raw, target)
                 with self.assertRaises(atomic.Refusal):
                     atomic.classify_allowlist("29990101000000", "other")
+
+    def test_explicit_batch_is_sorted_and_mixed_unpinned_target_duplicate_refused(self):
+        _, policy = self.authorize()
+        value = json.loads(policy.read_text())
+        first = value["migrations"]["29990101000000"]
+        first["batch_group"] = "health"
+        value["migrations"]["29990101000001"] = dict(first)
+        policy.write_text(json.dumps(value))
+        with patch.object(atomic, "POLICY", policy):
+            self.assertEqual(atomic.classify_allowlist("29990101000001,29990101000000", "preview"),
+                             "29990101000000,29990101000001")
+            for raw in ("29990101000000,29990101000000", "29990101000000,29990101000002"):
+                with self.assertRaises(atomic.Refusal):
+                    atomic.classify_allowlist(raw, "preview")
+            with self.assertRaises(atomic.Refusal):
+                atomic.classify_allowlist("29990101000000,29990101000001", "production")
+            value["migrations"]["29990101000001"]["batch_group"] = "other"
+            policy.write_text(json.dumps(value))
+            with self.assertRaises(atomic.Refusal):
+                atomic.classify_allowlist("29990101000000,29990101000001", "preview")
 
     def test_classifier_cli_passes_target(self):
         for target in (None, "preview", "production"):

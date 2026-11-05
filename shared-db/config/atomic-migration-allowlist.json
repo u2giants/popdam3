@@ -125,6 +125,38 @@
         "production"
       ],
       "strip_outer_transaction": true
+    },
+    "20261105073854": {
+      "sha256": "6e7f4b4773794fbfa5d49bbcc5de24c3b6b63ff7d81bd5979ec3c48ee2b4bf50",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "batch_group": "popdam-health-5622"
+    },
+    "20261105073903": {
+      "sha256": "ceb0cc2d93e734ff82da0929e0e381cb96db2817f14add8eca8f14aa6c5f9ab5",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "batch_group": "popdam-health-5622"
+    },
+    "20261105073911": {
+      "sha256": "48dd5300cd792d01cf61c2777fe6e6245a7ad8449b8a635091b5a0487a710a1e",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "batch_group": "popdam-health-5622"
+    },
+    "20261105073920": {
+      "sha256": "499cc17b2d25d433d6da51b3e42055eb54885a55a7e6f5280acc48a2f281487a",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "batch_group": "popdam-health-5622"
     }
   }
 }
