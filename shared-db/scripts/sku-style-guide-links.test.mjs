@@ -72,3 +72,30 @@ test('migration invokes the historical backfill after restricting execution', ()
   const invocation = resolver.indexOf('select public.backfill_pdf_files_used_v2();');
   assert.ok(invocation > resolver.indexOf('grant execute on function public.backfill_pdf_files_used_v2() to service_role, postgres;'));
 });
+
+const incremental = readFileSync(new URL('../supabase/migrations/20261105044255_sku_style_guide_resolution_incremental.sql', import.meta.url), 'utf8');
+test('incremental nightly uses committed restricted procedure and self-removing catch-up', () => {
+  assert.match(incremental,/create or replace procedure public\.resolve_sku_style_guide_links_run/);
+  const procedure = incremental.slice(incremental.indexOf('create or replace procedure'), incremental.indexOf('revoke all on function public.prepare_sku_style_guide_resolution', incremental.indexOf('create or replace procedure')));
+  assert.match(procedure,/security invoker/);
+  assert.doesNotMatch(procedure,/\nset /i);
+  assert.match(procedure,/pg_try_advisory_lock\(5608, 2\)/);
+  assert.match(procedure,/when others then\s+perform pg_advisory_unlock\(5608, 2\); raise;/);
+  assert.match(procedure,/commit;/);
+  assert.match(incremental,/'resolve-sku-style-guide-links-nightly', '30 4 \* \* \*',\s*\$\$call public\.resolve_sku_style_guide_links_run\(\)\$\$/);
+  assert.match(incremental,/cron\.unschedule\(jobid\).*jobname='sku-style-guide-links-catchup-5608'/);
+  for (const signature of ['prepare_sku_style_guide_resolution(boolean)','resolve_sku_style_guide_batch(integer)','backfill_sku_style_guide_key_batch(integer)','finish_sku_style_guide_catchup()']) {
+    assert.ok(incremental.includes(`revoke all on function public.${signature} from public, anon, authenticated;`),signature);
+  }
+  assert.match(incremental,/revoke all on procedure public\.resolve_sku_style_guide_links_run\(boolean\) from public, anon, authenticated;/);
+});
+test('backfill avoids rewrites and source-update side effects while preserving view fallback',()=>{
+  assert.doesNotMatch(incremental,/generated always/i);
+  assert.match(incremental,/r\.table_name,r\.key_column,r\.table_name,r\.key_column,r\.key_column/);
+  assert.match(incremental,/where a\.sku_sg_file_key <> ''/);
+  assert.match(incremental,/where a\.sku_sg_file_key is null/);
+  assert.match(incremental,/where a\.sku_sg_file_key = ''/);
+  assert.match(incremental,/active_link_ids uuid\[\]/);
+  assert.match(incremental,/p\.output_hash = q\.output_hash/);
+  assert.match(incremental,/l\.id = any\(p\.active_link_ids\)/);
+});

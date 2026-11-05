@@ -15,7 +15,7 @@ Owning issue: popcre/shared-db#popcre/shared-db#5608. Related history: #5141 (cl
 | 5 Land via automatic promotion | ⬜ open | — |
 | 6 Live proof: 3 consecutive nightly successes | ⬜ open | — |
 
-Fresh session starts at step 0.
+Implementation is in progress under #5608. Local implementation and synthetic cardinality/recovery evidence: [November 4 local rehearsal](docs/verification/database-efficiency/20261105T0354Z/sku-style-guide-links-local.md). Shared-preview, publication, automatic promotion, generated types and three-night acceptance remain open. The accepted implementation uses plain persisted keys plus narrow triggers and committed key backfill instead of generated-column rewrites; a deterministic complete portal multiset fingerprint handles sources without reliable timestamps.
 
 ## 1. Ultimate goal
 

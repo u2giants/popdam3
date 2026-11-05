@@ -14,7 +14,32 @@ begin
  -- below so the count cannot be satisfied by some other unreviewed key.
  if (select count(*) from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace where n.nspname='plm' and r.relname=any(expected) and c.contype='f')<>25 then raise exception 'normalized Warner FK inventory changed'; end if;
  if not exists(select 1 from pg_constraint c join pg_class r on r.oid=c.conrelid join pg_namespace n on n.oid=r.relnamespace join pg_class fr on fr.oid=c.confrelid join pg_namespace fn on fn.oid=fr.relnamespace where n.nspname='plm' and r.relname='wb_character_normalized' and c.contype='f' and c.conname='plm_wb_character_normalized_core_character_fk' and fn.nspname='core' and fr.relname='character' and c.confdeltype='r' and c.convalidated) then raise exception 'the #2123 core.character promotion foreign key is missing from plm.wb_character_normalized'; end if;
- if exists(select 1 from pg_indexes where schemaname='plm' and tablename in('wb_franchise','wb_property','wb_character_normalized','wb_style_guide_normalized') and indexdef~*'label') then raise exception 'label must not participate in normalized identity indexes'; end if;
+ -- #5608 adds only two nonunique matching-cache indexes. Their complete
+ -- catalog definitions are pinned below; every other label index still fails.
+ if exists(select 1 from pg_indexes where schemaname='plm'
+   and tablename in('wb_franchise','wb_property','wb_character_normalized','wb_style_guide_normalized')
+   and indexdef~*'label'
+   and not (tablename='wb_style_guide_normalized' and indexname in(
+     'sku_sg_wb_style_guide_normalized_label_idx','sku_sg_wb_style_guide_normalized_pending_idx')))
+ then raise exception 'label must not participate in normalized identity indexes'; end if;
+ select count(*) into bad
+ from (values
+   ('sku_sg_wb_style_guide_normalized_label_idx',
+    'CREATE INDEX sku_sg_wb_style_guide_normalized_label_idx ON plm.wb_style_guide_normalized USING btree (NULLIF(sku_sg_label_key, ''''::text))'),
+   ('sku_sg_wb_style_guide_normalized_pending_idx',
+    'CREATE INDEX sku_sg_wb_style_guide_normalized_pending_idx ON plm.wb_style_guide_normalized USING btree (sku_sg_label_key) WHERE (sku_sg_label_key IS NULL)')
+ ) expected(index_name,definition)
+ join pg_class idx on idx.oid=to_regclass('plm.'||expected.index_name)
+ join pg_namespace ns on ns.oid=idx.relnamespace
+ join pg_index i on i.indexrelid=idx.oid
+ join pg_am am on am.oid=idx.relam
+ where ns.nspname='plm' and idx.relkind='i'
+   and i.indrelid='plm.wb_style_guide_normalized'::regclass
+   and am.amname='btree' and not i.indisunique and not i.indisprimary
+   and not i.indisexclusion and i.indisvalid and i.indisready
+   and i.indnkeyatts=1 and i.indnatts=1
+   and pg_get_indexdef(idx.oid)=expected.definition;
+ if bad<>2 then raise exception 'the two exact nonunique Warner label-cache indexes are missing or changed';end if;
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname=any(array(select 'sync_'||unnest(expected))))<>11 then raise exception 'normalized loader inventory must contain eleven exact targets'; end if;
  if not exists(select 1 from pg_constraint c where c.conrelid='plm.wb_capture'::regclass and pg_get_constraintdef(c.oid) like '%wb_franchise_property_evidence%') then raise exception 'capture target check lacks normalized routes'; end if;
  if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='plm' and p.proname like 'sync_wb_%' and p.proname like '%normalized%' and has_function_privilege('authenticated',p.oid,'execute'))<>0 then raise exception 'authenticated may execute a normalized loader'; end if;

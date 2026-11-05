@@ -68,8 +68,11 @@ alter table public.pdf_text_samples rename to sku_style_contract_original_sample
 alter table public.sku_files_used rename to sku_style_contract_original_files;
 create table public.assets (id uuid primary key, sku text, file_type text, filename text);
 create table public.pdf_text_samples (
-  asset_id uuid, extracted_text text, sampled_at timestamptz, char_count integer
+  asset_id uuid, extracted_text text, sampled_at timestamptz, char_count integer,
+  declared_style_guide_label text, declared_style_guide_key text
 );
+create trigger sku_sg_pdf_keys before insert or update of extracted_text, declared_style_guide_label, declared_style_guide_key
+  on public.pdf_text_samples for each row execute function public.sku_sg_pdf_keys();
 create table public.sku_files_used (
   sku text, file_name text, source text, unique (sku, file_name)
 );
@@ -79,12 +82,15 @@ create table public.sku_style_contract_index (
 );
 create or replace view plm.asset_file_style_guide_index with (security_invoker = true) as
   select * from public.sku_style_contract_index;
+create or replace view plm.asset_file_style_guide_keys with (security_invoker = true) as
+  select *, public.style_guide_label_norm(style_guide_label) as style_guide_label_key
+  from public.sku_style_contract_index;
 
 insert into public.assets values
  ('50910000-0000-0000-0000-000000000001', '#5091-inline', 'pdf', 'licensing_sheet.pdf'),
  ('50910000-0000-0000-0000-000000000002', '#5091-lines', 'pdf', 'tech_pack.pdf'),
  ('50910000-0000-0000-0000-000000000003', '#5091-ignore', 'pdf', 'catalog.pdf');
-insert into public.pdf_text_samples values
+insert into public.pdf_text_samples(asset_id,extracted_text,sampled_at,char_count) values
  ('50910000-0000-0000-0000-000000000001', E'FILES USED: stale.psd', '2020-01-01', 120),
  ('50910000-0000-0000-0000-000000000001',
   E'FILES USED: Hero.PSD; Shared | Third.ai.,; 123; none\nCORE/STYLE GUIDE USED: The Hero Guide',
@@ -179,4 +185,122 @@ begin
   end if;
 end;
 $contract$;
+-- #5608: incrementality, old-sheet/new-portal convergence and failure custody.
+-- Existing synthetic inputs and fake keyed index above remain transaction-isolated.
+do $incremental$
+declare r jsonb; n integer; old_seen timestamptz; hash_before text;
+begin
+  -- Full compatibility calls above covered original match arithmetic. Establish
+  -- incremental progress and verify unchanged inputs have no resolver batches.
+  perform public.resolve_sku_style_guide_links();
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 0 then raise exception 'Unchanged SKU inputs were queued: %',n; end if;
+  r := public.resolve_sku_style_guide_batch(1);
+  if (r->>'sku_rows')::integer <> 0 then raise exception 'Empty queue was not empty'; end if;
+
+  -- A portal guide appearing later must rematch the already saved old sheet.
+  insert into public.sku_style_contract_index values
+    ('contract','new-file','late-guide','The Hero Guide',null,'new-file.psd');
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n = 0 then raise exception 'New portal observations did not invalidate progress'; end if;
+  r := public.resolve_sku_style_guide_batch(1);
+  if (r->>'sku_rows')::integer <> 1 then raise exception 'Batch size was not bounded'; end if;
+  while (public.resolve_sku_style_guide_batch(1)->>'sku_rows')::integer > 0 loop null; end loop;
+  if not exists(select 1 from public.sku_style_guide_links
+    where sku='#5091-inline' and source_style_guide_key='late-guide' and match_method='sheet_label_match') then
+    raise exception 'New portal guide did not match old licensing sheet';
+  end if;
+
+
+  -- A parser may touch a valid result between nights. Membership, not a
+  -- last_seen equality heuristic, must refresh it on the next unchanged run.
+  update public.sku_style_guide_links set last_seen_at=clock_timestamp()
+    where sku='#5091-inline' and source_system='sheet_declared';
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 0 or exists(select 1 from public.sku_style_guide_links
+    where sku='#5091-inline' and source_system='sheet_declared' and last_seen_at<>now()) then
+    raise exception 'Independent parser timestamp prevented nightly freshness';
+  end if;
+  -- Equivalent OCR spellings use the original min(label), even when the parser
+  -- independently replaced that value without changing any input fingerprint.
+  update public.sku_style_guide_links set style_guide_label='The Hero Guide!'
+    where sku='#5091-inline' and source_system='sheet_declared';
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 1 then raise exception 'Changed resolver output must queue its SKU'; end if;
+  perform public.resolve_sku_style_guide_batch(1);
+  if not exists(select 1 from public.sku_style_guide_links
+    where sku='#5091-inline' and source_system='sheet_declared' and style_guide_label='The Hero Guide') then
+    raise exception 'External parser edit was not restored to original min(label)';
+  end if;
+
+  -- Exact spelling is part of portal fingerprint even when normalized key is unchanged.
+  select portal_hash into hash_before from public.sku_style_guide_resolver_progress where sku='#5091-inline';
+  update public.sku_style_contract_index set matched_file_name='NEW-FILE.PSD';
+  perform public.prepare_sku_style_guide_resolution(false);
+  if not exists(select 1 from pg_temp.sku_sg_pending where portal_hash<>hash_before) then
+    raise exception 'Exact portal filename spelling was omitted from fingerprint';
+  end if;
+  while (public.resolve_sku_style_guide_batch(1)->>'sku_rows')::integer > 0 loop null; end loop;
+
+  -- New files-used rows are detected independently of portal change.
+  insert into public.sku_files_used values('#5091-inline','NEW-FILE.PSD','contract');
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 1 then raise exception 'Changed files-used input must queue one SKU: %', n; end if;
+  perform public.resolve_sku_style_guide_batch(1);
+  if not exists(select 1 from public.sku_style_guide_links
+    where sku='#5091-inline' and file_name='NEW-FILE.PSD' and match_method='filename_exact') then
+    raise exception 'New files-used row did not resolve exact filename';
+  end if;
+
+  -- A failed batch must retain its pending work and last durable progress.
+  perform public.prepare_sku_style_guide_resolution(true);
+  select input_hash into hash_before from public.sku_style_guide_resolver_progress where sku='#5091-inline';
+  begin
+    perform public.resolve_sku_style_guide_batch(0);
+    raise exception 'Invalid batch should have failed';
+  exception when raise_exception then
+    if sqlerrm='Invalid batch should have failed' then raise; end if;
+  end;
+  if (select input_hash from public.sku_style_guide_resolver_progress where sku='#5091-inline') is distinct from hash_before
+     or not exists(select 1 from pg_temp.sku_sg_pending where sku='#5091-inline') then
+    raise exception 'Failed batch advanced or discarded progress';
+  end if;
+
+  -- Removed portal inputs invalidate progress without deleting quarantine rows.
+  select count(*) into n from public.sku_style_guide_links where sku like '#5091-%';
+  delete from public.sku_style_contract_index;
+  perform public.prepare_sku_style_guide_resolution(false);
+  while (public.resolve_sku_style_guide_batch(1)->>'sku_rows')::integer > 0 loop null; end loop;
+  if (select count(*) from public.sku_style_guide_links where sku like '#5091-%') <> n then
+    raise exception 'Incremental portal deletion removed quarantined evidence';
+  end if;
+  update public.sku_style_guide_links set last_seen_at='2000-01-01'
+    where sku='#5091-inline' and source_system='contract';
+  perform public.prepare_sku_style_guide_resolution(false);
+  if exists(select 1 from public.sku_style_guide_links where sku='#5091-inline'
+    and source_system='contract' and last_seen_at<>'2000-01-01'::timestamptz) then
+    raise exception 'Unchanged run refreshed removed portal evidence';
+  end if;
+
+  -- Changing a saved sheet label computes new keys and queues its existing SKU.
+  update public.pdf_text_samples set extracted_text='CORE/STYLE GUIDE USED: The Changed Guide'
+    where asset_id='50910000-0000-0000-0000-000000000001';
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 1 then raise exception 'Changed PDF label must queue its SKU: %',n;end if;
+  perform public.resolve_sku_style_guide_batch(1);
+  if not exists(select 1 from public.sku_style_guide_links where sku='#5091-inline'
+    and source_system='sheet_declared' and source_style_guide_key='changed guide') then
+    raise exception 'Changed sheet key did not converge';
+  end if;
+  update public.sku_style_guide_links set last_seen_at='2000-01-01'
+    where sku='#5091-inline' and source_system='sheet_declared' and source_style_guide_key='hero guide';
+  n := public.prepare_sku_style_guide_resolution(false);
+  if n <> 0 or exists(select 1 from public.sku_style_guide_links where sku='#5091-inline'
+    and source_system='sheet_declared' and source_style_guide_key='hero guide'
+    and last_seen_at<>'2000-01-01'::timestamptz) then
+    raise exception 'Removed sheet declaration was refreshed or deleted';
+  end if;
+end;
+$incremental$;
+
 rollback;

@@ -246,15 +246,37 @@ begin
     raise warning 'A FAIL: % reconciliation column(s) shipped', v_n;
   end if;
 
-  -- No trigger may exist on any of these tables. Immutability is privilege separation,
-  -- and this database has been burned by a trigger guard that never fired.
+  -- Immutability remains privilege separation. #5608 permits only these two
+  -- source/key-only normalization triggers; no other non-submission trigger.
   select count(*) into v_n
     from pg_trigger g join pg_class t on t.oid = g.tgrelid
     join pg_namespace n on n.oid = t.relnamespace
-   where n.nspname = 'plm' and t.relname like 'sesame\_%' and t.relname not like 'sesame\_submission\_%' and not g.tgisinternal;
-  if v_n <> 0 then
+   where n.nspname = 'plm' and t.relname like 'sesame\_%'
+     and t.relname not like 'sesame\_submission\_%' and not g.tgisinternal;
+  if v_n <> 2 then
     v_fail := v_fail + 1;
-    raise warning 'A FAIL: % user trigger(s) on sesame tables', v_n;
+    raise warning 'A FAIL: % user triggers on Sesame tables; expected exactly two key triggers', v_n;
+  end if;
+  select count(*) into v_n
+  from (values
+    ('plm.sesame_asset','sku_sg_file_key','public.sku_sg_file_original_file_name_key()',
+      array['original_file_name','sku_sg_file_key']::text[]),
+    ('plm.sesame_style_guide','sku_sg_label_key','public.sku_sg_label_value_label_key()',
+      array['value_label','sku_sg_label_key']::text[])
+  ) expected(relation_name,trigger_name,function_name,source_columns)
+  join pg_trigger g on g.tgrelid=to_regclass(expected.relation_name)
+    and g.tgname=expected.trigger_name
+  where not g.tgisinternal and g.tgenabled='O' and g.tgtype=23
+    and g.tgfoid=to_regprocedure(expected.function_name)
+    and g.tgnargs=0 and g.tgqual is null
+    and not g.tgdeferrable and not g.tginitdeferred
+    and (select array_agg(a.attname::text order by key.ordinality)
+      from unnest(g.tgattr::smallint[]) with ordinality key(attnum,ordinality)
+      join pg_attribute a on a.attrelid=g.tgrelid and a.attnum=key.attnum)
+      =expected.source_columns;
+  if v_n <> 2 then
+    v_fail := v_fail + 1;
+    raise warning 'A FAIL: only % exact source/key-only Sesame trigger definitions remain', v_n;
   end if;
 
   -- The three claimed functions exist, all three pin search_path, and the two write-path
@@ -284,7 +306,7 @@ begin
 
   if v_fail > 0 then raise exception 'A FAILED (% failures)', v_fail; end if;
   raise notice
-    'A passed: 19 tables, RLS, 38 policies, no brand/character link, no denormalized axis, no media, no triggers';
+    'A passed: 19 tables, RLS, 38 policies, no brand/character link, no denormalized axis, no media, only two exact key triggers';
 end;
 $$;
 
