@@ -15,7 +15,7 @@ class ActivationCandidateTests(unittest.TestCase):
         self.assertEqual(entry['definition_sha256'],maintenance.digest(maintenance.normalized_definition(value['definition'],maintenance.INDEX)))
         self.assertEqual(len(value['expected_writes']),4)
         self.assertIn('table public.style_guide_search_documents',value['expected_writes'])
-        self.assertIn('extensions.vector_cosine_ops',value['definition'])
+        self.assertIn('(embedding vector_cosine_ops)',value['definition'])
         self.assertNotIn('halfvec',value['definition'])
         self.assertEqual((entry['statement_timeout_ms'],entry['total_timeout_s'],entry['lock_timeout_ms'],entry['swap_timeout_ms']),(900000,1800,500,2500))
     def test_missing_or_placeholder_ownership_numbers_refuse(self):

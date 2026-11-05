@@ -10,7 +10,7 @@ import nontransactional_index_maintenance as maintenance
 
 OPERATION_ID='sg-hnsw-rebuild-5616-v1'
 DEFINITION=(f'CREATE INDEX {maintenance.INDEX} ON {maintenance.TABLE} USING hnsw '
-            '(embedding extensions.vector_cosine_ops) WHERE (embedding IS NOT NULL)')
+            '(embedding vector_cosine_ops) WHERE (embedding IS NOT NULL)')  # as pg_get_indexdef prints it on the default search_path
 
 
 def prepare(source_pr,claim_issue):
