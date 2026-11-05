@@ -1839,21 +1839,24 @@ async function handleCompleteRender(body: Record<string, unknown>) {
   if (!job) return err("Job not found", 404);
 
   const completion = await persistDamRenderCompletion({
-    completeInFlight: (fields) => db.from("render_queue")
-      .update(fields, { count: "exact" }).eq("id", jobId)
-      .in("status", ["claimed", "processing"]),
+    completeInFlight: (fields) =>
+      db.from("render_queue")
+        .update(fields, { count: "exact" }).eq("id", jobId)
+        .in("status", ["claimed", "processing"]),
     readJob: async () => {
       const { data, error } = await db.from("render_queue")
         .select("status, error_message").eq("id", jobId).single();
       if (error) throw new Error(error.message);
       return data;
     },
-    saveThumbnail: () => db.from("assets")
-      .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null }, { count: "exact" })
-      .eq("id", job.asset_id),
-    failOwnCompletion: (reason, completedAt) => db.from("render_queue")
-      .update({ status: "failed", error_message: reason }, { count: "exact" })
-      .eq("id", jobId).eq("status", "completed").eq("completed_at", completedAt),
+    saveThumbnail: () =>
+      db.from("assets")
+        .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null }, { count: "exact" })
+        .eq("id", job.asset_id),
+    failOwnCompletion: (reason, completedAt) =>
+      db.from("render_queue")
+        .update({ status: "failed", error_message: reason }, { count: "exact" })
+        .eq("id", jobId).eq("status", "completed").eq("completed_at", completedAt),
   }, { success, thumbnailUrl, errorMsg, now: new Date().toISOString() });
   if (!completion.ok) return err(completion.error, 500);
   if (completion.noop) return json({ ok: true, noop: true, reason: "job not in flight" });
