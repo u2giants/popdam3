@@ -70,7 +70,7 @@ const damSearch = (query) => timed(async () => {
   const data = await viewerPost("/functions/v1/dam-search-ai", {
     action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"],
   }, 45_000);
-  return { hits: data.results.map((r) => r.entity_id), total: data.total_count };
+  return { hits: data.results.map((r) => r.entity_id), total: data.total_count, semantic: data.semantic ?? null, corrected_query: data.corrected_query ?? null };
 });
 
 // Same expansion and query text as src/pages/popsg/PopSGLibraryPage.tsx.

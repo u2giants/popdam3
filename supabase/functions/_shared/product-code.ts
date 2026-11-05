@@ -41,3 +41,14 @@ export async function isProductCodeSearch(
     return false;
   }
 }
+
+/**
+ * Retain picture guesses for the established, unrecognized product-code intent.
+ * This is only a positive picture hint AFTER a catalog miss. It never establishes
+ * identity or turns picture search off. Arbitrary mixed letters/digits are not
+ * sufficient: require the recorded three-letter/two-digit/four-letter/two-digit
+ * grouping, as distinct from true nonsense.
+ */
+export function keepUnknownCodePictures(query: string): boolean {
+  return /^[a-z]{3}\d{2}[a-z]{4}\d{2}$/i.test(query.trim());
+}

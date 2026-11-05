@@ -48,3 +48,9 @@ Keep the checkpoint private; it contains query result identifiers and catalog de
 The aggregate report includes the set SHA-256, p50/p95 timings and error categories.
 Compare identical sets and preserve natural catalog updates as a limitation; do not
 interpret expired authentication or unavailable searches as relevance judgments.
+
+Product-code intent follows the [canonical business rule](https://github.com/popcre/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md#product-code-searches).
+Supplemental policy cases can require an actual returned spelling correction or
+semantic execution with picture guesses. The unknown-code policy check does not
+judge those guesses relevant; keep them explicitly unjudged and outside the
+original 119-case denominator.

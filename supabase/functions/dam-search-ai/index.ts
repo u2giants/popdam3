@@ -8,7 +8,7 @@ import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
 import { getPopSGQueryEmbedding } from "../_shared/popsg-query-embedding.ts";
-import { isProductCodeSearch } from "../_shared/product-code.ts";
+import { isProductCodeSearch, keepUnknownCodePictures } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 
@@ -273,7 +273,7 @@ corsServe(async (req) => {
       async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
     );
     const spelling = productCodeSearch ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
-    const usePictures = !productCodeSearch && spelling.meaningful;
+    const usePictures = !productCodeSearch && (spelling.meaningful || keepUnknownCodePictures(query));
     const [embedding, floorConfig] = await Promise.all([
       usePictures ? embedQueryText(query) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.

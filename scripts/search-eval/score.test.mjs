@@ -38,3 +38,18 @@ test("errors fail and too many unjudged results warn", () => {
   assert.equal(summary.overall.passed, 0);
   assert.ok(trustWarning(summary));
 });
+
+test("unknown-code policy proves semantic execution without inventing relevance", () => {
+  const testCase = { id: "policy", kind: "unknown_code", expect_semantic: true };
+  assert.equal(scoreSearch(testCase, {}, ["unjudged"], { semantic: "siglip2" }).pass, true);
+  assert.equal(scoreSearch(testCase, {}, [], { semantic: "skipped" }).pass, false);
+  assert.equal(scoreSearch(testCase, {}, [], { semantic: "siglip2" }).pass, false);
+  assert.equal(scoreSearch(testCase, {}, [], { semantic: "siglip2", error: "HTTP 503" }).pass, false);
+  assert.equal(scoreSearch(testCase, {}, ["unjudged"], { semantic: "siglip2" }).unjudged_top10, 1);
+});
+
+test("a canonical spelling policy requires the actual returned correction", () => {
+  const testCase = { id: "spelling", kind: "misspelling", expected_correction: "example" };
+  assert.equal(scoreSearch(testCase, judged, ["a"], { corrected_query: "example" }).pass, true);
+  assert.equal(scoreSearch(testCase, judged, ["a"], { corrected_query: null }).pass, false);
+});

@@ -29,19 +29,22 @@ vi.mock("../_shared/service-client.ts", () => ({
   }),
 }));
 vi.mock("../_shared/admin-auth.ts", () => ({ authenticateUser: state.authenticate }));
-vi.mock("../_shared/product-code.ts", () => ({ isProductCodeSearch: async () => state.productCode }));
+vi.mock("../_shared/product-code.ts", async (original) => ({
+  ...await original<typeof import("../_shared/product-code.ts")>(),
+  isProductCodeSearch: async () => state.productCode,
+}));
 vi.mock("../_shared/search-spelling.ts", () => ({
   RARE_WORD_DOCS: 3,
   addNameToVocabulary: vi.fn(),
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
 await import("./index.ts");
-const search = () =>
+const search = (query = "test phrase") =>
   state.handler!(
     new Request("https://example.invalid", {
       method: "POST",
       headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "search", query: "test phrase" }),
+      body: JSON.stringify({ action: "search", query }),
     }),
   );
 
@@ -108,4 +111,23 @@ describe("DAM search embedding availability", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
+  it("keeps picture guesses for an unmatched catalog-shaped token", async () => {
+    state.meaningful = false;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+    const response = await search("ABC12DEFG34");
+    expect(response.status).toBe(200);
+    expect((await response.json()).semantic).toBe("siglip2");
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+  });
+
+  it("does not call arbitrary alphanumeric nonsense an unknown product code", async () => {
+    state.meaningful = false;
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const response = await search("xqz9vplm");
+    expect(response.status).toBe(200);
+    expect(fetch).not.toHaveBeenCalled();
+    expect((await response.json()).semantic).toBe("skipped");
+  });
+
 });
