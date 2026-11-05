@@ -1,3 +1,5 @@
+// Owner: PopDAM agent-api render completion; isolates receipt/save guards for regression tests.
+// Reuses SG write retries. Consolidate with SG completion when one helper preserves both callback guards.
 import { writeWithRetry, type DbWriteResult, type RetryOptions } from "./sg-render-completion.ts";
 
 export const THUMBNAIL_PERSISTENCE_FAILED = "thumbnail_persistence_failed";
