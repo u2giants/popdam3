@@ -374,3 +374,60 @@ def test_dam_search_missing_thumbnail_does_not_block_valid_neighbor(monkeypatch,
     assert marks[0][1] == rows[0][1] and marks[0][5] == "transient"
     assert upserts[0][1] == rows[1][1]
     assert p.search_done == p.search_failed == 1
+
+
+def test_sg_claim_yields_after_one_document_without_changing_dam_batch(monkeypatch):
+    p, calls = _search_poller(monkeypatch, [])
+    monkeypatch.delattr(p, "claim_search_docs")
+    assert config.SEARCH_CLAIM_BATCH == 64
+    assert config.SG_SEARCH_POLL_S == 1.0
+    p.claim_sg_docs()
+    p.claim_search_docs()
+    assert "claim_sg_search_embedding_documents" in calls[0][0]
+    assert calls[0][1] == (1, "test-search", 900)
+    assert "claim_dam_search_embedding_documents" in calls[1][0]
+    assert calls[1][1] == (64, "test-search", 900)
+
+
+@pytest.mark.parametrize("lane", ["dam", "sg"])
+@pytest.mark.parametrize("fails", [False, True])
+def test_search_logs_identify_lane(monkeypatch, capsys, lane, fails):
+    import json
+    p, _calls = _search_poller(monkeypatch, [])
+    monkeypatch.setattr(p, "process_search_batch", lambda rows: None)
+
+    def claim():
+        if fails:
+            raise RuntimeError("claim unavailable")
+        return [object()]
+
+    if lane == "dam":
+        monkeypatch.setattr(p, "claim_search_docs", claim)
+        status = p.poll_search_lane()
+    else:
+        status = p.poll_search_lane(claim, lane="sg")
+    event = json.loads(capsys.readouterr().out)
+    assert event["lane"] == lane
+    assert event["event"] == ("search_lane_error" if fails else "search_batch")
+    assert status == ("error" if fails else "claimed")
+
+
+def test_service_returns_to_dam_between_sg_documents(monkeypatch):
+    import itertools
+    p, _calls = _search_poller(monkeypatch, [])
+    order = []
+    ticks = iter([False, False])
+    monkeypatch.setattr(p, "connect", lambda: None)
+    monkeypatch.setattr(p, "embed_enabled", lambda: next(ticks))
+    monkeypatch.setattr(poller.Heartbeat, "start", lambda self: None)
+    clock = itertools.count(1000, 10)
+    monkeypatch.setattr(poller.time, "time", lambda: next(clock))
+    monkeypatch.setattr(poller.time, "sleep", lambda seconds: None)
+
+    def record_lane(claim=None, lane="dam"):
+        order.append(lane)
+        return "claimed"
+
+    monkeypatch.setattr(p, "poll_search_lane", record_lane)
+    assert p.run_service() == 0
+    assert order == ["dam", "sg", "dam", "sg"]
