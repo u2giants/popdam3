@@ -242,3 +242,7 @@ search rollup functions. All additive → cannot break CRM/PM/PLM.
    (text[]) and `product_dimensions` (text); candidates to add later:
    `country_of_origin`, `age_rating`. These are populated from the same
    extraction during rollup, and added to the asset search document + counts.
+
+### Failed provider extraction retries
+
+Successful unchanged text is skipped. A saved extraction with a non-null parse error is retried on a subsequent extraction run once its saved extraction time is at least 24 hours old. Optional worker environment `RICH_PDF_RETRY_AFTER_HOURS` changes that cooldown; missing, non-finite or non-positive values use 24 hours. Changed source text remains eligible immediately. Missing/invalid failure timestamps abstain instead of creating a hot loop. The production reader contract was expanded by shared-db PR #5627 (ledger 20261105041612). This does not restart or change the full image-tagging run.
