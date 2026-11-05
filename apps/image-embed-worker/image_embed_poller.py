@@ -513,7 +513,30 @@ class Poller:
                 return cur.fetchall()
         return self._run(_q)
 
+    # PopSG lane (public.style_guide_search_documents, popdam3 #706): same model,
+    # same uncropped thumbnails, its own RPCs. Rows carry document_type None.
+    def claim_sg_docs(self):
+        def _q(c):
+            with c.cursor() as cur:
+                cur.execute(
+                    "select null::text, style_guide_file_id, search_text, thumbnail_url,"
+                    " content_sha256, lease_token, lease_expires_at, attempt"
+                    " from public.claim_sg_search_embedding_documents(%s, %s, %s)",
+                    (self.args.search_batch, self.args.worker_id, self.args.search_lease_seconds),
+                )
+                return cur.fetchall()
+        return self._run(_q)
+
     def search_upsert(self, row, vector) -> bool:
+        if row[0] is None:
+            def _sg(c):
+                with c.cursor() as cur:
+                    cur.execute(
+                        "select public.upsert_sg_search_embedding(%s, %s, %s, %s::extensions.vector, %s)",
+                        (row[1], row[4], row[5], search_vector_text(vector), config.SEARCH_DOC_MODEL_STAMP),
+                    )
+                    return bool(cur.fetchone()[0])
+            return self._run(_sg)
         document_type, entity_id, _text, _thumb, content_sha256, lease_token = row[0], row[1], row[2], row[3], row[4], row[5]
         def _q(c):
             with c.cursor() as cur:
@@ -530,6 +553,12 @@ class Poller:
         try:
             def _q(c):
                 with c.cursor() as cur:
+                    if document_type is None:
+                        cur.execute(
+                            "select public.mark_sg_search_embedding_error(%s, %s, %s, %s, %s)",
+                            (entity_id, content_sha256, lease_token, message[:500], category),
+                        )
+                        return cur.fetchone()[0]
                     cur.execute(
                         "select public.mark_dam_search_embedding_error(%s, %s, %s, %s, %s, %s)",
                         (document_type, entity_id, content_sha256, lease_token,
@@ -590,11 +619,11 @@ class Poller:
                 self.search_failed += 1
                 self.search_mark_error(row, f"upsert: {type(exc).__name__}: {str(exc)[:200]}", "transient")
 
-    def poll_search_lane(self) -> str:
+    def poll_search_lane(self, claim=None) -> str:
         """One search-lane cycle. Returns 'claimed', 'empty', or 'error'
         (claim-level failure, e.g. grants not yet applied -> cooldown)."""
         try:
-            rows = self.claim_search_docs()
+            rows = (claim or self.claim_search_docs)()
         except Exception as exc:
             log(event="search_lane_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
             return "error"
@@ -620,6 +649,8 @@ class Poller:
             search_lane=not self.args.no_search_lane)
         last_index = 0.0
         last_search = 0.0
+        last_sg = 0.0
+        sg_cooldown_until = 0.0
         while True:
             try:
                 if self.embed_enabled():
@@ -640,6 +671,11 @@ class Poller:
                     last_search = time.time()
                     if self.poll_search_lane() == "error":
                         self.search_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
+                if not self.args.no_search_lane and time.time() >= sg_cooldown_until \
+                        and time.time() - last_sg >= config.SG_SEARCH_POLL_S:
+                    last_sg = time.time()
+                    if self.poll_search_lane(self.claim_sg_docs) == "error":
+                        sg_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
             except StopIteration:
                 break
             except Exception as exc:

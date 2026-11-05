@@ -315,3 +315,23 @@ def test_search_batch_download_failure_is_transient(monkeypatch):
     assert len(marks) == 1
     assert marks[0][1][5] == "transient"
     assert p.search_failed == 1
+
+
+def test_sg_rows_use_the_popsg_rpcs(monkeypatch):
+    import argparse
+    import numpy as np
+    args = argparse.Namespace(
+        dsn="postgresql://x", stamp="stamp", worker_id="test-sg",
+        batch=32, lease_seconds=300, search_batch=64, search_lease_seconds=900,
+        no_search_lane=False, idle_exit_polls=1, download_threads=2, limit=0,
+    )
+    p = poller.Poller(args, models=None)
+    calls = []
+    p.conn = _FakeConn(calls)
+    monkeypatch.setattr(p, "_run", lambda fn: fn(p.conn))
+    row = (None, "id", "text", "url", "hash", "lease", None, 1)
+    p.search_upsert(row, np.zeros(config.DIM))
+    p.search_mark_error(row, "boom", "transient")
+    text = " ".join(str(call) for call in calls)
+    assert "upsert_sg_search_embedding" in text and "mark_sg_search_embedding_error" in text
+    assert "dam_search_embedding" not in text
