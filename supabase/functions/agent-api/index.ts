@@ -1,3 +1,4 @@
+let lastRenderPruneAt = 0;
 // ── Shared constants ─────────────────────────────────────────────────
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_CLAIM_BATCH = 5;
@@ -383,14 +384,19 @@ async function handleHeartbeat(
       }
     })(),
 
-    // 2b. Prune completed/failed render_queue rows older than 3 days to keep the table lean
+    // 2b. Prune once per hour per warm instance, not once per agent heartbeat.
     (async () => {
+      const now = Date.now();
+      if (now - lastRenderPruneAt < 3_600_000) return;
+      lastRenderPruneAt = now;
       try {
-        await db.from("render_queue")
+        const { error } = await db.from("render_queue")
           .delete()
           .in("status", ["completed", "failed"])
-          .lt("created_at", new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+          .lt("created_at", new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString());
+        if (error) throw error;
       } catch (pruneErr) {
+        lastRenderPruneAt = 0;
         console.error("render_queue prune failed:", pruneErr);
       }
     })(),

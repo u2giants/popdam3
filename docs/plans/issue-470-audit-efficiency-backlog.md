@@ -20,9 +20,9 @@ re-check its line numbers after rebasing).
 | 3 | `get-filter-options`: one grouped count query instead of N+M counts | ⬜ open | — |
 | 4 | Tagging prompt: cache static reads; drop the per-call OpenRouter generation lookup | ⬜ open | — |
 | 5 | Order-list status counts: one RPC/grouped count | ⬜ open | — |
-| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | ⬜ open | — |
-| 7 | Grids: memoize cards; bridge scanner: drop the redundant `lstat` | ⬜ open | — |
-| 8 | Heartbeat `render_queue` prune: once per hour, not per heartbeat (minor) | ⬜ open | — |
+| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | implemented; live proof open | Five repeated rows now fetch two unique URLs; workbook retains five images; concurrency four |
+| 7 | Grids: memoize cards; bridge scanner: drop the redundant `lstat` | cards implemented; scanner held | Cards receive stable parent callbacks; scanner patch waits scan completion before publishing bridge |
+| 8 | Heartbeat `render_queue` prune: once per hour, not per heartbeat (minor) | implemented; live proof open | Warm instances throttle to hourly; failure resets throttle for retry |
 | 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | ⬜ open | — |
 
 Where a fresh session starts: step 1 (it needs a shared-db claim and is the
@@ -371,3 +371,5 @@ Open: §8 OPEN items.
    rule and the "one query, not four concurrent" decision with its source.
 3. **Goal clear enough to steer?** Yes — §1 states "same results, less work"
    and that any change in output is a bug.
+
+Execution: OpenRouter known provider/endpoint metadata now avoids its redundant generation lookup (13 OpenRouter tests pass). Prompt cache waits Track T1 release of ai-tagging-shared.ts. Aggregate prerequisite popcre/shared-db#5630, claim #5628, is in progress. Relevance paths are reserved for the coordinator’s V-B child; do not close #470 until that proof arrives.

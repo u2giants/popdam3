@@ -83,3 +83,25 @@ describe("sell-through CSV export helpers", () => {
     expect(sheet!.getCell(2, 9).value).toBe("Keep as text");
   });
 });
+
+it("fetches each unique thumbnail once and places it on every matching row", async () => {
+  const parsed = parseSellThroughCsv("Vendor Stock Number\nA\nB\nA\nB\nA");
+  const rows = createSellThroughPreviewRows(parsed, new Map([
+    ["A", { sku: "A", thumbnailUrl: "https://example.test/a.png" }],
+    ["B", { sku: "B", thumbnailUrl: "https://example.test/b.png" }],
+  ]));
+  const calls: string[] = [];
+  const generated = await generateSellThroughWorkbook(parsed.headers, rows, async (url) => {
+    calls.push(url);
+    return { buffer: new ArrayBuffer(8), contentType: "image/png" };
+  });
+  expect(calls.sort()).toEqual(["https://example.test/a.png", "https://example.test/b.png"]);
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.default.Workbook();
+  const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error); reader.readAsArrayBuffer(generated.blob);
+  });
+  await workbook.xlsx.load(bytes);
+  expect(workbook.getWorksheet("Sell-through Images")!.getImages()).toHaveLength(5);
+});

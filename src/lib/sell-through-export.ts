@@ -314,30 +314,32 @@ export async function generateSellThroughWorkbook(
 
   const thumbnailFailures: ThumbnailFetchFailure[] = [];
 
-  for (let i = 0; i < rows.length; i += 1) {
-    const previewRow = rows[i];
-    if (!previewRow.match?.thumbnailUrl) continue;
-
-    try {
-      const thumbnail = await fetchThumbnail(previewRow.match.thumbnailUrl);
-      const imageId = workbook.addImage({
-        buffer: thumbnail.buffer,
-        extension: imageExtension(thumbnail.contentType, previewRow.match.thumbnailUrl),
-      });
-
-      sheet.addImage(imageId, {
-        tl: { col: 0.15, row: i + 1.15 },
-        ext: { width: 72, height: 72 },
-      });
-    } catch (error) {
-      thumbnailFailures.push({
-        sku: previewRow.match.sku,
-        url: previewRow.match.thumbnailUrl,
-        reason: error instanceof Error ? error.message : "Unknown fetch error",
-      });
+  const urls = [...new Set(rows.map((row) => row.match?.thumbnailUrl).filter((url): url is string => Boolean(url)))];
+  const images = new Map<string, { id: number } | { error: string }>();
+  let nextUrl = 0;
+  await Promise.all(Array.from({ length: Math.min(4, urls.length) }, async () => {
+    while (nextUrl < urls.length) {
+      const url = urls[nextUrl++];
+      try {
+        const thumbnail = await fetchThumbnail(url);
+        const id = workbook.addImage({ buffer: thumbnail.buffer, extension: imageExtension(thumbnail.contentType, url) });
+        images.set(url, { id });
+      } catch (error) {
+        images.set(url, { error: error instanceof Error ? error.message : "Unknown fetch error" });
+      }
+    }
+  }));
+  rows.forEach((previewRow, i) => {
+    const url = previewRow.match?.thumbnailUrl;
+    if (!url) return;
+    const image = images.get(url)!;
+    if ("id" in image) {
+      sheet.addImage(image.id, { tl: { col: 0.15, row: i + 1.15 }, ext: { width: 72, height: 72 } });
+    } else {
+      thumbnailFailures.push({ sku: previewRow.match!.sku, url, reason: image.error });
       sheet.getCell(i + 2, 1).value = "Image fetch failed";
     }
-  }
+  });
 
   sheet.autoFilter = {
     from: { row: 1, column: 1 },
