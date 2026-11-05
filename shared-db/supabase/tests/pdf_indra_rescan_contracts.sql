@@ -35,9 +35,25 @@ BEGIN
     WHERE c.id = good
   ) THEN RAISE EXCEPTION 'pending file not claimable'; END IF;
 
+  -- One malformed element must not abort valid rows that follow it.
+  result := public.commit_pdf_rescan_batch(jsonb_build_array(
+    jsonb_build_object('asset_id','bad-uuid','extracted_text',new_text),
+    jsonb_build_object('asset_id',good,'page_count','not-an-integer','extracted_text',new_text),
+    jsonb_build_object('asset_id',good,'page_count','999999999999999999999','extracted_text',new_text),
+    jsonb_build_object('asset_id','','page_count',''),
+    jsonb_build_object('page_count','1'),
+    jsonb_build_object('asset_id',good,'page_count','2147483648','extracted_text',new_text)));
+  IF (result->>'failed')::int <> 6 OR (result->>'replaced')::int <> 0
+     OR EXISTS (SELECT 1 FROM public.pdf_text_samples_backup WHERE asset_id=good)
+     OR NOT EXISTS (SELECT 1 FROM public.pdf_text_samples WHERE asset_id=good AND extracted_text=long_text
+         AND indra_rescan_at IS NULL) THEN
+    RAISE EXCEPTION 'malformed rows mutated originals or backups: %', result;
+  END IF;
+
   result := public.commit_pdf_rescan_batch(jsonb_build_array(
     jsonb_build_object('asset_id',good,'extracted_text',new_text,'page_count','',
       'fields',jsonb_build_object('creative_designer','ROBIN','technical_designer','KIM','files_used',jsonb_build_array('CC100001'))),
+    jsonb_build_object('asset_id','bad-uuid'),
     jsonb_build_object('asset_id',shorter,'filename','s.pdf','relative_path','ZZRESCAN/s','extracted_text','tiny','fields','{}'::jsonb),
     jsonb_build_object('asset_id',missing,'filename','m.pdf','relative_path','ZZRESCAN/m','extracted_text',NULL,'error','ENOENT'),
     jsonb_build_object('asset_id',fresh,'filename','ZZ4 tech pack.pdf','relative_path','ZZRESCAN/f','extracted_text',new_text,'fields','{}'::jsonb),
@@ -47,7 +63,7 @@ BEGIN
       'fields',jsonb_build_object('creative_designer','ROBIN'))
   ));
 
-  IF (result->>'replaced')::int <> 4 OR (result->>'kept_existing')::int <> 1 OR (result->>'failed')::int <> 1 THEN
+  IF (result->>'replaced')::int <> 4 OR (result->>'kept_existing')::int <> 1 OR (result->>'failed')::int <> 2 THEN
     RAISE EXCEPTION 'outcome counts wrong: %', result;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.pdf_text_samples WHERE asset_id=good AND extracted_text=btrim(new_text)
