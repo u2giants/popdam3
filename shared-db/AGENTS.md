@@ -202,6 +202,8 @@ Do not load these into context (also reflected in `.claudeignore` / `.cursorigno
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 Secret values live only in 1Password vault `vibe_coding`. Fetch items serially.
+Do not embed new project refs or other stable infrastructure identifiers in committed evidence —
+consumer mirrors enforce a public boundary against them (§8, #4910).
 Full CLI/credential traps: [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](docs/agents/runbooks-credentials-cli-and-gotchas.md).
 
 ## Deployment

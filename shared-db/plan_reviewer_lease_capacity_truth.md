@@ -95,7 +95,7 @@ ghosts.
 ### The concepts you need before reading any further
 
 The file you will edit,
-[`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs)
+`scripts/manage-migration-author-lanes.mjs` (removed)
 (3,917 lines), coordinates multiple concurrent AI sessions working on the same
 database. Two separate lease systems live in it, and **confusing them is the
 single most likely way to get this wrong**:

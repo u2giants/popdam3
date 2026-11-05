@@ -1,6 +1,6 @@
 # Plan: cut back shared-db merge gates and fix the stuck checks permanently
 
-Handoff backlink: [HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md](../../HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md)
+Handoff backlink: `HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md` (retired)
 Companion plan: [plan_stuck_work_watchdog.md](plan_stuck_work_watchdog.md)
 Relationship to the operating route: this plan is a concrete input to Step 6 ("trustworthy required-check set") and Step 8 (native merge queue) of [plan_shared_db_workflow_refactor.md](../../plan_shared_db_workflow_refactor.md). It does not replace that plan; whoever executes a step here updates that plan's STATUS row too.
 

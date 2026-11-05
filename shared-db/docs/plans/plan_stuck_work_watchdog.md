@@ -1,6 +1,6 @@
 # Plan: stuck-work watchdog, and whether GitHub fits a many-agent workflow
 
-Handoff backlink: [HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md](../../HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md)
+Handoff backlink: `HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md` (retired)
 Companion plan: [plan_gate_cutback.md](plan_gate_cutback.md) (do its Step 1–2 first; a watchdog that re-runs quota-starved checks would only burn more quota).
 
 ## Relationship to existing issues (read before starting)

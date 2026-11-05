@@ -20,7 +20,7 @@ engineering suites on every event.
 
 Fresh session starts at Step 1. Read this STATUS table first — do not re-derive or re-plan.
 
-Related handoff: [20261023T1555Z-edge-dev-mimo-ci-speedup-plan.md](HANDOFF.d/20261023T1555Z-edge-dev-mimo-ci-speedup-plan.md)
+Related handoff: `HANDOFF.d/20261023T1555Z-edge-dev-mimo-ci-speedup-plan.md` (retired)
 
 ---
 

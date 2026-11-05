@@ -3,7 +3,7 @@
 Issue: [popcre/shared-db#770](https://github.com/popcre/shared-db/issues/770). Owner instruction
 (Albert, chat, 2026-10-12, verbatim: "yes, go ahead with the reviewer check").
 Registered from the #770 successor handoff
-[`HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-770-recovery-production.md`](HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-770-recovery-production.md) §6 step 3.
+`HANDOFF.d/2026-10-12T0008Z-edge-dev3-codex-770-recovery-production.md` (retired) §6 step 3.
 
 ## STATUS
 

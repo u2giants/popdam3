@@ -45,8 +45,8 @@ class FakeDB:
 
 
 def identity(target='preview'):
-    return dict(target=target,project_ref='previewprojectrefabc' if target=='preview' else maintenance.PROD,
-                preview_project_ref='previewprojectrefabc',source_sha='b'*40,execution_sha='c'*40,
+    return dict(target=target,project_ref='abcdefghijklmnopqrst' if target=='preview' else maintenance.PROD,
+                preview_project_ref='abcdefghijklmnopqrst',source_sha='b'*40,execution_sha='c'*40,
                 executor_digest='d'*64,source_pr=1,work_issue=5745,run_id=5)
 
 

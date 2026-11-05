@@ -1,6 +1,6 @@
 # Plan: make the HTS customs-ruling search fast
 
-Handoff: [HANDOFF.d/20261102T1915Z-edge-dev3-claude-hts-ruling-search-speed.md](HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md)
+Handoff: `HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md` (retired)
 Owning issue: popcre/shared-db#5483 (split out of #5188) (CBP ruling database reasoning layer). Sibling plan: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md).
 
 ## STATUS (2026-11-02 2:15 PM EST)

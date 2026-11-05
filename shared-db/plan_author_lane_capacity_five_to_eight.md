@@ -5,7 +5,7 @@
 documentation alignment this plan calls for landed 2026-08-30 — see §7.
 **Owner instruction:** 2026-08-27.
 **Enforced value when this plan was written:** `MAX_AUTHOR_LANES = 5` in
-[`scripts/manage-migration-author-lanes.mjs`](scripts/manage-migration-author-lanes.mjs)
+`scripts/manage-migration-author-lanes.mjs` (removed)
 (raised 3 → 5 on 2026-08-25 in commit `c9b9599`).
 
 ## 1. What the number is

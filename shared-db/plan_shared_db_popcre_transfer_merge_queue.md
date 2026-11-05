@@ -4,7 +4,7 @@ Tracking issue: [#2530](https://github.com/u2giants/shared-db/issues/2530)
 
 Previous investigation: [issue #1435](https://github.com/u2giants/shared-db/issues/1435) and closed [PR #1950](https://github.com/u2giants/shared-db/pull/1950)
 
-Paired handoff: [`HANDOFF.d/2026-09-07T1651Z-edge-dev-codex-popcre-transfer-merge-queue.md`](HANDOFF.d/2026-09-07T1651Z-edge-dev-codex-popcre-transfer-merge-queue.md)
+Paired handoff: `HANDOFF.d/2026-09-07T1651Z-edge-dev-codex-popcre-transfer-merge-queue.md` (retired)
 
 ## STATUS — read first
 

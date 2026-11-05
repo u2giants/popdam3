@@ -15,6 +15,14 @@ named it as current until 2026-08-20. See §4 rule 2.
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
+⚠️ **Do not embed new stable infrastructure identifiers in committed evidence (#4910).** This
+repository is public and every consumer repo vendors this tree wholesale; each consumer's
+public-boundary gate rejects any NEW identifier-shaped token (any run of exactly 20 lowercase
+letters) its allowlist does not already carry, so one raw rehearsal/branch ref in a verification
+capture or handoff breaks that consumer's prose PRs. In NEW evidence write neutral placeholders
+(`<project-ref>`, `<pooler-user>`). Identifiers already cleared by a consumer's
+`tools/public-boundary-allowlist.txt` are historical and are not rewritten.
+
 
 ### 8.1 API-exposed schemas (PostgREST) — `dam` is NOT exposed (2026-07-15)
 
