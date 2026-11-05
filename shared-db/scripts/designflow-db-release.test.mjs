@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { proposeTrain, trainRecordRef } from './db-flow/migration-train.mjs';
 import { manifestDigest } from './lib/designflow-db-release.mjs';
-import { sourceFacts, assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog } from './designflow-db-release.mjs';
+import { sourceFacts, assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog, currentLiveRecoveryCommandFrom } from './designflow-db-release.mjs';
 
 const head = 'a'.repeat(40), repository = 'popcre/designflow-tracking';
 const path = 'supabase/migrations/20261022194647_synthetic.sql', content = '-- synthetic only\n';
@@ -455,6 +455,50 @@ test('closed completed work without production evidence waits for current-live p
   assert.equal(result.status, 'waiting');
   assert.deepEqual(result.progress, { state: 'current-live-reverification-required', source_pr: 4653 });
   assert.deepEqual(f.effects, []);
+});
+
+test('closed completed work carries a paste-ready recovery command when one can be recovered', async () => {
+  const f = fixture();
+  f.io.productionEvidence = async () => null;
+  f.io.workIssue = async () => ({ state: 'closed', state_reason: 'completed' });
+  f.io.currentLiveRecovery = async () => 'gh workflow run example';
+  const result = await assess(f);
+  assert.equal(result.status, 'waiting');
+  assert.deepEqual(result.progress, { state: 'current-live-reverification-required', source_pr: 4653,
+    recovery_command: 'gh workflow run example' });
+  assert.deepEqual(f.effects, []);
+});
+
+test('observer names the recovery command location only when a command is recovered', async () => {
+  const descriptions = [], statuses = async (repo, sha, state, description) => descriptions.push(description);
+  const waiting = fixture();
+  waiting.io.productionEvidence = async () => null;
+  waiting.io.workIssue = async () => ({ state: 'closed', state_reason: 'completed' });
+  waiting.io.status = statuses;
+  await runObserver(waiting.policy, waiting.io);
+  assert.equal(descriptions.at(-1), 'Required database promotion remains pending');
+  descriptions.length = 0;
+  waiting.io.currentLiveRecovery = async () => 'gh workflow run example';
+  await runObserver(waiting.policy, waiting.io);
+  assert.equal(descriptions.at(-1), 'Current-live reverification required; exact recovery command in run summary');
+});
+
+test('recovery command binds the exact recorded producer inputs and refuses malformed bindings', () => {
+  const binding = { producer: { original: { id: 40151562831, run_attempt: 1, head_sha: 'a'.repeat(40) },
+    upload: { artifact_id: 12582751899, digest: 'sha256:' + 'b'.repeat(64) } } };
+  const command = currentLiveRecoveryCommandFrom(binding, requirement);
+  assert.ok(command.startsWith('gh workflow run production-catalog-verification-recovery.yml --repo popcre/shared-db --ref main '));
+  for (const token of [' -f mode=current-live-reverification', ' -f source_pr=4653', ' -f work_issue=4646',
+    ' -f original_attempt=1', ' -f original_artifact_id=12582751899', ` -f apply_main_sha=${'a'.repeat(40)}`,
+    ' -f ordered_allowlist=20261022194647', ' -f apply_run_id=40151562831',
+    ` -f apply_artifact_digest=sha256:${'b'.repeat(64)}`,
+    ' -f main_sha=$(gh api repos/popcre/shared-db/commits/main --jq .sha)']) assert.ok(command.includes(token), token);
+  for (const bad of [undefined, {}, { producer: {} },
+    { producer: { original: { id: 40151562831, run_attempt: 1, head_sha: 'not-a-sha' }, upload: binding.producer.upload } },
+    { producer: { original: binding.producer.original, upload: { artifact_id: 1, digest: 'b'.repeat(64) } } }])
+    assert.throws(() => currentLiveRecoveryCommandFrom(bad, requirement), /Malformed current-live recovery binding/);
+  assert.throws(() => currentLiveRecoveryCommandFrom(binding, { ...requirement, migrations: [{ version: 'nope' }] }),
+    /Malformed current-live recovery binding/);
 });
 
 test('closed unfinished work without production evidence still refuses admission', async () => {

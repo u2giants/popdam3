@@ -78,6 +78,7 @@ export function verifyProductionEvidence(evidence,io,read=ghJson,repository=curr
 
 // Separate present-state evidence. Never interprets this as a historical apply delta.
 export const CURRENT_LIVE_KIND='shared-db-current-live-reverification/v1'
+export const CURRENT_LIVE_TRUSTED_PATHS=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']
 const SHA=/^[a-f0-9]{40}$/
 const HEX=/^[a-f0-9]{64}$/
 const APPLY_JOBS=['SQL migration guards','Production apply review (immutable evidence + hard guards)','Production apply (automatic evidence gates)']
@@ -193,7 +194,7 @@ export function verifyCurrentLiveEvidence(e,io,read=ghJson,repository=currentRep
   if(run.id!==id||run.status!=='completed'||run.conclusion!=='success'||run.event!=='workflow_dispatch'||run.path!==RECOVERY_PATH||run.head_branch!=='main'||run.head_sha!==e.production_reverification_commit_sha||!io.mergeCommitInMain(run.head_sha))return false
   const main=get('commits/main').sha
   if(!SHA.test(main))return false
-  for(const path of ['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']){
+  for(const path of CURRENT_LIVE_TRUSTED_PATHS){
    const producer=get(`contents/${path}?ref=${run.head_sha}`),current=get(`contents/${path}?ref=${main}`)
    if(producer.encoding!=='base64'||current.encoding!=='base64'||producer.content!==current.content)return false
   }

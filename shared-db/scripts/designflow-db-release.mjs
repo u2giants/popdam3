@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { selectCurrentLivePackageFiles, CURRENT_LIVE_KIND, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
+import { selectCurrentLivePackageFiles, CURRENT_LIVE_KIND, CURRENT_LIVE_TRUSTED_PATHS, assertCurrentLiveProducer, validateCurrentLiveBinding, proveCurrentLiveAssignedSource, authenticatedArtifact404, currentLiveArtifactMetadata, openCurrentLivePackage, retainedCurrentLivePackage, assertEquivalentRetainedCurrentLiveReceipt, CURRENT_LIVE_RECEIPT_PREFIX } from './lib/production-catalog-recovery.mjs';
+import { readMetadataZip } from './lib/current-live-attestation.mjs';
 import { validateManifest, manifestDigest, verifyRequirementSource } from './lib/designflow-db-release.mjs';
 import { githubIo, parseQueueScope, trainIo } from './manage-migration-coordination.mjs';
 import { readyRecord, preparePreviewDispatch } from './db-flow/reconcile.mjs';
@@ -67,8 +68,10 @@ export async function assessRelease({ repository, head, manifest, policy, branch
       if (String(issue?.state ?? '').toLowerCase() === 'closed') {
         if (String(issue?.state_reason ?? '').toLowerCase() !== 'completed')
           throw Error(`issue #${requirement.work_issue} is closed and cannot be admitted`);
+        const recovery_command = await io.currentLiveRecovery?.(requirement, facts);
         return { ...identity, status: 'waiting', requirement: requirement.work_issue,
-          progress: { state: 'current-live-reverification-required', source_pr: requirement.source_pr } };
+          progress: { state: 'current-live-reverification-required', source_pr: requirement.source_pr,
+            ...(recovery_command ? { recovery_command } : {}) } };
       }
       if (await current() !== head) throw Error('Application develop head changed before promotion');
       const companions = m.requirements.filter(r => r.work_issue === requirement.work_issue);
@@ -557,7 +560,9 @@ export async function runObserver(policy, io) {
       const manifest = await io.manifest(app.repository, head);
       const result = await assessRelease({ repository: app.repository, head, manifest, policy, branch }, io);
       await io.status(app.repository, head, result.status === 'ready' ? 'success' : 'pending',
-        result.status === 'ready' ? 'Required production database changes and contracts verified' : 'Required database promotion remains pending');
+        result.status === 'ready' ? 'Required production database changes and contracts verified'
+          : result.progress?.recovery_command ? 'Current-live reverification required; exact recovery command in run summary'
+          : 'Required database promotion remains pending');
       results.push(result);
     } catch (error) {
       if (head && SHA.test(head)) await io.status(app.repository, head, 'failure', 'Database readiness could not be proven; see central run');
@@ -708,6 +713,58 @@ async function runCurrentLiveReverification() {
   execFileSync('python',['-c','import os,zipfile;from pathlib import Path;p=Path(os.environ["CURRENT_LIVE_OUTPUT"]);z=zipfile.ZipFile(p/"current-live-content.zip","w",compression=zipfile.ZIP_STORED);[z.write(p/n,n) for n in ["current-live-binding.json","production-catalog-verification.json"]];z.close()'],{stdio:['ignore','pipe','pipe'],timeout:10000,env:process.env});
   console.log('CURRENT-LIVE REVERIFICATION: present state only; no historical delta or application acceptance claimed.');
 }
+// Recovery guidance only. Reading a stale certificate's recorded bindings grants
+// no authority: a pasted dispatch is independently re-proven by the current-live
+// reverification job before any readiness accepts it.
+export function currentLiveRecoveryCommandFrom(binding, requirement) {
+  const original = binding?.producer?.original, upload = binding?.producer?.upload;
+  const values = {
+    source_pr: requirement?.source_pr, work_issue: requirement?.work_issue,
+    original_attempt: original?.run_attempt, original_artifact_id: upload?.artifact_id,
+    apply_main_sha: original?.head_sha, apply_run_id: original?.id,
+    ordered_allowlist: (requirement?.migrations ?? []).map(m => m.version).sort().join(','),
+    apply_artifact_digest: upload?.digest,
+  };
+  const pattern = {
+    source_pr: /^[1-9][0-9]*$/, work_issue: /^[1-9][0-9]*$/, original_attempt: /^[1-9][0-9]*$/,
+    original_artifact_id: /^[1-9][0-9]*$/, apply_run_id: /^[1-9][0-9]*$/, apply_main_sha: SHA,
+    ordered_allowlist: /^\d{14}(?:,\d{14})*$/, apply_artifact_digest: /^sha256:[a-f0-9]{64}$/,
+  };
+  for (const [key, re] of Object.entries(pattern))
+    if (!re.test(String(values[key] ?? ''))) throw Error(`Malformed current-live recovery binding: ${key}`);
+  return `gh workflow run production-catalog-verification-recovery.yml --repo ${CANONICAL} --ref main`
+    + ` -f mode=current-live-reverification -f source_pr=${values.source_pr} -f work_issue=${values.work_issue}`
+    + ` -f original_attempt=${values.original_attempt} -f original_artifact_id=${values.original_artifact_id}`
+    + ` -f apply_main_sha=${values.apply_main_sha} -f ordered_allowlist=${values.ordered_allowlist}`
+    + ` -f apply_run_id=${values.apply_run_id} -f apply_artifact_digest=${values.apply_artifact_digest}`
+    + ` -f main_sha=$(gh api repos/${CANONICAL}/commits/main --jq .sha)`;
+}
+
+function staleCertificateRecoveryCommand(requirement, facts) {
+  const prefix = `refs/designflow-db-current-live-receipts/${requirement.work_issue}/${requirement.source_pr}/${facts.head_sha40}/`;
+  const stale = [];
+  for (const row of githubIo.listRefs(prefix)) {
+    try {
+      const message = githubIo.getCommit(row.sha)?.message;
+      if (!message?.startsWith(CURRENT_LIVE_RECEIPT_PREFIX)) continue;
+      const receipt = JSON.parse(message.slice(CURRENT_LIVE_RECEIPT_PREFIX.length));
+      const runId = receipt?.proof?.reverification_run_id;
+      if (!Number.isSafeInteger(runId) || runId < 1) continue;
+      const run = api(`repos/${CANONICAL}/actions/runs/${runId}`);
+      if (run.status !== 'completed' || run.conclusion !== 'success' ||
+          run.path !== '.github/workflows/production-catalog-verification-recovery.yml' ||
+          run.head_branch !== 'main' || !githubIo.mergeCommitInMain(run.head_sha)) continue;
+      const currentMain = api(`repos/${CANONICAL}/commits/main`).sha;
+      if (!CURRENT_LIVE_TRUSTED_PATHS.some(path => content(CANONICAL, path, run.head_sha) !== content(CANONICAL, path, currentMain)))
+        continue; // still fresh: the evidence path owns it
+      const packageFiles = retainedCurrentLivePackage(receipt, receipt.proof);
+      const binding = JSON.parse(readMetadataZip(packageFiles.get('current-live-content.zip')).get('current-live-binding.json'));
+      stale.push({ runId, command: currentLiveRecoveryCommandFrom(binding, requirement) });
+    } catch { continue; }
+  }
+  return stale.sort((a, b) => b.runId - a.runId)[0]?.command ?? null;
+}
+
 async function currentLiveEvidence(requirement,facts,ledger) {
   const runs=workflowRuns(api,`repos/${CANONICAL}/actions/workflows/production-catalog-verification-recovery.yml/runs?event=workflow_dispatch&status=success`),verified=[];
   const source=liveSource(requirement,facts),prefix=`refs/designflow-db-current-live-receipts/${requirement.work_issue}/${requirement.source_pr}/${facts.head_sha40}/`;
@@ -718,7 +775,7 @@ async function currentLiveEvidence(requirement,facts,ledger) {
     const proofJobs=api(`repos/${CANONICAL}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100`);
     if(!Array.isArray(proofJobs.jobs)||proofJobs.total_count!==proofJobs.jobs.length||proofJobs.total_count>100||proofJobs.jobs.filter(j=>j.name==='Current live reverification'&&j.run_attempt===run.run_attempt&&j.run_id===run.id&&j.conclusion==='success'&&j.status==='completed').length!==1)continue;
     const currentMain=api(`repos/${CANONICAL}/commits/main`).sha;
-    const trustedPaths=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py'];
+    const trustedPaths=CURRENT_LIVE_TRUSTED_PATHS;
     if(trustedPaths.some(path=>content(CANONICAL,path,run.head_sha)!==content(CANONICAL,path,currentMain)))continue;
     const retained=retainedRows.filter(r=>r.ref===`${prefix}${run.id}`);if(retained.length>1)throw Error('Ambiguous retained certificate ref');
     const candidates=[];
@@ -798,12 +855,24 @@ export async function main() {
     sourceFacts: requirement => memo(factsCache, requirement.source_pr, () => sourceFacts(requirement)),
     productionEvidence: (requirement, facts) => memo(evidenceCache, requirement.source_pr, () => productionEvidence(requirement, facts)),
     workIssue: number => api(`repos/${CANONICAL}/issues/${number}`),
+    currentLiveRecovery: (requirement, facts) => staleCertificateRecoveryCommand(requirement, facts),
     promote,
     catalog,
     status: (repo, head, state, description) => publishAppStatus(repo, head, { state, context: policy.status_context, description, target_url: url }, process.env.DFLOW_READINESS_STATUS_TOKEN),
   };
   const results = await runObserver(policy, io);
   process.stdout.write(JSON.stringify(results, null, 2) + '\n');
+  const summary = process.env.GITHUB_STEP_SUMMARY;
+  if (summary) {
+    for (const r of results) {
+      if (!r.progress?.recovery_command) continue;
+      appendFileSync(summary, `## Current-live reverification required — ${r.repository} (${r.branch}, issue #${r.requirement})\n\n`
+        + `The database gate is waiting on a stale verification certificate (shared-db verifier code changed after it was issued). `
+        + `This recovery is read-only: nothing is applied to preview or production. Paste:\n\n`
+        + `\`\`\`bash\n${r.progress.recovery_command}\n\`\`\`\n\n`
+        + `Works in bash, zsh, and PowerShell. Once the run succeeds, the readiness observer restamps the gate by itself within five minutes.\n`);
+    }
+  }
   if (results.some(r => r.status === 'blocked')) process.exitCode = 1;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
