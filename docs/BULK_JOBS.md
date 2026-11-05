@@ -18,6 +18,8 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 
 ---
 
+Parallel whole-library tagging uses the same `ai1:<tier>:<uuid>` checkpoint as ordinary AI tagging. Its interrupted runs recover through the existing automatic-resume validator; retain the run ID, cursor and configuration when repairing recovery. A live worker heartbeat alone does not prove progress: verify the saved operation count and newly persisted asset tag timestamps.
+
 ## Job Inventory
 
 | Key | Lane | Tables written | Trigger |

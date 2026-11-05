@@ -3,22 +3,13 @@ Issue: https://github.com/u2giants/popdam3/issues/471
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
 Written 2026-11-04 by Claude (plan only; no implementation started).
 
-## STATUS
+## STATUS — COMPLETE
 
-| # | Step | State | Evidence / notes |
-|---|------|-------|------------------|
-| 0 | Land PR #713 (five dead files) onto `main` | ✅ done | merged 2026-11-04 5:12 PM EST as `2287f1b5`; its file list deletes all five. §5 describes the pre-merge state |
-| 1 | Worktree + branch from post-#713 `main` | ⬜ open | |
-| 2 | Delete `supabase/functions/_shared/types.ts` | ⬜ open | zero importers (grep, §6) |
-| 3 | Delete `apps/bridge-agent/src/constants.ts` | ⬜ open | zero importers (grep, §6) |
-| 4 | Retire `sync-external` edge function (source, config, test, deployed copy) | ⬜ open | caller removed by #713; stub remains |
-| 5 | Retire `classify-erp-categories` admin-api route and its `OP_ACTIONS` entry | ⬜ open | handler returns 400 unconditionally |
-| 6 | Retire helper-api `POST /logs` and helper `sendLog` | ⬜ open | `sendLog` has no callers; route stores nothing |
-| 7 | Doc sweep (`docs/audit-2026-10-21.md`, `docs/ADMIN_OPERATIONS.md`, `docs/INFRASTRUCTURE.md`, `docs/architecture.md`, `docs/ERP_ENRICHMENT_PLAN.md`, `docs/POPDAM_HELPER.md`) | ⬜ open | |
-| 8 | PR, CI, merge, deploy verification | ⬜ open | |
-| 9 | Live proof on #471 and close | ⬜ open | `- [ ] live proof` stays on #471 until §13 proof exists |
+Source retirement merged in [PR765](https://github.com/u2giants/popdam3/pull/765). The two unused files, obsolete taxonomy function, canned classification HTTP route/mapping, no-op Helper logs route and unused client are removed. Existing worker classification remains.
 
-**Where a fresh session starts:** Step 1 (#713 is merged). Duplicate-code work is NOT here; it is `docs/plans/issue-708-remove-duplicated-code.md`.
+Authenticated live checks: taxonomy function404; classification HTTP action404 `Unknown action`; Helper logs404 `Not found`. The deployed application at eecacfb still displays Classify Now; the QA did not start an extra worker job. Ten canonical/retirement contracts pass. Frontend repair770 restored the build and is visible live. Evidence and closure: [issue471](https://github.com/u2giants/popdam3/issues/471#issuecomment-6650058617).
+
+No steps remain in this plan. The sections below preserve the original execution design; duplicate-code work remains independently tracked by708.
 
 ---
 
@@ -219,3 +210,5 @@ Open questions: none that are business-meaning. The two OPEN engineering decisio
 1. **Could a brand-new session execute this without asking anything?** Yes. §5 gives every file:line, §9 gives the exact commands and gates per step, §10 names each test by behaviour, §12 says where credentials live and how CI/deploys run, and Step 0 tells it how to decide where to start.
 2. **Does it carry every piece of background and what was ruled out?** Yes. §3 and §6 explain the #713 dependency and the "loud 410" history; §7 lists the five rejected alternatives with reasons; §8 separates locked from open decisions with criteria.
 3. **Is the goal clear enough to steer by if a step is wrong?** Yes. §1 states the goal (gone or re-verified live, no user-visible change) and the concrete rule for a conflict: never force a deletion that has a real caller; record it on the issue instead.
+
+Execution: source retirement prepared for legacy taxonomy writer, canned classification route, no-op Helper logs and their unused client. Active worker classification remains. Live deployed-function retirement and admin unknown-action proof remain open on #471. No bridge runtime/version change.

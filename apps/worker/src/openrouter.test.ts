@@ -154,3 +154,20 @@ test("a created batch whose ID is not a non-empty string stays on the ambiguous 
     globalThis.fetch = original;
   }
 });
+
+test("known provider metadata avoids a second generation lookup", async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({ id: "gen-test", choices: [{ message: { content: "ok" } }] }), {
+        headers: { "x-openrouter-provider": "test-provider" },
+      });
+    };
+    const result = await chatCompletion("key", { model: "test/model", messages: [] });
+    assert.equal(result.content, "ok");
+    assert.equal(result.providerInfo?.provider, "test-provider");
+    assert.equal(calls, 1);
+  } finally { globalThis.fetch = original; }
+});

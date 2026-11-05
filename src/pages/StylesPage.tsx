@@ -1,6 +1,6 @@
 import { VendorStatisticsPanel } from "@/components/orders/VendorStatisticsPanel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { type FieldKey, type StyleRow, type SheetColumn, type ReviewItem, type LinkCandidate, type JevRankingResponse, type DescriptionEditorOptions, type AuditCell, type SavedView } from "./styles/types";
 import { JEV_MATCH_FIELDS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
 import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation, isUserCreatedRow } from "./styles/helpers";
-import { refreshBridgeWithMeasurement, fetchRowsPage, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
+import { refreshBridgeWithMeasurement, fetchRowsPage, fetchStyleRow, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
 import { DescriptionBuilderEditor, RowNumberCell, RowNumberHeader, RfqGroupCell } from "./styles/cells";
 
 LicenseManager.setLicenseKey("");
@@ -152,6 +152,16 @@ export default function StylesPage() {
     navigateGridSearch();
   }, [navigateGridSearch]);
 
+  const refreshEditedRow = useCallback(async (id: string, sheet: string) => {
+    const updated = await fetchStyleRow(id);
+    queryClient.setQueryData<InfiniteData<Awaited<ReturnType<typeof fetchRowsPage>>>>(["style-rows", sheet], (current) => {
+      if (!current || !updated) return current;
+      return { ...current, pages: current.pages.map((page) => ({ ...page,
+        rows: page.rows.map((row) => row.id === id ? updated : row),
+      })) };
+    });
+  }, [queryClient]);
+
   useEffect(() => {
     const channel = supabase
       .channel(`style-tracker-rows:${active.name}`)
@@ -163,7 +173,14 @@ export default function StylesPage() {
             ?? (payload.old as { source_sheet?: unknown } | null)?.source_sheet;
           if (typeof changedSourceSheet === "string" && changedSourceSheet !== active.name) return;
 
-          void queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
+          const changedId = (payload.new as { id?: string })?.id;
+          if (payload.eventType === "UPDATE" && changedId) {
+            void refreshEditedRow(changedId, active.name).catch(() => {
+              toast.error("Could not refresh the changed row", { description: "Refresh to load its latest values." });
+            });
+          } else {
+            void queryClient.invalidateQueries({ queryKey: ["style-rows", active.name] });
+          }
           void queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
           if (payload.eventType !== "UPDATE") {
             void queryClient.invalidateQueries({ queryKey: ["style-row-count", active.name] });
@@ -175,7 +192,7 @@ export default function StylesPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [active.name, queryClient]);
+  }, [active.name, queryClient, refreshEditedRow]);
 
   const customerOptionById = useMemo(() => new Map((customerOptionsQuery.data ?? []).map((option) => [option.id, option.name])), [customerOptionsQuery.data]);
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
@@ -285,9 +302,9 @@ export default function StylesPage() {
       if (error) throw error;
       await refreshStyleTrackerBridgeWithRetry(refreshBridgeWithMeasurement);
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
-      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
+    onSettled: async (_data, _error, { row }) => {
+      await refreshEditedRow(row.id, row.source_sheet);
+      void queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
     },
     onError: (error) => {
       if (error instanceof StyleRowSavedBridgeRefreshError) {

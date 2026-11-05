@@ -451,7 +451,7 @@ function parseJsonRecord(value: string): Record<string, unknown> | undefined {
 }
 
 async function enrichProviderInfo(apiKey: string, info: OpenRouterProviderInfo, timeoutMs: number) {
-  if (!info.generationId) return info;
+  if (!info.generationId || info.provider || info.endpoint) return info;
   try {
     const url = `${OPENROUTER_GENERATION_URL}?id=${encodeURIComponent(info.generationId)}`;
     const response = await fetch(url, {

@@ -224,6 +224,21 @@ Get the checksum by downloading the release zip and running `sha256sum`. The age
 
 Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
 
+### Original embedded AI preview fallback
+
+When the normal AI renderers and exact sibling lookup fail, the Windows agent can
+use the JPEG saved inside that same source file's XMP metadata, or the original
+TIFF preview whose validated byte range is declared by a DOS binary EPS header.
+It reads at most 512 KiB from each end plus a TIFF preview capped at 4 MiB,
+caps decoded preview pixels, rejects blank and compatibility-notice images,
+and never enlarges the preview. These saved
+previews are commonly 256 pixels; they restore honest browsing/search coverage
+without claiming a full native render. The source file and asset identity remain
+unchanged. Files without a valid saved preview retain their existing failure.
+An AI-named source with a real Photoshop `8BPS` header uses the existing PSD
+renderer chain; neither the filename nor its recorded type is rewritten.
+
+
 ## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
 
 The agent was moved from **edge-alien** to **edge-dev** on 2026-10-01 so edge-alien could be reformatted, and moved back to the freshly installed edge-alien on 2026-10-05 (see the end of this section). **The agent runs on edge-alien now.** Every problem hit on either move is listed here with the fix.

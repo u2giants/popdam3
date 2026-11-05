@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -16,11 +16,10 @@ describe("canonical licensor/property contract", () => {
     expect(handler).not.toContain('.from("properties")');
   });
 
-  it("retires the legacy PopDAM taxonomy writer loudly", () => {
-    const syncFunction = read("supabase/functions/sync-external/index.ts");
-    expect(syncFunction).toContain("core.licensor and core.property");
-    expect(syncFunction).toContain("410");
-    expect(syncFunction).not.toContain('.upsert(');
+  it("has no PopDAM-side taxonomy writer", () => {
+    // Only the shared master-data feeder may write the canonical taxonomy.
+    expect(existsSync("supabase/functions/sync-external")).toBe(false);
+    expect(read("supabase/config.toml")).not.toContain("sync-external");
   });
 
   it("sources characters only from the licensor-scraped master list", () => {

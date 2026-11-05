@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildOpenFolderUri, getPreferredPathMode } from "@/lib/open-folder";
 import { getPathDisplayModes, type NasConfig } from "@/lib/path-utils";
 import { toast } from "sonner";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 interface AssetGridProps {
   assets: Asset[];
@@ -92,7 +92,7 @@ function useNasConfig(): NasConfig | null {
   return data ?? null;
 }
 
-function AssetCard({
+const AssetCard = memo(function AssetCard({
   asset,
   selected,
   onSelect,
@@ -101,8 +101,8 @@ function AssetCard({
 }: {
   asset: Asset;
   selected: boolean;
-  onSelect: (e: React.MouseEvent) => void;
-  onOpenDetail: () => void;
+  onSelect: (id: string, e: React.MouseEvent) => void;
+  onOpenDetail: (id: string) => void;
   nasConfig: NasConfig | null;
 }) {
   const [checkingOut, setCheckingOut] = useState(false);
@@ -162,8 +162,8 @@ function AssetCard({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <button
-          onClick={onSelect}
-          onDoubleClick={onOpenDetail}
+          onClick={(e) => onSelect(asset.id, e)}
+          onDoubleClick={() => onOpenDetail(asset.id)}
           className={cn(
             "group relative flex flex-col overflow-hidden text-left transition-all",
             "rounded-lg border",
@@ -295,14 +295,14 @@ function AssetCard({
           );
         })()}
         <ContextMenuSeparator />
-        <ContextMenuItem onClick={onOpenDetail}>
+        <ContextMenuItem onClick={() => onOpenDetail(asset.id)}>
           <PanelRight className="mr-2 h-3.5 w-3.5" />
           View Details
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
-}
+});
 
 function SkeletonCard() {
   return (
@@ -346,8 +346,8 @@ export default function AssetGrid({ assets, selectedIds, onSelect, onOpenDetail,
           key={asset.id}
           asset={asset}
           selected={selectedIds.has(asset.id)}
-          onSelect={(e) => onSelect(asset.id, e)}
-          onOpenDetail={() => onOpenDetail(asset.id)}
+          onSelect={onSelect}
+          onOpenDetail={onOpenDetail}
           nasConfig={nasConfig}
         />
       ))}

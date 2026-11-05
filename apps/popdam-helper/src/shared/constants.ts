@@ -1,4 +1,4 @@
-export const HELPER_VERSION = "1.4.13";
+export const HELPER_VERSION = "1.4.15";
 export const PROTOCOL = "popdam";
 export const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 

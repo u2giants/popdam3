@@ -41,6 +41,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Root Vitest includes Windows renderer integration tests, which need
+      # the agent's locked MuPDF/Sharp dependencies and generated common code.
+      - name: Install windows-agent dependencies
+        run: npm ci --prefix apps/windows-agent
+
+      - name: Test windows-agent
+        run: npm test --prefix apps/windows-agent
+
       - name: Test
         run: npm run test
 
@@ -52,12 +60,6 @@ jobs:
 
       - name: Test worker
         run: npm run test --prefix apps/worker
-
-      - name: Install windows-agent dependencies
-        run: npm ci --prefix apps/windows-agent
-
-      - name: Test windows-agent
-        run: npm test --prefix apps/windows-agent
 
       - name: Measurement observer tests
         env:

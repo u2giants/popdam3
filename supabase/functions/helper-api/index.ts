@@ -13,7 +13,6 @@
  *   POST  /checkouts/discard        Helper or web — abandon a checkout
  *   POST  /checkouts/heartbeat      Helper — keep checkout alive, report status
  *   GET   /checkouts/open           Helper on startup — list user's active checkouts
- *   POST  /logs                     Helper — store audit / error events
  */
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
@@ -681,15 +680,6 @@ async function handleGetOpenCheckouts(req: Request): Promise<Response> {
   return json({ ok: true, checkouts: data ?? [] });
 }
 
-async function handleLogs(req: Request): Promise<Response> {
-  const userId = await getUserId(req);
-  if (!userId) return err("Unauthorized", 401);
-
-  // Accept log events but don't store them for now (future: helper_logs table)
-  // Just acknowledge receipt so the helper doesn't queue up indefinitely
-  return json({ ok: true });
-}
-
 // ── Admin: force-unlock a checkout (admin only) ───────────────────────────────
 
 async function handleAdminForceDiscard(req: Request): Promise<Response> {
@@ -735,7 +725,6 @@ corsServe(async (req: Request): Promise<Response> => {
   if (method === "POST" && path === "/checkouts/discard") return handleDiscard(req);
   if (method === "POST" && path === "/checkouts/heartbeat") return handleHeartbeat(req);
   if (method === "GET" && path === "/checkouts/open") return handleGetOpenCheckouts(req);
-  if (method === "POST" && path === "/logs") return handleLogs(req);
   if (method === "POST" && path === "/admin/force-discard") return handleAdminForceDiscard(req);
 
   return err("Not found", 404);

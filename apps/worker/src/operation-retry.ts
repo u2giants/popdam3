@@ -18,7 +18,7 @@ export function isTransientInterruption(reason?: string): boolean {
 
 export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean {
   if (typeof cursor === "number") return Number.isFinite(cursor) && cursor >= 0;
-  if (opKey === "ai-tag-untagged" || opKey === "ai-tag-all" || opKey === "ai-tag-groups") {
+  if (opKey === "ai-tag-untagged" || opKey === "ai-tag-all" || opKey === "ai-tag-groups" || opKey === "ai-tag-parallel") {
     return isAiTagCursor(cursor);
   }
   // Style Group profiling keysets by style_groups.id, so its resumable cursor is a

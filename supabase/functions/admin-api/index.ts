@@ -69,7 +69,7 @@ import {
 } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
 import { handleBackfillPdfFilesUsed, handleResolveSkuFilesUsed } from "../_shared/admin-handlers/pdf-files-handlers.ts";
 
-import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
+import { handleApplyErpEnrichment } from "../_shared/admin-handlers/erp-handlers.ts";
 
 import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
 
@@ -2239,8 +2239,6 @@ corsServe(async (req: Request) => {
         return await handleErpReviewAction(body, userId);
       case "apply-erp-enrichment":
         return await handleApplyErpEnrichment(body);
-      case "classify-erp-categories":
-        return await handleClassifyErpCategories(body);
       case "erp-items-browse":
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":

@@ -87,7 +87,7 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 
 ### 4. AI Classification
 
-1. Admin triggers "Classify Now" from Settings → ERP Enrichment → calls `admin-api` route `classify-erp-categories` → writes `erp-classify` op to `admin_config.BULK_OPERATIONS`.
+1. Admin triggers "Classify Now" from Settings → ERP Enrichment → uses the persistent-operation Start button → writes `erp-classify` op to `admin_config.BULK_OPERATIONS`.
 2. Railway worker's `erp-classify` handler reads `erp_items_current` records lacking `product_category`, batches them, and calls OpenRouter (model from `admin_config.AI_TASK_MODELS.text_classification`, default `anthropic/claude-3.5-haiku`, cached 60 s).
 3. AI returns category + confidence. Items with confidence ≥ 0.65 get status `auto_applied`; below threshold get `pending`.
 4. Results inserted into `product_category_predictions`.
@@ -167,7 +167,6 @@ RPCs. Product facts are read from Master Data through the canonical
 | `ai-tag` | Legacy AI tagging; currently used mainly for PDF text extraction via Google Gemini direct. |
 | `authenticate-with-authentik` | Legacy Authentik SSO PKCE flow handler; validates via JWKS, exchanges for Supabase session. Hidden from the login page while Microsoft/Azure is primary. |
 | `bulk-job-runner` | No-op stub. Returns `{ ok: true, message: "replaced by railway worker" }`. The pg_cron schedule that called this was removed in migration `20260322000000`. |
-| `sync-external` | Retired (HTTP 410). Licensors/properties come from shared `core.licensor` / `core.property`; the DesignFlow master-data feeder owns synchronization. |
 | `send-invite-email` | Sends invitation emails via Brevo transactional email. |
 | `export-sql-dump` | Chunked SQL INSERT export for table data. |
 | `export-table` | CSV/JSON table data export. |

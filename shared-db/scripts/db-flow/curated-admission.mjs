@@ -171,7 +171,7 @@ function codeUnits(sql) {
 // builtins may be called, plus the one accounted writer plm.set_source_resolution()
 // (RESOLUTION_TABLE below). Anything else (pg_net, vault, SECURITY DEFINER
 // helpers, extension functions) refuses, because its body is never seen here.
-const CALLABLE = new Set(['count', 'coalesce', 'nullif', 'greatest', 'least', 'lower', 'upper', 'trim', 'btrim', 'ltrim', 'rtrim',
+const CALLABLE = new Set(['initcap', 'regexp_match', 'regexp_replace', 'unnest', 'count', 'coalesce', 'nullif', 'greatest', 'least', 'lower', 'upper', 'trim', 'btrim', 'ltrim', 'rtrim',
   'length', 'char_length', 'concat', 'concat_ws', 'replace', 'split_part', 'left', 'right', 'substr', 'position',
   'jsonb_build_object', 'jsonb_build_array', 'json_build_object', 'json_build_array', 'to_jsonb', 'jsonb_agg', 'jsonb_object_agg',
   'array_agg', 'string_agg', 'min', 'max', 'sum', 'avg', 'bool_and', 'bool_or', 'array_length', 'cardinality', 'abs', 'round',
@@ -193,6 +193,8 @@ const PAREN_KEYWORDS = new Set(['values', 'in', 'exists', 'not', 'and', 'or', 'a
 // Read sources a curated load may use: curated Master Data and the licensing
 // source extracts it is curated from.
 const READ_SCHEMAS = new Set(['core', 'plm'])
+// These are existing licensor-issued source extracts, never arbitrary public data.
+const READ_SOURCE_TABLES = new Set(['public.style_guide_files', 'public.style_guide_pdf_text'])
 
 function checkCall(tokens, k, declaring) {
   const t = tokens[k], name = t.type === 'word' ? t.value : t.value
@@ -233,7 +235,7 @@ function checkSource(tokens, k) {
       }
     } else {
       const target = qualifiedTarget(tokens, i)
-      if (!target?.schema || !READ_SCHEMAS.has(target.schema) || (tokens[target.next]?.type === 'punct' && tokens[target.next].value === '(')) throw new CuratedSqlError(`read source ${target?.schema ? `${target.schema}.${target.name}` : (target?.name ?? 'expression')} is outside curated Master Data and its licensing sources (core.*, plm.*)`)
+      if (!target?.schema || !(READ_SCHEMAS.has(target.schema) || READ_SOURCE_TABLES.has(`${target.schema}.${target.name}`)) || (tokens[target.next]?.type === 'punct' && tokens[target.next].value === '(')) throw new CuratedSqlError(`read source ${target?.schema ? `${target.schema}.${target.name}` : (target?.name ?? 'expression')} is outside curated Master Data and its licensing sources (core.*, plm.*, public.style_guide_files, public.style_guide_pdf_text)`)
       reads.push(`table ${target.schema}.${target.name}`)
       i = target.next
     }

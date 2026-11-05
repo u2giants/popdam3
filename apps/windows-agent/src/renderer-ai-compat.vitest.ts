@@ -3,13 +3,13 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const { calls } = vi.hoisted(() => ({ calls: [] as string[][] }));
+const { calls, engines } = vi.hoisted(() => ({ calls: [] as string[][], engines: { imageMagick: false } }));
 vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(() => { throw new Error("not installed in fixture"); }),
   execFile: vi.fn((exe: string, args: string[], _options: unknown, callback: (error: Error | null, stdout?: string, stderr?: string) => void) => {
     calls.push([exe, ...args]);
-    if (exe !== "fixture-ghostscript") return callback(new Error("not installed in fixture"));
-    const output = args.find((arg) => arg.startsWith("-sOutputFile="))!.slice("-sOutputFile=".length).replace("%d", "1");
+    if (exe !== "fixture-ghostscript" && !(exe === "fixture-imagemagick" && engines.imageMagick)) return callback(new Error("not installed in fixture"));
+    const output = exe === "fixture-imagemagick" ? args[args.length - 1] : args.find((arg) => arg.startsWith("-sOutputFile="))!.slice("-sOutputFile=".length).replace("%d", "1");
     // A real image goes through the production resize/decode path after the
     // engine call. The fixture only substitutes the external GS executable.
     import("sharp").then(({ default: sharp }) => sharp({ create: { width: 8, height: 8, channels: 3, background: "#123456" } }).png().toFile(output))
@@ -20,8 +20,10 @@ vi.mock("node:child_process", () => ({
 let directory: string;
 let renderFile: typeof import("./renderer")["renderFile"];
 const previousGs = process.env.GS_PATH;
+const previousIm = process.env.IM_PATH;
 beforeAll(async () => {
   process.env.GS_PATH = "fixture-ghostscript";
+  process.env.IM_PATH = "fixture-imagemagick";
   directory = await mkdtemp(path.join(tmpdir(), "popdam-ai-header-test-"));
   // The production Function-based ESM loader runs outside Vitest's resolver.
   // Supply the real MuPDF module while retaining production parsing/draw probes.
@@ -37,10 +39,12 @@ beforeAll(async () => {
   try { ({ renderFile } = await import("./renderer")); }
   finally { vi.unstubAllGlobals(); }
 });
-beforeEach(() => { calls.length = 0; });
+beforeEach(() => { calls.length = 0; engines.imageMagick = false; });
 afterAll(async () => {
   if (previousGs === undefined) delete process.env.GS_PATH;
   else process.env.GS_PATH = previousGs;
+  if (previousIm === undefined) delete process.env.IM_PATH;
+  else process.env.IM_PATH = previousIm;
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -52,6 +56,35 @@ function pdf(withArtwork: boolean): string {
 }
 
 describe("AI compatibility routing", () => {
+  it("routes genuine Photoshop content named AI through the existing PSD fallback", async () => {
+    const source = path.join(directory, "photoshop-content.ai");
+    const content = Buffer.alloc(26); content.write("8BPS");
+    content.writeUInt16BE(1, 4); content.writeUInt16BE(3, 12);
+    content.writeUInt32BE(1, 14); content.writeUInt32BE(1, 18);
+    content.writeUInt16BE(8, 22); content.writeUInt16BE(3, 24);
+    await writeFile(source, content);
+    engines.imageMagick = true;
+    const result = await renderFile(source, "ai");
+    expect(result.width).toBe(8);
+    expect(calls.some(([exe, input]) => exe === "fixture-imagemagick" && (input === `PSD:${source}[0]` || input === `${source}[0]`))).toBe(true);
+    expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(false);
+    expect(await readFile(source)).toEqual(content);
+  });
+
+  it("recovers the source's embedded original preview after its PDF notice and native render fail", async () => {
+    const source = path.join(directory, "embedded-preview.ai");
+    const { default: sharp } = await import("sharp");
+    const pixels = Buffer.alloc(32 * 24 * 3);
+    for (let i = 0; i < pixels.length; i++) pixels[i] = (i * 37 + Math.floor(i / 97)) % 256;
+    const jpeg = await sharp(pixels, { raw: { width: 32, height: 24, channels: 3 } }).jpeg().toBuffer();
+    const body = pdf(false) + `<xmpGImg:image>${jpeg.toString("base64")}</xmpGImg:image>`;
+    await writeFile(source, body);
+    const result = await renderFile(source, "ai");
+    expect(result.width).toBe(32); expect(result.height).toBe(24);
+    expect(calls.some(([exe]) => exe === "fixture-ghostscript")).toBe(false);
+    expect(await readFile(source, "utf8")).toBe(body);
+  });
+
   it("routes PDF content named PSD through the existing PDF preview path", async () => {
     const source = path.join(directory, "pdf-content.psd");
     await writeFile(source, pdf(true));

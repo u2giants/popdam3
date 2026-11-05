@@ -202,7 +202,7 @@ There are 11 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
 - `agent-handlers.ts` — agent management, scan control, render queue, clear-failed-sg-renders
 - `ai-tagging-handlers.ts` — count-untagged-assets (bulk tagging ops moved to Railway worker)
 - `tag-propagation-handlers.ts` — bulk-propagate-group-tags, count-groups-for-propagation
-- `erp-handlers.ts` — apply-erp-enrichment, classify-erp-categories
+- `erp-handlers.ts` — apply-erp-enrichment
 - `erp-browse-handlers.ts` — erp-enrichment-stats, erp-review-queue, erp-review-action, erp-items-browse
 - `metadata-handlers.ts` — reprocess-asset-metadata, backfill-sku-names
 - `purge-handlers.ts` — purge-old-assets
@@ -282,20 +282,9 @@ decision, tracked there.
 
 ---
 
-### 7. `sync-external`
+### 7. Taxonomy synchronization
 
-**Purpose:** Synchronizes licensors, properties, and characters from external taxonomy APIs.
-
-**Auth:** User JWT + admin role.
-
-**Sources:** Configurable via `admin_config`; defaults to Disney, Marvel, WWE via `https://api.sandbox.designflow.app/api/autofill/properties-and-characters`.
-
-**Process:**
-- Upserts licensors (by `external_id`).
-- Upserts properties in batches of 200 (by `external_id`).
-- Upserts characters in batches of 200 (by `external_id`).
-
-**Actions:** `sync-all` (all licensors) or `sync-one` (single licensor by external_id).
+The shared master-data feeder owns canonical taxonomy synchronization; PopDAM has no taxonomy writer.
 
 ---
 

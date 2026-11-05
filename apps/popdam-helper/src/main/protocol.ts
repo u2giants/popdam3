@@ -10,6 +10,7 @@
  */
 
 import { app, dialog } from "electron";
+import { parseCheckoutBatch, checkoutBatch } from "../shared/checkoutBatch";
 import { log } from "./logger";
 import { checkout, checkin, discard, revealFile, openFile } from "./checkoutManager";
 import { showWindow, sendToRenderer, showNotification } from "./tray";
@@ -33,8 +34,9 @@ function notifyActionError(action: string, message: string): void {
 }
 
 export interface ParsedLink {
-  action: "checkout" | "checkin" | "open" | "reveal" | "discard";
+  action: "checkout" | "checkout-batch" | "checkin" | "open" | "reveal" | "discard";
   token: string | null;
+  tokens?: string[];
   assetId: string | null;
   checkoutId: string | null;
 }
@@ -45,10 +47,13 @@ export function parseDeepLink(url: string): ParsedLink | null {
     if (parsed.protocol !== "popdam:") return null;
 
     const action = parsed.hostname as ParsedLink["action"];
-    if (!["checkout", "checkin", "open", "reveal", "discard"].includes(action)) return null;
+    if (!["checkout", "checkout-batch", "checkin", "open", "reveal", "discard"].includes(action)) return null;
 
+    const tokens = action === "checkout-batch" ? parseCheckoutBatch(parsed.searchParams.get("tokens") ?? "") : undefined;
+    if (action === "checkout-batch" && !tokens) return null;
     return {
       action,
+      ...(tokens ? { tokens } : {}),
       token: parsed.searchParams.get("token"),
       assetId: parsed.searchParams.get("assetId"),
       checkoutId: parsed.searchParams.get("checkoutId"),
@@ -60,7 +65,7 @@ export function parseDeepLink(url: string): ParsedLink | null {
 
 /** Redact secret query params (e.g. checkout token) so they never reach logs. */
 export function redactDeepLink(url: string): string {
-  return url.replace(/([?&](?:token|access_token)=)[^&#]*/gi, "$1[REDACTED]");
+  return url.replace(/([?&](?:tokens|token|access_token)=)[^&#]*/gi, "$1[REDACTED]");
 }
 
 export async function handleDeepLink(url: string): Promise<void> {
@@ -75,6 +80,10 @@ export async function handleDeepLink(url: string): Promise<void> {
 
   try {
     switch (link.action) {
+      case "checkout-batch": {
+        await checkoutBatch(link.tokens ?? [], checkout);
+        break;
+      }
       case "checkout":
         if (!link.token) throw new Error("checkout link missing token");
         await checkout(link.token, link.assetId ?? undefined);

@@ -111,7 +111,7 @@ Table of `product_category_predictions` where AI confidence was below threshold.
 
 Items where `mg_category` is null AND deterministic lookup from MG01 code fails are eligible for AI classification.
 
-- Trigger: `classify-erp-categories` action on admin-api
+- Trigger: persistent `erp-classify` operation in `admin_config.BULK_OPERATIONS`
 - Confidence < 0.65 → status `pending` (Review Queue)
 - Confidence ≥ 0.65 → status `auto_applied`
 - All predictions stored regardless of confidence
