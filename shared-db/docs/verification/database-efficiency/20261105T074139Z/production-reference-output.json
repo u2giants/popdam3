@@ -1,0 +1,15 @@
+{
+  "scope": "output",
+  "production_identity_verified": true,
+  "transaction_read_only": true,
+  "query_elapsed_seconds": 0.40955791898886673,
+  "result": [
+    {
+      "observed_at": "2026-11-05 02:56:10.127123-05",
+      "actual_output_hash": "a274ef271cb4c71363d5a14c3cfaed77",
+      "actual_output_rows": 10680,
+      "source_migration_present": false,
+      "forward_migration_present": false
+    }
+  ]
+}

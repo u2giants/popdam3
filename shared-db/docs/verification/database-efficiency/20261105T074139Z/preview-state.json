@@ -1,0 +1,27 @@
+{
+  "transaction_read_only": true,
+  "result": [
+    {
+      "pending_keys": 0,
+      "key_source_tables": 17,
+      "resolved_skus": 754,
+      "v3_resolved_skus": 754,
+      "distinct_portal_hashes": 1,
+      "output_rows": 334,
+      "catchup_jobs": 0,
+      "nightly_jobs": [
+        {
+          "jobid": 17,
+          "active": true,
+          "command": "call public.resolve_sku_style_guide_links_run() /* shared-db:20261105061627 */",
+          "jobname": "resolve-sku-style-guide-links-nightly",
+          "schedule": "30 4 * * *",
+          "username": "postgres"
+        }
+      ],
+      "resolver_session_locks": 0,
+      "genuine_three_nights_passed": false
+    }
+  ],
+  "preview_identity_verified": true
+}

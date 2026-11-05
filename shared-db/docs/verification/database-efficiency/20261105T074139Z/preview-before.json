@@ -1,0 +1,17 @@
+{
+  "transaction_read_only": true,
+  "phase": "before",
+  "result": [
+    {
+      "expected_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+      "expected_output_rows": 334,
+      "actual_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+      "actual_output_rows": 334,
+      "portal_input_hash": "8ba5ab3b33ce785fc65f8ed9c5c27c30",
+      "portal_input_rows": 565210,
+      "sheet_file_input_hash": "54cc92cecc83c11ec23656562ed02d66",
+      "sheet_file_input_rows": 3953
+    }
+  ],
+  "preview_identity_verified": true
+}

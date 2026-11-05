@@ -1,0 +1,21 @@
+{
+  "preview_identity_matched": true,
+  "parent_branch_verified": true,
+  "transaction_read_only": true,
+  "phase": "after",
+  "query_elapsed_seconds": 9.10356394998962,
+  "result": [
+    {
+      "expected_minus_actual_rows": 0,
+      "actual_minus_expected_rows": 0,
+      "expected_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+      "expected_output_rows": 334,
+      "actual_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+      "actual_output_rows": 334,
+      "portal_input_hash": "8ba5ab3b33ce785fc65f8ed9c5c27c30",
+      "portal_input_rows": 565210,
+      "sheet_file_input_hash": "54cc92cecc83c11ec23656562ed02d66",
+      "sheet_file_input_rows": 3953
+    }
+  ]
+}

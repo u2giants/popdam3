@@ -1,0 +1,15 @@
+{
+  "scope": "inputs",
+  "production_identity_verified": true,
+  "transaction_read_only": true,
+  "query_elapsed_seconds": 48.11484356899746,
+  "result": [
+    {
+      "observed_at": "2026-11-05 02:56:16.922664-05",
+      "sheet_file_input_hash": "86d968993e618c7f82c8ecc118696249",
+      "sheet_file_input_rows": 39517,
+      "source_migration_present": false,
+      "forward_migration_present": false
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "scope": "portal",
+  "production_identity_verified": true,
+  "transaction_read_only": true,
+  "query_elapsed_seconds": 47.00139115100319,
+  "result": [
+    {
+      "observed_at": "2026-11-05 02:57:16.991646-05",
+      "portal_input_hash": "f7ee234473a394372dc9c29cfaddc7f2",
+      "portal_input_rows": 553563,
+      "source_migration_present": false,
+      "forward_migration_present": false
+    }
+  ]
+}

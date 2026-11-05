@@ -1,0 +1,12 @@
+{
+  "workflow_run": 41987714096,
+  "source_pr": 5649,
+  "artifact_id": 13397091481,
+  "artifact_name": "preview-migration-apply-51c366fa534a7182e3318405e0aa49398c6ba827",
+  "artifact_digest": "sha256:91730b63c6eb13a26dab411c4f654af30812f9f7eb1f40371707fd91f2033727",
+  "separate_automatic_review_artifact": 13397176861,
+  "separate_automatic_production_run": 41988158724,
+  "production_apply": "skipped_absent_base_20261105044255",
+  "main_sha": "51c366fa534a7182e3318405e0aa49398c6ba827",
+  "source_pr_head": "05a69e8b6fc472544f9d502104282066a8bf2930"
+}

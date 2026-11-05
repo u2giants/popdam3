@@ -1,25 +1,30 @@
 # Plan: make the nightly SKU -> style guide link job finish
 
 Handoff: [HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md)
-Owning issue: popcre/shared-db#popcre/shared-db#5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
+Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
 
-## STATUS (2026-11-04 8:54 PM EST)
+## STATUS (2026-11-05 03:03 AM EST)
 
 | Step | State | Evidence |
 |---|---|---|
-| 0 Re-measure baseline per arm | ⬜ open | — |
-| 1 Migration: persisted extracted-label + norm-key columns | ⬜ open | — |
-| 2 Migration: incremental, batched resolver | ⬜ open | — |
-| 3 Tests (SQL contract + node static test) | ⬜ open | — |
-| 4 Preview rehearsal + timing gate | ⬜ open | — |
-| 5 Land via automatic promotion | ⬜ open | — |
-| 6 Live proof: 3 consecutive nightly successes | ⬜ open | — |
+| 0 Real per-arm baseline | complete | Original per-arm plans and failed real-preview runtime retained in forward evidence |
+| 1 Persisted keys | merged; preview complete | #5619 / version 20261105044255; zero pending keys across 17 sources |
+| 2 Batched snapshot resolver | merged; preview complete | #5649 / version 20261105061627; real full 8.103889s, no-change 3.247662s |
+| 3 Contracts and recovery | passed | Full required CI, SQL contracts, eight-portal/NULL/duplicate parity, post-DML cancellation and 17 proof cases |
+| 4 Governed preview + exact output | complete | Run 41987714096; 0/0 EXCEPT ALL, unchanged 334-row output and input fingerprints |
+| 5 Automatic production delivery | open | Base 20261105044255 absent; automatic run 41988158724 refused and skipped production apply |
+| 6 Three source-tagged nightly successes | open | Actual preview acceptance probe is false; production not yet applied |
 
-Implementation is in progress under #5608. Local implementation and synthetic cardinality/recovery evidence: [November 4 local rehearsal](docs/verification/database-efficiency/20261105T0354Z/sku-style-guide-links-local.md). Shared-preview, publication, automatic promotion, generated types and three-night acceptance remain open. The accepted implementation uses plain persisted keys plus narrow triggers and committed key backfill instead of generated-column rewrites; a deterministic complete portal multiset fingerprint handles sources without reliable timestamps.
+- [ ] Implementation complete: automatic production delivery and production catchup remain required.
+- [ ] live proof: three genuine consecutive source-tagged nights and freshness remain required on #5608.
+
+Current evidence: [actual preview proof and separate pre-production references](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md). The authoritative preview artifact is **13397091481**, `preview-migration-apply-51c366fa534a7182e3318405e0aa49398c6ba827`, digest `sha256:91730b63c6eb13a26dab411c4f654af30812f9f7eb1f40371707fd91f2033727`; automatic review artifact 13397176861 is separate. Generated types landed via #5645 (official producer 41973827983, unchanged artifact).
+
+Accepted implementation: plain persisted keys with narrow source-sensitive triggers and committed key backfill; no generated-column rewrites. A complete portal multiset is materialized once per invocation, reused by all batches, and invalidated with a versioned dual-seed typed-record fingerprint. Two measured covering indexes remove wide NBCU/Warner heap reads. Prior real-preview timeouts are retained as negative evidence; only the post-key resolver full/no-change calls passed the final runtime gate. Production reference components were captured as three separately timestamped read-only snapshots, not atomic production parity. Original coordinator owns delivery; no manual production apply is authorized.
 
 ## 1. Ultimate goal
 
-POP DAM shows, for each product (SKU), which licensor style guide its artwork came from. That list is supposed to refresh every night, but the nightly refresh has failed every single night since it was installed on 2026-10-30, so the list is frozen at what a one-time manual run produced on 2026-10-30 ~6:24 PM EDT. New licensing sheets and newly scraped licensor portals never show up. Done means: the nightly job succeeds every night well inside its time budget, produces the same links the current logic would produce if it had unlimited time, and costs the shared database a small, bounded amount of work per night. **If a step conflicts with this goal, the goal wins — stop and flag it on #popcre/shared-db#5608.**
+POP DAM shows, for each product (SKU), which licensor style guide its artwork came from. That list is supposed to refresh every night, but the nightly refresh has failed every single night since it was installed on 2026-10-30, so the list is frozen at what a one-time manual run produced on 2026-10-30 ~6:24 PM EDT. New licensing sheets and newly scraped licensor portals never show up. Done means: the nightly job succeeds every night well inside its time budget, produces the same links the current logic would produce if it had unlimited time, and costs the shared database a small, bounded amount of work per night. **If a step conflicts with this goal, the goal wins — stop and flag it on #5608.**
 
 ## 2. The application
 
@@ -76,26 +81,24 @@ Open (implementer judgment, criteria given): batch size (target each batch < 10 
 
 **Step 0 — Baseline.** On the preview branch (or production as service_role via an approved read path), time each arm's SELECT separately with `explain (analyze, buffers)`, copying CTEs from the function (drop the `insert … returning`). Record in `docs/verification/database-efficiency/<UTC>/sku-style-guide-links-baseline.md` with the commands. Gate: three per-arm timings and plans recorded.
 
-**Step 1 — Persist keys.** Migration `supabase/migrations/<UTC>_sku_style_guide_link_keys.sql`:
-- `pdf_text_samples`: add `declared_style_guide_label text generated always as (btrim(btrim((regexp_match(extracted_text, '(?im)^\s*(?:core\s*/\s*)?style\s+guide\s+used\s*:\s*([^\r\n]{1,200})'))[1]), E' \t.,;:')) stored` and `declared_style_guide_key text generated always as (public.style_guide_label_norm(<same expr>)) stored`, plus a partial index on `(asset_id) where declared_style_guide_key is not null`. Both functions are `immutable`, so this is allowed. Note: adding a stored generated column rewrites the 94 MB table under an exclusive lock — measure in preview; if > a few seconds, use a plain column + trigger + batched backfill instead.
-- Portal side: stored `file_name_norm` column on each scrape asset table used by the view (or helper table), with btree index; rewrite the view to read the stored column, same output columns. Add a btree on `style_guide_label_norm(label)` per guide table, or a stored key.
-- Gate: in preview, `select count(*) from plm.asset_file_style_guide_index` and a join on `file_name_norm` are index-driven; view output row-for-row equal to the old definition (`except` both ways = 0 rows).
+**Step 1 — Persist keys (implemented).** Migration `20261105044255_sku_style_guide_resolution_incremental.sql` adds plain nullable PDF declared-label/key and portal filename/guide-label keys. NULL denotes pending; an empty stored key denotes a computed NULL normalization. Seventeen narrow BEFORE triggers maintain the exact original expressions. Key-only bounded backfill commits up to 1,000 rows per batch without reassigning source columns or rewriting all tables under exclusive locks. Existing filename-index readers retain pending normalization fallbacks. Preview now has zero pending keys and exact ready/pending/multiset equality was tested.
 
-**Step 2 — Incremental, batched resolver.** Migration `<UTC>_resolve_sku_style_guide_links_incremental.sql`: replace the body (same name/signature/grants/cron) so it:
-1. Arm 2: insert/upsert from `pdf_text_samples` where `declared_style_guide_key is not null` and `sampled_at > watermark` (join assets, `is_style_guide_source_pdf`), in `asset_id` batches.
-2. Arm 3: join those changed rows' keys to portal guide keys via index; plus a full re-match only for portal guides scraped since the watermark (new portal data can match old sheets).
-3. Arm 1: `sku_files_used` rows created since the watermark, plus all rows whose `file_name_norm` matches portal assets scraped since the watermark.
-4. Convert to a `procedure` with `commit` per batch (pg_cron supports `call`) so progress survives; advance the watermark only after a batch commits. Keep `set statement_timeout = '60s'` per batch as safety net. Change cron command to `call public.resolve_sku_style_guide_links_run()` keeping the function as a thin wrapper if anything else calls it.
-5. Provide `p_full boolean default false` for a one-time full catch-up (the 2026-10-30 → now backlog) that walks all rows in batches.
-Gate: preview run of full catch-up finishes with zero timeouts; incremental run with no changes < 5 s; output equals old function's output on the same data (run old body under raised timeout in preview into a scratch table, `except` both ways = 0).
+**Step 2 — Incremental, batched resolver (implemented; production pending).** The base plus forward `20261105061627_sku_style_guide_resolution_snapshot.sql`:
+1. Compute per-SKU file/eligible declared-sheet input fingerprints, including changed and deleted evidence. Track exact active link IDs and semantic output fingerprints so independent parser changes converge while quarantine timestamps remain untouched.
+2. Materialize every portal observation once in a secure session-local snapshot, preserving duplicates, exact spelling, NULLs and guide/core identity. The v3 count/two-seeded numeric-sum fingerprint and all matching batches consume that same frozen relation. Rebuild each invocation; build nonunique temporary indexes only when work remains.
+3. Preserve all three original arms, including arm 2 plausibility filtering versus arm 3's broader label match, exact/normalized confidence, minimum labels, asset counts and arm 3's existing core-ID behavior. Commit at most 100 SKUs per resolver batch and advance durable progress only with successful writes. A canceled second batch rolls back its 100 progress/link writes while the first 100 remain committed; same/fresh sessions resume correctly.
+4. Retain a top-level invoker procedure without a SET clause, session mutual exclusion across commits, explicit cancellation/error unlock, and a compatibility function. A function SET does **not** enforce a per-batch timeout on an already-running outer statement; the existing outer cron cap remains unchanged. Final actual preview calls used isolated, verified 60s/5s session caps without changing role/global/cron settings.
+5. Keep the existing nightly job ID/schedule/owner/active state; only an inert source-version comment is added with `cron.alter_job`, after requiring exactly one named job. A hash-bound typed sidecar verifies the exact job row. Select the latest three ALL audit runs first and require each to carry that source tag; never filter untagged failures away.
+
+Gate: one-time persisted-key bootstrap is explicitly resumable, and its five 120s interruptions are retained rather than described as zero-timeout. After keys finish, actual full resolver <60s, unchanged resolver <5s, and exact original-output EXCEPT ALL counts both ways must pass. These preview gates passed at 8.103889s / 3.247662s / 0-and-0 differences on unchanged inputs. No writing old resolver or raised timeout is used to produce the comparison oracle. Production delivery and genuine nightly acceptance remain open.
 
 **Step 3 — Tests.** See §10. Gate: all green locally and in CI.
 
-**Step 4 — Preview rehearsal.** Open PR; CI applies to preview (`PREVIEW_PROJECT_REF`). Seed volume if preview lacks it. Gate: numbers from step 2 recorded in the verification folder.
+**Step 4 — Preview rehearsal.** Required checks precede merge; the supported merged-main workflow applies to the configured preview. Do not persist a pre-merge migration manually. Gate: actual post-apply full/no-change calls and exact aggregate-only output proof are recorded in the verification folder. Completed by run 41987714096 and the subsequent leased proof.
 
 **Step 5 — Land.** Merge when required checks pass; automatic promotion applies to production. Never run migrations or the catch-up by hand on production; if the catch-up must run once, schedule it via the migration (e.g. one-shot `cron.schedule` that unschedules itself) so it goes through promotion.
 
-**Step 6 — Live proof.** After 3 nights: `cron.job_run_details` for jobid 17 shows 3 consecutive `succeeded`, each < 60 s; `max(last_seen_at)` advances nightly; link counts ≥ the 2026-11-04 baseline per method. Record in the verification folder; tick `- [ ] live proof` on #popcre/shared-db#5608.
+**Step 6 — Live proof (still open).** After three post-forward source-tagged nights: `cron.job_run_details` for jobid 17 shows the latest three ALL runs each match the exact tagged command and are consecutive `succeeded`, each nonnegative and <60s; current job must remain active/postgres-owned/on its unchanged schedule and the forward ledger must exist; `max(last_seen_at)` advances nightly; link counts ≥ the 2026-11-04 baseline per method. Record in the verification folder; tick `- [ ] live proof` on #5608.
 
 ## 10. Tests
 
@@ -105,23 +108,23 @@ Gate: preview run of full catch-up finishes with zero timeouts; incremental run 
 
 ## 11. Constraints and gotchas
 
-- Structural change: load `shared-db-change`, claim the exact objects on #popcre/shared-db#5608 first, `ai-task-gates start --class shared-db`.
+- Structural change: load `shared-db-change`, claim the exact objects on #5608 first, `ai-task-gates start --class shared-db`.
 - CI harness re-applies the pre-adoption baseline after replaying migrations (`database-contract-tests.yml` steps 12-14): `create or replace` on a baseline-defined routine is silently reverted in tests. The resolver is migration-owned (not in baseline) so it is fine; if you touch `parse_pdf_files_used`, use a new `_v3` name (see migration line 344).
 - #5141: a migration that does heavy data work inline can exceed the migration's own budget and roll back; keep backfills out of the migration body.
-- Production is read-only except via promotion; an open `review-finding` issue blocks promotion.
+- Production is read-only except via automatic promotion. Current workflow holds, including the existing closed NOT_PLANNED expiry and absent-base dependency, remain binding; no manual production override.
 - Never hand-edit `types/database.types.ts`; regenerate if columns are added.
 - Licensed licensor values must not appear in migrations or test fixtures — use synthetic names.
 - Times quoted to humans in EST.
 
 ## 12. Access
 
-Supabase MCP `execute_sql` is read-only on production and lacks EXECUTE on `style_guide_label_norm` (step 0 must use preview). `gh` authenticated as the repo AI identity. Preview credentials: 1Password vault `vibe_coding`, preview DB item (address by item ID per `AGENTS.md`), never values. No other secrets.
+The production read-only MCP attempt refused private `file_name_norm` EXECUTE (42501); no grant changed. The explicitly approved protected Management API operator route can run aggregate-only SELECTs inside BEGIN READ ONLY/ROLLBACK under the unchanged 55s cap, with fresh intended-target proof and strict sanitized output. The three production references are separately timestamped snapshots, not atomic parity. `gh` authenticated as the repo AI identity. Preview credentials: 1Password vault `vibe_coding`, preview DB item (address by item ID per `AGENTS.md`), never values. No other secrets.
 
 ## 13. Done, risks, open questions
 
-Done: migrations merged and promoted; tests green; catch-up completed; 3 consecutive nightly successes with artifact paths; STATUS table updated; handoff updated; #popcre/shared-db#5608 live-proof box ticked.
-Risks: generated-column add locks `pdf_text_samples` (writer is the DAM PDF sampler) — rollback `alter table … drop column`; view rewrite could change output — guarded by the `except` gate; procedure-with-commit under pg_cron must not be wrapped in a transaction — verify in preview. Rollback overall: re-apply the old function body via a forward migration.
-Open: whether incremental Arm 1/3 need a "portal scraped since" timestamp that every scrape table carries (check each source table for `captured_at`/`updated_at`; if one lacks it, re-match that portal fully each night, which is cheap once keys are indexed).
+Done criteria, not current status: migrations merged and promoted; tests green; catch-up completed; 3 consecutive nightly successes with artifact paths; STATUS table and same-issue continuity updated; #5608 live-proof box ticked.
+Risks: two ordinary covering index builds block portal writers while held; preview measured 10.363s combined, with 5s lock acquisition and no raised outer cap. Plain keys avoid the rejected generated-column rewrite. View rewrite could change output — guarded by exact multiset/output tests; procedure-with-commit under pg_cron must not be wrapped in a transaction — verify in preview. Rollback overall: re-apply the old function body via a forward migration.
+Resolved: reliable timestamps are absent across the complete source set; deterministic exact portal fingerprints replace timestamp watermarks. Open: automatic production delivery/catchup and three genuine post-forward nightly successes. The original coordinator owns those remaining outcomes on #5608.
 
 ## Self-audit
 
