@@ -7,6 +7,7 @@
  *   3. Poppler      — alternative PDF engine (pdftoppm), handles GS edge-cases
  *   4. Inkscape     — independent engine (no PDF dependency), handles Adobe-specific .ai
  *   5. Sibling image — any .jpg/.png in same folder with matching name
+ *   6. Original embedded XMP JPEG — bounded metadata, blank/notice checked
  *
  * Fallback chain for EPS files:
  *   1. Ghostscript  — primary; handles EPS natively (same CLI as AI/PDF)
@@ -41,6 +42,7 @@ import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
 import { longPath as withLongPathPrefix } from "./smb-resolve";
 import { pickSiblingPdf } from "./sibling-match";
+import { renderEmbeddedAiPreview } from "./embedded-ai-preview";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
@@ -1013,6 +1015,18 @@ export async function renderFile(
       const msg = (e as Error).message;
       failures.push(`sibling: ${msg}`);
       logger.warn("Sibling not found", { uncPath });
+    }
+
+    // Last resort: the same source file's saved XMP artwork preview. Never
+    // replace a successful full render, accept blank/notices, or enlarge it.
+    if (fileType === "ai") {
+      try {
+        const result = await renderEmbeddedAiPreview(effectivePath);
+        logger.info("Embedded original AI preview recovered", { uncPath, width: result.width, height: result.height });
+        return result;
+      } catch (e) {
+        failures.push(`embedded: ${(e as Error).message}`);
+      }
     }
 
     throw new Error(`render_failed: ${failures.join(" | ")}`);
