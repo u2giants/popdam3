@@ -20,6 +20,10 @@ def entry():
 
 
 class MemoryReceipts:
+    def test_lock_wait_may_exceed_deadlock_timeout_but_stays_bounded(self):
+        policy=lambda value:{'schema_version':1,'operations':{'op':{**entry(),'lock_timeout_ms':value,'swap_timeout_ms':3000}}}
+        self.assertEqual(maintenance.operation(policy(2000),'op')['lock_timeout_ms'],2000)
+        with self.assertRaises(maintenance.Refusal):maintenance.operation(policy(2001),'op')
     def __init__(self):self.records={};self.fail_phase=None
     def read(self,ref):return copy.deepcopy(self.records.get(ref))
     def create(self,ref,record):

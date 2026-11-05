@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "operations": {
-    "sg-hnsw-rebuild-706": {
-      "source_pr": 5710,
+    "sg-hnsw-rebuild-706b": {
+      "source_pr": 5728,
       "work_issue": 5616,
       "claim_issue": 5681,
       "definition_sha256": "be64aba92ebde801c74d1c068f7b843d807fcbc89b33051e4aaebe00aace7a9d",
-      "lock_timeout_ms": 500,
+      "lock_timeout_ms": 2000,
       "statement_timeout_ms": 900000,
-      "swap_timeout_ms": 2000,
+      "swap_timeout_ms": 3000,
       "total_timeout_s": 3600
     }
   }

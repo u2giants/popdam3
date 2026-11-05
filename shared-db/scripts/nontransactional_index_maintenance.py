@@ -48,7 +48,8 @@ def operation(policy,operation_id):
             raise Refusal('policy integer refused')
     if not re.fullmatch('[a-f0-9]{64}',entry['definition_sha256']):
         raise Refusal('definition digest refused')
-    if not (entry['lock_timeout_ms']<=1000 and entry['lock_timeout_ms']<entry['swap_timeout_ms']<=3000
+    # Above the 1 s deadlock_timeout, so a waiting build makes autovacuum yield.
+    if not (entry['lock_timeout_ms']<=2000 and entry['lock_timeout_ms']<entry['swap_timeout_ms']<=3000
             and 1000<=entry['statement_timeout_ms']<=900000 and 10<=entry['total_timeout_s']<=3600):
         raise Refusal('operation budget refused')
     return dict(entry)
