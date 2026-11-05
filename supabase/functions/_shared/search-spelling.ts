@@ -11,13 +11,16 @@
 
 /** Words so rare in the corpus they are probably typos themselves. */
 export const RARE_WORD_DOCS = 3;
+export const SPELLING_LOOKUP_CONCURRENCY = 4;
+export const SPELLING_MAX_WORDS = 16;
+export const SPELLING_BUDGET_MS = 1500;
 const MIN_CORRECTABLE_LENGTH = 5;
 
 export interface SpellingLookup {
   /** Documents holding this exact word, up to RARE_WORD_DOCS. */
-  countDocs(word: string): Promise<number>;
+  countDocs(word: string, signal?: AbortSignal): Promise<number>;
   /** Known names as word -> weight; a heavier word wins a tie. */
-  vocabulary(): Promise<Map<string, number>>;
+  vocabulary(signal?: AbortSignal): Promise<Map<string, number>>;
 }
 
 export interface SpellingResult {
@@ -60,7 +63,10 @@ export function nearestWord(word: string, vocabulary: Map<string, number>): stri
   for (const [candidate, weight] of vocabulary) {
     if (candidate === word) continue;
     const distance = editDistance(word, candidate, max);
-    if (distance < bestDistance || (distance === bestDistance && distance <= max && weight > bestWeight)) {
+    if (
+      distance < bestDistance ||
+      (distance === bestDistance && distance <= max && (weight > bestWeight || (weight === bestWeight && (best === null || candidate < best))))
+    ) {
       best = candidate;
       bestDistance = distance;
       bestWeight = weight;
@@ -87,14 +93,41 @@ export function addNameToVocabulary(vocabulary: Map<string, number>, name: strin
 export async function checkSpelling(query: string, lookup: SpellingLookup): Promise<SpellingResult> {
   const original = query.trim().replace(/\s+/g, " ");
   const words = original.split(" ");
+  const unique = [...new Set(words.map((word) => word.toLowerCase()))];
+  // Help is optional: oversized queries are searched IN FULL as typed. Do not
+  // truncate the query or infer meaningfulness from a partial word sample.
+  if (unique.length > SPELLING_MAX_WORDS) return { corrected: null, meaningful: true };
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Spelling budget exceeded"));
+    }, SPELLING_BUDGET_MS);
+  });
   try {
-    const vocabulary = await lookup.vocabulary();
+    const counts = new Map<string, number>();
+    let next = 0;
+    const countWorker = async () => {
+      while (next < unique.length) {
+        if (controller.signal.aborted) throw new Error("Spelling budget exceeded");
+        const word = unique[next++];
+        counts.set(word, /^[\p{L}\p{N}]+$/u.test(word) ? await lookup.countDocs(word, controller.signal) : RARE_WORD_DOCS);
+      }
+    };
+    const [vocabulary] = await Promise.race([
+      Promise.all([
+        lookup.vocabulary(controller.signal),
+        Promise.all(Array.from({ length: Math.min(unique.length, SPELLING_LOOKUP_CONCURRENCY) }, countWorker)),
+      ]),
+      deadline,
+    ]);
     let meaningful = false;
     let changed = false;
     const out: string[] = [];
     for (const raw of words) {
       const word = raw.toLowerCase();
-      const docs = /^[\p{L}\p{N}]+$/u.test(word) ? await lookup.countDocs(word) : RARE_WORD_DOCS;
+      const docs = counts.get(word) ?? 0;
       if (docs >= RARE_WORD_DOCS || vocabulary.has(word)) {
         meaningful = true;
         out.push(raw);
@@ -114,5 +147,8 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
   } catch (error) {
     console.error("spelling check failed; searching as typed", error instanceof Error ? error.message : error);
     return { corrected: null, meaningful: true };
+  } finally {
+    clearTimeout(timer!);
+    controller.abort();
   }
 }

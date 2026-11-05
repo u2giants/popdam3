@@ -35,3 +35,28 @@ sheets of the actual thumbnails; that overrides the rule when they disagree. Pro
 rely on catalog fields because flat art does not show the product. PopSG hits are judged by folder,
 file name and tags, so a guide that only mentions a character in its PDF body counts as irrelevant.
 Only the style-group view is scored, not the single-file view.
+
+## Recovering a long evaluation
+
+Use `--checkpoint <private file> --phase <before-or-after> --run-id <unique-run>
+--source-head <deployed-source-head> --label <label>` to save each completed search engine result atomically.
+Restarting with the same checkpoint resumes the identical saved set without
+replaying completed requests, including failed requests. A changed set, phase, run identity, source head, target or label is refused.
+Use a new checkpoint for each before/after run; source identity is supplied explicitly,
+so independently verify the deployed source.
+Keep the checkpoint private; it contains query result identifiers and catalog details.
+The aggregate report includes the set SHA-256, p50/p95 timings and error categories.
+Compare identical sets and preserve natural catalog updates as a limitation; do not
+interpret expired authentication or unavailable searches as relevance judgments.
+
+Product-code intent follows the [canonical business rule](https://github.com/popcre/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md#product-code-searches).
+Supplemental policy cases can require an actual returned spelling correction or
+semantic execution with picture guesses. The unknown-code policy check does not
+judge those guesses relevant; keep them explicitly unjudged and outside the
+original 119-case denominator.
+
+The unknown-code picture-guess policy remains open on #680 and #706. The
+spelling/reliability repair preserves the deployed code-intent behavior; it does
+not establish complete unknown-code format coverage. A proposed catalog-format
+probe was withheld after its bounded full-miss read timed out. Keep these policy
+failures separate from spelling acceptance and from relevance judgments.

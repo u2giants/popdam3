@@ -4,7 +4,8 @@
 // Env: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SEARCH_EVAL_EMAIL, SEARCH_EVAL_PASSWORD
 // Options: --cases <file> (instead of the database copy), --raw <file> (full hit ids, private;
 // never commit it), --report <file> (aggregate only, safe to share), --label <text>.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { scoreSearch, summarize, trustWarning } from "./score.mjs";
 import { createViewerSession, ViewerAuthenticationError } from "./viewer-session.mjs";
 
@@ -69,7 +70,7 @@ const damSearch = (query) => timed(async () => {
   const data = await viewerPost("/functions/v1/dam-search-ai", {
     action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"],
   }, 45_000);
-  return { hits: data.results.map((r) => r.entity_id), total: data.total_count };
+  return { hits: data.results.map((r) => r.entity_id), total: data.total_count, semantic: data.semantic ?? null, corrected_query: data.corrected_query ?? null };
 });
 
 // Same expansion and query text as src/pages/popsg/PopSGLibraryPage.tsx.
@@ -120,25 +121,46 @@ const sgSearch = (query, mode) => timed(async () => {
 
 const set = await loadSet();
 const rows = { dam: [], sg_guides: [], sg_files: [] };
-const raw = {};
+const checkpoint = arg("checkpoint");
+const setHash = createHash("sha256").update(JSON.stringify(set)).digest("hex");
+const identity = { set_hash: setHash, target: url, phase: arg("phase"), run_id: arg("run-id"), source_head: arg("source-head"), label: arg("label") };
+if (checkpoint && (!identity.phase || !identity.run_id || !identity.source_head || !identity.label)) {
+  throw new Error("Checkpoint requires --phase, --run-id, --source-head and --label");
+}
+const saved = checkpoint && existsSync(checkpoint) ? JSON.parse(readFileSync(checkpoint, "utf8")) : null;
+if (saved && saved.set_hash !== setHash) throw new Error("Checkpoint belongs to a different judged set");
+if (saved && JSON.stringify(saved.identity) !== JSON.stringify(identity)) throw new Error("Checkpoint belongs to a different evaluation identity");
+const startedAt = saved?.started_at ?? new Date().toISOString();
+const raw = saved?.raw ?? {};
+const persist = () => {
+  if (checkpoint) {
+    const temporary = `${checkpoint}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify({ set_hash: setHash, identity, started_at: startedAt, raw }), { mode: 0o600, flag: "wx" });
+    renameSync(temporary, checkpoint);
+  }
+};
 for (const testCase of set.cases) {
-  raw[testCase.id] = {};
-  const runs = {};
-  if (testCase.dam) runs.dam = await damSearch(testCase.query);
-  if (testCase.sg_guides) runs.sg_guides = await sgSearch(testCase.query, "guides");
-  if (testCase.sg_files) runs.sg_files = await sgSearch(testCase.query, "files");
+  raw[testCase.id] ??= {};
+  const runs = raw[testCase.id];
+  if (testCase.dam && !runs.dam) { runs.dam = await damSearch(testCase.query); persist(); }
+  if (testCase.sg_guides && !runs.sg_guides) { runs.sg_guides = await sgSearch(testCase.query, "guides"); persist(); }
+  if (testCase.sg_files && !runs.sg_files) { runs.sg_files = await sgSearch(testCase.query, "files"); persist(); }
   for (const [engine, run] of Object.entries(runs)) {
     raw[testCase.id][engine] = run;
     rows[engine].push(scoreSearch(testCase, testCase[engine], run.hits, run));
   }
 }
 
-const report = { label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
+const report = { identity, started_at: startedAt, set_hash: setHash, label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
 for (const [engine, engineRows] of Object.entries(rows)) {
   if (!engineRows.length) continue;
   const summary = summarize(engineRows);
   report.engines[engine] = {
     ...summary,
+    errors_by_type: engineRows.reduce((counts, row) => {
+      if (row.error) counts[row.error] = (counts[row.error] ?? 0) + 1;
+      return counts;
+    }, {}),
     warning: trustWarning(summary),
     failed_case_ids: engineRows.filter((r) => !r.pass).map((r) => r.id),
   };

@@ -16,6 +16,19 @@ describe("canonical licensor/property contract", () => {
     expect(handler).not.toContain('.from("properties")');
   });
 
+  it("reads spelling names from ordered canonical taxonomy with bounded minimal reads", () => {
+    const search = read("supabase/functions/dam-search-ai/index.ts");
+    expect(search).toContain('.schema("core").from(table).select("name").order("id")');
+    for (const table of ["licensor", "property", "character"]) {
+      expect(search).toContain(`loadNames("${table}", vocabulary, signal)`);
+    }
+    expect(search).toContain("AbortSignal.timeout(1500)");
+    expect(search).toContain(".abortSignal(signal)");
+    expect(search).not.toMatch(/loadNames\("(?:licensors|properties|characters)"/);
+    expect(search).not.toContain("row.usage_count");
+    expect(search).not.toContain('select("*")');
+  });
+
   it("has no PopDAM-side taxonomy writer", () => {
     // Only the shared master-data feeder may write the canonical taxonomy.
     expect(existsSync("supabase/functions/sync-external")).toBe(false);

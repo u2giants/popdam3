@@ -4,7 +4,7 @@
 const TOP = 10;
 
 /** Score one search of one case. `judged` = { relevant: [], irrelevant: [], must_find: [] }. */
-export function scoreSearch(testCase, judged, hits, { error = null, total = hits.length, ms = 0 } = {}) {
+export function scoreSearch(testCase, judged, hits, { error = null, total = hits.length, ms = 0, semantic = null, corrected_query = null } = {}) {
   const relevant = new Set(judged?.relevant ?? []);
   const irrelevant = new Set(judged?.irrelevant ?? []);
   const top = hits.slice(0, TOP);
@@ -19,6 +19,8 @@ export function scoreSearch(testCase, judged, hits, { error = null, total = hits
     total,
     ms,
     error,
+    semantic,
+    corrected_query,
     returned: hits.length,
     relevant_top10: relTop,
     irrelevant_top10: badTop,
@@ -33,6 +35,9 @@ export function scoreSearch(testCase, judged, hits, { error = null, total = hits
 
 function passes(testCase, row, judged) {
   if (row.error) return false;
+  if (testCase.expected_correction && row.corrected_query !== testCase.expected_correction) return false;
+  // Unknown-code picture guesses are a policy check, not a relevance judgment.
+  if (testCase.expect_semantic) return row.semantic === "siglip2" && row.returned > 0;
   if (testCase.expect_empty) return row.total === 0;
   if (testCase.kind === "code" && testCase.exact) return row.first_relevant_rank === 1;
   if (judged?.expected_total && row.total < judged.expected_total * 0.5) return false;
