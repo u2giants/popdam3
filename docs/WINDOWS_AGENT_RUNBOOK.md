@@ -246,9 +246,18 @@ An AI-named source with a real Photoshop `8BPS` header uses the existing PSD
 renderer chain; neither the filename nor its recorded type is rewritten.
 
 
+For PSD/PSB sources whose normal decoders and exact siblings fail, the same
+extractor can use an intact Photoshop RGB JPEG resource (1036) saved before a
+damaged layer section. It bounds image resources to 4 MiB, validates every
+resource/name/thumbnail extent and JPEG dimensions, and retains the same pixel,
+blank, compatibility-notice and no-enlargement guards. It does not interpret
+BGR resource 1033 or repair source bytes. A saved preview may be only 160 pixels;
+a blank, malformed or absent preview leaves the ordinary failure visible.
+
 ## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
 
 The agent was moved from **edge-alien** to **edge-dev** on 2026-10-01 so edge-alien could be reformatted, and moved back to the freshly installed edge-alien on 2026-10-05 (see the end of this section). **The agent runs on edge-alien now.** Every problem hit on either move is listed here with the fix.
+
 
 ### Order that worked
 

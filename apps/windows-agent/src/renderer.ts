@@ -42,7 +42,7 @@ import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";
 import { longPath as withLongPathPrefix } from "./smb-resolve";
 import { pickSiblingPdf } from "./sibling-match";
-import { renderEmbeddedAiPreview } from "./embedded-ai-preview";
+import { renderEmbeddedAiPreview, renderEmbeddedPsdPreview } from "./embedded-ai-preview";
 
 // On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
 // Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
@@ -1030,6 +1030,16 @@ export async function renderFile(
       const msg = (e as Error).message;
       failures.push(`sibling: ${msg}`);
       logger.warn("Sibling not found", { uncPath });
+    }
+
+    // Last resort for PSD: its own saved RGB Photoshop thumbnail. Layer
+    // corruption must not hide an intact original preview; keep both guards.
+    if (fileType === "psd") {
+      try {
+        const result = await renderEmbeddedPsdPreview(effectivePath);
+        logger.info("Embedded original PSD preview recovered", { uncPath, width: result.width, height: result.height });
+        return result;
+      } catch (e) { failures.push(`embedded-psd: ${(e as Error).message}`); }
     }
 
     // Last resort: the same source file's saved XMP artwork preview. Never
