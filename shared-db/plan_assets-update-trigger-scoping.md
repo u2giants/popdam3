@@ -1,6 +1,7 @@
 # Plan: stop `public.assets` updates from re-running work nothing asked for
 
-Handoff: HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md
+Historical planning handoff (write-once record, not current execution state): [original assessment handoff](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md).
+Current state: [owning issue #5609](https://github.com/popcre/shared-db/issues/5609), the STATUS below, and [production/recovery evidence](docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md). The remaining acceptance is not complete.
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 
 ## STATUS (2026-11-05 01:25 AM EST)
@@ -52,11 +53,11 @@ NOT in this plan:
 - Index drops (#1966), autovacuum reloptions on `assets` (separate decision; the report itself says vacuum only mitigates), Realtime/publication changes.
 - Changing what the search document contains or how embeddings are prioritised.
 
-## 5. Current state (production catalog, read 2026-11-04 ~8:55 PM EST)
+## 5. Historical pre-change state (production catalog, read 2026-11-04 ~8:55 PM EST)
 
-All 19 user triggers on `public.assets` (`select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.assets'::regclass and not tgisinternal`):
+This is the original 19-trigger baseline, not the installed post-change catalog. Current delivered definitions and verification are recorded in [production/recovery evidence](docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md) and the STATUS above; do not redo the delivered migration from this table. Baseline query: `select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.assets'::regclass and not tgisinternal`.
 
-| Trigger | Timing / level | Events (column list, WHEN) | Function | Fires on the scan PATCH today? |
+| Trigger | Timing / level | Events (column list, WHEN) | Function | Fired on the pre-change scan PATCH? |
 |---|---|---|---|---|
 | `set_assets_updated_at` | BEFORE row | UPDATE | `set_assets_updated_at()` sets `updated_at=now()` | yes (trivial, keep) |
 | `assets_style_group_change_clock` | BEFORE row | INSERT, UPDATE | `stamp_style_group_asset_change()` (ROW compare; lock only on change) | yes (cheap; #2421 owns) |
@@ -77,7 +78,7 @@ All 19 user triggers on `public.assets` (`select pg_get_triggerdef(oid) from pg_
 | `trg_refresh_sg_counts_on_insert` / `_on_delete` | AFTER statement | INSERT / DELETE | same | n/a |
 | `trg_refresh_group_on_asset_hard_delete` | AFTER row | DELETE | `refresh_group_on_asset_hard_delete()` | n/a |
 
-Where the definitions live: grep `supabase/migrations/` for each trigger name; latest definitions of the two hot ones are found by `grep -ln "trg_dam_search_assets_refresh\|trg_sync_primary_on_thumbnail" supabase/migrations/*.sql | sort | tail -2` (search-trigger lineage includes `20260713221518_dam_hybrid_search_foundation.sql` and `20260723113000_dam_core_licensor_property_cutover.sql`). Always copy the **live** body via `pg_get_functiondef` / `pg_get_triggerdef`, not an old migration.
+Historical source lineage includes `20260713221518_dam_hybrid_search_foundation.sql` and `20260723113000_dam_core_licensor_property_cutover.sql`. The delivered change is [immutable migration 20261105033827](supabase/migrations/20261105033827_assets_update_trigger_scoping.sql); its actual installed definitions are preserved in the production/recovery evidence above. Before any further change, re-read the **live** body via `pg_get_functiondef` / `pg_get_triggerdef` rather than copying this baseline or an old migration.
 
 Caller (u2giants/popdam3 `origin/main` c5c501b5, 2026-11-04): `supabase/functions/agent-api/index.ts:1216-1234` builds `updateFields` for an existing-path file — filename, file_type, file_size, width, height, modified_at, file_created_at, quick_hash, quick_hash_version, `last_seen_at: new Date()`, workflow_status, is_licensed, optional pdf_page2_url, `...thumbnailFields`, `...skuFields` (division/mg/size/sku/licensor/property) — and sends it unconditionally via `db.from("assets").update(updateFields).eq("id", existingByPath.id)`. Same pattern for moves at `index.ts:1156` (`moveUpdates`). `last_seen_at` changes every scan, so the row write itself is legitimate; the follow-on work is not.
 
@@ -105,17 +106,17 @@ Caller (u2giants/popdam3 `origin/main` c5c501b5, 2026-11-04): `supabase/function
 
 Locked (2026-11-04):
 - Every trigger keeps firing whenever any column its function actually reads changes **in value**, including values rewritten by BEFORE triggers. Scoping is by `WHEN (ROW(OLD.cols) IS DISTINCT FROM ROW(NEW.cols))` on an AFTER UPDATE trigger; INSERT/DELETE move to a separate trigger with the same function and no `WHEN` (a `WHEN` referencing `OLD` is illegal on INSERT, `NEW` on DELETE).
-- Function bodies are not changed except the optional 3b short-circuit. Trigger names are preserved for the UPDATE half (append `_ins_del` for the split-off half) so greps and docs still match.
+- Function bodies were kept unchanged; step 3b's optional short-circuit was not needed. Trigger names are preserved for the UPDATE half (append `_ins_del` for the split-off half) so greps and docs still match.
 - Delivered as one forward-only migration in this repo; app change is a cross-repo follow-up.
 - `assets_style_group_change_clock`, `assets_effective_tags_sync`, the sg-count statement triggers, and already-scoped triggers are untouched.
 
-Open (implementer's judgment, criteria given): 3b `updated_at` handling; whether to also scope the cheap BEFORE triggers (`redirect_retired_wb_licensor`, `trg_compute_primary_sort_tier`) — do it only if step 0 shows them >1% of the PATCH time; they are BEFORE triggers and need `WHEN` on NEW vs OLD exactly the same way.
+Resolved during implementation: step 3b omits `updated_at` from the search predicate because the reader audit found no asset-staleness detector relying on that search timestamp; `modified_at` remains included and function bodies are unchanged. The cheap BEFORE triggers (`redirect_retired_wb_licensor`, `trg_compute_primary_sort_tier`) were left unchanged because no per-trigger measurement justified expanding scope. These are delivered decisions, not open design work; see [the baseline audit](docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-baseline.md) and the STATUS above. The still-pending production acceptance remains on #5609 and is not claimed here.
 
 ## 9. Steps
 
 **Step 0 — Re-measure baseline (read-only).** On production via Supabase MCP `execute_sql`: (a) the §3 `pg_stat_statements` query (`where query ilike 'with pgrst_source as (update "public"."assets"%'`, calls/mean/total/wal_bytes) and its reset time from `extensions.pg_stat_statements_info`; (b) `n_dead_tup, n_live_tup, n_tup_upd, n_tup_hot_upd` for `public.assets` and `public.dam_search_documents`; (c) the F5 drift count; (d) the §5 trigger listing. Optional: `explain (analyze, buffers)` is not possible on a write in production — skip it. Record in `docs/verification/database-efficiency/<UTC>/assets-trigger-scoping-baseline.md` with exact queries. Gate: file exists with numbers and queries; quote times in EST.
 
-**Step 1 — Claim and branch.** Load `shared-db-change`; declare `ai-task-gates start --class shared-db`; on popcre/shared-db#5609 claim exact objects: triggers `trg_dam_search_assets_refresh`, `trg_sync_primary_on_thumbnail`, `trg_sync_designer_to_style_group`, `trg_sync_cover_description_to_style_group`, `trg_auto_queue_render`, `trg_assets_enqueue_image_embed` on `public.assets`; function `public.refresh_dam_search_asset_document(uuid)` (only if 3b needs it); data `public.style_groups.primary_thumbnail_url/_error` (reconcile). Own worktree from `origin/main`. Gate: claim comment posted and signed; branch exists.
+**Step 1 — Ownership and branch (completed historical evidence).** Load `shared-db-change`; declare `ai-task-gates start --class shared-db`; the signed scope on popcre/shared-db#5609 named exact objects: triggers `trg_dam_search_assets_refresh`, `trg_sync_primary_on_thumbnail`, `trg_sync_designer_to_style_group`, `trg_sync_cover_description_to_style_group`, `trg_auto_queue_render`, `trg_assets_enqueue_image_embed` on `public.assets`; function `public.refresh_dam_search_asset_document(uuid)` (only if 3b needs it); data `public.style_groups.primary_thumbnail_url/_error` (reconcile). Own worktree from `origin/main`. Delivered evidence: scope comment posted and signed; owned branch exists. Future work follows current-workflow.md and the surviving locks/reservations, not retired author-admission commands.
 
 **Step 2 — Contract tests first** (`supabase/tests/assets_update_trigger_scoping_contracts.sql`; repo style is plain SQL in `begin; ... do $$ ... raise exception ... $$; rollback;`, see `supabase/tests/admin_config_apply_counters_contracts.sql`; CI runs every file via `.github/workflows/database-contract-tests.yml` against an ephemeral DB). Build fixtures: one style group, two assets (A primary with thumbnail, B non-primary), tags. Cases (each = one assertion block):
 1. *Catalog*: each re-scoped trigger exists with expected `tgtype` and a non-null `WHEN` (`pg_get_triggerdef` contains `IS DISTINCT FROM`); `_ins_del` siblings exist.
@@ -192,7 +193,7 @@ All in `supabase/tests/assets_update_trigger_scoping_contracts.sql`; existing su
 
 ## 11. Constraints, standing rules, gotchas
 
-- Structural change: claim-first on popcre/shared-db#5609, `shared-db-change` skill, `ai-task-gates start --class shared-db`, own worktree. Production read-only; promotion only through the workflow; no open `review-finding` issue at promotion.
+- Any further structural work: load `shared-db-change`, read [current-workflow.md](docs/agents/current-workflow.md), retain exact scope on popcre/shared-db#5609, start the shared-db task class and use an owned current-upstream worktree plus surviving reservation/lock tooling. Retired author-claim/admission commands are not a delivery step. Production read-only; promotion only through the workflow; no open `review-finding` issue at promotion.
 - Never hand-edit `types/database.types.ts` (no type change expected anyway).
 - `WHEN` cannot reference `OLD` on INSERT or `NEW` on DELETE — that is why triggers are split. Transition-table triggers cannot have column lists.
 - AFTER row triggers fire in name order; renaming changes order. Keep UPDATE-half names identical; check no function depends on another trigger's side effect ordering (search refresh reads `style_groups` that designer/cover triggers write — names `trg_dam_…` < `trg_sync_…`, unchanged).

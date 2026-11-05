@@ -1,0 +1,82 @@
+{
+  "source": "Retained explicit read-only preview cron.job_run_details and key/progress aggregate checkpoints; no new database read",
+  "total_observed_failed_invocations": 5,
+  "first_three_phase_allocation": "not retained; do not label all five as key-bootstrap-only",
+  "two_later_invocations_after_zero_key_checkpoint": [
+    "2026-11-05T00:40:00.033116-05:00",
+    "2026-11-05T00:45:00.031853-05:00"
+  ],
+  "runs": [
+    {
+      "jobid": 19,
+      "status": "succeeded",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:50:45.673842-05:00",
+      "start_time": "2026-11-05T00:50:00.055249-05:00",
+      "elapsed_seconds": 45.618593
+    },
+    {
+      "jobid": 19,
+      "status": "failed",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:47:00.038033-05:00",
+      "start_time": "2026-11-05T00:45:00.031853-05:00",
+      "elapsed_seconds": 120.00618
+    },
+    {
+      "jobid": 19,
+      "status": "failed",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:42:00.038037-05:00",
+      "start_time": "2026-11-05T00:40:00.033116-05:00",
+      "elapsed_seconds": 120.004921
+    },
+    {
+      "jobid": 19,
+      "status": "failed",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:37:00.032488-05:00",
+      "start_time": "2026-11-05T00:35:00.029127-05:00",
+      "elapsed_seconds": 120.003361
+    },
+    {
+      "jobid": 19,
+      "status": "failed",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:32:00.074198-05:00",
+      "start_time": "2026-11-05T00:30:00.070823-05:00",
+      "elapsed_seconds": 120.003375
+    },
+    {
+      "jobid": 19,
+      "status": "failed",
+      "jobname": "sku-style-guide-links-catchup-5608",
+      "end_time": "2026-11-05T00:27:00.034011-05:00",
+      "start_time": "2026-11-05T00:25:00.030954-05:00",
+      "elapsed_seconds": 120.003057
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_utc": "20261105T053905Z",
+      "private_source_filename": "5608-preview-checkpoint-20261105T053905Z.json",
+      "pending_keys_total": 0,
+      "source_tables": 17,
+      "resolved_skus": 100
+    },
+    {
+      "checkpoint_utc": "20261105T054352Z",
+      "private_source_filename": "5608-preview-checkpoint-20261105T054352Z.json",
+      "pending_keys_total": 0,
+      "source_tables": 17,
+      "resolved_skus": 400
+    },
+    {
+      "checkpoint_utc": "20261105T062703Z",
+      "private_source_filename": "5608-preview-checkpoint-20261105T062703Z.json",
+      "pending_keys_total": 0,
+      "source_tables": 17,
+      "resolved_skus": 754
+    }
+  ]
+}

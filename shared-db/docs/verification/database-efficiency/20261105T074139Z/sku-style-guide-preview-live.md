@@ -84,11 +84,11 @@ exact parity SELECT
 `ca3233256383cf8e6d82fef24ee21e070381c40295a07327f95f8a970942a979`.
 
 The [forward-repair record](../20261105T061627Z/sku-style-guide-snapshot.md)
-retains the failed real-preview implementation, five interrupted one-time/bootstrap
-runs, failed preparation trials, local eight-portal parity and post-DML cancellation
-recovery, real pg_cron identity tests, and seventeen acceptance-query cases. The
-successful full resolver call above does not turn that bootstrap into a zero-timeout
-claim. The original local stress corpus was concentrated in DCP; all eight portal
+retains the failed real-preview implementation, five observed ~120s failed catchup invocations across setup/resolver work, failed preparation trials, local eight-portal parity and post-DML cancellation
+recovery, real pg_cron identity tests, and seventeen acceptance-query cases. The [retained native-history subset](catchup-run-history.json) proves five failures;
+the last two begin after zero-key checkpoints, while exact phase allocation of
+the first three is not retained. The successful full resolver call above does not
+turn that setup history into a zero-timeout claim. The original local stress corpus was concentrated in DCP; all eight portal
 arms, duplicates, pending keys and NULL filenames were separately exercised by the
 retained guarded fixtures.
 

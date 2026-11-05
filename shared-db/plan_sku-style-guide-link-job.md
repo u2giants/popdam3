@@ -1,6 +1,6 @@
 # Plan: make the nightly SKU -> style guide link job finish
 
-Handoff: [HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md)
+Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); delivered preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
 Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
 
 ## STATUS (2026-11-05 03:03 AM EST)
@@ -26,9 +26,9 @@ Accepted implementation: plain persisted keys with narrow source-sensitive trigg
 
 POP DAM shows, for each product (SKU), which licensor style guide its artwork came from. That list is supposed to refresh every night, but the nightly refresh has failed every single night since it was installed on 2026-10-30, so the list is frozen at what a one-time manual run produced on 2026-10-30 ~6:24 PM EDT. New licensing sheets and newly scraped licensor portals never show up. Done means: the nightly job succeeds every night well inside its time budget, produces the same links the current logic would produce if it had unlimited time, and costs the shared database a small, bounded amount of work per night. **If a step conflicts with this goal, the goal wins — stop and flag it on #5608.**
 
-## 2. The application
+## 2. The application (original assessment context, 2026-11-04)
 
-`popcre/shared-db` owns the shared Supabase Postgres (production project ref `qsllyeztdwjgirsysgai`) used by DesignFlow, POP DAM, PIM, CRM. Schema changes are SQL migrations under `supabase/migrations/`; they reach production only via the automatic promotion workflow after a preview-branch rehearsal (`AGENTS.md` line ~213; skill `shared-db-change`). There is no app deploy from this repo.
+`popcre/shared-db` owns the shared Supabase Postgres (production target resolved from protected configuration) used by DesignFlow, POP DAM, PIM, CRM. Schema changes are SQL migrations under `supabase/migrations/`; they reach production only via the automatic promotion workflow after a preview-branch rehearsal (`AGENTS.md` line ~213; skill `shared-db-change`). There is no app deploy from this repo.
 
 Objects involved (all defined in `supabase/migrations/20261030043848_sku_style_guide_links.sql`):
 - `public.pdf_text_samples` — OCR/extracted text per PDF asset (unique on `asset_id`). ~27.9k rows, 94 MB; ~18.8k rows sampled in the last 7 days (it churns heavily).
@@ -50,10 +50,10 @@ NOT in: changing match rules or confidence math; adding/removing portal arms of 
 
 ## 5. Current state
 
-- Nothing changed; no branch, no PR.
-- `sku_style_guide_links.last_seen_at` max = 2026-10-30 6:23 PM EDT — the only successful run was the manual post-promotion run from #5141 / `HANDOFF.d/20261030T0640Z-EDGE-DEV…`.
-- Existing tests that pin the current text: `scripts/sku-style-guide-links.test.mjs` (regex-asserts grants and the exact cron schedule/command) and `supabase/tests/sku_style_guide_links_contracts.sql`. Both must be updated in step 3, not deleted.
-- Indexes on `pdf_text_samples`: pkey, `asset_id` (two, one unique), `sampled_at desc`, a GIN tsvector. Nothing helps a regex filter.
+- Base/forward implementation is merged through #5619 and #5649; generated types through #5645; preview evidence and the current plan through #5654. The original assessment handoff above is historical, not an unstarted-work instruction.
+- Governed preview run 41987714096 and subsequent leased calls passed: full 8.103889s, unchanged 3.247662s, exact EXCEPT ALL 0/0 on unchanged 334-row output and unchanged inputs. The recorded final preview state has zero pending keys across 17 sources, 754 v3 progress rows and no catchup job.
+- Production delivery/catchup and three genuine source-tagged nightly successes remain open on #5608 with the original coordinator. The separate production reference snapshots recorded both migrations absent; automatic run 41988158724 refused the absent base and skipped apply. No production success is claimed.
+- Existing SQL/Node contracts and guarded eight-portal, cancellation, native cron and acceptance-probe fixtures passed. Published evidence includes the unsuccessful setup/resolver invocations rather than treating them as a zero-timeout bootstrap.
 
 ## 6. Findings (read-only, production, 2026-11-04 ~8:45 PM EST)
 
@@ -66,7 +66,7 @@ NOT in: changing match rules or confidence math; adding/removing portal arms of 
 
 ## 7. Rejected approaches
 
-- **Just raise the timeout (e.g. 30 min).** Hides the cost: it would burn many minutes of full-scan regex work nightly on the shared DB, growing with every scrape and sheet, and still is one all-or-nothing transaction. Report §7 explicitly says fix design first. A modest per-batch cap remains as a safety net.
+- **Just raise the timeout (e.g. 30 min).** Hides the cost: it would burn many minutes of full-scan regex work nightly on the shared DB, growing with every scrape and sheet, and still is one all-or-nothing transaction. Report §7 explicitly says fix design first. The existing outer call cap remains; batches are bounded by row count and measured execution. A function SET does not independently enforce a per-batch timer.
 - **Trigram / GIN index for the regex.** Only narrows the `~*` filter; the expensive part is the 553k-row view normalisation and re-extracting labels that haven't changed. Doesn't remove the repeat work.
 - **Materialized view for `asset_file_style_guide_index`.** Plausible but needs its own refresh job — exactly the class of job already timing out (report §3, `refresh-style-guide-*`). Persisted per-row keys plus incrementality give the same benefit without a new refresh. Revisit only if step 4 misses the gate.
 - **Split the three arms into three cron jobs.** Each still full-scans; just splits the failure.
@@ -75,7 +75,8 @@ NOT in: changing match rules or confidence math; adding/removing portal arms of 
 ## 8. Decisions
 
 Locked (2026-11-04): output semantics identical to the current function (same rows, methods, confidence, counts given unlimited time); upsert-only quarantine model stays; delivered as forward-only migrations; job name and schedule stay (`30 4 * * *`); no manual production SQL.
-Open (implementer judgment, criteria given): batch size (target each batch < 10 s in preview); whether the portal-side key is a stored generated column on each scrape table or a small helper table (prefer generated columns where the source column is on the table itself; ASGARD/Warner arms may need the helper); whether the watermark lives in a one-row state table or is derived from `last_seen_at`.
+Delivered choices (2026-11-05): plain persisted keys and narrow source-sensitive triggers, with empty-key NULL sentinels; 1,000-row committed key batches and 100-SKU resolver batches; durable per-SKU input/output fingerprints plus exact active-link membership; a once-per-invocation complete portal snapshot and v3 typed-record multiset fingerprint instead of timestamp/last_seen watermarks. Two nonunique covering indexes remove the measured wide-heap reads. The forward migration adds only an inert source-version tag to the base migration's CALL command, retaining its ID/schedule/owner/active state.
+Open outcomes: normal automatic production delivery/catchup and three real post-forward nightly successes. Storage, watermark and batch-size implementation choices above are no longer unstarted decisions.
 
 ## 9. Steps
 
@@ -90,7 +91,7 @@ Open (implementer judgment, criteria given): batch size (target each batch < 10 
 4. Retain a top-level invoker procedure without a SET clause, session mutual exclusion across commits, explicit cancellation/error unlock, and a compatibility function. A function SET does **not** enforce a per-batch timeout on an already-running outer statement; the existing outer cron cap remains unchanged. Final actual preview calls used isolated, verified 60s/5s session caps without changing role/global/cron settings.
 5. Keep the existing nightly job ID/schedule/owner/active state; only an inert source-version comment is added with `cron.alter_job`, after requiring exactly one named job. A hash-bound typed sidecar verifies the exact job row. Select the latest three ALL audit runs first and require each to carry that source tag; never filter untagged failures away.
 
-Gate: one-time persisted-key bootstrap is explicitly resumable, and its five 120s interruptions are retained rather than described as zero-timeout. After keys finish, actual full resolver <60s, unchanged resolver <5s, and exact original-output EXCEPT ALL counts both ways must pass. These preview gates passed at 8.103889s / 3.247662s / 0-and-0 differences on unchanged inputs. No writing old resolver or raised timeout is used to produce the comparison oracle. Production delivery and genuine nightly acceptance remain open.
+Gate: one-time persisted-key bootstrap is explicitly resumable, and five observed ~120s failed catchup invocations are retained, spanning initial setup and resolver work. The last two begin after zero-pending-key checkpoints; the exact phase allocation of the first three is not retained. See the [native-history subset](docs/verification/database-efficiency/20261105T074139Z/catchup-run-history.json). They are not described as five key-bootstrap-only interruptions or a zero-timeout bootstrap. After keys finish, actual full resolver <60s, unchanged resolver <5s, and exact original-output EXCEPT ALL counts both ways must pass. These preview gates passed at 8.103889s / 3.247662s / 0-and-0 differences on unchanged inputs. No writing old resolver or raised timeout is used to produce the comparison oracle. Production delivery and genuine nightly acceptance remain open.
 
 **Step 3 — Tests.** See §10. Gate: all green locally and in CI.
 
@@ -100,15 +101,15 @@ Gate: one-time persisted-key bootstrap is explicitly resumable, and its five 120
 
 **Step 6 — Live proof (still open).** After three post-forward source-tagged nights: `cron.job_run_details` for jobid 17 shows the latest three ALL runs each match the exact tagged command and are consecutive `succeeded`, each nonnegative and <60s; current job must remain active/postgres-owned/on its unchanged schedule and the forward ledger must exist; `max(last_seen_at)` advances nightly; link counts ≥ the 2026-11-04 baseline per method. Record in the verification folder; tick `- [ ] live proof` on #5608.
 
-## 10. Tests
+## 10. Tests (implemented and passed)
 
-- `supabase/tests/sku_style_guide_links_contracts.sql`: add cases — (a) a sample with `CORE/STYLE GUIDE USED: The Foo Guide` yields generated label `The Foo Guide` and key `foo guide`; (b) re-running the resolver with no changes inserts 0 and touches only `last_seen_at`; (c) a new portal guide whose label matches an *old* sheet produces a `sheet_label_match` link on the next incremental run; (d) a new `sku_files_used` row matching an existing portal file produces `filename_exact`; (e) no row is ever deleted; (f) batch interruption (simulate error mid-run) leaves watermark at last committed batch.
-- `scripts/sku-style-guide-links.test.mjs`: update the cron-command regex to the new command; keep grant assertions.
-- Existing CI database-contract suite stays green (note the baseline re-apply quirk below).
+- `supabase/tests/sku_style_guide_links_contracts.sql` covers persisted label/key extraction, unchanged freshness, old-sheet/new-guide and new-file matches, quarantine, external parser changes, duplicate/NULL preservation, snapshot convergence, repeated calls and hostile temporary relations. The existing nine Node contracts retain grant/schedule assertions.
+- Guarded fixtures under `supabase/tests/fixtures/5608/` prove all eight portal arms in ready/pending/sentinel states, exact three-arm output parity, concurrent source changes, actual post-DML batch-two cancellation with 100 durable then 201 resumed SKU/link pairs, and real pg_cron command tagging without changing job identity.
+- Seventeen cases execute the actual source-bound acceptance SQL, including historical/untagged/failed/nullable records, current job state and invalid duration negatives. The complete required database suite and WB/NBCU/Sesame/SKU contracts passed; genuine production nights remain a separate open acceptance item.
 
 ## 11. Constraints and gotchas
 
-- Structural change: load `shared-db-change`, claim the exact objects on #5608 first, `ai-task-gates start --class shared-db`.
+- Future structural work: load `shared-db-change`, read [current-workflow.md](docs/agents/current-workflow.md), document exact object scope on the existing issue and use the surviving reservation tooling and [lock/promotion CLI](scripts/manage-migration-coordination.mjs). Start the shared-db task class. Retired author-claim/admission commands are not a delivery step; historical ownership comments remain evidence only.
 - CI harness re-applies the pre-adoption baseline after replaying migrations (`database-contract-tests.yml` steps 12-14): `create or replace` on a baseline-defined routine is silently reverted in tests. The resolver is migration-owned (not in baseline) so it is fine; if you touch `parse_pdf_files_used`, use a new `_v3` name (see migration line 344).
 - #5141: a migration that does heavy data work inline can exceed the migration's own budget and roll back; keep backfills out of the migration body.
 - Production is read-only except via automatic promotion. Current workflow holds, including the existing closed NOT_PLANNED expiry and absent-base dependency, remain binding; no manual production override.
@@ -129,5 +130,5 @@ Resolved: reliable timestamps are absent across the complete source set; determi
 ## Self-audit
 
 1. Fresh session executes without asking? Yes — §2 names every object and file line, §6 gives the evidence and reproduction query, §9 gives step-by-step SQL shape and gates, §11 gotchas, §12 access. Gap found and fixed: EXPLAIN unavailable from MCP — step 0 says where to get it.
-2. Background and ruled-out ideas carried? Yes — §3 trigger, §5 frozen-since date, §6 why it fails (arms 2/3, one transaction, 553k view), §7 five rejected approaches with reasons, #5141 history in §11.
-3. Goal clear enough for judgment calls? Yes — §1 (nightly success, identical output, bounded cost) and §8 locks output semantics while leaving batch size and key storage open with criteria.
+2. Background and ruled-out ideas carried? Yes — §3 trigger, §5 delivered-state correction, §6 why it fails (arms 2/3, one transaction, 553k view), §7 five rejected approaches with reasons, #5141 history in §11.
+3. Goal clear enough for judgment calls? Yes — §1 (nightly success, identical output, bounded cost) and §8 locks output semantics and records the delivered storage, fingerprint and batching choices; production/nightly acceptance remains open.

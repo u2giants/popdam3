@@ -9,7 +9,13 @@ Production delivery and the existing three-night acceptance remain open on #5608
 
 The original local 553,600-row volume success did not predict the live eight-portal
 query plan. Preview catchup reached the unchanged 120-second outer statement limit
-four times. The first runs durably filled 721,410 missing keys; a later run with zero
+four times by the 12:43 AM EST checkpoint. The later retained native history
+confirms a fifth failed invocation from 12:45–12:47 AM EST, lasting 120.00618s;
+[the sanitized run/checkpoint subset](../20261105T074139Z/catchup-run-history.json)
+records all five and the final separate 45.618593s success. The exact phase
+allocation of the first three invocations is not retained. Zero-key checkpoints
+precede the last two, so those failures are resolver-stage evidence, not
+key-bootstrap-only failures. The first runs durably filled 721,410 missing keys; a later run with zero
 remaining keys only advanced 300 SKUs (100 to 400), proving resolver failure after
 bootstrap. No successful whole resolver or nightly run is claimed here.
 
