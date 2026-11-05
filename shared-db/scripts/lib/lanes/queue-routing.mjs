@@ -26,6 +26,8 @@ export const EXCLUSIVE_REFS = Object.freeze({
   // unchanged; an earlier comment here claimed the exclusion existed (#1213
   // round 7 audit).
   'preview-rehearsal': 'refs/db-coordination/preview',
+  // Exact-index maintenance shares the existing preview exclusion, never a new lane.
+  'preview-maintenance': 'refs/db-coordination/preview',
   merge: 'refs/db-coordination/merge',
   production: 'refs/db-coordination/production',
 })
