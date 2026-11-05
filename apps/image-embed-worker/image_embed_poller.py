@@ -293,6 +293,7 @@ class Poller:
         self.search_done = self.search_failed = self.search_stale = 0
         self.search_cooldown_until = 0.0
         self.sg_batch = config.SG_SEARCH_CLAIM_BATCH
+        self.last_query_poll = 0.0
         self.t0 = time.time()
         self.pool = ThreadPoolExecutor(max_workers=args.download_threads)
 
@@ -528,11 +529,24 @@ class Poller:
                 return cur.fetchall()
         return self._run(_q)
 
-    def tune_sg_batch(self, elapsed: float) -> None:
-        if elapsed <= config.SG_SEARCH_FAST_CYCLE_S:
-            self.sg_batch = min(self.sg_batch * 2, config.SG_SEARCH_CLAIM_BATCH_MAX)
-        else:
-            self.sg_batch = config.SG_SEARCH_CLAIM_BATCH
+    def tune_sg_batch(self, elapsed: float, claimed: int) -> None:
+        per_doc = max(elapsed, 1e-3) / max(claimed, 1)
+        fit = int(config.SG_SEARCH_ROUND_BUDGET_S / per_doc)
+        self.sg_batch = max(config.SG_SEARCH_CLAIM_BATCH, min(fit, config.SG_SEARCH_CLAIM_BATCH_MAX))
+
+    def serve_query_lane_between_saves(self) -> None:
+        # Uploaded-image searches must not wait out a whole SG batch.
+        if time.time() - self.last_query_poll < config.QUERY_POLL_S:
+            return
+        self.last_query_poll = time.time()
+        try:
+            if self.embed_enabled():
+                for job in self.claim_query_job():
+                    self.process_query_job(job)
+        except StopIteration:
+            raise
+        except Exception as exc:
+            log(event="loop_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
 
     def search_upsert(self, row, vector) -> bool:
         if row[0] is None:
@@ -625,6 +639,8 @@ class Poller:
             except Exception as exc:
                 self.search_failed += 1
                 self.search_mark_error(row, f"upsert: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+            if row[0] is None:
+                self.serve_query_lane_between_saves()
 
     def poll_search_lane(self, claim=None, lane="dam") -> str:
         """One search-lane cycle. Returns 'claimed', 'empty', or 'error'
@@ -681,11 +697,12 @@ class Poller:
                 if not self.args.no_search_lane and time.time() >= sg_cooldown_until \
                         and time.time() - last_sg >= config.SG_SEARCH_POLL_S:
                     last_sg = time.time()
+                    claimed_before = self.sg_batch
                     status = self.poll_search_lane(self.claim_sg_docs, lane="sg")
                     if status == "error":
                         sg_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
                     elif status == "claimed":
-                        self.tune_sg_batch(time.time() - last_sg)
+                        self.tune_sg_batch(time.time() - last_sg, claimed_before)
             except StopIteration:
                 break
             except Exception as exc:

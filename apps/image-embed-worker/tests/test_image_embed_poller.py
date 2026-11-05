@@ -376,14 +376,33 @@ def test_dam_search_missing_thumbnail_does_not_block_valid_neighbor(monkeypatch,
     assert p.search_done == p.search_failed == 1
 
 
-def test_sg_claim_grows_while_fast_and_resets_after_slow_cycle(monkeypatch):
+def test_sg_claim_fits_round_budget(monkeypatch):
     p, calls = _search_poller(monkeypatch, [])
-    sizes = []
-    for elapsed in [1, 1, 1, 1, 1, 1, 1, 60, 1]:
-        p.claim_sg_docs()
-        sizes.append(calls[-1][1][0])
-        p.tune_sg_batch(elapsed)
-    assert sizes == [1, 2, 4, 8, 16, 32, 32, 32, 1]
+    p.claim_sg_docs()
+    assert calls[-1][1][0] == 1
+    p.tune_sg_batch(5.0, 1)
+    assert p.sg_batch == 4
+    p.tune_sg_batch(4.0, 4)
+    assert p.sg_batch == 20
+    p.tune_sg_batch(5.0, 32)
+    assert p.sg_batch == 32
+    p.claim_sg_docs()
+    assert calls[-1][1][0] == 32
+    p.tune_sg_batch(60.0, 32)
+    assert p.sg_batch == 10
+    p.tune_sg_batch(40.0, 1)
+    assert p.sg_batch == 1
+
+
+def test_query_lane_is_served_between_saves(monkeypatch):
+    p, _calls = _search_poller(monkeypatch, [])
+    jobs = []
+    monkeypatch.setattr(p, "embed_enabled", lambda: True)
+    monkeypatch.setattr(p, "claim_query_job", lambda: ["job"])
+    monkeypatch.setattr(p, "process_query_job", jobs.append)
+    p.serve_query_lane_between_saves()
+    p.serve_query_lane_between_saves()
+    assert jobs == ["job"]
 
 
 def test_sg_claim_yields_after_one_document_without_changing_dam_batch(monkeypatch):
