@@ -177,6 +177,9 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "remove-scoped-tag",
   "review-scoped-tag",
   "fetch-thumbnail-by-url",
+  // Library filter facets (licensors/properties + non-deleted asset counts);
+  // read-only, same data the library grid already shows every user (#709).
+  "get-filter-options",
 ]);
 
 // ── Actions that move artwork between style groups: designers and admins ──
