@@ -382,14 +382,14 @@ export class PromptCache {
   private pending = new Map<string, Promise<unknown>>();
   constructor(private readonly now: () => number = Date.now) {}
   clear(): void { this.entries.clear(); this.pending.clear(); }
-  async read<T extends { error?: unknown }>(key: string, load: () => PromiseLike<T>, cacheMissing = false): Promise<T> {
+  async read<T extends { error?: unknown }>(key: string, load: () => PromiseLike<T>, cacheMissing = false, accept: (value: T) => boolean = () => true): Promise<T> {
     const entry = this.entries.get(key);
     if (entry && entry.expiresAt > this.now()) return entry.value as T;
     const pending = this.pending.get(key);
     if (pending) return pending as Promise<T>;
     const request = Promise.resolve().then(load).then(value => {
       // A clear during an in-flight read must not repopulate the next run.
-      if (this.pending.get(key) === request && !value.error && 'data' in value && (cacheMissing || value.data !== null)) {
+      if (this.pending.get(key) === request && !value.error && accept(value) && 'data' in value && (cacheMissing || value.data !== null)) {
         this.entries.set(key, { value, expiresAt: this.now() + 300_000 });
       }
       return value;
@@ -410,7 +410,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     try { return await query; } catch (error) { if (options.requireCharacterReadSuccess) throw new CharacterCatalogDependencyError("transport"); throw error; }
   };
 
-  const cachedCharacterQuery = <T extends { error?: unknown }>(key: string, load: () => PromiseLike<T>): Promise<T> => checkedQuery(cache.read(key, load));
+  const cachedCharacterQuery = <T extends { error?: unknown; data?: unknown }>(key: string, load: () => PromiseLike<T>, arrayResult = true): Promise<T> => checkedQuery(cache.read(key, load, false, value => !arrayResult || Array.isArray(value.data)));
 
   const { data: instrRow } = await cache.read("TAGGING_INSTRUCTIONS", () => client
     .from("admin_config")
@@ -451,7 +451,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
       .map(edge => edge.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name));
     if (!scope.licensor_id && characters.length === 0) {
-      const { data: property } = await cachedCharacterQuery(`property:${scope.property_id}:licensor`, () => client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id!).maybeSingle());
+      const { data: property } = await cachedCharacterQuery(`property:${scope.property_id}:licensor`, () => client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id!).maybeSingle(), false);
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
     }
   }

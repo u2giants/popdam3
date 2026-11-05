@@ -22,7 +22,7 @@ Parallel whole-library tagging uses the same `ai1:<tier>:<uuid>` checkpoint as o
 
 A transient nightly-grouping interruption can retry after its backoff while whole-library tagging is active. Tagging yields through its existing saved-checkpoint path only when that original grouping retry is eligible and tagging is its only running admission blocker. User stops, permanent errors, invalid checkpoints and exhausted retries remain held; unrelated conflicts retain their normal protection. Both run identities and checkpoints survive the handoff.
 
-Image-tagging prompts cache only successful static instruction and character-catalog reads for up to five minutes per worker process. Concurrent requests for the same catalog share a read. A new tagging or bake-off run clears that cache; later pages retain it. Each asset still loads its own licensing scope, product descriptions, PDF text and sheet facts, and catalog validation/callbacks run for every prompt. Failed catalog reads are never cached.
+Image-tagging prompts cache only successful static instruction and character-catalog reads for up to five minutes per worker process. Concurrent requests for the same catalog share a read. A new tagging or bake-off run clears that cache; later pages retain it. Each asset still loads its own licensing scope, product descriptions, PDF text and sheet facts, and catalog validation/callbacks run for every prompt. Failed or malformed catalog reads are never cached. Changes to canonical character lists or instructions may take up to five minutes to appear in prompts; a new run clears the cache sooner.
 
 ## Job Inventory
 

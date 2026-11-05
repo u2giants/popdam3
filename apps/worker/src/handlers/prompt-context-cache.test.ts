@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PromptCache, buildImageTaggingPrompt, type TaggingPromptAsset } from "./ai-tagging-shared.js";
 
-function fixture() {
+function fixture(associations?: () => unknown) {
   const calls = new Map<string, number>();
   const table = (name: string) => {
     calls.set(name, (calls.get(name) ?? 0) + 1);
     const data = name === "admin_config" ? { value: "Synthetic instructions" }
-      : name === "property_character_associations" ? [{ character: { id: "00000000-0000-4000-8000-000000000001", name: "Synthetic character" } }]
+      : name === "property_character_associations" ? (associations ? associations() : [{ character: { id: "00000000-0000-4000-8000-000000000001", name: "Synthetic character" } }])
       : name === "property_character_source_edge" ? []
       : name === "property" || name === "licensor" ? { name: "Synthetic licensing" } : null;
     const chain = { select: () => chain, eq: () => chain, in: () => chain, not: () => chain,
@@ -81,4 +81,16 @@ test("a strict prompt sharing a failed non-strict in-flight read still reports a
   fail(new Error("synthetic transport"));
   await assert.rejects(prompt, { name: "CharacterCatalogDependencyError" });
   await ignored;
+});
+
+
+test("a malformed catalog fails closed and the next healthy read recovers immediately", async () => {
+  let malformed = true;
+  const { client, calls } = fixture(() => malformed ? { unexpected: true } : [{ character: { id: "00000000-0000-4000-8000-000000000001", name: "Recovered character" } }]);
+  const cache = new PromptCache();
+  await assert.rejects(buildImageTaggingPrompt(asset, { client, cache, requireCharacterReadSuccess: true }), { name: "CharacterCatalogDependencyError" });
+  malformed = false; let callback = false;
+  const prompt = await buildImageTaggingPrompt(asset, { client, cache, requireCharacterReadSuccess: true, onCharacterCatalog: () => { callback = true; } });
+  assert.equal(calls.get("property_character_associations"), 2);
+  assert.equal(callback, true); assert.match(prompt, /Recovered character/);
 });
