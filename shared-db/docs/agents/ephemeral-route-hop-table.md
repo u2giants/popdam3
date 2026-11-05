@@ -34,6 +34,15 @@ no-preview-at-all ephemeral route.
 | 6 | Production apply workflow re-proofs (target proof, allowlist derivation pin, fresh dry-run, business-risk gate, exclusive lock, post-apply ledger/catalog verification) | CI (`production` job of `shared-supabase-migrations.yml`) | No | The dispatch inputs + live GitHub/database state | Already automatic and fail-closed; the risk gate refuses the ephemeral route for anything its classifier does not positively recognize as low-risk. |
 | 7 | Record the outcome and release the claim (the issue carries an outcome stage, so complete it with `--complete-outcome` — the outcome lifecycle accepts BOTH structural routes — or `--complete-work` where no outcome stage applies, then close the issue; `--release-claim` (retired by #5409; there is no replacement) if the claim's objects are done) | A session | **Yes — judgment, deliberately** | The post-apply verification artifact | "Outcome" is a claim about the world (applied AND verified AND behaving), not a transcription; §4's full text requires the doing session to own it. Automating closure on a green run is exactly the "closure alone is not success" trap the dependency rules exist to prevent. |
 
+**Supersession note — 2026-11-05.** Hop 3's dispatch command targets
+`.github/workflows/guarded-migration-merge.yml`, which was removed from `main`
+on 2026-10-31 (PR #5234, Stage C2c, popcre/ai-devops#2172). Do not run that
+command. This table is the September 2026 audit artifact; a pull request merges
+today through GitHub's merge queue, whose only required checks on `main` are
+`SQL migration guards`, `supabase/tests against an ephemeral database`, and
+`Destructive SQL outside migrations` (lean required checks, owner ruling
+2026-10-30). Hop 2's in-row retirement note already reflects #5409/#5426.
+
 ## C2 conclusion — no code change
 
 Every remaining manual hop is one of: a **review judgment** (2), a **deliberate authorization

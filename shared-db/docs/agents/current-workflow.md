@@ -39,6 +39,16 @@ the guarded merge path. A maintenance change does not claim database objects or
 wait for structural intake. A merged loader repair still requires
 its stated runtime acceptance; merged code is not automatically delivered work.
 
+**Superseded 2026-11-05 — the paragraph below this note is historical.**
+`guarded-migration-merge.yml` was removed from `main` on 2026-10-31
+(PR #5234, Stage C2c, popcre/ai-devops#2172). Landing a ready pull request today
+means green required checks plus the merge queue: ruleset `main merge queue` is
+active, and the only required checks on `main` are `SQL migration guards`,
+`supabase/tests against an ephemeral database`, and `Destructive SQL outside
+migrations` (lean required checks, owner ruling 2026-10-30). There is no
+guarded-merge dispatch to run and no `Migration guarded merge authorization`
+gate to wait for.
+
 **Landing a ready pull request (do not skip):** green required checks and an
 exact-head approval do **not** merge the PR by themselves. The required
 `Migration guarded merge authorization` status is published only by the

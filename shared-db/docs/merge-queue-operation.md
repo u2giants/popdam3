@@ -23,6 +23,12 @@ design history, never cherry-picked). This is repository maintenance; it changes
   lock, and then either merges directly (queue inactive) or enqueues with `--match-head-commit`
   (queue active). An unknown or mismatched active ruleset refuses before any merge attempt.
   It never uses `--admin`. After activation, GitHub is the sole merger.
+- **Superseded 2026-11-05: the bullet above is the pre-C2c state.**
+  `guarded-migration-merge.yml` was removed from `main` on 2026-10-31 (PR #5234,
+  Stage C2c, popcre/ai-devops#2172). Admission today is the queue itself with the lean
+  required checks — `SQL migration guards`, `supabase/tests against an ephemeral database`,
+  `Destructive SQL outside migrations` (owner ruling 2026-10-30) — proved by
+  `merge-queue-gate.yml`. GitHub is the sole merger.
 - After a migration-bearing merge, the next merge group waits until that exact `main` commit carries
   `Post-merge preview rehearsal: success`, posted only by a successful post-merge rehearsal run of
   `.github/workflows/shared-supabase-migrations.yml` (never on failure, never manually). A success

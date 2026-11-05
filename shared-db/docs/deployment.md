@@ -29,6 +29,14 @@ and a mirrored tree** to every consumer.
 | Automatic promotion (narrow) | merged-main preview qualification | owner-authorized lane (AGENTS.md safety rules) |
 | Types regeneration | generate workflow | `generate-database-types.yml` |
 
+*Superseded 2026-11-05: the "Guarded migration merge" row above is historical.
+`guarded-migration-merge.yml` was removed from `main` on 2026-10-31 (PR #5234,
+Stage C2c, popcre/ai-devops#2172). Pull requests merge through the merge queue
+(`merge-queue-gate.yml` + the active `main merge queue` ruleset), and the only
+required checks on `main` are `SQL migration guards`,
+`supabase/tests against an ephemeral database`, and `Destructive SQL outside
+migrations` (lean required checks, owner ruling 2026-10-30).*
+
 ## Production apply safety (summary)
 
 Full text: [`docs/production-promotion-procedure.md`](production-promotion-procedure.md)

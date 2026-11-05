@@ -186,6 +186,15 @@ have already happened in this repo, more than once.
     is real and is preserved; it is **superseded** as a current instruction. Only issue #1286
     governs whether strict mode is ever reconsidered.
 
+    **SUPERSEDED 2026-11-05 (guarded merge lane removed):** the second paragraph above is
+    historical. `.github/workflows/guarded-migration-merge.yml` was removed from `main` on
+    2026-10-31 (PR #5234, Stage C2c, popcre/ai-devops#2172). What merges a pull request today is
+    GitHub's merge queue (ruleset `main merge queue`, active; `merge-queue-gate.yml`), and the
+    only required checks on `main` are `SQL migration guards`,
+    `supabase/tests against an ephemeral database`, and `Destructive SQL outside migrations`
+    (lean required checks, owner ruling 2026-10-30). The `strict: false` ruling itself
+    (2026-08-19, #1286) is untouched and still stands.
+
 18. **A DOCUMENTS-ONLY PULL REQUEST DRAWS NO DATABASE REVIEWER (owner decision, 2026-09-02, issue
     #2102; lightweight status path #2715).** A pull request whose changed files are **all** prose
     documents, including standalone `plan_*.md` files, uses the lightweight documentation

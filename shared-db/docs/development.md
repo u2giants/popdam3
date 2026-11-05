@@ -121,6 +121,13 @@ CI is the authority for the full matrix (`tools-offline-tests.yml`,
 `database-contract-tests.yml`, `pr-guards.yml`, `guarded-migration-merge.yml`).
 Do not assume a green laptop equals a green PR.
 
+*Superseded 2026-11-05: `guarded-migration-merge.yml` no longer exists — removed
+from `main` on 2026-10-31 (PR #5234, Stage C2c, popcre/ai-devops#2172). The live
+required checks on `main` are `SQL migration guards`,
+`supabase/tests against an ephemeral database`, and `Destructive SQL outside
+migrations` (lean required checks, owner ruling 2026-10-30); everything else is
+advisory.*
+
 ### Generated database types
 
 The ordinary `database-types` download is generated from the configured preview
