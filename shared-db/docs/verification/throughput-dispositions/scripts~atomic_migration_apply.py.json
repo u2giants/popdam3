@@ -3,64 +3,95 @@
   "source": "scripts/atomic_migration_apply.py",
   "sites": [
     {
-      "site": "scripts/atomic_migration_apply.py:550",
+      "site": "scripts/atomic_migration_apply.py:639",
       "semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:context-b0b5d3fbbb04a3a52aed85f2a64ea4fc67685a2be6384fa5ff74a6580016748f",
       "line_sha256": "2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/atomic_migration_apply.py:2ba87a9b05e1e0924d922211afeb4d726b794c993b40878f9d23c6bfdec73f9a:1",
-      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay."
+      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay.",
+      "source": "scripts/atomic_migration_apply.py"
     },
     {
-      "site": "scripts/atomic_migration_apply.py:411",
+      "site": "scripts/atomic_migration_apply.py:418",
       "semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:context-4cf5609d921f11a688f30b1136e9cb562bd64a932b146015ce9025bb69d0523b",
       "line_sha256": "34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:1"
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:34dfc6f33d70ec8beab84494f627de88c62b8c827b22b8a14100a21690250493:1",
+      "source": "scripts/atomic_migration_apply.py",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
     },
     {
-      "site": "scripts/atomic_migration_apply.py:68",
+      "site": "scripts/atomic_migration_apply.py:71",
       "semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:context-59387ec4b26c081ec0bc5f1b14794b6b406bfe9eaa65bad335e82407763bf125",
       "line_sha256": "3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:1"
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3583c3fadef46cd1d21464475c439d10d512790cf406ec80c1eae7749f2aa350:1",
+      "source": "scripts/atomic_migration_apply.py",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
     },
     {
-      "site": "scripts/atomic_migration_apply.py:414",
+      "site": "scripts/atomic_migration_apply.py:421",
       "semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:context-f2b86b730909fd7b98d2cd5dfc90f98682655490a18e59cf9172325b3aec9cd8",
       "line_sha256": "3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:1"
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:3d8f322c103af6e89880e056281ba8d4f43e1ec686f8e9a5a2dba5f0413b66c0:1",
+      "source": "scripts/atomic_migration_apply.py",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
     },
     {
-      "site": "scripts/atomic_migration_apply.py:499",
+      "site": "scripts/atomic_migration_apply.py:506",
       "semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:context-3c8ab2e4af06662bbda8fec4c8566d58ceb13d46679ab0d492269ee152a9c872",
       "line_sha256": "4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
-      "legacy_semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:1"
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:4779c860a274616bea234332eb1cf2568dc4f856c5c34af5c263996b01e93458:1",
+      "source": "scripts/atomic_migration_apply.py",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
     },
     {
-      "site": "scripts/atomic_migration_apply.py:549",
+      "site": "scripts/atomic_migration_apply.py:638",
       "semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:context-ee7316b25fce1dc5d7fce1cc4a525c0e7942b7fbe65b70eafd15dbf9dd12c0b9",
       "line_sha256": "5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/atomic_migration_apply.py:5bbd2f4fa17835800b8a07b51b1f2daaf065f4e8478b53c484cfaa7bc766160d:1",
-      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay."
+      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay.",
+      "source": "scripts/atomic_migration_apply.py"
     },
     {
-      "site": "scripts/atomic_migration_apply.py:538",
+      "source": "scripts/atomic_migration_apply.py",
+      "site": "scripts/atomic_migration_apply.py:653",
+      "semantic_key": "scripts/atomic_migration_apply.py:7908d4c61b1ee6aaacf6436f57ef00a07b54924905a69dc79fc6436ed719491b:context-f8b6c9a20eaee71ae93b363c532d7ac5d3910d4f56d51f30a41f67e667bfe73c",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:7908d4c61b1ee6aaacf6436f57ef00a07b54924905a69dc79fc6436ed719491b:1",
+      "line_sha256": "7908d4c61b1ee6aaacf6436f57ef00a07b54924905a69dc79fc6436ed719491b",
+      "disposition": "excluded",
+      "reason": "A missing protected initial evaluation credential must refuse before mutation; this is required secret-issuance safety, not a retryable queue delay.",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
+    },
+    {
+      "source": "scripts/atomic_migration_apply.py",
+      "site": "scripts/atomic_migration_apply.py:557",
+      "semantic_key": "scripts/atomic_migration_apply.py:9a6dcab19515dc6230f24bfa731302b5c03970b928ab54191abe89cbc77984a4:context-48f94211c62d6926092f2984c3b942878cb86fb91f05a58001ebbf536d4d91e5",
+      "legacy_semantic_key": "scripts/atomic_migration_apply.py:9a6dcab19515dc6230f24bfa731302b5c03970b928ab54191abe89cbc77984a4:1",
+      "line_sha256": "9a6dcab19515dc6230f24bfa731302b5c03970b928ab54191abe89cbc77984a4",
+      "disposition": "excluded",
+      "reason": "A missing protected initial evaluation credential must refuse before mutation; this is required secret-issuance safety, not a retryable queue delay.",
+      "current_review": "Reviewed for #5447: fixed-role initial credential safety and unchanged missing-input/ledger checks preserve fail-closed behavior; no automatic retries or guard suppression."
+    },
+    {
+      "site": "scripts/atomic_migration_apply.py:627",
       "semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:context-4de01795c5e4381a73431644eddb58c9eb582653bfd7493d6862d3c83810b210",
       "line_sha256": "c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead",
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/atomic_migration_apply.py:c322cdcb3422d3d16e6065bc8d4a77340ab9d01cdc2034d3cc2d29eff68dcead:1",
       "review_note": "The missing-entry refusal is unchanged. Target-scoped classification now validates the same authorized entry for the selected stage; this nearby context change does not suppress or weaken refusal.",
-      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay."
+      "current_review": "Required apply arguments (including exactly one singleton or batch selector) refuse before connection or mutation; this is a necessary missing-input safety guard, not a retryable throughput delay.",
+      "source": "scripts/atomic_migration_apply.py"
     }
   ]
 }

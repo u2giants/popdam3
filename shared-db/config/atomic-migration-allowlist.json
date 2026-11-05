@@ -178,6 +178,14 @@
         "preview",
         "production"
       ]
+    },
+    "20261105121341": {
+      "sha256": "25fe2107bc43341595b1a1f9a8855e1ec740a98257ef4d2c2107f2da07b7b598",
+      "targets": [
+        "preview",
+        "production"
+      ],
+      "initial_credential_role": "designflow_hts_evaluation_reader"
     }
   }
 }

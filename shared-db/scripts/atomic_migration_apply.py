@@ -31,6 +31,9 @@ EXPECTED_COLUMNS = {
     "statements": ({"ARRAY"}, "YES", {"_text"}),
     "name": ({"text", "character varying"}, "YES", {"text", "varchar"}),
 }
+HTS_CREDENTIAL_VERSION = "20261105121341"
+HTS_CREDENTIAL_ROLE = "designflow_hts_evaluation_reader"
+HTS_CREDENTIAL_ENV = "DESIGNFLOW_HTS_EVALUATION_PASSWORD"
 LIBPQ_ENV_KEYS = frozenset({
     "PGHOST", "PGHOSTADDR", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD",
     "PGPASSFILE", "PGSERVICE", "PGSERVICEFILE", "PGSYSCONFDIR", "PGOPTIONS",
@@ -77,6 +80,10 @@ def read_policy() -> dict[str, dict[str, object]]:
             raise Refusal(f"atomic policy batch group is invalid for {version}")
         if "strip_outer_transaction" in entry and not isinstance(entry["strip_outer_transaction"], bool):
             raise Refusal(f"atomic policy transaction flag is invalid for {version}")
+        if (version == HTS_CREDENTIAL_VERSION and entry.get("initial_credential_role") != HTS_CREDENTIAL_ROLE) or (
+            "initial_credential_role" in entry and (version != HTS_CREDENTIAL_VERSION or entry["initial_credential_role"] != HTS_CREDENTIAL_ROLE)
+        ):
+            raise Refusal("initial credential policy is outside the fixed HTS identity allowlist")
     return migrations
 
 
@@ -520,6 +527,88 @@ def build_wrapper(version: str, name: str, raw: str, statements: list[str]) -> s
     )
 
 
+def credential_connection(env: dict[str, str], *, reader: bool = False):
+    """Use exactly the already-proved libpq target, with no ambient overrides."""
+    import psycopg
+    saved = {key: os.environ[key] for key in LIBPQ_ENV_KEYS if key in os.environ}
+    try:
+        for key in LIBPQ_ENV_KEYS:
+            os.environ.pop(key, None)
+        os.environ.update({key: value for key, value in env.items() if key in LIBPQ_ENV_KEYS})
+        if reader:
+            # Pooler usernames retain the project suffix of the proved operator.
+            suffix = "." + env["PGUSER"].split(".", 1)[1] if "." in env["PGUSER"] else ""
+            os.environ["PGUSER"] = HTS_CREDENTIAL_ROLE + suffix
+            os.environ["PGPASSWORD"] = env[HTS_CREDENTIAL_ENV]
+        return psycopg.connect(connect_timeout=15)
+    finally:
+        for key in LIBPQ_ENV_KEYS:
+            os.environ.pop(key, None)
+        os.environ.update(saved)
+
+
+def initial_credential_apply(env: dict[str, str], version: str, name: str, raw: str,
+                             statements: list[str]) -> None:
+    """Initial password, approved DDL and ledger commit together; never rotate."""
+    if version != HTS_CREDENTIAL_VERSION or read_policy()[version].get("initial_credential_role") != HTS_CREDENTIAL_ROLE:
+        raise Refusal("initial credential request is outside the fixed HTS identity allowlist")
+    secret = env.get(HTS_CREDENTIAL_ENV, "")
+    if len(secret) < 32 or "\x00" in secret or "\n" in secret or "\r" in secret:
+        raise Refusal("protected initial HTS evaluation credential is missing or invalid")
+    try:
+        with credential_connection(env) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(hashtextextended('designflow_hts_evaluation_reader',0))")
+                # Do not weaken logging. Refuse configurations that could log bind
+                # values, and never send a password in SQL text, files or argv.
+                cursor.execute("SELECT (current_setting('log_parameter_max_length') = '0' OR ("
+                    "current_setting('log_statement') IN ('none','ddl') "
+                    "AND current_setting('log_min_duration_statement') = '-1' "
+                    "AND current_setting('log_min_duration_sample') = '-1' "
+                    "AND current_setting('log_transaction_sample_rate') = '0')) "
+                    "AND current_setting('log_parameter_max_length_on_error') = '0' "
+                    "AND coalesce(current_setting('pgaudit.log',true),'none') IN ('','none') "
+                    "AND coalesce(current_setting('pgaudit.log_parameter',true),'off') = 'off' "
+                    "AND coalesce(current_setting('pgaudit.role',true),'') = ''")
+                if cursor.fetchone() != (True,):
+                    raise Refusal("database logging does not satisfy protected credential transport")
+                cursor.execute("SELECT rolpassword IS NOT NULL FROM pg_authid WHERE rolname=%s", (HTS_CREDENTIAL_ROLE,))
+                prior = cursor.fetchone()
+                provision = prior is None or prior == (False,)
+                if not provision:
+                    # Existing credentials are never overwritten. Only successful
+                    # authentication with this exact protected value permits reuse.
+                    with credential_connection(env, reader=True) as reader:
+                        with reader.cursor() as check:
+                            check.execute("SELECT current_user")
+                            if check.fetchone() != (HTS_CREDENTIAL_ROLE,):
+                                raise Refusal("existing evaluation credential identity is unverified")
+                cursor.execute(raw, prepare=False)
+                if provision:
+                    cursor.execute("SELECT set_config('app.hts_evaluation_initial_password', %s, true)", (secret,))
+                    # SQL text contains no value. The exception boundary prevents
+                    # nested dynamic SQL from returning a password-bearing context.
+                    cursor.execute("""DO $credential$
+                    BEGIN
+                      EXECUTE format('ALTER ROLE designflow_hts_evaluation_reader PASSWORD %L',
+                        current_setting('app.hts_evaluation_initial_password'));
+                    EXCEPTION WHEN OTHERS THEN
+                      RAISE EXCEPTION 'initial evaluation credential issuance failed';
+                    END $credential$;""")
+                    cursor.execute("SELECT set_config('app.hts_evaluation_initial_password', '', true)")
+                cursor.execute("SELECT rolpassword IS NOT NULL FROM pg_authid WHERE rolname=%s", (HTS_CREDENTIAL_ROLE,))
+                if cursor.fetchone() != (True,):
+                    raise Refusal("initial evaluation credential verification failed")
+                cursor.execute("INSERT INTO supabase_migrations.schema_migrations(version,statements,name) VALUES (%s,%s,%s)",
+                    (version, statements, name))
+    except Refusal:
+        raise
+    except Exception:
+        # Driver errors may contain parameters, DSNs or provider diagnostics.
+        # The transaction context has rolled everything back before this result.
+        raise Refusal("initial evaluation access apply failed; DDL, credential and ledger rolled back together") from None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--migrations-dir", type=Path, required=True)
@@ -559,11 +648,30 @@ def main() -> int:
         candidates = [(version, *load_candidate(args.migrations_dir, version, args.target)) for version in versions]
         url, env = linked_connection(args.linked_dir, args.expected_project_ref)
         for version, path, name, raw, statements in candidates:
+            credential = read_policy()[version].get("initial_credential_role")
+            if credential and args.mode == "apply" and len(env.get(HTS_CREDENTIAL_ENV, "")) < 32:
+                raise Refusal("protected initial HTS evaluation credential is missing or invalid")
             validate_remote(url, env, version)
             print(f"ATOMIC PREFLIGHT OK: target={args.target} version={version} sha256={hashlib.sha256(canonical_migration_bytes(path)).hexdigest()} statements={len(statements)}")
         if args.mode == "check":
             return 0
         for version, path, name, raw, statements in candidates:
+            if read_policy()[version].get("initial_credential_role"):
+                initial_credential_apply(env, version, name, raw, statements)
+                verify = psql(url, env, "select count(*)||'|'||coalesce(max(cardinality(statements)),-1)||'|'||"
+                    "coalesce(max(name),'') from supabase_migrations.schema_migrations where version='" + version + "';\n")
+                if verify != f"1|{len(statements)}|{name}":
+                    raise Refusal("evaluation access committed but post-commit ledger verification failed; do not rerun or rotate")
+                try:
+                    with credential_connection(env, reader=True) as reader:
+                        with reader.cursor() as check:
+                            check.execute("SELECT current_user")
+                            if check.fetchone() != (HTS_CREDENTIAL_ROLE,):
+                                raise Refusal("evaluation identity differs")
+                except Exception:
+                    raise Refusal("evaluation access committed but login verification failed; preserve ledger and recover without rerun or rotation") from None
+                print(f"ATOMIC APPLY OK: target={args.target} version={version} ledger_row=1 statements={len(statements)} initial_credential=login_verified")
+                continue
             wrapper = build_wrapper(version, name, raw, statements)
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".sql", delete=False) as handle:
                 handle.write(wrapper)
