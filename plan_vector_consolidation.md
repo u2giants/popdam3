@@ -23,7 +23,7 @@ issue say so.
 | 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
 | 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
 | 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
-| 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed; takes over old tagging task 6 |
+| 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed. Ranking repair #5581 is merged and verified live (Nov 5, 2026); do not redo it. Full-set evaluation, latency and missing query kinds remain on #680 / #706; see reconciliation item 10. |
 | 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
 | 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
 | 8. Live proof, close #706 / #663 | ⬜ open | — |
@@ -43,7 +43,7 @@ Tagging (#680) stays out of this plan's scope, but shares its database, worker a
 7. **Step 2 gate.** PopSG will drain within hours, so "24 hours falling" cannot be measured. Pass: drained with no manual resume, then 24 hours unattended holding near zero.
 8. **Step 3 scope.** Measure nightly rebuild, tagging and scan writes. Tagging changes search documents all week; if unchanged pictures lose vectors, that is the same defect.
 9. **Step 4.** One run only, shared with `docs/plans/issue-663-*` step 1. Rows without thumbnails stay excluded.
-10. **Step 5 order.** (a) rebase `fix/search-eval-ranking-680`, re-stamp, reopen on #5581, promote; it overlaps merged PR 5594, so re-judge the conflict; (b) finish #725 spelling; (c) verify PR 720's deploy and run the workflow; (d) add latency and kinds; (e) save the score on #680 and #706. Tagging changes results: judge unjudged hits before comparing, and rescore at tagging end.
+10. **Step 5 order.** (a) **DONE, Nov 5, 2026 — do not redo:** #5581 was reconciled against #5594, merged through shared-db PRs #5612 / #5614, and automatically promoted (production run 41959615463). [Authenticated live proof](https://github.com/popcre/shared-db/issues/5581#issuecomment-6648711387) confirms the reported short-word matches and style-guide ranking are repaired; the existing owner closed #5581. The broader completed evaluation had expired-session errors, distinct from earlier search timeouts: [evidence and limits](https://github.com/popcre/shared-db/issues/5581#issuecomment-6650097539). Its full-set score is not clean acceptance; continuation remains on #680. (b) finish #725 spelling; (c) verify PR 720's deploy and run the workflow; (d) add latency and kinds; (e) save the score on #680 and #706. Tagging changes results: judge unjudged hits before comparing, and rescore at tagging end.
 11. **Step 6.** The adapter exists: action `popsg-query-embedding`, `PopSGLibraryPage.tsx`, `popsgSearchV2.ts`. Do not add `sg-embed-query` or `popsgSemanticSearch.ts`. Remaining: execute `docs/plans/issue-734-*`, then error/Retry, then floor, latency and the switch. Tester account is already deleted. Hybrid p95 was 10-11 s against 3 s: if still over at full coverage, stay on keyword and record the gap.
 12. **Other plans.** `docs/plans/issue-706-*` and `issue-663-*` remain checklists; where they overlap, this plan wins.
 
