@@ -6,8 +6,8 @@ Every production change follows this path:
 
 1. Develop on a feature branch and open a pull request targeting `main`. Verify the GitHub remote with `git remote -v` and push to the remote whose URL is `https://github.com/u2giants/popdam3.git`; do not assume a remote alias identifies GitHub. Let required checks pass before merging through the normal protected path. Do not push application changes directly to `main`.
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
-3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
-4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
+3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<full-sha>`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then pins Coolify to `:sha-<full-sha>` and calls the Coolify deploy API. Manual dispatch may deploy only from `main`.
+4. Coolify receives the deploy request, pulls the pinned `:sha-<full-sha>` from GHCR, and replaces the running container. The workflow then checks `/version.json` against the deployed commit. No SSH is involved.
 5. For Supabase edge-function changes: `deploy-supabase.yml` deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`. Shared database structure changes are authored in canonical `popcre/shared-db` on a feature branch and pull request, then applied through its governed workflow; they are never run from this repository.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required. GitHub's green `popdam / production` deployment badge is Railway worker status, not proof that the frontend has deployed.
 
@@ -25,7 +25,7 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Name | File | Trigger | What it does |
 |------|------|---------|-------------|
 | CI | `ci.yml` | Push or PR to `main` | Lint, test, and build the frontend with Bun. No deployment. |
-| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GHCR_PAT` or `GITHUB_TOKEN` → `docker/build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<sha>`, `:<sha>`) → POST Coolify deploy API |
+| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GHCR_PAT` or `GITHUB_TOKEN` → `docker/build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<full-sha>`, `:sha-<short-sha>`, `:<short-sha>`) → pin Coolify to `:sha-<full-sha>` → POST Coolify deploy API → verify live `/version.json` |
 | Deploy Supabase Edge Functions | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**` or the workflow file; also `workflow_dispatch` | Deploy all edge functions except `_shared` and fail the job if any deploy fails → generate TypeScript types → commit types back to `main` with `[skip ci]` |
 | Edge Functions Format | `edge-functions-format.yml` | Push or PR to `main` touching `supabase/functions/**/*.ts`; also `workflow_dispatch` | Runs `deno fmt` on `supabase/functions/` and commits any formatting changes back |
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
@@ -61,7 +61,7 @@ maintaining GitHub secrets; do not create accounts or change their permissions.
 ### Frontend GHCR Package Access
 
 What changed:
-`publish-frontend.yml` logs in to GHCR with `GHCR_PAT` when present, otherwise `GITHUB_TOKEN`, uses Docker's official login/build-push actions, and pushes `popdam-frontend:latest`, `:sha-<sha>`, and `:<sha>`. It also supports `workflow_dispatch` for manual redeploys.
+`publish-frontend.yml` logs in to GHCR with `GHCR_PAT` when present, otherwise `GITHUB_TOKEN`, uses Docker's official login/build-push actions, and pushes `popdam-frontend:latest`, `:sha-<full-sha>`, `:sha-<short-sha>`, and `:<short-sha>`. It also supports `workflow_dispatch` from `main` for manual redeploys. Coolify is pinned to the full commit tag before deployment.
 
 Why:
 On 2026-06-10, production stayed on commit `8c0508d` because later frontend workflows passed build but failed before publishing a newer GHCR `:latest` image. Verified failures were `permission_denied: write_package` for `GITHUB_TOKEN` and `denied` for the existing `GHCR_PAT` retry; the fixed workflow uses a valid package-write `GHCR_PAT` fallback for the user-scoped package.
@@ -93,9 +93,9 @@ Shared-db #4111 and PopDAM #275 are closed. The #275 UI proof passed 53 administ
 A frontend deployment is not proven live until all four checks pass:
 
 1. The `Publish Frontend Image` GitHub Actions run is green.
-2. GHCR has fresh `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` tags for the target commit.
+2. GHCR has fresh `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<full-sha>`, `:sha-<short-sha>`, and `:<short-sha>` tags for the target commit.
 3. Coolify's deployment record is `finished`; a successful API response only means the deployment was queued.
-4. Both `https://dam.designflow.app/library` and `https://sg.designflow.app/library` return HTTP 200 with a fresh `Last-Modified` header or new asset hash.
+4. `scripts/verify-live-version.sh --url https://dam.designflow.app/version.json --expected <full-sha>` passes, and both `https://dam.designflow.app/library` and `https://sg.designflow.app/library` return HTTP 200 with a fresh `Last-Modified` header or new asset hash.
 
 Common failure split:
 
@@ -112,7 +112,7 @@ Why:
 This kept Coolify's compose project, labels, network, restart policy, and container name ownership intact while bypassing the broken GHCR push. The first local image served `403` because `dist/` files copied into nginx as unreadable (`index.html` mode `600`, asset directories `700`); `Dockerfile.ci` now runs `chmod -R a+rX /usr/share/nginx/html` to make future images nginx-readable.
 
 Future sessions should:
-Prefer the normal GitHub Actions → GHCR → Coolify path. If GHCR is down or package permissions block an urgent deploy and the shell is already on the VPS, build the frontend image locally, verify it is tagged `ghcr.io/u2giants/popdam-frontend:latest`, then recreate only the Coolify service from `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/docker-compose.yaml`. After recreation, verify `docker ps` reports the container healthy and `curl -I https://sg.designflow.app/library` returns `200`. Do not use this as the routine path; fix GHCR package access afterward.
+Prefer the normal GitHub Actions → GHCR → Coolify path. If GHCR is down or package permissions block an urgent deploy and the shell is already on the VPS, build the frontend image locally, tag it `ghcr.io/u2giants/popdam-frontend:sha-<full-sha>` for the exact recovery commit, and set Coolify's image tag to that same value (keep the image name untagged). Regenerate the Coolify service configuration and confirm its resolved image matches the locally built tag before recreating only the Coolify service with `docker compose up -d --no-deps --force-recreate --pull never` from `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/docker-compose.yaml`. Do not tag only `:latest`: the service uses the pinned commit tag. After recreation, run `scripts/verify-live-version.sh --url https://dam.designflow.app/version.json --expected <full-sha>`, verify `docker ps` reports the container healthy and `curl -I https://sg.designflow.app/library` returns `200`. Do not use this as the routine path; fix GHCR package access afterward.
 
 ---
 
@@ -121,7 +121,8 @@ Prefer the normal GitHub Actions → GHCR → Coolify path. If GHCR is down or p
 **Frontend image:** `ghcr.io/u2giants/popdam-frontend`
 
 Tags pushed on every qualifying push to `main`:
-- `:latest` — what Coolify pulls on deploy
+- `:latest` — mutable convenience pointer; not the deployment target
+- `:sha-<git-full-sha>` — exact immutable tag pinned in Coolify on deploy
 - `:sha-<git-short-sha>` — immutable rollback/audit tag preferred by the CI/CD rules
 - `:<git-short-sha>` — immutable tag for rollback (e.g., `ghcr.io/u2giants/popdam-frontend:a3f2c1d`)
 
@@ -129,7 +130,7 @@ Tags pushed on every qualifying push to `main`:
 
 **Runtime base image:** `nginx:1.27-alpine`, port 80. Serves the pre-built `dist/` as static files.
 
-**Build-time args injected by CI:** `APP_COMMIT` (git short hash), `APP_DATE` (ISO commit date). These are embedded in the bundle via `vite.config.ts` `define:` and are not runtime env vars.
+**Build-time args injected by CI:** `APP_COMMIT` (git short hash), `APP_COMMIT_FULL` (full git hash), `APP_DATE` (ISO commit date). These are embedded in the bundle via `vite.config.ts` `define:` and are not runtime env vars.
 
 **Bridge agent image:** `ghcr.io/u2giants/popdam-bridge`
 
@@ -150,7 +151,7 @@ GET/POST $COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID&force=false
 Authorization: Bearer $COOLIFY_TOKEN
 ```
 
-Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the running container. No SSH. No `docker run` on the server.
+Before this request, the workflow PATCHes `/api/v1/applications/$COOLIFY_APP_UUID` with `docker_registry_image_tag: sha-<full-sha>`; failure stops deployment. Keep `docker_registry_image_name` as `ghcr.io/u2giants/popdam-frontend` without an embedded tag. Coolify then pulls `ghcr.io/u2giants/popdam-frontend:sha-<full-sha>` and replaces the running container. No SSH. No `docker run` on the server.
 
 **App UUID:** `qxj8a0j3tpa9lq4q5rs6pezy`
 
