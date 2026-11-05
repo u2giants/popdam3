@@ -18,9 +18,11 @@ The existing operating contract remains the authority:
 [production promotion](production-promotion-procedure.md).
 The plan is the focused continuation of existing outcome
 [#3779](https://github.com/popcre/shared-db/issues/3779), coordinated with other
-owners identified in its scope. Its
-[handoff](../HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md)
-carries continuation context. Do not infer implementation from publication.
+owners identified in its scope. Its companion handoff
+(`HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md`) was retired
+when #3779 closed (2026-11-05, issue #4241 hygiene) and remains readable in
+[git history](https://github.com/popcre/shared-db/blob/55f6e6a59/HANDOFF.d/2026-10-16T1317Z-hetz-codex-shared-release-holds.md).
+Do not infer implementation from publication.
 
 ## Reviewer-assignment bookkeeping
 
