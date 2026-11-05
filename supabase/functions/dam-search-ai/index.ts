@@ -238,8 +238,9 @@ corsServe(async (req) => {
   if (action === "reset-embedding-errors") {
     if (!auth.admin) return err("Admin authorization required", 403);
     const { data, error } = await serviceClient().rpc("reset_dam_search_embedding_errors", {
+      p_category: typeof body.category === "string" ? body.category : null,
+      p_limit: 5000,
       p_document_type: typeof body.document_type === "string" ? body.document_type : null,
-      p_entity_ids: null,
     });
     if (error) throw error;
     return json({ ok: true, reset: data });

@@ -166,3 +166,13 @@ cloud cannot reach Tailscale desktops, and GPU embeds are cheapest on the
 owner hardware that already caches the models. Adding a second GPU box =
 install the same folder, give it its own `--worker-id`, and heartbeat
 freshness already tolerates one box being offline.
+
+### Verify always-on scheduling without stopping the poller
+
+Read the installed task XML on the GPU machine:
+
+```powershell
+schtasks /Query /TN PopDAM-ImageEmbedWorker /XML
+```
+
+Require a `BootTrigger` and `<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>` under `Settings`. An installed running process alone proves neither. A read-only check on November 4, 2026, 11:16 PM EST found both on edge-dev; it did not stop, restart or modify any task. The separate 24-hour unattended near-zero acceptance remains open on #706.

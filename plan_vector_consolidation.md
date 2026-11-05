@@ -19,10 +19,10 @@ issue say so.
 | Step | State (Nov 4, 2026, 7:59 PM EST) | Evidence / artifact |
 |---|---|---|
 | 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Follow-up `20261105002300` is merged, NOT yet in the ledger: promotion held by open findings #5592 / #5583 |
-| 1. Watchdog alarm | ⬜ open | Database part needs promotion unheld |
-| 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
-| 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
-| 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
+| 1. Watchdog alarm | 🔄 implementation underway; live drill open | shared-db PR 5623 (health RPC and compact indexes), app PR 758 (health card), monitor PRs 23 and 24 merged (dashboard alert/clear and independent supervised runtime; AI issue worker remains disabled). Runtime configuration and two-hour poller drill remain open; no off-page push claim |
+| 2. Durable runner | 🔄 partial; unattended acceptance open | O1 is GPU thumbnail lane (PRs 741, 747, 750), not Railway text embedding. Photo-indexing recovery delivered under #662; recheck current custody before any drill. Read-only scheduler XML verified BootTrigger and PT0S on Nov 4, 2026, 11:16 PM EST; 24 hours near zero remains unverified |
+| 3. Stop re-starving | 🔄 separate repair prepared; live acceptance open | #5609 covers value-based trigger scoping. Distinct image/text invalidation and lease defects reproduced; shared-db #5634 / PR 5635 prepare image provenance, same-URL revision invalidation and exact asset-vector reuse for rebuilt groups. Automatic delivery and nightly/tagging/scan measurements, next 6:00 AM EST / two-hour recovery acceptance remain open |
+| 4. Errored-document reset | 🔄 bounded reset prepared; live run open | shared-db PR 5623 adds thumbnail-aware reset bounded to 5,000, preserving live leases and old overload. App PR 758 reuses existing reset control. One-time execution and actual-thumbnail / persisted-vector proof on #663 remain open |
 | 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed. Ranking repair #5581 is merged and verified live (Nov 5, 2026); do not redo it. Full-set evaluation, latency and missing query kinds remain on #680 / #706; see reconciliation item 10. |
 | 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
 | 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
@@ -289,11 +289,9 @@ Record the drill time on #706.
   disabled (README documents the fix) and a boot trigger; prove by reading
   `schtasks /query /xml PopDAM-ImageEmbedWorker` on edge-dev; add the XML
   check to `apps/image-embed-worker/README.md`.
-- Railway operation: remove the 10-attempt auto-resume cap for
-  `sg-embed-search` in `apps/worker/src/operation-loop.ts` in favour of
-  exponential backoff with no ceiling, and make a claim timeout (57014)
-  classify as transient. Unit test: `operation-loop.test.ts` →
-  "sg-embed-search resumes after the 11th claim timeout".
+- PopSG uses the GPU thumbnail lane already delivered by PRs 741, 747 and
+  750. The Railway text-vector operation is superseded by O1 and must not be
+  resumed to satisfy this step. Do not change its retry cap as unrelated work.
 *Gate:* both corpora show pending = 0 (DAM) and pending falling
 monotonically (PopSG) over 24 h via Step 1's RPC; no manual resume.
 
@@ -309,9 +307,11 @@ back to 0 within 2 h (Step 1 RPC).
 **Step 4. Reset path.** After PR #5585 lands: one shared-db RPC
 `public.reset_dam_search_embedding_errors(p_category text, p_limit int)`
 (service_role only, bounded to 5,000) that clears `embedding_error*` for
-rows whose thumbnail now exists; expose it as a bulk operation
-`reset-embedding-errors` in `apps/worker/` with a Diagnostics button. Run
-once; record counts on #663.
+rows whose thumbnail now exists. Reuse the existing `dam-search-ai` action
+`reset-embedding-errors` and Diagnostics control, binding it to the bounded
+RPC rather than adding another worker operation. Preserve the existing
+optional document-type filter through the explicit three-argument overload.
+Run once; record actual-thumbnail and persisted-vector proof on #663.
 *Gate:* #663 errored count drops from 1,114 to the rows with no thumbnail
 in Spaces; those remain errored with category `permanent`.
 
