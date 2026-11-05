@@ -349,6 +349,77 @@ A separate counter snapshot at **6:55:08 AM EST** retained the original context 
 
 The interim per-call observations are below half the frozen pre-change references, but are **not full-day acceptance**. The interim global document-update rate is **above**, not below, the frozen `8829 / 5050.846546` reference (approximately 1.74803/s). That acceptance condition remains unsatisfied. The baseline and thresholds remain unchanged. Earliest full-interval eligibility is **November 6, 2026, 12:36:57 AM EST**; the supported strict probe and actual full-day result remain pending. Step 4's unmet hosted WAL target and all earlier negative measurements remain intact.
 
+### Exact SQL used for the 6:57:23 AM EST functional receipt
+
+This is the exact query text retained from the execution that returned the aggregate `functional_state` receipt above, not a later equivalent query. It was generated from the committed issue probe by retaining its CTEs and replacing its final acceptance SELECT with the aggregate functional SELECT below. The retained text SHA-256 is `1ff80587a313e4abe8dc87ddc64b2863de7d3867a65ba187adcfbb77c2a0ee44` (including the trailing newline). The target URL check immediately preceding this execution identified the production project; the receipt reports `2026-11-05T06:57:23.852279-05:00`. No new query was run to write this correction.
+
+The `recent` CTE explicitly compares `last_seen_at` with `greatest(b.observed_at, now() - interval '24 hours')` and excludes future timestamps. That is the source of the post-baseline qualification. The older “Exact bounded current-metadata sample” query below belongs to the historical 12:43:17 AM EST consistency sample; it lacks this baseline condition and does not substantiate the newer post-baseline receipt.
+
+```sql
+-- #5609 read-only acceptance. Post-apply baseline observed November 5, 2026,
+-- 12:36:57 AM EST after automatic run41974228042 applied the immutable source.
+-- Its catalog-recovery verification remains distinct; never reapply this source.
+-- Frozen pre-change main PATCH baseline: November 4, 2026, 10:37 PM EST.
+-- Frozen document rate: 8,829 updates / 5,050.846546 seconds, ending
+-- November 5, 2026, 12:01:25 AM EST, while the migration was still absent.
+-- No writes, timers, helpers, grants, or relaxed limits are introduced.
+with baseline as (
+ select
+   '2026-11-05T00:36:57.46569-05:00'::timestamptz as observed_at,
+   '2026-11-04T12:52:59.176055-05:00'::timestamptz as statement_stats_reset,
+   '2026-11-04T12:53:41.28733-05:00'::timestamptz as entry_stats_since,
+   null::timestamptz as database_stats_reset,
+   '2026-11-04T12:52:59.286785-05:00'::timestamptz as postmaster_started_at,
+   23226::bigint as calls,
+   6700401.86598603::numeric as total_exec_time,
+   1380322805::numeric as wal_bytes,
+   124808::bigint as asset_updates,
+   101273::bigint as document_updates,
+   170.077045367033::numeric as pre_mean_ms,
+   59888.980667756245::numeric as pre_wal_per_call,
+   (8829::numeric / 5050.846546::numeric) as pre_document_updates_per_second
+), query_stats as (
+ select calls,total_exec_time,wal_bytes,stats_since
+ from extensions.pg_stat_statements
+ where queryid='8695287796313115953'::bigint
+   and userid='16486'::oid and dbid='5'::oid and toplevel
+), table_stats as (
+ select
+  (select n_tup_upd from pg_stat_user_tables where relid='public.assets'::regclass) as asset_updates,
+  (select n_tup_upd from pg_stat_user_tables where relid='public.dam_search_documents'::regclass) as document_updates
+), expected as (
+ select * from (values
+  ('trg_auto_queue_render','public.auto_queue_render()',17,'6d292c5ad846cc05bb3290b926bf1d20'),
+  ('trg_auto_queue_render_ins_del','public.auto_queue_render()',5,'caa4f524dd84c8e24d36fc8d68c59c89'),
+  ('trg_dam_search_assets_refresh','public.trg_refresh_dam_asset_search_document()',17,'3adf740fb4f20406f6620052b23e28c3'),
+  ('trg_dam_search_assets_refresh_ins_del','public.trg_refresh_dam_asset_search_document()',13,'9fb1930126a935df0ff11d05bbcfdd4b'),
+  ('trg_sync_cover_description_to_style_group','public.sync_cover_description_to_style_group()',17,'dac32eaf299fd77dfa9ac6827a18211a'),
+  ('trg_sync_cover_description_to_style_group_ins_del','public.sync_cover_description_to_style_group()',5,'b4ddc43b9e60e91649c6fca65ad10f6e'),
+  ('trg_sync_designer_to_style_group','public.sync_designer_to_style_group()',17,'a2037258e3fd300113b8489f25ee62a9'),
+  ('trg_sync_designer_to_style_group_ins_del','public.sync_designer_to_style_group()',5,'24a12b32508aee5a6b24075d011e6897'),
+  ('trg_sync_primary_on_thumbnail','public.sync_primary_asset_on_thumbnail()',17,'224aa60d20a0b9f58a052b6f603598b8'),
+  ('trg_sync_primary_on_thumbnail_ins_del','public.sync_primary_asset_on_thumbnail()',5,'f7870cdb13d8aedf4901696cf1bc5622')
+ )e(trigger_name,function_name,event_type,definition_md5)
+), recent as (
+ select a.* from public.assets a tablesample system(1) repeatable(5609) cross join baseline b
+ where not a.is_deleted and a.last_seen_at>=greatest(b.observed_at,now()-interval '24 hours')
+   and a.last_seen_at<=now() limit 3
+), current_metadata as (
+ select count(*) as checked,
+  bool_and(d.metadata is not distinct from jsonb_strip_nulls(jsonb_build_object(
+   'file_type',a.file_type,'asset_type',a.asset_type,'content_type',a.content_type,
+   'item_description',sg.item_description,'group_ai_description',sg.group_ai_description,
+   'product_material',a.product_material,'product_dimensions',a.product_dimensions,
+   'workflow_status',a.workflow_status,'is_licensed',a.is_licensed,
+   'licensor_name',case when a.style_group_id is null then a.licensor_name else sg.licensor_name end,
+   'property_name',case when a.style_group_id is null then a.property_name else sg.property_name end,
+   'product_category',a.product_category,'thumbnail_url',a.thumbnail_url))) as all_match
+ from recent a left join public.style_groups sg on sg.id=a.style_group_id
+ left join public.dam_search_documents d on d.document_type='asset' and d.entity_id=a.id
+)
+select jsonb_build_object('observed_at',now(),'metadata',(select to_jsonb(m) from current_metadata m),'exact_bindings', (select count(*) from expected e join pg_trigger t on t.tgrelid='public.assets'::regclass and t.tgname=e.trigger_name and t.tgfoid=to_regprocedure(e.function_name) and t.tgtype=e.event_type and t.tgenabled='O' and t.tgattr=''::int2vector and md5(split_part(pg_get_triggerdef(t.oid,false),' EXECUTE FUNCTION ',1))=e.definition_md5),'drift',(select count(*) from public.style_groups sg join lateral(select a.thumbnail_url,a.thumbnail_error from public.assets a where a.id=sg.primary_asset_id limit 1)a on true where sg.primary_asset_id is not null and (sg.primary_thumbnail_url is distinct from a.thumbnail_url or sg.primary_thumbnail_error is distinct from a.thumbnail_error))) as functional_state;
+```
+
 ### Additional writer context and attribution limits
 
 Live function definitions confirm that embedding claim updates each claimed document's lease and attempt fields, while embedding completion updates the document's embedding and clears its lease/error state when the lease/hash checks match. These necessary writes are independent of the five asset refresh trigger predicates. A separate cumulative statement read found:
@@ -381,7 +452,7 @@ select jsonb_build_object('observed_at',now(),
  'tables',(select jsonb_agg(to_jsonb(q)) from(select relname,relid::text,n_dead_tup::text,n_live_tup::text,n_tup_upd::text,n_tup_hot_upd::text from pg_stat_user_tables where schemaname='public' and relname in('assets','dam_search_documents'))q));
 ```
 
-## Exact bounded current-metadata sample
+## Historical 12:43:17 AM EST bounded current-metadata sample
 
 ```sql
 with recent as materialized (
