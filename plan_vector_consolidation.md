@@ -23,10 +23,12 @@ issue say so.
 | 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
 | 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
 | 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
-| 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed. Ranking repair #5581 is merged and verified live (Nov 5, 2026); do not redo it. Full-set evaluation, latency and missing query kinds remain on #680 / #706; see reconciliation item 10. |
+| 5. Scorecard (extends search test set) | 🔄 partial — Nov 5, 2026 | Ranking repair #5581 remains verified live. #794 canonical spelling/reliability source merged and deployed (all 14 bundled files match); native release then failed type generation. Original 119-case BEFORE and separate frozen 21-case supplement complete, with errors/latency/unjudged gaps; AFTER is unstarted (0 calls), blocked by ordinary-viewer authentication timeout during the shared-backend incident. Unknown-code picture policy remains open. See [observational evidence](docs/verification/search-scorecard/2026-11-05-step5-observation.md); custody remains V-B on #680 / #706 / #725. |
 | 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
 | 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
 | 8. Live proof, close #706 / #663 | ⬜ open | — |
+
+**Step 5 continuation:** restore observable ordinary-viewer readiness, verify canonical spelling/known-code/semantic/error-and-Retry behavior, then run the identical two AFTER partitions serially with fresh source-bound checkpoints. Do not restart BEFORE or close #725/the whole gate from source delivery.
 
 **Fresh session starts at Step 1**, after reading "Reconciliation" below. Re-read the downstream phase before starting each one.
 
