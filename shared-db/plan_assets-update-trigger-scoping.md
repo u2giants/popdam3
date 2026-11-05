@@ -3,7 +3,7 @@
 Handoff: HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 
-## STATUS (2026-11-05 12:51 AM EST)
+## STATUS (2026-11-05 01:25 AM EST)
 
 | Step | State | Evidence |
 |---|---|---|
@@ -12,7 +12,7 @@ Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_eff
 | 2 Contract tests | complete | Original definitions fail no-op ctid assertion; new passes locally and full PR/merge-group ephemeral database suite |
 | 3 Migration: re-scope triggers | merged | PR #5618; immutable migration 20261105033827 |
 | 4 Preview rehearsal + equivalence check | partial; hosted WAL target NOT met | Hosted behavior matches except legitimate wall-clock metadata; fixed representative trials improve mean runtime 74.20%, WAL 33.08%, not the required 50%. All trials retained in `assets-trigger-scoping-hosted-preview.md` |
-| 5 Land via automatic promotion | APPLIED; catalog-verifier recovery pending | Run 41974228042 committed 20261105033827; independent live 5+5/image-trigger catalog checks pass. Existing lexer rejected trigger-only catalog targets; verification-only recovery PR #5642, no reapply |
+| 5 Land via automatic promotion | VERIFIED complete | Run 41974228042 committed 20261105033827. After PR #5642, verification-only recovery 41979854831 succeeded with enforcing=true, errors=[], exact contract actual1/expected1, original hash/ledger bindings preserved; no SQL replay |
 | 6 Live proof on production | pending full interval | Real post-apply baseline 2026-11-05 12:36:57.465690 AM EST; committed strict .github/live-proofs/5609.sql refuses before 24h. Immediate current metadata consistent, but samples predate apply; issue stays OPEN |
 | 7 Cross-repo follow-up filed | complete | https://github.com/u2giants/popdam3/issues/753 |
 
@@ -215,4 +215,4 @@ Open: 3b branch (decided by reading `source_updated_at` readers); whether to sco
 2. Background and ruled-out ideas carried? Yes — §6 F1-F7 with measured evidence and times, §7 seven rejections with reasons, §4 out-of-scope with owners (#2421, #1966, popdam3).
 3. Goal clear enough for judgment calls? Yes — §1 "same outcomes, less work", §8 locked rule "fire on any value change of any column read", and every judgment step says to stop and flag on popcre/shared-db#5609 when the goal is at risk.
 
-Production application and the exact post-apply baseline are preserved in `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md`. The coordinator independently found zero thumbnail drift; separate catalog reads verified every installed trigger definition and the unchanged embedding trigger. The failed catalog verifier is being repaired through its supported hash-bound contract/recovery route; actual SQL is not replayed. The 24-hour performance/correctness acceptance remains unchecked.
+Production application and the exact post-apply baseline are preserved in `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md`. The coordinator independently found zero thumbnail drift; separate catalog reads verified every installed trigger definition and the unchanged embedding trigger. The catalog verifier was repaired through its supported hash-bound contract/recovery route: successful run 41979854831 verifies the exact applied source without replaying SQL. The original failed catalog run remains in the record. The 24-hour performance/correctness acceptance remains unchecked.

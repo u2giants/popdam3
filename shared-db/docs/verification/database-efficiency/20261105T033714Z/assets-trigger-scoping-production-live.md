@@ -1,6 +1,6 @@
 # Issue #5609 actual production application and timed acceptance
 
-Automatic production run [41974228042](https://github.com/popcre/shared-db/actions/runs/41974228042) successfully committed immutable migration `20261105033827` on the CBA source. Its subsequent catalog-verification step failed because the existing migration lexer recognizes no trigger objects. This is **applied SQL with unfinished verifier recovery**, not a migration failure to replay. Do not reapply, rerun, edit the applied migration, or fabricate a green deployment result. Existing verification-only recovery is owned by the coordinator through PR #5642.
+Automatic production run [41974228042](https://github.com/popcre/shared-db/actions/runs/41974228042) successfully committed immutable migration `20261105033827` on the CBA source. Its subsequent catalog-verification step failed because the existing migration lexer recognizes no trigger objects. At initial capture this was **applied SQL with unfinished verifier recovery**, not a migration failure to replay. That recovery is now verified by successful run 41979854831 after PR #5642; the original failed run remains unchanged. Do not reapply, rerun, edit the applied migration, or fabricate a green original deployment result.
 
 ## Immediate read-only facts
 
@@ -359,3 +359,61 @@ select jsonb_build_object('observed_at',now(),
  'all_metadata_match',bool_and(actual is not distinct from expected)) as metadata_proof
 from compared;
 ```
+
+## Verified catalog-recovery receipt
+
+The existing [verification-only recovery run 41979854831](https://github.com/popcre/shared-db/actions/runs/41979854831) completed successfully November 5, 2026, **1:21:58 AM EST**, on exact main `b5684a3915f92a88f82d5ff046632f2ebea31e74`. The receipt was independently downloaded and checked by this subagent after the coordinator's verification. Its named catalog contract was enforcing, returned actual count 1 / expected count 1, and reported no errors.
+
+Recovery artifact `13392873858`, named `production-catalog-recovery-41974228042`, has immutable digest `sha256:7810b55d74eea066e862025db2ea912a861b837c6c163cbface795b8c6fb3934`. It binds the original applied run `41974228042`, original artifact `13391053803`, and original artifact digest `sha256:c936f361a3d0dfb368b9d29922c18548570f7a6d46333498f68e3afbeeb41f85`. The original SQL hash remains `ee739f9e5f70cc843d5136a6b5bf428b4e4ea25d3ffe0babf5b924dd9645c894`; ledger addition is only `20261105033827`, with no removals. `verification_only = true` proves this recovery did not replay the applied SQL. The original failure is retained as `Post-apply catalog verification`, not rewritten as a successful original run.
+
+Sanitized receipt (protected target identifier deliberately omitted):
+
+```json
+{
+  "binding": {
+    "schema_version": 1,
+    "main_sha": "b5684a3915f92a88f82d5ff046632f2ebea31e74",
+    "apply_main_sha": "cba3916673dfa2a1200641b931e7fc11b9b384cf",
+    "apply_run_id": 41974228042,
+    "apply_artifact_id": 13391053803,
+    "apply_artifact_digest": "sha256:c936f361a3d0dfb368b9d29922c18548570f7a6d46333498f68e3afbeeb41f85",
+    "allowlist": [
+      "20261105033827"
+    ],
+    "migration_hashes": {
+      "20261105033827": "ee739f9e5f70cc843d5136a6b5bf428b4e4ea25d3ffe0babf5b924dd9645c894"
+    },
+    "ledger_added": [
+      "20261105033827"
+    ],
+    "ledger_removed": [],
+    "catalog_enforced": true,
+    "original_failure": "Post-apply catalog verification",
+    "verification_only": true
+  },
+  "catalog_enforcing": true,
+  "catalog_errors": [],
+  "behavior_results": {
+    "behavior_checks": [
+      {
+        "actual_count": 1,
+        "expected_count": 1,
+        "id": "assets_update_trigger_scoping_exact"
+      }
+    ]
+  },
+  "behavior_checks": [
+    {
+      "contract": "assets_update_trigger_scoping_v1",
+      "expected_count": 1,
+      "id": "assets_update_trigger_scoping_exact",
+      "kind": "catalog_contract",
+      "migration_sha256": "ee739f9e5f70cc843d5136a6b5bf428b4e4ea25d3ffe0babf5b924dd9645c894",
+      "migration_version": "20261105033827",
+      "relation": "catalog:assets_update_trigger_scoping_v1"
+    }
+  ]
+}
+```
+
+Implementation and catalog recovery are complete. The full 24-hour production interval, performance targets, reduced document-write rate, current post-baseline metadata checks, and zero-drift acceptance remain pending on #5609. The committed strict probe and the original 12:36:57 AM EST post-apply baseline are unchanged; no early 24-hour probe was run and live proof remains unchecked.
