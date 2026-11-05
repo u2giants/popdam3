@@ -3,20 +3,22 @@
 Handoff: HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 
-## STATUS (2026-11-04 9:10 PM EST)
+## STATUS (2026-11-04 10:48 PM EST)
 
 | Step | State | Evidence |
 |---|---|---|
-| 0 Re-measure baseline | ⬜ open | — |
-| 1 Claim objects, open branch | ⬜ open | — |
-| 2 Contract tests (written first, fail on old triggers where expected) | ⬜ open | — |
-| 3 Migration: re-scope triggers | ⬜ open | — |
-| 4 Preview rehearsal + equivalence check | ⬜ open | — |
-| 5 Land via automatic promotion | ⬜ open | — |
-| 6 Live proof on production | ⬜ open | — |
-| 7 Cross-repo follow-up filed in popcre/popdam3 | ⬜ open | — |
+| 0 Re-measure baseline | complete | `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-baseline.md` |
+| 1 Claim objects, open branch | complete | #5609 signed ownership comment; reserved version 20261105033827 |
+| 2 Contract tests | complete locally; CI pending | `supabase/tests/assets_update_trigger_scoping_contracts.sql`: old fails no-op, new passes; ctid detects writes inside one transaction |
+| 3 Migration: re-scope triggers | prepared; delivery pending | `supabase/migrations/20261105033827_assets_update_trigger_scoping.sql` |
+| 4 Preview rehearsal + equivalence check | isolated synthetic proof complete; hosted preview pending | `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-rehearsal.md` |
+| 5 Land via automatic promotion | pending | No production write performed by this preparation |
+| 6 Live proof on production | pending | Require the full 24-hour interval after promotion; issue remains open |
+| 7 Cross-repo follow-up filed | complete | https://github.com/u2giants/popdam3/issues/753 |
 
-Fresh session starts at step 0. Nothing has been built; no branch, no PR, no migration exists.
+Search timestamp judgment: omit asset `updated_at` from the predicate; catalog inspection found no staleness detector reading the search document timestamp. All original functions remain unchanged. Derived thumbnail-cache writers were confirmed; the reconciliation updates only differing cache fields for the existing primary asset. Image embedding, group clocks, counts and effective-tag functions remain intact. The optional cheap BEFORE-trigger changes are omitted because no per-trigger evidence justifies expanding scope.
+
+The synthetic 1,000-asset no-op batch is 90.45% faster with 56.52% less total WAL. Mixed-workload group/search semantic checksums match. These are isolated proof, not the required live production result. Canonical POP DAM repository verified as `u2giants/popdam3`; earlier POP DAM organization references in this plan were incorrect.
 
 ## 1. Ultimate goal
 
@@ -25,7 +27,7 @@ Albert asked to cut how much compute the shared database uses. The single bigges
 ## 2. The application
 
 - `popcre/shared-db` owns the shared Supabase Postgres (production ref `qsllyeztdwjgirsysgai`) used by DesignFlow, POP DAM, PIM, CRM. Schema changes are SQL migrations under `supabase/migrations/`, reach production only via the automatic promotion workflow (`.github/workflows/shared-supabase-migrations.yml`) after preview rehearsal, tests, and no open `review-finding` issue (owner ruling 2026-10-29, `docs/owner-rulings.md`). No manual production command, ever.
-- `public.assets` (~150k live rows, ~3.4 GB with 46 indexes) is POP DAM's file catalogue. POP DAM lives in `popcre/popdam3` (local clone `/home/ahazan/repos/popdam3`). Its Bridge Agent (`apps/bridge-agent/src/index.ts`, ~line 1221-1290) scans the NAS and posts each file to the `agent-api` edge function (`supabase/functions/agent-api/index.ts`, `handleIngest` at line 950), which writes `assets` through PostgREST as `service_role`.
+- `public.assets` (~150k live rows, ~3.4 GB with 46 indexes) is POP DAM's file catalogue. POP DAM lives in `u2giants/popdam3` (local clone `/home/ahazan/repos/popdam3`). Its Bridge Agent (`apps/bridge-agent/src/index.ts`, ~line 1221-1290) scans the NAS and posts each file to the `agent-api` edge function (`supabase/functions/agent-api/index.ts`, `handleIngest` at line 950), which writes `assets` through PostgREST as `service_role`.
 
 ## 3. Trigger
 
@@ -39,10 +41,10 @@ In:
 - One forward migration that replaces trigger *definitions* on `public.assets` (timing/events/`UPDATE OF`/`WHEN`) for the triggers listed in §9 step 3, plus, only if step 3's judgment call requires it, a no-op short-circuit inside `public.refresh_dam_search_asset_document(uuid)`.
 - A one-time reconcile of the derived `style_groups.primary_thumbnail_url/_error` cache (see §6 finding F5) inside the same migration.
 - New contract test file `supabase/tests/assets_update_trigger_scoping_contracts.sql`.
-- Filing the app-side follow-up issue in `popcre/popdam3` (§9 step 7). Not implementing it.
+- Filing the app-side follow-up issue in `u2giants/popdam3` (§9 step 7). Not implementing it.
 
 NOT in this plan:
-- Any POP DAM code change (belongs to `popcre/popdam3`).
+- Any POP DAM code change (belongs to `u2giants/popdam3`).
 - `stamp_style_group_asset_change()` / `assets_style_group_change_clock` (owned by #2421).
 - `sync_asset_effective_tags()` body (already scoped `UPDATE OF style_group_id, is_deleted` and diff-based since #2213).
 - Index drops (#1966), autovacuum reloptions on `assets` (separate decision; the report itself says vacuum only mitigates), Realtime/publication changes.
@@ -75,7 +77,7 @@ All 19 user triggers on `public.assets` (`select pg_get_triggerdef(oid) from pg_
 
 Where the definitions live: grep `supabase/migrations/` for each trigger name; latest definitions of the two hot ones are found by `grep -ln "trg_dam_search_assets_refresh\|trg_sync_primary_on_thumbnail" supabase/migrations/*.sql | sort | tail -2` (search-trigger lineage includes `20260713221518_dam_hybrid_search_foundation.sql` and `20260723113000_dam_core_licensor_property_cutover.sql`). Always copy the **live** body via `pg_get_functiondef` / `pg_get_triggerdef`, not an old migration.
 
-Caller (popcre/popdam3 `origin/main` c5c501b5, 2026-11-04): `supabase/functions/agent-api/index.ts:1216-1234` builds `updateFields` for an existing-path file — filename, file_type, file_size, width, height, modified_at, file_created_at, quick_hash, quick_hash_version, `last_seen_at: new Date()`, workflow_status, is_licensed, optional pdf_page2_url, `...thumbnailFields`, `...skuFields` (division/mg/size/sku/licensor/property) — and sends it unconditionally via `db.from("assets").update(updateFields).eq("id", existingByPath.id)`. Same pattern for moves at `index.ts:1156` (`moveUpdates`). `last_seen_at` changes every scan, so the row write itself is legitimate; the follow-on work is not.
+Caller (u2giants/popdam3 `origin/main` c5c501b5, 2026-11-04): `supabase/functions/agent-api/index.ts:1216-1234` builds `updateFields` for an existing-path file — filename, file_type, file_size, width, height, modified_at, file_created_at, quick_hash, quick_hash_version, `last_seen_at: new Date()`, workflow_status, is_licensed, optional pdf_page2_url, `...thumbnailFields`, `...skuFields` (division/mg/size/sku/licensor/property) — and sends it unconditionally via `db.from("assets").update(updateFields).eq("id", existingByPath.id)`. Same pattern for moves at `index.ts:1156` (`moveUpdates`). `last_seen_at` changes every scan, so the row write itself is legitimate; the follow-on work is not.
 
 ## 6. Key findings and root cause
 
@@ -161,7 +163,7 @@ Gate: migration applies cleanly on a fresh DB in CI; `pg_get_triggerdef` output 
 
 **Step 6 — Live proof.** After 24 h, repeat step 0 into the same folder. Targets: the 30-column PATCH mean <50% of baseline and WAL per call <50%; `dam_search_documents` update rate down; F5 drift count 0; spot-check 3 recently scanned assets' search docs still match their current metadata. Tick `- [ ] live proof` on popcre/shared-db#5609.
 
-**Step 7 — Cross-repo follow-up** (file, do not implement): issue in `popcre/popdam3`, title "agent-api ingest: send only changed asset fields", body: in `supabase/functions/agent-api/index.ts` `handleIngest`, the existing-path branch (`updateFields`, ~line 1216) and move branch (`moveUpdates`, ~line 1156) should diff against the already-fetched row (extend the `existingByPath` select to the compared columns) and send only changed fields plus `last_seen_at`; reference `apps/bridge-agent/src/index.ts:~1265` (`api.ingest`) and this plan. Gate: issue URL recorded on popcre/shared-db#5609.
+**Step 7 — Cross-repo follow-up** (file, do not implement): issue in `u2giants/popdam3`, title "agent-api ingest: send only changed asset fields", body: in `supabase/functions/agent-api/index.ts` `handleIngest`, the existing-path branch (`updateFields`, ~line 1216) and move branch (`moveUpdates`, ~line 1156) should diff against the already-fetched row (extend the `existingByPath` select to the compared columns) and send only changed fields plus `last_seen_at`; reference `apps/bridge-agent/src/index.ts:~1265` (`api.ingest`) and this plan. Gate: issue URL recorded on popcre/shared-db#5609.
 
 ## 10. Tests required — adversarial / regression table
 
@@ -197,7 +199,7 @@ All in `supabase/tests/assets_update_trigger_scoping_contracts.sql`; existing su
 
 ## 12. Access and environment
 
-Supabase MCP `execute_sql` (read-only use on production; `pg_stat_statements` in schema `extensions`). `gh` authenticated for `popcre/shared-db` and `popcre/popdam3`. Preview ref via `ai-private-config value supabase_shared_preview_ref` (never paste the value). No secrets needed beyond CI-held ones.
+Supabase MCP `execute_sql` (read-only use on production; `pg_stat_statements` in schema `extensions`). `gh` authenticated for `popcre/shared-db` and `u2giants/popdam3`. Preview ref via `ai-private-config value supabase_shared_preview_ref` (never paste the value). No secrets needed beyond CI-held ones.
 
 ## 13. Done, risks, open questions
 
