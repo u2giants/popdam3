@@ -322,3 +322,30 @@ The opt-in real PostgreSQL writer regression runs with
 `COLDLION_INTAKE_TEST_PG_CONTAINER=orderlist4886pg node --test tools/coldlion-order-intake-*.test.mjs`.
 It refuses any container other than that disposable fixture, requires no network
 or published ports, and uses generated synthetic records only.
+
+### Private HTS prepack qualification (#5447 / backend #278)
+
+`qualify-hts-prepacks.mjs` is a read-only producer for a protected metadata input
+containing only `{items:[{id:"item-<positive integer>",style:"<recorded style>"}]}`.
+It never reads expected classifications or benchmark files. The dedicated
+`designflow_hts_evaluation_reader` connection verifies current item-ID/style
+associations before any ERP read, explicitly uses `designflow_hts_evaluation_read`
+and a read-only transaction, and refuses missing or changed associations.
+
+The existing configured company scope and canonical vendor clients provide all
+header pages followed by exact company/division/item detail. Requests are paced,
+limited to ten seconds, and never retried on the network. Missing, ambiguous,
+empty, malformed or incomplete evidence remains `unknown`. Any nonblank parent
+marker is `prepack`; complete matched blank markers are `non_prepack`. Component
+membership alone does not mark a parent. Only confirmed eligible records with
+accepted evidence may enter an evaluation.
+
+Inputs must be a private file; output must be a new directory. The producer uses
+`--input` and `--output`; the protected environment supplies ordinary PG fields,
+`PGSSLMODE=require`, `HTS_EXPECTED_PROJECT_REF`, and the existing
+`COLDLION_API_KEY`. Credentials never appear in arguments or output. It publishes
+an atomic private directory containing a 0600 typed receipt and provenance with
+identity, request times, completeness and SHA-256. `sourceAsOfUtc` is the direct
+read finish time, not a database snapshot or an accuracy assertion. The consumer
+must pin the receipt hash and source. No database write, new credential, schema,
+expected label, private source row or customs value is introduced.
