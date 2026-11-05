@@ -165,6 +165,26 @@ async function getRichPdfModel(): Promise<string> {
   return value;
 }
 
+export interface RichPdfExtractionState {
+  source_text_sha256: string | null;
+  parse_error: string | null;
+  extracted_at: string | null;
+}
+
+/** Successful hashes remain idempotent; provider failures retry after a cooldown. */
+export function shouldExtractRichPdf(
+  existing: RichPdfExtractionState | undefined,
+  hash: string,
+  now = Date.now(),
+  retryAfterHours = 24,
+): boolean {
+  if (!existing || existing.source_text_sha256 !== hash) return true;
+  if (existing.parse_error == null) return false;
+  const extracted = Date.parse(existing.extracted_at ?? "");
+  const hours = Number.isFinite(retryAfterHours) && retryAfterHours > 0 ? retryAfterHours : 24;
+  return Number.isFinite(extracted) && now - extracted >= hours * 60 * 60 * 1000;
+}
+
 type SampleRow = {
   asset_id: string;
   filename: string | null;
@@ -248,12 +268,11 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
     p_asset_ids: assetIds,
   });
   if (exErr) return { ok: false, done: false, error: exErr.message };
-  const existingHash = new Map(
-    ((existing ?? []) as Array<{ asset_id: string; source_text_sha256: string | null }>).map((e) => [
-      e.asset_id,
-      e.source_text_sha256,
-    ]),
+  const existingByAsset = new Map(
+    ((existing ?? []) as Array<RichPdfExtractionState & { asset_id: string }>).map((row) => [row.asset_id, row]),
   );
+  const retryAfterHours = Number(process.env.RICH_PDF_RETRY_AFTER_HOURS ?? 24);
+  const now = Date.now();
 
   // sha256 over the full extracted text is not cheap, so hash each sample once
   // here and reuse the value in the extraction loop below.
@@ -263,7 +282,7 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
     if (!asset) return false; // deleted / missing
     const hash = sha256(r.extracted_text as string);
     hashByAssetId.set(r.asset_id, hash);
-    return existingHash.get(r.asset_id) !== hash;
+    return shouldExtractRichPdf(existingByAsset.get(r.asset_id), hash, now, retryAfterHours);
   });
 
   let processed = 0;
