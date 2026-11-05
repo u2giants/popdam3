@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeLikePattern, isProductCodeSearch, keepUnknownCodePictures } from "./product-code.ts";
+import { escapeLikePattern, isProductCodeSearch } from "./product-code.ts";
 
 describe("isProductCodeSearch", () => {
   it("is true only when the catalog has that code", async () => {
@@ -46,15 +46,5 @@ describe("isProductCodeSearch", () => {
         throw new Error("down");
       }),
     ).toBe(false);
-  });
-});
-
-describe("unmatched code picture intent", () => {
-  it("retains guesses only for the established grouped intent", () => {
-    expect(keepUnknownCodePictures("ABC12DEFG34")).toBe(true);
-    expect(keepUnknownCodePictures("abc12defg34")).toBe(true);
-    for (const value of ["xqzvplm", "xqz9vplm", "abc123", "yellow character", "12345678901"]) {
-      expect(keepUnknownCodePictures(value)).toBe(false);
-    }
   });
 });

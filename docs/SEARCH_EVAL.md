@@ -54,3 +54,9 @@ Supplemental policy cases can require an actual returned spelling correction or
 semantic execution with picture guesses. The unknown-code policy check does not
 judge those guesses relevant; keep them explicitly unjudged and outside the
 original 119-case denominator.
+
+The unknown-code picture-guess policy remains open on #680 and #706. The
+spelling/reliability repair preserves the deployed code-intent behavior; it does
+not establish complete unknown-code format coverage. A proposed catalog-format
+probe was withheld after its bounded full-miss read timed out. Keep these policy
+failures separate from spelling acceptance and from relevance judgments.
