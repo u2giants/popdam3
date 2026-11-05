@@ -35,7 +35,7 @@ describe("canonical ERP cutover", () => {
     }
     // Both exporters resolve sources via the shared helper, which maps plm_item_list to the api schema.
     for (const path of ["supabase/functions/export-table/index.ts", "supabase/functions/export-sql-dump/index.ts"]) {
-      expect(read(path), path).toContain('import { tableSource } from "../_shared/export-tables.ts"');
+      expect(read(path), path).toContain('import { tableSource, orderedTableSource } from "../_shared/export-tables.ts"');
     }
     expect(read("supabase/functions/export-table/index.ts")).toContain('"plm_item_list"');
     expect(read("supabase/functions/_shared/export-tables.ts")).toContain('schema("api").from("plm_item_list")');
