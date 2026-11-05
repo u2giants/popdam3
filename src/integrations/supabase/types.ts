@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.18"
   }
   graphql_public: {
     Tables: {
@@ -4620,6 +4620,17 @@ export type Database = {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
       }
+      dam_search_semantic_anchors: {
+        Args: {
+          p_document_types?: string[]
+          p_first_embedding: string
+          p_second_embedding?: string
+        }
+        Returns: {
+          query_index: number
+          score: number
+        }[]
+      }
       delete_style_tracker_rows: {
         Args: { p_row_ids: string[] }
         Returns: {
@@ -5312,6 +5323,7 @@ export type Database = {
               search_documents_synced: number
             }[]
           }
+      refresh_style_guide_matviews_job: { Args: never; Returns: undefined }
       refresh_style_tracker_item_bridge: {
         Args: never
         Returns: {
@@ -5547,6 +5559,10 @@ export type Database = {
         Returns: string
       }
       style_guide_label_norm: { Args: { p_label: string }; Returns: string }
+      style_guide_refresh_source_signature: {
+        Args: { p_sources: unknown[] }
+        Returns: string
+      }
       style_guide_tag_input_fingerprint: {
         Args: {
           p_file_extension: string
