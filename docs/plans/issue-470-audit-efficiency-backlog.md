@@ -11,22 +11,21 @@ against this worktree (HEAD `01fcfc34`; `origin/main` `4409e2d3` differs only
 in tagging files unrelated to these lines, except `ai-tagging-shared.ts` —
 re-check its line numbers after rebasing).
 
-## STATUS — 2026-11-04 (nothing started)
+## STATUS — 2026-11-05
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Relevance-sorted search: rank server-side, fetch only the page | ⬜ open | — |
-| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | ⬜ open | — |
-| 3 | `get-filter-options`: one grouped count query instead of N+M counts | ⬜ open | — |
-| 4 | Tagging prompt: cache static reads; drop the per-call OpenRouter generation lookup | ⬜ open | — |
-| 5 | Order-list status counts: one RPC/grouped count | ⬜ open | — |
-| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | implemented; live proof open | Five repeated rows now fetch two unique URLs; workbook retains five images; concurrency four |
-| 7 | Grids: memoize cards; bridge scanner: drop the redundant `lstat` | cards implemented; scanner held | Cards receive stable parent callbacks; scanner patch waits scan completion before publishing bridge |
-| 8 | Heartbeat `render_queue` prune: once per hour, not per heartbeat (minor) | implemented; live proof open | Warm instances throttle to hourly; failure resets throttle for retry |
-| 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | ⬜ open | — |
+| 1 | Relevance-sorted search: rank server-side, fetch only the page | open with search owner | Reserved relevance paths; do not overlap the coordinator's search delivery |
+| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | shared contract merged, production/caller open | shared-db #5630/version 20261105042549; held finding #5631 and genuine test correction #5644 |
+| 3 | `get-filter-options`: one grouped count query instead of N+M counts | shared contract merged, production/caller open | Same #5628/#5630 delivery; preserve current nondeleted taxonomy scope |
+| 4 | Tagging prompt: cache static reads; avoid redundant generation lookup | lookup deployed; cache prepared/held | App #764 lookup, #782 cache head 59f8cbc9; 518 worker tests; live read-only prompt parity, repeated static reads 6→3, deployment pending |
+| 5 | Order-list status counts: one RPC/grouped count | shared contract merged, production/caller open | Same #5628/#5630; five-status/NULL and populated access/filter fixtures in held #5644 |
+| 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | live proof recorded | App #764/#770: five rows/two unique thumbnail URLs cause two fetches and five workbook image placements |
+| 7 | Grids: memoize cards; bridge scanner: drop redundant `lstat` | cards deployed; scanner held | All three card layouts preserve selection live; draft #766 must wait for verified full scan completion |
+| 8 | Heartbeat `render_queue` prune: once per hour | deployed; direct live efficiency proof open | App #764/#773; stateful repeated-heartbeat harness passes; hourly per warm instance with retry on failure |
+| 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | open | Do not close until every outstanding caller, search, machine/deployment and live proof is finished |
 
-Where a fresh session starts: step 1 (it needs a shared-db claim and is the
-longest pole), then 2 and 3 in parallel.
+Next: deliver genuine fixture correction #5644, reconcile finding #5631, then the normal #5630 production train before dependent app callers. Cache #782 and all owned app/shared-db main merges remain held until after 3:30 AM EST. Canonical instruction/catalog cache freshness is up to five minutes; per-asset context stays fresh. Never stop or reset the full tagging run.
 
 ---
 

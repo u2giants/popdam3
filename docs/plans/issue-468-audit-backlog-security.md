@@ -19,6 +19,8 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | 5 | Live proof v: installed Helper (post-merge build) shows the confirmation on a `popdam://discard` link; Cancel does nothing | ⬜ open | `- [ ] live proof` on #468 |
 | 6 | Close #468 with evidence | ⬜ open | |
 
+Current machine evidence (2026-11-05): genuine Helper 1.4.15 is installed and the original local status endpoint reports that version/ok. The connected test device has zero configured roots. Installed source is not live confirmation proof: native input is denied, UIAutomation invocation unsupported and screenshot capture inaccessible. The synthetic QA scheduled task was removed and verified absent. No real checkout was discarded, no renderer/poller was changed. Keep #468 open for Cancel-only confirmation, original checkout/checkin capability and agent browse/claim machine proof; the scanner release is held while its full scan runs. Exact refusal and actual installation sequence remain on the same issue.
+
 Where a fresh session starts: **Step 2** (#713 merged after this plan was written; §5 below describes the pre-merge code) in a follow-up PR, then steps 3–5 as each deploy lands.
 
 ---

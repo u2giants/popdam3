@@ -14,18 +14,18 @@ plan is therefore to land #713.
 
 **Update 2026-11-04 6:05 PM EST: PR #713 merged 2026-11-04 5:12 PM EST as `2287f1b5`.** Sections saying "NOT on main" describe the pre-merge state. Confirmed on `origin/main`: all three terminal saves use `onlyIfRunning` (`operation-loop.ts:1297,1661,1818`); sentinel cap 16 MB (`ai-sentinel-detect.ts:37`); the merge touches `path-utils.ts`, `path-filters/index.ts`, `admin-api/index.ts`, the Tesseract files, `AgentSetup.tsx`, `useScanLifecycle.tsx`, `useAgentStatus.ts`, `AiTaggingSection.tsx` and the three loop-cap files. **No test for the Stop guard landed** (no test references `onlyIfRunning`), so the §10 test is required, not conditional.
 
-## STATUS — 2026-11-04
+## STATUS — 2026-11-05
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Merge PR #713 (carries 12 findings incl. Stop-overwrite guard, .ai sentinel cap) and verify the deploys | 🟡 merged; deploy verification open | merged 2026-11-04 5:12 PM EST as `2287f1b5` |
-| 2 | Download all: batch checkout token so every file opens | implemented; live proof open | Helper 1.4.14 uses one launch and existing single-use tokens; maximum 50 files |
-| 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | implemented; live proof open | Exact ranges and composite junction identity covered by regression tests |
-| 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | prerequisite PR open | popcre/shared-db#5627; claim #5626; worker waits production |
-| 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | implemented; live proof open | Saves and realtime UPDATE fetch only the changed row including bridge/license fields |
+| 2 | Download all: batch checkout token so every file opens | implemented; configured-machine outcome open | PR #761; Helper 1.4.15 installed/status verified, one launch, existing single-use tokens, maximum 50; actual batch checkout unproven |
+| 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | live export accepted | PR #761; authenticated pairings pages 6+0 and junction pages 7+7, unique composite identities/no overlap; coordinator independently repeated |
+| 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | reader and worker deployed; actual retry open | shared-db #5627/version 20261105041612 live, app #779 deployed; 11 cooldown tests pass; 246 live extractions contain zero saved failures, so no live retry candidate |
+| 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | frontend partial proof accepted; persisted save open | Settled intercepted save: one row read/zero grid reads. Actual save invokes global bridge writes; scoped shared-db #5640/#5639 prepared, not deployed |
 | 6 | Update `docs/audit-2026-10-21.md` backlog + this STATUS; close #469 with evidence | ⬜ open | — |
 
-Where a fresh session starts: step 1's deploy gate (the merge is done), then step 2.
+Continue the same open #469: configured Helper outcome and actual failed-PDF retry remain unproven. Preserve the global Styles refresh capability; deliver the prepared bounded contract before a real synthetic-row UI save. All owned app/shared-db main merges are held until after 3:30 AM EST; never stop or reset the full tagging run.
 
 ---
 
