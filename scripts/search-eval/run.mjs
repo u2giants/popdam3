@@ -6,6 +6,7 @@
 // never commit it), --report <file> (aggregate only, safe to share), --label <text>.
 import { readFileSync, writeFileSync } from "node:fs";
 import { scoreSearch, summarize, trustWarning } from "./score.mjs";
+import { createViewerSession, ViewerAuthenticationError } from "./viewer-session.mjs";
 
 const SET_KEY = "SEARCH_EVAL_SET_V1";
 const arg = (name) => {
@@ -28,20 +29,27 @@ async function post(path, body, token, timeoutMs = 30_000) {
     signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
   return JSON.parse(text);
 }
 
-const { access_token: token } = await post("/auth/v1/token?grant_type=password", {
-  email: need("SEARCH_EVAL_EMAIL"),
-  password: need("SEARCH_EVAL_PASSWORD"),
+const getToken = createViewerSession({
+  authenticate: () => post("/auth/v1/token?grant_type=password", {
+    email: need("SEARCH_EVAL_EMAIL"),
+    password: need("SEARCH_EVAL_PASSWORD"),
+  }),
 });
+
+async function viewerPost(path, body, timeoutMs) {
+  return post(path, body, await getToken(), timeoutMs);
+}
 
 async function loadSet() {
   const file = arg("cases");
   if (file) return JSON.parse(readFileSync(file, "utf8"));
   const res = await fetch(`${url}/rest/v1/admin_config?key=eq.${SET_KEY}&select=value`, {
-    headers: { apikey: key, Authorization: `Bearer ${token}` },
+    headers: { apikey: key, Authorization: `Bearer ${await getToken()}` },
+    signal: AbortSignal.timeout(30_000),
   });
   const rows = await res.json();
   if (!res.ok || !rows[0]) throw new Error(`Could not read ${SET_KEY}`);
@@ -58,9 +66,9 @@ async function timed(fn) {
 }
 
 const damSearch = (query) => timed(async () => {
-  const data = await post("/functions/v1/dam-search-ai", {
+  const data = await viewerPost("/functions/v1/dam-search-ai", {
     action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"],
-  }, token, 45_000);
+  }, 45_000);
   return { hits: data.results.map((r) => r.entity_id), total: data.total_count };
 });
 
@@ -76,9 +84,12 @@ async function popsgQuery(query) {
   };
   const term = query.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim();
   add(term);
-  const rows = await post("/rest/v1/rpc/expand_dam_search_queries", { p_query: term }, token);
+  const rows = await viewerPost("/rest/v1/rpc/expand_dam_search_queries", { p_query: term });
   for (const row of rows ?? []) if (row?.query_text) add(row.query_text);
-  const spelling = await post("/functions/v1/dam-search-ai", { action: "spelling", query: term }, token).catch(() => null);
+  const spelling = await viewerPost("/functions/v1/dam-search-ai", { action: "spelling", query: term }).catch((error) => {
+    if (error instanceof ViewerAuthenticationError || error.status === 401 || error.status === 403) throw error;
+    return null;
+  });
   if (typeof spelling?.corrected === "string") add(spelling.corrected);
   return [...variants]
     .map((t) => t.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim())
@@ -99,9 +110,9 @@ const sgDetail = (r) => ({
 
 const sgSearch = (query, mode) => timed(async () => {
   const p_query = await popsgQuery(query);
-  const data = await post("/rest/v1/rpc/search_style_guide_library_v2", {
+  const data = await viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
     p_result_mode: mode, p_query, p_sort: "relevance", p_limit: 50, p_offset: 0,
-  }, token, 45_000);
+  }, 45_000);
   const results = data.results ?? [];
   const hits = results.map((r) => (mode === "guides" ? r.guide_key : r.style_guide_file_id));
   return { hits, total: data.total ?? hits.length, details: results.map(sgDetail) };
