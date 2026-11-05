@@ -39,7 +39,7 @@ lanes from `dam.image_embed_jobs`:
   `search_lane_error`, cools down 10 minutes and retries — the other lanes
   keep working.
 
-PopSG lane (#706): the same service embeds `style_guide_search_documents` thumbnails through the `*_sg_search_embedding*` RPCs, same model and no border-crop. It claims one document per cycle so slow PopSG database writes yield to DAM and uploaded-image work between documents; DAM keeps its configured batch size (64 by default). Batch and claim-error logs identify `lane: dam` or `lane: sg`. `--no-search-lane` disables it too.
+PopSG lane (#706): the same service embeds `style_guide_search_documents` thumbnails through the `*_sg_search_embedding*` RPCs, same model and no border-crop. Its claim starts at one document, doubles up to 32 while cycles finish within 8 seconds, and drops back to one after a slower cycle, so slow PopSG database writes yield to DAM and uploaded-image work without limiting the backfill to one document per cycle; DAM keeps its configured batch size (64 by default). Batch and claim-error logs identify `lane: dam` or `lane: sg`. `--no-search-lane` disables it too.
 
 Heartbeat: `dam.image_embed_worker_heartbeat(worker_id)` every **30 s**;
 `public.image_embed_status().workers_fresh` reports the fleet available

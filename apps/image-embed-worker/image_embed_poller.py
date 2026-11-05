@@ -292,6 +292,7 @@ class Poller:
         self.done = self.failed = 0
         self.search_done = self.search_failed = self.search_stale = 0
         self.search_cooldown_until = 0.0
+        self.sg_batch = config.SG_SEARCH_CLAIM_BATCH
         self.t0 = time.time()
         self.pool = ThreadPoolExecutor(max_workers=args.download_threads)
 
@@ -522,10 +523,16 @@ class Poller:
                     "select null::text, style_guide_file_id, search_text, thumbnail_url,"
                     " content_sha256, lease_token, lease_expires_at, attempt"
                     " from public.claim_sg_search_embedding_documents(%s, %s, %s)",
-                    (config.SG_SEARCH_CLAIM_BATCH, self.args.worker_id, self.args.search_lease_seconds),
+                    (self.sg_batch, self.args.worker_id, self.args.search_lease_seconds),
                 )
                 return cur.fetchall()
         return self._run(_q)
+
+    def tune_sg_batch(self, elapsed: float) -> None:
+        if elapsed <= config.SG_SEARCH_FAST_CYCLE_S:
+            self.sg_batch = min(self.sg_batch * 2, config.SG_SEARCH_CLAIM_BATCH_MAX)
+        else:
+            self.sg_batch = config.SG_SEARCH_CLAIM_BATCH
 
     def search_upsert(self, row, vector) -> bool:
         if row[0] is None:
@@ -674,8 +681,11 @@ class Poller:
                 if not self.args.no_search_lane and time.time() >= sg_cooldown_until \
                         and time.time() - last_sg >= config.SG_SEARCH_POLL_S:
                     last_sg = time.time()
-                    if self.poll_search_lane(self.claim_sg_docs, lane="sg") == "error":
+                    status = self.poll_search_lane(self.claim_sg_docs, lane="sg")
+                    if status == "error":
                         sg_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
+                    elif status == "claimed":
+                        self.tune_sg_batch(time.time() - last_sg)
             except StopIteration:
                 break
             except Exception as exc:
