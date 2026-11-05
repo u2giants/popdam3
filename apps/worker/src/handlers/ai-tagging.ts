@@ -1,3 +1,4 @@
+import { changedFields } from "../../../../supabase/functions/_shared/changed-fields.js";
 import { parallelTagRun, parallelModel } from "./ai-tag-parallel.js";
 import { buildStructuredOutputRequest, buildJsonRepairRequest } from "../structured-output.js";
 /**
@@ -325,7 +326,7 @@ export async function applyBatchTagResult(
 ): Promise<{ fileSourcesFailed: boolean }> {
   validateTagAssetData(rawTagData, "batch");
   const client = injectedClient ?? db();
-  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, property_id, designer_name, technical_designer_name").eq("id", assetId).single();
+  const { data: asset, error: assetError } = await client.from("assets").select("id, filename, file_type, sku, style_group_id, licensor_id, property_id, designer_name, technical_designer_name, status, ai_model, ai_description, cover_description, scene_description, asset_type, content_type, art_source, design_style, design_ref, freelancer_name").eq("id", assetId).single();
   if (assetError || !asset) throw new AssetTagApplyError("asset_reload", assetError?.code);
   const validatedCharacterIds = await addNamedCharacters(client, asset, await validateCharacterReferences(rawTagData.character_ids, characterCatalogIds, client), rawTagData.character_names);
   const finished = finishTagResult({ tagData: rawTagData, characterIds: validatedCharacterIds, filename: asset.filename, ...await loadFinishContext(client, asset, validatedCharacterIds) });
@@ -385,7 +386,11 @@ export async function applyBatchTagResult(
     // AI-only text: an empty result must not leave an older run's value behind.
     else if (AI_ONLY_TEXT_FIELDS.has(key)) updates[key] = null;
   }
-  const { error } = await client.from("assets").update(updates).eq("id", assetId);
+  // ai_tagged_at always records this result; every other field is sent only
+  // when it changed, so unchanged indexed columns stay out of the UPDATE and
+  // the write can be HOT (popcre/shared-db#5747).
+  const { ai_tagged_at, ...resultFields } = updates;
+  const { error } = await client.from("assets").update({ ...changedFields(asset as Record<string, unknown>, resultFields), ai_tagged_at }).eq("id", assetId);
   if (error) throw new AssetTagApplyError("asset_metadata", error.code);
   return { fileSourcesFailed };
 }
