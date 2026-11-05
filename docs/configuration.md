@@ -288,3 +288,5 @@ The Coolify Traefik instance has two cert resolvers:
 ## `INGESTION_RULES` (Settings → Storage → Ingestion Rules)
 
 Admin-added filename and folder rules on top of the bridge scanner's built-ins (`packages/agent-common/src/ingestion-rules.ts`; `supabase/functions/_shared/ingestion-rules.ts` is a test-enforced identical copy). The value holds `{ revision, rules, history }` and changes only through the `save-ingestion-rules` admin route, which validates, refuses stale saves, and keeps the last 50 prior rule lists for undo. Heartbeat delivers `scanning.ingestion_rules`; requires bridge agent 1.16.21 or newer. Rules affect future scans only and never delete records. New file extensions are deliberately not configurable.
+
+Built-in raster keywords are `comp-view`, `compview`, and `mockup` (case-insensitive filename matching for PNG, JPG, JPEG). The mockup built-in requires bridge agent 1.16.22 or newer; Settings and its file tester use the identical shared list.
