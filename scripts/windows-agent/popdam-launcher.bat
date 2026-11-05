@@ -56,7 +56,7 @@ echo [launcher] Starting PopDAM Windows Render Agent...
 set EXIT_CODE=%ERRORLEVEL%
 
 if %EXIT_CODE% equ 77 (
-    echo [launcher] Agent exited with code 77 (update/rollback) — restarting immediately
+    echo [launcher] Agent exited with code 77 - update/rollback - restarting immediately
     goto map_drive
 )
 
