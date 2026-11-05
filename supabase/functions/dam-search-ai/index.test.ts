@@ -129,5 +129,4 @@ describe("DAM search embedding availability", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect((await response.json()).semantic).toBe("skipped");
   });
-
 });
