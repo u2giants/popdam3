@@ -255,7 +255,7 @@ Files outside project-owned areas that were intentionally modified:
 | Coolify Traefik service name | `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` | `/data/coolify/proxy/dynamic/popdam-sg.yml` | Referenced by the PopSG file-provider route |
 | Production domains | `dam.designflow.app`, `sg.designflow.app` | Coolify + Traefik | Same frontend container; hostname chooses mode |
 | DigitalOcean Spaces bucket | `popdam` (CDN: `cdn.designflow.app`) | `admin_config.DO_SPACES_*` | Renaming requires migrating stored URLs |
-| Railway worker service | `apps/worker/` project in Railway | Railway dashboard | Auto-deploys from every push to `main` |
+| Railway worker service | `apps/worker/` project in Railway | Railway dashboard | Auto-deploys from `main` changes matching `/apps/worker/**` |
 | GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | `.github/workflows/publish-frontend.yml` | Published by the frontend workflow as `:latest`, `:sha-<short-sha>`, and `:<short-sha>`; user-scoped package uses `GHCR_PAT` when package Actions access blocks `GITHUB_TOKEN` |
 | GHCR bridge agent image | `ghcr.io/u2giants/popdam-bridge` (`:stable`) | `.github/workflows/publish-bridge-agent.yml` | `:stable` is used by NAS compose + self-update |
 | pg_cron job | `nightly-sg-crawl` | migration files | PopSG crawl |
@@ -277,7 +277,7 @@ Files outside project-owned areas that were intentionally modified:
 |---|---|---|---|---|
 | `popdam-frontend` | React/Vite static web app for PopDAM + PopSG | Coolify on VPS | Coolify app `qxj8a0j3tpa9lq4q5rs6pezy`; domains `dam.designflow.app`, `sg.designflow.app` | `ghcr.io/u2giants/popdam-frontend:latest` from `.github/workflows/publish-frontend.yml` + `Dockerfile.ci` |
 | `coolify-proxy` | Traefik reverse proxy for Coolify apps | Coolify on VPS | Traefik service `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` routes to frontend | `traefik:v3.6` managed by Coolify |
-| Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds on every push to `main` |
+| Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds for `main` changes matching `/apps/worker/**` |
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
 | Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Indra OCR — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | Image-embed GPU poller | Embeds thumbnails for image similarity (DINOv3+SigLIP2 dual vectors; claim/heartbeat/complete queue loop; never embeds — poller only) | Windows Task Scheduler task `PopDAM-ImageEmbedWorker` on `edge-dev` (RTX 3060 Ti; manual install per `apps/image-embed-worker/README.md`) | none (runs from repo source, `requirements.txt` pinned) | `apps/image-embed-worker/`; DB login `dam_image_embed_login` |
@@ -295,7 +295,7 @@ stranded and lost). The file-scraping agents run against edge2 by design; the
 Linux write-worker targets edge1. Canonical spec:
 [`u2giants/synology-monitor` → `docs/NAS_TOPOLOGY.md`](https://github.com/u2giants/synology-monitor/blob/main/docs/NAS_TOPOLOGY.md).
 
-**Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
+**Railway deploy note:** Railway watches `main` and rebuilds when changes match `/apps/worker/**`, as configured in `apps/worker/railway.toml`. Changes outside that worker directory, including unrelated documentation and shared-db mirror updates, do not trigger the worker. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
 **GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
 
 **Coolify ownership:** Coolify owns runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle for `popdam-frontend`. Changes to runtime configuration (env vars, feature flags) go through Coolify directly — not via GitHub or SSH. Source code, Dockerfiles, and workflow changes must go through GitHub as normal.
@@ -365,7 +365,7 @@ Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read
 - `verify_jwt = false` on `admin-api` in `supabase/config.toml`
 - Style group rebuild `finalize_stats` calls `reconcile_style_group_stats_batch` in a loop
 - `trg_sync_primary_on_thumbnail` fires on INSERT **and** UPDATE
-- Railway worker deploys on every push to `main`
+- Railway worker deploys for `main` changes matching `/apps/worker/**`
 - `admin_config.OPENROUTER_API_KEY` is the single source of the OpenRouter key
 - A brand-new OpenRouter batch 404s on the first status poll
 - `.mcp.json` carries no secrets — MCP tokens come from 1Password (do NOT re-hardcode)
@@ -438,7 +438,7 @@ Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md]
 |---|---|---|
 | Frontend | merge PR to main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
 | Supabase edge functions | merge PR to main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
-| Railway worker | every push to main auto-deploys | No manual step. |
+| Railway worker | main changes matching `/apps/worker/**` auto-deploy | No manual step. |
 | Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit (without a bump the NAS sees no update). The NAS applies it only on request: admin_config `AGENT_UPDATE_REQUEST` `{action:"apply"}` (the in-app Update button); `force_apply_update` metadata is Windows-only. |
 | Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR — no Illustrator. |
 | Image-embed GPU poller | manual install on `edge-dev` per `apps/image-embed-worker/README.md` (Task Scheduler `PopDAM-ImageEmbedWorker`) | No GHCR/Railway path — runs from repo source. Vector/schema changes go through canonical shared-db only. |
