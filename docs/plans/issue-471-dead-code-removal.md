@@ -9,8 +9,8 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 |---|------|-------|------------------|
 | 0 | Land PR #713 (five dead files) onto `main` | ✅ done | merged 2026-11-04 5:12 PM EST as `2287f1b5`; its file list deletes all five. §5 describes the pre-merge state |
 | 1 | Worktree + branch from post-#713 `main` | ⬜ open | |
-| 2 | Delete `supabase/functions/_shared/types.ts` | ⬜ open | zero importers (grep, §6) |
-| 3 | Delete `apps/bridge-agent/src/constants.ts` | ⬜ open | zero importers (grep, §6) |
+| 2 | Delete `supabase/functions/_shared/types.ts` | implemented | zero importers |
+| 3 | Delete `apps/bridge-agent/src/constants.ts` | implemented | zero importers |
 | 4 | Retire `sync-external` edge function (source, config, test, deployed copy) | ⬜ open | caller removed by #713; stub remains |
 | 5 | Retire `classify-erp-categories` admin-api route and its `OP_ACTIONS` entry | ⬜ open | handler returns 400 unconditionally |
 | 6 | Retire helper-api `POST /logs` and helper `sendLog` | ⬜ open | `sendLog` has no callers; route stores nothing |
@@ -219,3 +219,5 @@ Open questions: none that are business-meaning. The two OPEN engineering decisio
 1. **Could a brand-new session execute this without asking anything?** Yes. §5 gives every file:line, §9 gives the exact commands and gates per step, §10 names each test by behaviour, §12 says where credentials live and how CI/deploys run, and Step 0 tells it how to decide where to start.
 2. **Does it carry every piece of background and what was ruled out?** Yes. §3 and §6 explain the #713 dependency and the "loud 410" history; §7 lists the five rejected alternatives with reasons; §8 separates locked from open decisions with criteria.
 3. **Is the goal clear enough to steer by if a step is wrong?** Yes. §1 states the goal (gone or re-verified live, no user-visible change) and the concrete rule for a conflict: never force a deletion that has a real caller; record it on the issue instead.
+
+Execution: source retirement prepared for legacy taxonomy writer, canned classification route, no-op Helper logs and their unused client. Active worker classification remains. Live deployed-function retirement and admin unknown-action proof remain open on #471. No bridge runtime/version change.

@@ -220,6 +220,4 @@ export async function getOpenCheckouts(): Promise<{
   return get("/checkouts/open");
 }
 
-export async function sendLog(events: unknown[]): Promise<void> {
-  await post("/logs", { events }).catch(() => {/* best-effort */});
-}
+
