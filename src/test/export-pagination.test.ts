@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportRange } from "../../supabase/functions/_shared/export-pagination";
+import { exportOrderColumns, exportRange } from "../../supabase/functions/_shared/export-pagination";
 
 describe("export page boundaries", () => {
   it("keeps a non-multiple page separate from the next page", () => {
@@ -17,11 +17,7 @@ describe("export page boundaries", () => {
   });
 });
 
-import { orderedTableSource } from "../../supabase/functions/_shared/export-tables";
 it("orders junction exports by both identity columns instead of a nonexistent id", () => {
-  const columns: string[] = [];
-  const query = { select: () => query, order: (column: string) => { columns.push(column); return query; } };
-  const db = { from: () => query };
-  orderedTableSource(db as never, "asset_characters");
-  expect(columns).toEqual(["asset_id", "character_id"]);
+  expect(exportOrderColumns("asset_characters")).toEqual(["asset_id", "character_id"]);
+  expect(exportOrderColumns("assets")).toEqual(["id"]);
 });
