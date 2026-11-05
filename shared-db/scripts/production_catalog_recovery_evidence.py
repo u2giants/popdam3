@@ -91,9 +91,14 @@ def build_binding(repo, evidence, live_ledger, catalog, jobs, inputs):
         matched = [c for c in checks if c.get("migration_version") == version and named(c) and c.get("migration_sha256") == hashes[version] and isinstance(c.get("id"), str) and c["id"]]
         if not matched:
             raise ValueError("missing hash-bound named catalog contract or exact row count")
+        # Absence assertions are legitimate checks, but cannot alone prove that
+        # this version's applied behavior exists. Keep one positive, named,
+        # exact-SQL-bound assertion per version, then enforce every check.
+        if not any(type(c.get("expected_count")) is int and c["expected_count"] > 0 for c in matched):
+            raise ValueError("missing positive hash-bound named assertion for migration")
         for check in matched:
             result = [r for r in results if r.get("id") == check.get("id")]
-            if len(result) != 1 or type(check.get("expected_count")) is not int or check["expected_count"] <= 0 or type(result[0].get("actual_count")) is not int or type(result[0].get("expected_count")) is not int or result[0].get("actual_count") != check["expected_count"] or result[0].get("expected_count") != check["expected_count"]:
+            if len(result) != 1 or type(check.get("expected_count")) is not int or (check["expected_count"] < 0 or (check["expected_count"] == 0 and check.get("kind") != "exact_row_count")) or type(result[0].get("actual_count")) is not int or type(result[0].get("expected_count")) is not int or result[0].get("actual_count") != check["expected_count"] or result[0].get("expected_count") != check["expected_count"]:
                 raise ValueError("catalog contract did not pass")
     return {"schema_version": 1, "project_ref": PROJECT, **inputs, "migration_hashes": hashes,
             "ledger_added": wanted, "ledger_removed": [], "catalog_enforced": True,

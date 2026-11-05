@@ -158,3 +158,8 @@ The source-population assertions describe the verified post-apply snapshot; they
 are not a permanent cap on future curated imports. The 98 character-row actor
 count is independent protected live evidence because the existing typed sidecar
 accepts neither JSONB filters nor JSON-path column expressions.
+
+Verification-only catalog recovery requires at least one positive, named,
+SQL-hash-bound assertion for every applied version. Exact zero-row absence
+assertions may accompany that proof and must match too; zero-only evidence,
+non-integer counts and missing or duplicate results remain refused (#5621).

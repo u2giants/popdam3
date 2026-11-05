@@ -4,7 +4,7 @@
   "sites": [
     {
       "site": "scripts/production_catalog_recovery_evidence.py:93",
-      "semantic_key": "scripts/production_catalog_recovery_evidence.py:3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b:context-f7607e206e934c38403650b73351b3e040aea5d99a35e58e958986dba9124737",
+      "semantic_key": "scripts/production_catalog_recovery_evidence.py:3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b:context-a095f84a66700839c8377dc4a374abb9d89097a35e2b738d56ccc32c65323bc9",
       "line_sha256": "3243ca832d858662dd806e519cae0000212ec39564744d028559556db471717b",
       "disposition": "excluded",
       "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or a version without a hash-bound named assertion (a catalog contract, or for a data or pg_cron migration an exact row count; issue #4214). It preserves fail-closed validation and does not classify throughput readiness.",
@@ -17,6 +17,14 @@
       "disposition": "excluded",
       "reason": "This verification-only recovery diagnostic refuses incomplete immutable apply evidence or absent hash-bound named catalog contracts. It preserves fail-closed validation and does not classify throughput readiness.",
       "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:683d15b06114ab78a96901d3d1a6e5f856dc53c7cf6421929d34a1d80e660f4b:1"
+    },
+    {
+      "site": "scripts/production_catalog_recovery_evidence.py:98",
+      "semantic_key": "scripts/production_catalog_recovery_evidence.py:8f690da5f93246ef4fc2c95b699269a7d421a93a161df14b3177ad57c913a516:context-b0e36782830ec1d065464b88f291ce80b6a1e1c9eb91de6eb80f92285c57273e",
+      "line_sha256": "8f690da5f93246ef4fc2c95b699269a7d421a93a161df14b3177ad57c913a516",
+      "disposition": "excluded",
+      "reason": "This verification-only recovery diagnostic refuses a migration without at least one positive, named, exact-SQL-hash-bound assertion. Accompanying exact absence checks cannot alone prove applied behavior; every observed result still must match. It does not classify throughput readiness.",
+      "legacy_semantic_key": "scripts/production_catalog_recovery_evidence.py:8f690da5f93246ef4fc2c95b699269a7d421a93a161df14b3177ad57c913a516:1"
     }
   ]
 }

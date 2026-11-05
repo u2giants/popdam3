@@ -117,6 +117,54 @@ class RecoveryEvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.build(catalog=row)
 
 
+    def mixed_presence_and_absence(self):
+        row = copy.deepcopy(self.catalog)
+        absence = self.row_count_catalog(expected_count=0)["behavior_checks"][0]
+        row["behavior_checks"].append(absence)
+        row["behavior_results"]["behavior_checks"].append({"id": absence["id"], "actual_count": 0, "expected_count": 0})
+        return row
+
+    def test_positive_sql_bound_proof_can_include_an_exact_zero_absence(self):
+        self.assertTrue(self.build(catalog=self.mixed_presence_and_absence())["verification_only"])
+
+    def test_zero_only_proof_cannot_establish_applied_behavior(self):
+        row = self.row_count_catalog(expected_count=0)
+        row["behavior_results"]["behavior_checks"][0].update(actual_count=0, expected_count=0)
+        with self.assertRaisesRegex(ValueError, "missing positive"):
+            self.build(catalog=row)
+
+    def test_positive_proof_must_belong_to_the_same_version_and_sql(self):
+        for field, value in (("migration_version", "20260101000000"), ("migration_sha256", "0" * 64), ("contract", "")):
+            row = self.mixed_presence_and_absence()
+            row["behavior_checks"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.build(catalog=row)
+
+    def test_zero_absence_still_requires_exact_unique_integer_results(self):
+        for field, value in (("actual_count", 1), ("actual_count", False), ("actual_count", 0.0), ("expected_count", False), ("expected_count", "0")):
+            row = self.mixed_presence_and_absence()
+            row["behavior_results"]["behavior_checks"][-1][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.build(catalog=row)
+        for duplicate in (False, True):
+            row = self.mixed_presence_and_absence()
+            results = row["behavior_results"]["behavior_checks"]
+            if duplicate: results.append(copy.deepcopy(results[-1]))
+            else: results.pop()
+            with self.subTest(duplicate=duplicate), self.assertRaises(ValueError):
+                self.build(catalog=row)
+
+    def test_malformed_or_negative_declarations_remain_refused_with_positive_proof(self):
+        for value in (-1, False, 0.0, "0", None):
+            row = self.mixed_presence_and_absence()
+            row["behavior_checks"][-1]["expected_count"] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.build(catalog=row)
+        row = self.mixed_presence_and_absence()
+        row["behavior_checks"][-1].update(kind="catalog_contract", contract="opaque_zero")
+        with self.assertRaises(ValueError): self.build(catalog=row)
+
+
 class CurrentLiveCatalogueTests(unittest.TestCase):
     def test_current_capture_uses_enforcing_verifier_without_historical_delta(self):
         from unittest.mock import patch
