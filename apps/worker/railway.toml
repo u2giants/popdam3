@@ -1,6 +1,9 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+# Patterns remain relative to the repository root, including for this service's
+# apps/worker Docker context. Keep all build inputs and deploy config watched.
+watchPatterns = ["/apps/worker/**"]
 
 [deploy]
 # Keep IPv4 and permit Meta Model API over the supported IPv6 path.
