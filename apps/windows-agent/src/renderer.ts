@@ -827,6 +827,21 @@ export async function renderFile(
     return renderPdf(uncPath);
   }
 
+  // Retain the source identity, but use the existing PSD engines when an AI
+  // filename contains an actual Photoshop file (8BPS), not Illustrator bytes.
+  if (fileType === "ai") {
+    let isPsd = false;
+    try {
+      const fh = await open(withLongPathPrefix(uncPath), "r");
+      try {
+        const header = Buffer.alloc(4);
+        const { bytesRead } = await fh.read(header, 0, header.length, 0);
+        isPsd = bytesRead === header.length && header.toString("ascii") === "8BPS";
+      } finally { await fh.close(); }
+    } catch { /* Preserve ordinary renderer error reporting. */ }
+    if (isPsd) return renderFile(uncPath, "psd", compatWorker);
+  }
+
   // A few source files named .psd contain PDF bytes. Render their actual
   // content through the existing PDF path without changing source identity.
   if (fileType === "psd") {

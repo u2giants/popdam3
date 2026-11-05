@@ -227,12 +227,16 @@ Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page in
 ### Original embedded AI preview fallback
 
 When the normal AI renderers and exact sibling lookup fail, the Windows agent can
-use the JPEG saved inside that same source file's XMP metadata. It reads at most
-512 KiB from each end of the source, caps decoded preview pixels, rejects blank
-and compatibility-notice images, and never enlarges the preview. These saved
+use the JPEG saved inside that same source file's XMP metadata, or the original
+TIFF preview whose validated byte range is declared by a DOS binary EPS header.
+It reads at most 512 KiB from each end plus a TIFF preview capped at 4 MiB,
+caps decoded preview pixels, rejects blank and compatibility-notice images,
+and never enlarges the preview. These saved
 previews are commonly 256 pixels; they restore honest browsing/search coverage
 without claiming a full native render. The source file and asset identity remain
 unchanged. Files without a valid saved preview retain their existing failure.
+An AI-named source with a real Photoshop `8BPS` header uses the existing PSD
+renderer chain; neither the filename nor its recorded type is rewritten.
 
 
 ## 9. Moving the agent to another machine (lessons from edge-alien → edge-dev, 2026-10-01)
