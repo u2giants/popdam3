@@ -11,6 +11,7 @@ begin
       and (d.embedding_next_retry_at is null or d.embedding_next_retry_at <= now())
       and (d.embedding_lease_expires_at is null or d.embedding_lease_expires_at <= now())
       and d.embedding_error_category is distinct from 'permanent'
+      and nullif(d.metadata->>'thumbnail_url','') is not null
     order by (d.document_type = 'style_group') desc, d.indexed_at, d.document_type, d.entity_id
     for update skip locked limit 100$q$;
 end $$;
@@ -29,21 +30,22 @@ begin
   end if;
   if v_def not like '%((document_type = ''style_group''::text)) DESC, indexed_at, document_type, entity_id%'
      or v_def not like '%embedding IS NULL%'
-     or v_def not like '%IS DISTINCT FROM ''permanent''%' then
+     or v_def not like '%IS DISTINCT FROM ''permanent''%'
+     or v_def not like '%thumbnail_url%' then
     raise exception 'unexpected index shape: %', v_def;
   end if;
 
   -- Fixture rows: two style_group and two other docs with varied indexed_at,
   -- plus one ineligible row of each kind (permanent error, live lease).
   insert into public.dam_search_documents
-    (document_type, entity_id, search_text, indexed_at, embedding_error_category, embedding_lease_expires_at)
+    (document_type, entity_id, search_text, indexed_at, embedding_error_category, embedding_lease_expires_at, metadata)
   values
-    ('asset',       '00000000-0000-0000-0000-00000005482a', 't', '2000-01-01', null, null),
-    ('style_group', '00000000-0000-0000-0000-00000005482b', 't', '2000-01-03', null, null),
-    ('asset',       '00000000-0000-0000-0000-00000005482c', 't', '2000-01-02', null, null),
-    ('style_group', '00000000-0000-0000-0000-00000005482d', 't', '2000-01-04', null, null),
-    ('style_group', '00000000-0000-0000-0000-00000005482e', 't', '1999-01-01', 'permanent', null),
-    ('style_group', '00000000-0000-0000-0000-00000005482f', 't', '1999-01-01', null, now() + interval '1 hour');
+    ('asset',       '00000000-0000-0000-0000-00000005482a', 't', '2000-01-01', null, null, '{"thumbnail_url":"https://example.test/t.jpg"}'),
+    ('style_group', '00000000-0000-0000-0000-00000005482b', 't', '2000-01-03', null, null, '{"thumbnail_url":"https://example.test/t.jpg"}'),
+    ('asset',       '00000000-0000-0000-0000-00000005482c', 't', '2000-01-02', null, null, '{"thumbnail_url":"https://example.test/t.jpg"}'),
+    ('style_group', '00000000-0000-0000-0000-00000005482d', 't', '2000-01-04', null, null, '{"thumbnail_url":"https://example.test/t.jpg"}'),
+    ('style_group', '00000000-0000-0000-0000-00000005482e', 't', '1999-01-01', 'permanent', null, '{"thumbnail_url":"https://example.test/t.jpg"}'),
+    ('style_group', '00000000-0000-0000-0000-00000005482f', 't', '1999-01-01', null, now() + interval '1 hour', '{"thumbnail_url":"https://example.test/t.jpg"}');
 
   select array_agg(d.entity_id::text order by (d.document_type = 'style_group') desc, d.indexed_at, d.document_type, d.entity_id)
     into v_order
@@ -52,7 +54,8 @@ begin
     and d.embedding is null and d.embedding_attempts < d.embedding_max_attempts
     and (d.embedding_next_retry_at is null or d.embedding_next_retry_at <= now())
     and (d.embedding_lease_expires_at is null or d.embedding_lease_expires_at <= now())
-    and d.embedding_error_category is distinct from 'permanent';
+    and d.embedding_error_category is distinct from 'permanent'
+    and nullif(d.metadata->>'thumbnail_url','') is not null;
   v_expected := array[
     '00000000-0000-0000-0000-00000005482b', '00000000-0000-0000-0000-00000005482d',
     '00000000-0000-0000-0000-00000005482a', '00000000-0000-0000-0000-00000005482c'];
