@@ -4929,6 +4929,8 @@ export type Database = {
         Args: { p_asset_ids: string[] }
         Returns: {
           asset_id: string
+          extracted_at: string
+          parse_error: string
           source_text_sha256: string
         }[]
       }
