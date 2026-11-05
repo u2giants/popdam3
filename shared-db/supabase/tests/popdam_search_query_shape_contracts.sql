@@ -62,27 +62,35 @@ begin
   end if;
 end $$;
 
--- 4. Substring guard: punctuation-only disables substring; 3FZ enables it.
+-- 4. Execute the installed query CTE's actual guard, rather than a copy of
+-- its predicate or a substring check that could miss AND/OR mistakes.
 do $$
 declare
-  allow_punct boolean;
-  allow_code boolean;
+  guard_sql text;
+  sample record;
+  allowed boolean;
 begin
-  select bool_or(length(q.query_text) >= 3 and q.query_text ~ '[[:alnum:]]{3,}')
-  into allow_punct
-  from public.expand_dam_search_queries('!!!') q;
-  if coalesce(allow_punct, false) then
-    raise exception 'punctuation-only query enabled substring matching';
+  select split_part(split_part(prosrc, ' like_pattern,', 2),
+                    ' allow_substring', 1)
+    into guard_sql
+    from pg_proc
+   where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure;
+  if nullif(btrim(guard_sql), '') is null then
+    raise exception 'could not extract the installed substring guard';
   end if;
-  select bool_or(length(q.query_text) >= 3 and q.query_text ~ '[[:alnum:]]{3,}')
-  into allow_code
-  from public.expand_dam_search_queries('3FZ') q;
-  if not coalesce(allow_code, false) then
-    raise exception 'alphanumeric code 3FZ failed the substring token guard';
-  end if;
-  if position('or q.query_text ~ ''[0-9]''' in pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure)) = 0 then
-    raise exception 'all-letter three-letter words must not activate substring matching';
-  end if;
+  for sample in select * from (values
+    ('!!!', false), ('mat', false), ('3FZ', true), ('mats', true)
+  ) cases(query_text, expected)
+  loop
+    execute format(
+      'select coalesce(bool_or(%s), false) from public.expand_dam_search_queries($1) q',
+      guard_sql)
+      into allowed using sample.query_text;
+    if allowed is distinct from sample.expected then
+      raise exception 'substring guard for %: expected %, got %',
+        sample.query_text, sample.expected, allowed;
+    end if;
+  end loop;
 end $$;
 
 -- 5. Grants: anon denied; authenticated and service_role allowed.

@@ -17,6 +17,7 @@ values ('25060000-0000-4000-8000-000000000001', 'styleguides');
 do $contracts$
 declare
   v_result jsonb;
+  v_mode text;
 begin
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
@@ -319,6 +320,41 @@ begin
                   where item->>'style_guide_file_id' = '25060000-0000-4000-8000-000000000011') then
     raise exception 'contract 12: the semantic floor wrongly removed a keyword hit';
   end if;
+
+  -- #5613: one filename (A) mention must beat repeated PDF-body (D)
+  -- mentions in BOTH ranking call sites. Twenty body mentions would win with
+  -- the old D=0.1 weight, so reverting either call site breaks this test.
+  update public.style_guide_search_documents
+     set filename = case when style_guide_file_id = '25060000-0000-4000-8000-000000000011'
+                         then 'zz5613ariel.pdf' else 'unrelated.pdf' end,
+         search_vector = case
+           when style_guide_file_id = '25060000-0000-4000-8000-000000000011'
+             then setweight(to_tsvector('simple', 'zz5613ariel'), 'A')
+           else setweight(to_tsvector('simple', repeat('zz5613ariel ', 20)), 'D')
+         end,
+         pdf_text_status = 'extracted',
+         pdf_text_length = 260,
+         embedding = null
+   where style_guide_file_id in (
+     '25060000-0000-4000-8000-000000000011',
+     '25060000-0000-4000-8000-000000000014');
+
+  foreach v_mode in array array['files', 'guides']
+  loop
+    v_result := public.search_style_guide_library_v2(
+      p_result_mode => v_mode, p_query => 'zz5613ariel',
+      p_sort => 'relevance', p_limit => 200);
+    if (v_result->>'total')::integer is distinct from 2
+       or jsonb_array_length(v_result->'results') is distinct from 2
+       or (v_mode = 'files' and
+           (v_result->'results'->0->>'style_guide_file_id') is distinct from
+             '25060000-0000-4000-8000-000000000011')
+       or (v_mode = 'guides' and
+           (v_result->'results'->0->>'style_guide_name') is distinct from 'GuideA') then
+      raise exception 'contract 13: % filename match must outrank repeated PDF body: %',
+        v_mode, v_result;
+    end if;
+  end loop;
 
   execute 'set local role authenticated';
   perform set_config('request.jwt.claims',

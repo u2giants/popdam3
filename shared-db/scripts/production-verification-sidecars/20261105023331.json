@@ -19,7 +19,7 @@
       "check_ids": [
         "popsg_search_v2_pdf_body_ties"
       ],
-      "reason": "The dynamic guides-body execution is the existing reviewed search body with only its keyword rank weights changed, verified by the cited catalog contract (exact body md5, settings, privileges) and exercised by supabase/tests/popsg_search_style_guide_library_v2_contracts.sql in CI."
+      "reason": "This marker covers the dynamic guides-body execution at line 398. The migration changes keyword rank weights in both files-mode (line 284) and guides-mode (line 462); the catalog check pins the exact installed body, settings and privileges, not ranking behavior. Contract 13 in supabase/tests/popsg_search_style_guide_library_v2_contracts.sql separately asserts that an A-weight filename match outranks twenty D-weight PDF-body mentions in both modes when CI runs the SQL contracts."
     }
   ]
 }
