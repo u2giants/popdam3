@@ -22,7 +22,9 @@ function routerFixture() {
           return this;
         },
         eq(column: string, value: unknown) {
-          expect(column).toBe("agent_key_hash"); suppliedHash = value; return this;
+          expect(column).toBe("agent_key_hash");
+          suppliedHash = value;
+          return this;
         },
         async maybeSingle() {
           return { data: suppliedHash === hash(key) ? { id: pairedId, agent_name: "Synthetic", agent_type: "windows-render" } : null, error: null };
@@ -30,32 +32,50 @@ function routerFixture() {
       };
     },
     async rpc(name: string, params: Record<string, unknown>) {
-      expect(name).toBe("claim_tiff_jobs"); claims.push(params);
+      expect(name).toBe("claim_tiff_jobs");
+      claims.push(params);
       return { data: [], error: null };
     },
   };
   const http = {
-    corsServe(callback: typeof handler) { handler = callback; },
+    corsServe(callback: typeof handler) {
+      handler = callback;
+    },
     json: (value: unknown) => Response.json(value),
     err: (message: string, status = 400) => Response.json({ error: message }, { status }),
   };
   const source = readFileSync(new URL("../agent-api/index.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   runInNewContext(compiled, {
-    exports: {}, Request, Response, URL, Date,
-    Deno: { env: { get: () => undefined } }, console: { warn() {}, error() {}, log() {} },
+    exports: {},
+    Request,
+    Response,
+    URL,
+    Date,
+    Deno: { env: { get: () => undefined } },
+    console: { warn() {}, error() {}, log() {} },
     require(name: string) {
       if (name.endsWith("/http.ts")) return http;
       if (name.endsWith("/service-client.ts")) return { serviceClient: () => client };
       if (name.endsWith("/crypto.ts")) return { sha256Hex: async (value: string) => hash(value) };
-      return new Proxy({}, { get(_target, property) { throw new Error(`Unexpected dependency ${name}:${String(property)}`); } });
+      return new Proxy({}, {
+        get(_target, property) {
+          throw new Error(`Unexpected dependency ${name}:${String(property)}`);
+        },
+      });
     },
   });
-  return { pairedId, claims, request: (body: Record<string, unknown>, agentKey: string | null = key) => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (agentKey !== null) headers["x-agent-key"] = agentKey;
-    return handler(new Request("http://localhost/functions/v1/agent-api", { method: "POST", headers, body: JSON.stringify({ action: "claim-tiff-job", ...body }) }));
-  } };
+  return {
+    pairedId,
+    claims,
+    request: (body: Record<string, unknown>, agentKey: string | null = key) => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (agentKey !== null) headers["x-agent-key"] = agentKey;
+      return handler(
+        new Request("http://localhost/functions/v1/agent-api", { method: "POST", headers, body: JSON.stringify({ action: "claim-tiff-job", ...body }) }),
+      );
+    },
+  };
 }
 
 describe("actual agent router claim identity", () => {
@@ -70,7 +90,7 @@ describe("actual agent router claim identity", () => {
     expect(await response.json()).toEqual({ ok: true, jobs: [] });
     expect(fixture.claims).toEqual([{ p_agent_id: fixture.pairedId, p_batch_size: 1 }]);
   });
-  it.each([null, "invalid-synthetic-key"])("refuses unauthenticated claims without touching the queue (%s)", async key => {
+  it.each([null, "invalid-synthetic-key"])("refuses unauthenticated claims without touching the queue (%s)", async (key) => {
     const fixture = routerFixture();
     const response = await fixture.request({ agent_id: fixture.pairedId }, key);
     expect(response.status).toBe(401);
