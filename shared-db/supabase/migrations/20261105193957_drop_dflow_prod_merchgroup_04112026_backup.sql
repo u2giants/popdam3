@@ -19,6 +19,17 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Check the applying role's effective ownership, not an assumed operator role.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.oid = 'dflow_prod."merchGroup_04112026"'::regclass
+      AND (pg_has_role(c.relowner, 'USAGE') OR pg_has_role(n.nspowner, 'USAGE'))
+  ) THEN
+    RAISE EXCEPTION '5748: applying role % does not own the backup table or its schema', current_user;
+  END IF;
+
   SELECT count(*) INTO inbound
   FROM pg_constraint
   WHERE contype = 'f'
@@ -28,6 +39,9 @@ BEGIN
   END IF;
 
   DROP TABLE dflow_prod."merchGroup_04112026" RESTRICT;
+  IF to_regclass('dflow_prod."merchGroup_04112026"') IS NOT NULL THEN
+    RAISE EXCEPTION '5748: backup table still exists after DROP';
+  END IF;
 END
 $drop_backup$;
 
