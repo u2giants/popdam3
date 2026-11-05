@@ -13147,6 +13147,81 @@ export type Database = {
           },
         ]
       }
+      hts_rag_broker_opinions: {
+        Row: {
+          broker_code: string
+          broker_firm: string
+          broker_person: string | null
+          created_at: string
+          determination_id: string | null
+          evidence: Json
+          held_code: string | null
+          id: string
+          is_authoritative: boolean
+          notes: string | null
+          opinion_date: string
+          recorded_by: string
+          rfq_item_id: number | null
+          ruling_number: string | null
+          source_environment: string
+          subject_kind: string
+          updated_at: string
+        }
+        Insert: {
+          broker_code: string
+          broker_firm: string
+          broker_person?: string | null
+          created_at?: string
+          determination_id?: string | null
+          evidence?: Json
+          held_code?: string | null
+          id?: string
+          is_authoritative?: boolean
+          notes?: string | null
+          opinion_date: string
+          recorded_by: string
+          rfq_item_id?: number | null
+          ruling_number?: string | null
+          source_environment: string
+          subject_kind: string
+          updated_at?: string
+        }
+        Update: {
+          broker_code?: string
+          broker_firm?: string
+          broker_person?: string | null
+          created_at?: string
+          determination_id?: string | null
+          evidence?: Json
+          held_code?: string | null
+          id?: string
+          is_authoritative?: boolean
+          notes?: string | null
+          opinion_date?: string
+          recorded_by?: string
+          rfq_item_id?: number | null
+          ruling_number?: string | null
+          source_environment?: string
+          subject_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_broker_opinions_determination_fkey"
+            columns: ["determination_id"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_determinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hts_rag_broker_opinions_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
       hts_rag_classification_jobs: {
         Row: {
           actual_cost_usd: number | null
@@ -13964,28 +14039,34 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_partial: boolean
           new_code: string | null
           old_code: string
           revision: string
           source_environment: string
+          source_url: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_partial?: boolean
           new_code?: string | null
           old_code: string
           revision: string
           source_environment: string
+          source_url?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_partial?: boolean
           new_code?: string | null
           old_code?: string
           revision?: string
           source_environment?: string
+          source_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -14534,6 +14615,71 @@ export type Database = {
           },
         ]
       }
+      hts_rag_ruling_current_codes: {
+        Row: {
+          candidate_codes: string[]
+          confidence: string | null
+          created_at: string
+          current_code: string | null
+          decided_at: string
+          decided_by: string
+          held_code: string
+          hts_revision: string
+          id: string
+          mapping_path: string[]
+          method: string
+          reason: string | null
+          ruling_number: string
+          source_environment: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_codes?: string[]
+          confidence?: string | null
+          created_at?: string
+          current_code?: string | null
+          decided_at?: string
+          decided_by: string
+          held_code: string
+          hts_revision: string
+          id?: string
+          mapping_path?: string[]
+          method: string
+          reason?: string | null
+          ruling_number: string
+          source_environment: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_codes?: string[]
+          confidence?: string | null
+          created_at?: string
+          current_code?: string | null
+          decided_at?: string
+          decided_by?: string
+          held_code?: string
+          hts_revision?: string
+          id?: string
+          mapping_path?: string[]
+          method?: string
+          reason?: string | null
+          ruling_number?: string
+          source_environment?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hts_rag_ruling_current_codes_ruling_fkey"
+            columns: ["ruling_number"]
+            isOneToOne: false
+            referencedRelation: "hts_rag_rulings"
+            referencedColumns: ["ruling_number"]
+          },
+        ]
+      }
       hts_rag_ruling_ingest_jobs: {
         Row: {
           attempt_count: number
@@ -14906,6 +15052,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      item_classification_fact: {
+        Row: {
+          answered_at: string
+          answered_by: string
+          created_at: string
+          fact_key: string
+          fact_value: string
+          family: string
+          id: string
+          item_ref: string
+          source: string
+          source_environment: string
+          updated_at: string
+        }
+        Insert: {
+          answered_at?: string
+          answered_by: string
+          created_at?: string
+          fact_key: string
+          fact_value: string
+          family: string
+          id?: string
+          item_ref: string
+          source: string
+          source_environment: string
+          updated_at?: string
+        }
+        Update: {
+          answered_at?: string
+          answered_by?: string
+          created_at?: string
+          fact_key?: string
+          fact_value?: string
+          family?: string
+          id?: string
+          item_ref?: string
+          source?: string
+          source_environment?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -16724,6 +16912,145 @@ export type Database = {
         }
         Relationships: []
       }
+      customs_benchmark_artifact: {
+        Row: {
+          byte_count: number
+          content_sha256: string
+          dataset_id: string
+          media_type: string
+          private_verified: boolean
+          relative_path: string
+          storage_bucket: string
+          storage_endpoint: string
+          storage_key: string
+          structured_content: Json | null
+        }
+        Insert: {
+          byte_count: number
+          content_sha256: string
+          dataset_id: string
+          media_type: string
+          private_verified: boolean
+          relative_path: string
+          storage_bucket: string
+          storage_endpoint: string
+          storage_key: string
+          structured_content?: Json | null
+        }
+        Update: {
+          byte_count?: number
+          content_sha256?: string
+          dataset_id?: string
+          media_type?: string
+          private_verified?: boolean
+          relative_path?: string
+          storage_bucket?: string
+          storage_endpoint?: string
+          storage_key?: string
+          structured_content?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customs_benchmark_artifact_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "customs_benchmark_dataset"
+            referencedColumns: ["dataset_id"]
+          },
+        ]
+      }
+      customs_benchmark_dataset: {
+        Row: {
+          authority_context: string
+          authority_scope: string
+          benchmark_name: string
+          dataset_id: string
+          imported_at: string
+          observation_count: number
+          original_intelligence: Json
+          source_byte_count: number
+          source_file_count: number
+          source_manifest: Json
+        }
+        Insert: {
+          authority_context: string
+          authority_scope: string
+          benchmark_name: string
+          dataset_id: string
+          imported_at?: string
+          observation_count: number
+          original_intelligence: Json
+          source_byte_count: number
+          source_file_count: number
+          source_manifest: Json
+        }
+        Update: {
+          authority_context?: string
+          authority_scope?: string
+          benchmark_name?: string
+          dataset_id?: string
+          imported_at?: string
+          observation_count?: number
+          original_intelligence?: Json
+          source_byte_count?: number
+          source_file_count?: number
+          source_manifest?: Json
+        }
+        Relationships: []
+      }
+      customs_benchmark_observation: {
+        Row: {
+          current_law_verified: boolean
+          dataset_id: string
+          evidence_status: string
+          exact_historical_candidate: boolean
+          historical_hts: string | null
+          original_record: Json
+          packet_reference: string | null
+          product_description: string | null
+          product_family: string | null
+          section: string
+          source_ordinal: number
+          style_number: string | null
+        }
+        Insert: {
+          current_law_verified?: boolean
+          dataset_id: string
+          evidence_status: string
+          exact_historical_candidate?: boolean
+          historical_hts?: string | null
+          original_record: Json
+          packet_reference?: string | null
+          product_description?: string | null
+          product_family?: string | null
+          section: string
+          source_ordinal: number
+          style_number?: string | null
+        }
+        Update: {
+          current_law_verified?: boolean
+          dataset_id?: string
+          evidence_status?: string
+          exact_historical_candidate?: boolean
+          historical_hts?: string | null
+          original_record?: Json
+          packet_reference?: string | null
+          product_description?: string | null
+          product_family?: string | null
+          section?: string
+          source_ordinal?: number
+          style_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customs_benchmark_observation_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "customs_benchmark_dataset"
+            referencedColumns: ["dataset_id"]
+          },
+        ]
+      }
       dcp_asset: {
         Row: {
           checksum: string | null
@@ -16739,6 +17066,7 @@ export type Database = {
           lifecycle_status: string
           raw: Json
           relative_folder_path: string | null
+          sku_sg_file_key: string | null
           source_asset_id: string | null
           source_path: string
           source_system: string
@@ -16760,6 +17088,7 @@ export type Database = {
           lifecycle_status?: string
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path: string
           source_system?: string
@@ -16781,6 +17110,7 @@ export type Database = {
           lifecycle_status?: string
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path?: string
           source_system?: string
@@ -18095,6 +18425,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          sku_sg_label_key: string | null
           source_guide_id: string | null
           source_path: string
           source_system: string
@@ -18118,6 +18449,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path: string
           source_system?: string
@@ -18141,6 +18473,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path?: string
           source_system?: string
@@ -22133,6 +22466,7 @@ export type Database = {
           last_seen_crawl_id: string | null
           raw: Json
           relative_folder_path: string | null
+          sku_sg_file_key: string | null
           source_asset_id: string | null
           source_path: string
           source_system: string
@@ -22152,6 +22486,7 @@ export type Database = {
           last_seen_crawl_id?: string | null
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path: string
           source_system?: string
@@ -22171,6 +22506,7 @@ export type Database = {
           last_seen_crawl_id?: string | null
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path?: string
           source_system?: string
@@ -23240,6 +23576,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          sku_sg_label_key: string | null
           source_guide_id: string | null
           source_path: string
           source_system: string
@@ -23260,6 +23597,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path: string
           source_system?: string
@@ -23280,6 +23618,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path?: string
           source_system?: string
@@ -24033,6 +24372,7 @@ export type Database = {
           page_number: number
           raw_observation: Json
           raw_observation_sha256: string
+          sku_sg_file_key: string | null
           source_display_order: number | null
         }
         Insert: {
@@ -24046,6 +24386,7 @@ export type Database = {
           page_number: number
           raw_observation: Json
           raw_observation_sha256: string
+          sku_sg_file_key?: string | null
           source_display_order?: number | null
         }
         Update: {
@@ -24059,6 +24400,7 @@ export type Database = {
           page_number?: number
           raw_observation?: Json
           raw_observation_sha256?: string
+          sku_sg_file_key?: string | null
           source_display_order?: number | null
         }
         Relationships: [
@@ -24088,6 +24430,7 @@ export type Database = {
           is_actively_observed: boolean
           last_seen_capture_key: string
           raw_source: Json
+          sku_sg_label_key: string | null
           source_guide_key: string | null
           source_identity_key: string
         }
@@ -24100,6 +24443,7 @@ export type Database = {
           is_actively_observed?: boolean
           last_seen_capture_key: string
           raw_source: Json
+          sku_sg_label_key?: string | null
           source_guide_key?: string | null
           source_identity_key: string
         }
@@ -24112,6 +24456,7 @@ export type Database = {
           is_actively_observed?: boolean
           last_seen_capture_key?: string
           raw_source?: Json
+          sku_sg_label_key?: string | null
           source_guide_key?: string | null
           source_identity_key?: string
         }
@@ -24207,6 +24552,7 @@ export type Database = {
           last_seen_crawl_id: string | null
           raw: Json
           relative_folder_path: string | null
+          sku_sg_file_key: string | null
           source_asset_id: string | null
           source_path: string
           source_system: string
@@ -24226,6 +24572,7 @@ export type Database = {
           last_seen_crawl_id?: string | null
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path: string
           source_system?: string
@@ -24245,6 +24592,7 @@ export type Database = {
           last_seen_crawl_id?: string | null
           raw?: Json
           relative_folder_path?: string | null
+          sku_sg_file_key?: string | null
           source_asset_id?: string | null
           source_path?: string
           source_system?: string
@@ -25302,6 +25650,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          sku_sg_label_key: string | null
           source_guide_id: string | null
           source_path: string
           source_system: string
@@ -25322,6 +25671,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path: string
           source_system?: string
@@ -25342,6 +25692,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_guide_id?: string | null
           source_path?: string
           source_system?: string
@@ -25487,6 +25838,7 @@ export type Database = {
           resolved_by: string | null
           restriction_labels: Json
           scope_paths: Json
+          sku_sg_file_key: string | null
           source_captured_at: string
           source_hash: string
           source_url: string
@@ -25512,6 +25864,7 @@ export type Database = {
           resolved_by?: string | null
           restriction_labels: Json
           scope_paths: Json
+          sku_sg_file_key?: string | null
           source_captured_at: string
           source_hash: string
           source_url: string
@@ -25537,6 +25890,7 @@ export type Database = {
           resolved_by?: string | null
           restriction_labels?: Json
           scope_paths?: Json
+          sku_sg_file_key?: string | null
           source_captured_at?: string
           source_hash?: string
           source_url?: string
@@ -26344,6 +26698,7 @@ export type Database = {
           resolution_status: string
           resolved_at: string | null
           resolved_by: string | null
+          sku_sg_label_key: string | null
           source_captured_at: string
           source_url: string
           style_guide_key: string
@@ -26360,6 +26715,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_captured_at: string
           source_url: string
           style_guide_key: string
@@ -26376,6 +26732,7 @@ export type Database = {
           resolution_status?: string
           resolved_at?: string | null
           resolved_by?: string | null
+          sku_sg_label_key?: string | null
           source_captured_at?: string
           source_url?: string
           style_guide_key?: string
@@ -27262,6 +27619,7 @@ export type Database = {
           publication_date_text: string | null
           raw: Json
           rendition_base_url: string | null
+          sku_sg_file_key: string | null
           source_created_at: string | null
           source_file_id: string | null
           source_object_id: string
@@ -27289,6 +27647,7 @@ export type Database = {
           publication_date_text?: string | null
           raw: Json
           rendition_base_url?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_file_id?: string | null
           source_object_id: string
@@ -27316,6 +27675,7 @@ export type Database = {
           publication_date_text?: string | null
           raw?: Json
           rendition_base_url?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_file_id?: string | null
           source_object_id?: string
@@ -28059,6 +28419,7 @@ export type Database = {
           capture_id: string
           is_multi_select: boolean
           raw: Json
+          sku_sg_label_key: string | null
           source_field_label: string
           source_field_name: string
           source_value_id: string | null
@@ -28070,6 +28431,7 @@ export type Database = {
           capture_id: string
           is_multi_select: boolean
           raw: Json
+          sku_sg_label_key?: string | null
           source_field_label: string
           source_field_name: string
           source_value_id?: string | null
@@ -28081,6 +28443,7 @@ export type Database = {
           capture_id?: string
           is_multi_select?: boolean
           raw?: Json
+          sku_sg_label_key?: string | null
           source_field_label?: string
           source_field_name?: string
           source_value_id?: string | null
@@ -33060,6 +33423,7 @@ export type Database = {
           pixel_width: number | null
           raw: Json
           raw_keyword_text: string | null
+          sku_sg_file_key: string | null
           source_created_at: string | null
           source_hash: string
           source_imported_at: string | null
@@ -33083,6 +33447,7 @@ export type Database = {
           pixel_width?: number | null
           raw: Json
           raw_keyword_text?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_hash: string
           source_imported_at?: string | null
@@ -33106,6 +33471,7 @@ export type Database = {
           pixel_width?: number | null
           raw?: Json
           raw_keyword_text?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_hash?: string
           source_imported_at?: string | null
@@ -33724,6 +34090,7 @@ export type Database = {
           guide_family: string | null
           is_colon_nested: boolean
           raw: Json
+          sku_sg_label_key: string | null
           value_key: string
           value_label: string
         }
@@ -33734,6 +34101,7 @@ export type Database = {
           guide_family?: string | null
           is_colon_nested: boolean
           raw: Json
+          sku_sg_label_key?: string | null
           value_key: string
           value_label: string
         }
@@ -33744,6 +34112,7 @@ export type Database = {
           guide_family?: string | null
           is_colon_nested?: boolean
           raw?: Json
+          sku_sg_label_key?: string | null
           value_key?: string
           value_label?: string
         }
@@ -36666,6 +37035,7 @@ export type Database = {
           last_seen_at: string
           raw: Json
           season: string | null
+          sku_sg_file_key: string | null
           source_created_at: string | null
           source_hash: string
           source_id: string
@@ -36691,6 +37061,7 @@ export type Database = {
           last_seen_at?: string
           raw: Json
           season?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_hash: string
           source_id: string
@@ -36716,6 +37087,7 @@ export type Database = {
           last_seen_at?: string
           raw?: Json
           season?: string | null
+          sku_sg_file_key?: string | null
           source_created_at?: string | null
           source_hash?: string
           source_id?: string
@@ -37450,6 +37822,7 @@ export type Database = {
           label: string
           last_seen_at: string
           raw: Json
+          sku_sg_label_key: string | null
           source_hash: string
           source_id: string | null
           source_namespace: string
@@ -37472,6 +37845,7 @@ export type Database = {
           label: string
           last_seen_at?: string
           raw: Json
+          sku_sg_label_key?: string | null
           source_hash: string
           source_id?: string | null
           source_namespace: string
@@ -37494,6 +37868,7 @@ export type Database = {
           label?: string
           last_seen_at?: string
           raw?: Json
+          sku_sg_label_key?: string | null
           source_hash?: string
           source_id?: string | null
           source_namespace?: string
@@ -39351,6 +39726,18 @@ export type Database = {
           source_style_guide_key: string | null
           source_system: string | null
           style_guide_label: string | null
+        }
+        Relationships: []
+      }
+      asset_file_style_guide_keys: {
+        Row: {
+          core_style_guide_id: string | null
+          file_name_norm: string | null
+          matched_file_name: string | null
+          source_style_guide_key: string | null
+          source_system: string | null
+          style_guide_label: string | null
+          style_guide_label_key: string | null
         }
         Relationships: []
       }
@@ -42089,6 +42476,27 @@ export type Database = {
           },
         ]
       }
+      asset_designer_sheet_backup: {
+        Row: {
+          asset_id: string
+          backed_up_at: string
+          designer_name: string | null
+          technical_designer_name: string | null
+        }
+        Insert: {
+          asset_id: string
+          backed_up_at?: string
+          designer_name?: string | null
+          technical_designer_name?: string | null
+        }
+        Update: {
+          asset_id?: string
+          backed_up_at?: string
+          designer_name?: string | null
+          technical_designer_name?: string | null
+        }
+        Relationships: []
+      }
       asset_effective_tags: {
         Row: {
           asset_id: string
@@ -43623,6 +44031,18 @@ export type Database = {
         }
         Relationships: []
       }
+      known_designer_first_name: {
+        Row: {
+          first_name: string
+        }
+        Insert: {
+          first_name: string
+        }
+        Update: {
+          first_name?: string
+        }
+        Relationships: []
+      }
       licensors: {
         Row: {
           created_at: string
@@ -43684,11 +44104,18 @@ export type Database = {
         Row: {
           asset_id: string | null
           char_count: number
+          declared_style_guide_key: string | null
+          declared_style_guide_label: string | null
+          extracted_fields: Json | null
           extracted_text: string | null
           extraction_error: string | null
           extraction_method: string
           filename: string
           id: string
+          indra_rescan_at: string | null
+          indra_rescan_error: string | null
+          indra_rescan_outcome: string | null
+          ocr_engine: string | null
           page_count: number | null
           relative_path: string
           sampled_at: string
@@ -43697,11 +44124,18 @@ export type Database = {
         Insert: {
           asset_id?: string | null
           char_count?: number
+          declared_style_guide_key?: string | null
+          declared_style_guide_label?: string | null
+          extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
           extraction_method: string
           filename: string
           id?: string
+          indra_rescan_at?: string | null
+          indra_rescan_error?: string | null
+          indra_rescan_outcome?: string | null
+          ocr_engine?: string | null
           page_count?: number | null
           relative_path: string
           sampled_at?: string
@@ -43710,11 +44144,18 @@ export type Database = {
         Update: {
           asset_id?: string | null
           char_count?: number
+          declared_style_guide_key?: string | null
+          declared_style_guide_label?: string | null
+          extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
           extraction_method?: string
           filename?: string
           id?: string
+          indra_rescan_at?: string | null
+          indra_rescan_error?: string | null
+          indra_rescan_outcome?: string | null
+          ocr_engine?: string | null
           page_count?: number | null
           relative_path?: string
           sampled_at?: string
@@ -43729,6 +44170,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdf_text_samples_backup: {
+        Row: {
+          asset_id: string
+          backed_up_at: string
+          char_count: number | null
+          extracted_text: string | null
+          extraction_error: string | null
+          extraction_method: string | null
+          filename: string | null
+          page_count: number | null
+          relative_path: string | null
+          sampled_at: string | null
+          thumbnail_url: string | null
+        }
+        Insert: {
+          asset_id: string
+          backed_up_at?: string
+          char_count?: number | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          filename?: string | null
+          page_count?: number | null
+          relative_path?: string | null
+          sampled_at?: string | null
+          thumbnail_url?: string | null
+        }
+        Update: {
+          asset_id?: string
+          backed_up_at?: string
+          char_count?: number | null
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method?: string | null
+          filename?: string | null
+          page_count?: number | null
+          relative_path?: string | null
+          sampled_at?: string | null
+          thumbnail_url?: string | null
+        }
+        Relationships: []
       }
       popdam_item_state: {
         Row: {
@@ -44310,6 +44793,33 @@ export type Database = {
           source_system?: string
           style_guide_label?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_style_guide_resolver_progress: {
+        Row: {
+          active_link_ids: string[]
+          input_hash: string
+          output_hash: string
+          portal_hash: string
+          resolved_at: string
+          sku: string
+        }
+        Insert: {
+          active_link_ids?: string[]
+          input_hash: string
+          output_hash: string
+          portal_hash: string
+          resolved_at: string
+          sku: string
+        }
+        Update: {
+          active_link_ids?: string[]
+          input_hash?: string
+          output_hash?: string
+          portal_hash?: string
+          resolved_at?: string
+          sku?: string
         }
         Relationships: []
       }
@@ -45797,6 +46307,10 @@ export type Database = {
         }[]
       }
       apply_erp_item_updates: { Args: { p_items: Json }; Returns: Json }
+      apply_sheet_designers: {
+        Args: { p_asset_id: string; p_creative: string; p_technical: string }
+        Returns: Record<string, unknown>
+      }
       approve_licensor_alias: {
         Args: {
           p_alias: string
@@ -45815,6 +46329,14 @@ export type Database = {
       }
       backfill_pdf_files_used: { Args: never; Returns: number }
       backfill_pdf_files_used_v2: { Args: never; Returns: number }
+      backfill_pdf_sheet_designers: {
+        Args: { p_after: string; p_limit?: number }
+        Returns: Json
+      }
+      backfill_sku_style_guide_key_batch: {
+        Args: { p_batch_size?: number }
+        Returns: number
+      }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
@@ -45862,6 +46384,15 @@ export type Database = {
         }
       }
       claim_pdf_backfill_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          filename: string
+          id: string
+          needs_thumbnail: boolean
+          relative_path: string
+        }[]
+      }
+      claim_pdf_rescan_batch: {
         Args: { p_limit?: number }
         Returns: {
           filename: string
@@ -45970,6 +46501,7 @@ export type Database = {
           last_id: string
         }[]
       }
+      commit_pdf_rescan_batch: { Args: { p_rows: Json }; Returns: Json }
       complete_style_guide_pdf_text: {
         Args: {
           p_content_identity: string
@@ -45993,6 +46525,7 @@ export type Database = {
         Returns: boolean
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
+      count_pdf_rescan_remaining: { Args: never; Returns: number }
       create_dam_order: {
         Args: { p_lines?: Json; p_order: Json }
         Returns: string
@@ -46221,12 +46754,19 @@ export type Database = {
         }[]
       }
       find_dam_order_list_row: {
-        Args: { p_filters?: Json; p_search: string; p_sort?: Json }
+        Args: {
+          p_filters?: Json
+          p_occurrence?: number
+          p_search: string
+          p_sort?: Json
+        }
         Returns: {
+          match_count: number
           order_line_id: string
           row_index: number
         }[]
       }
+      finish_sku_style_guide_catchup: { Args: never; Returns: undefined }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
       get_ai_tag_candidates: {
         Args: {
@@ -46245,6 +46785,7 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      get_dam_asset_taxonomy_counts: { Args: never; Returns: Json }
       get_dam_customer_facets: { Args: never; Returns: Json }
       get_dam_material_facets: {
         Args: never
@@ -46261,6 +46802,7 @@ export type Database = {
           quantity_source: string
         }[]
       }
+      get_dam_order_list_status_counts: { Args: never; Returns: Json }
       get_dam_order_sales_order_dates: {
         Args: { p_line_ids: string[] }
         Returns: {
@@ -46283,6 +46825,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_dam_order_vendor_ids: {
+        Args: { p_line_ids: string[] }
+        Returns: {
+          order_line_id: string
+          vendor_code: string
+        }[]
+      }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
@@ -46296,6 +46845,15 @@ export type Database = {
           shared_blks_read: number
           total_exec_ms: number
         }[]
+      }
+      get_dam_style_group_asset_count: {
+        Args: {
+          p_fallback_terms?: string[]
+          p_filters?: Json
+          p_min_date?: string
+          p_search_ids?: string[]
+        }
+        Returns: number
       }
       get_dam_style_tracker_license_status: {
         Args: { p_row_ids: string[] }
@@ -46335,6 +46893,8 @@ export type Database = {
         Args: { p_asset_ids: string[] }
         Returns: {
           asset_id: string
+          extracted_at: string
+          parse_error: string
           source_text_sha256: string
         }[]
       }
@@ -46404,6 +46964,7 @@ export type Database = {
       }
       image_embed_status: { Args: never; Returns: Json }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
+      is_known_designer_value: { Args: { p_value: string }; Returns: boolean }
       is_plausible_source_file_name: {
         Args: { p_name: string }
         Returns: boolean
@@ -46466,6 +47027,10 @@ export type Database = {
       }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       parse_pdf_files_used_v2: { Args: { p_asset_id: string }; Returns: number }
+      prepare_sku_style_guide_resolution: {
+        Args: { p_full?: boolean }
+        Returns: number
+      }
       preview_stale_sg_files: {
         Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
         Returns: {
@@ -46804,6 +47369,10 @@ export type Database = {
         Args: { p_threshold?: number }
         Returns: number
       }
+      resolve_sku_style_guide_batch: {
+        Args: { p_batch_size?: number }
+        Returns: Json
+      }
       resolve_sku_style_guide_links: { Args: never; Returns: Json }
       retry_sg_render_errors:
         | { Args: { p_file_ids?: string[] }; Returns: number }
@@ -46940,6 +47509,10 @@ export type Database = {
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
+      }
+      sku_declared_style_guide_label: {
+        Args: { p_text: string }
+        Returns: string
       }
       style_group_key_for_sku: {
         Args: { p_relative_path: string }
