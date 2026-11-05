@@ -1446,7 +1446,7 @@ export async function tick(): Promise<void> {
         next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
       };
-      const persisted = await persistOpState(opKey, failureState);
+      const persisted = await persistOpState(opKey, failureState, { onlyIfRunning: true });
       if (persisted && failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
@@ -1557,7 +1557,7 @@ export async function tick(): Promise<void> {
           last_successful_cursor: cursor,
           next_auto_resume_at: nextAutoResumeAt(reason, claimedState),
           updated_at: new Date().toISOString(),
-        });
+        }, { onlyIfRunning: true });
         return;
       }
       if (claimedState.external_job?.provider_batch_id) {
@@ -1708,7 +1708,7 @@ export async function tick(): Promise<void> {
         next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
       };
-      const persisted = await persistOpState(opKey, failureState);
+      const persisted = await persistOpState(opKey, failureState, { onlyIfRunning: true });
       if (persisted && failureState.status === "failed") await recordStyleGroupTerminalOutcome(opKey, failureState, "failed");
       return;
     }
