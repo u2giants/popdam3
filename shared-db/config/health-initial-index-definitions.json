@@ -1,0 +1,23 @@
+{
+  "health-dam-errored-5622": {
+    "table": "public.dam_search_documents",
+    "canonical": "dam_search_health_errored_idx",
+    "preview_shadow": "dam_search_health_errored_preview_5622",
+    "definition": "USING btree (entity_id) WHERE (embedding_error IS NOT NULL)",
+    "preview_version": "20261105073854"
+  },
+  "health-dam-write-5622": {
+    "table": "public.dam_search_documents",
+    "canonical": "dam_search_health_last_write_idx",
+    "preview_shadow": "dam_search_health_last_write_preview_5622",
+    "definition": "USING btree (embedding_updated_at DESC) WHERE (embedding_updated_at IS NOT NULL)",
+    "preview_version": "20261105073903"
+  },
+  "health-sg-write-5622": {
+    "table": "public.style_guide_search_documents",
+    "canonical": "sg_search_health_last_write_idx",
+    "preview_shadow": "sg_search_health_last_write_preview_5622",
+    "definition": "USING btree (embedding_updated_at DESC) WHERE (is_active AND (embedding_updated_at IS NOT NULL))",
+    "preview_version": "20261105073911"
+  }
+}

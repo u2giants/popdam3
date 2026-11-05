@@ -62,12 +62,13 @@ transaction_timeout=3s. Normal RPC request ceilings are unchanged. Existing rese
 overloads, eligible pending semantics, live leases and missing-thumbnail
 exclusions remain preserved.
 
-The automatic preview/production workflow still pins Supabase CLI 2.105.0. Its
-[recorded atomicity experiment](issue-611-db-push-atomicity-20260810.md) proves each
-file's SQL and ledger row commit together, and earlier files remain committed if
-a later file fails. Separate files therefore release write-blocking locks
-between index builds. A partial batch must be reported exactly; the app is held
-until all four ledger versions and the live RPC contract are proven.
+The original delivery assumption about Supabase CLI 2.105.0 was false: normal
+CLI execution did not preserve transaction-local budgets or atomic SQL/ledger
+commit. PR5660 repaired the existing governed runner with exact hash/target
+opt-ins and independent transactions per file. Actual production execution
+subsequently proved first-file timeout rollback of both DDL and ledger; it did
+not deliver these indexes. The app remains held until genuine production
+indexes and the live RPC contract are proven.
 
 No manual production DDL or concurrent-index bypass is authorized by this note.
 
@@ -82,3 +83,66 @@ No manual production DDL or concurrent-index bypass is authorized by this note.
 Current source admission rejects unmerged migrations below main version 20261105061627. Approved read-only checks freshly found all four original versions 20261105043036, 20261105043042, 20261105043048, 20261105043054 absent from BOTH shared preview and production ledgers at 2:38 AM EST. Their original source commits and permanent reservation refs remain intact and will not be reused. Only the four unapplied file paths were renamed to 20261105073854, 20261105073903, 20261105073911, 20261105073920. Each SQL Git blob is byte-identical; lock/statement/transaction budgets remain 500ms/2500ms/3s. No old preview evidence was deleted and no database apply was performed.
 
 - [ ] After normal promotion, the actual health REST response must finish within eight seconds and contain both corpora with non-NULL pending/error counts. Private SQL fixture timings are not this proof; existing request ceilings stay unchanged.
+
+
+## Initial concurrent builder source candidate — not activated
+
+The current candidate extends the existing exact-index maintenance framework;
+its operation policy remains unchanged and contains no health activation. The
+fixed registry permits only the DAM error index and DAM/PopSG last-write indexes.
+Production uses their canonical names. Preview builds three fixed owner-5622
+shadow names against the actual preview tables, verifies definition, table/OID,
+owner, validity and readiness, and removes only its proven owned shadows. Existing
+preview canonical indexes and all four historical preview ledger rows stay intact.
+
+Admission requires both canonical and shadow index WRITE claims plus the actual
+table READ dependency. Canonical foreign READ/WRITE collision rules remain active;
+a foreign table WRITE blocks activation. Operation-specific source/digest binding
+is separate from the unchanged existing SG operation. Both use native exclusive
+target lanes and fencing; neither may adopt another operation's receipt or lease.
+
+Immutable started/built/completed receipts bind exact target, project, source,
+executor, definition and admitted owner scope. Only the same process
+that successfully executes the exact CREATE may immediately capture its actual
+OID and persist the built receipt. A crash after CREATE but before that receipt
+leaves an ambiguous object: resumed execution refuses and preserves it, even if
+name/definition/owner match. Existing immutable built-OID receipts permit bounded
+cleanup recovery; prior absence or a started receipt alone never proves ownership. Changed OIDs, wrong targets,
+foreign preimages, invalid/incomplete builds and missing ownership refuse safely.
+An invalid interrupted index is preserved for governed investigation, never dropped
+by name alone. Preview canonical OIDs are checked again after shadow cleanup.
+
+Actual isolated PG17 tests passed nine build/crash/cleanup/concurrent-writer/target
+drills, including started-then-foreign exact-valid index and crash-before-owned-OID
+receipt preservation. Dedicated Python ownership/retirement tests passed 19 and
+receipt/claim regression passed 23. A broader 623-test producer/guard/selector
+regression passed before the final ownership tightening; native current-head CI
+remains required.
+These are disposable fixture proofs, not a shared-preview rehearsal or production
+acceptance. No shared target was changed by these tests.
+
+- [ ] Complete reviewed native production-only retirement of the four old pending versions, preserving immutable SQL and applied preview history.
+- [ ] Author a fresh RPC-only successor with exact valid-index and expected function-prestate guards; preserve legacy reset overload and ACLs.
+- [ ] Review and activate separately pinned operations only after genuine foreign-claim/source-pin reconciliation.
+- [ ] Genuine shared-preview builder receipts, automatic production delivery, bounded REST proof and ordinary live pipeline acceptance.
+
+
+## Source-only retirement, producer pin and permanent test routing
+
+The candidate adds only the four own health versions to the native hard-block and
+retirement catalogues, preserving every historical SQL/reservation/preview ledger
+and all existing T1/T9 entries. It does not claim a replacement is delivered. The
+new fixed registry receives one additive PREVIEW_PRODUCER_PATHS pin; foreign
+reader exemptions and all upstream producer pins remain untouched.
+
+A distinct named database-contract step runs the existing health PG17 test file
+against a newly created localhost-only disposable database. It uses the existing
+test role, grants no privilege, creates no new role/helper/extension, and cleans
+only its exact newly owned database without FORCE or session termination. The
+actual local same-harness nine-test run passed. Foreign HTS/browse/actor steps
+and the existing SG operation policy remain unchanged.
+
+The fresh RPC-only successor is still pending source work. No health operation
+is enabled, and no shared target or production retirement has changed merely
+because this candidate exists. Coordinator source review and current native CI
+are required before any merge; live acceptance stays unchecked.

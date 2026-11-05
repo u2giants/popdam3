@@ -38,6 +38,9 @@ def operation(policy,operation_id):
     if set(policy)!={'schema_version','operations'} or policy['schema_version']!=1 or not isinstance(policy['operations'],dict):
         raise Refusal('maintenance policy shape refused')
     entry=policy['operations'].get(operation_id)
+    if operation_id.startswith('health-'):
+        from health_initial_index_maintenance import validate_operation
+        return validate_operation(entry,operation_id)
     if not isinstance(entry,dict) or set(entry)!=FIELDS:
         raise Refusal('operation is absent or policy entry is malformed')
     for field in ['source_pr','work_issue','claim_issue','lock_timeout_ms','statement_timeout_ms','swap_timeout_ms','total_timeout_s']:
@@ -220,6 +223,15 @@ class Database:
             from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_index i on i.indexrelid=c.oid
             join pg_class t on t.oid=i.indrelid where n.nspname='public' and c.relname=%s""",(name,))
         return dict(zip(['oid','table_oid','schema','table_name','valid','ready','definition','constraint_owned'],rows[0])) if rows else None
+    def health_table_oid(self,table):
+        return self.execute('select to_regclass(%s)::oid',(table,))[0][0]
+    def health_preview_applied(self,version):
+        return self.execute('select exists(select 1 from supabase_migrations.schema_migrations where version=%s)',(version,))[0][0]
+    def health_catalog(self,name):
+        row=self.catalog(name)
+        if row is not None:
+            row['owner']=self.execute('select pg_get_userbyid(relowner) from pg_class where oid=%s',(row['oid'],))[0][0]
+        return row
     def swap(self,old,new,retired,lock_ms,timeout_ms):
         try:
             self.execute('BEGIN')
@@ -288,11 +300,16 @@ def workflow_gate(options,entry):
     if ancestor.returncode:raise Refusal('source PR is not in current main')
     authored=subprocess.run(['git','show',pr['merge_commit_sha']+':config/nontransactional-index-maintenance.json'],cwd=ROOT,text=True,capture_output=True,check=True)
     if operation(json.loads(authored.stdout),options.operation)!=entry:raise Refusal('operation was not authored by its exact merged source PR')
-    original,new,retired=names(options.operation)
-    admission={'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
-               'objects':['table '+TABLE,*['index public.'+name for name in (original,new,retired)]]}
+    if entry.get('kind')=='health-initial/v1':
+        from health_initial_index_maintenance import claim_request
+        admission=claim_request(entry,options.operation)
+    else:
+        original,new,retired=names(options.operation)
+        admission={'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
+                   'objects':['table '+TABLE,*['index public.'+name for name in (original,new,retired)]]}
     result=subprocess.run(['node',str(ROOT/'scripts/index-maintenance-receipt.mjs'),'admit'],input=json.dumps(admission),text=True,capture_output=True,check=True)
-    if json.loads(result.stdout).get('admitted') is not True:raise Refusal('maintenance claim admission refused')
+    admission_result=json.loads(result.stdout)
+    if admission_result.get('admitted') is not True:raise Refusal('maintenance claim admission refused')
     import review_finding_hold
     if review_finding_hold.blocking_findings(review_finding_hold.gh_issues(REPO,entry['source_pr']),REPO,entry['source_pr']):raise Refusal('blocking review finding')
     project_ref=(options.linked_dir/'supabase/.temp/project-ref').read_text().strip()
@@ -302,12 +319,16 @@ def workflow_gate(options,entry):
     _,env=linked_connection(options.linked_dir,options.expected_project_ref)
     if env.get('PGPORT','5432')!='5432':raise Refusal('session connection required for nontransactional maintenance')
     env['_SOURCE_MERGE_SHA']=pr['merge_commit_sha']
+    if entry.get('kind')=='health-initial/v1':
+        env['_HEALTH_CLAIM_SCOPE']=admission_result['scope_sha256']
     return env
 
 
-def executor_digest():
+def executor_digest(operation_id=None):
     paths=['scripts/nontransactional_index_maintenance.py','scripts/index-maintenance-receipt.mjs',
            '.github/workflows/shared-supabase-migrations.yml']
+    if operation_id and operation_id.startswith('health-'):
+        paths+=['scripts/health_initial_index_maintenance.py','config/health-initial-index-definitions.json']
     return digest({path:hashlib.sha256((ROOT/path).read_bytes()).hexdigest() for path in paths})
 
 
@@ -328,21 +349,33 @@ def main():
         if options.mode=='check':
             print(json.dumps({'operation':options.operation,'target':options.target,'preflight':'passed'}));return 0
         import psycopg
-        identity={'target':options.target,'project_ref':options.expected_project_ref,'preview_project_ref':os.environ['PREVIEW_PROJECT_REF'],'source_sha':env['_SOURCE_MERGE_SHA'],'execution_sha':options.source_sha,'executor_digest':executor_digest(),
+        identity={'target':options.target,'project_ref':options.expected_project_ref,'preview_project_ref':os.environ['PREVIEW_PROJECT_REF'],'source_sha':env['_SOURCE_MERGE_SHA'],'execution_sha':options.source_sha,'executor_digest':executor_digest(options.operation),
                   'source_pr':entry['source_pr'],'work_issue':entry['work_issue'],'run_id':int(os.environ['GITHUB_RUN_ID'])}
-        original,new,retired=names(options.operation)
+        if entry.get('kind')=='health-initial/v1':
+            from health_initial_index_maintenance import claim_request
+            identity['claim_scope_sha256']=env['_HEALTH_CLAIM_SCOPE']
+            selected_claim=claim_request(entry,options.operation)
+        else:
+            original,new,retired=names(options.operation)
+            selected_claim={'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
+                            'objects':['table '+TABLE,*['index public.'+name for name in (original,new,retired)]]}
         request={'target':options.target,'run_id':identity['run_id'],'source_pr':entry['source_pr'],'head_sha':options.source_sha,
-                 'claim':{'claim_issue':entry['claim_issue'],'work_issue':entry['work_issue'],
-                          'objects':['table '+TABLE,*['index public.'+name for name in (original,new,retired)]]}}
+                 'claim':selected_claim}
         receipts=Receipts()
         request['lease']=receipts.exclusive('acquire',request)
         def fenced_gate():
             environment=gate()
+            if entry.get('kind')=='health-initial/v1' and environment.get('_HEALTH_CLAIM_SCOPE')!=identity['claim_scope_sha256']:
+                raise Refusal('health owning claim scope changed')
             receipts.exclusive('assert',request)
             return environment
         try:
             with psycopg.connect(host=env['PGHOST'],port=5432,user=env['PGUSER'],password=env['PGPASSWORD'],dbname=env['PGDATABASE'],sslmode=env['PGSSLMODE'],connect_timeout=15,autocommit=True,application_name='sg-index-maintenance-'+options.operation) as connection:
-                Maintenance(Database(connection),receipts,entry,identity,options.operation,fenced_gate).apply()
+                if entry.get('kind')=='health-initial/v1':
+                    from health_initial_index_maintenance import HealthInitial
+                    HealthInitial(Database(connection),receipts,entry,identity,options.operation,fenced_gate).apply()
+                else:
+                    Maintenance(Database(connection),receipts,entry,identity,options.operation,fenced_gate).apply()
         finally:
             receipts.exclusive('release',request)
         print(json.dumps({'operation':options.operation,'target':options.target,'outcome':'complete'}));return 0
