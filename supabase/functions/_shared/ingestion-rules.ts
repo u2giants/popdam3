@@ -25,7 +25,7 @@ export const PDF_KEYWORDS = [
   "_comp view",
   "_compview",
 ] as const;
-export const IMAGE_KEYWORDS = ["comp-view", "compview"] as const;
+export const IMAGE_KEYWORDS = ["comp-view", "compview", "mockup"] as const;
 export const EXCLUDED_FOLDER_PREFIXES = [".", "$", "@", "#"] as const;
 /** Display and tester copy of the blocklist in packages/path-filters (test-enforced). */
 export const EXCLUDED_FOLDERS = [
@@ -165,7 +165,7 @@ export function explainIngestion(path: string, rules: IngestionRule[]): Ingestio
     return { ingested: false, reason: "This PDF's name matches no PDF keyword." };
   }
   if ((RASTER_EXTENSIONS as readonly string[]).includes(ext) && !matchesImageRules(filename, rules)) {
-    return { ingested: false, reason: "This image's name matches no comp-view keyword." };
+    return { ingested: false, reason: "This image's name matches no image keyword." };
   }
   return { ingested: true, reason: `${ext} file passes every name rule.` };
 }

@@ -30,6 +30,15 @@ describe("ingestion rules", () => {
     expect(explainIngestion("Decor/@eaDir/art.psd", []).ingested).toBe(false);
   });
 
+  it("includes mockup raster filenames without admitting unrelated images", () => {
+    for (const extension of ["png", "jpg", "jpeg", "PNG", "JPG", "JPEG"]) {
+      expect(explainIngestion(`Decor/a/Product_MoCkUp.${extension}`, []).ingested).toBe(true);
+      expect(explainIngestion(`Decor/mockup/photo.${extension}`, []).ingested).toBe(false);
+      expect(explainIngestion(`Decor/_old/mockup.${extension}`, []).ingested).toBe(false);
+      expect(explainIngestion(`Decor/a/draft_mockup.${extension}`, [rule("filename_exclude", "draft")]).ingested).toBe(false);
+    }
+  });
+
   it("applies added rules only while enabled", () => {
     expect(explainIngestion("a/spec sheet.pdf", [rule("pdf_include", "spec sheet")]).ingested).toBe(true);
     expect(explainIngestion("a/spec sheet.pdf", [rule("pdf_include", "spec sheet", false)]).ingested).toBe(false);
