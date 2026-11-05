@@ -1150,7 +1150,38 @@ SELECT coalesce(
  and (select passed from helper_proof) and (select passed from archive_proof),false) AS passed
 """
 
+# Production character-load74028: prove this actor's concrete active rows and
+# one-to-one source identity, not the size of the global curated character set.
+CHARACTER_LOAD_20261105074028_ACTIVE_ROWS = r"""
+with actor_characters as (
+ select id,status,metadata from core.character
+ where metadata->>'loaded_by'='shared-db migration 20261105074028'
+   and metadata->>'issue'='popdam3#680'
+), actor_refs as (
+ select entity_id,source_system,source_table,source_id
+ from core.taxonomy_source_ref
+ where entity_schema='core' and entity_table='character'
+   and raw->>'loaded_by'='shared-db migration 20261105074028'
+   and raw->>'issue'='popdam3#680'
+)
+select (select count(*) from actor_characters)=98
+ and (select count(*) from actor_characters where status='active')=98
+ and (select count(*) from actor_refs)=98
+ and (select count(distinct entity_id) from actor_refs)=98
+ and (select count(*) from actor_refs where source_system='pop_style_guides' and source_table='public.style_guide_files')=94
+ and (select count(*) from actor_refs where source_system='pop_style_guides' and source_table='public.style_guide_pdf_text')=1
+ and (select count(*) from actor_refs where source_system='coke' and source_table='plm.coke_tag')=3
+ and not exists (
+   select 1 from actor_refs r left join actor_characters c on c.id=r.entity_id
+   where c.id is null or c.status<>'active'
+     or c.metadata->>'source_system' is distinct from r.source_system
+     or c.metadata->>'source_table' is distinct from r.source_table
+     or c.metadata->>'source_id' is distinct from r.source_id
+ )
+"""
+
 CATALOG_CONTRACTS = {
+    "character_load_20261105074028_active_rows_v1": CHARACTER_LOAD_20261105074028_ACTIVE_ROWS,
     "rls_public_admin_install_v1": RLS_PUBLIC_ADMIN_INSTALL_CONTRACT,
     # Issue2336: selected current/history lifecycle and private physical engine.
     "licensing_support_forward_v2": r"""

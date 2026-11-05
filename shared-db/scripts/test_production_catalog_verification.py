@@ -4050,5 +4050,69 @@ class StyleDifferentialInstalledDeclarationTests(unittest.TestCase):
         registry = json.loads((REPO / "config/production-verification-sidecar-registry.json").read_text())
         self.assertEqual([row for row in registry["sidecars"] if row["version"] == version], [{"version":version,"issue":2421}])
 
+
+class CharacterLoadActorContractTests(unittest.TestCase):
+    """Execute the complete named relational contract over synthetic populations.
+
+    SQLite's JSON arrows/CTEs/counts/IS DISTINCT FROM execute this exact SQL
+    unchanged. The same expression is additionally rehearsed on PostgreSQL17
+    and live production through the trusted read-only verifier.
+    """
+    def setUp(self):
+        import sqlite3
+        self.db = sqlite3.connect(':memory:')
+        self.db.execute("attach database ':memory:' as core")
+        self.db.execute('create table core.character(id text,status text,metadata text)')
+        self.db.execute('create table core.taxonomy_source_ref(entity_schema text,entity_table text,entity_id text,source_system text,source_table text,source_id text,raw text)')
+        marker = {'loaded_by': 'shared-db migration 20261105074028', 'issue': 'popdam3#680'}
+        for i in range(98):
+            system, table = ('pop_style_guides', 'public.style_guide_files') if i < 94 else ('pop_style_guides', 'public.style_guide_pdf_text') if i == 94 else ('coke', 'plm.coke_tag')
+            meta = {**marker, 'source_system': system, 'source_table': table, 'source_id': str(i)}
+            self.db.execute('insert into core.character values (?,?,?)', (str(i), 'active', json.dumps(meta)))
+            self.db.execute('insert into core.taxonomy_source_ref values (?,?,?,?,?,?,?)', ('core', 'character', str(i), system, table, str(i), json.dumps(marker)))
+
+    def tearDown(self):
+        self.db.close()
+
+    def passes(self):
+        return self.db.execute(CATALOG_CONTRACTS['character_load_20261105074028_active_rows_v1']).fetchone()[0] == 1
+
+    def test_exact_active_actor_rows_and_source_refs_pass(self):
+        self.assertTrue(self.passes())
+
+    def test_unrelated_future_curation_does_not_impose_a_global_cap(self):
+        self.db.execute('insert into core.character values (?,?,?)', ('future', 'active', json.dumps({'loaded_by': 'another authorized publisher'})))
+        self.db.execute('insert into core.taxonomy_source_ref values (?,?,?,?,?,?,?)', ('core', 'character', 'future', 'other', 'private.source', 'new', '{}'))
+        self.assertTrue(self.passes())
+
+    def test_refs_alone_cannot_prove_missing_or_inactive_character_rows(self):
+        for sql in ["delete from core.character where id='0'", "update core.character set status='archived' where id='0'"]:
+            with self.subTest(sql=sql):
+                self.db.execute('savepoint scenario')
+                self.db.execute(sql)
+                self.assertFalse(self.passes())
+                self.db.execute('rollback to scenario')
+                self.db.execute('release scenario')
+
+    def test_wrong_duplicate_or_foreign_source_identity_refuses(self):
+        for sql in [
+            "update core.taxonomy_source_ref set entity_id='missing' where entity_id='0'",
+            "update core.taxonomy_source_ref set entity_id='1' where entity_id='0'",
+            "update core.taxonomy_source_ref set source_id='wrong' where entity_id='0'",
+            "update core.taxonomy_source_ref set source_system='wrong' where entity_id='0'",
+            "update core.taxonomy_source_ref set source_table='public.style_guide_pdf_text' where entity_id='0'",
+            "update core.taxonomy_source_ref set raw='{}' where entity_id='0'",
+            "update core.character set metadata='{}' where id='0'",
+            "update core.character set metadata=json_set(metadata,'$.source_id','wrong') where id='0'",
+            "update core.character set metadata=json_remove(metadata,'$.source_id') where id='0'",
+        ]:
+            with self.subTest(sql=sql):
+                self.db.execute('savepoint scenario')
+                self.db.execute(sql)
+                self.assertFalse(self.passes())
+                self.db.execute('rollback to scenario')
+                self.db.execute('release scenario')
+
+
 if __name__ == "__main__":
     unittest.main()

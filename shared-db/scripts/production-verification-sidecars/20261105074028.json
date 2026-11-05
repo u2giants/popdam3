@@ -207,6 +207,12 @@
         }
       ],
       "expected_count": 1
+    },
+    {
+      "id": "character_load_actor_active_rows",
+      "kind": "catalog_contract",
+      "contract": "character_load_20261105074028_active_rows_v1",
+      "expected_count": 1
     }
   ]
 }

@@ -148,18 +148,30 @@ Character-load production verification (#5621): version `20261105074028`
 committed its 98 character rows, 98 source references and 19 exact aliases through
 automatic atomic apply run `42010986376`. Its final catalog-only check failed
 because the data-only DO body had no readable catalog target. Keep that failure,
-SQL bytes and ledger immutable. The hash-bound typed behavioral sidecar asserts
-the three source-reference populations, exact aliases, two extracted source rows
-and production-only ledger disposition. Use the existing read-only catalog
-recovery workflow bound to the original apply artifact; never rerun the migration
-or annotate a non-no-op as a no-op. Actual character actor counts and source-text
-fingerprints remain independent live evidence on the same issue.
-The source-population assertions describe the verified post-apply snapshot; they
-are not a permanent cap on future curated imports. The 98 character-row actor
-count is independent protected live evidence because the existing typed sidecar
-accepts neither JSONB filters nor JSON-path column expressions.
+SQL bytes and ledger immutable. The hash-bound production-verification sidecar asserts the three source-reference
+populations, exact aliases, two extracted source rows, production-only ledger
+disposition, and the pre-existing scoped unique alias index as a safety
+precondition. It does not run during preview migration rehearsal: the retired
+preview-only version is intentionally present in preview but absent in production.
+The index assertion does not claim this data-only migration created that index;
+future index maintenance must preserve or explicitly requalify its safety proof.
+Use the existing read-only catalog recovery workflow bound to the original apply
+artifact; never rerun the migration or annotate a non-no-op as a no-op.
+
+The eleventh named behavioral assertion joins this migration actor's 98 source
+references to 98 distinct, active, actor-marked canonical characters with matching
+source identities (94 filename, one extracted-PDF, three portal-tag references).
+It cannot be satisfied by polymorphic references to absent or archived rows.
+Its actor-specific population does not cap unrelated future curation. Source-text
+fingerprints remain independent protected live evidence. Original recovery
+`42021465321` proved its immutable ten-check artifact; the new eleven-check
+sidecar requires a fresh official read-only verification and does not rewrite that
+historical receipt.
 
 Verification-only catalog recovery requires at least one positive, named,
 SQL-hash-bound assertion for every applied version. Exact zero-row absence
 assertions may accompany that proof and must match too; zero-only evidence,
-non-integer counts and missing or duplicate results remain refused (#5621).
+non-integer counts and missing or duplicate results remain refused. Both downstream
+JavaScript certificate consumers enforce the same per-version/hash rule as the
+Python evidence producer; zero-valued opaque catalog contracts remain refused
+(#5621, #5668).

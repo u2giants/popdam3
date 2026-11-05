@@ -13,6 +13,17 @@ export const DATA_ONLY_NOTICE=/^the allowlisted migrations named no catalog obje
 const namedAssertion=(c)=>c?.kind==='catalog_contract'?typeof c.contract==='string'&&c.contract.length>0
   :c?.kind==='exact_row_count'?typeof c.relation==='string'&&/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(c.relation)&&Array.isArray(c.filters)&&c.filters.length>0
   :false
+// A zero-row absence check supplements, but cannot replace, positive proof of
+// this exact version and SQL hash. Use the same rule in both certificate paths.
+function boundAssertionsPass(catalog,version,hash){
+  if(!Array.isArray(catalog.behavior_checks)||!Array.isArray(catalog.behavior_results?.behavior_checks))return false
+  const checks=catalog.behavior_checks.filter(c=>namedAssertion(c)&&c.migration_version===version&&c.migration_sha256===hash&&typeof c.id==='string'&&c.id.length>0)
+  if(!checks.some(c=>Number.isSafeInteger(c.expected_count)&&c.expected_count>0))return false
+  return checks.every(c=>{
+    const results=catalog.behavior_results.behavior_checks.filter(r=>r?.id===c.id)
+    return Number.isSafeInteger(c.expected_count)&&c.expected_count>=0&&(c.expected_count>0||c.kind==='exact_row_count')&&results.length===1&&Number.isSafeInteger(results[0].actual_count)&&Number.isSafeInteger(results[0].expected_count)&&results[0].actual_count===c.expected_count&&results[0].expected_count===c.expected_count
+  })
+}
 export function matchesCatalogRecovery({evidence,applyRun,recoveryRun,recoveryArtifact,binding,catalog,versions,manifest,jobs,ledgerBefore,ledgerAfter,ledgerLive}) {
   if(applyRun?.status!=='completed'||applyRun.conclusion!=='failure'||applyRun.event!=='workflow_dispatch'||applyRun.path!==APPLY_PATH||applyRun.head_sha!==evidence.production_commit_sha)return false
   if(recoveryRun?.status!=='completed'||recoveryRun.conclusion!=='success'||recoveryRun.event!=='workflow_dispatch'||recoveryRun.path!==RECOVERY_PATH||recoveryRun.head_sha!==evidence.production_recovery_commit_sha)return false
@@ -36,9 +47,7 @@ export function matchesCatalogRecovery({evidence,applyRun,recoveryRun,recoveryAr
   // may be proved by a catalog contract or a hash-bound exact row count.
   if(catalog?.enforcing!==true||!Array.isArray(catalog.errors)||catalog.errors.some(e=>!(typeof e==='string'&&DATA_ONLY_NOTICE.test(e)))||!same(catalog.allowlist,wanted))return false
   for(const version of wanted){
-    const checks=(catalog.behavior_checks??[]).filter(c=>namedAssertion(c)&&c.migration_version===version&&c.migration_sha256===binding.migration_hashes[version]&&typeof c.id==='string'&&c.id.length>0)
-    if(!checks.length)return false
-    for(const check of checks){const results=(catalog.behavior_results?.behavior_checks??[]).filter(r=>r.id===check.id);if(!Number.isSafeInteger(check.expected_count)||check.expected_count<1||results.length!==1||results[0].actual_count!==check.expected_count||results[0].expected_count!==check.expected_count)return false}
+    if(!boundAssertionsPass(catalog,version,binding.migration_hashes[version]))return false
   }
   return true
 }
@@ -101,9 +110,7 @@ export function validateCurrentLiveBinding(binding,{source,ledger,catalog,produc
   if(new Set(source.migrations.map(m=>m.version)).size!==source.migrations.length||new Set(source.migrations.map(m=>m.path)).size!==source.migrations.length)throw Error('Duplicate current-live source')
   for(const m of source.migrations){
     if(!/^\d{14}$/.test(m.version)||!HEX.test(m.sha256))throw Error('Malformed current-live migration')
-    const checks=(catalog.behavior_checks??[]).filter(c=>namedAssertion(c)&&typeof c.id==='string'&&c.id.length>0&&c.migration_version===m.version&&c.migration_sha256===m.sha256)
-    if(!checks.length)throw Error('Current-live source has no hash-bound catalogue assertion')
-    for(const c of checks){const results=(catalog.behavior_results?.behavior_checks??[]).filter(r=>r.id===c.id);if(!Number.isSafeInteger(c.expected_count)||c.expected_count<1||results.length!==1||results[0].actual_count!==c.expected_count||results[0].expected_count!==c.expected_count)throw Error('Current-live catalogue assertion failed')}
+    if(!boundAssertionsPass(catalog,m.version,m.sha256))throw Error('Current-live catalogue assertion failed')
   }
   return true
 }

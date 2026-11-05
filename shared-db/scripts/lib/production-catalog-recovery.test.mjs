@@ -275,3 +275,66 @@ test('current-live package selector refuses missing ambiguous malformed or exces
  }
  assert.throws(()=>selectCurrentLivePackageFiles({}));
 });
+
+// Immutable run42021465321/artifact13412191076 actually observed these ten
+// counts. Reuse the public hash-bound sidecar definitions; no licensed rows or
+// source names are copied from the artifact. Envelope fixtures remain synthetic.
+import {readFileSync} from 'node:fs'
+const characterRecoveryCounts={character_alias_scoped_unique_index:1,character_load_exact_aliases:19,character_load_files_refs:94,character_load_pdf_refs:1,character_load_portal_refs:3,character_load_preview_original_production_ledger:0,character_load_source_extract_1:1,character_load_source_extract_2:1,character_load_successor_production_ledger:1,character_load_unsafe_original_production_ledger:0}
+function observedCharacterCatalog(){
+ const sidecar=JSON.parse(readFileSync(new URL('../production-verification-sidecars/20261105074028.json',import.meta.url),'utf8'))
+ return {allowlist:[sidecar.migration_version],enforcing:true,errors:[],behavior_checks:sidecar.checks.filter(c=>Object.hasOwn(characterRecoveryCounts,c.id)).map(c=>({...c,migration_version:sidecar.migration_version,migration_sha256:sidecar.migration_sha256})),behavior_results:{behavior_checks:Object.entries(characterRecoveryCounts).map(([id,n])=>({id,actual_count:n,expected_count:n}))}}
+}
+function mixedCatalog(){
+ const catalog=structuredClone(fixture().catalog)
+ catalog.behavior_checks.push({id:'retired_absent',kind:'exact_row_count',relation:'supabase_migrations.schema_migrations',filters:[{column:'version',type:'text',equals:'20260101000001'}],migration_version:v,migration_sha256:hash,expected_count:0})
+ catalog.behavior_results.behavior_checks.push({id:'retired_absent',actual_count:0,expected_count:0})
+ return catalog
+}
+const consumerRoutes={
+ legacy:(catalog)=>{const x=fixture();x.catalog=catalog;return matchesCatalogRecovery(x)},
+ current:(catalog)=>{const x=liveFixture();x.catalog=catalog;try{return validateCurrentLiveBinding(x.binding,x)}catch{return false}},
+}
+for(const [route,consume] of Object.entries(consumerRoutes)){
+ test(`${route} accepts exact zero-row absence alongside positive version/hash-bound proof`,()=>assert.equal(consume(mixedCatalog()),true))
+ for(const [name,change] of Object.entries({
+  'zero only':c=>{c.behavior_checks.shift();c.behavior_results.behavior_checks.shift()},
+  'positive belongs to other version':c=>c.behavior_checks[0].migration_version='20260101000001',
+  'positive belongs to other SQL hash':c=>c.behavior_checks[0].migration_sha256='0'.repeat(64),
+  'positive is unnamed':c=>c.behavior_checks[0].contract='',
+  'zero opaque catalog contract':c=>Object.assign(c.behavior_checks[1],{kind:'catalog_contract',contract:'opaque_zero'}),
+  'negative expected':c=>{c.behavior_checks[1].expected_count=-1;c.behavior_results.behavior_checks[1].actual_count=-1;c.behavior_results.behavior_checks[1].expected_count=-1},
+  'boolean expected':c=>c.behavior_checks[1].expected_count=false,
+  'string expected':c=>c.behavior_checks[1].expected_count='0',
+  'fractional expected':c=>c.behavior_checks[1].expected_count=0.5,
+  'unsafe expected':c=>c.behavior_checks[1].expected_count=Number.MAX_SAFE_INTEGER+1,
+  'wrong zero actual':c=>c.behavior_results.behavior_checks[1].actual_count=1,
+  'wrong zero expected result':c=>c.behavior_results.behavior_checks[1].expected_count=1,
+  'boolean actual':c=>c.behavior_results.behavior_checks[1].actual_count=false,
+  'missing result':c=>c.behavior_results.behavior_checks.pop(),
+  'duplicate result':c=>c.behavior_results.behavior_checks.push(c.behavior_results.behavior_checks[1]),
+  'malformed result collection':c=>c.behavior_results.behavior_checks={},
+  'malformed check collection':c=>c.behavior_checks={},
+ }))test(`${route} refuses mixed absence proof with ${name}`,()=>{const c=mixedCatalog();change(c);assert.equal(consume(c),false)})
+}
+test('both consumers accept the immutable ten-check character recovery catalogue',()=>{
+ const catalog=observedCharacterCatalog(),version=catalog.allowlist[0],sha=catalog.behavior_checks[0].migration_sha256
+ assert.equal(catalog.behavior_checks.length,10)
+ assert.equal(catalog.behavior_checks.filter(c=>c.expected_count===0).length,2)
+ const old=fixture();old.catalog=catalog;old.versions=[version];old.binding.allowlist=[version];old.binding.ledger_added=[version];old.binding.migration_hashes={[version]:sha};old.manifest={[version]:sha};old.ledgerAfter=old.ledgerLive=` | ${version} |\n`;old.ledgerBefore=''
+ assert.equal(matchesCatalogRecovery(old),true)
+ const current=liveFixture();current.catalog=catalog;current.source.migrations=[{version,path:`supabase/migrations/${version}_curated_character_load_safety.sql`,sha256:sha}];current.ledger={[version]:sha};current.binding.ledger_fingerprints=current.ledger
+ assert.equal(validateCurrentLiveBinding(current.binding,current),true)
+})
+for(const route of ['legacy','current'])test(`${route} requires a positive assertion for every independently bound version`,()=>{
+ const second='20261105000001',secondHash='1'.repeat(64),catalog=mixedCatalog()
+ const zero={...catalog.behavior_checks[1],id:'second_absent',migration_version:second,migration_sha256:secondHash}
+ catalog.behavior_checks.push(zero);catalog.behavior_results.behavior_checks.push({id:zero.id,actual_count:0,expected_count:0});catalog.allowlist.push(second)
+ if(route==='legacy'){
+  const x=fixture();x.catalog=catalog;x.versions.push(second);x.binding.allowlist.push(second);x.binding.ledger_added.push(second);x.binding.migration_hashes[second]=secondHash;x.manifest[second]=secondHash;x.ledgerAfter+=` | ${second} |\n`;x.ledgerLive+=` | ${second} |\n`
+  assert.equal(matchesCatalogRecovery(x),false)
+ }else{
+  const x=liveFixture();x.catalog=catalog;x.source.migrations.push({version:second,path:`supabase/migrations/${second}_other.sql`,sha256:secondHash});x.ledger[second]=secondHash
+  assert.throws(()=>validateCurrentLiveBinding(x.binding,x))
+ }
+})
