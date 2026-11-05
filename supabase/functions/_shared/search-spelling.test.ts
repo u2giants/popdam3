@@ -57,4 +57,19 @@ describe("search spelling", () => {
     };
     expect(await checkSpelling("xqzvplm", broken)).toEqual({ corrected: null, meaningful: true });
   });
+  it("starts unique word counts and vocabulary together, preserving query order", async () => {
+    const started: string[] = [];
+    const releases = new Map<string, (value: number) => void>();
+    let resolveVocabulary!: (value: Map<string, number>) => void;
+    const result = checkSpelling("Captian America Captian", {
+      vocabulary: () => new Promise((resolve) => { started.push("vocabulary"); resolveVocabulary = resolve; }),
+      countDocs: (word) => new Promise((resolve) => { started.push(word); releases.set(word, resolve); }),
+    });
+    expect(started).toEqual(["vocabulary", "captian", "america"]);
+    releases.get("america")!(3);
+    releases.get("captian")!(0);
+    resolveVocabulary(vocabulary);
+    expect(await result).toEqual({ corrected: "captain America captain", meaningful: true });
+  });
+
 });

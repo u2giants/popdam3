@@ -4,7 +4,8 @@
 // Env: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SEARCH_EVAL_EMAIL, SEARCH_EVAL_PASSWORD
 // Options: --cases <file> (instead of the database copy), --raw <file> (full hit ids, private;
 // never commit it), --report <file> (aggregate only, safe to share), --label <text>.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { scoreSearch, summarize, trustWarning } from "./score.mjs";
 import { createViewerSession, ViewerAuthenticationError } from "./viewer-session.mjs";
 
@@ -120,25 +121,36 @@ const sgSearch = (query, mode) => timed(async () => {
 
 const set = await loadSet();
 const rows = { dam: [], sg_guides: [], sg_files: [] };
-const raw = {};
+const checkpoint = arg("checkpoint");
+const setHash = createHash("sha256").update(JSON.stringify(set)).digest("hex");
+const saved = checkpoint && existsSync(checkpoint) ? JSON.parse(readFileSync(checkpoint, "utf8")) : null;
+if (saved && saved.set_hash !== setHash) throw new Error("Checkpoint belongs to a different judged set");
+const raw = saved?.raw ?? {};
+const persist = () => {
+  if (checkpoint) writeFileSync(checkpoint, JSON.stringify({ set_hash: setHash, raw }), { mode: 0o600 });
+};
 for (const testCase of set.cases) {
-  raw[testCase.id] = {};
-  const runs = {};
-  if (testCase.dam) runs.dam = await damSearch(testCase.query);
-  if (testCase.sg_guides) runs.sg_guides = await sgSearch(testCase.query, "guides");
-  if (testCase.sg_files) runs.sg_files = await sgSearch(testCase.query, "files");
+  raw[testCase.id] ??= {};
+  const runs = raw[testCase.id];
+  if (testCase.dam && !runs.dam) { runs.dam = await damSearch(testCase.query); persist(); }
+  if (testCase.sg_guides && !runs.sg_guides) { runs.sg_guides = await sgSearch(testCase.query, "guides"); persist(); }
+  if (testCase.sg_files && !runs.sg_files) { runs.sg_files = await sgSearch(testCase.query, "files"); persist(); }
   for (const [engine, run] of Object.entries(runs)) {
     raw[testCase.id][engine] = run;
     rows[engine].push(scoreSearch(testCase, testCase[engine], run.hits, run));
   }
 }
 
-const report = { label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
+const report = { set_hash: setHash, label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
 for (const [engine, engineRows] of Object.entries(rows)) {
   if (!engineRows.length) continue;
   const summary = summarize(engineRows);
   report.engines[engine] = {
     ...summary,
+    errors_by_type: engineRows.reduce((counts, row) => {
+      if (row.error) counts[row.error] = (counts[row.error] ?? 0) + 1;
+      return counts;
+    }, {}),
     warning: trustWarning(summary),
     failed_case_ids: engineRows.filter((r) => !r.pass).map((r) => r.id),
   };

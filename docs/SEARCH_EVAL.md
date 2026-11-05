@@ -35,3 +35,13 @@ sheets of the actual thumbnails; that overrides the rule when they disagree. Pro
 rely on catalog fields because flat art does not show the product. PopSG hits are judged by folder,
 file name and tags, so a guide that only mentions a character in its PDF body counts as irrelevant.
 Only the style-group view is scored, not the single-file view.
+
+## Recovering a long evaluation
+
+Use `--checkpoint <private file>` to save each completed search engine result.
+Restarting with the same checkpoint resumes the identical saved set without
+replaying completed requests, including failed requests. A changed set is refused.
+Keep the checkpoint private; it contains query result identifiers and catalog details.
+The aggregate report includes the set SHA-256, p50/p95 timings and error categories.
+Compare identical sets and preserve natural catalog updates as a limitation; do not
+interpret expired authentication or unavailable searches as relevance judgments.

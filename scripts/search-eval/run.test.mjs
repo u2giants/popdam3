@@ -55,3 +55,35 @@ for (const failSpelling of [false, true]) {
     }
   });
 }
+
+test("checkpoints each engine and resumes without replaying completed searches", async (t) => {
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const folder = mkdtempSync(join(tmpdir(), "search-eval-test-"));
+  const checkpoint = join(folder, "checkpoint.json");
+  const oldArgs = process.argv;
+  const oldEnv = { ...process.env };
+  t.after(() => { process.argv = oldArgs; process.env = oldEnv; rmSync(folder, { recursive: true }); });
+  process.argv = [...oldArgs.slice(0, 2), "--checkpoint", checkpoint];
+  Object.assign(process.env, { SUPABASE_URL: "https://example.invalid", SUPABASE_PUBLISHABLE_KEY: "publishable", SEARCH_EVAL_EMAIL: "viewer@example.invalid", SEARCH_EVAL_PASSWORD: "fake" });
+  let searches = 0;
+  let changedSet = false;
+  t.mock.method(console, "log", () => {});
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const path = new URL(url).pathname;
+    if (path === "/auth/v1/token") return Response.json({ access_token: "fake", expires_in: 3600 });
+    if (path === "/rest/v1/admin_config") return Response.json([{ value: { version: changedSet ? "changed" : "fake", cases: [{ id: "fake-case", kind: "character", query: "example", dam: {} }] } }]);
+    searches++;
+    return Response.json({ results: [], total_count: 0 });
+  });
+  await import("./run.mjs?test=checkpoint-first");
+  assert.equal(searches, 1);
+  const saved = JSON.parse(readFileSync(checkpoint));
+  assert.ok(saved.set_hash);
+  assert.ok(saved.raw["fake-case"].dam);
+  await import("./run.mjs?test=checkpoint-resume");
+  assert.equal(searches, 1, "does not silently rerun successful or failed completed requests");
+  changedSet = true;
+  await assert.rejects(import("./run.mjs?test=checkpoint-different-set"), /different judged set/);
+});

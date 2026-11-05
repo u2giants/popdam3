@@ -44,13 +44,14 @@ const PRODUCT_WORDS = [
 ];
 let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
 
-async function loadNames(table: string, column: string, weightOf: (row: Record<string, unknown>) => number, vocabulary: Map<string, number>) {
+async function loadNames(table: "licensor" | "property" | "character", vocabulary: Map<string, number>, signal: AbortSignal) {
   const pageSize = 1000;
   for (let from = 0;; from += pageSize) {
-    const { data, error } = await serviceClient().from(table).select("*").range(from, from + pageSize - 1);
+    const { data, error } = await serviceClient().schema("core").from(table).select("name").order("id").range(from, from + pageSize - 1).abortSignal(signal);
     if (error) throw new Error(error.message);
     for (const row of (data ?? []) as Record<string, unknown>[]) {
-      if (typeof row[column] === "string") addNameToVocabulary(vocabulary, row[column] as string, weightOf(row));
+      // Canonical names have equal authority; core.character has no usage_count.
+      if (typeof row.name === "string") addNameToVocabulary(vocabulary, row.name, 1_000_000);
     }
     if ((data?.length ?? 0) < pageSize) return;
   }
@@ -63,9 +64,12 @@ const spellingLookup: SpellingLookup = {
     const words = (async () => {
       const vocabulary = new Map<string, number>();
       PRODUCT_WORDS.forEach((word) => vocabulary.set(word, 1_000_000));
-      await loadNames("licensors", "name", () => 1_000_000, vocabulary);
-      await loadNames("properties", "name", () => 1_000_000, vocabulary);
-      await loadNames("characters", "name", (row) => Number(row.usage_count) || 0, vocabulary);
+      const signal = AbortSignal.timeout(1500);
+      await Promise.all([
+        loadNames("licensor", vocabulary, signal),
+        loadNames("property", vocabulary, signal),
+        loadNames("character", vocabulary, signal),
+      ]);
       return vocabulary;
     })();
     words.catch(() => {
@@ -79,7 +83,8 @@ const spellingLookup: SpellingLookup = {
       .from("dam_search_documents")
       .select("entity_id")
       .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
-      .limit(RARE_WORD_DOCS);
+      .limit(RARE_WORD_DOCS)
+      .abortSignal(AbortSignal.timeout(1000));
     if (error) throw new Error(error.message);
     return data?.length ?? 0;
   },
@@ -109,8 +114,8 @@ async function authenticateCaller(req: Request) {
 
 /**
  * Embed typed query words with SigLIP2 text tower via apps/text-embed.
- * Returns null when the service is not configured or unavailable so the
- * search call can still run the keyword leg. One immediate retry: a single
+ * Returns null when unavailable; callers preserve Search unavailable/Retry.
+ * One immediate retry: a single
  * slow embed must not silently downgrade a search to keyword-only (that
  * downgrade is itself a result-set change users see between refreshes).
  */
@@ -278,11 +283,11 @@ corsServe(async (req) => {
     // drops the optional floor for this request.
     if (floorConfig.error) console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
     const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
+    if (usePictures && !embedding) return err("Search unavailable", 503);
 
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
-    // p_query_embedding stays null when the text-embed service is down so the
-    // keyword leg still answers (hybrid degrades, never mixes models).
+    // A required embedding failure must remain unavailable, never a partial keyword answer.
     // Product-type phrases ("floor covering") also run as catalog nouns
     // ("mat", "rug") so compound queries do not drop real mats.
     // Keyword-only variants skip the picture leg (no embedding).
@@ -295,6 +300,10 @@ corsServe(async (req) => {
         variantEmbeddings.set(variant, !semantic || !usePictures ? null : variant === query ? embedding : await embedQueryText(variant));
       }),
     );
+
+    if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {
+      return err("Search unavailable", 503);
+    }
 
     // One immediate retry per RPC call: statement timeouts under load are
     // transient. After the retry, ANY failed variant fails the whole search —

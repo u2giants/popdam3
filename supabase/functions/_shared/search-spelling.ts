@@ -88,13 +88,17 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
   const original = query.trim().replace(/\s+/g, " ");
   const words = original.split(" ");
   try {
-    const vocabulary = await lookup.vocabulary();
+    const [vocabulary, countPairs] = await Promise.all([lookup.vocabulary(), Promise.all([...new Set(words.map((word) => word.toLowerCase()))].map(async (word) => [
+      word, /^[\p{L}\p{N}]+$/u.test(word) ? await lookup.countDocs(word) : RARE_WORD_DOCS,
+    ] as const)),
+    ]);
+    const counts = new Map(countPairs);
     let meaningful = false;
     let changed = false;
     const out: string[] = [];
     for (const raw of words) {
       const word = raw.toLowerCase();
-      const docs = /^[\p{L}\p{N}]+$/u.test(word) ? await lookup.countDocs(word) : RARE_WORD_DOCS;
+      const docs = counts.get(word) ?? 0;
       if (docs >= RARE_WORD_DOCS || vocabulary.has(word)) {
         meaningful = true;
         out.push(raw);
