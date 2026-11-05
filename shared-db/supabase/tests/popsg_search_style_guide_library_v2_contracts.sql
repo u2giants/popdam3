@@ -21,7 +21,7 @@ begin
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
   end if;
-  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'))) <> 'a1dbe67fc41616c5dc50712fee69dd3d' then
+  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'))) <> '99cb8f8bfa4037ee6f022672a1902bdc' then
     raise exception 'contract 1: v2 search body is not the reviewed semantic stage-2 body';
   end if;
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is not null then

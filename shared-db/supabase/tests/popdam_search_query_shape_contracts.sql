@@ -80,6 +80,9 @@ begin
   if not coalesce(allow_code, false) then
     raise exception 'alphanumeric code 3FZ failed the substring token guard';
   end if;
+  if position('or q.query_text ~ ''[0-9]''' in pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure)) = 0 then
+    raise exception 'all-letter three-letter words must not activate substring matching';
+  end if;
 end $$;
 
 -- 5. Grants: anon denied; authenticated and service_role allowed.
