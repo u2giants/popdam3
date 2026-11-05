@@ -120,7 +120,7 @@ Gate: a short table of results on #681 and a sentence "no new stale duplicates a
 
 **Step 6 — Cleanup, close, delete handoffs.**
 6a. Remove `_ai_test_681` on the NAS (`rm -r`), handle the two live fixture rows per D4.
-6b. PR: delete `HANDOFF.d/2026-11-03T2209Z-hetz-claude-stale-retirement-activation.md` and `HANDOFF.d/2026-11-03T2210Z-hetz-claude-missing-pdf-records.md`; add the one sentence to `docs/KNOWN_QUIRKS.md` #81; update the coordinator handoff `HANDOFF.d/2026-11-03T2242Z-hetz-claude-dam-open-work-coordinator.md` §6 tasks 2 and 3 to "done, see #681" (do not delete it; other tasks remain). `bin/ai-pr-wait` in background; merge.
+6b. PR: delete `HANDOFF.d/2026-11-03T2209Z-hetz-claude-stale-retirement-activation.md` and `HANDOFF.d/2026-11-03T2210Z-hetz-claude-missing-pdf-records.md`; add the one sentence to `docs/KNOWN_QUIRKS.md` #81; update the coordinator handoff `HANDOFF.d/2026-11-04T2359Z-hetz-claude-close-nested-tagging-followups.md` §6 tasks 2 and 3 to "done, see #681" (do not delete it; other tasks remain). `bin/ai-pr-wait` in background; merge.
 6c. Close #681 and #684 with the evidence links. If Step 4 or 5 could not be finished, leave `- [ ] live proof` on #681 and do not close.
 Gate: both issues closed, PR merged, `ls HANDOFF.d | grep 2026-11-03T22` shows only the coordinator file.
 
