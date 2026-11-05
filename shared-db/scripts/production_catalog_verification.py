@@ -5825,6 +5825,28 @@ SELECT coalesce(
     WHERE version='20261026150931'),false)
 )"""
 
+# #5609 verification-only recovery: exact PostgreSQL 17 deparser prefixes bind
+# event coverage and every WHEN predicate; routine OIDs are checked separately
+# so caller search_path cannot affect function-name qualification. No source DDL.
+CATALOG_CONTRACTS["assets_update_trigger_scoping_v1"] = """(SELECT coalesce((SELECT count(*)=10 FROM (VALUES
+    ('trg_auto_queue_render','public.auto_queue_render()',17,'6d292c5ad846cc05bb3290b926bf1d20'),
+    ('trg_auto_queue_render_ins_del','public.auto_queue_render()',5,'caa4f524dd84c8e24d36fc8d68c59c89'),
+    ('trg_dam_search_assets_refresh','public.trg_refresh_dam_asset_search_document()',17,'3adf740fb4f20406f6620052b23e28c3'),
+    ('trg_dam_search_assets_refresh_ins_del','public.trg_refresh_dam_asset_search_document()',13,'9fb1930126a935df0ff11d05bbcfdd4b'),
+    ('trg_sync_cover_description_to_style_group','public.sync_cover_description_to_style_group()',17,'dac32eaf299fd77dfa9ac6827a18211a'),
+    ('trg_sync_cover_description_to_style_group_ins_del','public.sync_cover_description_to_style_group()',5,'b4ddc43b9e60e91649c6fca65ad10f6e'),
+    ('trg_sync_designer_to_style_group','public.sync_designer_to_style_group()',17,'a2037258e3fd300113b8489f25ee62a9'),
+    ('trg_sync_designer_to_style_group_ins_del','public.sync_designer_to_style_group()',5,'24a12b32508aee5a6b24075d011e6897'),
+    ('trg_sync_primary_on_thumbnail','public.sync_primary_asset_on_thumbnail()',17,'224aa60d20a0b9f58a052b6f603598b8'),
+    ('trg_sync_primary_on_thumbnail_ins_del','public.sync_primary_asset_on_thumbnail()',5,'f7870cdb13d8aedf4901696cf1bc5622')
+  ) expected(name,signature,event_type,definition_md5)
+  JOIN pg_trigger t ON t.tgrelid=to_regclass('public.assets') AND t.tgname=expected.name
+  WHERE NOT t.tgisinternal AND t.tgenabled='O' AND NOT t.tgdeferrable AND NOT t.tginitdeferred
+    AND t.tgnargs=0 AND t.tgattr=''::int2vector AND t.tgtype=expected.event_type
+    AND t.tgfoid=to_regprocedure(expected.signature)
+    AND md5(split_part(pg_get_triggerdef(t.oid,false),' EXECUTE FUNCTION ',1))=expected.definition_md5
+),false))"""
+
 if __name__ == "__main__":
     raise SystemExit(main())
 
