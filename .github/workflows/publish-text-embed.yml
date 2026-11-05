@@ -55,7 +55,7 @@ jobs:
       - name: Deploy via Coolify
         env:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_TEXT_EMBED_APP_UUID }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_POPDAM_DEPLOY_TOKEN }}
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
         run: |
           code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \

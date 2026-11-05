@@ -115,7 +115,7 @@ jobs:
       - name: Pin Coolify to the immutable image tag
         env:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_POPDAM_DEPLOY_TOKEN }}
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
           IMAGE_TAG: sha-${{ github.sha }}
         run: |
@@ -141,7 +141,7 @@ jobs:
       - name: Deploy via Coolify
         env:
           COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_POPDAM_DEPLOY_TOKEN }}
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
         run: |
           echo "Triggering Coolify deployment..."
