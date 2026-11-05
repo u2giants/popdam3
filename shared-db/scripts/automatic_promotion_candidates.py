@@ -444,12 +444,33 @@ def main(now: datetime | None = None) -> int:
               f"run {r['id']} ({r.get('display_title')}) was re-run (attempt {r.get('run_attempt')}); "
               f"a re-run is never the retry path -- the queue dispatches a fresh run with fresh evidence -- "
               f"and it hides what earlier attempts did")
+    # Step 2.2 (plan_ci-process-repair): holds, waits, used-up attempts and
+    # acknowledged history are expected states. Exit success with the reason in
+    # the summary; exit failure only when the trigger itself broke.
+    #
     # Advisory findings above are annotations, not exit status. A failing run
     # used to be the alert channel, but these findings are long-lived PR states
     # evaluated only on runs that reach queue selection -- runs that early-return
     # "wait" (a migration workflow run in flight) never see them -- so the step
     # flapped red/green on unrelated timing while the hold gate itself (checked
     # at decide, again before dispatch, again before the apply) kept working.
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(f"## Automatic promotion trigger\n\n**Action:** {action} — {reason}\n\n")
+            for entry in skipped:
+                if entry.get("pending_dependencies"):
+                    refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
+                    fh.write(f"- Dependency wait: PR #{entry['number']} waiting on {refs}\n")
+                elif entry.get("exhausted"):
+                    fh.write(f"- Used-up attempts: PR #{entry['number']} ({entry['exhausted']} attempts)\n")
+                else:
+                    refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "unreadable"
+                    fh.write(f"- Held: PR #{entry['number']} by {refs}\n")
+            if alerts:
+                fh.write(f"- Overdue holds: {len(alerts)}\n")
+            if reruns:
+                fh.write(f"- Acknowledged re-runs: {len(reruns)}\n")
     return 0
 
 
@@ -472,4 +493,11 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        # Step 2.2: exit failure only when the trigger itself broke.
+        print(f"::error title=Trigger defect::automatic-promotion-candidates raised {type(exc).__name__}: {exc}")
+        raise SystemExit(1)

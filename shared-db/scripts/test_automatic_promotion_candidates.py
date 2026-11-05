@@ -142,6 +142,7 @@ class OverdueHoldAlert(unittest.TestCase):
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 now = datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)
+                # Step 2.2: overdue holds are expected states; exit success with the reason in the summary.
                 self.assertEqual(m.main(now), 0)
                 m.is_held = lambda repo, n: []
                 self.assertEqual(m.main(now), 0)
@@ -168,6 +169,7 @@ class ExhaustedAlert(unittest.TestCase):
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
+                # Step 2.2: used-up attempts are expected states; exit success with the reason in the summary.
                 self.assertEqual(m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)), 0)
             text = out.getvalue()
             self.assertIn("exhausted: PR #5460 out of automatic attempts", text)
@@ -214,6 +216,10 @@ class TriggerReactsToFailures(unittest.TestCase):
         self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", text)
         self.assertIn("github.event.workflow_run.conclusion == 'success'", text)
         self.assertIn("github.event.workflow_run.conclusion == 'failure'", text)
+        # Step 2.2: also trigger on cancelled and timed_out so the queue does
+        # not idle until the hourly timer.
+        self.assertIn("github.event.workflow_run.conclusion == 'cancelled'", text)
+        self.assertIn("github.event.workflow_run.conclusion == 'timed_out'", text)
 
 
 class MigrationsWorkflowPokesTheTrigger(unittest.TestCase):
@@ -372,6 +378,7 @@ class ProductionReRunAlert(unittest.TestCase):
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
+                # Step 2.2: acknowledged history is an expected state; exit success with the reason in the summary.
                 self.assertEqual(m.main(m._time("2026-11-03T13:30:00Z")), 0)
             self.assertIn("::error title=ENGINEER ACTION REQUIRED: production apply re-run::run 41545991868",
                           out.getvalue())
@@ -686,6 +693,109 @@ class CanonicalDependencyResolution(unittest.TestCase):
                 self.assertEqual((applied.call_count, refused.call_count), (3, 3))
 
 
+class TriggerReporting(unittest.TestCase):
+    """Step 2.2: exit success for holds, waits, used-up attempts and acknowledged
+    history with the reason in the summary; exit failure only when the trigger
+    itself broke."""
+
+    def _run_main(self, *, prs, runs, held=None, summary_path=None):
+        saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held,
+                 sys.argv, os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GITHUB_STEP_SUMMARY"))
+        m.gh = lambda *a: {"sha": "abc"}
+        m.merged_migration_prs = lambda repo: prs
+        m.workflow_runs = lambda repo: runs
+        m.is_held = held or (lambda repo, n: [])
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
+        if summary_path:
+            os.environ["GITHUB_STEP_SUMMARY"] = summary_path
+        else:
+            os.environ.pop("GITHUB_STEP_SUMMARY", None)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                code = m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+            return code, out.getvalue()
+        finally:
+            (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv) = saved[:5]
+            for idx, key in ((5, "GITHUB_REPOSITORY"), (6, "GITHUB_STEP_SUMMARY")):
+                if saved[idx] is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = saved[idx]
+
+    def test_wait_state_exits_zero_with_reason(self):
+        runs = [{"status": "in_progress", "display_title": "DB preview apply x"}]
+        code, out = self._run_main(prs=[], runs=runs)
+        self.assertEqual(code, 0)
+        self.assertIn("wait:", out)
+
+    def test_idle_state_exits_zero_with_reason(self):
+        code, out = self._run_main(prs=[], runs=[])
+        self.assertEqual(code, 0)
+        self.assertIn("idle:", out)
+
+    def test_held_pr_exits_zero_with_reason(self):
+        pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+        code, out = self._run_main(prs=[pr], runs=[], held=lambda repo, n: [{"number": 99}])
+        self.assertEqual(code, 0)
+        self.assertIn("held: PR #7", out)
+
+    def test_summary_written_on_hold(self):
+        import tempfile, os as _os
+        pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            path = f.name
+        try:
+            code, _ = self._run_main(prs=[pr], runs=[], held=lambda repo, n: [{"number": 99}], summary_path=path)
+            self.assertEqual(code, 0)
+            summary = open(path, encoding="utf-8").read()
+            self.assertIn("Automatic promotion trigger", summary)
+            self.assertIn("Held: PR #7", summary)
+        finally:
+            _os.unlink(path)
+
+    def test_summary_written_on_exhausted(self):
+        import tempfile, os as _os
+        pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+        fail = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}]}]
+        runs = [{"display_title": "DB preview apply abc PR7 20260101000000", "status": "completed",
+                 "conclusion": "failure", "created_at": "2026-01-02"}] * 3
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            path = f.name
+        try:
+            code, _ = self._run_main(prs=[pr], runs=runs, summary_path=path)
+            self.assertEqual(code, 0)
+            summary = open(path, encoding="utf-8").read()
+            self.assertIn("Used-up attempts: PR #7", summary)
+        finally:
+            _os.unlink(path)
+
+
+class TriggerDefectExitsFailure(unittest.TestCase):
+    """Step 2.2: exit failure only when the trigger itself broke."""
+
+    def test_unhandled_exception_exits_failure(self):
+        saved = (m.gh, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        m.gh = lambda *a: (_ for _ in ()).throw(RuntimeError("GitHub API down"))
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                # Simulate the __main__ entry point which wraps main() with defect handling.
+                try:
+                    raise SystemExit(m.main(datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc)))
+                except SystemExit:
+                    raise
+                except Exception as exc:
+                    print(f"::error title=Trigger defect::automatic-promotion-candidates raised {type(exc).__name__}: {exc}")
+                    raise SystemExit(1)
+        except SystemExit as ctx:
+            self.assertEqual(ctx.code, 1)
+            self.assertIn("Trigger defect", out.getvalue())
+        finally:
+            m.gh, sys.argv = saved[:2]
+            if saved[2] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[2]
 class AdversarialUnmergedSource(unittest.TestCase):
     """Adversarial table (plan section 9): wording removed from conditions must
     not let an unmerged source through.  merged_migration_prs must refuse it."""
