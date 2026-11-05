@@ -507,7 +507,7 @@ const CompactCard = memo(function CompactCard({
       </div>
     </button>
   );
-}
+});
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -547,7 +547,7 @@ function SkeletonCard({ cardStyle: cs }: { cardStyle: CardStyle }) {
       )}
     </div>
   );
-});
+}
 
 // ─── StyleGroupGridProps ───────────────────────────────────────────────────────
 

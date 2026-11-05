@@ -1,3 +1,4 @@
+import { exportOrderColumns } from "./export-pagination.ts";
 import type { createClient } from "./supabase-js.ts";
 
 /**
@@ -14,8 +15,7 @@ export function tableSource(db: ReturnType<typeof createClient>, table: string) 
 
 /** Junction rows have a composite identity; all other export sources expose id. */
 export function orderedTableSource(db: ReturnType<typeof createClient>, table: string) {
-  const query = tableSource(db, table).select("*");
-  return table === "asset_characters"
-    ? query.order("asset_id", { ascending: true }).order("character_id", { ascending: true })
-    : query.order("id", { ascending: true });
+  let query = tableSource(db, table).select("*");
+  for (const column of exportOrderColumns(table)) query = query.order(column, { ascending: true });
+  return query;
 }
