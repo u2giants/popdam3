@@ -7,10 +7,11 @@ import { pickWindowsNasPassword } from "./windows-nas-password.ts";
 // No Deno server, secrets, live database, or source-pattern expectations.
 const source = readFileSync(new URL("../agent-api/index.ts", import.meta.url), "utf8");
 const heartbeat = source.slice(source.indexOf("function acceptedCommandDeferral"), source.indexOf("// ── Style group assignment helper"));
-const compiled = ts.transpileModule(heartbeat, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+const moduleState = source.slice(0, source.indexOf("// ── Shared constants"));
+const compiled = ts.transpileModule(moduleState + "\n" + heartbeat, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 const nonce = "abcdef0123456789abcdef0123456789";
 
-async function run(body: Record<string, unknown>, agentType = "windows-render", extraConfig = {}) {
+async function run(body: Record<string, unknown>, agentType = "windows-render", extraConfig = {}, repeats = 1) {
   const metadata = {
     trigger_update: true,
     force_restart: true,
@@ -92,7 +93,9 @@ async function run(body: Record<string, unknown>, agentType = "windows-render", 
     "pickWindowsNasPassword",
     `const LOG_TAIL_LINES=50, COUNTER_HISTORY_LIMIT=60, WINDOWS_OFFLINE_MS=300000, REQUEST_AGE_MS=300000, DEFAULT_BATCH_SIZE=20, ADAPTIVE_IDLE_SECONDS=30, ADAPTIVE_ACTIVE_SECONDS=5; ${compiled}; return handleHeartbeat;`,
   )(() => db, (b: any, k: string) => b[k] ?? null, (x: any) => x, (x: any) => x, pickWindowsNasPassword);
-  return { response: await invoke(body, "fixture-agent", agentType, "fixture"), writes };
+  let response;
+  for (let i = 0; i < repeats; i++) response = await invoke(body, "fixture-agent", agentType, "fixture");
+  return { response, writes };
 }
 
 const request = () => ({ command_deferral: { nonce, expires_at: Date.now() + 60000 }, counters: { processed: 3 } });
@@ -147,4 +150,9 @@ describe("real heartbeat command deferral", () => {
     expect(response.commands.trigger_pdf_text_sample).toBe(true);
     expect(writes.some((x) => x.action === "upsert" && x.payload.key === "PDF_TEXT_SAMPLE_REQUEST")).toBe(true);
   });
+});
+
+it("prunes render retention once across consecutive heartbeats in the same warm instance", async () => {
+  const { writes } = await run({}, "windows-render", {}, 3);
+  expect(writes.filter((write) => write.table === "render_queue" && write.action === "delete")).toHaveLength(1);
 });
