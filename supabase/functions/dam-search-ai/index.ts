@@ -277,8 +277,11 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     let unknownCatalogFormat = false;
     try {
       if (!productCodeSearch) {
-        unknownCatalogFormat = await hasCatalogCodeFormat(query, (format, signal) =>
-          serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal), requestSignal);
+        unknownCatalogFormat = await hasCatalogCodeFormat(
+          query,
+          (format, signal) => serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal),
+          requestSignal,
+        );
       }
     } catch {
       return err("Search unavailable", 503);
@@ -307,11 +310,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // ("mat", "rug") so compound queries do not drop real mats.
     // Keyword-only variants skip the picture leg (no embedding).
     const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
-      .filter((variant, index, all) =>
-        all.findIndex((other) =>
-          other.query === variant.query
-        ) === index
-      );
+      .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
     const queryVariants = expanded.map((v) => v.query);
     const variantEmbeddings = new Map<string, number[] | null>();
     await Promise.all(
