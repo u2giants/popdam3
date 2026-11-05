@@ -303,4 +303,92 @@ begin
 end;
 $incremental$;
 
+-- #5608 forward repair: each batch consumes one exact frozen multiset.
+do $snapshot_contract$
+declare before_hash text; after_hash text; r jsonb; field_name text;
+begin
+  update public.pdf_text_samples set extracted_text='CORE/STYLE GUIDE USED: The Hero Guide' where asset_id='50910000-0000-0000-0000-000000000001';
+  insert into public.sku_style_contract_index values
+    ('snapshot', 'hero', 'snapshot-a', 'The Hero Guide', null, 'Hero.PSD'),
+    ('snapshot', 'hero', 'snapshot-a', 'The Hero Guide', null, 'Hero.PSD'),
+    ('snapshot', null, 'snapshot-null', 'The Hero Guide', null, null),
+    ('snapshot', '', 'snapshot-empty', 'The Hero Guide', null, ''),
+    ('snapshot', 'hero', E'comma,quote"\n', 'The Hero Guide', null, 'Hero.PSD');
+  perform public.prepare_sku_style_guide_resolution(true);
+  if exists (
+    (select source_system,file_name_norm,source_style_guide_key,style_guide_label,core_style_guide_id,matched_file_name,style_guide_label_key from pg_temp.sku_sg_portal
+      except all select * from plm.asset_file_style_guide_keys)
+    union all
+    (select * from plm.asset_file_style_guide_keys except all
+      select source_system,file_name_norm,source_style_guide_key,style_guide_label,core_style_guide_id,matched_file_name,style_guide_label_key from pg_temp.sku_sg_portal)
+  ) then raise exception 'Frozen portal changed the exact observation multiset'; end if;
+  select portal_hash into before_hash from pg_temp.sku_sg_pending limit 1;
+  -- A writer changes every source-operation kind after preparation. Current
+  -- batches retain their frozen evidence; the next invocation sees all changes.
+  update public.sku_style_contract_index set matched_file_name='RENAMED.PSD' where source_style_guide_key='snapshot-a';
+  delete from public.sku_style_contract_index where source_style_guide_key='snapshot-empty';
+  insert into public.sku_style_contract_index values ('snapshot','new','snapshot-new','New Guide',null,'New.PSD');
+  if (select count(*) from pg_temp.sku_sg_portal where source_style_guide_key='snapshot-a' and matched_file_name='Hero.PSD')<>2
+     or not exists(select from pg_temp.sku_sg_portal where source_style_guide_key='snapshot-empty')
+     or exists(select from pg_temp.sku_sg_portal where source_style_guide_key='snapshot-new') then
+    raise exception 'Prepared snapshot changed after a portal writer'; end if;
+  loop r:=public.resolve_sku_style_guide_batch();exit when (r->>'sku_rows')::int=0;end loop;
+  if not exists(select from public.sku_style_guide_links where source_style_guide_key='snapshot-null' and match_method='sheet_label_match') then
+    raise exception 'NULL filename incorrectly removed a valid label match';end if;
+  perform public.prepare_sku_style_guide_resolution(false);
+  select portal_hash into after_hash from pg_temp.sku_sg_pending limit 1;
+  if before_hash is not distinct from after_hash or after_hash is null then
+    raise exception 'Next invocation failed to invalidate a changed portal';end if;
+  -- Calling compatibility twice in the same explicit transaction must rebuild.
+  perform public.resolve_sku_style_guide_links();
+  perform public.resolve_sku_style_guide_links();
+  if public.prepare_sku_style_guide_resolution(false)<>0 then raise exception 'Unchanged snapshot failed to converge';end if;
+end $snapshot_contract$;
+
+-- A service caller's pre-existing temporary relations are never trusted.
+drop table pg_temp.sku_sg_portal;
+drop table pg_temp.sku_sg_pending;
+set local role service_role;
+create temporary view sku_sg_portal as select 'hostile'::text as wrong_column;
+create temporary view sku_sg_pending as select 'hostile'::text as wrong_column;
+select public.prepare_sku_style_guide_resolution(true);
+reset role;
+do $snapshot_contract$ begin
+  if not exists(select from pg_catalog.pg_attribute where attrelid='pg_temp.sku_sg_portal'::regclass and attname='style_guide_label_key')
+     or not exists(select from pg_catalog.pg_attribute where attrelid='pg_temp.sku_sg_pending'::regclass and attname='input_hash') then
+    raise exception 'Service temp lookalikes were trusted';end if;
+end $snapshot_contract$;
+
+DO $hash_contract$ DECLARE all_passed boolean; BEGIN
+WITH base(ord,source_system,file_name_norm,source_style_guide_key,style_guide_label,core_style_guide_id,matched_file_name) AS (
+ VALUES (1,'portal'::text,NULL::text,'guide,one'::text,E'Alpha, "Guide"\nline'::text,'00000000-0000-0000-0000-000000000001'::uuid,'Hero.PSD'::text),
+        (2,'portal','hero','guide-two','Beta','00000000-0000-0000-0000-000000000002'::uuid,'hero.psd'),
+        (3,'portal',NULL,'guide,one',E'Alpha, "Guide"\nline','00000000-0000-0000-0000-000000000001'::uuid,'Hero.PSD')
+), cases(name) AS (VALUES ('baseline'),('reordered'),('duplicate_add'),('duplicate_remove'),('null_to_empty'),('filename_case'),('label_case'),('field_boundary'),('embedded_quote'),('embedded_newline'),('uuid_change')),
+variant_rows AS (
+ SELECT c.name,b.ord,b.source_system,
+   CASE WHEN c.name='null_to_empty' AND ord=1 THEN '' ELSE b.file_name_norm END AS file_name_norm,
+   CASE WHEN c.name='field_boundary' AND ord=1 THEN 'guide' ELSE b.source_style_guide_key END AS source_style_guide_key,
+   CASE WHEN ord=1 THEN CASE c.name WHEN 'label_case' THEN E'alpha, "Guide"\nline' WHEN 'field_boundary' THEN E'one,Alpha, "Guide"\nline' WHEN 'embedded_quote' THEN E'Alpha, Guide\nline' WHEN 'embedded_newline' THEN 'Alpha, "Guide" line' ELSE b.style_guide_label END ELSE b.style_guide_label END AS style_guide_label,
+   CASE WHEN c.name='uuid_change' AND ord=1 THEN '00000000-0000-0000-0000-000000000003'::uuid ELSE b.core_style_guide_id END AS core_style_guide_id,
+   CASE WHEN c.name='filename_case' AND ord=1 THEN 'hero.PSD' ELSE b.matched_file_name END AS matched_file_name
+ FROM cases c CROSS JOIN base b WHERE NOT (c.name='duplicate_remove' AND b.ord=3)
+ UNION ALL SELECT 'duplicate_add',b.* FROM base b WHERE ord=1
+), ordered AS (
+ SELECT * FROM variant_rows ORDER BY name,CASE WHEN name='reordered' THEN -ord ELSE ord END
+), hashed AS (
+ SELECT name,
+   hash_record_extended(ROW(source_system COLLATE "C",file_name_norm COLLATE "C",source_style_guide_key COLLATE "C",style_guide_label COLLATE "C",core_style_guide_id,matched_file_name COLLATE "C"),5608) h1,
+   hash_record_extended(ROW(source_system COLLATE "C",file_name_norm COLLATE "C",source_style_guide_key COLLATE "C",style_guide_label COLLATE "C",core_style_guide_id,matched_file_name COLLATE "C"),5609) h2
+ FROM ordered
+), fingerprints AS (
+ SELECT name,'v3:'||md5(concat_ws(':',count(*),sum(h1::numeric),sum(h2::numeric))) fingerprint FROM hashed GROUP BY name
+), checks AS (
+ SELECT f.name,CASE WHEN f.name='reordered' THEN f.fingerprint=b.fingerprint ELSE f.fingerprint<>b.fingerprint END passed
+ FROM fingerprints f CROSS JOIN fingerprints b WHERE b.name='baseline' AND f.name<>'baseline'
+)
+SELECT bool_and(passed) INTO all_passed FROM checks;
+IF all_passed IS DISTINCT FROM true THEN RAISE EXCEPTION 'Typed multiset fingerprint properties failed'; END IF;
+END $hash_contract$;
+
 rollback;

@@ -35,8 +35,9 @@ create table plm.peanuts_style_guide(capture_id uuid,value_key text,value_label 
 create table plm.sesame_asset(capture_id uuid,asset_source_id int,original_file_name text);
 create table plm.sesame_asset_style_guide(capture_id uuid,asset_source_id int,value_key text);
 create table plm.sesame_style_guide(capture_id uuid,value_key text,value_label text);
-create table cron.job(jobid bigint primary key,jobname text unique,schedule text,command text);
-create or replace function cron.schedule(text,text,text) returns bigint language sql as $$insert into cron.job values (case when $1='resolve-sku-style-guide-links-nightly' then 17 else 5608 end,$1,$2,$3) on conflict(jobid) do update set schedule=excluded.schedule,command=excluded.command returning jobid$$;
+create table cron.job(jobid bigint primary key,jobname text unique,schedule text,command text,username text default 'postgres',active boolean default true);
+create or replace function cron.schedule(text,text,text) returns bigint language sql as $$insert into cron.job(jobid,jobname,schedule,command) values (case when $1='resolve-sku-style-guide-links-nightly' then 17 else 5608 end,$1,$2,$3) on conflict(jobid) do update set schedule=excluded.schedule,command=excluded.command returning jobid$$;
+create function cron.alter_job(job_id bigint,schedule text default null,command text default null,database text default null,username text default null,active boolean default null) returns void language sql as $$update cron.job j set schedule=coalesce($2,j.schedule),command=coalesce($3,j.command),username=coalesce($5,j.username),active=coalesce($6,j.active) where j.jobid=$1$$;
 create function cron.unschedule(bigint) returns boolean language sql as $$with x as(delete from cron.job where jobid=$1 returning 1) select exists(select 1 from x)$$;
 
 \ir ../../../../supabase/migrations/20261030043848_sku_style_guide_links.sql

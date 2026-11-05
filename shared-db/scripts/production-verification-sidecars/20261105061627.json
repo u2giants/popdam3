@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261105061627",
+  "migration_sha256": "81c273047daf80935a4d846d526573dd27fafa9a69fe101165365e98d165cbe7",
+  "checks": [
+    {
+      "id": "sku_sg_nightly_source_identity",
+      "kind": "exact_row_count",
+      "relation": "cron.job",
+      "filters": [
+        {
+          "column": "jobname",
+          "type": "text",
+          "equals": "resolve-sku-style-guide-links-nightly"
+        },
+        {
+          "column": "schedule",
+          "type": "text",
+          "equals": "30 4 * * *"
+        },
+        {
+          "column": "username",
+          "type": "text",
+          "equals": "postgres"
+        },
+        {
+          "column": "active",
+          "type": "boolean",
+          "equals": true
+        },
+        {
+          "column": "command",
+          "type": "text",
+          "equals": "call public.resolve_sku_style_guide_links_run() /* shared-db:20261105061627 */"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
