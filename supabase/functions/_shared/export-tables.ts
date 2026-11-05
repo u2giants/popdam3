@@ -11,3 +11,11 @@ export function tableSource(db: ReturnType<typeof createClient>, table: string) 
   if (table === "plm_item_list") return db.schema("api").from("plm_item_list");
   return db.from(table);
 }
+
+/** Junction rows have a composite identity; all other export sources expose id. */
+export function orderedTableSource(db: ReturnType<typeof createClient>, table: string) {
+  const query = tableSource(db, table).select("*");
+  return table === "asset_characters"
+    ? query.order("asset_id", { ascending: true }).order("character_id", { ascending: true })
+    : query.order("id", { ascending: true });
+}

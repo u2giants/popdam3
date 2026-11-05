@@ -1,3 +1,4 @@
+import { exportRange } from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *
@@ -22,7 +23,7 @@
 import { createClient } from "../_shared/supabase-js.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
-import { tableSource } from "../_shared/export-tables.ts";
+import { tableSource, orderedTableSource } from "../_shared/export-tables.ts";
 
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
@@ -133,15 +134,18 @@ corsServe(async (req) => {
       parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10),
       10000,
     );
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(chunkSize) || chunkSize < 1) {
+      return new Response(JSON.stringify({ error: "Invalid offset or chunk_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
     const includeTruncate = url.searchParams.get("truncate") === "true" && offset === 0;
 
     // Fetch rows in PostgREST pages
     const rows: Record<string, unknown>[] = [];
     let pgOffset = offset;
     while (rows.length < chunkSize) {
-      const { data: page, error } = await tableSource(db, table)
-        .select("*")
-        .range(pgOffset, pgOffset + POSTGREST_PAGE - 1);
+      const requested = Math.min(POSTGREST_PAGE, chunkSize - rows.length);
+      const { data: page, error } = await orderedTableSource(db, table)
+        .range(...exportRange(pgOffset, chunkSize - rows.length, POSTGREST_PAGE));
 
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
@@ -151,8 +155,8 @@ corsServe(async (req) => {
       }
       if (!page || page.length === 0) break;
       for (const r of page) rows.push(r as Record<string, unknown>);
-      if (page.length < POSTGREST_PAGE) break;
-      pgOffset += POSTGREST_PAGE;
+      if (page.length < requested) break;
+      pgOffset += requested;
     }
 
     // Build SQL

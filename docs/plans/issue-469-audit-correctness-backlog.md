@@ -19,10 +19,10 @@ plan is therefore to land #713.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Merge PR #713 (carries 12 findings incl. Stop-overwrite guard, .ai sentinel cap) and verify the deploys | 🟡 merged; deploy verification open | merged 2026-11-04 5:12 PM EST as `2287f1b5` |
-| 2 | Download all: batch checkout token so every file opens | ⬜ open | — |
-| 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | ⬜ open | — |
-| 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | ⬜ open | — |
-| 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | ⬜ open | — |
+| 2 | Download all: batch checkout token so every file opens | implemented; live proof open | Helper 1.4.14 uses one launch and existing single-use tokens; maximum 50 files |
+| 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | implemented; live proof open | Exact ranges and composite junction identity covered by regression tests |
+| 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | prerequisite PR open | popcre/shared-db#5627; claim #5626; worker waits production |
+| 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | implemented; live proof open | Saves and realtime UPDATE fetch only the changed row including bridge/license fields |
 | 6 | Update `docs/audit-2026-10-21.md` backlog + this STATUS; close #469 with evidence | ⬜ open | — |
 
 Where a fresh session starts: step 1's deploy gate (the merge is done), then step 2.
@@ -422,3 +422,5 @@ Open: §8 OPEN items (open-after-checkout behavior; retry window).
    trade-off), §7 lists six rejected approaches, §8 dates the locked choices.
 3. **Goal clear enough to steer?** Yes — §1 states the user-visible outcome
    per bug and the no-symptom-suppression rule.
+
+Execution correction: `asset_characters` has composite identity `(asset_id, character_id)` and no `id`; exports order by both columns. Styles edits reload one canonical row, including bridge-derived and computed licensing fields, rather than merging incomplete raw realtime data. No full-grid reload occurs for UPDATE.

@@ -1,3 +1,4 @@
+import { exportRange } from "../_shared/export-pagination.ts";
 // Edge function to export large tables as CSV, paginated.
 // Bypasses Lovable Cloud's 1000-row CSV export limit.
 //
@@ -7,7 +8,7 @@ import { createClient } from "../_shared/supabase-js.ts";
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
-import { tableSource } from "../_shared/export-tables.ts";
+import { tableSource, orderedTableSource } from "../_shared/export-tables.ts";
 
 const ALLOWED_TABLES = [
   "assets",
@@ -53,6 +54,9 @@ corsServe(async (req) => {
     const page = parseInt(url.searchParams.get("page") ?? "0", 10);
     const pageSize = Math.min(parseInt(url.searchParams.get("page_size") ?? "50000", 10), 50000);
     const format = url.searchParams.get("format") ?? "csv";
+    if (!Number.isSafeInteger(page) || page < 0 || !Number.isSafeInteger(pageSize) || pageSize < 1 || !Number.isSafeInteger(page * pageSize)) {
+      return new Response(JSON.stringify({ error: "Invalid page or page_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
 
     if (!table || !ALLOWED_TABLES.includes(table)) {
       return new Response(JSON.stringify({ error: `Table not allowed. Valid: ${ALLOWED_TABLES.join(", ")}` }), {
@@ -73,8 +77,9 @@ corsServe(async (req) => {
 
     let offset = from;
     while (rows.length < targetRows) {
-      const chunkEnd = offset + CHUNK - 1;
-      const { data: chunk, error: chunkErr } = await tableSource(db, table).select("*").range(offset, chunkEnd);
+      const requested = Math.min(CHUNK, targetRows - rows.length);
+      const [, chunkEnd] = exportRange(offset, targetRows - rows.length, CHUNK);
+      const { data: chunk, error: chunkErr } = await orderedTableSource(db, table).range(offset, chunkEnd);
       if (chunkErr) {
         return new Response(JSON.stringify({ error: chunkErr.message }), {
           status: 500,
@@ -83,8 +88,8 @@ corsServe(async (req) => {
       }
       if (!chunk || chunk.length === 0) break;
       for (const r of chunk) rows.push(r as Record<string, unknown>);
-      if (chunk.length < CHUNK) break; // no more data
-      offset += CHUNK;
+      if (chunk.length < requested) break; // no more data
+      offset += requested;
     }
 
     const totalPages = Math.ceil((totalCount ?? 0) / pageSize);

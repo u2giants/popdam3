@@ -385,9 +385,25 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
 
   async function handleDownloadAll() {
     if (!groupAssets || groupAssets.length === 0) return;
-    toast("Starting downloads…");
-    for (const asset of groupAssets) {
-      await handleAssetCheckout(asset.id);
+    if (groupAssets.length > 50) {
+      toast.error("This group has more than 50 files", { description: "Check out files individually for this large group." });
+      return;
+    }
+    try {
+      const tokens: string[] = [];
+      for (const asset of groupAssets) {
+        const { data, error } = await supabase.functions.invoke("helper-api/tokens", {
+          body: { action: "checkout", asset_id: asset.id },
+        });
+        if (error || !data?.ok || !/^[a-f0-9]{32}$/.test(data.token ?? "")) {
+          throw new Error(error?.message ?? data?.error ?? "Could not create checkout link");
+        }
+        tokens.push(data.token);
+      }
+      window.location.href = `popdam://checkout-batch?tokens=${tokens.join(",")}`;
+      toast("Opening files in PopDAM Helper…");
+    } catch (error) {
+      toast.error("Could not download all files", { description: error instanceof Error ? error.message : String(error) });
     }
   }
 
