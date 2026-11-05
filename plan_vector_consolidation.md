@@ -230,7 +230,7 @@ select public.image_embed_status();
   repo.
 
 **Open (implementer decides, with the rule):**
-- O1 Where the PopSG lane runs. Rule: if the Railway `sg-embed-search`
+- O1 DECIDED Nov 4, 2026 (#706): GPU poller lane. The Railway operation embedded file names through the text tower, against D1; nonsense outscored real searches. Original rule, superseded: Where the PopSG lane runs. Rule: if the Railway `sg-embed-search`
   operation (CPU, text-embed tower over HTTP) sustains ≥ 2,000 pages/hour
   for 24 h without interruption after PR #5588, keep it and add the watchdog.
   Otherwise add a fourth lane to the GPU poller mirroring the search-doc

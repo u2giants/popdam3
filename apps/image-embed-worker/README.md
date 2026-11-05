@@ -37,6 +37,8 @@ lanes from `dam.image_embed_jobs`:
   `search_lane_error`, cools down 10 minutes and retries — the other lanes
   keep working.
 
+PopSG lane (#706): the same service embeds `style_guide_search_documents` thumbnails through the `*_sg_search_embedding*` RPCs, same model and no border-crop. `--no-search-lane` disables it too.
+
 Heartbeat: `dam.image_embed_worker_heartbeat(worker_id)` every **30 s**;
 `public.image_embed_status().workers_fresh` reports the fleet available
 while at least one heartbeat is < 90 s old.
