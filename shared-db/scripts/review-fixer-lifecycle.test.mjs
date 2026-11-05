@@ -85,3 +85,88 @@ test('caller lifecycle events are trusted cleanup routes alongside normal fixer 
   assert.match(text, /uses: popcre\/ai-devops\/\.github\/workflows\/review-fixer.yml@main/)
   assert.doesNotMatch(text, /ref:.*head|checkout.*head/)
 })
+
+const legacyClaim = () => ({ number: 5652, body: '```db-claim\nversion: 20261105074314\nobjects:\n  - table dam.fixture\n```' })
+const proseIo = (rows = [{ filename: 'plan_unused-index-cleanup.md', status: 'modified' }]) => {
+  const pr = { number: 5659, state: 'open', changed_files: rows.length,
+    head: { ref: 'review-fix/5658', sha: 'a'.repeat(40), repo: { full_name: repo } },
+    base: { sha: 'b'.repeat(40) } }
+  return { claims: () => [legacyClaim()], pull: () => structuredClone(pr), files: () => structuredClone(rows), pr }
+}
+const retireProse = (mock) => retirementAudit({ repo, fixPr: 5659, issue: 5658 }, mock)
+test('#5658 exact plan-only fixer can retire without touching unrelated C2 claims', () => {
+  const mock = proseIo()
+  let reads = 0
+  mock.files = () => { reads++; return [{ filename: 'plan_unused-index-cleanup.md', status: 'modified' }] }
+  assert.equal(retireProse(mock).state, 'clear')
+  assert.equal(reads, 2)
+  assert.equal(mock.claims()[0].number, 5652)
+})
+test('a named associated lease still defers prose even after a legacy claim', () => {
+  const mock = proseIo()
+  mock.claims = () => [legacyClaim(), claim('review-fix/5658')]
+  mock.files = () => { throw new Error('must not classify around a known owner') }
+  assert.equal(retireProse(mock).state, 'defer')
+})
+test('unreadable claim metadata still fails prose retirement', () => {
+  const mock = proseIo()
+  mock.claims = () => [legacyClaim(), { number: 3, body: 'unreadable' }]
+  assert.throws(() => retireProse(mock), /missing fenced/)
+})
+test('SQL, code, rulebook, mixed and renames out of protected paths stay refused', () => {
+  for (const rows of [
+    [{ filename: 'supabase/migrations/20261105074314_fixture.sql', status: 'added' }],
+    [{ filename: 'config/fixture.json', status: 'modified' }],
+    [{ filename: 'scripts/fixture.mjs', status: 'modified' }],
+    [{ filename: 'AGENTS.md', status: 'modified' }],
+    [{ filename: 'docs/x.md', status: 'modified' }, { filename: 'x.sql', status: 'modified' }],
+    [{ filename: 'docs/x.md', previous_filename: 'old.sql', status: 'renamed' }],
+    [{ filename: 'docs/x.md', previous_filename: 'AGENTS.md', status: 'renamed' }],
+  ]) assert.throws(() => retireProse(proseIo(rows)), /no readable branch ownership/)
+  assert.equal(retireProse(proseIo([{ filename: 'docs/new.md', previous_filename: 'docs/old.md', status: 'renamed' }])).state, 'clear')
+})
+test('complete positive count and unique valid file metadata are mandatory', () => {
+  for (const row of [
+    { filename: '/absolute.md', status: 'modified' },
+    { filename: '../escape.md', status: 'modified' },
+    { filename: 'docs/./x.md', status: 'modified' },
+    { filename: 'docs\\x.md', status: 'modified' },
+    { filename: 'docs/x\n.md', status: 'modified' },
+    { filename: 'docs/x.md', status: 'unknown' },
+    { filename: 'docs/x.md' },
+    { filename: 'docs/x.md', status: 'renamed' },
+    { filename: 'docs/x.md', previous_filename: '../old.md', status: 'renamed' },
+  ]) assert.throws(() => retireProse(proseIo([row])), /metadata is invalid/)
+  for (const count of [undefined, 0, -1, '1', 2]) {
+    const mock = proseIo(); mock.pr.changed_files = count
+    assert.throws(() => retireProse(mock), /complete exact PR metadata|truncated/)
+  }
+  const duplicate = proseIo([{ filename: 'x.md', status: 'added' }, { filename: 'x.md', status: 'modified' }])
+  assert.throws(() => retireProse(duplicate), /duplicated/)
+  for (const rows of [undefined, null, []]) {
+    const mock = proseIo(); mock.files = () => rows
+    assert.throws(() => retireProse(mock), /truncated/)
+  }
+  const missingHash = proseIo(); delete missingHash.pr.head.sha
+  assert.throws(() => retireProse(missingHash), /complete exact PR metadata/)
+  const unreadable = proseIo(); unreadable.files = () => { throw new Error('read failed') }
+  assert.throws(() => retireProse(unreadable), /read failed/)
+})
+test('moving head/base/count/state or changed complete file list fails closed', () => {
+  for (const mutate of [
+    (pr) => { pr.head.sha = 'c'.repeat(40) },
+    (pr) => { pr.base.sha = 'c'.repeat(40) },
+    (pr) => { pr.changed_files = 2 },
+    (pr) => { pr.state = 'closed' },
+  ]) {
+    const mock = proseIo(); let reads = 0
+    mock.pull = () => { const pr = structuredClone(mock.pr); if (++reads > 1) mutate(pr); return pr }
+    assert.throws(() => retireProse(mock), /changed/)
+  }
+  const mock = proseIo(); let reads = 0
+  mock.files = () => [{ filename: ++reads === 1 ? 'one.md' : 'two.md', status: 'modified' }]
+  assert.throws(() => retireProse(mock), /file list changed/)
+  const lastRace = proseIo(); let pulls = 0
+  lastRace.pull = () => { const pr = structuredClone(lastRace.pr); if (++pulls === 3) pr.head.sha = 'd'.repeat(40); return pr }
+  assert.throws(() => retireProse(lastRace), /changed/)
+})
