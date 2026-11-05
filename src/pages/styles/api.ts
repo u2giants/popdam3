@@ -53,6 +53,18 @@ export async function fetchRowsPage(sourceSheet: string, pageOffset: number) {
   };
 }
 
+/** Refresh one edited row, including bridge and computed licensing fields. */
+export async function fetchStyleRow(id: string) {
+  const { data, error } = await (supabase as any).from("style_tracker_rows_with_bridge")
+    .select(STYLE_TRACKER_ROW_SELECT).eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const { data: statuses, error: statusError } = await (supabase as any)
+    .rpc("get_dam_style_tracker_license_status", { p_row_ids: [id] });
+  if (statusError) throw statusError;
+  return mergeComputedLicenseStatus([data as StyleRow], statuses ?? [])[0];
+}
+
 export async function fetchCellAuditLog(cell: AuditCell | null) {
   if (!cell) return [] as AuditLogEntry[];
   const { data, error } = await (supabase as any)

@@ -16,5 +16,6 @@
       "@shared/*": ["src/shared/*"]
     }
   },
+  "exclude": ["src/**/*.vitest.ts", "src/**/*.test.ts"],
   "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/shared/**/*"]
 }
