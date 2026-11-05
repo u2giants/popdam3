@@ -19,13 +19,13 @@ plan is therefore to land #713.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Merge PR #713 (carries 12 findings incl. Stop-overwrite guard, .ai sentinel cap) and verify the deploys | 🟡 merged; deploy verification open | merged 2026-11-04 5:12 PM EST as `2287f1b5` |
-| 2 | Download all: batch checkout token so every file opens | implemented; configured-machine outcome open | PR #761; Helper 1.4.15 installed/status verified, one launch, existing single-use tokens, maximum 50; actual batch checkout unproven |
+| 2 | Download all: batch checkout token so every file opens | implemented; configured-machine outcome open | PR #761; Helper 1.4.15 installed/status verified, one launch, existing single-use tokens, maximum 50; actual batch checkout blocked on current-device source access |
 | 3 | export-table / export-sql-dump: deterministic `ORDER BY` and page math | live export accepted | PR #761; authenticated pairings pages 6+0 and junction pages 7+7, unique composite identities/no overlap; coordinator independently repeated |
 | 4 | rich-pdf: do not treat a failed extraction as done (RPC change in shared-db first) | reader and worker deployed; actual retry open | shared-db #5627/version 20261105041612 live, app #779 deployed; 11 cooldown tests pass; 246 live extractions contain zero saved failures, so no live retry candidate |
 | 5 | StylesPage: targeted cache update on cell edit, dedupe realtime invalidation | frontend partial proof accepted; persisted save open | Settled intercepted save: one row read/zero grid reads. Actual save invokes global bridge writes; scoped shared-db #5640/#5639 prepared, not deployed |
 | 6 | Update `docs/audit-2026-10-21.md` backlog + this STATUS; close #469 with evidence | ⬜ open | — |
 
-Continue the same open #469: configured Helper outcome and actual failed-PDF retry remain unproven. Preserve the global Styles refresh capability; deliver the prepared bounded contract before a real synthetic-row UI save. All owned app/shared-db main merges are held until after 3:30 AM EST; never stop or reset the full tagging run.
+Continue the same open #469: configured Helper outcome and actual failed-PDF retry remain unproven. Bounded device inventory found three registered Helpers, none recently seen; the connected QA device has no saved configuration, mapped network root or running sync client. Its read-only probe of the CURRENT canonical UNC source root returned ObjectNotFound. No mount, credentials, configuration, token, lock or customer-file mutation followed. Same-issue evidence: comment6651687695. Preserve global Styles full-refresh callers; deliver the prepared bounded contract before a real synthetic-row UI save. All owned app/shared-db main merges remain held until after 3:30 AM EST; never stop or reset the full tagging run.
 
 ---
 
