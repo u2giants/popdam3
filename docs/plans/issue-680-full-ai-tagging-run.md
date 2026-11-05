@@ -2,7 +2,7 @@
 Issue: https://github.com/u2giants/popdam3/issues/680
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
 Written 2026-11-04 by Claude (plan only; no implementation started).
-Predecessor handoffs (read for history, not for state): [2026-11-03T2208Z tagging](../../HANDOFF.d/2026-11-03T2208Z-hetz-claude-tagging-after-indra-rescan.md), [2026-11-04T2359Z coordinator](../../HANDOFF.d/2026-11-04T2359Z-hetz-claude-close-nested-tagging-followups.md). Related plan: `plan_openrouter_batch_restart_recovery.md` (batch restart survival; not the parallel lane).
+Predecessor handoffs (read for history, not for state): [2026-11-03T2208Z tagging](../../HANDOFF.d/2026-11-03T2208Z-hetz-claude-tagging-after-indra-rescan.md), [2026-11-04T2359Z coordinator](../../HANDOFF.d/2026-11-05T0100Z-hetz-claude-search-and-tagging-coordinator.md). Related plan: `plan_openrouter_batch_restart_recovery.md` (batch restart survival; not the parallel lane).
 
 **Drift note (Nov 4, 2026, 5:00 PM EST):** PR #727 merged to `main` at 4:53 PM EST as `4720dd2e` (guard at `apps/worker/src/handlers/ai-tagging.ts` now skips the asset-ID check for discover runs). Treat any step that says "merge #727" as done pending worker heartbeat SHA ≥ `4720dd2e`; re-verify the remaining findings against that commit.
 

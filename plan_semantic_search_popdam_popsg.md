@@ -1,3 +1,5 @@
+> **HISTORICAL (Nov 4, 2026).** Superseded by [plan_vector_consolidation.md](plan_vector_consolidation.md). Do not execute from this file; its handoffs are retired.
+
 # Semantic Search for PopDAM and PopSG — Implementation Plan
 
 Created October 18, 2026, 12:32 PM EDT. Planning owner: Codex chat `01a14fcf-a38a-7a91-8609-fbb89b8c4eaf`.

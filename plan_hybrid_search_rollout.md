@@ -1,3 +1,5 @@
+> **HISTORICAL (Nov 4, 2026).** Vector and semantic work is now governed by [plan_vector_consolidation.md](plan_vector_consolidation.md). The November 1 failure contract below remains in force.
+
 # PopDAM Hybrid Search — Safe Implementation and Rollout Plan
 
 ## STATUS — style-number outage completed November 2, 2026

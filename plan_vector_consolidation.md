@@ -6,7 +6,7 @@ bird-eye view of everything we're trying to do with vector and tell me why
 we're failing"* → *"Yes, write plan"* (a single consolidation plan that fixes the
 embedding pipeline first, then PopSG).
 
-**Handoff:** [HANDOFF.d/20261104T2205Z-hetz-claude-vector-consolidation-plan.md](HANDOFF.d/20261104T2205Z-hetz-claude-vector-consolidation-plan.md)
+**Handoff:** [HANDOFF.d/2026-11-05T0100Z-hetz-claude-search-and-tagging-coordinator.md](HANDOFF.d/2026-11-05T0100Z-hetz-claude-search-and-tagging-coordinator.md)
 **Tracking issues:** PopDAM [#706](https://github.com/u2giants/popdam3/issues/706)
 (PopSG indexing + acceptance), [#663](https://github.com/u2giants/popdam3/issues/663)
 (excluded DAM documents), [#107](https://github.com/u2giants/popdam3/issues/107)
@@ -16,20 +16,36 @@ issue say so.
 
 ## STATUS — read before executing
 
-| Step | State (Nov 4, 2026, 5:05 PM EST) | Evidence / artifact |
+| Step | State (Nov 4, 2026, 7:59 PM EST) | Evidence / artifact |
 |---|---|---|
-| 0. Absorb in-flight work, do not duplicate | 🔄 running elsewhere | shared-db PR [#5588](https://github.com/popcre/shared-db/pull/5588) (PopSG claim autovacuum, session `popsg-indexing`), PR [#5585](https://github.com/popcre/shared-db/pull/5585) (DAM claim waits for thumbnail, session `excluded-search-docs`) |
-| 1. Watchdog: "no embedding written while work is pending" alarm | ⬜ open | — |
-| 2. One durable runner for both corpora (DAM + PopSG) | ⬜ open | — |
-| 3. Stop re-starving: nightly rebuild keeps unchanged vectors | ⬜ open | — |
-| 4. Errored-document reset path (one-shot, bounded) | ⬜ open (partly #663) | — |
-| 5. Fixed relevance + latency scorecard, both apps | ⬜ open | — |
-| 6. PopSG: wire semantic leg into the UI, mode switch, activation | ⬜ open | — |
-| 7. Retire superseded plans/handoffs into this one | ⬜ open | — |
-| 8. Live proof on both apps, close #706 / #663 | ⬜ open | — |
+| 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Follow-up `20261105002300` is merged, NOT yet in the ledger: promotion held by open findings #5592 / #5583 |
+| 1. Watchdog alarm | ⬜ open | Database part needs promotion unheld |
+| 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
+| 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
+| 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
+| 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed; takes over old tagging task 6 |
+| 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
+| 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
+| 8. Live proof, close #706 / #663 | ⬜ open | — |
 
-**Fresh session starts at Step 0** (check the two PRs above first), then Step 1.
-Re-read the downstream phase before starting each one.
+**Fresh session starts at Step 1**, after reading "Reconciliation" below. Re-read the downstream phase before starting each one.
+
+## Reconciliation with the tagging coordinator work (Nov 4, 2026). Overrides anything below it.
+
+Tagging (#680) stays out of this plan's scope, but shares its database, worker and search results:
+
+1. **Promotion gate.** Open shared-db review findings hold all promotion. Tagging task 1 (#5592, #5583) goes first; database parts of Steps 1, 3, 4 and 5 wait on it.
+2. **Worker restarts.** A merge touching the worker restarts it during the 7.7-day tagging run and PopSG indexing. Allowed, except 1:00 to 3:30 AM EST. Deliberately stopping or restarting the run is never allowed. Concurrency stays 8.
+3. **One test set.** Step 5 extends `SEARCH_EVAL_SET_V1` (`docs/SEARCH_EVAL.md`, `scripts/search-eval/`). No public fixture: licensed names stay out of this public repo. Add latency p50/p95 and the plan's missing query kinds to that set.
+4. **Failure behaviour.** In hybrid mode a failed embedding shows error and Retry, never keyword results (Albert, Nov 1; D4). Only a product code skips embedding on purpose. Replaces Step 6a's fallback sentences and the "stay available (keyword)" line in the #706 plan.
+5. **Pending now excludes rows waiting for a thumbnail.** Step 1 reuses the definition in `get_dam_search_embedding_status` (migration `20261105002300`), or the alarm fires on rows that can never drain. The §5 SQL overcounts.
+6. **Step 1 drill.** Stopping the poller also pauses picture search, so run it outside business hours.
+7. **Step 2 gate.** PopSG will drain within hours, so "24 hours falling" cannot be measured. Pass: drained with no manual resume, then 24 hours unattended holding near zero.
+8. **Step 3 scope.** Measure nightly rebuild, tagging and scan writes. Tagging changes search documents all week; if unchanged pictures lose vectors, that is the same defect.
+9. **Step 4.** One run only, shared with `docs/plans/issue-663-*` step 1. Rows without thumbnails stay excluded.
+10. **Step 5 order.** (a) rebase `fix/search-eval-ranking-680`, re-stamp, reopen on #5581, promote; it overlaps merged PR 5594, so re-judge the conflict; (b) finish #725 spelling; (c) verify PR 720's deploy and run the workflow; (d) add latency and kinds; (e) save the score on #680 and #706. Tagging changes results: judge unjudged hits before comparing, and rescore at tagging end.
+11. **Step 6.** The adapter exists: action `popsg-query-embedding`, `PopSGLibraryPage.tsx`, `popsgSearchV2.ts`. Do not add `sg-embed-query` or `popsgSemanticSearch.ts`. Remaining: execute `docs/plans/issue-734-*`, then error/Retry, then floor, latency and the switch. Tester account is already deleted. Hybrid p95 was 10-11 s against 3 s: if still over at full coverage, stay on keyword and record the gap.
+12. **Other plans.** `docs/plans/issue-706-*` and `issue-663-*` remain checklists; where they overlap, this plan wins.
 
 ---
 

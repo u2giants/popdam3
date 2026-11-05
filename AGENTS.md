@@ -56,9 +56,9 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
 - plan_vector_consolidation.md — ALL vector/semantic search work (DAM + PopSG): one durable embedding pipeline, scorecard, PopSG activation; read STATUS first
-- plan_hybrid_search_rollout.md — keyword + pgvector discovery
+- plan_hybrid_search_rollout.md — HISTORICAL; superseded by plan_vector_consolidation.md (keeps the failure contract)
 - plan_image_similarity_upload_search.md — upload an image, find same artwork (dual vision embeddings, GPU workers); read STATUS first
-- plan_semantic_search_popdam_popsg.md — combined semantic-search delivery plan and package assessment; read STATUS first
+- plan_semantic_search_popdam_popsg.md — HISTORICAL; superseded by plan_vector_consolidation.md
 - docs/SEARCH_EVAL.md — scored search test set; run before and after anything changing search or tags
 - plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
 - plan_popsg_production_readiness.md — PopSG library truthfulness and search
