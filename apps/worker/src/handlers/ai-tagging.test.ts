@@ -286,3 +286,30 @@ test("a named character links only on an exact match in the licensor's records",
   assert.deepEqual(await addNamedCharacters(client, asset, [], ["Venom", "Dumbo", "Somebody Else"]), ["11111111-1111-4111-8111-111111111111"]);
   assert.deepEqual(await addNamedCharacters(client, asset, [], "nope"), []);
 });
+
+test("a named character links through a licensor alias when the label differs", async () => {
+  const id = "55555555-5555-4555-8555-555555555555";
+  const aliases = [{ alias: "Hero", character: { id, status: "active" } }, { alias: "Retired", character: { id: "66666666-6666-4666-8666-666666666666", status: "archived" } }];
+  const chain = (result: unknown): any => new Proxy(() => undefined, { get: (_t, key) => key === "then" ? (done: (v: unknown) => void) => done(result) : key === "maybeSingle" ? async () => result : () => chain(result), apply: () => chain(result) });
+  const client = { schema: () => ({ from: (table: string) => chain({ data: table === "character_alias" ? aliases : [], error: null }) }), from: () => chain({ data: null, error: null }) } as never;
+  const asset = { licensor_id: "44444444-4444-4444-8444-444444444444", property_id: null, style_group_id: null, sku: null };
+  assert.deepEqual(await addNamedCharacters(client, asset, [], ["Hero", "Retired", "Somebody Else"]), [id]);
+  assert.deepEqual(await addNamedCharacters(client, asset, [id], ["Hero"]), [id]);
+});
+
+
+test("alias matching abstains on conflicting normalized characters and capped results", async () => {
+  const first = "55555555-5555-4555-8555-555555555555";
+  const second = "66666666-6666-4666-8666-666666666666";
+  const existing = "77777777-7777-4777-8777-777777777777";
+  const asset = { licensor_id: "44444444-4444-4444-8444-444444444444", property_id: null, style_group_id: null, sku: null };
+  const resolve = async (aliases: Array<{ alias: string; character: { id: string; status: string } }>) => {
+    const chain = (result: unknown): any => new Proxy(() => undefined, { get: (_t, key) => key === "then" ? (done: (v: unknown) => void) => done(result) : key === "maybeSingle" ? async () => result : () => chain(result), apply: () => chain(result) });
+    const client = { schema: () => ({ from: (table: string) => chain({ data: table === "character_alias" ? aliases : [], error: null }) }), from: () => chain({ data: null, error: null }) } as never;
+    return addNamedCharacters(client, asset, [existing], ["Hero"]);
+  };
+  const alias = (label: string, id: string) => ({ alias: label, character: { id, status: "active" } });
+  assert.deepEqual(await resolve([alias("Hero (A)", first), alias("Hero (B)", second)]), [existing]);
+  assert.deepEqual(await resolve([alias("Hero (A)", first), alias("Hero aka Other", first)]), [existing, first]);
+  assert.deepEqual(await resolve(Array.from({ length: 50 }, () => alias("Hero", first))), [existing]);
+});

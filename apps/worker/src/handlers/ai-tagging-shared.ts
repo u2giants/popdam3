@@ -287,7 +287,17 @@ export async function addNamedCharacters(
       const { data } = await client.schema("core").from("character").select("id, name, status").eq("licensor_id", scope.licensor_id).ilike("name", pattern).order("name").limit(200);
       const match = ((data ?? []) as Array<{ id: string; name: string; status?: string | null }>)
         .filter(row => !["archived", "deleted"].includes(row.status ?? "") && !NOT_A_CHARACTER.test(row.name) && normalizedCharacterName(row.name) === name)[0];
-      if (match) { added.push(match.id.toLowerCase()); have.add(name); }
+      if (match) { added.push(match.id.toLowerCase()); have.add(name); continue; }
+      // The licensor's label can differ from the everyday name; its aliases still resolve to one record.
+      const { data: aliases } = await client.schema("core").from("character_alias").select("alias, character:character_id(id, status)").eq("licensor_id", scope.licensor_id).ilike("alias", pattern).limit(50);
+      // A full response may hide a conflicting match beyond the query cap.
+      if ((aliases ?? []).length >= 50) continue;
+      const aliasIds = new Set(((aliases ?? []) as unknown as Array<{ alias: string; character: { id: string; status?: string | null } | null }>)
+        .filter(row => row.character && !["archived", "deleted"].includes(row.character.status ?? "") && normalizedCharacterName(row.alias) === name)
+        .map(row => row.character!.id.toLowerCase()));
+      if (aliasIds.size !== 1) continue;
+      const [aliasId] = aliasIds;
+      if (!added.includes(aliasId) && !characterIds.includes(aliasId)) { added.push(aliasId); have.add(name); }
     }
     return [...characterIds, ...added];
   } catch {
