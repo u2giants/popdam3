@@ -52,6 +52,7 @@ import {
   buildImageTaggingMessages,
   buildBatchImageTaggingMessages,
   buildImageTaggingPrompt,
+  clearPromptCache,
   validateCharacterReferences,
   addNamedCharacters,
   resolveLicensingNames,
@@ -1127,6 +1128,7 @@ export async function handleBulkAiTag(
   requireAssetIds = false,
   requireParallel = false,
 ): Promise<BatchResult> {
+  if (!opState.cursor && !opState.external_job) clearPromptCache();
   const client = (dependencies.client ?? db()) as AiTagRpcClient;
   const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
   let BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));

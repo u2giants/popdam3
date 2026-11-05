@@ -15,6 +15,7 @@ import { isScaleDownModel, SCALEDOWN_PRICE_PER_TOKEN, scaleDownTagImage } from "
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
+  clearPromptCache,
   callTagAssetModel,
   fetchImageData,
 } from "./ai-tagging-shared.js";
@@ -465,6 +466,7 @@ async function markStaleRunningResults(runId: string) {
 }
 
 export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult> {
+  if (!opState.cursor && !opState.external_job) clearPromptCache();
   const client = db();
   const runId = typeof opState.params?.run_id === "string" ? opState.params.run_id : null;
   if (!runId) return { ok: false, done: false, error: "run_id param is required" };
