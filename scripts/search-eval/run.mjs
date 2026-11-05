@@ -135,7 +135,7 @@ const raw = saved?.raw ?? {};
 const persist = () => {
   if (checkpoint) {
     const temporary = `${checkpoint}.${process.pid}.tmp`;
-    writeFileSync(temporary, JSON.stringify({ set_hash: setHash, identity, started_at: startedAt, raw }), { mode: 0o600 });
+    writeFileSync(temporary, JSON.stringify({ set_hash: setHash, identity, started_at: startedAt, raw }), { mode: 0o600, flag: "wx" });
     renameSync(temporary, checkpoint);
   }
 };

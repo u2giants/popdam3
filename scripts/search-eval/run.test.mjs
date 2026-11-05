@@ -128,7 +128,7 @@ test("a failed checkpoint replacement preserves the prior engine and partial res
     damSearches++;
     return Response.json({ results: [], total_count: 0 });
   });
-  await assert.rejects(import("./run.mjs?test=partial-failed-write"), /EISDIR/);
+  await assert.rejects(import("./run.mjs?test=partial-failed-write"), /EISDIR|EEXIST/);
   const preserved = JSON.parse(readFileSync(checkpoint));
   assert.ok(preserved.raw["fake-case"].dam);
   assert.equal(preserved.raw["fake-case"].sg_guides, undefined);
