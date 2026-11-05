@@ -19,6 +19,13 @@ alert, so one dead PR cannot park every later promotion (#5532). A PR held
 longer than ALERT_AFTER fails this run as a loud advisory alert instead of
 skipping silently. It never writes a database.
 
+Known cross-PR derivation bases wait for production evidence before a child
+consumes attempts (#5608/#5651). Canonical declared_bases resolves historical
+exceptions exactly as the production guard does. Unknown bases remain that
+guard's responsibility; independent releases continue past waiting children.
+Dependency evidence is memoized only within one decide call; the final fresh
+recheck reads it again. Unreadable receipts remain unproved.
+
     automatic_promotion_candidates.py [--dry-run]
 """
 from __future__ import annotations
@@ -35,7 +42,7 @@ from pathlib import Path
 from typing import Any
 
 import review_finding_hold
-from migration_derivation import parse_declaration
+from migration_derivation import declared_bases
 from production_migration_guard import FOREIGN_TARGET_MIGRATIONS
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
@@ -99,7 +106,7 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             paths = glob.glob(os.path.join(os.path.dirname(HERE), "supabase", "migrations", f"{version}_*.sql"))
             if len(paths) != 1:
                 raise ValueError(f"ambiguous migration source for {version}")
-            bases.update(parse_declaration(Path(paths[0]).read_text(encoding="utf-8"), version) or ())
+            bases.update(declared_bases(version, path=Path(paths[0])) or ())
         # Retain ownership on the candidate itself: the final fresh recheck only
         # receives this PR, not the complete earlier candidate list.
         pr["production_dependencies"] = {v: owners[v] for v in sorted(bases)
@@ -201,11 +208,32 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
     versions are all in production is done, whichever run put them there: a
     successful run naming them (a follow-up PR's included) or a production
-    preflight that `refused` them as already applied."""
+    preflight that `refused` them as already applied. Known cross-PR bases
+    (#5608/#5651) require the same trustworthy production evidence before a
+    child consumes attempts; dependency waits preserve independent progress.
+    Dependency receipts are cached only for this call, never the fresh recheck."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
     out_of_attempts: list[dict[str, Any]] = []
+    # #5651: only dependency receipts share reads within this decision pass.
+    # The fresh recheck invokes decide again and must read new evidence.
+    dependency_receipts = {}
+
+    def dependency_evidence(run):
+        key = (run.get("id", id(run)), run.get("run_attempt", 1))
+        if key not in dependency_receipts:
+            actual_apply, already_applied = False, set()
+            try:
+                actual_apply = applied(run)
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                print("::warning::dependency apply evidence unreadable; treating this receipt as unproved")
+            try:
+                already_applied = set(refused(run))
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                print("::warning::dependency ledger refusal evidence unreadable; treating this receipt as unproved")
+            dependency_receipts[key] = (actual_apply, already_applied)
+        return dependency_receipts[key]
     for pr in prs:
         tag = f"PR{pr['number']} "
         titles = [(r.get("display_title") or "") + " " for r in runs]
@@ -244,17 +272,10 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if run.get("conclusion") == "success":
                 proven_bases |= named
             elif run.get("conclusion") == "failure":
-                # One unreadable dependency receipt proves nothing, but must not
-                # park unrelated releases or hide another trustworthy receipt.
-                try:
-                    if applied(run):
-                        proven_bases |= named
-                except (OSError, ValueError, subprocess.CalledProcessError):
-                    print("::warning::dependency apply evidence unreadable; treating this receipt as unproved")
-                try:
-                    proven_bases |= refused(run)
-                except (OSError, ValueError, subprocess.CalledProcessError):
-                    print("::warning::dependency ledger refusal evidence unreadable; treating this receipt as unproved")
+                actual_apply, already_applied = dependency_evidence(run)
+                if actual_apply:
+                    proven_bases |= named
+                proven_bases |= already_applied
         missing_bases = {v: owner for v, owner in dependencies.items() if v not in proven_bases}
         if missing_bases:
             passed_over += 1

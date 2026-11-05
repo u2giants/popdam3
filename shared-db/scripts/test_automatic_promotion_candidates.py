@@ -620,5 +620,54 @@ class KnownProductionDependencies(unittest.TestCase):
         self.assertNotIn("evidence unreadable\n", output.getvalue())
 
 
+class CanonicalDependencyResolution(unittest.TestCase):
+    def discover_real(self, versions):
+        from pathlib import Path
+        root = Path(m.HERE).parent
+        pulls = [{"number": 8000 + n, "merged_at": "2026-11-05T01:00:00Z"} for n in range(len(versions))]
+        files = [[[{"status": "added", "filename": str(next((root / "supabase/migrations").glob(v + "_*.sql")).relative_to(root))}]] for v in versions]
+        with mock.patch.object(m, "gh", side_effect=[pulls, *files]):
+            return m.merged_migration_prs("o/r")
+
+    def test_real_byte_pinned_non_ledger_source_does_not_invent_a_base(self):
+        from pathlib import Path
+        from migration_derivation import IMMUTABLE_NON_LEDGER_SOURCE_SHA256
+        import hashlib
+        version = "20261022132119"
+        path = next((Path(m.HERE).parent / "supabase/migrations").glob(version + "_*.sql"))
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), IMMUTABLE_NON_LEDGER_SOURCE_SHA256[version])
+        base, child = self.discover_real(["20261022014315", version])
+        self.assertEqual(child["production_dependencies"], {})
+
+    def test_real_legacy_overlay_matches_the_production_resolver(self):
+        from pathlib import Path
+        from migration_derivation import parse_declaration
+        version = "20260915015414"
+        path = next((Path(m.HERE).parent / "supabase/migrations").glob(version + "_*.sql"))
+        self.assertIsNone(parse_declaration(path.read_text(), version))
+        base, child = self.discover_real(["20260905104802", version])
+        self.assertEqual(child["production_dependencies"], {"20260905104802": base["number"]})
+
+    def test_dependency_receipts_share_only_one_decision_pass(self):
+        fixture = KnownProductionDependencies()
+        child = fixture.child
+        sibling = {**child, "number": 5652, "versions": ["20261105080000"]}
+        run = {**fixture.run_for(conclusion="failure"), "id": 123, "run_attempt": 1}
+        for unreadable in (False, True):
+            with self.subTest(unreadable=unreadable), contextlib.redirect_stdout(io.StringIO()):
+                applied = mock.Mock(side_effect=OSError("private receipt") if unreadable else None, return_value=False)
+                refused = mock.Mock(side_effect=ValueError("private receipt") if unreadable else None, return_value=set())
+                action, selected, _ = m.decide([child, sibling, fixture.other], [run], lambda n: [], applied=applied, refused=refused)
+                self.assertEqual((action, selected["number"]), ("dispatch", fixture.other["number"]))
+                self.assertEqual((applied.call_count, refused.call_count), (1, 1))
+                # A fresh pass reads again, even with the same run ID/attempt.
+                self.assertEqual(m.decide([child], [run], lambda n: [], applied=applied, refused=refused)[0], "idle")
+                self.assertEqual((applied.call_count, refused.call_count), (2, 2))
+                applied.side_effect = None
+                applied.return_value = True
+                self.assertEqual(m.decide([child], [run], lambda n: [], applied=applied, refused=refused)[0], "dispatch")
+                self.assertEqual((applied.call_count, refused.call_count), (3, 3))
+
+
 if __name__ == "__main__":
     unittest.main()
