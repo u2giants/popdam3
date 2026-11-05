@@ -140,8 +140,8 @@ test('every mismatch refuses the binding',()=>{
   }
 })
 
-test('the resolver still refuses a merged PR with no link and no binding',()=>{
-  assert.throws(()=>resolveAdmittedIssueForPr(2726,fixture().io),/must close exactly one structural work issue; found 0/)
+test('the resolver returns issue:null for a merged PR with no link and no binding (step 2.1)',()=>{
+  assert.equal(resolveAdmittedIssueForPr(2726,fixture().io).issue,null)
 })
 
 test('the resolver reads the work issue from a merged PR title',()=>{

@@ -14,7 +14,9 @@ test('#507(c) arguments refuse incomplete or contradictory requests before any l
   assert.throws(() => parseArgs(['--versions', '20260101000000']), /--mode must be/)
   assert.throws(() => parseArgs(['--versions', '2026', '--mode', 'dry-run']), /14-digit/)
   assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'apply']), /--review-run-id/)
-  assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'apply', '--review-run-id', '1']), /--source-pr and --work-issue/)
+  assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'apply', '--review-run-id', '1']), /--source-pr/)
+  // Step 2.1: --work-issue is optional; a merged PR with no closing link promotes without one.
+  assert.doesNotThrow(() => parseArgs(['--versions', '20260101000000', '--mode', 'apply', '--review-run-id', '1', '--source-pr', '2']))
   assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'dry-run', '--review-run-id', '1']), /dry-run takes no reviewRunId/)
   assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'dry-run', '--bogus', 'x']), /unknown or incomplete option --bogus/)
   assert.throws(() => parseArgs(['--versions', '20260101000000', '--mode', 'apply', '--review-run-id', '1', '--source-pr', '2', '--work-issue', '3', '--preview-run-id', '4', '--ephemeral-check-run-id', '5']), /not both/)

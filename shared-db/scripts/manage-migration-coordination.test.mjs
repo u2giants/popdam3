@@ -1451,8 +1451,13 @@ test('database-only workflow acquisitions supply admission while guarded merge r
     if(command.startsWith('guarded-migration-merge.yml:')){
       assert.match(command,/acquire-merge-lane-waiting\.mjs["']?\s+--wait-seconds 900 --poll-seconds 15 -- --acquire-merge/,command)
       assert.doesNotMatch(command,/--admit-issue\s+\S+/,command)
+      assert.doesNotMatch(command,/ADMIT_ARGS/,command)
       assert.match(command,/--head-sha\s+\S+/,command)
-    }else assert.match(command,/--admit-issue\s+\S+/,command)
+    }else{
+      // Step 2.1: admission is supplied either as --admit-issue (legacy) or
+      // conditionally via ADMIT_ARGS (issue optional for merged PRs).
+      assert.match(command,/--admit-issue\s+\S+|ADMIT_ARGS/,command)
+    }
   }
 })
 

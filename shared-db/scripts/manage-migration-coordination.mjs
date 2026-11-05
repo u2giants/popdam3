@@ -1853,20 +1853,25 @@ export function resolveAdmittedIssueForPr(pr, io = githubIo) {
   if (!Number.isInteger(Number(pr)) || Number(pr) < 1) throw new LaneError('--resolve-admitted-issue-for-pr requires a pull request number')
   const linked = io.closingIssuesForPr(Number(pr))
   if (!Array.isArray(linked)) throw new LaneError('pull request closing-issue linkage is unreadable')
-  if(linked.length>1)throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
-  if(linked.length===0){
-    const candidate=io.getPr(Number(pr))
-    if(candidate?.merged_at){
-      // Merged without a closing keyword: its title's trailing "(#N)" names the work issue.
-      const titled=String(candidate.title??'').match(/\(#([1-9][0-9]*)\)\s*$/)
-      if(titled)return {issue:Number(titled[1]),pr:Number(pr),admission:'not-required'}
-    }
-    if(!candidate||candidate.merged_at||String(candidate.state??'open').toLowerCase()!=='open')throw new LaneError('pull request must close exactly one structural work issue; found 0')
+  const candidate = io.getPr(Number(pr))
+  const isMerged = Boolean(candidate?.merged_at)
+  // Step 2.1 (plan_ci-process-repair): a merged change is never refused for its
+  // pull request's wording, labels or issue links. Use the first linked issue if
+  // any; fall back to a title "(#N)"; otherwise proceed without one (null).
+  if (isMerged) {
+    if (linked.length >= 1) return { issue: Number(linked[0].number), pr: Number(pr), admission: 'not-required' }
+    const titled = String(candidate?.title ?? '').match(/\(#([1-9][0-9]*)\)\s*$/)
+    return { issue: titled ? Number(titled[1]) : null, pr: Number(pr), admission: 'not-required' }
   }
-  const route=linked.length===0?derivePrOperationRoute(Number(pr),io):null
-  if(route&&route.route!=='structural')throw new LaneError('nonclosing PR resolution requires verified structural work')
-  const number=route?.issue??Number(linked[0].number)
-  return {issue:number,pr:Number(pr),admission:'not-required'}
+  // Pre-merge claim lane: the original strict rules still apply.
+  if (linked.length > 1) throw new LaneError(`pull request must close exactly one structural work issue; found ${linked.length}`)
+  if (linked.length === 0) {
+    if (!candidate || String(candidate.state ?? 'open').toLowerCase() !== 'open') throw new LaneError('pull request must close exactly one structural work issue; found 0')
+  }
+  const route = linked.length === 0 ? derivePrOperationRoute(Number(pr), io) : null
+  if (route && route.route !== 'structural') throw new LaneError('nonclosing PR resolution requires verified structural work')
+  const number = route?.issue ?? Number(linked[0].number)
+  return { issue: number, pr: Number(pr), admission: 'not-required' }
 }
 
 // Issue #2802: routing and admission are one gate, and neither half is reviewer work.

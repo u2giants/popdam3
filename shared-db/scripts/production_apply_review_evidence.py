@@ -219,7 +219,7 @@ def validate_evidence(
 
 def automatic_evidence(
     *, run_id: int, run_attempt: int, sha: str, allowlist: list[str], actor: str,
-    source_pr: int, source_pr_head: str, work_issue: int, preview_run_id: int,
+    source_pr: int, source_pr_head: str, work_issue: int | None, preview_run_id: int,
     preview_artifact_digest: str, created_at: str,
 ) -> dict[str, Any]:
     """Build the immutable record emitted only after exact-head qualification."""
@@ -271,8 +271,8 @@ def validate_automatic_evidence(
             raise EvidenceError(f"automatic review evidence has wrong {field}: expected {value!r}")
     if type(data.get("source_pr")) is not int or data["source_pr"] < 1:
         raise EvidenceError("automatic review evidence source_pr must be a positive integer")
-    if type(data.get("work_issue")) is not int or data["work_issue"] < 1:
-        raise EvidenceError("automatic review evidence work_issue must be a positive integer")
+    if data.get("work_issue") is not None and (type(data.get("work_issue")) is not int or data["work_issue"] < 1):
+        raise EvidenceError("automatic review evidence work_issue must be a positive integer or null")
     if not SHA_RE.fullmatch(str(data.get("source_pr_head") or "")):
         raise EvidenceError("automatic review evidence source_pr_head is not an exact commit")
     if not DIGEST_RE.fullmatch(str(data.get("preview_artifact_digest") or "")):

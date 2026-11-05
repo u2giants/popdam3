@@ -45,7 +45,7 @@ export function parseArgs(argv) {
   if (out.commitSha !== undefined && !/^[0-9a-f]{40}$/.test(out.commitSha)) throw new DispatchError('--commit-sha must be a full 40-character SHA')
   if (out.mode === 'apply') {
     if (!out.reviewRunId) throw new DispatchError('apply needs --review-run-id (the immutable review evidence run)')
-    if (!out.sourcePr || !out.workIssue) throw new DispatchError('apply needs --source-pr and --work-issue')
+    if (!out.sourcePr) throw new DispatchError('apply needs --source-pr')
     if (out.previewRunId && out.ephemeralCheckRunId) throw new DispatchError('give --preview-run-id or --ephemeral-check-run-id, not both')
   } else {
     for (const k of ['reviewRunId', 'previewRunId', 'ephemeralCheckRunId', 'ownerDecisionRunId', 'sourcePr', 'workIssue', 'mergedPrIssueBinding']) {
@@ -94,7 +94,7 @@ export function buildInputs(options, { commitSha, digests = {} }) {
   }
   if (options.derivationOverride) inputs.derivation_override = options.derivationOverride
   if (options.mode === 'apply') {
-    Object.assign(inputs, { review_run_id: String(options.reviewRunId), review_artifact_digest: digests.review, source_pr: String(options.sourcePr), work_issue: String(options.workIssue) })
+    Object.assign(inputs, { review_run_id: String(options.reviewRunId), review_artifact_digest: digests.review, source_pr: String(options.sourcePr), work_issue: options.workIssue ? String(options.workIssue) : '' })
     if (options.previewRunId) Object.assign(inputs, { preview_run_id: String(options.previewRunId), preview_artifact_digest: digests.preview })
     if (options.ephemeralCheckRunId) inputs.ephemeral_check_run_id = String(options.ephemeralCheckRunId)
     if (options.ownerDecisionRunId) Object.assign(inputs, { owner_decision_run_id: String(options.ownerDecisionRunId), owner_decision_artifact_digest: digests.owner_decision })

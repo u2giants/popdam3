@@ -3635,7 +3635,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
                     "automatic review evidence is not bound to an authoring PR of the migration "
                     "train and its exact head"
                 )
-        if review.get("work_issue") != args.work_issue:
+        if args.work_issue is not None and review.get("work_issue") != args.work_issue:
             raise RiskGateError("automatic review evidence names a different admitted structural work issue")
         if not ephemeral_text:
             if review.get("preview_run_id") != int(preview_run_text):
@@ -3682,7 +3682,7 @@ def assess(args: argparse.Namespace, *, api=gh_json, downloader=download_artifac
     ai_risk_acceptance = enforce_automatic_risk_decision(
         review, decision,
         lambda keys: prove_ai_risk_acceptance(
-            issue=args.work_issue, pr=args.pr, head_sha=pr_head, main_sha=args.main_sha,
+            issue=args.work_issue or 0, pr=args.pr, head_sha=pr_head, main_sha=args.main_sha,
             allowlist=allowlist, risks=keys,
         ),
     )
@@ -3761,7 +3761,7 @@ def main() -> int:
     parser.add_argument("--main-sha", required=True)
     parser.add_argument("--allowlist", required=True)
     parser.add_argument("--pr", type=int, required=True)
-    parser.add_argument("--work-issue", type=int, required=True)
+    parser.add_argument("--work-issue", type=int, default=None)
     parser.add_argument("--review-run-id", type=int, required=True)
     parser.add_argument("--review-digest", required=True)
     # EXACTLY ONE ROUTE (#2758): preview evidence (--preview-run-id, --preview-digest,

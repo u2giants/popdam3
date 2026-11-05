@@ -676,5 +676,22 @@ class CanonicalDependencyResolution(unittest.TestCase):
                 self.assertEqual((applied.call_count, refused.call_count), (3, 3))
 
 
+class AdversarialUnmergedSource(unittest.TestCase):
+    """Adversarial table (plan section 9): wording removed from conditions must
+    not let an unmerged source through.  merged_migration_prs must refuse it."""
+
+    def test_unmerged_source_refused(self):
+        files = [[{"status": "added", "filename": "supabase/migrations/20261105120000_x.sql"}]]
+        pulls = [{"number": 5600, "merged_at": None}]
+        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+            self.assertEqual(m.merged_migration_prs("o/r"), [])
+
+    def test_closed_but_unmerged_source_refused(self):
+        files = [[{"status": "added", "filename": "supabase/migrations/20261105120000_x.sql"}]]
+        pulls = [{"number": 5601, "merged_at": ""}]
+        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+            self.assertEqual(m.merged_migration_prs("o/r"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
