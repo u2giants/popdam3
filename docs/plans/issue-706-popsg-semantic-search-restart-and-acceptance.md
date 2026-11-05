@@ -41,6 +41,14 @@ This overrides §3, §5, §6 and §9 wherever they differ.
 - Step 8: choose the floor only after coverage completes; gate "nonsense queries return 0 meaning-only rows" is the case that failed.
 - Step 7: hybrid p95 was 10-11 s against the 3 s target. §9 step 7's rule (continue only if hybrid adds no regression over keyword) does **not** pass on this number unless keyword measures the same. Hold activation and record the measured gap on #706; do not close #706 with the target silently unmet.
 
+## November 4, 2026, 9:33 PM EST execution checkpoint
+
+The filename-text vectors were cleared and replaced by the GPU picture lane in #741 / shared-db #5607. Do not restart the retired text-indexing operation. Fresh production aggregate: 234,861 rows, 13,336 inactive, 221,525 active; 33,408 embedded, 185,873 pending with thumbnails, 2,244 waiting for thumbnails, zero errors. Recent writes: 9,372 / 15 minutes and 3,072 / 5 minutes, latest at 9:33 PM EST. At that measured rate the available-thumbnail queue needs approximately five hours; this is an estimate, not acceptance. No intervention is indicated.
+
+This change repairs the remaining silent keyword downgrade: an unsuccessful embedding request now reaches the existing error and Retry view; the edge responds 503 when a required hybrid embedding fails. Keyword mode and confirmed catalog product codes still intentionally omit embeddings. The async product-code bug tracked by #734 is included as the prerequisite; the catalog decision is awaited and ordinary words actually call the embedding service. Retry executes the complete request again, including a fresh mode/config read.
+
+Verification: root lint (zero errors), typecheck, production build, edge Deno check, 17 adapter tests and four edge-helper tests pass. Full-suite first run found one unrelated OrderList timeout; rerunning that suite with the changed suites passed all 35 tests. Live deployment proof remains the coordinator's responsibility. Full coverage, relevance, latency, floor selection and activation remain pending; #706 stays open with live proof unchecked.
+
 ## 1. The ultimate goal
 
 Designers and sales staff using the style-guide library at https://sg.designflow.app should be able to type an ordinary description ("cute yellow character holding balloons") and get the useful style-guide files and guides first, while exact names, folder names and licensor/property words keep finding exactly what they find today. Search must stay available (keyword) when the meaning service is down, must never show a record the signed-in user is not allowed to see, and must show the administrator how much of the library is covered by meaning-search.

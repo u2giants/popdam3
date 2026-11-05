@@ -111,7 +111,7 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `BULK_OPERATIONS` | State for all bulk jobs (see `docs/BULK_JOBS.md`) |
 | `SEARCH_MODE` | `keyword` (default) or `hybrid`; keep keyword until search security, coverage, quality, fallback, and rollback gates pass |
 | `SEARCH_AUTO_EMBED_ENABLED` | Boolean search-index freshness switch; absent/false is off, true permits one bounded worker batch per minute |
-| `POPSG_SEARCH_MODE` / `POPSG_SEARCH_MIN_SEMANTIC_SCORE` | PopSG meaning-based search switch (`hybrid`, otherwise keyword) and semantic floor, returned by `dam-search-ai` action `popsg-query-embedding` |
+| `POPSG_SEARCH_MODE` / `POPSG_SEARCH_MIN_SEMANTIC_SCORE` | PopSG meaning-based search switch (`hybrid`, otherwise keyword) and semantic floor, returned by `dam-search-ai` action `popsg-query-embedding`. Hybrid embedding failures return an error and Retry; only catalog product codes intentionally skip embedding. |
 | `TEXT_EMBED_URL` / `TEXT_EMBED_KEY` | apps/text-embed (SigLIP2 text tower) endpoint and shared secret; the edge `dam-search-ai` function embeds typed queries with it from Supabase function secrets |
 | `SCAN_REQUEST` | Pending scan trigger flags for agents |
 | `STYLE_GUIDE_CRAWL_REQUEST` | Pending PopSG crawl trigger |

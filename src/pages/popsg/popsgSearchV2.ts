@@ -164,14 +164,18 @@ export function buildPopSGSummaryIdentityFilters(guides: PopSGV2GuideViewRow[]):
 
 /**
  * Meaning-based search is an addition to keyword search: anything short of a
- * valid vector (switch off, product code, embedding outage) runs keyword only.
+ * valid vector in hybrid mode must show the existing error and Retry state.
+ * Keyword mode and explicitly identified product codes intentionally skip it.
  */
 export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null } {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const skip = row.mode === "keyword" || (row.mode === "hybrid" && row.skipped === "product_code");
+  if (!skip && row.mode !== "hybrid") throw new Error("Search unavailable. Please try again.");
   const vector = Array.isArray(row.embedding) && row.embedding.length === 768
     && row.embedding.every((n) => typeof n === "number" && Number.isFinite(n)) ? row.embedding : null;
+  if (!skip && !vector) throw new Error("Search unavailable. Please try again.");
   return {
-    queryEmbedding: row.mode === "hybrid" && vector ? `[${vector.join(",")}]` : null,
+    queryEmbedding: !skip && vector ? `[${vector.join(",")}]` : null,
     minSemanticScore: typeof row.min_semantic_score === "number" ? row.min_semantic_score : null,
   };
 }

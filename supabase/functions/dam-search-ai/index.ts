@@ -7,6 +7,7 @@ import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_K
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
+import { getPopSGQueryEmbedding } from "../_shared/popsg-query-embedding.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
@@ -193,11 +194,21 @@ corsServe(async (req) => {
     const stored = (key: string) => data?.find((row) => row.key === key)?.value;
     const mode = unwrapConfigValue(stored("POPSG_SEARCH_MODE")) === "hybrid" ? "hybrid" : "keyword";
     const query = typeof body.query === "string" ? body.query.trim() : "";
-    const embedding = mode === "hybrid" && query && !isProductCodeSearch(query) ? await embedQueryText(query) : null;
+    let semantic;
+    try {
+      semantic = await getPopSGQueryEmbedding(
+        mode,
+        query,
+        async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+        embedQueryText,
+      );
+    } catch {
+      return err("Search unavailable. Please try again.", 503);
+    }
     return json({
       ok: true,
       mode,
-      embedding,
+      ...semantic,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
   }

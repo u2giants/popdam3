@@ -130,19 +130,13 @@ interface LibraryFilters {
 }
 
 async function fetchPopSGQueryEmbedding(query: string, signal?: AbortSignal) {
-  if (!query) return parsePopSGQueryEmbedding(null);
-  try {
-    const { data, error } = await supabase.functions.invoke("dam-search-ai", {
-      body: { action: "popsg-query-embedding", query },
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS)]) : AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS),
-    });
-    if (error) throw error;
-    return parsePopSGQueryEmbedding(data);
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    console.warn("PopSG meaning-based search unavailable; using keyword search", error);
-    return parsePopSGQueryEmbedding(null);
-  }
+  if (!query) return parsePopSGQueryEmbedding({ mode: "keyword" });
+  const { data, error } = await supabase.functions.invoke("dam-search-ai", {
+    body: { action: "popsg-query-embedding", query },
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS)]) : AbortSignal.timeout(POPSG_QUERY_EMBED_TIMEOUT_MS),
+  });
+  if (error) throw new Error("Search unavailable. Please try again.");
+  return parsePopSGQueryEmbedding(data);
 }
 
 async function fetchPopSGV2Page(
@@ -623,7 +617,7 @@ function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void })
   const message = error instanceof Error ? error.message : "Unable to load style guides.";
 
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center justify-center py-16 text-center">
+    <div role="alert" className="mx-auto flex max-w-md flex-col items-center justify-center py-16 text-center">
       <div className="mb-4 rounded-full bg-destructive/10 p-4 text-destructive">
         <AlertCircle className="h-8 w-8" />
       </div>

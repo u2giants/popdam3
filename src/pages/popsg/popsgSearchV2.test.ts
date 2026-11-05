@@ -193,9 +193,16 @@ describe("PopSG meaning-based search args", () => {
     const embedding = new Array(768).fill(0.5);
     expect(parsePopSGQueryEmbedding({ mode: "hybrid", embedding, min_semantic_score: 0.3 }).queryEmbedding).toMatch(/^\[0\.5,/);
     expect(parsePopSGQueryEmbedding({ mode: "keyword", embedding }).queryEmbedding).toBeNull();
-    expect(parsePopSGQueryEmbedding({ mode: "hybrid", embedding: [1, 2] }).queryEmbedding).toBeNull();
-    expect(parsePopSGQueryEmbedding(null).queryEmbedding).toBeNull();
+    expect(() => parsePopSGQueryEmbedding({ mode: "hybrid", embedding: [1, 2] })).toThrow("Search unavailable");
+    expect(() => parsePopSGQueryEmbedding(null)).toThrow("Search unavailable");
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "product_code" }).queryEmbedding).toBeNull();
   });
+
+  it.each([null, {}, { mode: "hybrid", embedding: null }, { mode: "hybrid", embedding: Array(768).fill(NaN) }])(
+    "rejects failed or malformed hybrid responses instead of running keyword search: %j", (value) => {
+      expect(() => parsePopSGQueryEmbedding(value)).toThrow("Search unavailable. Please try again.");
+    },
+  );
 
   it("sends the floor only with a vector, so keyword search stays unchanged", () => {
     const keyword = buildPopSGV2Args({ ...base, queryEmbedding: null, minSemanticScore: 0.3 });
