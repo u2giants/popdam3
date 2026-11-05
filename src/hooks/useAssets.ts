@@ -401,6 +401,7 @@ export function useAssets(
             (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
           ),
           totalCount: ranked.totalCount,
+          searchFacets: parseDamSearchFacets(ranked.facets),
           pageSize: effectivePageSize,
           page,
         };
@@ -459,6 +460,7 @@ export function useAssets(
       return {
         assets,
         totalCount: count ?? 0,
+        searchFacets: undefined as FacetCounts | undefined,
         pageSize: effectivePageSize,
         page,
       };
@@ -501,8 +503,9 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
  * covering-index fast path otherwise. Counts therefore stay in parity with the
  * list query by construction.
  */
-export function useFilterCounts(filters: AssetFilters, documentType: DamDocumentType = "asset") {
+export function useFilterCounts(filters: AssetFilters, documentType: DamDocumentType = "asset", enabled = true) {
   return useQuery({
+    enabled,
     retry: filters.search ? false : undefined,
     queryKey: ["filter-counts", filters, documentType],
     queryFn: async ({ signal }) => {
