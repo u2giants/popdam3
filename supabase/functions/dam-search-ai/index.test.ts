@@ -143,6 +143,30 @@ describe("DAM search embedding availability", () => {
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
   });
 
+  for (const scope of ["asset", "style_group"]) {
+    it(`requires a positive format even when spelling treats unsupported ${scope} input as meaningful`, async () => {
+      // This is also the existing optional spelling-failure return contract.
+      state.meaningful = true;
+      state.formatRpc.mockResolvedValue({ data: false, error: null });
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      expect((await search("x7q9v2n8", undefined, [scope])).status).toBe(200);
+      expect(state.formatRpc).toHaveBeenCalledOnce();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_document_types: [scope], p_query_embedding: null }));
+    });
+  }
+
+  it("preserves pictures for meaningful natural words without a format lookup", async () => {
+    state.meaningful = true;
+    const fetch = vi.fn().mockImplementation(async () => Response.json({ ok: true, vector: Array(768).fill(0) }));
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("spiderman coir")).status).toBe(200);
+    expect(state.formatRpc).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalled();
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
+  });
+
   for (const result of [{ data: null, error: { message: "unavailable" } }, { data: null, error: null }, { data: "false", error: null }]) {
     it("returns unavailable before provider or downstream search when the required hint fails", async () => {
       state.formatRpc.mockResolvedValue(result);

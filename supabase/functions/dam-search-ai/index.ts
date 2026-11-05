@@ -8,7 +8,7 @@ import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
 import { getPopSGQueryEmbedding } from "../_shared/popsg-query-embedding.ts";
-import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
+import { completeCatalogCodeFormat, hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
 import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
@@ -287,7 +287,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       return err("Search unavailable", 503);
     }
     const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
-    const usePictures = !productCodeSearch && spelling.meaningful;
+    const usePictures = !productCodeSearch && (completeCatalogCodeFormat(query) ? unknownCatalogFormat : spelling.meaningful);
     const [embedding, floorConfig] = await Promise.all([
       usePictures ? embedQueryText(query) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
