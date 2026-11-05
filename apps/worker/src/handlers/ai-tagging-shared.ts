@@ -309,6 +309,7 @@ export interface TaggingPromptOptions {
   onCharacterCatalog?: (ids: string[]) => void;
   requireCharacterReadSuccess?: boolean;
   client?: ReturnType<typeof db>;
+  cache?: PromptCache;
 }
 
 /** Grouped assets take licensing from their Style Group; only ungrouped assets fall back to their own columns. */
@@ -375,18 +376,47 @@ export function skuLicensorCode(sku: string | null | undefined): string | null {
   return match ? match[1] : null;
 }
 
+/** Only successful static reads are retained; asset facts always remain fresh. */
+export class PromptCache {
+  private entries = new Map<string, { value: unknown; expiresAt: number }>();
+  private pending = new Map<string, Promise<unknown>>();
+  constructor(private readonly now: () => number = Date.now) {}
+  clear(): void { this.entries.clear(); this.pending.clear(); }
+  async read<T extends { error?: unknown }>(key: string, load: () => PromiseLike<T>, cacheMissing = false, accept: (value: T) => boolean = () => true): Promise<T> {
+    const entry = this.entries.get(key);
+    if (entry && entry.expiresAt > this.now()) return entry.value as T;
+    const pending = this.pending.get(key);
+    if (pending) return pending as Promise<T>;
+    const request = Promise.resolve().then(load).then(value => {
+      // A clear during an in-flight read must not repopulate the next run.
+      if (this.pending.get(key) === request && !value.error && accept(value) && 'data' in value && (cacheMissing || value.data !== null)) {
+        this.entries.set(key, { value, expiresAt: this.now() + 300_000 });
+      }
+      return value;
+    }).finally(() => { if (this.pending.get(key) === request) this.pending.delete(key); });
+    this.pending.set(key, request);
+    return request;
+  }
+}
+const promptCache = new PromptCache();
+export function clearPromptCache(): void { promptCache.clear(); }
+
 export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options: TaggingPromptOptions = {}): Promise<string> {
   const client = options.client ?? db();
+  // Injected clients never share production cache entries.
+  const cache = options.cache ?? (options.client ? new PromptCache() : promptCache);
   const checkedCharacterRead = (error: { code?: string } | null, data: unknown) => { if (options.requireCharacterReadSuccess && (error || !Array.isArray(data))) throw new CharacterCatalogDependencyError(error?.code ?? "catalog_contract"); };
   const checkedQuery = async <T>(query: PromiseLike<T>): Promise<T> => {
     try { return await query; } catch (error) { if (options.requireCharacterReadSuccess) throw new CharacterCatalogDependencyError("transport"); throw error; }
   };
 
-  const { data: instrRow } = await client
+  const cachedCharacterQuery = <T extends { error?: unknown; data?: unknown }>(key: string, load: () => PromiseLike<T>, arrayResult = true): Promise<T> => checkedQuery(cache.read(key, load, false, value => !arrayResult || Array.isArray(value.data)));
+
+  const { data: instrRow } = await cache.read("TAGGING_INSTRUCTIONS", () => client
     .from("admin_config")
     .select("value")
     .eq("key", "TAGGING_INSTRUCTIONS")
-    .maybeSingle();
+    .maybeSingle(), true);
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
   let characters: { id: string; name: string; status?: string | null }[] = [];
@@ -398,7 +428,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
   // large licensor whose property has no links, the model gets no characters:
   // a broad list let it attach Spider-Man to spider webs, Deadpool, etc.
   if (!scope.unlicensed && scope.property_id) {
-    const { data: links, error: linksError } = await checkedQuery(client
+    const { data: links, error: linksError } = await cachedCharacterQuery(`property:${scope.property_id}:associations`, () => client
       .schema("core")
       .from("property_character_associations")
       .select("character:character_id(id, name, status)")
@@ -409,7 +439,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
       .map(link => link.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
     // Scrape asset co-occurrence narrows the list too; it never becomes a canonical link.
-    const { data: edges, error: edgesError } = await checkedQuery(client
+    const { data: edges, error: edgesError } = await cachedCharacterQuery(`property:${scope.property_id}:edges`, () => client
       .schema("core")
       .from("property_character_source_edge")
       .select("character:character_id(id, name, status)")
@@ -421,12 +451,12 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
       .map(edge => edge.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name));
     if (!scope.licensor_id && characters.length === 0) {
-      const { data: property } = await checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id).maybeSingle());
+      const { data: property } = await cachedCharacterQuery(`property:${scope.property_id}:licensor`, () => client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id!).maybeSingle(), false);
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
     }
   }
   if (!scope.unlicensed && characters.length === 0 && scope.licensor_id) {
-    const { data: licensorChars, error: licensorError } = await checkedQuery(client
+    const { data: licensorChars, error: licensorError } = await cachedCharacterQuery(`licensor:${scope.licensor_id}:characters`, () => client
       .schema("core")
       .from("character")
       .select("id, name, status")
