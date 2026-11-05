@@ -16,27 +16,29 @@ issue say so.
 
 ## STATUS — read before executing
 
-| Step | State (Nov 4, 2026, 7:59 PM EST) | Evidence / artifact |
+| Step | State (updated Nov 5, 2026; older counts explicitly historical) | Evidence / artifact |
 |---|---|---|
-| 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Follow-up `20261105002300` is merged, NOT yet in the ledger: promotion held by open findings #5592 / #5583 |
-| 1. Watchdog alarm | ⬜ open | Database part needs promotion unheld |
-| 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
-| 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
-| 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
-| 5. Scorecard (extends search test set) | 🔄 partial — Nov 5, 2026 | Ranking repair #5581 remains verified live. #794 canonical spelling/reliability source merged and deployed (all 14 bundled files match); native release then failed type generation. Original 119-case BEFORE and separate frozen 21-case supplement complete, with errors/latency/unjudged gaps; AFTER is unstarted (0 calls). Ordinary-viewer authentication has recovered, but the exact full-filename search still shows unavailable/Retry. Live frontend #806 reduces three search requests to one. The indexed complete-format reader (shared-db #5699) is verified installed; its bounded application consumer is source preparation only. Batched-anchor and FTS-dedup delivery/runtime proof remain pending. Unknown-code policy, including short-partial coverage, remains open. See [observational evidence](docs/verification/search-scorecard/2026-11-05-step5-observation.md); custody remains V-B on #680 / #706 / #725. |
+| 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Original hold is historical: T1 production character/alias proof is now complete; do not repeat. Current source-specific gates and provider readiness govern later work |
+| 1. Watchdog alarm | 🔄 partial | Backend stages installed; health/index sources prepared. Accurate live card and outside-hours drill remain open; provider readiness and supported custody release block continuation |
+| 2. Durable runner | 🔄 partial | Existing Railway runner preserved; 24-hour unattended near-zero acceptance not proved. November 4 throughput counts are historical, not current health |
+| 3. Stop re-starving | 🔄 partial | Stages 74117/74126/142040 installed; source #5663 and #5709 prepared. Natural unchanged-vector/lease and nightly runtime proof remain open; tagging/scan remain untouched |
+| 4. Errored-document reset | 🔄 partial | Earlier poller/claim fixes landed; original 1,102 file/10 group errors are historical counts. Safe health/reset source #5719 and app #758 remain held; eligible reset/runtime proof incomplete |
+| 5. Scorecard (extends search test set) | 🔄 partial — Nov 5, 2026 | Ranking repair #5581 remains verified live. #794 canonical spelling/reliability source merged and deployed (all 14 bundled files match); native release then failed type generation. Original 119-case BEFORE and separate frozen 21-case supplement complete, with errors/latency/unjudged gaps; AFTER is unstarted (0 calls). Ordinary-viewer authentication has recovered, but the exact full-filename search still shows unavailable/Retry. Live frontend #806 reduces three search requests to one. The indexed complete-format reader (shared-db #5699) is verified installed; its bounded application consumer #814 is deployed and byte-verified, but an actual unsupported-code negative failed. Follow-up #816 is reviewed/tested source only. Batched-anchor and FTS-dedup delivery/runtime proof remain pending. Unknown-code policy, including short-partial coverage, remains open. See [observational evidence](docs/verification/search-scorecard/2026-11-05-step5-observation.md); custody remains V-B on #680 / #706 / #725. |
 | 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
 | 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
 | 8. Live proof, close #706 / #663 | ⬜ open | — |
 
 **Step 5 continuation:** restore observable ordinary-viewer readiness, verify canonical spelling/known-code/semantic/error-and-Retry behavior, then run the identical two AFTER partitions serially with fresh source-bound checkpoints. Do not restart BEFORE or close #725/the whole gate from source delivery.
 
-**Fresh session starts at Step 1**, after reading "Reconciliation" below. Re-read the downstream phase before starting each one.
+**Fresh session starts with provider readiness and custody**, then Step 1, after reading "Reconciliation" below and the [November 5 coordinator closeout](https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-11-05T1900Z-hetz-codex-coordinator-closeout.md). Re-read the downstream phase before starting each one.
+
+**November 5 closeout correction:** T1 character/alias production gate is complete; do not repeat it. At 1:50 PM EST official services were healthy but the production project still reported UPGRADING; canonical SQL readiness had failed. No deployment or database execution is authorized from that stale checkpoint. Stages 74117/74126/142040 are installed; watchdog/reset, natural write retention, 24-hour near-zero behavior and outside-hours drill remain incomplete. Search reader #5699 and consumer #814 are deployed and byte-verified; actual unsupported-code fallback failed. #816 is reviewed/tested source only. Batched-anchor #5712 and FTS-dedup #5731 runtime acceptance and both frozen AFTER partitions (zero calls so far) remain open. See closeout for immutable source heads, forward-version order and each owner’s parking/release receipts. No full tagging/scan control changed.
 
 ## Reconciliation with the tagging coordinator work (Nov 4, 2026). Overrides anything below it.
 
 Tagging (#680) stays out of this plan's scope, but shares its database, worker and search results:
 
-1. **Promotion gate.** Open shared-db review findings hold all promotion. Tagging task 1 (#5592, #5583) goes first; database parts of Steps 1, 3, 4 and 5 wait on it.
+1. **Promotion gate — updated November 5, 2026.** T1 character/alias production proof is complete. Review findings hold their corresponding source, not every source in the repository. Current provider readiness, exact-source checks, immutable migration order and native claim/stage authority still govern each promotion. Never revive retired global queue/review interlocks; see the coordinator closeout above.
 2. **Worker restarts.** A merge touching the worker restarts it during the 7.7-day tagging run and PopSG indexing. Allowed, except 1:00 to 3:30 AM EST. Deliberately stopping or restarting the run is never allowed. Concurrency stays 8.
 3. **One test set.** Step 5 extends `SEARCH_EVAL_SET_V1` (`docs/SEARCH_EVAL.md`, `scripts/search-eval/`). No public fixture: licensed names stay out of this public repo. Add latency p50/p95 and the plan's missing query kinds to that set.
 4. **Failure behaviour.** In hybrid mode a failed embedding shows error and Retry, never keyword results (Albert, Nov 1; D4). Only a product code skips embedding on purpose. Replaces Step 6a's fallback sentences and the "stay available (keyword)" line in the #706 plan.
