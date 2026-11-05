@@ -21,6 +21,7 @@ Predecessor handoffs (read for history, not for state): [2026-11-03T2208Z taggin
 | 5 | Completion: leftovers retried, setting disabled, live sample passes, review page updated | ⬜ open | — |
 | 6 | Closeout: issue comment, handoff, docs, undo backups released | ⬜ open | — |
 | 7 | Rescan follow-ups and leftovers each have a named owner on #680 | ⬜ open | — |
+| T8 | Normalize the two designers against the Creative Designers table | partial, Nov 5 | Inventory complete; 488 groups corrected and verified in the first pass, 25 assets corrected with preimages. Remaining writes blocked by the search-document refresh path; see the T8 continuation below. |
 
 Where a fresh session starts: section 9 step 0 (re-read live state), then step 3. Steps 0–2 are done; the section 0 question, section 5 live data and PR #727 text below are history from before the start.
 
@@ -55,7 +56,7 @@ In: landing the guard fix, re-queueing and running the whole-library run to comp
 - Loading missing character records (Care Bears, Paw Patrol, NBC, Viacom, Asha alias) — `popcre/shared-db`, claim-first, `shared-db-change` skill; largest remaining accuracy gain, but a second tagging pass would be needed to use them.
 - Group-shot under-counting and crowded-art variance (model behaviour, not fixed).
 - Albert in the technical designer field: **done, not open.** Albert ruled Nov 4; 1,462 files and 964 style groups cleared 5:05 PM EST, PR #732 merged. Step 3 checks it stays clear.
-- Albert's identity answers on the 21 remaining designer names — pending with him, tracked on #680 (step 7).
+- Albert's identity answers on the 21 remaining designer names — answered and applied Nov 4; see #680. The separate spelling follow-up is Track T task 8 in the coordinator handoff; ambiguous credits stay unchanged.
 - Review-finding issues from this stream: #722 (PR 717), #723 (PR 718), #715 (PR 712), #711 (PR 710), #698 (PR 697) — fixer bot or separate sessions.
 - Parser findings #671 and #673 — their own plans in `docs/plans/`.
 - PR #726 is an Entire "shadow" draft PR backing a trail — never merge or close it by hand.
@@ -168,3 +169,28 @@ Open questions: none technical. The owner question is in section 0.
 1. Executable without questions? Yes — section 5 gives the exact live rows and code lines, section 9 gives each write's shape and gate, section 12 the access; the single non-technical question is isolated in section 0 with the exact wording and recommendation.
 2. All background and rejected paths carried? Yes — sections 3, 6, 7 (explicit IDs, Muse, Gemini, UI start, skip-tagged), section 4's long out-of-scope list with owners, and the undo-backup inventory.
 3. Goal clear enough for judgment calls? Yes — section 1 names the three things never to do (lose good tags, block grouping, pay twice without evidence), which decide every step-4/5 judgment.
+
+
+## Track T task 8 continuation — Nov 5, 2026, 12:06 AM EST
+
+The designer identity questions were answered and applied before this follow-up; do not ask them again. Canonical spelling comes from `core.creative_designer`. This task changes application-owned credits only: no Master Data rows, schema, worker code, tagging controls, or concurrency were changed.
+
+### Verified delivery
+
+- The completed bounded inventory covered 152,164 assets, including retired records, and all three credit fields. It identified 1,669 assets with exact, unambiguous variants of the two intended designers.
+- The first group pass corrected 488 groups atomically. Independent coordinator verification found all 488 preimages and zero mapped variants remaining immediately afterwards. Later asset updates use the normal group rollup, so this first-pass count is not final acceptance: recheck groups after the asset pass.
+- Twenty-five assets were corrected in committed transactions. Each stores its complete prior creative, technical, and freelancer values before any update; current-row guards and row locks prevent overwriting another writer. Failed batches and the single-row diagnostic rolled back.
+- Undo custody: production `admin_config.DESIGNER_VARIANTS_T8_GROUPS_BACKUP_2026_11_05` contains the exact map and 488 group preimages; `DESIGNER_VARIANTS_T8_ASSETS_BACKUP_2026_11_05` contains the exact map and 25 asset preimages. Retain both. Raw inventory, candidate IDs, and source text remain in protected coordinator evidence, never in Git.
+- Four unusual mixed names have no extracted sheet text on their own records. Forty-four siblings were inspected, five with text. Some sibling sheets distinguish manager and designer, but the four individual identities are not uniquely established. Preserve all four, composite credits, and the separate similarly named designers.
+
+### Blocker and exact continuation
+
+Owner: the existing coordinator and its Vector A shared-function session. A normal single-asset designer update repeatedly exceeded the five-second statement bound. The canonical client reported `canceling statement due to statement timeout`, with context `refresh_dam_search_style_group_document(uuid)` line 20 (search-document upsert), reached through `trg_refresh_dam_style_group_search_document()` and `sync_designer_to_style_group()` line 33. The backend was waiting on `IO / DataFileRead`, with no blocking transaction IDs. Do not disable a trigger, increase the bound, or stop tagging to force the cleanup through.
+
+After that write path is healthy, resume the exact-map asset corrections from protected evidence, skipping already canonical current rows. Preserve preimages in the same backup, keep transactions bounded, and recheck the complete inventory IDs plus newly changed records. Recheck group credits after assets finish, since their normal rollup can temporarily restore a sibling variant. Ambiguous mixed names and composite credits remain unchanged unless direct source evidence resolves them.
+
+- [ ] Correct and back up the remaining unambiguous asset variants.
+- [ ] Reconcile normal group rollups and verify zero unambiguous variants in live assets and groups.
+- [ ] Live proof on #680; retain the backup keys and record final counts.
+
+This continuation covers T8 only. Every other #680 and vector-plan gate retains its existing owner and state.
