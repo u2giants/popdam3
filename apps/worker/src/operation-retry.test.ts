@@ -41,3 +41,13 @@ test("shorten-item-descriptions resumes from its style_groups.id cursor", () => 
   assert.equal(isValidAutoResumeCursor("shorten-item-descriptions", "03466df3-8f50-4c49-98d8-5525201c95a7"), true);
   assert.equal(isValidAutoResumeCursor("shorten-item-descriptions", "not-a-uuid"), false);
 });
+
+// Whole-library parallel tagging persists the same keyset cursor as ordinary AI
+// tagging. Its interrupted checkpoint must resume without starting a new run.
+test("parallel tagging resumes valid keysets and rejects malformed checkpoints", () => {
+  assert.equal(isValidAutoResumeCursor("ai-tag-parallel", CURSOR), true);
+  assert.equal(isValidAutoResumeCursor("ai-tag-parallel", "ai1:1:900529a4-0441-420c-aa2b-a59695eed750"), true);
+  assert.equal(isValidAutoResumeCursor("ai-tag-parallel", "uuid-only"), false);
+  assert.equal(isValidAutoResumeCursor("ai-tag-parallel", "ai1:-1:123e4567-e89b-42d3-a456-426614174000"), false);
+  assert.equal(isValidAutoResumeCursor("ai-tag-parallel", undefined), false);
+});
