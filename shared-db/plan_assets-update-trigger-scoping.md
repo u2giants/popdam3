@@ -3,22 +3,24 @@
 Handoff: HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 
-## STATUS (2026-11-04 10:48 PM EST)
+## STATUS (2026-11-04 11:43 PM EST)
 
 | Step | State | Evidence |
 |---|---|---|
-| 0 Re-measure baseline | complete | `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-baseline.md` |
+| 0 Re-measure baseline | complete | `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-baseline.md`; exact query IDs recorded as text |
 | 1 Claim objects, open branch | complete | #5609 signed ownership comment; reserved version 20261105033827 |
-| 2 Contract tests | complete locally; CI pending | `supabase/tests/assets_update_trigger_scoping_contracts.sql`: old fails no-op, new passes; ctid detects writes inside one transaction |
-| 3 Migration: re-scope triggers | prepared; delivery pending | `supabase/migrations/20261105033827_assets_update_trigger_scoping.sql` |
-| 4 Preview rehearsal + equivalence check | isolated synthetic proof complete; hosted preview pending | `docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-rehearsal.md` |
-| 5 Land via automatic promotion | pending | No production write performed by this preparation |
-| 6 Live proof on production | pending | Require the full 24-hour interval after promotion; issue remains open |
+| 2 Contract tests | complete | Original definitions fail no-op ctid assertion; new passes locally and full PR/merge-group ephemeral database suite |
+| 3 Migration: re-scope triggers | merged | PR #5618; immutable migration 20261105033827 |
+| 4 Preview rehearsal + equivalence check | partial; hosted WAL target NOT met | Hosted behavior matches except legitimate wall-clock metadata; fixed representative trials improve mean runtime 74.20%, WAL 33.08%, not the required 50%. All trials retained in `assets-trigger-scoping-hosted-preview.md` |
+| 5 Land via automatic promotion | merged; production application unverified | First automatic production attempt 41966565466 refused at five-second lock timeout; no manual apply or merged-SQL edit |
+| 6 Live proof on production | pending | Full 24-hour interval after verified production apply; issue remains OPEN and live proof unchecked |
 | 7 Cross-repo follow-up filed | complete | https://github.com/u2giants/popdam3/issues/753 |
 
-Search timestamp judgment: omit asset `updated_at` from the predicate; catalog inspection found no staleness detector reading the search document timestamp. All original functions remain unchanged. Derived thumbnail-cache writers were confirmed; the reconciliation updates only differing cache fields for the existing primary asset. Image embedding, group clocks, counts and effective-tag functions remain intact. The optional cheap BEFORE-trigger changes are omitted because no per-trigger evidence justifies expanding scope.
+Search timestamp judgment: omit asset `updated_at` from the predicate; catalog inspection found no staleness detector reading the search document timestamp. All original functions remain unchanged. Derived thumbnail-cache writers were confirmed; reconciliation updates only differing cache fields for the existing primary asset. Image embedding, group clocks, counts and effective-tag functions remain intact. Optional cheap BEFORE-trigger changes were omitted because no per-trigger evidence justified expanding scope.
 
-The synthetic 1,000-asset no-op batch is 90.45% faster with 56.52% less total WAL. Mixed-workload group/search semantic checksums match. These are isolated proof, not the required live production result. Canonical POP DAM repository verified as `u2giants/popdam3`; earlier POP DAM organization references in this plan were incorrect.
+The isolated 1,000-asset fixture improved runtime 90.45% and total WAL 56.52%; this is not hosted or live acceptance. The actual hosted diagnostic found only `style_group_changed_at` different between repeated mixed workloads; all business fields and document checksums matched. Later production-shaped, predeclared OLD/NEW/OLD/NEW trials used aggregate-only measured lengths and synthetic 768-dimensional vectors, with all results and size/sample/physical-state limitations retained. They **did not** establish the 50% hosted WAL target. Additional synthetic repeats were stopped rather than selecting a favorable pair or suppressing legitimate writes. The required real 24-hour production interval remains decisive and pending; Step 4 is not marked complete.
+
+Canonical POP DAM repository verified as `u2giants/popdam3`; earlier organization references in this plan were incorrect. The filed application follow-up is a separate owned need; no application implementation is claimed here.
 
 ## 1. Ultimate goal
 
@@ -26,7 +28,7 @@ Albert asked to cut how much compute the shared database uses. The single bigges
 
 ## 2. The application
 
-- `popcre/shared-db` owns the shared Supabase Postgres (production ref `qsllyeztdwjgirsysgai`) used by DesignFlow, POP DAM, PIM, CRM. Schema changes are SQL migrations under `supabase/migrations/`, reach production only via the automatic promotion workflow (`.github/workflows/shared-supabase-migrations.yml`) after preview rehearsal, tests, and no open `review-finding` issue (owner ruling 2026-10-29, `docs/owner-rulings.md`). No manual production command, ever.
+- `popcre/shared-db` owns the shared Supabase Postgres (production target resolved from protected configuration) used by DesignFlow, POP DAM, PIM, CRM. Schema changes are SQL migrations under `supabase/migrations/`, reach production only via the automatic promotion workflow (`.github/workflows/shared-supabase-migrations.yml`) after preview rehearsal, tests, and no open `review-finding` issue (owner ruling 2026-10-29, `docs/owner-rulings.md`). No manual production command, ever.
 - `public.assets` (~150k live rows, ~3.4 GB with 46 indexes) is POP DAM's file catalogue. POP DAM lives in `u2giants/popdam3` (local clone `/home/ahazan/repos/popdam3`). Its Bridge Agent (`apps/bridge-agent/src/index.ts`, ~line 1221-1290) scans the NAS and posts each file to the `agent-api` edge function (`supabase/functions/agent-api/index.ts`, `handleIngest` at line 950), which writes `assets` through PostgREST as `service_role`.
 
 ## 3. Trigger
