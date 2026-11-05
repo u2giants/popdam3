@@ -3,17 +3,15 @@ name: review-fixer
 # Automatic fixer for `review-finding` issues (popcre/ai-devops
 # plan_skinny-review.md, stage G, #2075). The trusted fixer code comes from
 # popcre/ai-devops main; it fixes real findings on review-fix/<issue> or closes
-# the issue as not planned with evidence. Branch/PR updates only retire stale
+# the issue as not planned with evidence. PR updates only retire stale
 # automatic fix PRs; they never start another model run (#2171).
+# Push and delete triggers were removed (step 1.5, popcre/ai-devops#2402).
 
 on:
-  push:
-    branches: ['**']
-  delete:
   pull_request_target:
     types: [synchronize, closed]
   issues:
-    types: [labeled]
+    types: [labeled, closed]
   schedule:
     - cron: '17 */2 * * *'
   workflow_dispatch:
@@ -22,6 +20,16 @@ on:
         description: review-finding issue number (empty = every pending one)
         required: false
         type: string
+  workflow_call:
+    inputs:
+      issue:
+        description: review-finding issue number (empty = every pending one)
+        required: false
+        type: string
+      runner_labels:
+        description: JSON list of runner labels (a self-hosted runner where Codex is logged in)
+        type: string
+        default: '["self-hosted", "ai-devops-linux"]'
 
 permissions:
   contents: read
