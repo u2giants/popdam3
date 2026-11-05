@@ -20,6 +20,12 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 
 ---
 
+## Frontend publishing permissions
+
+The immutable-image PATCH uses `COOLIFY_WRITE_TOKEN`, a dedicated Coolify token scoped only to the PopDAM frontend application. Its 1Password entry is **Coolify API token - PopDAM frontend immutable image pin (resource scoped)**, concealed field `COOLIFY_WRITE_TOKEN`. Restore that GitHub Actions secret through a protected pipe from the vault when needed. Keep the existing `COOLIFY_TOKEN` for deployment triggering; do not widen the shared deploy-only token or substitute an administrative token.
+
+A missing image-pin credential or a rejected PATCH stops deployment before the deploy request. Keep immutable image pinning and the live-version check enabled. The PATCH response is not printed because application configuration may contain sensitive fields.
+
 ## GitHub Actions Workflows
 
 | Name | File | Trigger | What it does |
