@@ -48,7 +48,8 @@ export function verifyMaintenanceClaim(request,io=githubIo){
 // One allowlisted table rewritten in place by the pinned pg_repack client (popdam3#804).
 const REPACK_TABLES=['table public.assets']
 export function verifyTableRepackClaim(request,io=githubIo){
- if(!Number.isSafeInteger(request.claim_issue)||!Number.isSafeInteger(request.work_issue)||!/^repack-[a-z0-9-]{1,32}$/.test(request.operation_id??'')
+ if(request?.kind!=='table-repack/v1')throw Error('table repack kind required')
+ if(!Number.isSafeInteger(request.claim_issue)||!Number.isSafeInteger(request.work_issue)||!/^repack-[a-z0-9-]{1,33}$/.test(request.operation_id??'')
     ||!Array.isArray(request.objects)||request.objects.length!==1||!REPACK_TABLES.includes(request.objects[0]))throw Error('exact repack table claim request refused')
  const claims=io.openClaims(),owner=claims.find(c=>c.number===request.claim_issue)
  if(!owner||claimWorkIssue(owner)!==request.work_issue)throw Error('exact open repack claim required')
@@ -59,7 +60,7 @@ export function verifyTableRepackClaim(request,io=githubIo){
   const parsed=parseAuthorLease(other.body)
   if((parsed.objects??[...parsed.writes,...parsed.reads]).includes(request.objects[0]))throw Error('repack table collides with another protected claim')
  }
- return {admitted:true,claim_issue:owner.number,work_issue:request.work_issue,kind:request.kind}
+ return {admitted:true,claim_issue:owner.number,work_issue:request.work_issue,kind:'table-repack/v1'}
 }
 export function verifyHealthInitialClaim(request,io=githubIo){
  const raw=readFileSync(new URL('../config/health-initial-index-definitions.json',import.meta.url))

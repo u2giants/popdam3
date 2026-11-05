@@ -12,7 +12,9 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import json
 import subprocess
+import urllib.request
 from nontransactional_index_maintenance import Maintenance, Refusal, digest
 
 KIND='table-repack/v1'
@@ -58,11 +60,31 @@ def run_client(entry,env,timeout_s):
     if result.returncode:raise Refusal('pg_repack client did not complete; table and original capability retained')
 
 
+DISK_HEADROOM_BYTES=1<<30
+
+
+def row_drift_allowed(before):
+    # Concurrent application inserts/deletes continue during the online repack;
+    # anything beyond this band is treated as loss/duplication and refused.
+    return max(50,before//1000)
+
+
+def provider_disk_available(project_ref):
+    token=os.environ.get('SUPABASE_ACCESS_TOKEN','')
+    if not re.fullmatch('[a-z]{20}',project_ref or '') or not token:raise Refusal('disk utilization proof unavailable')
+    request=urllib.request.Request(f'https://api.supabase.com/v1/projects/{project_ref}/config/disk/util',
+                                   headers={'Authorization':'Bearer '+token})
+    with urllib.request.urlopen(request,timeout=30) as response:
+        value=json.load(response)['metrics']['fs_avail_bytes']
+    if type(value) is not int or value<0:raise Refusal('disk utilization proof refused')
+    return value
+
+
 class TableRepack(Maintenance):
     """States: started (pre-image) -> client run -> complete (new relfilenode, same shape)."""
-    def __init__(self,db,receipts,entry,identity,operation_id,gate,client=run_client,**kwargs):
+    def __init__(self,db,receipts,entry,identity,operation_id,gate,client=run_client,disk=provider_disk_available,**kwargs):
         super().__init__(db,receipts,entry,identity,operation_id,gate,**kwargs)
-        self.client=client
+        self.client,self.disk=client,disk
 
     def read(self,phase,target=None):
         record=super().read(phase,target)
@@ -104,6 +126,9 @@ class TableRepack(Maintenance):
             before=start['before']
             if state['relfilenode']==before['relfilenode']:
                 if self.db.repack_leftovers():raise Refusal('leftover pg_repack objects; preserve for governed recovery')
+                # pg_repack builds a full copy of heap, TOAST and every index before the swap.
+                if self.disk(self.identity['project_ref'])<state['total_bytes']+DISK_HEADROOM_BYTES:
+                    raise Refusal('insufficient free disk for a full table copy plus 1 GiB headroom')
                 self.gate()
                 self.client(self.entry,env or {},self.remaining_s())
                 state=self.db.table_state(self.entry['table'])
@@ -112,6 +137,8 @@ class TableRepack(Maintenance):
             if self.db.repack_leftovers():raise Refusal('pg_repack left objects behind; preserve for governed recovery')
             for key in ['indexes','valid_indexes','triggers','constraints','acl']:
                 if state[key]!=before[key]:raise Refusal('repacked table shape changed: '+key)
+            if abs(state['rows']-before['rows'])>row_drift_allowed(before['rows']):
+                raise Refusal('repacked table row count moved beyond concurrent-write band')
             self.gate()
             self.save('complete',start,after=state,repacked=True)
         finally:self.db.unlock(self.operation_id)
@@ -134,8 +161,13 @@ class RepackDatabase:
               (select count(*) from pg_index i where i.indrelid=c.oid and i.indisvalid and i.indisready),
               (select count(*) from pg_trigger t where t.tgrelid=c.oid and not t.tgisinternal),
               (select count(*) from pg_constraint k where k.conrelid=c.oid),
-              coalesce(c.relacl::text,'')
+              coalesce(c.relacl::text,''),pg_total_relation_size(c.oid)
             from pg_class c where c.oid=to_regclass(%s)""",(table,))
         if not rows or rows[0][0] is None:return None
-        keys=['oid','relfilenode','relpages','heap_bytes','indexes','valid_indexes','triggers','constraints','acl']
-        return dict(zip(keys,[int(v) if isinstance(v,int) else v for v in rows[0]]))
+        keys=['oid','relfilenode','relpages','heap_bytes','indexes','valid_indexes','triggers','constraints','acl','total_bytes']
+        value=dict(zip(keys,[int(v) if isinstance(v,int) else v for v in rows[0]]))
+        if table not in TABLES:raise Refusal('repack table is not allowlisted')
+        schema,name=table.split('.')
+        # Identifier comes only from the fixed allowlist above, never from input.
+        value['rows']=int(self.database.execute(f'select count(*) from "{schema}"."{name}"')[0][0])
+        return value

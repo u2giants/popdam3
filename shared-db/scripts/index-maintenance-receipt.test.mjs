@@ -47,7 +47,7 @@ const repackRequest={kind:'table-repack/v1',operation_id:'repack-assets-804',cla
 test('repack admits only the exact allowlisted table on its own open claim',()=>{
  const own=claim(5742,5745,['table public.assets','extension pg_repack','schema repack'])
  assert.deepEqual(verifyMaintenanceClaim(repackRequest,{openClaims:()=>[own]}),{admitted:true,claim_issue:5742,work_issue:5745,kind:'table-repack/v1'})
- for(const bad of [{...repackRequest,objects:['table public.style_groups']},{...repackRequest,objects:['table public.assets','table public.assets']},{...repackRequest,operation_id:'sg-x'}])assert.throws(()=>verifyMaintenanceClaim(bad,{openClaims:()=>[own]}))
+ for(const bad of [{...repackRequest,objects:['table public.style_groups']},{...repackRequest,objects:['table public.assets','table public.assets']},{...repackRequest,operation_id:'sg-x'},{...repackRequest,kind:'other'},{...repackRequest,operation_id:'repack-'+'a'.repeat(34)}])assert.throws(()=>verifyMaintenanceClaim(bad,{openClaims:()=>[own]}))
  assert.throws(()=>verifyMaintenanceClaim(repackRequest,{openClaims:()=>[claim(5742,5745,['extension pg_repack'])]}))
  assert.throws(()=>verifyMaintenanceClaim(repackRequest,{openClaims:()=>[own,claim(6000,6000,['table public.assets'])]}))
 })

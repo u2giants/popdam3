@@ -27,7 +27,7 @@ class MemoryReceipts:
 
 
 def state(relfilenode=100,**over):
-    value=dict(oid=7,relfilenode=relfilenode,relpages=10,heap_bytes=81920,indexes=46,valid_indexes=46,triggers=25,constraints=9,acl='{x}')
+    value=dict(oid=7,relfilenode=relfilenode,relpages=10,heap_bytes=81920,indexes=46,valid_indexes=46,triggers=25,constraints=9,acl='{x}',total_bytes=3<<30,rows=152000)
     value.update(over);return value
 
 
@@ -54,7 +54,7 @@ def runner(db,receipts,target='preview',client=None,gate=lambda:None,value=None)
     calls=[]
     def default(e,env,timeout):
         calls.append(timeout);db.state=state(relfilenode=200,relpages=3,heap_bytes=24576)
-    return repack.TableRepack(db,receipts,value or entry(),identity(target),OP,gate,client=client or default),calls
+    return repack.TableRepack(db,receipts,value or entry(),identity(target),OP,gate,client=client or default,disk=lambda ref:20<<30),calls
 
 
 class PolicyTests(unittest.TestCase):
@@ -133,6 +133,19 @@ class StateMachineTests(unittest.TestCase):
         db=FakeDB();seen=[]
         job,calls=runner(db,MemoryReceipts(),gate=lambda:seen.append(1))
         job.apply();self.assertGreaterEqual(len(seen),3)
+    def test_low_disk_refuses_before_running(self):
+        db=FakeDB();job,calls=runner(db,MemoryReceipts());job.disk=lambda ref:(3<<30)+(512<<20)
+        with self.assertRaises(maintenance.Refusal):job.apply()
+        self.assertEqual(calls,[])
+    def test_row_loss_beyond_concurrent_band_refuses(self):
+        db=FakeDB()
+        def lossy(e,env,t):db.state=state(relfilenode=200,rows=151000)
+        job,_=runner(db,MemoryReceipts(),client=lossy)
+        with self.assertRaises(maintenance.Refusal):job.apply()
+    def test_small_concurrent_row_drift_completes(self):
+        db=FakeDB()
+        def drift(e,env,t):db.state=state(relfilenode=200,rows=152040)
+        job,_=runner(db,MemoryReceipts(),client=drift);job.apply()
     def test_executor_digest_covers_repack_module(self):
         self.assertNotEqual(maintenance.executor_digest(OP),maintenance.executor_digest('sg-hnsw-rebuild-706b'))
 

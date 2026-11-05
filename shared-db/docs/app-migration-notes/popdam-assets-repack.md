@@ -12,8 +12,14 @@ per-candidate visibility probe became a disk read: 26.5 s of a 41 s broad query.
 
 **Safety.** pg_repack holds ACCESS EXCLUSIVE only briefly at start and at the
 final swap; `--no-kill-backend` makes it give up rather than cancel application
-queries. Rows, indexes, triggers, constraints and grants are unchanged; the
-executor refuses completion if any count changes or repack objects remain.
+queries. Indexes, triggers, constraints and grants must be identical and the exact row
+count must stay within the concurrent-write band (max(50, 0.1%)), or the
+executor refuses completion; leftover repack objects also refuse. Before the
+client starts, provider-reported free disk must cover the table's total size
+(heap + TOAST + indexes) plus 1 GiB (finding #5746, request in #5744).
+The `repack` schema holds only transient `log_*`/`table_*` objects owned by
+postgres; it is not in the PostgREST exposed schemas and USAGE is revoked from
+anon/authenticated, so no default-privilege change is needed.
 Preview runs first; production requires the verified preview completion receipt.
 
 **Activation.** This change adds the capability only; the committed policy stays
