@@ -5,7 +5,7 @@ Owning issue: popcre/shared-db#popcre/shared-db#5610. Related: #2427 (large-inde
 ## STATUS (2026-11-04 8:55 PM EST)
 | Step | State | Evidence |
 |---|---|---|
-| 0 Open a trustworthy observation window | ⬜ open | — |
+| 0 Open a trustworthy observation window | ✅ complete | [Opening snapshot](docs/verification/database-efficiency/20261105T0335Z/unused-index-window-open.md), November 4, 2026, 10:35 PM EST |
 | 1 Re-measure at window end (≥14 days) | ⬜ open | — |
 | 2 Code-path proof per drop candidate | ⬜ open | — |
 | 3 Migration: drop confirmed candidates | ⬜ open | — |
@@ -13,7 +13,7 @@ Owning issue: popcre/shared-db#popcre/shared-db#5610. Related: #2427 (large-inde
 | 5 Land via automatic promotion | ⬜ open | — |
 | 6 Live proof (size freed, no regressions) | ⬜ open | — |
 | 7 Old DAM claim index follow-up | ⬜ open | — |
-Fresh session starts at step 0. Steps 1–6 cannot start before **2026-11-18 8:55 PM EST** (14 days after the window opened).
+Resume at step 1. Opening snapshot found reads on `idx_style_guide_file_tags_tag_status` (72), `idx_assets_ai_tag_untagged_candidates` (2), and old `dam_search_embedding_claim_idx` (18): KEEP all three; no removal is authorized. Four original zero-scan candidates remain (~329 MiB), subject to the full observation and code-path proof. Coordinator owns the existing issue through completion; no date-based background wake is installed. Steps 1–6 cannot start before **2026-11-18 8:55 PM EST** (14 days after the window opened).
 
 ## 1. Ultimate goal
 Albert wants the shared database to cost less and stay fast. Large indexes nobody reads still cost disk, memory (they compete for cache with useful data), backup size, and slow every insert/update on their table. Done means: every index we drop was demonstrably unused over a long, trustworthy window and by every code path we can find, about 1 GB+ of storage is freed, and **no app feature (DAM search, DAM image similarity, style-guide search, HTS ruling search, AI tagging) gets slower or breaks**. A wrongly dropped vector index turns a millisecond search into a full table scan — that is far worse than keeping a useless index. **If a step conflicts with this goal, the goal wins — keep the index, stop, and flag it on #popcre/shared-db#5610.**
