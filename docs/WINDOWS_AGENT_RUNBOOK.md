@@ -224,6 +224,13 @@ Get the checksum by downloading the release zip and running `sha256sum`. The age
 
 Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
 
+The notice detector keeps its recorded grayscale hashes and comparison limit,
+but verifies that a matching thumbnail is essentially monochrome. Substantial
+color rules out the generated warning page: horizontal colored artwork can share
+its sparse grayscale hash. Blank rejection remains a separate check. Grayscale
+artwork can still collide, and some differently arranged warning pages are not
+covered by the recorded hashes; retain source evidence when investigating either.
+
 ### Original embedded AI preview fallback
 
 When the normal AI renderers and exact sibling lookup fail, the Windows agent can

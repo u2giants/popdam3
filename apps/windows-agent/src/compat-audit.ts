@@ -22,8 +22,9 @@ const HASH_W = 16;
 const HASH_H = 16; // 16×16 comparisons → 256-bit hash (64 hex chars)
 
 // Max Hamming distance (out of 256 bits) to treat a thumbnail as the warning page.
-// Warning thumbnails hash to distance 0 from a reference; real artwork is ≥53 away,
-// so 30 is a safe midpoint that tolerates minor cross-platform render jitter.
+// Warning thumbnails hash to distance 0 from a reference. This candidate limit
+// tolerates cross-platform render jitter; color verification below rejects
+// genuine colored art whose grayscale hash happens to collide.
 const COMPAT_HASH_THRESHOLD = 30;
 
 // Reference dHashes of the Adobe CompatibilityAlert warning page, across its render
@@ -89,7 +90,22 @@ const SCAN_CONCURRENCY = 16;
 
 async function isCompatAlertBufferInternal(buf: Buffer): Promise<boolean> {
   const h = await dhash(buf);
-  return COMPAT_REF_HASHES.some((ref) => hamming(h, ref) <= COMPAT_HASH_THRESHOLD);
+  if (!COMPAT_REF_HASHES.some((ref) => hamming(h, ref) <= COMPAT_HASH_THRESHOLD)) return false;
+  // The generated CompatibilityAlert is monochrome. dHash alone loses color
+  // and horizontal bands, so real colored stripes can collide with its sparse
+  // references. Require the matching image to remain essentially monochrome.
+  // Small JPEG/ICC fringes or a tiny colored mark do not lift this guard.
+  const { data, info } = await sharp(buf)
+    .flatten({ background: "#ffffff" })
+    .resize(64, 64, { fit: "fill" })
+    .removeAlpha().toColourspace("srgb").raw().toBuffer({ resolveWithObject: true });
+  let colored = 0;
+  for (let pixel = 0; pixel < data.length; pixel += info.channels) {
+    const high = Math.max(data[pixel], data[pixel + 1], data[pixel + 2]);
+    const low = Math.min(data[pixel], data[pixel + 1], data[pixel + 2]);
+    if (high - low >= 32) colored++;
+  }
+  return colored < info.width * info.height * 0.05;
 }
 
 /**
