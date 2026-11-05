@@ -16,16 +16,16 @@ re-check its line numbers after rebasing).
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Relevance-sorted search: rank server-side, fetch only the page | open with search owner | Reserved relevance paths; do not overlap the coordinator's search delivery |
-| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | shared contract merged, production/caller open | shared-db #5630/version 20261105042549; held finding #5631 and genuine test correction #5644 |
-| 3 | `get-filter-options`: one grouped count query instead of N+M counts | shared contract merged, production/caller open | Same #5628/#5630 delivery; preserve current nondeleted taxonomy scope |
+| 2 | `useStyleGroupAssetCount`: one aggregate call instead of paging 1000 rows | old source retired from delivery; replacement/caller open | shared-db #5630/version 20261105042549 must never apply: category normalization bug; #5631 stays open; self-contained replacement follows producer transition |
+| 3 | `get-filter-options`: one grouped count query instead of N+M counts | old source retired from delivery; replacement/caller open | Same open #5628 replacement; preserve current nondeleted taxonomy scope |
 | 4 | Tagging prompt: cache static reads; avoid redundant generation lookup | lookup deployed; cache prepared/held | App #764 lookup, #782 cache head 59f8cbc9; 518 worker tests; live read-only prompt parity, repeated static reads 6→3, deployment pending |
-| 5 | Order-list status counts: one RPC/grouped count | shared contract merged, production/caller open | Same #5628/#5630; five-status/NULL and populated access/filter fixtures in held #5644 |
+| 5 | Order-list status counts: one RPC/grouped count | old source retired from delivery; replacement/caller open | Same open #5628 replacement; five-status/NULL and populated access/filter fixtures in held #5644 |
 | 6 | Sell-through export: parallel, de-duplicated thumbnail fetches | live proof recorded | App #764/#770: five rows/two unique thumbnail URLs cause two fetches and five workbook image placements |
 | 7 | Grids: memoize cards; bridge scanner: drop redundant `lstat` | cards deployed; scanner held | All three card layouts preserve selection live; draft #766 must wait for verified full scan completion |
 | 8 | Heartbeat `render_queue` prune: once per hour | deployed; direct live efficiency proof open | App #764/#773; stateful repeated-heartbeat harness passes; hourly per warm instance with retry on failure |
 | 9 | Audit doc + STATUS updated; #470 closed with before/after numbers | open | Do not close until every outstanding caller, search, machine/deployment and live proof is finished |
 
-Next: deliver genuine fixture correction #5644, reconcile finding #5631, then the normal #5630 production train before dependent app callers. Cache #782 and all owned app/shared-db main merges remain held until after 3:30 AM EST. Canonical instruction/catalog cache freshness is up to five minutes; per-asset context stays fresh. Never stop or reset the full tagging run.
+Next: after the hold, deliver independent health #5623 receipts, then producer/character delivery. Reissue all three aggregate readers with exact category trimming/filtering; hard-retire unapplied 20261105042549 under the new producer. Test correction #5644 alone cannot resolve #5631; replacement live parity/access proof is required before dependent app callers. Cache #782 and all owned app/shared-db main merges remain held until after 3:30 AM EST. Canonical instruction/catalog cache freshness is up to five minutes; per-asset context stays fresh. Never stop or reset the full tagging run.
 
 ---
 
