@@ -19,10 +19,10 @@ issue say so.
 | Step | State (Nov 4, 2026, 7:59 PM EST) | Evidence / artifact |
 |---|---|---|
 | 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Follow-up `20261105002300` is merged, NOT yet in the ledger: promotion held by open findings #5592 / #5583 |
-| 1. Watchdog alarm | ⬜ open | Database part needs promotion unheld |
-| 2. Durable runner | 🔄 partial | O1 trending to "keep Railway": 21,888 PopSG pages in the last hour. Cap still in `operation-loop.ts:58`; reset landed for this lane (#730) |
-| 3. Stop re-starving | ⬜ open | Now also measures tagging and scanning |
-| 4. Errored-document reset | 🔄 partial | Poller and claim fixes landed (#728, 5585); 1,102 file + 10 group errors remain |
+| 1. Watchdog alarm | 🔄 implementation underway; live drill open | shared-db PR 5623 (health RPC and compact indexes), app PR 758 (health card), monitor PR 23 merged (dashboard alert/clear). Runtime configuration and two-hour poller drill remain open; no off-page push claim |
+| 2. Durable runner | 🔄 partial; unattended acceptance open | O1 is GPU thumbnail lane (PRs 741, 747, 750), not Railway text embedding. Active photo-indexing session owns poller custody (#662). Scheduler XML and 24 hours near zero remain unverified |
+| 3. Stop re-starving | 🔄 outside active custody | shared-db #5609 owns value-based asset-trigger scoping; do not duplicate its edits. Nightly/tagging/scan measurements and next 6:00 AM EST / two-hour recovery acceptance remain open |
+| 4. Errored-document reset | 🔄 bounded reset prepared; live run open | shared-db PR 5623 adds thumbnail-aware reset bounded to 5,000, preserving live leases and old overload. App PR 758 reuses existing reset control. One-time execution and actual-thumbnail / persisted-vector proof on #663 remain open |
 | 5. Scorecard (extends search test set) | 🔄 partial | `SEARCH_EVAL_SET_V1` and PR 720 landed; takes over old tagging task 6 |
 | 6. PopSG activation | 🔄 partial | Wiring landed behind switch (#730); #734 and error/Retry open; tester already deleted |
 | 7. Retire superseded plans/handoffs | ✅ done | This reconciliation PR |
