@@ -31,6 +31,44 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         policy_path.write_text(json.dumps(policy), encoding="utf-8")
         return path, policy_path
 
+    def test_curated_lock_policy_refuses_wrong_version_hash_contract_tables_mode_and_missing_contract(self):
+        base = {"sha256": atomic.CURATED_CHARACTER_LOCK_SHA256, "targets": ["preview"], "admission_lock_contract": atomic.CURATED_CHARACTER_LOCK_CONTRACT}
+        cases = [
+            ("29990101000000", dict(base)),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION, {**base, "sha256": "0"*64}),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION, {**base, "admission_lock_contract": "arbitrary"}),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION, {**base, "tables": ["public.assets"]}),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION, {**base, "mode": "ACCESS EXCLUSIVE"}),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION, {k:v for k,v in base.items() if k!="admission_lock_contract"}),
+        ]
+        for version, entry in cases:
+            with self.subTest(version=version,entry=entry):
+                path=self.root/'typed-policy.json';path.write_text(json.dumps({"schema_version":1,"migrations":{version:entry}}))
+                with patch.object(atomic,"POLICY",path), self.assertRaises(atomic.Refusal): atomic.read_policy()
+
+    def test_curated_wrapper_refuses_wrong_version_hash_contract_and_missing_contract(self):
+        raw=(atomic.ROOT/'supabase/migrations/20261105142616_publisher_character_curation.sql').read_text()
+        for version, body, contract in [
+            ("29990101000000",raw,atomic.CURATED_CHARACTER_LOCK_CONTRACT),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION,raw+" ",atomic.CURATED_CHARACTER_LOCK_CONTRACT),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION,raw,"wrong"),
+            (atomic.CURATED_CHARACTER_LOCK_VERSION,raw,None),
+        ]:
+            with self.subTest(version=version,contract=contract), self.assertRaises(atomic.Refusal):
+                atomic.build_wrapper(version,"test",body,[body],admission_lock_contract=contract)
+        wrapper=atomic.build_wrapper(atomic.CURATED_CHARACTER_LOCK_VERSION,"test",raw,[raw],admission_lock_contract=atomic.CURATED_CHARACTER_LOCK_CONTRACT)
+        self.assertLess(wrapper.index(atomic.CURATED_CHARACTER_LOCK_SQL),wrapper.index('do $curation$'))
+        self.assertIn("lock_timeout='500ms'",wrapper)
+        self.assertIn("statement_timeout='2500ms'",wrapper)
+        self.assertIn("transaction_timeout='3s'",wrapper)
+
+    def test_every_existing_noncontract_wrapper_remains_byte_identical(self):
+        for version,entry in atomic.read_policy().items():
+            if version==atomic.CURATED_CHARACTER_LOCK_VERSION: continue
+            raw="select 1;";statements=[raw];name="unchanged"
+            expected=("\\set ON_ERROR_STOP on\nBEGIN;\n"+raw+"\nINSERT INTO supabase_migrations.schema_migrations(version, statements, name) VALUES (\n"+atomic.dollar_quote(version,"version")+", ARRAY[\n"+atomic.dollar_quote(raw,"s0")+"\n]::text[], "+atomic.dollar_quote(name,"name")+");\nCOMMIT;\n")
+            self.assertEqual(atomic.build_wrapper(version,name,raw,statements),expected)
+
     def test_split_preserves_semicolons_in_quotes_comments_and_dollar_blocks(self):
         sql = "select ';'; -- ;\n do $$ begin perform ';'; end $$; select 2;"
         self.assertEqual(len(atomic.split_sql(sql)), 3)

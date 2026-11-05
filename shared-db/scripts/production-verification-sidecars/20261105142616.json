@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261105142616",
+  "migration_sha256": "faa341b2e472907f1e31275068b4c258272f6e0df782401cfaaec000faeb9059",
+  "checks": [
+    {
+      "id": "publisher_character_1_singleton",
+      "kind": "exact_row_count",
+      "relation": "core.character",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "cfb4783e-1b64-43ac-af92-96c098ea9456"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "a03fff4b-65f4-4fd6-98ad-c9db3216b140"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Chase"
+        },
+        {
+          "column": "status",
+          "type": "app.entity_status",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "publisher_character_1_source",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "cfb4783e-1b64-43ac-af92-96c098ea9456"
+        },
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "character"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "primary_publisher"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "publisher_character_roster"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "https://www.paramountplus.com/sneak-peak/paw-patrol-characters-cast/#chase"
+        },
+        {
+          "column": "source_licensor_id",
+          "type": "uuid",
+          "equals": "a03fff4b-65f4-4fd6-98ad-c9db3216b140"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "publisher_character_2_singleton",
+      "kind": "exact_row_count",
+      "relation": "core.character",
+      "filters": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "equals": "e3733bd4-5547-473b-ad38-063d2237835a"
+        },
+        {
+          "column": "licensor_id",
+          "type": "uuid",
+          "equals": "b96edc00-9261-46ec-af93-9de0f5b88d48"
+        },
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "Cheer Bear"
+        },
+        {
+          "column": "status",
+          "type": "app.entity_status",
+          "equals": "active"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "publisher_character_2_source",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_id",
+          "type": "uuid",
+          "equals": "e3733bd4-5547-473b-ad38-063d2237835a"
+        },
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "character"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "primary_publisher"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "publisher_character_roster"
+        },
+        {
+          "column": "source_id",
+          "type": "text",
+          "equals": "https://www.carebears.com/#cheer-bear"
+        },
+        {
+          "column": "source_licensor_id",
+          "type": "uuid",
+          "equals": "b96edc00-9261-46ec-af93-9de0f5b88d48"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

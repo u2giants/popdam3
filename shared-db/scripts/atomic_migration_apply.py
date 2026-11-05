@@ -20,6 +20,17 @@ from urllib.parse import parse_qsl, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "config" / "atomic-migration-allowlist.json"
+# One reviewed curated source packet. No caller-selected table, mode or budget.
+CURATED_CHARACTER_LOCK_CONTRACT = "curated-character-admission-5683-v1"
+CURATED_CHARACTER_LOCK_VERSION = "20261105142616"
+CURATED_CHARACTER_LOCK_SHA256 = "faa341b2e472907f1e31275068b4c258272f6e0df782401cfaaec000faeb9059"
+CURATED_CHARACTER_LOCK_SQL = (
+    "SET LOCAL TIME ZONE 'UTC';\n"
+    "SET LOCAL lock_timeout='500ms';\n"
+    "SET LOCAL statement_timeout='2500ms';\n"
+    "SET LOCAL transaction_timeout='3s';\n"
+    "LOCK TABLE core.licensor, core.character, core.character_alias, core.taxonomy_source_ref IN SHARE ROW EXCLUSIVE MODE;\n"
+)
 VERSION_RE = re.compile(r"^(\d{14})_(.+)\.sql$")
 VERSION_VALUE_RE = re.compile(r"^\d{14}$")
 TX_RE = re.compile(
@@ -76,6 +87,12 @@ def read_policy() -> dict[str, dict[str, object]]:
         validate_version(version)
         if not isinstance(entry, dict):
             raise Refusal(f"atomic policy entry {version} is not an object")
+        if version == CURATED_CHARACTER_LOCK_VERSION or "admission_lock_contract" in entry:
+            if (set(entry) != {"sha256", "targets", "admission_lock_contract"}
+                    or entry["admission_lock_contract"] != CURATED_CHARACTER_LOCK_CONTRACT
+                    or version != CURATED_CHARACTER_LOCK_VERSION
+                    or entry.get("sha256") != CURATED_CHARACTER_LOCK_SHA256):
+                raise Refusal("curated admission lock contract must bind the one exact version/hash without custom tables, modes or budgets")
         if "batch_group" in entry and (not isinstance(entry["batch_group"], str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", entry["batch_group"])):
             raise Refusal(f"atomic policy batch group is invalid for {version}")
         if "strip_outer_transaction" in entry and not isinstance(entry["strip_outer_transaction"], bool):
@@ -516,11 +533,20 @@ select count(*) from supabase_migrations.schema_migrations where version = '""" 
         raise Refusal(f"version {version} is already applied")
 
 
-def build_wrapper(version: str, name: str, raw: str, statements: list[str]) -> str:
+def build_wrapper(version: str, name: str, raw: str, statements: list[str], *, admission_lock_contract: str | None = None) -> str:
     validate_version(version)
+    prelude = ""
+    if version == CURATED_CHARACTER_LOCK_VERSION and admission_lock_contract is None:
+        raise Refusal("curated admission wrapper requires its named lock contract")
+    if admission_lock_contract is not None:
+        if (admission_lock_contract != CURATED_CHARACTER_LOCK_CONTRACT
+                or version != CURATED_CHARACTER_LOCK_VERSION
+                or hashlib.sha256(raw.encode("utf-8")).hexdigest() != CURATED_CHARACTER_LOCK_SHA256):
+            raise Refusal("curated admission wrapper contract/version/hash mismatch")
+        prelude = CURATED_CHARACTER_LOCK_SQL
     values = ",\n".join(dollar_quote(s, f"s{i}") for i, s in enumerate(statements))
     return (
-        "\\set ON_ERROR_STOP on\nBEGIN;\n" + raw.rstrip() + "\n"
+        "\\set ON_ERROR_STOP on\nBEGIN;\n" + prelude + raw.rstrip() + "\n"
         "INSERT INTO supabase_migrations.schema_migrations(version, statements, name) VALUES (\n"
         + dollar_quote(version, "version") + ", ARRAY[\n" + values + "\n]::text[], "
         + dollar_quote(name, "name") + ");\nCOMMIT;\n"
@@ -672,7 +698,7 @@ def main() -> int:
                     raise Refusal("evaluation access committed but login verification failed; preserve ledger and recover without rerun or rotation") from None
                 print(f"ATOMIC APPLY OK: target={args.target} version={version} ledger_row=1 statements={len(statements)} initial_credential=login_verified")
                 continue
-            wrapper = build_wrapper(version, name, raw, statements)
+            wrapper = build_wrapper(version, name, raw, statements, admission_lock_contract=read_policy()[version].get("admission_lock_contract"))
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".sql", delete=False) as handle:
                 handle.write(wrapper)
                 temp_name = handle.name
