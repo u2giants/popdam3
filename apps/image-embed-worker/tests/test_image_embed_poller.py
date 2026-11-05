@@ -376,6 +376,16 @@ def test_dam_search_missing_thumbnail_does_not_block_valid_neighbor(monkeypatch,
     assert p.search_done == p.search_failed == 1
 
 
+def test_sg_claim_grows_while_fast_and_resets_after_slow_cycle(monkeypatch):
+    p, calls = _search_poller(monkeypatch, [])
+    sizes = []
+    for elapsed in [1, 1, 1, 1, 1, 1, 1, 60, 1]:
+        p.claim_sg_docs()
+        sizes.append(calls[-1][1][0])
+        p.tune_sg_batch(elapsed)
+    assert sizes == [1, 2, 4, 8, 16, 32, 32, 32, 1]
+
+
 def test_sg_claim_yields_after_one_document_without_changing_dam_batch(monkeypatch):
     p, calls = _search_poller(monkeypatch, [])
     monkeypatch.delattr(p, "claim_search_docs")
