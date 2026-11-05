@@ -67,6 +67,9 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #5592: unsafe original and preview-only ambiguous-artifact predecessor.
+    "20261104214842",
+    "20261105035926",
     # #3869: production uses reviewed successor4735; preserve historical SQL/preview ledgers.
     "20261022221940",
     "20261023014911",
@@ -307,6 +310,8 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261104214842": "#5592: PR5590 original has inadmissible temporary DDL and truncated aliases; never applied to production. Preserve immutable SQL and reservation. Qualified safe successor20261105074028 replaces it; never apply original.",
+    "20261105035926": "#5592: PR5624 preview run41967916454 attempt2 applied this safe load, but automatic qualification refused two immutable same-name artifacts after the failed first attempt. Never applied to production. Preserve both artifacts, SQL and preview ledger. Complete replay-safe successor20261105074028 is authored with native retirement and its own producer binding.",
     "20261022221940": "#3869: historical PR4648 source eaeb970ff29a1badc8fccac63284ecc521d2e8c4 retains its durable reviewer refusals and immutable SQL; preview run 39879949104 applied this original, but production received the combined idempotent successor20261024234538 from PR4735 (merge75691064b17f0cef76835453c7ec29a979d3ec7a), production apply40151562831 attempt1 SUCCESS. Root independently verified exact successor source and actual runtime login/ledger. Preserve original source, review/refusal history and preview ledger; never apply this historical version again.",
     "20261023014911": "#3869: historical PR4673 source b20da395e92bfbca1744f72fc2ced63996935ec6 retains its durable reviewer refusals and immutable SQL; preview run 40011713642 applied this original, but production received the combined idempotent successor20261024234538 from PR4735 (merge75691064b17f0cef76835453c7ec29a979d3ec7a), production apply40151562831 attempt1 SUCCESS. Root independently verified exact successor source and actual runtime login/ledger. Preserve original source, review/refusal history and preview ledger; never apply this historical version again.",
     "20261005025111": "#2176 merged-stranded: immutable PR3839 head dd269428fc3953e98366142cec24c71e25d71b09 carries slot7 REVISE verdict45d5766e4e3d62d777c19d057e3d59825f150a1c; preview and production never applied original; claim3838 supported reissue retirement6328e126316baca16b7f3d842f79a769599f478c reserves standalone safe replacement20261011224904, not yet installed. Preserve original SQL and all reviews; never apply original.",

@@ -63,6 +63,19 @@ reservation, independent review, qualified rehearsal, guarded merge, and the
 existing serial production lane. Do not infer a routing destination from an old
 handoff or invent a migration to test a workflow.
 
+**Curated character loads:** the data-only admission inspector permits reads of the
+existing licensor extracts `public.style_guide_files` and
+`public.style_guide_pdf_text`, alongside `core.*` and `plm.*`. This is an exact
+source-table exception: arbitrary public reads, writes to the source tables,
+temporary DDL and unknown calls remain refused. The forward loader introduced
+by [#5624](https://github.com/popcre/shared-db/pull/5624) fails closed when its
+required source records are absent, resolves exact source codes before a unique
+name fallback, and retains source file evidence. Its aliases are exact source
+filename labels; full decorated canonical labels are never truncated. The unsafe original and preview-only predecessor remain immutable and are
+natively retired; the automatic candidate selector also excludes hard-blocked
+versions. Promote only the fresh replacement through the normal workflow. See [#5592](https://github.com/popcre/shared-db/issues/5592)
+for the original finding and verification.
+
 **Self-service additive work:** an eligible additive change wholly inside the
 existing `crm`, `pim`, `dam` or `plm` boundary may use the implemented self-service
 route. The current classifier decides eligibility; shared references, other
@@ -123,3 +136,10 @@ or turn the workflow-refactor program tracker into an application prerequisite.
 - [Scoped maintenance evidence](agent-work-contract-repo-maintenance-evidence.md)
 - [Coordination details and incident rationale](section-4-anti-collision-rules.md)
 - [Workflow refactor implementation plan](../../plan_shared_db_workflow_refactor.md)
+
+Character-load source reconciliation (#5592, PR5629): unmerged version
+`20261105043946` was verified absent from both current ledgers and forward-renamed
+to reserved successor `20261105074028` to satisfy source ordering. The old
+reservation/source history remains immutable; no historical restoration exception
+is used. Applied preview version `20261105035926` and original `20261104214842`
+remain natively retired by this producer.

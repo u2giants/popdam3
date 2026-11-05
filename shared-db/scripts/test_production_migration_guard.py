@@ -207,6 +207,18 @@ def _run_block_commands(step: str) -> list[str]:
     return commands
 
 
+class CharacterLoadRetirementTests(unittest.TestCase):
+    def test_originals_remain_refused_even_when_preview_recorded_them(self):
+        for version in ("20261104214842", "20261105035926"):
+            for remote in (set(), {version}):
+                with self.assertRaisesRegex(GuardError, "general production lane blocks"):
+                    parse_allowlist(version, remote)
+            self.assertIn("20261105074028", production_migration_guard.RETIRED_VERSION_REASONS[version])
+
+    def test_complete_character_successor_remains_eligible(self):
+        self.assertEqual(parse_allowlist("20261105074028"), ["20261105074028"])
+
+
 class RemainingUsersStrandedOriginalTests(unittest.TestCase):
     def test_stranded_original_refuses_even_if_recorded_remotely(self):
         for remote in (set(), {"20261006221530"}):
@@ -359,6 +371,8 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261104214842",
+                "20261105035926",
                 "20261022221940",
                 "20261023014911",
                 "20261005025111",

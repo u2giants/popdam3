@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 import {inspectCuratedSql} from './curated-admission.mjs'
-const sql=readFileSync(new URL('../../supabase/migrations/20261105035926_curated_character_load_safety.sql',import.meta.url),'utf8')
+const sql=readFileSync(new URL('../../supabase/migrations/20261105074028_curated_character_load_safety.sql',import.meta.url),'utf8')
 test('forward character load is admitted as accounted curated row writes',()=>{
  const proof=inspectCuratedSql(sql)
  assert.deepEqual(proof.writes,['table core.character','table core.character_alias','table core.taxonomy_source_ref'])

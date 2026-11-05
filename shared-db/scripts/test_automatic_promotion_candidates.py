@@ -51,6 +51,10 @@ class ForeignTargetVersions(unittest.TestCase):
         with mock.patch.object(m, "gh", side_effect=[pulls, files]):
             return m.merged_migration_prs("o/r")
 
+    def test_retired_character_originals_never_reenter_the_automatic_queue(self):
+        self.assertEqual(self.prs("20261104214842", "20261105035926"), [])
+        self.assertEqual(self.prs("20261104214842", "20261105074028")[0]["versions"], ["20261105074028"])
+
     def test_sandbox_only_pr_is_never_a_production_candidate(self):
         self.assertEqual(self.prs("20261102215524"), [])
 
@@ -645,7 +649,10 @@ class CanonicalDependencyResolution(unittest.TestCase):
         version = "20260915015414"
         path = next((Path(m.HERE).parent / "supabase/migrations").glob(version + "_*.sql"))
         self.assertIsNone(parse_declaration(path.read_text(), version))
-        base, child = self.discover_real(["20260905104802", version])
+        # This historical overlay is now retired; isolate canonical dependency
+        # discovery from the separately tested production retirement filter.
+        with mock.patch.object(m, "HARD_BLOCKED", m.HARD_BLOCKED - {version}):
+            base, child = self.discover_real(["20260905104802", version])
         self.assertEqual(child["production_dependencies"], {"20260905104802": base["number"]})
 
     def test_dependency_receipts_share_only_one_decision_pass(self):
