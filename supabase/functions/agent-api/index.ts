@@ -47,6 +47,7 @@ import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.
 import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
+import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
@@ -1837,27 +1838,27 @@ async function handleCompleteRender(body: Record<string, unknown>) {
 
   if (!job) return err("Job not found", 404);
 
-  // Only an in-flight job may be completed. A late result for a job that was
-  // already requeued (status pending) or finished must not overwrite it.
-  const { count: completedCount, error: completeErr } = await db
-    .from("render_queue")
-    .update({
-      status: success ? "completed" : "failed",
-      completed_at: new Date().toISOString(),
-      error_message: errorMsg,
-      lease_expires_at: null, // clear lease on completion
-    }, { count: "exact" })
-    .eq("id", jobId)
-    .in("status", ["claimed", "processing"]);
-  if (completeErr) return err(completeErr.message, 500);
-  if (!completedCount) return json({ ok: true, noop: true, reason: "job not in flight" });
+  const completion = await persistDamRenderCompletion({
+    completeInFlight: (fields) => db.from("render_queue")
+      .update(fields, { count: "exact" }).eq("id", jobId)
+      .in("status", ["claimed", "processing"]),
+    readJob: async () => {
+      const { data, error } = await db.from("render_queue")
+        .select("status, error_message").eq("id", jobId).single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    saveThumbnail: () => db.from("assets")
+      .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null }, { count: "exact" })
+      .eq("id", job.asset_id),
+    failOwnCompletion: (reason, completedAt) => db.from("render_queue")
+      .update({ status: "failed", error_message: reason }, { count: "exact" })
+      .eq("id", jobId).eq("status", "completed").eq("completed_at", completedAt),
+  }, { success, thumbnailUrl, errorMsg, now: new Date().toISOString() });
+  if (!completion.ok) return err(completion.error, 500);
+  if (completion.noop) return json({ ok: true, noop: true, reason: "job not in flight" });
 
   if (success && thumbnailUrl) {
-    await db
-      .from("assets")
-      .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null })
-      .eq("id", job.asset_id);
-
     // Re-evaluate style group primary now that this asset has a working thumbnail
     const { data: asset } = await db
       .from("assets")
