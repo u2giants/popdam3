@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { persistDamRenderCompletion, type DamRenderCompletionWriter, THUMBNAIL_PERSISTENCE_FAILED } from "./dam-render-completion.ts";
+import { type DamRenderCompletionWriter, persistDamRenderCompletion, THUMBNAIL_PERSISTENCE_FAILED } from "./dam-render-completion.ts";
 import type { DbWriteResult } from "./sg-render-completion.ts";
 
 const now = "2026-11-05T04:00:00.000Z";
@@ -30,7 +30,15 @@ function fakeDb(status = "claimed", saveResult: DbWriteResult = { error: null, c
       return { error: null, count: 1 };
     },
   };
-  return { writer, job, asset, calls, beforeFailure: (fn: () => void) => { beforeFailure = fn; } };
+  return {
+    writer,
+    job,
+    asset,
+    calls,
+    beforeFailure: (fn: () => void) => {
+      beforeFailure = fn;
+    },
+  };
 }
 
 describe("DAM thumbnail persistence", () => {
@@ -101,9 +109,12 @@ describe("DAM thumbnail persistence", () => {
 
   it("records a thrown thumbnail save failure", async () => {
     const db = fakeDb();
-    db.writer.saveThumbnail = async () => { throw new Error("connection reset"); };
+    db.writer.saveThumbnail = async () => {
+      throw new Error("connection reset");
+    };
     expect(await persistDamRenderCompletion(db.writer, input, retryOptions)).toEqual({
-      ok: false, error: `${THUMBNAIL_PERSISTENCE_FAILED}: connection reset`,
+      ok: false,
+      error: `${THUMBNAIL_PERSISTENCE_FAILED}: connection reset`,
     });
     expect(db.job.status).toBe("failed");
   });
@@ -119,7 +130,9 @@ describe("DAM thumbnail persistence", () => {
 
   it("does not overwrite a concurrently requeued job when recording persistence failure", async () => {
     const db = fakeDb("claimed", { error: { message: "timeout" } });
-    db.beforeFailure(() => { db.job.status = "pending"; });
+    db.beforeFailure(() => {
+      db.job.status = "pending";
+    });
     expect(await persistDamRenderCompletion(db.writer, input, retryOptions)).toMatchObject({ ok: false });
     expect(db.job.status).toBe("pending");
     expect(db.job.error_message).toBeNull();
@@ -127,7 +140,9 @@ describe("DAM thumbnail persistence", () => {
 
   it("does not overwrite a different completion timestamp", async () => {
     const db = fakeDb("claimed", { error: { message: "timeout" } });
-    db.beforeFailure(() => { db.job.completed_at = "2026-11-05T04:00:01.000Z"; });
+    db.beforeFailure(() => {
+      db.job.completed_at = "2026-11-05T04:00:01.000Z";
+    });
     expect(await persistDamRenderCompletion(db.writer, input, retryOptions)).toMatchObject({ ok: false });
     expect(db.job.status).toBe("completed");
     expect(db.job.error_message).toBeNull();
