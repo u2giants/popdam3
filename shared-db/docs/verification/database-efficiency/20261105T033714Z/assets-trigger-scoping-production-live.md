@@ -1,0 +1,361 @@
+# Issue #5609 actual production application and timed acceptance
+
+Automatic production run [41974228042](https://github.com/popcre/shared-db/actions/runs/41974228042) successfully committed immutable migration `20261105033827` on the CBA source. Its subsequent catalog-verification step failed because the existing migration lexer recognizes no trigger objects. This is **applied SQL with unfinished verifier recovery**, not a migration failure to replay. Do not reapply, rerun, edit the applied migration, or fabricate a green deployment result. Existing verification-only recovery is owned by the coordinator through PR #5642.
+
+## Immediate read-only facts
+
+The current production target was proved immediately before each query. The existing execution identity was `supabase_read_only_user`; no production writes or new grants were used.
+
+- The earliest post-apply acceptance baseline was captured November 5, 2026, **12:36:57.465690 AM EST**. Its exact query entry and counter/reset/start identities are below.
+- The coordinator's independent production read at **12:37 AM EST** found zero primary-thumbnail cache drift. This result is attributed to that read rather than presenting the later timed-out combined query as successful.
+- A separate catalog read at **12:41:10 AM EST** confirmed the ledger row, all five scoped enabled UPDATE definitions, all five original INSERT/DELETE sibling behaviors, and the untouched original image-embedding trigger.
+- A bounded deterministic sample read at **12:43:17 AM EST** compared three active assets scanned within the preceding 24 hours and found their complete current metadata equal to their stored search documents. Their scan timestamps predate the application; this is **current metadata consistency**, not proof of a new post-apply write path. The future timed probe separately requires three post-baseline recent samples.
+
+The original combined cache/last-seen-sort read hit the existing statement budget. It was split; the metadata sample avoids a whole-table unindexed last-seen sort. No timeout was increased and no index or function changed for the read.
+
+## Immutable post-application baseline
+
+```json
+{
+  "tables": [
+    {
+      "relid": "17809",
+      "relname": "assets",
+      "n_tup_upd": "124808",
+      "n_dead_tup": "7887",
+      "n_live_tup": "150193",
+      "n_tup_hot_upd": "70263"
+    },
+    {
+      "relid": "713489",
+      "relname": "dam_search_documents",
+      "n_tup_upd": "101273",
+      "n_dead_tup": "41464",
+      "n_live_tup": "147282",
+      "n_tup_hot_upd": "16419"
+    }
+  ],
+  "main_query": [
+    {
+      "dbid": "5",
+      "calls": "23226",
+      "userid": "16486",
+      "queryid": "8695287796313115953",
+      "toplevel": true,
+      "wal_bytes": "1380322805",
+      "stats_since": "2026-11-04T12:53:41.28733-05:00",
+      "total_exec_time": "6700401.86598603"
+    }
+  ],
+  "observed_at": "2026-11-05T00:36:57.46569-05:00",
+  "all_asset_patches": [
+    {
+      "dbid": "5",
+      "calls": "101",
+      "userid": "16486",
+      "queryid": "-3507091764867901600",
+      "toplevel": true,
+      "wal_bytes": "4825968",
+      "stats_since": "2026-11-04T17:00:11.393679-05:00",
+      "total_exec_time": "8397.971909"
+    },
+    {
+      "dbid": "5",
+      "calls": "23226",
+      "userid": "16486",
+      "queryid": "8695287796313115953",
+      "toplevel": true,
+      "wal_bytes": "1380322805",
+      "stats_since": "2026-11-04T12:53:41.28733-05:00",
+      "total_exec_time": "6700401.86598603"
+    },
+    {
+      "dbid": "5",
+      "calls": "1",
+      "userid": "16486",
+      "queryid": "-5353890463906428388",
+      "toplevel": true,
+      "wal_bytes": "77886",
+      "stats_since": "2026-11-04T18:40:46.742092-05:00",
+      "total_exec_time": "54.48421"
+    },
+    {
+      "dbid": "5",
+      "calls": "7173",
+      "userid": "16486",
+      "queryid": "-2200186808143858685",
+      "toplevel": true,
+      "wal_bytes": "356981031",
+      "stats_since": "2026-11-04T12:53:19.458771-05:00",
+      "total_exec_time": "1908871.701106"
+    },
+    {
+      "dbid": "5",
+      "calls": "25",
+      "userid": "16486",
+      "queryid": "-4258679261381200171",
+      "toplevel": true,
+      "wal_bytes": "1147973",
+      "stats_since": "2026-11-04T17:12:26.0586-05:00",
+      "total_exec_time": "5299.708669"
+    },
+    {
+      "dbid": "5",
+      "calls": "33",
+      "userid": "16486",
+      "queryid": "-5438723947593814594",
+      "toplevel": true,
+      "wal_bytes": "1680369",
+      "stats_since": "2026-11-04T17:01:00.679731-05:00",
+      "total_exec_time": "3558.720786"
+    },
+    {
+      "dbid": "5",
+      "calls": "1807",
+      "userid": "16486",
+      "queryid": "-640555994218644254",
+      "toplevel": true,
+      "wal_bytes": "151497816",
+      "stats_since": "2026-11-04T16:37:56.308615-05:00",
+      "total_exec_time": "163150.097901"
+    },
+    {
+      "dbid": "5",
+      "calls": "2",
+      "userid": "16486",
+      "queryid": "-4489082252313461571",
+      "toplevel": true,
+      "wal_bytes": "144748",
+      "stats_since": "2026-11-04T13:36:10.693662-05:00",
+      "total_exec_time": "64.398165"
+    },
+    {
+      "dbid": "5",
+      "calls": "33",
+      "userid": "16486",
+      "queryid": "6812761708967041595",
+      "toplevel": true,
+      "wal_bytes": "2122467",
+      "stats_since": "2026-11-04T13:17:45.698753-05:00",
+      "total_exec_time": "1729.849443"
+    },
+    {
+      "dbid": "5",
+      "calls": "281",
+      "userid": "16486",
+      "queryid": "-6408571764798647371",
+      "toplevel": true,
+      "wal_bytes": "19560539",
+      "stats_since": "2026-11-04T13:17:48.389503-05:00",
+      "total_exec_time": "174330.21509"
+    },
+    {
+      "dbid": "5",
+      "calls": "1",
+      "userid": "16486",
+      "queryid": "-9172451651300148137",
+      "toplevel": true,
+      "wal_bytes": "34307",
+      "stats_since": "2026-11-04T13:01:45.435126-05:00",
+      "total_exec_time": "13.104645"
+    },
+    {
+      "dbid": "5",
+      "calls": "340",
+      "userid": "16486",
+      "queryid": "6430535887002143036",
+      "toplevel": true,
+      "wal_bytes": "15481518",
+      "stats_since": "2026-11-04T16:39:02.542166-05:00",
+      "total_exec_time": "25166.914636"
+    },
+    {
+      "dbid": "5",
+      "calls": "17",
+      "userid": "16486",
+      "queryid": "6862715532547800613",
+      "toplevel": true,
+      "wal_bytes": "448005",
+      "stats_since": "2026-11-04T12:53:36.313001-05:00",
+      "total_exec_time": "209.016175"
+    },
+    {
+      "dbid": "5",
+      "calls": "3",
+      "userid": "16486",
+      "queryid": "-4910506429341774761",
+      "toplevel": true,
+      "wal_bytes": "21696",
+      "stats_since": "2026-11-04T13:17:50.047113-05:00",
+      "total_exec_time": "3.519845"
+    },
+    {
+      "dbid": "5",
+      "calls": "1",
+      "userid": "16486",
+      "queryid": "6907289670067793425",
+      "toplevel": true,
+      "wal_bytes": "27370",
+      "stats_since": "2026-11-05T00:28:27.130328-05:00",
+      "total_exec_time": "53.826491"
+    }
+  ],
+  "database_stats_reset": null,
+  "postmaster_started_at": "2026-11-04T12:52:59.286785-05:00",
+  "statement_stats_reset": "2026-11-04T12:52:59.176055-05:00"
+}
+```
+
+The main statement is pinned to query ID `8695287796313115953`, user OID `16486`, database OID `5`, top-level true, and its own `stats_since`. Exact large integers are strings in this record. The later calculation subtracts these counters; cumulative means do not establish the post-apply interval. The earlier real document-write rate remains `8829 / 5050.846546` updates per second, preserved in `assets-trigger-scoping-pre-apply-rate.md`.
+
+## Actual installed trigger definitions
+
+```json
+{
+  "observed_at": "2026-11-05T00:41:10.367622-05:00",
+  "migration_recorded": true,
+  "trigger_definitions": [
+    {
+      "name": "trg_assets_enqueue_image_embed",
+      "type": 21,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_assets_enqueue_image_embed AFTER INSERT OR UPDATE OF thumbnail_url ON public.assets FOR EACH ROW EXECUTE FUNCTION dam.assets_enqueue_image_embed_trg_fn()"
+    },
+    {
+      "name": "trg_auto_queue_render",
+      "type": 17,
+      "enabled": "O",
+      "predicate": true,
+      "definition": "CREATE TRIGGER trg_auto_queue_render AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error)) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.filename IS DISTINCT FROM new.filename))) EXECUTE FUNCTION auto_queue_render()"
+    },
+    {
+      "name": "trg_auto_queue_render_ins_del",
+      "type": 5,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_auto_queue_render_ins_del AFTER INSERT ON public.assets FOR EACH ROW EXECUTE FUNCTION auto_queue_render()"
+    },
+    {
+      "name": "trg_dam_search_assets_refresh",
+      "type": 17,
+      "enabled": "O",
+      "predicate": true,
+      "definition": "CREATE TRIGGER trg_dam_search_assets_refresh AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((((((((((((((((((((((old.id IS DISTINCT FROM new.id) OR (old.filename IS DISTINCT FROM new.filename)) OR (old.relative_path IS DISTINCT FROM new.relative_path)) OR (old.content_type IS DISTINCT FROM new.content_type)) OR (old.cover_description IS DISTINCT FROM new.cover_description)) OR (old.ai_description IS DISTINCT FROM new.ai_description)) OR (old.scene_description IS DISTINCT FROM new.scene_description)) OR (old.customer IS DISTINCT FROM new.customer)) OR (old.program IS DISTINCT FROM new.program)) OR (old.licensor_name IS DISTINCT FROM new.licensor_name)) OR (old.property_name IS DISTINCT FROM new.property_name)) OR (old.product_category IS DISTINCT FROM new.product_category)) OR (old.product_material IS DISTINCT FROM new.product_material)) OR (old.product_dimensions IS DISTINCT FROM new.product_dimensions)) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.file_type IS DISTINCT FROM new.file_type)) OR (old.asset_type IS DISTINCT FROM new.asset_type)) OR (old.workflow_status IS DISTINCT FROM new.workflow_status)) OR (old.is_licensed IS DISTINCT FROM new.is_licensed)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)) OR (old.modified_at IS DISTINCT FROM new.modified_at))) EXECUTE FUNCTION trg_refresh_dam_asset_search_document()"
+    },
+    {
+      "name": "trg_dam_search_assets_refresh_ins_del",
+      "type": 13,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_dam_search_assets_refresh_ins_del AFTER INSERT OR DELETE ON public.assets FOR EACH ROW EXECUTE FUNCTION trg_refresh_dam_asset_search_document()"
+    },
+    {
+      "name": "trg_sync_cover_description_to_style_group",
+      "type": 17,
+      "enabled": "O",
+      "predicate": true,
+      "definition": "CREATE TRIGGER trg_sync_cover_description_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((old.cover_description IS DISTINCT FROM new.cover_description) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION sync_cover_description_to_style_group()"
+    },
+    {
+      "name": "trg_sync_cover_description_to_style_group_ins_del",
+      "type": 5,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_sync_cover_description_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW EXECUTE FUNCTION sync_cover_description_to_style_group()"
+    },
+    {
+      "name": "trg_sync_designer_to_style_group",
+      "type": 17,
+      "enabled": "O",
+      "predicate": true,
+      "definition": "CREATE TRIGGER trg_sync_designer_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((((old.designer_name IS DISTINCT FROM new.designer_name) OR (old.technical_designer_name IS DISTINCT FROM new.technical_designer_name)) OR (old.freelancer_name IS DISTINCT FROM new.freelancer_name)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION sync_designer_to_style_group()"
+    },
+    {
+      "name": "trg_sync_designer_to_style_group_ins_del",
+      "type": 5,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_sync_designer_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW EXECUTE FUNCTION sync_designer_to_style_group()"
+    },
+    {
+      "name": "trg_sync_primary_on_thumbnail",
+      "type": 17,
+      "enabled": "O",
+      "predicate": true,
+      "definition": "CREATE TRIGGER trg_sync_primary_on_thumbnail AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.asset_type IS DISTINCT FROM new.asset_type))) EXECUTE FUNCTION sync_primary_asset_on_thumbnail()"
+    },
+    {
+      "name": "trg_sync_primary_on_thumbnail_ins_del",
+      "type": 5,
+      "enabled": "O",
+      "predicate": false,
+      "definition": "CREATE TRIGGER trg_sync_primary_on_thumbnail_ins_del AFTER INSERT ON public.assets FOR EACH ROW EXECUTE FUNCTION sync_primary_asset_on_thumbnail()"
+    }
+  ]
+}
+```
+
+## Current metadata sample
+
+```json
+{
+  "checked": 3,
+  "sampling": "fixed SYSTEM1%, seed5609, first3 active assets scanned within24h; no IDs/values exported",
+  "latest_scan": "2026-11-04T20:10:14.465-05:00",
+  "observed_at": "2026-11-05T00:43:17.665003-05:00",
+  "oldest_scan": "2026-11-04T04:27:34.776-05:00",
+  "all_metadata_match": true
+}
+```
+
+## Future supported read-only proof
+
+[The committed issue probe](../../../../.github/live-proofs/5609.sql) uses the existing **Shared DB Live Proof** workflow, with the issue's minimal canonical `db-work-scope` proof metadata. It adds no scheduler, privileged helper, grants, or production writer. The coordinator reviewed the exact probe hash `4db994c5425617fe5c211f688b6d35dd520f2af5449ef80d7c7e0c96d6a0eb9f`; the repository lexer accepted it and the actual production read-only role returned the required early result `passed = false` before the full interval elapsed.
+
+Proof remains false until at least 24 hours after the frozen baseline, at least 100 matching calls occurred, the query entry/global stats/reset/postmaster context still matches, all relevant counters are monotonic, and the interval mean execution time and WAL per call each fall below half of the frozen pre-change references. Document update rate must also be below the real pre-change interval rate. It requires the exact ten trigger prefixes/functions/events/attributes/enabled states, no extra clone among the five covered functions, and the original image trigger's exact binding. Prefixes preserve the complete WHEN expression; `pg_get_expr` cannot deparse OLD/NEW multi-relation trigger predicates and is not substituted as a weaker check.
+
+Cache drift must be zero and three deterministically sampled active assets scanned after the baseline and within the latest 24 hours must have current matching metadata. Fixed SYSTEM 1%, seed 5609 sampling was approved to bound the read; insufficient qualifying samples refuses proof, rather than declaring a data regression or silently passing. Sampling is not a census of all assets. The cache check uses indexed primary-asset lookups, not a full asset-table join scan. Counter reset, restart, changed statement identity, no/insufficient traffic, or a known individual table reset invalidates the measurement window and requires an explicitly captured fresh baseline; never edit constants merely to force a pass.
+
+The hosted synthetic WAL target was not met (all fixed trials are retained in `assets-trigger-scoping-hosted-preview.md`). The real production interval remains the decisive pending acceptance; the issue's live-proof checkbox stays unchecked. Successful catalog recovery and eventual 24-hour performance acceptance are distinct deliverables.
+
+## Exact post-baseline read
+
+
+```sql
+select jsonb_build_object('observed_at',now(),
+ 'postmaster_started_at',pg_postmaster_start_time(),
+ 'statement_stats_reset',(select stats_reset from extensions.pg_stat_statements_info),
+ 'database_stats_reset',(select stats_reset from pg_stat_database where datname=current_database()),
+ 'main_query',(select jsonb_agg(to_jsonb(q)) from(select queryid::text,userid::text,dbid::text,toplevel,stats_since,calls::text,total_exec_time::text,wal_bytes::text from extensions.pg_stat_statements where queryid='8695287796313115953'::bigint and userid='16486'::oid and dbid='5'::oid and toplevel)q),
+ 'all_asset_patches',(select jsonb_agg(to_jsonb(q)) from(select queryid::text,userid::text,dbid::text,toplevel,stats_since,calls::text,total_exec_time::text,wal_bytes::text from extensions.pg_stat_statements where query ilike 'with pgrst_source as (update "public"."assets"%')q),
+ 'tables',(select jsonb_agg(to_jsonb(q)) from(select relname,relid::text,n_dead_tup::text,n_live_tup::text,n_tup_upd::text,n_tup_hot_upd::text from pg_stat_user_tables where schemaname='public' and relname in('assets','dam_search_documents'))q));
+```
+
+## Exact bounded current-metadata sample
+
+```sql
+with recent as materialized (
+ select * from public.assets a tablesample system(1) repeatable(5609)
+ where not is_deleted and last_seen_at>=now()-interval '24 hours'
+   and last_seen_at<=now() limit 3
+), compared as (
+ select a.last_seen_at,d.metadata as actual,
+ jsonb_strip_nulls(jsonb_build_object(
+  'file_type',a.file_type,'asset_type',a.asset_type,'content_type',a.content_type,
+  'item_description',sg.item_description,'group_ai_description',sg.group_ai_description,
+  'product_material',a.product_material,'product_dimensions',a.product_dimensions,
+  'workflow_status',a.workflow_status,'is_licensed',a.is_licensed,
+  'licensor_name',case when a.style_group_id is null then a.licensor_name else sg.licensor_name end,
+  'property_name',case when a.style_group_id is null then a.property_name else sg.property_name end,
+  'product_category',a.product_category,'thumbnail_url',a.thumbnail_url
+ )) as expected
+ from recent a left join public.style_groups sg on sg.id=a.style_group_id
+ left join public.dam_search_documents d on d.document_type='asset' and d.entity_id=a.id
+)
+select jsonb_build_object('observed_at',now(),
+ 'sampling','fixed SYSTEM1%, seed5609, first3 active assets scanned within24h; no IDs/values exported',
+ 'checked',count(*),'oldest_scan',min(last_seen_at),'latest_scan',max(last_seen_at),
+ 'all_metadata_match',bool_and(actual is not distinct from expected)) as metadata_proof
+from compared;
+```
