@@ -12,7 +12,7 @@ state OPEN, mergeable, check `lint-test-build` SUCCESS, head
 `73196e65`). So *nothing* attributed to #713 is on `main` yet. Step 1 of this
 plan is therefore to land #713.
 
-**Update 2026-11-04 6:05 PM EST: PR #713 merged 2026-11-04 5:12 PM EST as `2287f1b5`.** Sections saying "NOT on main" describe the pre-merge state. Confirmed on `origin/main`: all three terminal saves use `onlyIfRunning` (`operation-loop.ts:1297,1661,1818`); sentinel cap 16 MB (`ai-sentinel-detect.ts:37`); the merge touches `path-utils.ts`, `path-filters/index.ts`, `admin-api/index.ts`, the Tesseract files, `AgentSetup.tsx`, `useScanLifecycle.tsx`, `useAgentStatus.ts`, `AiTaggingSection.tsx` and the three loop-cap files. **No test for the Stop guard landed** (no test references `onlyIfRunning`), so the §10 test is required, not conditional.
+**Update 2026-11-04 6:05 PM EST: PR #713 merged 2026-11-04 5:12 PM EST as `2287f1b5`.** Sections saying "NOT on main" describe the pre-merge state. Confirmed on `origin/main`: all three terminal saves use `onlyIfRunning` (`operation-loop.ts:1297,1661,1818`); sentinel cap 16 MB (`ai-sentinel-detect.ts:37`); the merge touches `path-utils.ts`, `path-filters/index.ts`, `admin-api/index.ts`, the Tesseract files, `AgentSetup.tsx`, `useScanLifecycle.tsx`, `useAgentStatus.ts`, `AiTaggingSection.tsx` and the three loop-cap files. **No test for the Stop guard landed in #713**. Held test-only PR #785 now covers actual conditional persistence, real worker tick terminal refusal/history suppression, and the next tick preserving a user interruption; two tests and worker build pass. It is not live full-run Stop proof.
 
 ## STATUS — 2026-11-05
 
