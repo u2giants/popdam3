@@ -1437,10 +1437,12 @@ async function handleUpdateAsset(body: Record<string, unknown>) {
   }
 
   const db = serviceClient();
-  const saved = await writeWithRetry(() => db
-    .from("assets")
-    .update(updates)
-    .eq("id", assetId));
+  const saved = await writeWithRetry(() =>
+    db
+      .from("assets")
+      .update(updates)
+      .eq("id", assetId)
+  );
 
   if (!saved.ok) return err(saved.error.message, 500);
   return json({ ok: true, asset_id: assetId });
