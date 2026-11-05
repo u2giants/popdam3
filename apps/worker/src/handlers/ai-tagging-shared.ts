@@ -410,6 +410,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     try { return await query; } catch (error) { if (options.requireCharacterReadSuccess) throw new CharacterCatalogDependencyError("transport"); throw error; }
   };
 
+  const cachedCharacterQuery = <T extends { error?: unknown }>(key: string, load: () => PromiseLike<T>): Promise<T> => checkedQuery(cache.read(key, load));
+
   const { data: instrRow } = await cache.read("TAGGING_INSTRUCTIONS", () => client
     .from("admin_config")
     .select("value")
@@ -426,41 +428,41 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
   // large licensor whose property has no links, the model gets no characters:
   // a broad list let it attach Spider-Man to spider webs, Deadpool, etc.
   if (!scope.unlicensed && scope.property_id) {
-    const { data: links, error: linksError } = await cache.read(`property:${scope.property_id}:associations`, () => checkedQuery(client
+    const { data: links, error: linksError } = await cachedCharacterQuery(`property:${scope.property_id}:associations`, () => client
       .schema("core")
       .from("property_character_associations")
       .select("character:character_id(id, name, status)")
       .eq("property_id", scope.property_id)
-      .eq("is_current", true)));
+      .eq("is_current", true));
     checkedCharacterRead(linksError, links);
     characters = ((links ?? []) as unknown as { character: { id: string; name: string } | null }[])
       .map(link => link.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name);
     // Scrape asset co-occurrence narrows the list too; it never becomes a canonical link.
-    const { data: edges, error: edgesError } = await cache.read(`property:${scope.property_id}:edges`, () => checkedQuery(client
+    const { data: edges, error: edgesError } = await cachedCharacterQuery(`property:${scope.property_id}:edges`, () => client
       .schema("core")
       .from("property_character_source_edge")
       .select("character:character_id(id, name, status)")
       .eq("property_id", scope.property_id)
       .eq("evidence_kind", "co_occurrence")
-      .eq("is_current", true)));
+      .eq("is_current", true));
     checkedCharacterRead(edgesError, edges);
     characters = characters.concat(((edges ?? []) as unknown as { character: { id: string; name: string } | null }[])
       .map(edge => edge.character)
       .filter((c): c is { id: string; name: string } => !!c?.id && !!c.name));
     if (!scope.licensor_id && characters.length === 0) {
-      const { data: property } = await cache.read(`property:${scope.property_id}:licensor`, () => checkedQuery(client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id!).maybeSingle()));
+      const { data: property } = await cachedCharacterQuery(`property:${scope.property_id}:licensor`, () => client.schema("core").from("property").select("licensor_id").eq("id", scope.property_id!).maybeSingle());
       scope.licensor_id = (property as { licensor_id: string | null } | null)?.licensor_id ?? null;
     }
   }
   if (!scope.unlicensed && characters.length === 0 && scope.licensor_id) {
-    const { data: licensorChars, error: licensorError } = await cache.read(`licensor:${scope.licensor_id}:characters`, () => checkedQuery(client
+    const { data: licensorChars, error: licensorError } = await cachedCharacterQuery(`licensor:${scope.licensor_id}:characters`, () => client
       .schema("core")
       .from("character")
       .select("id, name, status")
       .eq("licensor_id", scope.licensor_id)
       .order("name")
-      .limit(LICENSOR_CHARACTER_LIST_LIMIT + 1)));
+      .limit(LICENSOR_CHARACTER_LIST_LIMIT + 1));
     checkedCharacterRead(licensorError, licensorChars);
     const rows = (licensorChars ?? []) as { id: string; name: string }[];
     characters = rows.length <= LICENSOR_CHARACTER_LIST_LIMIT ? rows : [];

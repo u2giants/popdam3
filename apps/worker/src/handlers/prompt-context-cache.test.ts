@@ -68,3 +68,17 @@ test("absent optional custom instructions are cached without caching catalog fai
   await cache.read("TAGGING_INSTRUCTIONS", load, true);
   assert.equal(reads, 1);
 });
+
+test("a strict prompt sharing a failed non-strict in-flight read still reports a catalog dependency", async () => {
+  const cache = new PromptCache(); const { client } = fixture();
+  let fail!: (reason: Error) => void;
+  const waiting = cache.read("property:prop:associations", () => new Promise<{ data: []; error: null }>((_resolve, reject) => { fail = reject; }));
+  const ignored = waiting.catch(() => undefined);
+  await Promise.resolve();
+  const prompt = buildImageTaggingPrompt(asset, { client, cache, requireCharacterReadSuccess: true });
+  // Reach the shared pending catalog read after the optional instructions read.
+  await new Promise(resolve => setImmediate(resolve));
+  fail(new Error("synthetic transport"));
+  await assert.rejects(prompt, { name: "CharacterCatalogDependencyError" });
+  await ignored;
+});
