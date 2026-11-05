@@ -143,3 +143,18 @@ to reserved successor `20261105074028` to satisfy source ordering. The old
 reservation/source history remains immutable; no historical restoration exception
 is used. Applied preview version `20261105035926` and original `20261104214842`
 remain natively retired by this producer.
+
+Character-load production verification (#5621): version `20261105074028`
+committed its 98 character rows, 98 source references and 19 exact aliases through
+automatic atomic apply run `42010986376`. Its final catalog-only check failed
+because the data-only DO body had no readable catalog target. Keep that failure,
+SQL bytes and ledger immutable. The hash-bound typed behavioral sidecar asserts
+the three source-reference populations, exact aliases, two extracted source rows
+and production-only ledger disposition. Use the existing read-only catalog
+recovery workflow bound to the original apply artifact; never rerun the migration
+or annotate a non-no-op as a no-op. Actual character actor counts and source-text
+fingerprints remain independent live evidence on the same issue.
+The source-population assertions describe the verified post-apply snapshot; they
+are not a permanent cap on future curated imports. The 98 character-row actor
+count is independent protected live evidence because the existing typed sidecar
+accepts neither JSONB filters nor JSON-path column expressions.

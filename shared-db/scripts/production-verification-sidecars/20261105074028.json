@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261105074028",
+  "migration_sha256": "b9770eb9337ac10af30ceb53d27f77eb64822b0818c172000e2f7f478a43c4d2",
+  "checks": [
+    {
+      "id": "character_load_files_refs",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "character"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "pop_style_guides"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "public.style_guide_files"
+        }
+      ],
+      "expected_count": 94
+    },
+    {
+      "id": "character_load_pdf_refs",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "character"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "pop_style_guides"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "public.style_guide_pdf_text"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "character_load_portal_refs",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {
+          "column": "entity_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "entity_table",
+          "type": "text",
+          "equals": "character"
+        },
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "coke"
+        },
+        {
+          "column": "source_table",
+          "type": "text",
+          "equals": "plm.coke_tag"
+        }
+      ],
+      "expected_count": 3
+    },
+    {
+      "id": "character_load_exact_aliases",
+      "kind": "exact_row_count",
+      "relation": "core.character_alias",
+      "filters": [
+        {
+          "column": "source_system",
+          "type": "text",
+          "equals": "pop_style_guides"
+        },
+        {
+          "column": "evidence_notes",
+          "type": "text",
+          "equals": "Exact character token from licensor-issued filename; full canonical name retained"
+        }
+      ],
+      "expected_count": 19
+    },
+    {
+      "id": "character_load_source_extract_1",
+      "kind": "exact_row_count",
+      "relation": "public.style_guide_pdf_text",
+      "filters": [
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "extracted"
+        },
+        {
+          "column": "style_guide_file_id",
+          "type": "uuid",
+          "equals": "74225803-7815-48ae-a6cb-9ed38a8f8e43"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "character_load_source_extract_2",
+      "kind": "exact_row_count",
+      "relation": "public.style_guide_pdf_text",
+      "filters": [
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "extracted"
+        },
+        {
+          "column": "style_guide_file_id",
+          "type": "uuid",
+          "equals": "16f856cb-92c2-4d85-ba4b-c7f65d9f0ed0"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "character_load_successor_production_ledger",
+      "kind": "exact_row_count",
+      "relation": "supabase_migrations.schema_migrations",
+      "filters": [
+        {
+          "column": "version",
+          "type": "text",
+          "equals": "20261105074028"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "character_load_unsafe_original_production_ledger",
+      "kind": "exact_row_count",
+      "relation": "supabase_migrations.schema_migrations",
+      "filters": [
+        {
+          "column": "version",
+          "type": "text",
+          "equals": "20261104214842"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "character_load_preview_original_production_ledger",
+      "kind": "exact_row_count",
+      "relation": "supabase_migrations.schema_migrations",
+      "filters": [
+        {
+          "column": "version",
+          "type": "text",
+          "equals": "20261105035926"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "character_alias_scoped_unique_index",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_indexes",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "tablename",
+          "type": "text",
+          "equals": "character_alias"
+        },
+        {
+          "column": "indexname",
+          "type": "text",
+          "equals": "character_alias_licensor_norm_key"
+        },
+        {
+          "column": "indexdef",
+          "type": "text",
+          "equals": "CREATE UNIQUE INDEX character_alias_licensor_norm_key ON core.character_alias USING btree (licensor_id, normalized_alias)"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
