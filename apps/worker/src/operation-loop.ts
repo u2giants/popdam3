@@ -1012,9 +1012,10 @@ export async function persistOpState(
 
   if (!data) return false;
   if (!options.onlyIfRunning) return true;
-  // Check if our write was applied: the returned state should have status="running"
+  // The legacy RPC returns the post-write map, including terminal statuses.
+  // Compare the JSON payload actually sent (undefined fields are omitted).
   const allOps = data as Record<string, OpState>;
-  return allOps[opKey]?.status === "running";
+  return isDeepStrictEqual(allOps[opKey], JSON.parse(JSON.stringify(opState)));
 }
 
 /**
