@@ -309,6 +309,55 @@ The main statement is pinned to query ID `8695287796313115953`, user OID `16486`
 }
 ```
 
+## November 5 resumed functional proof and INTERIM counters
+
+The [same issue's signed custody receipt](https://github.com/popcre/shared-db/issues/5609#issuecomment-6657431242) records renewed production reads through the existing read-only identity, with the production project URL proved immediately before each query. No database writes, grants, baseline replacement, or acceptance changes occurred.
+
+At **6:57:23 AM EST**, the fixed SYSTEM 1%, seed 5609 sample explicitly required `last_seen_at` at or after the immutable post-application baseline and within the latest 24 hours. Three qualifying active assets had complete current metadata matching their search documents. Unlike the historical 12:43 AM sample above, these are genuine **post-baseline** scans. No sample IDs, licensed values, or individual rows were exported. Sampling proves these three matches, not every asset or every possible write path.
+
+```json
+{
+  "observed_at": "2026-11-05T06:57:23.852279-05:00",
+  "exact_scoped_trigger_bindings": 10,
+  "primary_thumbnail_cache_drift": 0,
+  "post_baseline_metadata_samples": 3,
+  "all_sample_metadata_match": true
+}
+```
+
+The ten-binding read compared names, event types, function identities, enabled states, empty column restrictions, and the committed full-definition prefix hashes. The indexed primary-asset cache comparison found no differing thumbnail/error cache. These are current functional observations; they do not satisfy the elapsed-time or performance gates.
+
+A separate counter snapshot at **6:55:08 AM EST** retained the original context unchanged: query ID `8695287796313115953`, role `16486`, database `5`, top-level identity true, query-entry start `2026-11-04T12:53:41.28733-05:00`, statement reset `2026-11-04T12:52:59.176055-05:00`, postmaster start `2026-11-04T12:52:59.286785-05:00`, and database reset null. Relevant counters remained monotonic and the migration remained recorded.
+
+```json
+{
+  "observed_at": "2026-11-05T06:55:08.117682-05:00",
+  "elapsed_seconds": 22690.651992,
+  "full_day_elapsed": false,
+  "main_query_calls": "41241",
+  "main_query_total_exec_time_ms": "7169124.09813605",
+  "main_query_wal_bytes": "1608112723",
+  "asset_updates": "230244",
+  "search_document_updates": "171499",
+  "interval_calls": 18015,
+  "INTERIM_interval_mean_ms": 26.0184419733567,
+  "INTERIM_interval_wal_bytes_per_call": 12644.458395781294,
+  "interval_document_updates": 70226,
+  "INTERIM_document_updates_per_second": 3.0949309003883823
+}
+```
+
+The interim per-call observations are below half the frozen pre-change references, but are **not full-day acceptance**. The interim global document-update rate is **above**, not below, the frozen `8829 / 5050.846546` reference (approximately 1.74803/s). That acceptance condition remains unsatisfied. The baseline and thresholds remain unchanged. Earliest full-interval eligibility is **November 6, 2026, 12:36:57 AM EST**; the supported strict probe and actual full-day result remain pending. Step 4's unmet hosted WAL target and all earlier negative measurements remain intact.
+
+### Additional writer context and attribution limits
+
+Live function definitions confirm that embedding claim updates each claimed document's lease and attempt fields, while embedding completion updates the document's embedding and clears its lease/error state when the lease/hash checks match. These necessary writes are independent of the five asset refresh trigger predicates. A separate cumulative statement read found:
+
+- Embedding completion: query `-3429311119090818236`, role `21299579`, 26,700 calls, 1,576,127,642 WAL bytes; statement fingerprint `9d18467618cac28f659a1a4e7e97ae17`.
+- Embedding claim: query `-1110672999031308294`, role `21299579`, 5,535 calls, 118,663,053 WAL bytes; statement fingerprint `7f6f4d7d3c40482a66bd73bd88375626`.
+
+These are cumulative counters, **not post-baseline deltas**; the original baseline did not capture those entries. Production statement tracking is `top`, so nested trigger writes cannot be independently attributed from these entries. At **6:59:38 AM EST**, source inspection also confirmed the existing style-group search refresh trigger includes `updated_at` among its UPDATE columns; the style-group update counter was 43,633. No comparable post-application style-group baseline was captured. Thus this evidence establishes additional legitimate writer paths, not their exact share of the interval increase or a defect requiring suppression. No function bodies or private source dumps are included here, and no capability was changed to improve a measurement.
+
 ## Future supported read-only proof
 
 [The committed issue probe](../../../../.github/live-proofs/5609.sql) uses the existing **Shared DB Live Proof** workflow, with the issue's minimal canonical `db-work-scope` proof metadata. It adds no scheduler, privileged helper, grants, or production writer. The coordinator reviewed the exact probe hash `4db994c5425617fe5c211f688b6d35dd520f2af5449ef80d7c7e0c96d6a0eb9f`; the repository lexer accepted it and the actual production read-only role returned the required early result `passed = false` before the full interval elapsed.
