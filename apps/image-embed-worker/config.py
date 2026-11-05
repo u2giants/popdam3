@@ -62,6 +62,8 @@ SEARCH_CLAIM_BATCH = 64                 # docs claimed per cycle (DB clamps to 1
 SEARCH_INFERENCE_BATCH = 32             # images per SigLIP2 forward
 SEARCH_DOC_MODEL_STAMP = "google/siglip2-base-patch16-naflex"
 SEARCH_LANE_ERROR_COOLDOWN_S = 600      # after a lane error, pause the lane before retrying
+# Yield to DAM and uploaded-image work after each potentially slow SG write.
+SG_SEARCH_CLAIM_BATCH = 1
 SG_SEARCH_POLL_S = 1.0                  # PopSG lane cadence; throughput is set by the GPU, not this delay
 
 # ---------------------------------------------------------------------------

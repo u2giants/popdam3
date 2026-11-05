@@ -522,7 +522,7 @@ class Poller:
                     "select null::text, style_guide_file_id, search_text, thumbnail_url,"
                     " content_sha256, lease_token, lease_expires_at, attempt"
                     " from public.claim_sg_search_embedding_documents(%s, %s, %s)",
-                    (self.args.search_batch, self.args.worker_id, self.args.search_lease_seconds),
+                    (config.SG_SEARCH_CLAIM_BATCH, self.args.worker_id, self.args.search_lease_seconds),
                 )
                 return cur.fetchall()
         return self._run(_q)
@@ -619,18 +619,18 @@ class Poller:
                 self.search_failed += 1
                 self.search_mark_error(row, f"upsert: {type(exc).__name__}: {str(exc)[:200]}", "transient")
 
-    def poll_search_lane(self, claim=None) -> str:
+    def poll_search_lane(self, claim=None, lane="dam") -> str:
         """One search-lane cycle. Returns 'claimed', 'empty', or 'error'
         (claim-level failure, e.g. grants not yet applied -> cooldown)."""
         try:
             rows = (claim or self.claim_search_docs)()
         except Exception as exc:
-            log(event="search_lane_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
+            log(event="search_lane_error", lane=lane, error=f"{type(exc).__name__}: {str(exc)[:200]}")
             return "error"
         if rows:
             self.process_search_batch(rows)
             rate = self.search_done / max(time.time() - self.t0, 1e-6)
-            log(event="search_batch", claimed=len(rows), done=self.search_done,
+            log(event="search_batch", lane=lane, claimed=len(rows), done=self.search_done,
                 failed=self.search_failed, stale=self.search_stale, rate=round(rate, 2))
             return "claimed"
         return "empty"
@@ -674,7 +674,7 @@ class Poller:
                 if not self.args.no_search_lane and time.time() >= sg_cooldown_until \
                         and time.time() - last_sg >= config.SG_SEARCH_POLL_S:
                     last_sg = time.time()
-                    if self.poll_search_lane(self.claim_sg_docs) == "error":
+                    if self.poll_search_lane(self.claim_sg_docs, lane="sg") == "error":
                         sg_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
             except StopIteration:
                 break
