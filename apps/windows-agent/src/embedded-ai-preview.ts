@@ -77,3 +77,56 @@ export async function renderEmbeddedAiPreview(filePath: string): Promise<Preview
   }
   throw new Error(lastError);
 }
+
+/** Last-resort Photoshop RGB thumbnail, even when later layer data is damaged. */
+export async function renderEmbeddedPsdPreview(filePath: string): Promise<Preview> {
+  const fh = await open(longPath(filePath), "r");
+  let resources: Buffer;
+  try {
+    const { size } = await fh.stat();
+    const header = Buffer.alloc(30);
+    if ((await fh.read(header, 0, 30, 0)).bytesRead !== 30 ||
+        header.toString("ascii", 0, 4) !== "8BPS" ||
+        ![1, 2].includes(header.readUInt16BE(4)) ||
+        !header.subarray(6, 12).equals(Buffer.alloc(6))) throw new Error("invalid_embedded_psd_header");
+    const offset = 30 + header.readUInt32BE(26);
+    if (offset + 4 > size) throw new Error("invalid_embedded_psd_resource_extent");
+    const lengthBytes = Buffer.alloc(4);
+    if ((await fh.read(lengthBytes, 0, 4, offset)).bytesRead !== 4) throw new Error("invalid_embedded_psd_resource_extent");
+    const length = lengthBytes.readUInt32BE();
+    if (length > MAX_PREVIEW_BYTES || offset + 4 + length > size) throw new Error("invalid_embedded_psd_resource_extent");
+    resources = Buffer.alloc(length);
+    if ((await fh.read(resources, 0, length, offset + 4)).bytesRead !== length) throw new Error("invalid_embedded_psd_resource_extent");
+  } finally { await fh.close(); }
+  let position = 0;
+  let lastError = "no_embedded_psd_rgb_preview";
+  while (position < resources.length) {
+    if (position + 7 > resources.length || resources.toString("ascii", position, position + 4) !== "8BIM") {
+      throw new Error("invalid_embedded_psd_resource_identity");
+    }
+    const id = resources.readUInt16BE(position + 4);
+    const nameLength = resources[position + 6];
+    position += 6 + Math.ceil((nameLength + 1) / 2) * 2;
+    if (position + 4 > resources.length) throw new Error("invalid_embedded_psd_resource_extent");
+    const length = resources.readUInt32BE(position); position += 4;
+    const end = position + length;
+    if (end + length % 2 > resources.length) throw new Error("invalid_embedded_psd_resource_extent");
+    // 1033 uses BGR ordering. Do not guess a conversion; only native RGB 1036.
+    if (id === 1036 && length >= 28) {
+      const thumbnail = resources.subarray(position, end);
+      const width = thumbnail.readUInt32BE(4), height = thumbnail.readUInt32BE(8);
+      if (thumbnail.readUInt32BE(0) === 1 && width > 0 && height > 0 &&
+          width * height <= MAX_PREVIEW_PIXELS && thumbnail.readUInt32BE(20) === length - 28 &&
+          thumbnail.readUInt16BE(24) === 24 && thumbnail.readUInt16BE(26) === 1) {
+        try {
+          const jpeg = thumbnail.subarray(28);
+          const metadata = await sharp(jpeg, { limitInputPixels: MAX_PREVIEW_PIXELS }).metadata();
+          if (metadata.width !== width || metadata.height !== height) throw new Error("invalid_embedded_psd_preview_dimensions");
+          return await decodeOriginalPreview(jpeg, "jpeg");
+        } catch (error) { lastError = (error as Error).message; }
+      }
+    }
+    position = end + length % 2;
+  }
+  throw new Error(lastError);
+}
