@@ -438,6 +438,9 @@ def main(now: datetime | None = None) -> int:
         print(f"::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::"
               f"PR #{entry['number']} (versions {','.join(entry['versions'])}) failed {entry['exhausted']} "
               f"automatic attempts at this main commit; later PRs still promote")
+    # Step 2.3: open or update ONE tracking issue for exhausted PRs.
+    if exhausted and not args.dry_run:
+        report_stuck_change(repo, exhausted, now)
     reruns = recent_re_runs(runs, now, ACKNOWLEDGED_RE_RUNS)
     for r in reruns:
         print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"
@@ -490,6 +493,53 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
         check=True,
     )
     print(f"Dispatched the post-merge preview rehearsal for PR #{pr['number']} at {main_sha}.")
+
+
+STUCK_ISSUE_TITLE = "Automatic promotion: stuck migrations need repair"
+
+
+def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime) -> None:
+    """Step 2.3: open or update ONE tracking issue for exhausted PRs, with
+    delivery wording, failure text, and merged-not-live duration."""
+    if not entries:
+        return
+    lines = []
+    for e in entries:
+        merged_at = _time(e.get("merged_at", "1970-01-01T00:00:00Z"))
+        hours = max(0, int((now - merged_at).total_seconds() / 3600))
+        lines.append(
+            f"- PR #{e['number']} (versions {','.join(e.get('versions', []))}): "
+            f"failed {e['exhausted']} automatic attempts; merged {hours}h ago and not live"
+        )
+    body = (
+        "## Delivery needed\n\n"
+        "The following merged migrations have exhausted their automatic promotion attempts "
+        "and need a repair session to deliver them to production:\n\n"
+        + "\n".join(lines)
+        + "\n\n**Action:** investigate the failure, fix the migration or its dependencies, "
+        "and re-dispatch through the normal promotion path.\n"
+    )
+    try:
+        found = gh(f"repos/{repo}/issues?state=open&per_page=100")
+        existing = next(
+            (i for i in (found or []) if i.get("title") == STUCK_ISSUE_TITLE and not i.get("pull_request")),
+            None,
+        )
+        if existing:
+            number = existing["number"]
+            subprocess.run(
+                ["gh", "issue", "comment", str(number), "--repo", repo, "--body", body],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            print(f"Updated tracking issue #{number} for {len(entries)} stuck migration(s).")
+        else:
+            result = subprocess.run(
+                ["gh", "issue", "create", "--repo", repo, "--title", STUCK_ISSUE_TITLE, "--body", body],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            print(f"Opened tracking issue for {len(entries)} stuck migration(s): {result.stdout.strip()}")
+    except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+        print(f"::warning::could not open/update the stuck-change tracking issue ({exc}); the alert above is still the signal")
 
 
 if __name__ == "__main__":

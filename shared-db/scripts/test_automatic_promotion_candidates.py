@@ -813,5 +813,108 @@ class AdversarialUnmergedSource(unittest.TestCase):
             self.assertEqual(m.merged_migration_prs("o/r"), [])
 
 
+class StuckChangeOwner(unittest.TestCase):
+    """Step 2.3: later changes promote past a failed one; exhausted PRs get one
+    owned tracking issue with delivery wording and merged-not-live duration."""
+
+    def test_later_changes_promote_past_a_failed_one(self):
+        # PR #7 exhausted, PR #8 independent (no dependency) — #8 must dispatch.
+        pr7 = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        pr8 = {"number": 8, "merged_at": "2026-11-02T00:00:00Z", "versions": ["20261102000000"]}
+        runs = [{"display_title": f"DB preview apply abc PR7 20261101000000", "status": "completed",
+                 "conclusion": "failure", "created_at": "2026-11-01T01:00:00Z"}] * 3
+        skipped = []
+        action, pr, reason = m.decide([pr7, pr8], runs, lambda n: [], lambda r: False,
+                                      "abc", skipped, lambda r: set())
+        self.assertEqual(action, "dispatch")
+        self.assertEqual(pr["number"], 8)
+        # The exhausted PR is in skipped, not blocking.
+        self.assertTrue(any(e.get("exhausted") for e in skipped))
+
+    def test_dependent_change_is_held(self):
+        # PR #8 depends on PR #7's base — #8 must wait, not dispatch.
+        pr7 = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        pr8 = {"number": 8, "merged_at": "2026-11-02T00:00:00Z", "versions": ["20261102000000"],
+               "production_dependencies": {"20261102000000": 7}}
+        runs = [{"display_title": "DB preview apply abc PR7 20261101000000", "status": "completed",
+                 "conclusion": "failure", "created_at": "2026-11-01T01:00:00Z"}] * 3
+        skipped = []
+        action, pr, reason = m.decide([pr7, pr8], runs, lambda n: [], lambda r: False,
+                                      "abc", skipped, lambda r: set())
+        self.assertEqual(action, "idle")
+
+    def test_failing_rehearsal_produces_one_owned_issue(self):
+        import subprocess as sp
+        pr = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        entries = [{**pr, "findings": [], "exhausted": 3}]
+        created = []
+        def fake_run(cmd, **kw):
+            created.append(cmd)
+            class R:
+                stdout = "https://github.com/o/r/issues/99\n"
+                stderr = ""
+            return R()
+        saved_run = sp.run
+        saved_gh = m.gh
+        sp.run = fake_run
+        m.gh = lambda *a: []  # no existing issue
+        try:
+            m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+            m.gh = saved_gh
+        # Exactly one issue created.
+        creates = [c for c in created if "issue" in c and "create" in c]
+        self.assertEqual(len(creates), 1)
+        # Body includes delivery wording and merged-not-live duration.
+        body = creates[0][creates[0].index("--body") + 1]
+        self.assertIn("Delivery needed", body)
+        self.assertIn("PR #7", body)
+        self.assertIn("merged", body)
+        self.assertIn("not live", body)
+
+    def test_existing_issue_is_updated_not_duplicated(self):
+        import subprocess as sp
+        pr = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        entries = [{**pr, "findings": [], "exhausted": 3}]
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                stdout = ""
+                stderr = ""
+            return R()
+        saved_run = sp.run
+        saved_gh = m.gh
+        sp.run = fake_run
+        m.gh = lambda *a: [{"number": 99, "title": m.STUCK_ISSUE_TITLE, "state": "open"}]
+        try:
+            m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+            m.gh = saved_gh
+        creates = [c for c in calls if "create" in c]
+        comments = [c for c in calls if "comment" in c]
+        self.assertEqual(len(creates), 0)
+        self.assertEqual(len(comments), 1)
+
+    def test_no_entries_no_issue(self):
+        import subprocess as sp
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                stdout = ""
+                stderr = ""
+            return R()
+        saved_run = sp.run
+        sp.run = fake_run
+        try:
+            m.report_stuck_change("o/r", [], datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+        self.assertEqual(len(calls), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
