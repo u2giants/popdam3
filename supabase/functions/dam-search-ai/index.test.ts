@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   handler: null as null | ((req: Request) => Promise<Response>),
@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   meaningful: true,
   corrected: null as string | null,
   rpc: vi.fn(),
+  formatRpc: vi.fn(),
   authenticate: vi.fn(),
 }));
 vi.mock("../_shared/http.ts", () => ({
@@ -18,6 +19,7 @@ vi.mock("../_shared/http.ts", () => ({
 vi.mock("../_shared/supabase-js.ts", () => ({ createClient: () => ({ rpc: state.rpc }) }));
 vi.mock("../_shared/service-client.ts", () => ({
   serviceClient: () => ({
+    rpc: (name: string, args: unknown) => ({ abortSignal: (signal: AbortSignal) => state.formatRpc(name, args, signal) }),
     from: () => ({
       select: () => ({
         eq: () =>
@@ -36,16 +38,18 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
 await import("./index.ts");
-const search = () =>
+const search = (query = "test phrase", signal?: AbortSignal, documentTypes?: string[]) =>
   state.handler!(
     new Request("https://example.invalid", {
       method: "POST",
       headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "search", query: "test phrase" }),
+      body: JSON.stringify({ action: "search", query, document_types: documentTypes }),
+      signal,
     }),
   );
 
 describe("DAM search embedding availability", () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
@@ -53,6 +57,7 @@ describe("DAM search embedding availability", () => {
     state.meaningful = true;
     state.corrected = null;
     state.authenticate.mockResolvedValue({ ok: true, via: "user", userId: "viewer" });
+    state.formatRpc.mockReset().mockResolvedValue({ data: false, error: null });
     state.rpc.mockReset().mockImplementation(async (name: string) => ({
       data: name === "dam_search_semantic_anchor" ? 0.5 : [],
       error: null,
@@ -107,5 +112,123 @@ describe("DAM search embedding availability", () => {
     expect((await search()).status).toBe(401);
     expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it("keeps pictures for the settled unknown full-code example after a real format hint", async () => {
+    state.meaningful = false;
+    state.formatRpc.mockResolvedValue({ data: true, error: null });
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) }));
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("ZZZ83MVSP99")).status).toBe(200);
+    expect(state.formatRpc).toHaveBeenCalledWith("dam_catalog_code_format_exists", { p_format: "AAA99AAAA99" }, expect.any(AbortSignal));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }));
+  });
+
+  it("keeps known full codes and prefixes keyword-only without probing formats", async () => {
+    state.productCode = true;
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    for (const query of ["VDD83MVSP01", "VDD83"]) expect((await search(query)).status).toBe(200);
+    expect(state.formatRpc).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not turn unsupported alternating nonsense into a picture query", async () => {
+    state.meaningful = false;
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("x7q9v2n8")).status).toBe(200);
+    expect(state.formatRpc).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
+  });
+
+  for (const result of [{ data: null, error: { message: "unavailable" } }, { data: null, error: null }, { data: "false", error: null }]) {
+    it("returns unavailable before provider or downstream search when the required hint fails", async () => {
+      state.formatRpc.mockResolvedValue(result);
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const response = await search("ZZZ83MVSP99");
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "Search unavailable" });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(state.rpc).not.toHaveBeenCalled();
+    });
+  }
+
+  it("cancels a pending hint when the actual Request is aborted and starts no downstream work", async () => {
+    let begun!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      begun = resolve;
+    });
+    let readerSignal!: AbortSignal;
+    state.formatRpc.mockImplementation((_name, _args, signal) => {
+      readerSignal = signal;
+      begun();
+      return new Promise(() => {});
+    });
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const controller = new AbortController();
+    const response = search("ZZZ83MVSP99", controller.signal);
+    await pending;
+    controller.abort();
+    expect((await response).status).toBe(503);
+    expect(readerSignal.aborted).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns unavailable at the1000ms hint deadline before any provider or downstream call", async () => {
+    vi.useFakeTimers();
+    state.formatRpc.mockImplementation(() => new Promise(() => {}));
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const response = search("ZZZ83MVSP99");
+    await vi.advanceTimersByTimeAsync(999);
+    expect(state.formatRpc).toHaveBeenCalledOnce();
+    expect(state.formatRpc.mock.calls[0][2].aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await response).status).toBe(503);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("a late authenticated request retains only its original remaining30s budget", async () => {
+    vi.useFakeTimers();
+    state.authenticate.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ ok: true, via: "user", userId: "viewer" }), 29_700)));
+    state.formatRpc.mockImplementation(() => new Promise(() => {}));
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const response = search("ZZZ83MVSP99");
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(state.formatRpc).toHaveBeenCalledOnce();
+    expect(state.formatRpc.mock.calls[0][2].aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await response).status).toBe(503);
+    expect(state.formatRpc.mock.calls[0][2].aborted).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  for (const scope of ["asset", "style_group"]) {
+    it(`preserves the exact ${scope} scope while keeping unknown-code pictures`, async () => {
+      state.meaningful = false;
+      state.formatRpc.mockResolvedValue({ data: true, error: null });
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+      expect((await search("ZZZ83MVSP99", undefined, [scope])).status).toBe(200);
+      expect(state.rpc).toHaveBeenCalledWith(
+        "search_dam_documents",
+        expect.objectContaining({ p_document_types: [scope], p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }),
+      );
+    });
+  }
+
+  it("retains caller-scoped DAM permission failure rather than using the service client for search", async () => {
+    state.formatRpc.mockResolvedValue({ data: true, error: null });
+    state.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "denied" } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+    expect((await search("ZZZ83MVSP99")).status).toBe(403);
+    expect(state.rpc).not.toHaveBeenCalledWith("dam_catalog_code_format_exists", expect.anything());
   });
 });

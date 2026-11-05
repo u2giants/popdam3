@@ -8,6 +8,8 @@ import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
 import { getPopSGQueryEmbedding } from "../_shared/popsg-query-embedding.ts";
+import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
+import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
@@ -166,7 +168,7 @@ async function embedQueryText(input: string): Promise<number[] | null> {
   return attempt();
 }
 
-corsServe(async (req) => {
+async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<Response> {
   if (req.method !== "POST") return err("Method not allowed", 405);
 
   const auth = await authenticateCaller(req);
@@ -272,7 +274,19 @@ corsServe(async (req) => {
       query,
       async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
     );
-    const spelling = productCodeSearch ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
+    let unknownCatalogFormat = false;
+    try {
+      if (!productCodeSearch) {
+        unknownCatalogFormat = await hasCatalogCodeFormat(
+          query,
+          (format, signal) => serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal),
+          requestSignal,
+        );
+      }
+    } catch {
+      return err("Search unavailable", 503);
+    }
+    const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
     const usePictures = !productCodeSearch && spelling.meaningful;
     const [embedding, floorConfig] = await Promise.all([
       usePictures ? embedQueryText(query) : Promise.resolve(null),
@@ -281,9 +295,13 @@ corsServe(async (req) => {
     ]);
     // Fail open: a config read failure must not take search down; it only
     // drops the optional floor for this request.
-    if (floorConfig.error) console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
+    if (floorConfig.error) {
+      console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
+    }
     const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
-    if (usePictures && !embedding) return err("Search unavailable", 503);
+    if (usePictures && !embedding) {
+      return err("Search unavailable", 503);
+    }
 
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
@@ -403,4 +421,6 @@ corsServe(async (req) => {
   }
 
   return err(`Unknown action: ${action}`, 404);
-});
+}
+
+corsServe((req) => withSearchRequestBudget(req, (signal) => handleRequest(req, signal)));
