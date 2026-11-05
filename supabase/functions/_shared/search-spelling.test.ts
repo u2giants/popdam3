@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { addNameToVocabulary, checkSpelling, editDistance, nearestWord, type SpellingLookup } from "./search-spelling";
+import { describe, expect, it, vi } from "vitest";
+import { addNameToVocabulary, checkSpelling, editDistance, nearestWord, SPELLING_BUDGET_MS, SPELLING_LOOKUP_CONCURRENCY, SPELLING_MAX_WORDS, type SpellingLookup } from "./search-spelling";
 
 const vocabulary = new Map<string, number>();
 for (const name of ["Spider Man", "Captain America", "Darth Vader", "Mandalorian ( Star Wars )", "Canvas", "Hamper"]) {
@@ -70,6 +70,57 @@ describe("search spelling", () => {
     releases.get("captian")!(0);
     resolveVocabulary(vocabulary);
     expect(await result).toEqual({ corrected: "captain America captain", meaningful: true });
+  });
+
+  it("bounds concurrent word reads and preserves the complete query", async () => {
+    let active = 0;
+    let peak = 0;
+    let total = 0;
+    const query = Array.from({ length: 12 }, (_, i) => `word${i}`).join(" ");
+    const result = await checkSpelling(query, {
+      vocabulary: async () => new Map(),
+      countDocs: async () => {
+        total++; active++; peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        active--; return 3;
+      },
+    });
+    expect(total).toBe(12);
+    expect(peak).toBe(SPELLING_LOOKUP_CONCURRENCY);
+    expect(result).toEqual({ corrected: null, meaningful: true });
+  });
+
+  it("skips all optional spelling work for oversized input rather than sampling words", async () => {
+    const countDocs = vi.fn();
+    const vocabulary = vi.fn();
+    const query = Array.from({ length: SPELLING_MAX_WORDS + 1000 }, (_, i) => `word${i}`).join(" ");
+    expect(await checkSpelling(query, { countDocs, vocabulary })).toEqual({ corrected: null, meaningful: true });
+    expect(countDocs).not.toHaveBeenCalled();
+    expect(vocabulary).not.toHaveBeenCalled();
+  });
+
+  it("ends at the total deadline, cancels outstanding reads and never starts queued reads", async () => {
+    vi.useFakeTimers();
+    try {
+      const signals: AbortSignal[] = [];
+      const countDocs = vi.fn((_word: string, signal?: AbortSignal) => {
+        signals.push(signal!);
+        return new Promise<number>(() => {}); // Even a transport that ignores cancellation cannot block the request.
+      });
+      const result = checkSpelling("one two three four five six seven eight", {
+        vocabulary: async () => new Map(), countDocs,
+      });
+      expect(countDocs).toHaveBeenCalledTimes(SPELLING_LOOKUP_CONCURRENCY);
+      await vi.advanceTimersByTimeAsync(SPELLING_BUDGET_MS);
+      expect(await result).toEqual({ corrected: null, meaningful: true });
+      expect(signals.every((signal) => signal.aborted)).toBe(true);
+      expect(countDocs).toHaveBeenCalledTimes(SPELLING_LOOKUP_CONCURRENCY);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("breaks equal-authority spelling ties deterministically", () => {
+    expect(nearestWord("starn", new Map([["start", 1], ["stark", 1]]))).toBe("stark");
+    expect(nearestWord("starn", new Map([["stark", 1], ["start", 1]]))).toBe("stark");
   });
 
 });

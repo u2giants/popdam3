@@ -78,13 +78,13 @@ const spellingLookup: SpellingLookup = {
     vocabularyCache = { expires: Date.now() + VOCABULARY_TTL_MS, words };
     return words;
   },
-  async countDocs(word) {
+  async countDocs(word, signal) {
     const { data, error } = await serviceClient()
       .from("dam_search_documents")
       .select("entity_id")
       .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
       .limit(RARE_WORD_DOCS)
-      .abortSignal(AbortSignal.timeout(1000));
+      .abortSignal(signal ?? AbortSignal.timeout(1000));
     if (error) throw new Error(error.message);
     return data?.length ?? 0;
   },

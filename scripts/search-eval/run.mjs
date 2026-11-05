@@ -4,7 +4,7 @@
 // Env: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SEARCH_EVAL_EMAIL, SEARCH_EVAL_PASSWORD
 // Options: --cases <file> (instead of the database copy), --raw <file> (full hit ids, private;
 // never commit it), --report <file> (aggregate only, safe to share), --label <text>.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { scoreSearch, summarize, trustWarning } from "./score.mjs";
 import { createViewerSession, ViewerAuthenticationError } from "./viewer-session.mjs";
@@ -123,11 +123,21 @@ const set = await loadSet();
 const rows = { dam: [], sg_guides: [], sg_files: [] };
 const checkpoint = arg("checkpoint");
 const setHash = createHash("sha256").update(JSON.stringify(set)).digest("hex");
+const identity = { set_hash: setHash, target: url, phase: arg("phase"), run_id: arg("run-id"), source_head: arg("source-head"), label: arg("label") };
+if (checkpoint && (!identity.phase || !identity.run_id || !identity.source_head || !identity.label)) {
+  throw new Error("Checkpoint requires --phase, --run-id, --source-head and --label");
+}
 const saved = checkpoint && existsSync(checkpoint) ? JSON.parse(readFileSync(checkpoint, "utf8")) : null;
 if (saved && saved.set_hash !== setHash) throw new Error("Checkpoint belongs to a different judged set");
+if (saved && JSON.stringify(saved.identity) !== JSON.stringify(identity)) throw new Error("Checkpoint belongs to a different evaluation identity");
+const startedAt = saved?.started_at ?? new Date().toISOString();
 const raw = saved?.raw ?? {};
 const persist = () => {
-  if (checkpoint) writeFileSync(checkpoint, JSON.stringify({ set_hash: setHash, raw }), { mode: 0o600 });
+  if (checkpoint) {
+    const temporary = `${checkpoint}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify({ set_hash: setHash, identity, started_at: startedAt, raw }), { mode: 0o600 });
+    renameSync(temporary, checkpoint);
+  }
 };
 for (const testCase of set.cases) {
   raw[testCase.id] ??= {};
@@ -141,7 +151,7 @@ for (const testCase of set.cases) {
   }
 }
 
-const report = { set_hash: setHash, label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
+const report = { identity, started_at: startedAt, set_hash: setHash, label: arg("label"), set_version: set.version, checked_at: new Date().toISOString(), engines: {} };
 for (const [engine, engineRows] of Object.entries(rows)) {
   if (!engineRows.length) continue;
   const summary = summarize(engineRows);

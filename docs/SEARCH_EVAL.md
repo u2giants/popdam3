@@ -38,9 +38,12 @@ Only the style-group view is scored, not the single-file view.
 
 ## Recovering a long evaluation
 
-Use `--checkpoint <private file>` to save each completed search engine result.
+Use `--checkpoint <private file> --phase <before-or-after> --run-id <unique-run>
+--source-head <deployed-source-head> --label <label>` to save each completed search engine result atomically.
 Restarting with the same checkpoint resumes the identical saved set without
-replaying completed requests, including failed requests. A changed set is refused.
+replaying completed requests, including failed requests. A changed set, phase, run identity, source head, target or label is refused.
+Use a new checkpoint for each before/after run; source identity is supplied explicitly,
+so independently verify the deployed source.
 Keep the checkpoint private; it contains query result identifiers and catalog details.
 The aggregate report includes the set SHA-256, p50/p95 timings and error categories.
 Compare identical sets and preserve natural catalog updates as a limitation; do not
