@@ -77,11 +77,13 @@ test('proposed SQL reuses dispatch object parser; hostile paths and symlinks fai
     } catch (error) { if (!['EPERM', 'ENOSYS'].includes(error.code)) throw error }
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
-test('caller lifecycle events are trusted cleanup routes alongside normal fixer dispatch', () => {
+test('caller triggers mirror ai-devops step 1.5: push and delete are gone, PR cleanup stays', () => {
   const text = readFileSync(new URL('../.github/workflows/review-fixer.yml', import.meta.url), 'utf8')
-  assert.match(text, /^  push:/m)
-  assert.match(text, /^  delete:/m)
+  assert.doesNotMatch(text, /^  push:/m)
+  assert.doesNotMatch(text, /^  delete:/m)
   assert.match(text, /pull_request_target:\n    types: \[synchronize, closed\]/)
+  assert.match(text, /issues:\n    types: \[labeled, closed\]/)
+  assert.match(text, /workflow_call:\n    inputs:/)
   assert.match(text, /uses: popcre\/ai-devops\/\.github\/workflows\/review-fixer.yml@main/)
   assert.doesNotMatch(text, /ref:.*head|checkout.*head/)
 })
