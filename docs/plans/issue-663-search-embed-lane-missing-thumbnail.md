@@ -11,17 +11,19 @@ Parent plan for the whole image-similarity / GPU-poller feature: [`plan_image_si
 
 ## STATUS
 
-| Step | State | Evidence |
-|---|---|---|
-| 0. Confirm finding 1 (grants) is landed in production | ⬜ open | — (expected: migration `20261102202014` present in `supabase_migrations.schema_migrations`; verified by the planner on 2026-11-04 via a read-only query, re-verify) |
-| 1. shared-db: refresh functions clear embed-error markers when a document's thumbnail changes, plus one-time reset of the stranded rows | ⬜ open | — |
-| 2. Poller: missing thumbnail is `transient`, never `permanent` | ✅ done | PR #728 `1ce8f675`; `image_embed_poller.py:548-552`, message `Transient: missing thumbnail_url` |
-| 3. Poller tests and README wording | 🟡 partly | Rename and README `:29` landed in #728; mixed-batch test, empty-string case and README `:35-38` remain |
-| 4. Finding 3: a real-contract test for the RPC call shapes | ⬜ open | — |
-| 5. Deploy poller to edge-dev, drain, live proof | ⬜ open | — |
-| 6. Close #663 with evidence; `- [ ] live proof` ticked on #663 | ⬜ open | — |
+Updated November 4, 2026, 9:31 PM EST; current source `74cf7ee1`.
 
-**Where a fresh session starts:** Step 0, then Step 1 in `/worksp/shared-db` (claim-first). Steps 2–4 can run in parallel with Step 1 in this repo.
+| Outcome | State | Evidence |
+|---|---|---|
+| Worker grants | Delivered | Shared-db migration `20261102202014`; live worker privilege recheck recorded on #663 |
+| Missing-thumbnail eligibility and recovery | Delivered | PopDAM #728; shared-db #5585 and #5603; original #663 closing comment records 1,112 resets and 408 embeds in five minutes |
+| Database regression coverage | Delivered | Shared-db #5605 covers absent key, empty string and JSON null plus claim/status/index behavior |
+| Poller call-contract and mixed-batch regression coverage | In this PR | Real claim/upsert/error caller methods with recorded transport parameters; null and empty-string mixed batches |
+| Live recovery recheck | Verified | Production `qsllyeztdwjgirsysgai`: 147,483 documents, 146,758 embedded, 725 awaiting thumbnails, zero stranded missing-thumbnail errors, 35 recent embeds |
+
+Issue #663 is already closed. The remaining change strengthens finding 3's caller-side regression coverage. No database or poller behavior change is needed. Existing #728 and shared-db PRs delivered the repair; do not repeat the historical reset below. A specific previously stranded entity was not preserved in the public evidence, so these current aggregate readings do not claim entity-level search proof.
+
+The original implementation recipe below is retained as history. Its refresh-function approach was superseded by the delivered claim exclusion: documents without thumbnails are not claimed, and become eligible when their thumbnail arrives.
 
 ---
 
