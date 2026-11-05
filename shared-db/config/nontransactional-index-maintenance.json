@@ -2,10 +2,10 @@
   "schema_version": 1,
   "operations": {
     "sg-hnsw-rebuild-706": {
-      "source_pr": 5682,
+      "source_pr": 5691,
       "work_issue": 5616,
       "claim_issue": 5681,
-      "definition_sha256": "be64aba92ebde801c74d1c068f7b843d807fcbc89b33051e4aaebe00aace7a9d",
+      "definition_sha256": "02fbe7a18a536b3b3f0e5457a43439379787efe06d48527f67822ad8a5178130",
       "lock_timeout_ms": 500,
       "statement_timeout_ms": 900000,
       "swap_timeout_ms": 2000,
