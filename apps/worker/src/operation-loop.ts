@@ -1091,6 +1091,17 @@ async function heartbeatWhileWaiting(opKey: string, state: OpState): Promise<voi
   }
 }
 
+// Share the retry predicate with checkpoint yielding: neither a user stop nor
+// an ineligible retry may take the tagging lane away.
+function isDueAutoResume(opKey: string, op: OpState): boolean {
+  return op.status === "interrupted" &&
+    op.interruption_reason_code !== "user_stop" &&
+    isTransientInterruption(op.interruption_reason_code) &&
+    isValidAutoResumeCursor(opKey, op.cursor) &&
+    (!op.next_auto_resume_at || new Date(op.next_auto_resume_at).getTime() <= Date.now()) &&
+    (op.auto_resume_attempts ?? 0) < AUTO_RESUME_MAX_ATTEMPTS;
+}
+
 // ── Main tick — called every POLL_INTERVAL_MS ─────────────────────────────────
 
 export async function tick(): Promise<void> {
@@ -1166,12 +1177,7 @@ export async function tick(): Promise<void> {
     const laneBusy = [...autoResumeRunningKeys].some((runningKey) => getLane(runningKey) === lane);
     const crossLaneBusy = runningTagConflict(key, autoResumeRunningKeys);
     if (
-      op.status === "interrupted" &&
-      op.interruption_reason_code !== "user_stop" &&
-      isTransientInterruption(op.interruption_reason_code) &&
-      isValidAutoResumeCursor(key, op.cursor) &&
-      (!op.next_auto_resume_at || new Date(op.next_auto_resume_at).getTime() <= Date.now()) &&
-      (op.auto_resume_attempts ?? 0) < AUTO_RESUME_MAX_ATTEMPTS &&
+      isDueAutoResume(key, op) &&
       !laneBusy &&
       !crossLaneBusy
     ) {
@@ -1221,7 +1227,15 @@ export async function tick(): Promise<void> {
   // Nightly grouping must not wait days behind a whole-library tagging run.
   // The run steps aside at its checkpoint and resumes from its cursor after grouping.
   const parallelRun = allOps["ai-tag-parallel"];
-  if (parallelRun?.status === "running" && allOps["rebuild-style-groups"]?.status === "queued") {
+  const grouping = allOps["rebuild-style-groups"];
+  const otherRunningKeys = [...runningKeys].filter(key => key !== "ai-tag-parallel");
+  // A timed-out grouping cannot auto-resume while tagging holds its conflicting
+  // lane. Yield at the same saved checkpoint used for queued grouping, but only
+  // when the original retry is due and tagging is its only admission blocker.
+  const groupingRetryReady = grouping && isDueAutoResume("rebuild-style-groups", grouping) &&
+    !otherRunningKeys.some(key => getLane(key) === getLane("rebuild-style-groups")) &&
+    !runningTagConflict("rebuild-style-groups", otherRunningKeys);
+  if (parallelRun?.status === "running" && (grouping?.status === "queued" || groupingRetryReady)) {
     const yielded: OpState = {...parallelRun, status: "queued", queue_position: Number.MAX_SAFE_INTEGER, updated_at: new Date().toISOString()};
     if (await persistOpState("ai-tag-parallel", yielded, {onlyIfRunning: true, expectedRevision: parallelRun.state_revision ?? 0})) {
       logger.info("tick: parallel tagging yielded to style group rebuild");
