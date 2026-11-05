@@ -335,3 +335,42 @@ def test_sg_rows_use_the_popsg_rpcs(monkeypatch):
     text = " ".join(str(call) for call in calls)
     assert "upsert_sg_search_embedding" in text and "mark_sg_search_embedding_error" in text
     assert "dam_search_embedding" not in text
+
+
+def test_dam_search_lane_rpc_contract(monkeypatch):
+    """Bind caller positions to the deployed public RPC signatures (#663).
+
+    Database contracts: 20261101005850 (claim), 20261023184940 (upsert),
+    20260825082910 (mark error); grants have a shared-db SQL contract test.
+    Only the transport is replaced: all three real caller methods execute.
+    """
+    import numpy as np
+    row = _row("contract")
+    p, calls = _search_poller(monkeypatch, [])
+    monkeypatch.delattr(p, "claim_search_docs")
+    assert p.claim_search_docs() == []
+    assert p.search_upsert(row, np.zeros(config.DIM)) is True
+    p.search_mark_error(row, "x" * 600, "transient")
+    assert len(calls) == 3
+    claim, upsert, error = calls
+    assert "public.claim_dam_search_embedding_documents(%s, %s, %s)" in claim[0]
+    assert claim[1] == (64, "test-search", 900)
+    assert "public.upsert_dam_search_embedding(%s, %s, %s, %s, %s::extensions.vector, %s)" in upsert[0]
+    assert upsert[1] == (row[0], row[1], row[4], row[5],
+                         "[" + ",".join(["0.0000000"] * config.DIM) + "]",
+                         "google/siglip2-base-patch16-naflex")
+    assert "public.mark_dam_search_embedding_error(%s, %s, %s, %s, %s, %s)" in error[0]
+    assert error[1] == (row[0], row[1], row[4], row[5], "x" * 500, "transient")
+
+
+@pytest.mark.parametrize("missing", [None, ""])
+def test_dam_search_missing_thumbnail_does_not_block_valid_neighbor(monkeypatch, missing):
+    rows = [_row("waiting", thumb=missing), _row("ready")]
+    p, calls = _search_poller(monkeypatch, rows)
+    p.process_search_batch(rows)
+    marks = [params for sql, params in calls if "mark_dam_search_embedding_error" in sql]
+    upserts = [params for sql, params in calls if "upsert_dam_search_embedding" in sql]
+    assert len(marks) == len(upserts) == 1
+    assert marks[0][1] == rows[0][1] and marks[0][5] == "transient"
+    assert upserts[0][1] == rows[1][1]
+    assert p.search_done == p.search_failed == 1
