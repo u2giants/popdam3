@@ -723,7 +723,7 @@ if (invokedDirectly) {
   main(process.argv.slice(2)).then(
     (code) => { process.exitCode = code },
     (error) => {
-      console.error(`REFUSED: ${error.message}`)
+      console.error(`advisory: would have refused: ${error.message}`)
       process.exitCode = error instanceof MergeQueueModeUnknown ? 3 : 1
     },
   )
