@@ -266,9 +266,10 @@ async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
     await fh.close();
   }
 
-  // Older format: pure PostScript without embedded PDF stream — always a sentinel.
-  if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
-    return true;
+  // Native PostScript AI has no embedded PDF, but Ghostscript can render its
+  // artwork directly. It is not the PDF CompatibilityAlert notice below.
+  if (head.startsWith("%!PS-Adobe-")) {
+    return false;
   }
 
   // Modern format: PDF-wrapped. Do NOT byte-search for "/CompatibilityAlert" — it is
@@ -337,6 +338,34 @@ async function renderWithSharp(
   };
 }
 
+// Native PostScript AI may place its artwork outside the default Letter page.
+// Read only its declared bounds and fit that page to thumbnail resolution.
+async function nativePostscriptPage(filePath: string): Promise<{ dpi: number; setup: string } | null> {
+  const fh = await open(withLongPathPrefix(filePath), "r");
+  let header: string;
+  try {
+    const bytes = Buffer.alloc(64 * 1024);
+    const { bytesRead } = await fh.read(bytes, 0, bytes.length, 0);
+    header = bytes.subarray(0, bytesRead).toString("latin1");
+  } finally {
+    await fh.close();
+  }
+  if (!header.startsWith("%!PS-Adobe-")) return null;
+  const number = "([-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+))";
+  const bounds = (name: string) => header.match(new RegExp(`^%%${name}:\\s*${number}\\s+${number}\\s+${number}\\s+${number}\\s*$`, "m"));
+  const match = bounds("HiResBoundingBox") ?? bounds("BoundingBox");
+  if (!match) return null;
+  const [x0, y0, x1, y1] = match.slice(1).map(Number);
+  const width = x1 - x0;
+  const height = y1 - y0;
+  if (![x0, y0, x1, y1, width, height].every(Number.isFinite) ||
+      width <= 0 || height <= 0 || Math.max(...[x0, y0, x1, y1].map(Math.abs)) > 1_000_000) return null;
+  return {
+    dpi: Math.min(150, THUMB_MAX_DIM * 72 / Math.max(width, height)),
+    setup: `<</PageSize [${width} ${height}]>> setpagedevice ${-x0} ${-y0} translate`,
+  };
+}
+
 // ── Step 2a: Ghostscript ────────────────────────────────────────
 
 async function renderWithGhostscript(
@@ -346,13 +375,15 @@ async function renderWithGhostscript(
   const outPath = path.join(tmpDir, "thumb.png");
 
   try {
+    const nativePage = await nativePostscriptPage(filePath);
     await execFileAsync(GS_EXE, [
       "-dNOPAUSE", "-dBATCH", "-dSAFER",
       "-sDEVICE=png16m",
-      "-r150",
+      `-r${nativePage?.dpi ?? 150}`,
       "-dFirstPage=1", "-dLastPage=1",
       "-dMaxBitmap=500000000",
       `-sOutputFile=${outPath}`,
+      ...(nativePage ? ["-c", nativePage.setup, "-f"] : []),
       filePath,
     ], { timeout: 60_000 });
 
