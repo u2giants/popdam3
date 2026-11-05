@@ -1,0 +1,124 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeEach, expect, it, vi } from 'vitest';
+
+const search = vi.hoisted(() => vi.fn());
+const countsRpc = vi.hoisted(() => vi.fn());
+const mode = vi.hoisted(() => ({ value: 'hybrid' }));
+vi.mock('@/integrations/supabase/client', () => {
+  const chain = (data: unknown) => {
+    const response = Promise.resolve({ data, error: null, count: 0 });
+    const builder: unknown = new Proxy({}, { get: (_target, key) => key === 'then' ? response.then.bind(response) : () => builder });
+    return builder;
+  };
+  return { supabase: { from: () => chain([]), rpc: (name: string, args: unknown) => {
+    countsRpc(name, args);
+    return chain(name === 'get_filter_counts' ? { fileType: { ai: 31 }, status: {}, workflowStatus: {}, stage: {}, isLicensed: { true: 31, false: 0 } } : []);
+  } } };
+});
+vi.mock('@/lib/dam-search', async (original) => ({ ...await original<typeof import('@/lib/dam-search')>(), getSearchMode: () => Promise.resolve(mode.value), fetchHybridSearchPage: search, invalidateSearchMode: vi.fn() }));
+vi.mock('@/hooks/useStyleGroups', async (original) => ({ ...await original<typeof import('@/hooks/useStyleGroups')>(), useStyleGroupCount: () => ({ data: 0 }), useUngroupedCount: () => ({ data: 0 }), useTotalAssetCount: () => ({ data: 0 }), useStyleGroupAssetCount: () => ({ data: 0 }) }));
+vi.mock('@/hooks/useAssets', async (original) => ({ ...await original<typeof import('@/hooks/useAssets')>(), useVisibilityDate: () => ({ data: '2020-01-01' }), useFilterOptions: () => ({ licensors: [], properties: [] }), usePathFacets: () => ({ data: {} }), useProductMaterials: () => ({ data: [] }) }));
+vi.mock('@/hooks/useDamCustomers', () => ({ useDamCustomerFacets: () => ({ data: [] }) }));
+vi.mock('@/hooks/useIsAdmin', () => ({ useIsAdmin: () => ({ isAdmin: false }) }));
+vi.mock('@/hooks/useAgentStatus', () => ({ useAgentStatus: () => ({}) }));
+vi.mock('@/hooks/useScanProgress', () => ({ useScanProgress: () => ({}) }));
+vi.mock('@/hooks/useScanLifecycle', () => ({ useScanLifecycle: () => ({}) }));
+vi.mock('@/hooks/use-media-query', () => ({ useMediaQuery: () => false }));
+vi.mock('@/hooks/use-compact-chrome', () => ({ useCompactChrome: () => false }));
+vi.mock('@/hooks/useResizablePanel', () => ({ useResizablePanel: () => ({ width: 408, handleProps: {} }) }));
+vi.mock('@/components/library/LibraryTopBar', () => ({ default: (p: { onLibraryModeChange: (m: string) => void; onSearchChange: (s: string) => void; onRefresh: () => void; onToggleFilters: () => void }) => <><button onClick={() => p.onLibraryModeChange('groups')}>Style groups</button><button onClick={() => p.onLibraryModeChange('assets')}>All files</button><input aria-label="Search" onChange={e => p.onSearchChange(e.target.value)} /><button onClick={p.onRefresh}>Refresh</button><button onClick={p.onToggleFilters}>Filters</button></> }));
+vi.mock('@/components/library/FilterSidebar', () => ({ default: (p: { facetCounts: unknown; filters: Record<string, unknown>; onFiltersChange: (filters: Record<string, unknown>) => void }) => <><output data-testid="facets">{JSON.stringify(p.facetCounts)}</output><button onClick={() => p.onFiltersChange({ ...p.filters, stage: ['fixture-stage'], fileType: ['ai'] })}>Scoped filter</button></> }));
+vi.mock('@/components/library/StyleGroupGrid', () => ({ default: () => null }));
+vi.mock('@/components/library/StyleGroupListView', () => ({ default: () => null }));
+vi.mock('@/components/library/StyleGroupDetailPanel', () => ({ default: () => null }));
+vi.mock('@/components/library/AssetGrid', () => ({ default: () => null }));
+vi.mock('@/components/library/AssetListView', () => ({ default: () => null }));
+vi.mock('@/components/library/AssetDetailPanel', () => ({ default: () => null }));
+vi.mock('@/components/library/BulkActionBar', () => ({ default: () => null }));
+vi.mock('@/components/library/PaginationBar', () => ({ default: () => null }));
+import LibraryPage from '@/pages/Index';
+
+beforeEach(() => { mode.value='hybrid'; countsRpc.mockReset(); search.mockReset().mockResolvedValue({ ids: [], totalCount: 0, hasMore: false, facets: {} }); });
+it('searches only the visible mode, restores both directions and preserves refresh/cache/retry', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
+  const type = (query: string) => fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), { target: { value: query } });
+  type('first');
+  await waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'first', documentType: 'style_group' })));
+  expect(search.mock.calls.every(([r]) => r.documentType === 'style_group')).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'All files' }));
+  await waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: 'first', documentType: 'asset' })));
+  search.mockClear(); type('second');
+  await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'second', documentType: 'asset' }));
+  expect(client.getQueriesData({ queryKey: ['style-groups'] }).some(([, value]) => value !== undefined)).toBe(true);
+  search.mockClear(); fireEvent.click(screen.getByRole('button', { name: 'Style groups' }));
+  await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'second', documentType: 'style_group' }));
+  search.mockClear(); fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+  await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ documentType: 'style_group' }));
+  search.mockClear(); fireEvent.click(screen.getByRole('button', { name: 'All files' }));
+  await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ documentType: 'asset' }));
+  search.mockRejectedValueOnce(new Error('Search unavailable')); type('failed');
+  await screen.findByRole('alert');
+  search.mockClear(); fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await waitFor(() => expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'failed', documentType: 'asset' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  client.clear();
+});
+
+it('reuses actual visible search facets, preserves initial counts and clears unavailable counts', async () => {
+  let groupCount=7;
+  search.mockImplementation(async ({ documentType }) => ({ ids: [], totalCount: 0, hasMore: false, facets: { fileType: { ai: documentType==='asset'?9:groupCount }, status: {}, workflowStatus: {}, stage: {}, isLicensed: { true: 5, false: 2 } } }));
+  const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+  render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button',{name:'Filters'}));
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('31'));
+  countsRpc.mockClear();
+  fireEvent.change(screen.getByRole('textbox',{name:'Search'}),{target:{value:'shared summary'}});
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":7'));
+  expect(search).toHaveBeenCalledTimes(1);expect(countsRpc).not.toHaveBeenCalled();
+  groupCount=13;search.mockClear();fireEvent.click(screen.getByRole('button',{name:'Refresh'}));
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":13'));
+  expect(search).toHaveBeenCalledTimes(1);expect(countsRpc).not.toHaveBeenCalled();
+  search.mockClear();fireEvent.click(screen.getByRole('button',{name:'All files'}));
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":9'));
+  expect(search).toHaveBeenCalledTimes(1);expect(search).toHaveBeenLastCalledWith(expect.objectContaining({documentType:'asset'}));expect(countsRpc).not.toHaveBeenCalled();
+  search.mockRejectedValueOnce(new Error('Search unavailable'));
+  fireEvent.change(screen.getByRole('textbox',{name:'Search'}),{target:{value:'failure'}});
+  await screen.findByRole('alert');expect(screen.getByTestId('facets')).toHaveTextContent('null');
+  expect(countsRpc).not.toHaveBeenCalled();
+  search.mockClear();fireEvent.click(screen.getByRole('button',{name:'Retry'}));
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":9'));
+  expect(search).toHaveBeenCalledTimes(1);expect(countsRpc).not.toHaveBeenCalled();client.clear();
+});
+it('retains the existing separate keyword-search count path',async()=>{
+  mode.value='keyword';const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+  render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button',{name:'Filters'}));
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('31'));
+  countsRpc.mockClear();fireEvent.change(screen.getByRole('textbox',{name:'Search'}),{target:{value:'keyword only'}});
+  await waitFor(()=>expect(countsRpc).toHaveBeenCalledWith('get_filter_counts',expect.objectContaining({p_filters:expect.objectContaining({search:'keyword only'})})));
+  expect(search).not.toHaveBeenCalled();expect(screen.getByTestId('facets')).toHaveTextContent('31');client.clear();
+});
+
+it('does not publish previous-filter facets while a new scoped response is pending',async()=>{
+  const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+  render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button',{name:'Filters'}));
+  fireEvent.change(screen.getByRole('textbox',{name:'Search'}),{target:{value:'raw_code-v1.ai'}});
+  await waitFor(()=>expect(search).toHaveBeenCalledTimes(1));
+  let resolve!: (value: unknown)=>void;
+  search.mockClear().mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
+  countsRpc.mockClear();fireEvent.click(screen.getByRole('button',{name:'Scoped filter'}));
+  await waitFor(()=>expect(search).toHaveBeenCalledTimes(1));
+  expect(search).toHaveBeenLastCalledWith(expect.objectContaining({query:'raw_code-v1.ai',documentType:'style_group',filters:expect.objectContaining({stage:['fixture-stage'],fileType:['ai']})}));
+  expect(screen.getByTestId('facets')).toHaveTextContent('null');expect(countsRpc).not.toHaveBeenCalled();
+  resolve({ids:[],totalCount:0,hasMore:false,facets:{fileType:{ai:17},status:{},workflowStatus:{},stage:{'fixture-stage':17},isLicensed:{true:17,false:0}}});
+  await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":17'));
+  expect(countsRpc).not.toHaveBeenCalled();client.clear();
+});

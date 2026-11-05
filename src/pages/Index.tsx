@@ -75,13 +75,26 @@ export default function LibraryPage() {
   // ── Data queries ────────────────────────────────────────────────
   const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
-  const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
+  const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate, isGroupsMode);
   const { data: totalGroupCount, error: groupCountError } = useStyleGroupCount(filters, visibilityDate, !filters.search?.trim());
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
   const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
-  const { data: facetCounts } = useFilterCounts(filters, isGroupsMode ? "style_group" : "asset");
+  const activeListData = isGroupsMode ? sgData : assetData;
+  const searching = Boolean(filters.search.trim());
+  // Hybrid summaries already contain the same full-filter, page-independent
+  // facets. Reuse that exact authenticated response; do not run another search.
+  // Wait for keyword list data before enabling its existing separate counts.
+  const searchFacets = searching ? activeListData?.searchFacets : undefined;
+  const { data: independentFacetCounts, error: independentFacetError } = useFilterCounts(
+    filters, isGroupsMode ? "style_group" : "asset",
+    !searching || (activeListData !== undefined && searchFacets === undefined),
+  );
+  const activeListError = isGroupsMode ? sgError : assetError;
+  const facetCounts = (searching && (!activeListData || activeListError))
+    || (searchFacets === undefined && independentFacetError)
+    ? undefined : searchFacets ?? independentFacetCounts;
   const { data: pathFacets } = usePathFacets(filters.customer);
   const { data: materialOptions } = useProductMaterials();
   const { data: damCustomerFacets } = useDamCustomerFacets();

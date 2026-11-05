@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
-import type { AssetFilters } from "@/types/assets";
+import type { AssetFilters, FacetCounts } from "@/types/assets";
 
 export interface StyleGroup {
   id: string;
@@ -232,10 +232,12 @@ export function useStyleGroups(
   page: number,
   customPageSize?: number,
   visibilityDate?: string,
+  enabled = true,
 ) {
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
 
   return useQuery({
+    enabled,
     retry: filters.search ? false : undefined,
     queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate],
     queryFn: async () => {
@@ -266,7 +268,7 @@ export function useStyleGroups(
           searchTerm,
           (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
         );
-        return { groups, totalCount: ranked.totalCount, pageSize: effectivePageSize, page };
+        return { groups, totalCount: ranked.totalCount, searchFacets: parseDamSearchFacets(ranked.facets), pageSize: effectivePageSize, page };
       }
       const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
@@ -316,6 +318,7 @@ export function useStyleGroups(
       return {
         groups,
         totalCount: count ?? 0,
+        searchFacets: undefined as FacetCounts | undefined,
         pageSize: effectivePageSize,
         page,
       };
