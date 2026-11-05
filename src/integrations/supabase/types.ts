@@ -4611,6 +4611,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      dam_catalog_code_format_exists: {
+        Args: { p_format: string }
+        Returns: boolean
+      }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
