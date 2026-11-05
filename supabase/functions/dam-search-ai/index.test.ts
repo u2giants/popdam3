@@ -9,17 +9,24 @@ const state = vi.hoisted(() => ({
   authenticate: vi.fn(),
 }));
 vi.mock("../_shared/http.ts", () => ({
-  corsServe: (handler: typeof state.handler) => { state.handler = handler; },
+  corsServe: (handler: typeof state.handler) => {
+    state.handler = handler;
+  },
   err: (error: string, status: number) => Response.json({ error }, { status }),
   json: (body: unknown) => Response.json(body),
 }));
 vi.mock("../_shared/supabase-js.ts", () => ({ createClient: () => ({ rpc: state.rpc }) }));
 vi.mock("../_shared/service-client.ts", () => ({
-  serviceClient: () => ({ from: () => ({
-    select: () => ({ eq: () => Object.assign(Promise.resolve({ data: [] }), {
-      maybeSingle: async () => ({ data: null, error: null }),
-    }) }),
-  }) }),
+  serviceClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () =>
+          Object.assign(Promise.resolve({ data: [] }), {
+            maybeSingle: async () => ({ data: null, error: null }),
+          }),
+      }),
+    }),
+  }),
 }));
 vi.mock("../_shared/admin-auth.ts", () => ({ authenticateUser: state.authenticate }));
 vi.mock("../_shared/product-code.ts", () => ({ isProductCodeSearch: async () => state.productCode }));
@@ -29,10 +36,14 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
 await import("./index.ts");
-const search = () => state.handler!(new Request("https://example.invalid", {
-  method: "POST", headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
-  body: JSON.stringify({ action: "search", query: "test phrase" }),
-}));
+const search = () =>
+  state.handler!(
+    new Request("https://example.invalid", {
+      method: "POST",
+      headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "search", query: "test phrase" }),
+    }),
+  );
 
 describe("DAM search embedding availability", () => {
   beforeEach(() => {
@@ -43,7 +54,8 @@ describe("DAM search embedding availability", () => {
     state.corrected = null;
     state.authenticate.mockResolvedValue({ ok: true, via: "user", userId: "viewer" });
     state.rpc.mockReset().mockImplementation(async (name: string) => ({
-      data: name === "dam_search_semantic_anchor" ? 0.5 : [], error: null,
+      data: name === "dam_search_semantic_anchor" ? 0.5 : [],
+      error: null,
     }));
   });
 
@@ -59,8 +71,11 @@ describe("DAM search embedding availability", () => {
 
   it("does not merge results when a corrected semantic variant cannot embed", async () => {
     state.corrected = "corrected phrase";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json({ ok: true, vector: Array(768).fill(0) }))
-      .mockResolvedValue(new Response("unavailable", { status: 503 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(Response.json({ ok: true, vector: Array(768).fill(0) }))
+        .mockResolvedValue(new Response("unavailable", { status: 503 })),
+    );
     expect((await search()).status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();
   });

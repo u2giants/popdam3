@@ -63,7 +63,10 @@ export function nearestWord(word: string, vocabulary: Map<string, number>): stri
   for (const [candidate, weight] of vocabulary) {
     if (candidate === word) continue;
     const distance = editDistance(word, candidate, max);
-    if (distance < bestDistance || (distance === bestDistance && distance <= max && (weight > bestWeight || (weight === bestWeight && (best === null || candidate < best))))) {
+    if (
+      distance < bestDistance ||
+      (distance === bestDistance && distance <= max && (weight > bestWeight || (weight === bestWeight && (best === null || candidate < best))))
+    ) {
       best = candidate;
       bestDistance = distance;
       bestWeight = weight;
@@ -97,7 +100,10 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout>;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => { controller.abort(); reject(new Error("Spelling budget exceeded")); }, SPELLING_BUDGET_MS);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Spelling budget exceeded"));
+    }, SPELLING_BUDGET_MS);
   });
   try {
     const counts = new Map<string, number>();
