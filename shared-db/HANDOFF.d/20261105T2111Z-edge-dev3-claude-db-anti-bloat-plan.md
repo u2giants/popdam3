@@ -9,3 +9,5 @@ Written 2026-11-05 4:15 PM EST on edge-dev3 by Claude.
 **Owner ruling quoted (Albert, 2026-11-05):** ColdLion rotation "everything for the past 7 days, then once a day for the previous 2 months, then once a week for year"; skip-unchanged writes "seems like there's 0 downside".
 
 **Nothing claimed, no preview or production writes made.** All production reads were SELECT-only through the Supabase MCP.
+
+**Update 2026-11-05 (after Muse debate):** Step 1 is now codes-only with labels joined from `coldlion.merch_group_detail`; the 7-blank-nights rule and its business question are withdrawn. New Step 1v: ColdLion vendor bug report under `docs/verification/db-anti-bloat-5758/` plus a stable-paging guard (`/items` has no sort parameter).
