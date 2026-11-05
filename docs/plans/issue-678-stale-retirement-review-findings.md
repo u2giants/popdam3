@@ -193,7 +193,7 @@ Suites: root `npm run lint && npm run typecheck && npm run test`; `npm test --pr
 - No DB DDL in this repo; none needed. `shared-db-guard.yml` fails any migration file here.
 - Never treat `quick_hash` as unique (`AGENTS.md:234`); this plan does not touch identity checks.
 - Bridge version bump in the same commit as any bridge change (`docs/deployment.md:268`). **Ordering with #705:** both plans bump `apps/bridge-agent/package.json`. Merge whichever PR is ready first; rebase the other and bump once more. Never leave two merged commits with the same version.
-- Do not request the NAS agent update during a running scan or the PDF rescan; #681 owns updates (coordinator handoff `HANDOFF.d/2026-11-04T2359Z-hetz-claude-close-nested-tagging-followups.md` §5: "Run it once only").
+- Do not request the NAS agent update during a running scan or the PDF rescan; #681 owns updates (coordinator handoff `HANDOFF.d/2026-11-05T0100Z-hetz-claude-search-and-tagging-coordinator.md` §5: "Run it once only").
 - The revive row must be inserted before the asset update; never after (see Step 3 reasoning).
 - Do not modify the bridge self-updater (memory `project_bridge_self_updater.md`).
 - `bin/ai-pr-wait <pr>` in background; no sleep loops. Sign GitHub posts with `$AI_GH_SIGNATURE`. Times in EST.
