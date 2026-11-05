@@ -9,7 +9,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import nontransactional_index_maintenance as maintenance
+
+ACTIVE_WAIT_S=120
+ACTIVE_POLL_S=20
 
 
 def select(policy,read_receipt,active_runs,held,source_sha):
@@ -41,8 +45,14 @@ def main():
         print('No index maintenance operations enabled.');return 0
     if os.environ.get('GITHUB_REPOSITORY')!=maintenance.REPO:raise maintenance.Refusal('canonical repository required')
     import automatic_promotion_candidates as promotion
-    runs=promotion.workflow_runs(maintenance.REPO)
-    active=[r for r in runs if r.get('status') in {'queued','in_progress','requested','waiting','pending'}]
+    # The run that nudged this trigger is still finishing, so give it a bounded
+    # moment to clear rather than losing this turn to a promotion (popdam3#804).
+    deadline=time.monotonic()+ACTIVE_WAIT_S
+    while True:
+        runs=promotion.workflow_runs(maintenance.REPO)
+        active=[r for r in runs if r.get('status') in {'queued','in_progress','requested','waiting','pending'}]
+        if not active or time.monotonic()>=deadline:break
+        time.sleep(ACTIVE_POLL_S)
     receipts=maintenance.Receipts()
     def verified_read(ref):
         record=receipts.read(ref)
@@ -63,6 +73,9 @@ def main():
     subprocess.run(['gh','workflow','run',maintenance.WORKFLOW,'--repo',maintenance.REPO,'--ref','main',
                     '-f','target='+candidate['target'],'-f','mode=apply','-f','commit_sha='+candidate['source_sha'],
                     '-f','migration_train_ref='+dispatch_ref],check=True)
+    output=os.environ.get('GITHUB_OUTPUT')
+    if output:
+        with open(output,'a') as handle:handle.write('dispatched=true\n')
     return 0
 
 

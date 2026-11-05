@@ -1,9 +1,14 @@
 """Offline selection and workflow integration checks; no dispatch or SQL."""
 import json
+import os
+import tempfile
+from unittest.mock import MagicMock,patch
 from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+import automatic_index_maintenance as automatic
+import automatic_promotion_candidates as promotion
 from automatic_index_maintenance import select
 import nontransactional_index_maintenance as maintenance
 from test_nontransactional_index_maintenance import entry
@@ -43,10 +48,32 @@ class SelectionTests(unittest.TestCase):
         self.assertIn('scripts/atomic_migration_apply.py',text)
         self.assertIn('supabase db push --include-all',text)
         self.assertIn('Refuse a mixed maintenance/migration dispatch',text)
+    def run_main(self,runs,clock):
+        policy={'schema_version':1,'operations':{'test-operation':entry()}}
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'policy.json';path.write_text(json.dumps(policy));output=Path(root)/'output'
+            receipts=MagicMock();receipts.read.return_value=None
+            with patch.dict(os.environ,{'GITHUB_REPOSITORY':maintenance.REPO,'GITHUB_OUTPUT':str(output)}),patch.object(maintenance,'POLICY',path),\
+                 patch.object(maintenance,'Receipts',return_value=receipts),patch.object(maintenance,'gh',return_value={'sha':'a'*40}),\
+                 patch.object(promotion,'workflow_runs',side_effect=runs) as fetch,patch.object(promotion,'is_held',return_value=False),\
+                 patch.object(automatic.time,'monotonic',side_effect=clock),patch.object(automatic.time,'sleep') as sleep,\
+                 patch.object(automatic.subprocess,'run') as dispatch,patch.object(sys,'argv',['automatic_index_maintenance.py']):
+                self.assertEqual(automatic.main(),0)
+            return fetch.call_count,sleep.call_count,dispatch.call_count,output.read_text() if output.exists() else ''
+    def test_waits_for_finishing_run_then_dispatches_and_signals_promotion_skip(self):
+        active=[{'status':'in_progress'}]
+        self.assertEqual(self.run_main([active,active,[]],[0,1,2]),(3,2,1,'dispatched=true\n'))
+    def test_idle_queue_does_not_sleep(self):
+        self.assertEqual(self.run_main([[]],[0]),(1,0,1,'dispatched=true\n'))
+    def test_wait_is_bounded_and_active_queue_dispatches_nothing(self):
+        active=[{'status':'in_progress'}]
+        self.assertEqual(self.run_main([active,active],[0,1,automatic.ACTIVE_WAIT_S]),(2,1,0,''))
     def test_automatic_selector_is_part_of_existing_trigger(self):
         text=(ROOT/'.github/workflows/automatic-production-trigger.yml').read_text()
         self.assertIn('python scripts/automatic_promotion_candidates.py',text)
         self.assertIn('python scripts/automatic_index_maintenance.py',text)
+        self.assertLess(text.index('python scripts/automatic_index_maintenance.py'),text.index('python scripts/automatic_promotion_candidates.py'))
+        self.assertIn("if: always() && steps.index_maintenance.outputs.dispatched != 'true'",text)
 
 
 if __name__=='__main__':unittest.main()
