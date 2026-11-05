@@ -165,12 +165,3 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     sample_updates,
   });
 }
-
-// ── Route: classify-erp-categories ──────────────────────────────────
-
-export async function handleClassifyErpCategories(_body: Record<string, unknown>) {
-  return json({
-    ok: false,
-    error: "AI classification runs in the background worker. Use the persistent operation (Start button) instead of calling this endpoint directly.",
-  }, 400);
-}

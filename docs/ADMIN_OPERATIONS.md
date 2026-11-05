@@ -343,14 +343,7 @@ Applies approved ERP enrichment data to assets and style_groups (licensor, prope
 | `mode` | `string` | `dry-run` (returns counts only) or `apply` (writes to DB) |
 | `offset` | `number` | Cursor for batch resumption |
 
-### `classify-erp-categories`
-Uses Claude Haiku (AI) to classify ERP items that have no `mg_category` into one of 7 product categories: Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `offset` | `number` | Cursor for batch resumption |
-
-Processes 5 items per batch. Inter-call delay: 1000ms to avoid API rate limits.
+ERP classification uses the persistent `erp-classify` worker operation from the Start button.
 
 ### `erp-items-browse`
 Returns a paginated, searchable list of ERP items from `erp_items_current`.

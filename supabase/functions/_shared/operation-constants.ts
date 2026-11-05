@@ -212,7 +212,6 @@ export const OP_ACTIONS: Record<string, string> = {
   "ai-tag-bakeoff": "ai-tag-bakeoff",
   "reconcile-style-group-stats": "reconcile-style-group-stats",
   "erp-enrichment": "apply-erp-enrichment",
-  "erp-classify": "classify-erp-categories",
   "shorten-item-descriptions": "shorten-item-descriptions",
   "propagate-group-tags": "bulk-propagate-group-tags",
   "refresh-group-metadata": "refresh-group-metadata",

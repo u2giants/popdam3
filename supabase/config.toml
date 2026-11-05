@@ -12,9 +12,6 @@ verify_jwt = false
 [functions.send-invite-email]
 verify_jwt = false
 
-[functions.sync-external]
-verify_jwt = false
-
 # Called machine-to-machine by the Railway worker, which cannot present a JWT.
 # The function enforces its own BULK_OPERATION_ALERT_SECRET shared secret.
 [functions.bulk-operation-alert]
