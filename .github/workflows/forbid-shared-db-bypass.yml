@@ -45,6 +45,8 @@ jobs:
             exit 1
           fi
 
+          # Capture-then-assert: `|| true` only keeps the capture alive when nothing
+          # matches; the `-n` checks below still fail the guard on any hit.
           scan_files="$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/|scripts/|package\.json|package-lock\.json)' | grep -v '^\.github/workflows/forbid-shared-db-bypass\.yml$' || true)"
           if [ -n "$scan_files" ]; then
             pattern='supabase[[:space:]]+db[[:space:]]+(push|reset)|supabase[[:space:]]+migration[[:space:]]+repair|schema_migrations|SUPABASE_DB_PASSWORD|SUPABASE_DB_URL|POSTGRES_URL_NON_POOLING'
@@ -60,6 +62,8 @@ jobs:
           ^scripts/orderlist-settled-exception-executor\.py:[0-9]+:[[:space:]]+"exists\(select 1 from supabase_migrations\.schema_migrations where version=%s\)"$
           READ_ONLY_GUARD_SQL
             )"
+            # Capture-then-assert: `|| true` only keeps the capture alive; `-n "$hits"`
+            # below is the real failure signal.
             hits="$(printf '%s\n' "$scan_files" | xargs grep -HnE "$pattern" | grep -vE "$allowed_read" | grep -vE "$allowed_guard_reads" || true)"
             if [ -n "$hits" ]; then
               printf '%s\n' "$hits"

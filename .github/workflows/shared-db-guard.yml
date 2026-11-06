@@ -59,6 +59,8 @@ jobs:
             HEAD="$PUSH_AFTER"; BASE="${PUSH_BEFORE:-}"
             # first push to a branch has an all-zero "before"; fall back to parent.
             if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+              # Root-commit fallback: a repository's very first commit has no parent,
+              # so diff against the empty tree instead of failing the guard.
               BASE="$(git rev-parse "${HEAD}^" 2>/dev/null || echo "$EMPTY_TREE")"
             fi
             # push override: commit message contains [db-change-approved]
@@ -71,6 +73,8 @@ jobs:
 
           # Files changed, excluding the vendored shared-db/ copy (auto-synced FROM
           # shared-db, legitimate) and test fixtures.
+          # Capture-then-assert: `|| true` only keeps the capture alive when every
+          # file is filtered out; the `flagged` assertion below is the real result.
           mapfile -t changed < <(git diff --name-only "$BASE" "$HEAD" \
             | grep -viE '(^|/)shared-db/' \
             | grep -viE '(^|/)(tests?|__tests__|spec|e2e|fixtures)/' || true)
@@ -87,6 +91,8 @@ jobs:
 
           ddl='ALTER TABLE|CREATE TABLE|DROP TABLE|ALTER COLUMN|ADD COLUMN|DROP COLUMN|CREATE +(UNIQUE +)?INDEX|DROP INDEX|CREATE POLICY|CREATE TRIGGER|CREATE (MATERIALIZED +)?VIEW|CREATE SCHEMA|CREATE TYPE|CREATE FUNCTION'
           if [ "${#changed[@]}" -gt 0 ]; then
+            # Capture-then-assert: `|| true` only keeps the capture alive when no DDL
+            # matches; the `-n "$added"` check below fails the guard on any hit.
             added=$(git diff "$BASE" "$HEAD" -- "${changed[@]}" \
               | grep -E '^\+' | grep -v '^\+\+\+' \
               | grep -iEn "$ddl" || true)

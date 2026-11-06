@@ -367,6 +367,8 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 30); do
+            # Capture-then-assert: `|| true` only keeps the capture alive when curl or
+            # grep misses; the step still fails below unless health=200 and build-sha matches.
             code="$(curl --silent --output /dev/null --write-out '%{http_code}' https://data.designflow.app/health || true)"
             live="$(curl --silent https://data.designflow.app/ | grep -o 'name="build-sha" content="[0-9a-f]*"' | grep -o '[0-9a-f]\{40\}' || true)"
             if [ "${code}" = "200" ] && [ "${live}" = "${GITHUB_SHA}" ]; then

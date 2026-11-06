@@ -506,6 +506,8 @@ jobs:
       - name: Update latest release
         shell: bash
         run: |
+          # Idempotent cleanup: the latest release may not exist yet on a first run;
+          # the create below is the step that must succeed.
           gh release delete windows-agent-latest --yes 2>/dev/null || true
           gh release create windows-agent-latest \
             installer/popdam-windows-agent-setup.exe \

@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # By design: the check never blocks so the next step always runs and opens or
+      # closes the actionable alert — the alert is this workflow's failure signal.
       - name: Check production
         id: canary
         continue-on-error: true
