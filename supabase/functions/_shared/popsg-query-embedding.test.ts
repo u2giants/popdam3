@@ -43,3 +43,12 @@ it("PopSG hybrid skips pictures for words with no catalog meaning", async () => 
   }, async () => ({ corrected: null, meaningful: false }));
   expect(result).toEqual({ embedding: null, skipped: "not_meaningful" });
 });
+it("PopSG name expansion needs a clear winner", async () => {
+  const { nameExpansion } = await import("./popsg-query-embedding.ts");
+  const names = { names: ["Harry Potter", "Harry Potter TV Series", "Mickey"], vectors: [[1, 0, 0], [0.8, 0.6, 0], [0, 0, 1]] };
+  expect(nameExpansion([1, 0.05, 0], names)).toBe("Harry Potter");
+  expect(nameExpansion([0.95, 0.31, 0], names)).toBeNull();
+  expect(nameExpansion([0.5, 0.5, 0.5], names)).toBeNull();
+  expect(nameExpansion(null, names)).toBeNull();
+  expect(nameExpansion([1, 0, 0], null)).toBeNull();
+});

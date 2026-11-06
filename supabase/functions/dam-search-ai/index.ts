@@ -7,7 +7,7 @@ import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_K
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
-import { getPopSGQueryEmbedding } from "../_shared/popsg-query-embedding.ts";
+import { getPopSGQueryEmbedding, nameExpansion, type NameVectors } from "../_shared/popsg-query-embedding.ts";
 import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
 import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
@@ -61,6 +61,21 @@ async function loadNames(table: "licensor" | "property" | "character", vocabular
     // Canonical names have equal authority; core.character has no usage_count.
     if (typeof row.name === "string") addNameToVocabulary(vocabulary, row.name, 1_000_000);
   }
+}
+
+/** PopSG licensor/property name vectors (scripts/popsg-name-vectors.mjs), cached hourly. */
+let nameVectorCache: { expires: number; value: Promise<NameVectors | null> } | null = null;
+function popsgNameVectors(): Promise<NameVectors | null> {
+  if (nameVectorCache && nameVectorCache.expires > Date.now()) return nameVectorCache.value;
+  const value = (async () => {
+    const { data, error } = await serviceClient().from("admin_config").select("value")
+      .eq("key", "POPSG_NAME_VECTORS").maybeSingle();
+    if (error || !data) return null;
+    const stored = unwrapConfigValue(data.value) as NameVectors | null;
+    return Array.isArray(stored?.names) && Array.isArray(stored?.vectors) ? stored : null;
+  })().catch(() => null);
+  nameVectorCache = { expires: Date.now() + VOCABULARY_TTL_MS, value };
+  return value;
 }
 
 /** Licensor, property and character names plus product words, refreshed hourly. */
@@ -218,10 +233,13 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     } catch {
       return err("Search unavailable. Please try again.", 503);
     }
+    // Optional help: a missing or stale name list only skips the expansion.
+    const expansion = nameExpansion(semantic.embedding, await popsgNameVectors());
     return json({
       ok: true,
       mode,
       ...semantic,
+      expansion,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
   }

@@ -21,3 +21,41 @@ export async function getPopSGQueryEmbedding(
   if (wanted && !embedding) throw new Error("Search unavailable. Please try again.");
   return { embedding, skipped: productCode ? "product_code" : null };
 }
+
+/** Name vectors must beat this cosine and the runner-up by NAME_MARGIN (measured 2026-11-05, #706). */
+export const NAME_MATCH_MIN = 0.92;
+export const NAME_MATCH_MARGIN = 0.05;
+
+export interface NameVectors {
+  names: string[];
+  vectors: number[][];
+}
+
+const cosine = (a: number[], b: number[]) => {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? dot / Math.sqrt(na * nb) : 0;
+};
+
+/**
+ * The licensor or property a query clearly means, from its text vector. Picture
+ * matches cap near 100 files, so the name is added to the keyword words to reach
+ * the whole property ("harry poter" -> Harry Potter). Null when no name stands out.
+ */
+export function nameExpansion(embedding: number[] | null, names: NameVectors | null): string | null {
+  if (!embedding || !names?.names.length) return null;
+  let best = -1, second = -1, bestName: string | null = null;
+  names.vectors.forEach((vector, index) => {
+    const score = cosine(embedding, vector);
+    if (score > best) {
+      second = best;
+      best = score;
+      bestName = names.names[index];
+    } else if (score > second) second = score;
+  });
+  return best >= NAME_MATCH_MIN && best - second >= NAME_MATCH_MARGIN ? bestName : null;
+}
