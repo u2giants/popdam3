@@ -1661,6 +1661,12 @@ test('historical preview recovery shares the preview lock and requires current m
   releaseOwnedRef(EXCLUSIVE_REFS.preview,issue4827.ownerSha,io)
   io.getPr=()=>({number:4772,merged:false,state:'closed',head:{sha:'exact-4827-pending-head'}})
   assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:4772,headSha:'main'},io),/already-merged/)
+  io.getPr=()=>({number:5808,merged:false,state:'open',head:{sha:'exact-5816-pending-head'}})
+  const issue5816=acquireExclusive('preview-recovery',{owner:'recovery',pr:5808,headSha:'main'},io)
+  assert.equal(issue5816.ref,EXCLUSIVE_REFS.preview)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview,issue5816.ownerSha,io)
+  io.getPr=()=>({number:5808,merged:false,state:'closed',head:{sha:'exact-5816-pending-head'}})
+  assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:5808,headSha:'main'},io),/already-merged/)
   // A pending PR outside the exact allowlist is still refused.
   io.getPr=()=>({number:1661,merged:false,state:'open',head:{sha:'other-pending-head'}})
   assert.throws(()=>acquireExclusive('preview-recovery',{owner:'recovery',pr:1661,headSha:'main'},io),/already-merged/)

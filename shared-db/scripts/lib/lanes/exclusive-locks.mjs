@@ -320,7 +320,11 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       // abandoned row 20261025180137, whose byte-identical replacement 20261026162917 it
       // now carries, and every post-merge preview rehearsal fails until that row is renamed.
       const pending4827 = Number(metadata.pr) === 4772 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
-      if (!pending1211 && !pending1439 && !pending1658 && !pending4385 && !pending4827 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or an exact allowlisted pending-replacement PR')
+      // #5816: PR #5808 (#5791, claim #5815) is the same circular case: preview holds its
+      // statements-NULL row 20261105231500 (written outside the governed apply), so neither
+      // the PR nor any post-merge preview rehearsal can pass until that row is removed.
+      const pending5816 = Number(metadata.pr) === 5808 && pr?.state === 'open' && pr?.merged !== true && Boolean(pr?.head?.sha)
+      if (!pending1211 && !pending1439 && !pending1658 && !pending4385 && !pending4827 && !pending5816 && (pr?.merged !== true || !pr?.merge_commit_sha)) throw new LaneError('historical preview recovery requires an already-merged source PR or an exact allowlisted pending-replacement PR')
     } else {
       const pr = io.getPr?.(metadata.pr)
       if (!pr?.head?.sha || pr.head.sha !== metadata.headSha) throw new LaneError('exclusive lane head SHA does not match the live pull request')
