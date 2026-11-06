@@ -67,6 +67,8 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #5747/#5863: renamed-file source PR #5862 can never promote; successor 20261106095531.
+    "20261106092127",
     # #5747: preview-only tags-sync file with a wrong derived-from base; fix-forward successor carries it.
     "20261106040512",
     # #5850/#5747: preview-only; per-document advisory locks can exhaust the lock table.
@@ -320,9 +322,10 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261106092127": "#5747/#5863: never applied anywhere (never dispatched). Its source PR #5862 renamed 20261106064511 to it, and production risk assessment refuses renamed migration files, so it can never promote. Successor 20261106095531 carries the identical body as an added file.",
     "20261106062730": "#5747: preview-only; three automatic attempts refused before production apply because main advanced (#5856); identical body re-issued as 20261106072548.",
     "20261106040512": "#5747: preview-only (preview42173060663). Production42173493786 refused its declared base 20260825010603 (not in production ledger); successor 20261106062730 carries the identical body with base 20260825082910.",
-    "20261106060723": "#5850/#5747: preview-only (PR5834, preview42175518938). Never production: its per-document transaction advisory locks (up to 20,000 per sweep) exceed the ~5,760-slot lock table. Production run42176332483 cancelled before apply; ledger absent 1:46 AM EST Nov 6. Successor 20261106064511 carries the corrected change, idempotent where 060723 ran.",
+    "20261106060723": "#5850/#5747: preview-only (PR5834, preview42175518938). Never production: its per-document transaction advisory locks (up to 20,000 per sweep) exceed the ~5,760-slot lock table. Production run42176332483 cancelled before apply; ledger absent 1:46 AM EST Nov 6. Successor 20261106095531 carries the corrected change, idempotent where 060723 ran.",
     "20261105142616": "never applied: merged source5686/c266d0145cec1618dbd26b2f3b4a9f1a840e4ea2 failed native preview42060060160 with complete parent/source-witness mismatch and atomic rollback; preview and production ledger absence independently confirmed. Preserve immutable SQL faa341b2e472907f1e31275068b4c258272f6e0df782401cfaaec000faeb9059 and failed receipt; never replay. Reserved target-bound successor20261105160717 remains separate and is not live; same work issue5683.",
     "20261105073854": "#5622: PR5623 preview41997690714 genuinely applied the immutable original. Production42052416454 failed first73854 with atomic lock-timeout rollback; approved production ledger read November5 at10:18:15AM EST found all four absent. Retire only the pending production route in favor of exact concurrent initial-index receipts and a fresh RPC-only successor, not yet delivered. Preserve SQL, reservations, applied preview ledger, original artifacts and every failed production attempt; never manufacture an old ledger row.",
     "20261105073903": "#5622: PR5623 preview41997690714 genuinely applied the immutable original. Production42052416454 failed first73854 with atomic lock-timeout rollback; approved production ledger read November5 at10:18:15AM EST found all four absent. Retire only the pending production route in favor of exact concurrent initial-index receipts and a fresh RPC-only successor, not yet delivered. Preserve SQL, reservations, applied preview ledger, original artifacts and every failed production attempt; never manufacture an old ledger row.",

@@ -760,6 +760,7 @@ class BatchResolutionTests(unittest.TestCase):
         self.assertEqual(
             RETIRED_VERSIONS,
             {
+                "20261106092127",
                 "20261106060723",
                 "20261105142616",
                 "20261106040512",
