@@ -150,10 +150,11 @@ async function fetchPopSGV2Page(
 ) {
   const pageOffset = page * pageSize;
   // Embed the words as typed: the expansion below is keyword OR-syntax.
-  const [expandedTerms, semantic] = await Promise.all([
+  const [fallbackTerms, { expansion, ...semantic }] = await Promise.all([
     filters.nameSearch ? expandFallbackTerms(filters.nameSearch) : Promise.resolve([]),
     fetchPopSGQueryEmbedding(filters.nameSearch.trim(), signal),
   ]);
+  const expandedTerms = expansion ? [...fallbackTerms, expansion] : fallbackTerms;
   const searchFilters = {
     licensor: filters.licensor,
     property: filters.property,

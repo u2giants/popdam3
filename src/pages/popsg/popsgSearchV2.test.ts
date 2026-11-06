@@ -197,6 +197,8 @@ describe("PopSG meaning-based search args", () => {
     expect(() => parsePopSGQueryEmbedding(null)).toThrow("Search unavailable");
     expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "product_code" }).queryEmbedding).toBeNull();
     expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "not_meaningful" }).queryEmbedding).toBeNull();
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", expansion: " Harry Potter " }).expansion).toBe("Harry Potter");
+    expect(parsePopSGQueryEmbedding({ mode: "keyword", expansion: "Harry Potter" }).expansion).toBeNull();
   });
 
   it.each([null, {}, { mode: "hybrid", embedding: null }, { mode: "hybrid", embedding: Array(768).fill(NaN) }])(
