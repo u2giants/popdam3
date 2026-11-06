@@ -108,7 +108,11 @@ test('context migration preserves every historical identity hash verdict and rea
   assert.equal(skillDriftRetirements.retired_by_issue, 4524);
   const leanCoreRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-2172.json'), 'utf8'));
   assert.equal(leanCoreRetirements.retired_by_issue, 2172);
-  assertHistoricalDispositions(historical, current, [...leanCoreRetirements.sites, ...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites, ...stageFRetirements.sites]);
+  // #5899: correcting the universal-CRLF docstring removes its historical phrase.
+  const lineEndingRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-5899.json'), 'utf8'));
+  assert.equal(lineEndingRetirements.schema_version, 1);
+  assert.equal(lineEndingRetirements.retired_by_issue, 5899);
+  assertHistoricalDispositions(historical, current, [...lineEndingRetirements.sites, ...leanCoreRetirements.sites, ...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites, ...stageFRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

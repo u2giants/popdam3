@@ -81,3 +81,8 @@ The retired historical MG test-workflow identity from issue #3605 is preserved w
 original verdict in `docs/verification/throughput-retired-identity-sites-3605.json`.
 The identities of the deleted orchestrator marker resolver and admission module (issue #3874)
 are preserved in `docs/verification/throughput-retired-identity-sites-3874.json`.
+
+The corrected line-ending documentation in issue #5899 removes the historical
+`not applied` phrase from `migration_body_md5.py`; its unchanged original identity,
+verdict and reason are retained in `docs/verification/throughput-retired-identity-sites-5899.json`.
+The helper and both explicit line-ending capabilities remain active.
