@@ -87,6 +87,13 @@ def read_policy() -> dict[str, dict[str, object]]:
         validate_version(version)
         if not isinstance(entry, dict):
             raise Refusal(f"atomic policy entry {version} is not an object")
+        # Plan step 2.6 (#2367), the #5445 divergence class: an atomic-route
+        # migration authorized for one environment only falls through to the
+        # Supabase CLI lane in the other, which splits SQL-standard BEGIN
+        # ATOMIC bodies (SQLSTATE 42601). Both environments must select the
+        # atomic path together or the entry refuses.
+        if set(entry.get("targets", [])) != {"preview", "production"}:
+            raise Refusal(f"atomic policy entry {version} must target both preview and production")
         if version == CURATED_CHARACTER_LOCK_VERSION or "admission_lock_contract" in entry:
             if (set(entry) != {"sha256", "targets", "admission_lock_contract"}
                     or entry["admission_lock_contract"] != CURATED_CHARACTER_LOCK_CONTRACT
@@ -533,7 +540,7 @@ select count(*) from supabase_migrations.schema_migrations where version = '""" 
         raise Refusal(f"version {version} is already applied")
 
 
-def build_wrapper(version: str, name: str, raw: str, statements: list[str], *, admission_lock_contract: str | None = None) -> str:
+def build_wrapper(version: str, name: str, raw: str, statements: list[str], *, admission_lock_contract: str | None = None, statement_timeout_ms: int | None = None) -> str:
     validate_version(version)
     prelude = ""
     if version == CURATED_CHARACTER_LOCK_VERSION and admission_lock_contract is None:
@@ -543,7 +550,18 @@ def build_wrapper(version: str, name: str, raw: str, statements: list[str], *, a
                 or version != CURATED_CHARACTER_LOCK_VERSION
                 or hashlib.sha256(raw.encode("utf-8")).hexdigest() != CURATED_CHARACTER_LOCK_SHA256):
             raise Refusal("curated admission wrapper contract/version/hash mismatch")
+        if statement_timeout_ms is not None:
+            # The curated contract pins its own SET LOCAL timeouts exactly; a
+            # caller-supplied budget would rewrite reviewed bytes.
+            raise Refusal("curated admission wrapper pins its own statement timeouts")
         prelude = CURATED_CHARACTER_LOCK_SQL
+    elif statement_timeout_ms is not None:
+        # Plan step 2.6 (#2367): the large-table preflight flags batches whose
+        # statements scale with production table size (#1427, #5165); the
+        # caller may then bound this transaction's statement time explicitly
+        # instead of inheriting the server default. SET LOCAL scopes the
+        # override to this one transaction and vanishes at COMMIT.
+        prelude = f"SET LOCAL statement_timeout='{int(statement_timeout_ms)} ms';\n"
     values = ",\n".join(dollar_quote(s, f"s{i}") for i, s in enumerate(statements))
     return (
         "\\set ON_ERROR_STOP on\nBEGIN;\n" + prelude + raw.rstrip() + "\n"
@@ -645,7 +663,12 @@ def main() -> int:
     parser.add_argument("--target", choices=["preview", "production"])
     parser.add_argument("--expected-project-ref")
     parser.add_argument("--mode", choices=["check", "apply"])
+    parser.add_argument("--statement-timeout-ms", type=int,
+                        help="bounded per-transaction statement timeout for a large-table batch (plan step 2.6); 60000..3600000")
     args = parser.parse_args()
+    if args.statement_timeout_ms is not None and not 60_000 <= args.statement_timeout_ms <= 3_600_000:
+        print("REFUSED: --statement-timeout-ms must be between 60000 and 3600000", file=sys.stderr)
+        return 2
     try:
         if args.classify_allowlist is not None:
             print(classify_allowlist(args.classify_allowlist, args.target))
@@ -698,7 +721,7 @@ def main() -> int:
                     raise Refusal("evaluation access committed but login verification failed; preserve ledger and recover without rerun or rotation") from None
                 print(f"ATOMIC APPLY OK: target={args.target} version={version} ledger_row=1 statements={len(statements)} initial_credential=login_verified")
                 continue
-            wrapper = build_wrapper(version, name, raw, statements, admission_lock_contract=read_policy()[version].get("admission_lock_contract"))
+            wrapper = build_wrapper(version, name, raw, statements, admission_lock_contract=read_policy()[version].get("admission_lock_contract"), statement_timeout_ms=args.statement_timeout_ms)
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".sql", delete=False) as handle:
                 handle.write(wrapper)
                 temp_name = handle.name

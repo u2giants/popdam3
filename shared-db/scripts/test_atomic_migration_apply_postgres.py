@@ -38,7 +38,7 @@ class AtomicMigrationPostgresTests(unittest.TestCase):
             policy = root / "policy.json"
             entry = {
                 "sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
-                "targets": ["preview"],
+                "targets": ["preview", "production"],
             }
             if strip_outer_transaction:
                 entry["strip_outer_transaction"] = True
@@ -65,7 +65,7 @@ class AtomicMigrationPostgresTests(unittest.TestCase):
                 path = root / f"{version}_batch.sql"
                 path.write_text(sql)
                 entries[version] = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                                    "targets": ["preview"], "batch_group": "test-batch"}
+                                    "targets": ["preview", "production"], "batch_group": "test-batch"}
             policy = root / "policy.json"
             policy.write_text(json.dumps({"schema_version": 1, "migrations": entries}))
             if tamper:

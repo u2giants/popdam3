@@ -323,7 +323,7 @@ function atomicFixture(t, { body = 'BEGIN;\nselect 1;\nselect 2;\nCOMMIT;\n', po
   t.after(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(path.join(root, MIGRATIONS_DIR), { recursive: true })
   mkdirSync(path.join(root, 'config'))
-  const entry = { targets: ['preview'], strip_outer_transaction: true,
+  const entry = { targets: ['preview', 'production'], strip_outer_transaction: true,
     sha256: createHash('sha256').update(body.replaceAll('\r\n', '\n')).digest('hex'), ...policy }
   writeFileSync(path.join(root, PRE_FILE), body)
   writeFileSync(path.join(root, 'config/atomic-migration-allowlist.json'), JSON.stringify({ schema_version: 1, migrations: { [PRE]: entry } }))

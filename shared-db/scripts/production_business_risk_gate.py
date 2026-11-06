@@ -701,6 +701,11 @@ PREVIEW_PRODUCER_PATHS = (
     # same one-level-down door the .mjs entries below were pinned to close.
     "scripts/migration_derivation.py",
     "scripts/atomic_migration_apply.py",
+    # Step 2.6 (#2367): the large-table preflight reads table sizes from the
+    # linked preview target through the atomic apply's proved pooler identity,
+    # immediately before the bounded write. Unpinned, its verdict could come
+    # from an edited copy.
+    "scripts/large_table_preflight.py",
     # Runs FIRST in the preview job, to acquire the lane, before any evidence
     # byte exists. Unpinned, it was a complete forgery path.
     "scripts/manage-migration-coordination.mjs",

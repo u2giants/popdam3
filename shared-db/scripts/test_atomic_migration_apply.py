@@ -24,7 +24,7 @@ class AtomicMigrationApplyTests(unittest.TestCase):
     def authorize(self, sql="lock table x in exclusive mode;", version="29990101000000", strip_outer_transaction=False):
         path = self.root / f"{version}_test.sql"
         path.write_text(sql, encoding="utf-8")
-        entry = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "targets": ["preview"]}
+        entry = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "targets": ["preview", "production"]}
         if strip_outer_transaction:
             entry["strip_outer_transaction"] = True
         policy = {"schema_version": 1, "migrations": {version: entry}}
@@ -33,7 +33,7 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         return path, policy_path
 
     def test_curated_lock_policy_refuses_wrong_version_hash_contract_tables_mode_and_missing_contract(self):
-        base = {"sha256": atomic.CURATED_CHARACTER_LOCK_SHA256, "targets": ["preview"], "admission_lock_contract": atomic.CURATED_CHARACTER_LOCK_CONTRACT}
+        base = {"sha256": atomic.CURATED_CHARACTER_LOCK_SHA256, "targets": ["preview", "production"], "admission_lock_contract": atomic.CURATED_CHARACTER_LOCK_CONTRACT}
         cases = [
             ("29990101000000", dict(base)),
             (atomic.CURATED_CHARACTER_LOCK_VERSION, {**base, "sha256": "0"*64}),
@@ -121,7 +121,7 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         policy = {
             "schema_version": 1,
             "migrations": {
-                "29990101000000": {"sha256": digest, "targets": ["preview"]}
+                "29990101000000": {"sha256": digest, "targets": ["preview", "production"]}
             },
         }
         policy_path = self.root / "policy.json"
@@ -137,6 +137,28 @@ class AtomicMigrationApplyTests(unittest.TestCase):
         self.assertEqual(
             hashlib.sha256(atomic.canonical_migration_bytes(path)).hexdigest(), digest
         )
+
+    def test_statement_timeout_budget_is_bounded_and_scoped_to_the_transaction(self):
+        sql, statements = "create index i on t(c);", ["create index i on t(c);"]
+        wrapper = atomic.build_wrapper("29990101000000", "test", sql, statements, statement_timeout_ms=1_800_000)
+        self.assertIn("BEGIN;" + chr(10) + "SET LOCAL statement_timeout='1800000 ms';" + chr(10), wrapper)
+        self.assertIn("COMMIT;", wrapper)
+        self.assertNotIn("statement_timeout", atomic.build_wrapper("29990101000000", "test", sql, statements))
+        for bad in (59_999, 3_600_001):
+            with self.subTest(bad=bad):
+                argv = ["atomic_migration_apply.py", "--migrations-dir", str(self.root),
+                        "--linked-dir", str(self.root), "--versions", "29990101000000",
+                        "--target", "production", "--expected-project-ref", "x",
+                        "--mode", "apply", "--statement-timeout-ms", str(bad)]
+                with patch.object(sys, "argv", argv), redirect_stderr(io.StringIO()):
+                    self.assertEqual(atomic.main(), 2)
+
+    def test_curated_contract_refuses_caller_timeout_budget(self):
+        raw = (atomic.ROOT / 'supabase/migrations/20261105142616_publisher_character_curation.sql').read_text()
+        with self.assertRaisesRegex(atomic.Refusal, "pins its own statement timeouts"):
+            atomic.build_wrapper(atomic.CURATED_CHARACTER_LOCK_VERSION, "test", raw, [raw],
+                                 admission_lock_contract=atomic.CURATED_CHARACTER_LOCK_CONTRACT,
+                                 statement_timeout_ms=900_000)
 
     def test_transaction_controls_are_refused(self):
         for control in (
@@ -226,30 +248,37 @@ class AtomicMigrationApplyTests(unittest.TestCase):
                 with self.subTest(raw=raw), self.assertRaises(atomic.Refusal):
                     atomic.classify_allowlist(raw)
 
-    def test_classifier_respects_target_and_preserves_targetless_api(self):
+    def test_classifier_preserves_targetless_api_and_single_target_entries_refuse(self):
+        # Plan step 2.6 (#2367), the #5445 divergence class: an entry that
+        # routes one environment through the atomic path leaves the other on
+        # the CLI lane, which splits SQL-standard BEGIN ATOMIC bodies. The
+        # policy reader therefore refuses any entry that does not target both
+        # environments; the classifier's target filter stays for callers and
+        # for a future reviewed relaxation, proved here against a compliant
+        # entry.
         _, policy = self.authorize()
         value = json.loads(policy.read_text(encoding="utf-8"))
         entry = value["migrations"]["29990101000000"]
-        for targets in (["preview"], ["preview", "production"]):
+        for targets in (["preview"], ["production"]):
             entry["targets"] = targets
             policy.write_text(json.dumps(value), encoding="utf-8")
             with patch.object(atomic, "POLICY", policy):
-                self.assertEqual(atomic.classify_allowlist("29990101000000"), "29990101000000")
-                for target in ("preview", "production"):
-                    with self.subTest(target=target, targets=targets):
-                        expected = "29990101000000" if target in targets else ""
-                        if expected:
-                            self.assertEqual(atomic.classify_allowlist("29990101000000", target), expected)
-                        else:
-                            with self.assertRaises(atomic.Refusal):
-                                atomic.classify_allowlist("29990101000000", target)
-                        if expected:
-                            for raw in ("29990101000000,29990101000001", "29990101000000,29990101000000"):
-                                with self.assertRaises(atomic.Refusal):
-                                    atomic.classify_allowlist(raw, target)
-                        for raw in ("", "29990101000000,", ",29990101000000", "invalid"):
-                            with self.assertRaises(atomic.Refusal):
-                                atomic.classify_allowlist(raw, target)
+                with self.subTest(targets=targets):
+                    with self.assertRaisesRegex(atomic.Refusal, "must target both preview and production"):
+                        atomic.classify_allowlist("29990101000000")
+        entry["targets"] = ["preview", "production"]
+        policy.write_text(json.dumps(value), encoding="utf-8")
+        with patch.object(atomic, "POLICY", policy):
+            self.assertEqual(atomic.classify_allowlist("29990101000000"), "29990101000000")
+            for target in ("preview", "production"):
+                with self.subTest(target=target):
+                    self.assertEqual(atomic.classify_allowlist("29990101000000", target), "29990101000000")
+                    for raw in ("29990101000000,29990101000001", "29990101000000,29990101000000"):
+                        with self.assertRaises(atomic.Refusal):
+                            atomic.classify_allowlist(raw, target)
+                    for raw in ("", "29990101000000,", ",29990101000000", "invalid"):
+                        with self.assertRaises(atomic.Refusal):
+                            atomic.classify_allowlist(raw, target)
                 with self.assertRaises(atomic.Refusal):
                     atomic.classify_allowlist("29990101000000", "other")
 
@@ -266,8 +295,9 @@ class AtomicMigrationApplyTests(unittest.TestCase):
             for raw in ("29990101000000,29990101000000", "29990101000000,29990101000002"):
                 with self.assertRaises(atomic.Refusal):
                     atomic.classify_allowlist(raw, "preview")
-            with self.assertRaises(atomic.Refusal):
-                atomic.classify_allowlist("29990101000000,29990101000001", "production")
+            # (Plan step 2.6 parity: a production-only refusal of this batch
+            # is no longer constructible -- every entry now targets both
+            # environments, proved by the classifier test above.)
             value["migrations"]["29990101000001"]["batch_group"] = "other"
             policy.write_text(json.dumps(value))
             with self.assertRaises(atomic.Refusal):
