@@ -489,9 +489,11 @@ async function handleInviteUser(
     return err("An invitation for this email is already pending");
   }
 
+  // Service-role callers carry the "system" sentinel, not a uuid (#565);
+  // invited_by is nullable, so store NULL rather than failing the insert.
   const { data, error } = await db
     .from("invitations")
-    .insert({ email, role: roleStr, invited_by: userId, apps })
+    .insert({ email, role: roleStr, invited_by: userId === "system" ? null : userId, apps })
     .select("id, email, role, apps, created_at")
     .single();
 
