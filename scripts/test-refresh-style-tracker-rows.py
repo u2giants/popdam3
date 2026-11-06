@@ -53,3 +53,27 @@ class SourceBoundaryTests(unittest.TestCase):
         self.assertEqual(rows[0]['description'],'first\r\nsecond')
 
 unittest.main()
+
+
+class BridgeNoChurnTests(unittest.TestCase):
+    """shared-db #5758 3c: an identical sheet twice performs zero bridge UPDATEs."""
+
+    SOURCE = {'sku': 'SKU-1', 'customer': 'Cust', 'designer': 'Des',
+              'default_vendor': 'Ven', 'licensor': 'Lic'}
+
+    def prior(self):
+        return {'erp_item_id': 1, 'style_group_id': 2, 'plm_item_id': 3,
+                'company_id': 4, 'creative_designer_id': 5, 'factory_id': 6,
+                'public_licensor_id': 7, 'core_licensor_id': 8}
+
+    def test_identical_values_produce_an_empty_patch(self):
+        self.assertEqual(module.bridge_patch(self.SOURCE, dict(self.SOURCE), self.prior(), dict(self.prior())), {})
+
+    def test_a_changed_bridge_value_is_restored(self):
+        current = self.prior(); current['erp_item_id'] = None
+        self.assertEqual(module.bridge_patch(self.SOURCE, dict(self.SOURCE), self.prior(), current), {'erp_item_id': 1})
+
+    def test_a_changed_source_field_drops_its_columns_from_the_patch(self):
+        old = dict(self.SOURCE); old['licensor'] = 'Someone Else'
+        current = self.prior(); current['public_licensor_id'] = None; current['core_licensor_id'] = None
+        self.assertEqual(module.bridge_patch(self.SOURCE, old, self.prior(), current), {})

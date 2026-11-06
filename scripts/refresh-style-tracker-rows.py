@@ -73,6 +73,33 @@ def normalize(value):
     return str(value or '').strip().casefold()
 
 
+BRIDGE_RELATIONSHIPS = {'sku': ('erp_item_id', 'style_group_id', 'plm_item_id'),
+                        'customer': ('company_id',),
+                        'designer': ('creative_designer_id',),
+                        'default_vendor': ('factory_id',),
+                        'licensor': ('public_licensor_id', 'core_licensor_id')}
+
+
+def bridge_patch(source, old, prior, current):
+    """Curated-relationship restore patch for one bridge row.
+
+    A column is restored only when its pre-refresh value is non-null, the source
+    business field it was curated under is unchanged, AND the bridge's CURRENT
+    value differs from that pre-refresh value. Writing a column whose value is
+    already identical rewrites every bridge row on every refresh (measured in
+    shared-db #5758: 16,225 updates for 16,265 rows); an empty patch means no
+    UPDATE at all.
+    """
+    patch = {}
+    for field, columns_for_field in BRIDGE_RELATIONSHIPS.items():
+        if normalize(source[field]) == normalize(old[field]):
+            for column in columns_for_field:
+                prior_value = prior.get(column)
+                if prior_value is not None and current.get(column) != prior_value:
+                    patch[column] = prior_value
+    return patch
+
+
 def identity_matches(old_rows, new_rows):
     """Retain IDs only for a unique SKU or uniquely identical source content.
 
@@ -187,6 +214,12 @@ def main():
                     customer_id = old.get('customer_id') if normalize(row['customer']) == normalize(old['customer']) else None
                     cur.execute('update public.style_tracker_rows set '+', '.join(f+'=%s' for f in FIELDS)+', customer_id=%s where id=%s',values+(customer_id,old['id']))
         bridge = conn.execute('select * from public.refresh_style_tracker_item_bridge()').fetchall()
+        # The DB refresh above may have changed bridge rows; read their CURRENT
+        # values so the curated-relationship restore below writes only columns
+        # that actually differ (shared-db #5758 3c: an identical sheet twice
+        # must perform zero bridge UPDATEs).
+        current_bridges = {row[0]: row[1] for row in conn.execute(
+            'select style_tracker_row_id, to_jsonb(b) from plm.style_tracker_item_bridge b').fetchall()}
         # Preserve curated relationships only while their source business field
         # is unchanged. No lookup rows or canonical Item Master rows are written.
         bridges = {r[0]['style_tracker_row_id']:r[0] for r in before[TABLES[1]]}
@@ -196,17 +229,7 @@ def main():
                 if not prior:
                     continue
                 source = rows[index]
-                relationships = {'sku':('erp_item_id','style_group_id','plm_item_id'),
-                                 'customer':('company_id',),
-                                 'designer':('creative_designer_id',),
-                                 'default_vendor':('factory_id',),
-                                 'licensor':('public_licensor_id','core_licensor_id')}
-                patch = {}
-                for field, columns_for_field in relationships.items():
-                    if normalize(source[field]) == normalize(old[field]):
-                        for column in columns_for_field:
-                            if prior.get(column) is not None:
-                                patch[column] = prior[column]
+                patch = bridge_patch(source, old, prior, current_bridges.get(old['id'], {}))
                 if patch:
                     cur.execute('update plm.style_tracker_item_bridge set '+', '.join(column+'=%s' for column in patch)+' where style_tracker_row_id=%s', tuple(patch.values())+(old['id'],))
         actual = conn.execute('select '+columns+' from public.style_tracker_rows order by source_sheet,source_row_number').fetchall()
