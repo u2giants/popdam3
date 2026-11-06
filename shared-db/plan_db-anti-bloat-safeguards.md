@@ -13,7 +13,7 @@ Sibling plan (read its STATUS, never redo its work): [plan_assets-bloat-permanen
 | 2 ColdLion change_log rotation | ✅ landed 2026-11-05 by PR #5807 (migration 20261106021547, claim #5778, weekly cron); read-only ranking validated 2026-11-05: 5,072 first-run victims, 0 newest-entry or 7-day-window violations | first production run is the Sunday 08:00 UTC cron (2026-11-08) |
 | 3 Skip-unchanged writers (4 targets) | 🔄 3a in PR #5814 (migration 20261106024854); 3c ✅ landed on popdam3 main (f19cbb9c codes-only hash parity + 2f8f907f bridge no-op guard); 3b DesignFlow blocked on the popcre GitHub identity not being authenticated on this machine; 3d conditional remains open | 3a: supabase/tests/sg_search_embedding_no_churn_contract.sql; 3c: popdam3 scripts/test-refresh-style-tracker-rows.py |
 | 4 Move queue/lease state off wide rows | ⬜ open | — |
-| 5 Index audit on busy tables | ⬜ open | — |
+| 5 Index audit on busy tables | 🔄 snapshot 1 taken 2026-11-06 10:28 AM EST (55 indexes, stats_reset NULL); **snapshot 2 due on or after 2026-11-20**, then drop decision | docs/verification/db-anti-bloat-5758/20261106T1529Z/index-usage-snapshot-1.md |
 | 6 Weekly bloat/churn check | ⬜ open | — |
 | 7 Governed automatic compaction | ⬜ open | — |
 | 8 After-measurement and live proof | ⬜ open | — |
