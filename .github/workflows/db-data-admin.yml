@@ -49,7 +49,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/db-data-admin/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+        # Production launch gate: audit the dependencies that ship. Dev-tool
+        # advisories (vitest/tinypool, eslint chains) never reach the built
+        # app; a full-tree audit here let freshly-published dev-only
+        # advisories block unrelated PRs.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: VITE_BUILD_DATE="$(date -u +%Y-%m-%d)" npm run build
