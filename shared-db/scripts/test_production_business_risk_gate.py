@@ -78,6 +78,43 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
                 mutate(candidate)
                 self.assertFalse(preview_run_has_immutable_apply(run, candidate))
 
+    def test_original_sku_preview_with_successful_queue_nudge_is_immutable(self):
+        # Native run41973190743: its preview applied and saved the artifact;
+        # only downstream qualification failed on the then-active finding hold.
+        run = {"status": "completed", "conclusion": "failure"}
+        conclusions = {
+            "SQL migration guards": "success", "preview": "success",
+            "production-dry-run": "skipped",
+            "Production apply (automatic evidence gates)": "skipped",
+            "Production apply review (immutable evidence + hard guards)": "skipped",
+            "Automatic production qualification and dispatch": "failure",
+            "Nudge the production queue": "success",
+        }
+        jobs = {"total_count": 7, "jobs": [
+            {"name": name, "status": "completed", "conclusion": conclusion}
+            for name, conclusion in conclusions.items()
+        ]}
+        self.assertTrue(preview_run_has_immutable_apply(run, jobs))
+        mutations = [
+            lambda value: value.update(total_count=6),
+            lambda value: value["jobs"][6].update(name="unknown extra job"),
+            lambda value: value["jobs"][6].update(status="in_progress"),
+            lambda value: value["jobs"].append(dict(value["jobs"][6])),
+            lambda value: value["jobs"][1].update(conclusion="failure"),
+            lambda value: value["jobs"][0].update(conclusion="failure"),
+            lambda value: value["jobs"][3].update(conclusion="success"),
+            lambda value: value["jobs"][5].update(conclusion="cancelled"),
+        ]
+        for conclusion in ("failure", "cancelled", "skipped", None):
+            mutations.append(lambda value, c=conclusion: value["jobs"][6].update(conclusion=c))
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                candidate = json.loads(json.dumps(jobs))
+                mutate(candidate)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+        for conclusion in ("cancelled", "timed_out", None):
+            self.assertFalse(preview_run_has_immutable_apply({"status": "completed", "conclusion": conclusion}, jobs))
+
     def test_failed_workflow_is_preview_evidence_when_only_lane_release_failed(self):
         run = {"status": "completed", "conclusion": "failure"}
         conclusions = {

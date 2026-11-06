@@ -160,7 +160,17 @@ def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
     if run.get("conclusion") != "failure" or not isinstance(jobs, dict):
         return False
     rows = jobs.get("jobs")
-    if jobs.get("total_count") != 6 or not isinstance(rows, list) or len(rows) != 6:
+    if not isinstance(rows, list) or jobs.get("total_count") != len(rows):
+        return False
+    # Queue notification was added after the original six-job evidence graph.
+    # It cannot erase a successful immutable preview when only promotion failed.
+    # Accept exactly that seventh successful job, never arbitrary extra jobs.
+    if len(rows) == 7:
+        return _exact_job_graph(rows, {
+            **PREVIEW_FAILURE_JOB_CONCLUSIONS,
+            "Nudge the production queue": "success",
+        })
+    if len(rows) != 6:
         return False
     if _exact_job_graph(rows, PREVIEW_FAILURE_JOB_CONCLUSIONS):
         return True
