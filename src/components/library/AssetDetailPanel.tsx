@@ -5,7 +5,7 @@ import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, setUserSyncRoot, type NasConfig } from "@/lib/path-utils";
 import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode, setPreferredPathMode, type PathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
-import { buildMockupUrl } from "@/lib/mockup-tool";
+import { buildMockupUrl, type MockupRoute } from "@/lib/mockup-tool";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -92,9 +92,19 @@ function formatSize(bytes: number | null): string {
 
 // Opens the Product Mockups tool (public/mockup/) with this asset's thumbnail
 // preloaded; buildMockupUrl routes the image through the /spaces/ nginx proxy.
+// Asset rows carry no item description (that lives on the style group), so the
+// only keyword worth matching here is the coarse product_category "Clock";
+// everything else keeps the generic Canvas product.
 function openMockupTool(asset: Asset) {
   if (!asset.thumbnail_url) return;
-  const win = window.open(buildMockupUrl(asset.thumbnail_url, asset.filename), "_blank", "noopener");
+  const route: MockupRoute = asset.product_category?.toLowerCase().includes("clock")
+    ? "clock"
+    : "canvas";
+  const win = window.open(
+    buildMockupUrl({ art: asset.thumbnail_url, name: asset.filename, route }),
+    "_blank",
+    "noopener",
+  );
   if (!win) toast.error("The mockup tool could not be opened — allow pop-ups for this site.");
 }
 
