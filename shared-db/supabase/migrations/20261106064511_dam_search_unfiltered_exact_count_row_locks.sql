@@ -7,6 +7,8 @@
 -- locks, which a large sweep or bulk asset update could exhaust (lock table is
 -- ~5,760 slots). Sweep batches are 5,000 every minute. Idempotent on preview,
 -- where 060723 ran; production never applied 060723.
+-- Preview only: the Oct 21 body (md5 9e96cb…, 8s timeout) replayed there by
+-- historical recovery of 20261021063716 (#5860) is also accepted and replaced.
 -- derived-from: 20261106042721
 begin;
 set local lock_timeout='500ms';
@@ -17,11 +19,11 @@ set local search_path=pg_catalog,public,extensions;
 do $guard$
 begin
   if not exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)')
-      and md5(p.prosrc) in ('1bede30349edd91071a493a6d5ff1203','0c040b9c12a8cf5bea4582ea6404c03b') and pg_get_userbyid(p.proowner)='postgres'
+      and md5(p.prosrc) in ('1bede30349edd91071a493a6d5ff1203','0c040b9c12a8cf5bea4582ea6404c03b','9e96cb277fa1e8fd63629f320fa053c3') and pg_get_userbyid(p.proowner)='postgres'
       and p.prosecdef and p.provolatile='s' and p.proretset
       and pg_get_function_arguments(p.oid)='p_query text, p_filters jsonb, p_limit integer, p_offset integer, p_document_types text[] DEFAULT NULL::text[], p_query_embedding vector DEFAULT NULL::vector, p_min_rank real DEFAULT 0, p_min_semantic_score real DEFAULT NULL::real'
       and pg_get_function_result(p.oid)='TABLE(document_type text, entity_id uuid, asset_id uuid, style_group_id uuid, keyword_rank real, semantic_rank real, rank real, total_count bigint, has_more boolean, facets jsonb)'
-      and p.proconfig=ARRAY['search_path=public, extensions','statement_timeout=30s']::text[]
+      and p.proconfig in (ARRAY['search_path=public, extensions','statement_timeout=30s']::text[], ARRAY['search_path=public, extensions','statement_timeout=8s']::text[])
       and p.proacl::text='{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}') then
     raise exception '#5747 pre-change search contract differs (expected #5731 or 060723 body); reconcile rather than overwrite';
   end if;
