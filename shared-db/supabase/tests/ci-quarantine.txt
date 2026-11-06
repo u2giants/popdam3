@@ -64,6 +64,7 @@ product_size_depth_phase1_contracts.sql                       # "coldlion produc
 core_licensor_alias_contracts.sql                             # core.licensor_alias does not exist: 20260731210000 refuses because Licensor "NBC" resolves to 0 rows. A synthetic seed may not carry a real licensor name.
 licensor_status_durability_and_owner_ruling.sql               # core.taxonomy_owner_ruling does not exist: 20260802171000 refuses because core.licensor (code=FR) is absent. Same rule, same reason.
 dam_customer_hub_wiring.sql                                   # "get_dam_customer_facets returned empty/non-array" -- the facets are computed from deployed DAM assets and style groups; an empty database has none and none may be invented.
+oracle_user_directory_reader_live_read_contracts.sql          # executes api.oracle_user_directory() which reads dflow_prod.user_roles: only 20261022182809 creates that table and it correctly refuses an empty database ("tree rows absent") because its precondition is the real role-tree rows. The catalogue/privilege contract in oracle_user_directory_reader_contract.sql stays enforced; this live read is proven on preview before the production promotion.
 
 # --- The test's own fixture contradicts the current schema or grants -------------------
 # CANDIDATE REAL DEFECTS, recorded rather than edited into passing. Each was invisible
