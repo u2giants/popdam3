@@ -36,10 +36,13 @@ def fixture_sql():
     cases += [('core_mutate_' + key, False) for key in core]
     cases += [('core_missing_' + key, False) for key in core]
     cases += [('input_missing_' + key, False) for key in input_keys]
-    cases += [(name, False) for name in ['unknown_key', 'input_null', 'input_missing', 'input_unknown_key', 'invalid_previous', 'invalid_render', 'invalid_render_offset', 'invalid_render_overflow', 'render_number', 'render_json_null', 'input_wrong_id', 'input_wrong_model', 'input_wrong_version', 'input_wrong_transform', 'input_wrong_thumbnail', 'input_wrong_modified', 'input_wrong_size', 'sha_wrong', 'metadata_null', 'newer_render', 'lease_orphan', 'lease_missing_key', 'lease_missing_owner', 'lease_blank_owner', 'lease_missing_expiry', 'lease_infinite_expiry', 'lease_uppercase_hash', 'lease_short_hash', 'lease_json_null', 'lease_number', 'orphan_owner', 'orphan_expiry']]
-    legacy_bad = ['indexed_equal','indexed_after','indexed_null','updated_equal','updated_after','updated_null','modified_after_indexed','modified_after_updated','render_after_indexed','render_after_updated','present_null','present_invalid','unknown','core_mutated','lease_orphan']
-    cases += [('legacy_unchanged', True), ('legacy_actual_lease', True), ('legacy_render_identity_null_modified', True)]
+    cases += [(name, False) for name in ['unknown_key', 'input_null', 'input_missing', 'input_unknown_key', 'invalid_previous', 'invalid_render', 'invalid_render_offset', 'invalid_render_overflow', 'render_number', 'render_json_null', 'input_wrong_id', 'input_wrong_model', 'input_wrong_version', 'input_wrong_transform', 'input_wrong_thumbnail', 'input_wrong_modified', 'input_wrong_size', 'sha_wrong', 'metadata_null', 'newer_render', 'lease_missing_key', 'lease_missing_owner', 'lease_blank_owner', 'lease_missing_expiry', 'lease_infinite_expiry', 'lease_uppercase_hash', 'lease_short_hash', 'lease_json_null', 'lease_number', 'orphan_owner', 'orphan_expiry']]
+    legacy_bad = ['indexed_equal','indexed_after','indexed_null','updated_equal','updated_after','updated_null','modified_after_indexed','modified_after_updated','render_after_indexed','render_after_updated','present_null','present_invalid','unknown','core_mutated']
+    cases += [('completed_retained', True), ('legacy_completed_retained', True), ('legacy_unchanged', True), ('legacy_actual_lease', True), ('legacy_render_identity_null_modified', True)]
     cases += [('legacy_' + name, False) for name in legacy_bad]
+    retained_good = ['completed_current_retained', 'error_current_retained', 'legacy_error_retained', 'no_image_completed_retained', 'no_image_error_retained']
+    retained_bad = ['completed_hash_uppercase', 'completed_hash_short', 'completed_hash_json_null', 'completed_hash_number', 'completed_hash_orphan_owner', 'completed_hash_orphan_expiry', 'legacy_hash_uppercase', 'legacy_hash_json_null', 'no_image_hash_number']
+    cases += [(name, True) for name in retained_good] + [(name, False) for name in retained_bad]
     values = ',\n'.join("('%s',%s)" % (name, str(expected).lower()) for name, expected in cases)
     core_json = json.dumps(core).replace("'", "''")
     edits = {'input_wrong_id': "to_jsonb('00000000-0000-0000-0000-000000000099'::text)", 'input_wrong_model': "to_jsonb('wrong-model'::text)", 'input_wrong_version': 'to_jsonb(2)', 'input_wrong_transform': "to_jsonb('cropped'::text)", 'input_wrong_thumbnail': "to_jsonb('https://example.invalid/wrong.png'::text)", 'input_wrong_modified': "to_jsonb('2025-01-01T00:00:00+00:00'::text)", 'input_wrong_size': 'to_jsonb(9999)'}
@@ -48,7 +51,7 @@ def fixture_sql():
     return f"""with fixture_cases(case_label,expected_pass) as (values {values}),
 recent as (select c.*,md5(c.case_label)::uuid id,'00000000-0000-0000-0000-000000000001'::uuid style_group_id,
  case when c.case_label in ('no_source_identity','legacy_render_identity_null_modified') then null when c.case_label='legacy_modified_after_indexed' then '2026-11-04T13:00:00Z'::timestamptz when c.case_label='legacy_modified_after_updated' then '2026-11-04T11:00:00Z'::timestamptz else '2026-01-01T00:00:00Z'::timestamptz end modified_at,
- 1000::bigint file_size,case when c.case_label='no_image' then null else 'https://example.invalid/fixture.png' end thumbnail_url,
+ 1000::bigint file_size,case when c.case_label like 'no_image%' then null else 'https://example.invalid/fixture.png' end thumbnail_url,
  'pdf'::text file_type,'art'::text asset_type,'image/png'::text content_type,array['paper']::text[] product_material,
  '1x1'::text product_dimensions,'approved'::text workflow_status,true is_licensed,'unused'::text licensor_name,
  'unused'::text property_name,'synthetic category'::text product_category from fixture_cases c),
@@ -73,14 +76,14 @@ fixture_input_edits as (select f.*,case
  {input_cases} else input_base end input_edited from fixture_inputs f),
 fixture_golden as (select f.*,core||jsonb_build_object('_embedding_input',input_edited||jsonb_build_object('sha256',
  encode(extensions.digest(input_edited::text,'sha256'),'hex'))) golden from fixture_input_edits f),
-fixture_docs as (select 'asset'::text document_type,id entity_id,case_label,
+fixture_docs_raw as materialized (select 'asset'::text document_type,id entity_id,case_label,
  case when case_label='legacy_indexed_null' then null when case_label='legacy_indexed_equal' then '2026-11-05T12:30:57Z'::timestamptz when case_label='legacy_indexed_after' then '2026-11-05T12:30:58Z'::timestamptz when case_label like 'legacy_%' then '2026-11-04T12:00:00Z'::timestamptz else '2026-11-06T00:00:00Z'::timestamptz end indexed_at,
  case when case_label='legacy_updated_null' then null when case_label='legacy_updated_equal' then '2026-11-05T12:30:57Z'::timestamptz when case_label='legacy_updated_after' then '2026-11-05T12:30:58Z'::timestamptz when case_label in ('legacy_modified_after_updated','legacy_render_after_updated') then '2026-11-04T10:00:00Z'::timestamptz when case_label like 'legacy_%' then '2026-11-04T14:00:00Z'::timestamptz else '2026-11-06T00:00:00Z'::timestamptz end source_updated_at,
  case when case_label='legacy_present_null' then core||'{{"_embedding_input":null}}'::jsonb
  when case_label='legacy_present_invalid' then core||'{{"_embedding_input":{{}}}}'::jsonb
  when case_label='legacy_unknown' then core||'{{"unknown":true}}'::jsonb
  when case_label='legacy_core_mutated' then core||'{{"file_type":"wrong"}}'::jsonb
- when case_label in ('legacy_actual_lease','legacy_lease_orphan') then core||jsonb_build_object('_embedding_lease_input_sha256',repeat('b',64))
+ when case_label in ('legacy_actual_lease','legacy_completed_retained') then core||jsonb_build_object('_embedding_lease_input_sha256',repeat('b',64))
  when case_label like 'legacy_%' then core
  when case_label like 'core_mutate_%' then jsonb_set(golden,array[substr(case_label,13)],'"mutated"'::jsonb)
  when case_label like 'core_missing_%' then golden-substr(case_label,14)
@@ -98,12 +101,24 @@ fixture_docs as (select 'asset'::text document_type,id entity_id,case_label,
  when case_label='lease_number' then golden||'{{"_embedding_lease_input_sha256":123}}'::jsonb
  when case_label like 'lease_%' then golden||jsonb_build_object('_embedding_lease_input_sha256',repeat('b',64))
  else golden end metadata,
- case when (case_label like 'lease_%' and case_label<>'lease_orphan' or case_label='legacy_actual_lease') then '00000000-0000-0000-0000-000000000002'::uuid end embedding_lease_token,
+ case when (case_label like 'lease_%' and case_label<>'completed_retained' or case_label='legacy_actual_lease') then '00000000-0000-0000-0000-000000000002'::uuid end embedding_lease_token,
  case when case_label='lease_blank_owner' then ' ' when case_label='lease_missing_owner' then null
- when ((case_label like 'lease_%' and case_label<>'lease_orphan' or case_label='legacy_actual_lease')) or case_label='orphan_owner' then 'synthetic-worker' end embedding_lease_owner,
+ when ((case_label like 'lease_%' and case_label<>'completed_retained' or case_label='legacy_actual_lease')) or case_label='orphan_owner' then 'synthetic-worker' end embedding_lease_owner,
  case when case_label='lease_missing_expiry' then null when case_label='lease_infinite_expiry' then 'infinity'::timestamptz
- when ((case_label like 'lease_%' and case_label<>'lease_orphan' or case_label='legacy_actual_lease')) or case_label='orphan_expiry' then '2026-01-04T00:00:00Z'::timestamptz end embedding_lease_expires_at
+ when ((case_label like 'lease_%' and case_label<>'completed_retained' or case_label='legacy_actual_lease')) or case_label='orphan_expiry' then '2026-01-04T00:00:00Z'::timestamptz end embedding_lease_expires_at
  from fixture_golden),
+fixture_docs as materialized (select document_type,entity_id,case_label,indexed_at,source_updated_at,
+ case when case_label in ('completed_retained','completed_current_retained','error_current_retained','legacy_completed_retained','legacy_error_retained','no_image_completed_retained','no_image_error_retained','completed_hash_orphan_owner','completed_hash_orphan_expiry') then
+  (case when case_label like 'no_image%' then metadata-'thumbnail_url'-'_embedding_input' else metadata end)||jsonb_build_object('_embedding_lease_input_sha256',repeat('b',64))
+ when case_label in ('completed_hash_uppercase','legacy_hash_uppercase') then metadata||jsonb_build_object('_embedding_lease_input_sha256',repeat('A',64))
+ when case_label='completed_hash_short' then metadata||jsonb_build_object('_embedding_lease_input_sha256','abc')
+ when case_label in ('completed_hash_json_null','legacy_hash_json_null') then metadata||'{{"_embedding_lease_input_sha256":null}}'::jsonb
+ when case_label in ('completed_hash_number','no_image_hash_number') then
+  (case when case_label like 'no_image%' then metadata-'thumbnail_url'-'_embedding_input' else metadata end)||'{{"_embedding_lease_input_sha256":123}}'::jsonb
+ else metadata end metadata,embedding_lease_token,
+ case when case_label='completed_hash_orphan_owner' then 'synthetic-worker' else embedding_lease_owner end embedding_lease_owner,
+ case when case_label='completed_hash_orphan_expiry' then '2026-01-04T00:00:00Z'::timestamptz else embedding_lease_expires_at end embedding_lease_expires_at
+ from fixture_docs_raw),
 {block}
 select count(*) as cases,count(*) filter(where all_match=expected_pass) as correct,
  coalesce(jsonb_agg(case_label order by case_label) filter(where all_match is distinct from expected_pass),'[]'::jsonb) as failures
