@@ -36,7 +36,12 @@ permissions:
 
 jobs:
   fix:
-    if: github.event_name != 'issues' || github.event.label.name == 'review-finding'
+    # Fork PRs never invoke the trusted fixer with base-repo write tokens
+    # (#606 finding 2): pull_request_target fires for fork synchronize/closed
+    # events too, so require a same-repository head before the job runs.
+    if: >-
+      (github.event_name != 'issues' || github.event.label.name == 'review-finding') &&
+      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.fork == false)
     uses: popcre/ai-devops/.github/workflows/review-fixer.yml@main
     with:
       issue: ${{ github.event.issue.number || inputs.issue }}
