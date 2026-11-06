@@ -74,3 +74,22 @@ test("a non-ScaleDown selection still routes through OpenRouter when its key is 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("a meta-direct selection fails closed instead of reaching OpenRouter", async () => {
+  const page = Buffer.from("fixture");
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = (async (url: RequestInfo | URL) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ choices: [{ message: { content: "should never be used" } }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+      openRouterApiKey: "fixture-router-key",
+      aiTaskModels: { pdf_extraction: "meta-direct/some-model" } };
+    await assert.rejects(callAiVision(page, config), /Windows agent/);
+    assert.equal(calls.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
