@@ -388,6 +388,7 @@ identifiers resolve to preserved evidence storage as documented in
 - [plan_shared_release_hold_reduction.md](plan_shared_release_hold_reduction.md)
 - [plan_narrow_promotion_freezes.md](plan_narrow_promotion_freezes.md)
 - [plan_rls_request_constant_checks.md](plan_rls_request_constant_checks.md)
+- [plan_go-live-lane-prevention.md](plan_go-live-lane-prevention.md) (read its STATUS table first — do not re-derive or re-plan; issue #5782)
 
 ## Task declaration
 
