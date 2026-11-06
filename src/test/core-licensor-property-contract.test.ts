@@ -20,7 +20,7 @@ describe("canonical licensor/property contract", () => {
     const search = read("supabase/functions/dam-search-ai/index.ts");
     expect(search).toContain('.schema("core").from(table).select("name").order("id")');
     for (const table of ["licensor", "property", "character"]) {
-      expect(search).toContain(`loadNames("${table}", vocabulary, signal)`);
+      expect(search).toContain(`loadNames("${table}", signal)`);
     }
     expect(search).toContain("AbortSignal.timeout(1500)");
     expect(search).toContain(".abortSignal(signal)");
