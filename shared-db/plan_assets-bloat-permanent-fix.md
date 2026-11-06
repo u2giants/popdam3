@@ -4,20 +4,20 @@ Owning issue: [popcre/shared-db#5747](https://github.com/popcre/shared-db/issues
 Handoff for this plan: [HANDOFF.d/20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md](HANDOFF.d/20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md).
 Related plans (read their STATUS, do not redo): [plan_assets-update-trigger-scoping.md](plan_assets-update-trigger-scoping.md) (#5609, trigger fan-out on `assets` updates — delivered, 24 h live proof pending), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (#2196 fillfactor work owns `dam_search_documents` only).
 
-## STATUS (2026-11-05 2:55 PM EST — plan written, no step executed by this plan)
+## STATUS (2026-11-05 10:15 PM EST — Steps 0, 1, 4 done; Step 7 immediate reading done, 24 h and 7-day readings due)
 
 | Step | State | Evidence |
 |---|---|---|
-| 0 Baseline measurement (pgstattuple, visibility map, index sizes, writer churn) | ⬜ open | — |
-| 1 Land repack capability (PR #5744) | 🟡 in progress by another session | PR popcre/shared-db#5744, branch `claude/assets-repack-804` (not this plan's work; do not duplicate) |
+| 0 Baseline measurement (pgstattuple, visibility map, index sizes, writer churn) | ✅ done 6:35 PM EST Nov 5 | `docs/verification/assets-bloat-5747/20261105T2331Z/baseline.md` (PR #5800); pgstattuple/pg_visibility not installed, live bytes via `sum(pg_column_size)` |
+| 1 Land repack capability (PR #5744) | ✅ done 9:05 PM EST Nov 5 | #5744 + review fixes #5775 merged; pg_repack 1.5.2 live on production (preview run 42147162525, production run 42147611207 — applied; its red 'log verification' is a catalog-lexer gap for `create extension`) |
 | 2 Find and stop no-op writers in PopDAM | ⬜ open | — (related app issue u2giants/popdam3#753 is open) |
 | 3 Index audit on `assets` | 🟡 audit recorded, no drops yet | [index-audit.md](docs/verification/assets-bloat-5747/20261105T2345Z/index-audit.md): 46 indexes, 28 with zero scans since the 2026-11-04 reset; re-check on or after 2026-11-18 EST |
-| 4 Activate repack: preview, then production | ⬜ open | — |
+| 4 Activate repack: preview, then production | ✅ done 9:47 PM EST Nov 5 | activation #5757; preview run 42150067190, production run 42151590867; heap 2,024 → 196 MB, indexes 1,345 → 335 MB, index/constraint/trigger/ACL counts unchanged; Search test set pass counts held (PopDAM 108 → 112) |
 | 5 Make the exact total count cheap (exact stays exact) | ⏸ waits for Step 4 production compaction, then re-measure | — |
 | 6 Re-bloat monitor | 🟡 built; done when the dispatch dry run posts on #5747 | job `assets-bloat` in `.github/workflows/migration-ledger-drift.yml`, `scripts/assets-bloat-monitor.mjs` (2026-11-05 reading: heap 2,024 MB vs 188 MB live, ratio 10.8) |
-| 7 After-measurement and live proof | ⬜ open | — |
+| 7 After-measurement and live proof | 🟡 immediate reading done 9:56 PM EST Nov 5 | `docs/verification/assets-bloat-5747/20261105T2331Z/after.md`; 24 h reading due 9:47 PM EST Nov 6, 7-day reading due 9:47 PM EST Nov 12 (note on #5747). PopDAM latency not yet improved on the first cold-cache run |
 
-**Fresh session starts at:** Step 0. Check PR #5744's state first (merged? activation PR open?).
+**Fresh session starts at:** Step 7 24-hour reading (repeat `after.md` queries into `after-24h.md`, rerun the Search test set). Steps 2, 3, 5, 6 belong to sibling sessions.
 
 ## 1. Ultimate goal
 
