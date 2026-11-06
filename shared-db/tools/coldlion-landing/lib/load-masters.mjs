@@ -30,13 +30,20 @@ function currentTableSql(table, spec, rows) {
           from coldlion.change_log cl
          where cl.table_name=${sqlText(table)}
          order by cl.natural_key, cl.changed_at desc) prior`;
+  // #5758: with hashIgnore, a hash difference alone may only be the hash-policy
+  // change; log a change only when the payload differs outside the ignored fields.
+  const ignore = spec.hashIgnore?.length ? `array[${spec.hashIgnore.map(sqlText).join(",")}]::text[]` : null;
+  const changed = ignore
+    ? `t.source_hash <> s.source_hash and (prior.new_raw is null or (prior.new_raw - ${ignore}) is distinct from (s.source_raw - ${ignore}))`
+    : "t.source_hash <> s.source_hash";
   const updates = [...data.filter((c) => !keys.includes(c)).map((c) => `${c} = excluded.${c}`), "run_id = excluded.run_id", "fetched_at = excluded.fetched_at", "source_hash = excluded.source_hash", "last_seen_at = excluded.last_seen_at"].join(",\n      ");
   return `${stageSql(stage, spec, rows)}
 create temp table _counts_${table} on commit drop as
 select count(*) filter (where t.${keys[0]} is null) as inserted,
-       count(*) filter (where t.${keys[0]} is not null and t.source_hash <> s.source_hash) as updated,
-       count(*) filter (where t.${keys[0]} is not null and t.source_hash = s.source_hash) as unchanged
-  from ${stage} s left join coldlion.${table} t on ${join};
+       count(*) filter (where t.${keys[0]} is not null and (${changed})) as updated,
+       count(*) filter (where t.${keys[0]} is not null and not (${changed})) as unchanged
+  from ${stage} s left join coldlion.${table} t on ${join}
+  ${ignore ? `left join ${latestPrior} on prior.natural_key=${naturalKey}` : ""};
 
 insert into coldlion.change_log
   (table_name, natural_key, change_kind, previous_source_hash, new_source_hash, previous_raw, new_raw, run_id)
@@ -45,7 +52,7 @@ select ${sqlText(table)}, ${naturalKey}, case when t.${keys[0]} is null then 'in
   from ${stage} s
   left join coldlion.${table} t on ${join}
   left join ${latestPrior} on prior.natural_key=${naturalKey}
- where t.${keys[0]} is null or t.source_hash <> s.source_hash;
+ where t.${keys[0]} is null or (${changed});
 
 insert into coldlion.${table} (${all.join(", ")})
 select ${data.map((c) => `s.${c}`).join(", ")}, s.run_id, s.fetched_at, s.source_hash, s.fetched_at, s.fetched_at
@@ -78,7 +85,7 @@ select 'item_merch_group', jsonb_build_object('company_code',s.company_code,'div
        to_jsonb(s)-array['run_id','fetched_at']::text[], s.run_id
   from _stage_item_merch_group s
   left join coldlion.item_merch_group t on t.company_code=s.company_code and t.division_code=s.division_code and t.item_no=s.item_no and t.item_pkey is not distinct from s.item_pkey and t.slot_no=s.slot_no
- where t.company_code is null or t.source_hash<>s.source_hash;
+ where t.company_code is null or t.mg_code is distinct from s.mg_code;
 
 insert into coldlion.change_log
   (table_name,natural_key,change_kind,previous_source_hash,new_source_hash,previous_raw,new_raw,run_id)
@@ -101,7 +108,7 @@ insert into coldlion.item_merch_group
 select company_code,division_code,item_no,item_pkey,slot_no,mg_code,mg_desc,run_id,fetched_at,source_hash,fetched_at,fetched_at
 from _stage_item_merch_group
 on conflict on constraint item_merch_group_slot_identity do update set
-  mg_code=excluded.mg_code, mg_desc=excluded.mg_desc, run_id=excluded.run_id,
+  mg_code=excluded.mg_code, mg_desc=coalesce(excluded.mg_desc, coldlion.item_merch_group.mg_desc), run_id=excluded.run_id,
   fetched_at=excluded.fetched_at, source_hash=excluded.source_hash, last_seen_at=excluded.last_seen_at;`;
 }
 

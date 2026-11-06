@@ -24,6 +24,13 @@ export function assertKnownShape(spec, rows) {
   }
 }
 
+export function hashableSource(spec, source) {
+  if (!spec.hashIgnore?.length) return source;
+  const copy = { ...source };
+  for (const field of spec.hashIgnore) delete copy[field];
+  return copy;
+}
+
 export function projectCurrentRows(spec, sourceRows, { runId, fetchedAt, excludeDivision = "EP001" } = {}) {
   try { assertKnownShape(spec, sourceRows); }
   catch (error) { error.endpoint ??= spec.endpoint; throw error; }
@@ -35,7 +42,7 @@ export function projectCurrentRows(spec, sourceRows, { runId, fetchedAt, exclude
     for (const field of spec.fields) row[field.column] = converters[field.type](source[field.api]);
     // The schema contract requires a complete-record hash and retains that record
     // privately in change_log; public fixtures and logs never contain its values.
-    row.source_hash = sourceHash(source);
+    row.source_hash = sourceHash(hashableSource(spec, source));
     row.source_raw = source;
     row.run_id = runId;
     row.fetched_at = fetchedAt;
@@ -62,7 +69,7 @@ export function projectItemSlots(sourceRows, { runId, fetchedAt, itemPkey = null
         slot_no: slotNo, mg_code: mgCode, mg_desc: text(source[`merchGroup${suffix}Desc`]),
         run_id: runId, fetched_at: fetchedAt,
       };
-      row.source_hash = sourceHash({ slotNo, mgCode: row.mg_code, mgDesc: row.mg_desc });
+      row.source_hash = sourceHash({ slotNo, mgCode: row.mg_code });
       slots.push(row);
     }
   }

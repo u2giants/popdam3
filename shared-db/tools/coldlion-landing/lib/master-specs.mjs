@@ -52,9 +52,14 @@ const detailFields = [
 ];
 const detailIgnored = ["createdUser","modUser","colorCode","dimCode","sizeCode","ean","gtin","uomCode","measurementUOM","itemWeightUom","htsNumber2","itemPriceE","itemPriceF","itemPriceG","itemPriceH","baseQty","sizeSeq","generateUPC","sizeAllowed","shareUPC","vendorCode","itemContent","reservedQty","packType","udfInt01","udfNum01","itemPriceE","itemPriceF","itemPriceG","itemPriceH","dSCat","dutiable","catalog01","catalog02","catalog03","catalog04","catalog05","catalog06","catalog07","catalog08","catalog09","catalog10","catalog11","catalog12","catalog13","catalog14","costComponent1","costComponent2","costComponent3","costComponent4","costComponent5","cartonCode","cartonPackType","cartonPallets","comparePrice","edi832Proc","edi832ProcDate","glSku","isbn","itemPriceE","itemPriceF","itemPriceG","itemPriceH","measurementUOM","sizeExplosionCode","upcGeneratedTime","variantSKU","warehouseSKU"];
 
+// #5758: the ColdLion item feeds intermittently omit merch-group descriptions on
+// the same full-snapshot request, so a description going blank is not a change.
+// Descriptions stay ingested (owner ruling 2026-09-03) but never enter the hash.
+export const MERCH_GROUP_DESC_FIELDS = Object.freeze(Array.from({ length: 14 }, (_, i) => `merchGroup${String(i + 1).padStart(2, "0")}Desc`));
+
 export const ITEM_SPECS = Object.freeze({
-  item_header: { endpoint: "/items", key: ["company_code","division_code","item_no"], paged: true, fields: itemFields, ignored: itemIgnored, slots: true },
-  item_detail: { endpoint: "/itemDetails", key: ["company_code","division_code","item_no","item_pkey"], paged: false, fields: detailFields, ignored: detailIgnored, slots: true },
+  item_header: { endpoint: "/items", key: ["company_code","division_code","item_no"], paged: true, fields: itemFields, ignored: itemIgnored, slots: true, hashIgnore: MERCH_GROUP_DESC_FIELDS },
+  item_detail: { endpoint: "/itemDetails", key: ["company_code","division_code","item_no","item_pkey"], paged: false, fields: detailFields, ignored: detailIgnored, slots: true, hashIgnore: MERCH_GROUP_DESC_FIELDS },
 });
 
 export function knownApiFields(spec) {
