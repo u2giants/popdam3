@@ -219,6 +219,60 @@ def refused_as_applied(repo: str, run: dict[str, Any]) -> set[str]:
     return found
 
 
+# Coordination steps that prove the dispatched commit against the live main tip
+# BEFORE any database work. A run failing only here was refused for main-SHA
+# staleness and never touched a database (#5856); ordinary merge traffic moves
+# main every few minutes and re-dispatch against the new tip is the cure, so
+# counting such runs consumed MAX_ATTEMPTS until healthy changes were parked
+# and forced into a re-version.
+COORDINATION_STEPS = {
+    "Prove the post-merge rehearsal source",
+    "Prove historical preview recovery source",
+    "Acquire the exclusive GitHub-backed preview lane",
+    "Re-prove current main and the merged source PR",
+    "Acquire the exclusive production lane and freeze merges",
+    "Verify exact main commit while holding the production lane",
+}
+# Runtime wording of a staleness refusal. None of these phrases appears in the
+# workflow's echoed shell source (tests enforce it), so a match is the refusal
+# itself and not a guard's quoted error text. "##[error]" is the rendered
+# annotation; the echoed source always spells it "::error::".
+STALE_MAIN_RE = re.compile(
+    r"has moved past the dispatched commit"
+    r"|has advanced past the dispatched commit"
+    r"|does not contain the dispatched commit"
+    r"|requires the exact current main SHA"
+    r"|##\[error\]ENGINEER ACTION REQUIRED: main moved after preview")
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def stale_main_refusal_only(repo: str, run: dict[str, Any]) -> bool:
+    """True when every failure in this run is a main-SHA staleness refusal at a
+    coordination step (#5856). An apply or guard failure, any other refusal
+    wording, or unreadable evidence still counts as an attempt."""
+    failed: set[str] = set()
+    refused_jobs: list[dict[str, Any]] = []
+    try:
+        for jobs in attempt_jobs(repo, run):
+            for job in jobs:
+                bad = [s for s in job.get("steps") or [] if s.get("conclusion") == "failure"]
+                if bad:
+                    refused_jobs.append(job)
+                    failed.update(s.get("name") for s in bad)
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        return False
+    if not failed or not failed <= COORDINATION_STEPS:
+        return False
+    try:
+        logs = "".join(subprocess.run(
+            ["gh", "run", "view", "--repo", repo, "--job", str(job["id"]), "--log-failed"],
+            check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace").stdout
+            for job in refused_jobs)
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        return False
+    return bool(STALE_MAIN_RE.search(ANSI_RE.sub("", logs)))
+
+
 def names_pr(pr: dict[str, Any], title: str) -> bool:
     """True when the run title names every migration version this PR authored.
     Recovery runs title themselves "PR " with no number, so match the versions;
@@ -234,7 +288,8 @@ def title_versions(title: str) -> set[str]:
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
            applied: callable = lambda run: False, main_sha: str = "",
            skipped: list[dict[str, Any]] | None = None,
-           refused: callable = lambda run: set()) -> tuple[str, dict[str, Any] | None, str]:
+           refused: callable = lambda run: set(),
+           stale: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
@@ -243,7 +298,9 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     preflight that `refused` them as already applied. Known cross-PR bases
     (#5608/#5651) require the same trustworthy production evidence before a
     child consumes attempts; dependency waits preserve independent progress.
-    Dependency receipts are cached only for this call, never the fresh recheck."""
+    Dependency receipts are cached only for this call, never the fresh recheck.
+    A run `stale` reports as a pure main-SHA staleness refusal never touched a
+    database and consumes no attempt (#5856)."""
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
@@ -321,11 +378,14 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         # production apply re-enters through a historical recovery preview that succeeds
         # by design, so counting only preview failures could never bound that loop. A
         # recovery run titles itself "PR " with no number, hence the version match.
+        # A pure main-SHA staleness refusal is NOT an attempt (#5856): the run
+        # never touched a database and re-dispatch against the new tip is the cure.
         attempts = sum(1 for t, r in zip(titles, runs)
                        if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
                        and (tag in t or names_pr(pr, t))
                        and r.get("created_at", "") > pr["merged_at"]
-                       and r.get("conclusion") != "success")
+                       and r.get("conclusion") != "success"
+                       and not stale(r))
         if attempts >= MAX_ATTEMPTS:
             # Out of automatic attempts: passed over like a held PR, with a loud
             # alert in main(), so one dead PR cannot park every later promotion
@@ -433,7 +493,8 @@ def main(now: datetime | None = None) -> int:
     skipped: list[dict[str, Any]] = []
     action, pr, reason = decide(merged_migration_prs(repo), runs, lambda n: is_held(repo, n),
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
-                                skipped, lambda run: refused_as_applied(repo, run))
+                                skipped, lambda run: refused_as_applied(repo, run),
+                                stale=lambda run: stale_main_refusal_only(repo, run))
     for entry in skipped:
         if entry.get("pending_dependencies"):
             refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
@@ -451,7 +512,8 @@ def main(now: datetime | None = None) -> int:
         # a re-run began after the snapshot and PR #5539 was dispatched again).
         action, pr, reason = decide([pr], workflow_runs(repo), lambda n: is_held(repo, n),
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
-                                    None, lambda run: refused_as_applied(repo, run))
+                                    None, lambda run: refused_as_applied(repo, run),
+                                    stale=lambda run: stale_main_refusal_only(repo, run))
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
