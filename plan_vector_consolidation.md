@@ -16,6 +16,8 @@ issue say so.
 
 ## STATUS — read before executing
 
+**November 6, 2026, 9:01 AM EST verification:** GitHub now marks #706 and #684 CLOSED. The #706 closing note still identifies claim-timeout backfill resume, latency remeasurement and test-account deletion as unverified; closure alone is not full-plan acceptance. No live behavior or provider readiness was repeated during this wrap-up. Several prior source PRs closed and #5731 merged at another head, while eight child claims and reservation 171913 remain protected. Read the [fresh coordinator verification](https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-11-06T1401Z-hetz-codex-coordinator-wrap-verification.md) before using the historical rows below.
+
 | Step | State (updated Nov 5, 2026; older counts explicitly historical) | Evidence / artifact |
 |---|---|---|
 | 0. Absorb in-flight work | ✅ done | shared-db PR 5588 merged 5:19 PM EST (ledger `20261104214917`); PR 5585 merged 6:38 PM EST (`20261104231008`); PR 5594 merged 6:47 PM EST (`20261104231707`). Original hold is historical: T1 production character/alias proof is now complete; do not repeat. Current source-specific gates and provider readiness govern later work |
