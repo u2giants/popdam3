@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import os
 import re
 import sys
@@ -9,6 +10,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import automatic_promotion_candidates as m  # noqa: E402
+import refund_fault_classification as classifier  # noqa: E402
 
 APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
@@ -784,7 +786,7 @@ class CanonicalDependencyResolution(unittest.TestCase):
         from pathlib import Path
         root = Path(m.HERE).parent
         pulls = [{"number": 8000 + n, "merged_at": "2026-11-05T01:00:00Z"} for n in range(len(versions))]
-        files = [[[{"status": "added", "filename": str(next((root / "supabase/migrations").glob(v + "_*.sql")).relative_to(root))}]] for v in versions]
+        files = [[[{"status": "added", "filename": next((root / "supabase/migrations").glob(v + "_*.sql")).relative_to(root).as_posix()}]] for v in versions]
         with mock.patch.object(m, "gh", side_effect=[[pulls], *files]):
             return m.merged_migration_prs("o/r")
 
@@ -1090,7 +1092,7 @@ class CompletePullDiscovery(unittest.TestCase):
             number = int(args[-1].split("/pulls/")[1].split("/")[0])
             file_reads.append(number)
             path, = Path(m.HERE).parent.glob(f"supabase/migrations/{versions[number]}_*.sql")
-            return [[{"status": "added", "filename": str(path.relative_to(Path(m.HERE).parent))}]]
+            return [[{"status": "added", "filename": path.relative_to(Path(m.HERE).parent).as_posix()}]]
 
         from pathlib import Path
         with mock.patch.object(m, "gh", side_effect=api):
@@ -1119,6 +1121,271 @@ class CompletePullDiscovery(unittest.TestCase):
         with mock.patch.object(m, "gh", side_effect=subprocess.CalledProcessError(1, "gh")):
             with self.assertRaises(subprocess.CalledProcessError):
                 m.merged_migration_prs("o/r")
+class RefundFaultClassifier(unittest.TestCase):
+    """Plan §9 2.1/2.4: the marker classifies a failed run's fault from its text.
+    GitHub run metadata is external input — a hostile log must never buy a refund."""
+
+    INFRA = ("::error::CI INFRASTRUCTURE: PostgreSQL client unavailable after 3 attempts "
+             "(apt mirror stall on the hosted runner -- NOT a fault in the change under review); "
+             "NO MIGRATION WAS APPLIED\n")
+    MIXED = ("::error::CI INFRASTRUCTURE: PostgreSQL client unavailable after 3 attempts "
+             "(apt mirror stall on the hosted runner -- NOT a fault in the change under review)\n"
+             "ERROR:  syntax error at or near \"select\"\n")
+
+    def test_an_infrastructure_failure_with_nothing_applied_is_refundable(self):
+        self.assertTrue(classifier.classify_failure(self.INFRA))
+
+    def test_mixed_marker_log_with_a_real_sql_failure_is_not_refundable(self):
+        # Adversarial table (plan §9 2.4): "Marker present but the migration
+        # actually failed" — the classifier requires NO MIGRATION WAS APPLIED too.
+        self.assertFalse(classifier.classify_failure(self.MIXED))
+
+    def test_each_coordination_refusal_is_refundable(self):
+        for marker in classifier.COORDINATION_REFUSALS:
+            with self.subTest(marker=marker):
+                self.assertTrue(classifier.classify_failure(f"something REFUSED: {marker}\n"))
+
+    def test_a_plain_sql_error_or_guard_refusal_stays_a_change_fault(self):
+        for text in ("ERROR:  syntax error at or near \"select\"\n",
+                     "REFUSED: merged_preview_source_pr is a post-merge APPLY\n",
+                     "Unchanged approved parent/source witness unavailable; packet abstained\n",
+                     ""):
+            with self.subTest(text=text):
+                self.assertFalse(classifier.classify_failure(text))
+
+    def test_ansi_wrapping_never_hides_or_fakes_a_marker(self):
+        hidden = self.INFRA.replace("CI INFRASTRUCTURE", "\x1b[1mCI INFRASTRUCTURE\x1b[0m")
+        self.assertTrue(classifier.classify_failure(hidden))
+        self.assertFalse(classifier.classify_failure("\x1b[1mNOT A MARKER\x1b[0m"))
+
+    def test_the_cli_exits_zero_only_for_a_refundable_fault(self):
+        import tempfile
+        for text, code in ((self.INFRA, 0), (self.MIXED, 1),
+                           ("post-merge preview rehearsal requires the exact current main SHA", 0)):
+            with self.subTest(code=code):
+                with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False) as handle:
+                    handle.write(text)
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()) as out:
+                        self.assertEqual(classifier.main([handle.name]), code)
+                    if code == 0:
+                        self.assertIn("REFUND_ELIGIBLE=1", out.getvalue())
+                finally:
+                    os.unlink(handle.name)
+
+    def test_unreadable_evidence_is_never_a_refund(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(classifier.main(["/nonexistent/definitely-missing.log"]), 1)
+        self.assertIn("change fault", out.getvalue())
+
+
+class RefundEligibleMarkerStep(unittest.TestCase):
+    """The marker step is the trust boundary (plan §9 2.1/2.2): a succeeded
+    `refund-eligible-fault` step in any attempt of our workflow's runs."""
+
+    RUN = {"id": 7, "run_attempt": 1}
+    MARKED = [{"steps": [{"name": m.REFUND_STEP, "conclusion": "success"}]}]
+    UNMARKED = [{"steps": [{"name": m.REFUND_STEP, "conclusion": "failure"}]},
+                {"steps": [{"name": "Bounded apply", "conclusion": "failure"}]}]
+
+    def test_a_succeeded_marker_step_is_refundable(self):
+        with mock.patch.object(m, "run_jobs", return_value=self.MARKED):
+            self.assertTrue(m.refund_eligible_in_any_attempt("o/r", self.RUN))
+
+    def test_a_missing_or_red_marker_is_a_change_fault(self):
+        for jobs in ([], self.UNMARKED):
+            with self.subTest(jobs=jobs):
+                with mock.patch.object(m, "run_jobs", return_value=jobs):
+                    self.assertFalse(m.refund_eligible_in_any_attempt("o/r", self.RUN))
+
+    def test_a_re_run_does_not_hide_an_earlier_attempts_classification(self):
+        run = {"id": 7, "run_attempt": 2}
+        with mock.patch.object(m, "run_jobs",
+                               side_effect=lambda repo, run_id, attempt=None: self.MARKED if attempt == 1 else self.UNMARKED):
+            self.assertTrue(m.refund_eligible_in_any_attempt("o/r", run))
+
+    def test_unreadable_marker_evidence_still_counts_the_run(self):
+        with mock.patch.object(m, "run_jobs", side_effect=ValueError("bad")), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertFalse(m.refund_eligible_in_any_attempt("o/r", self.RUN))
+        self.assertIn("treating as a change fault", out.getvalue())
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".github", "workflows", "shared-supabase-migrations.yml"), encoding="utf-8") as fh:
+            cls.text = fh.read()
+
+    def test_the_marker_step_exists_in_preview_and_production_apply_only(self):
+        self.assertEqual(self.text.count("- name: refund-eligible-fault"), 2)
+        self.assertIn('MARKER_JOB_NAME: preview\n', self.text)
+        self.assertIn('MARKER_JOB_NAME: Production apply (automatic evidence gates)\n', self.text)
+
+    def test_the_marker_is_a_step_that_runs_on_failure_and_classifies(self):
+        self.assertEqual(self.text.count("if: failure()"), 2)
+        self.assertEqual(
+            self.text.count('run: python scripts/refund_fault_classification.py --classify-run-job "$MARKER_JOB_NAME"'), 2)
+
+    def test_no_job_was_added_for_the_marker(self):
+        job_ids = set(re.findall(r"(?m)^  ([a-z][a-z0-9-]+):$", self.text))
+        self.assertEqual(job_ids, {"validate", "preview", "automatic-production-promotion", "production-dry-run",
+                                   "production-apply-review", "production-apply", "index-maintenance",
+                                   "notify-production-queue"})
+
+
+class ClassifyRunJobGlue(unittest.TestCase):
+    """The marker step resolves its own job by display name and classifies that
+    job's failed-step logs — nothing else in the run."""
+
+    def test_the_named_job_alone_is_read_and_classified(self):
+        calls = []
+        refusal_log = "REFUSED: post-merge preview rehearsal requires the exact current main SHA\n"
+
+        def fake(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                if "jobs" in cmd[-1]:
+                    stdout = json.dumps({"jobs": [{"id": 11, "name": "preview"},
+                                                  {"id": 12, "name": "other"}]})
+                else:
+                    stdout = refusal_log
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1"}):
+            self.assertTrue(classifier.classify_run_job("preview"))
+        self.assertTrue(any("--job" in cmd and "11" in cmd for cmd in calls))
+
+    def test_an_unresolvable_job_name_never_refunds(self):
+        def fake(cmd, **kw):
+            class R:
+                stdout = json.dumps({"jobs": [{"id": 11, "name": "somebody else"}]})
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertFalse(classifier.classify_run_job("preview"))
+        self.assertIn("change fault", out.getvalue())
+
+
+class ClassifiedRefundBudget(unittest.TestCase):
+    """Plan §9 2.2/2.3: classified failures (marker OR pure staleness) draw from
+    one refund budget per change since merge; the classified failure that finds
+    the budget empty parks the change ("3 refunds used, now parked")."""
+
+    pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+
+    def failures(self, n, start=0):
+        return [{"id": start + i, "display_title": "DB preview apply abc PR7 20260101000000",
+                 "status": "completed", "conclusion": "failure", "created_at": f"2026-01-02T0{i}:00:00Z"}
+                for i in range(n)]
+
+    def all_classified(self):
+        return lambda run: True
+
+    def test_three_refunds_keep_a_good_change_alive(self):
+        action, got, _ = m.decide([self.pr], self.failures(3), lambda n: [], refunded=self.all_classified())
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+
+    def test_the_fourth_classified_failure_parks_the_change(self):
+        skipped = []
+        action, _, _ = m.decide([self.pr], self.failures(4), lambda n: [],
+                                refunded=self.all_classified(), skipped=skipped)
+        self.assertEqual(action, "idle")
+        self.assertEqual(skipped[0]["refunds"], m.MAX_REFUNDS)
+
+    def test_the_parking_alert_names_the_cap_and_refunds_used(self):
+        pr = {k: v for k, v in self.pr.items()}
+        runs = self.failures(4)
+        saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held,
+                 m.refund_eligible_in_any_attempt, m.stale_main_refusal_only,
+                 sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        m.gh = lambda *a: {"sha": "abc"}
+        m.merged_migration_prs = lambda repo: [pr]
+        m.workflow_runs = lambda repo: runs
+        m.is_held = lambda repo, n: []
+        m.refund_eligible_in_any_attempt = lambda repo, run: True
+        m.stale_main_refusal_only = lambda repo, run: False
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(m.main(m._time("2026-01-03T00:00:00Z")), 0)
+            text = out.getvalue()
+            self.assertIn(f"{m.MAX_REFUNDS} refunds used, now parked (refund cap {m.MAX_REFUNDS} per change)", text)
+            self.assertIn("::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::PR #7", text)
+        finally:
+            (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held,
+             m.refund_eligible_in_any_attempt, m.stale_main_refusal_only, sys.argv) = saved[:7]
+            if saved[7] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[7]
+
+    def test_ordinary_failures_still_count_exactly_as_before(self):
+        action, got, _ = m.decide([self.pr], self.failures(2), lambda n: [], main_sha="x")
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+        self.assertEqual(m.decide([self.pr], self.failures(3), lambda n: [], main_sha="x")[0], "idle")
+
+    def test_mixed_failures_park_when_the_fourth_classified_arrives(self):
+        # The plan §9 2.3 gate: two ordinary attempts, then four classified
+        # failures — the 4th classified failure is what parks the change.
+        runs = self.failures(2) + self.failures(4, start=2)
+        classified = lambda run: run["id"] >= 2
+        skipped = []
+        action, _, _ = m.decide([self.pr], runs, lambda n: [], refunded=classified, skipped=skipped)
+        self.assertEqual(action, "idle")
+        self.assertEqual((skipped[0]["exhausted"], skipped[0]["refunds"]), (2, m.MAX_REFUNDS))
+
+    def test_both_fault_classes_share_the_one_budget(self):
+        # A pin refusal (marker) and a stale dispatch (the #5856 classifier) are
+        # both refundable up to the cap (adversarial table, "Fault class" row).
+        runs = self.failures(2)
+        mixed = lambda run: run["id"] == 0  # one via marker...
+        stale = lambda run: run["id"] == 1  # ...one via the staleness reader
+        action, got, _ = m.decide([self.pr], runs, lambda n: [], stale=stale, refunded=mixed)
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+        runs = self.failures(m.MAX_REFUNDS + 1)
+        always = lambda run: True
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [], stale=always)[0], "idle")
+
+    def test_a_refunded_run_still_counts_as_evidence(self):
+        # Only the attempt budget is affected: a refunded run that applied its
+        # versions still moves the PR past the queue (plan §9 2.2).
+        run = {"id": 1, "display_title": "DB production apply abc PR7 20260101000000",
+               "status": "completed", "conclusion": "failure", "created_at": "2026-01-02T00:00:00Z"}
+        action, _, _ = m.decide([self.pr], [run], lambda n: [],
+                                applied=lambda r: True, refunded=lambda r: True)
+        self.assertEqual(action, "idle")
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            m.decide([self.pr], [run], lambda n: [], applied=lambda r: True, refunded=lambda r: True)
+        self.assertIn("applied; only its post-apply catalog check failed", out.getvalue())
+
+
+class AdversarialRunIdentity(unittest.TestCase):
+    """Plan §9 2.4 trust boundary: a run titled `DB preview apply …` from someone
+    else's experiment never counts, and neither does a run predating the merge."""
+
+    pr = {"number": 7, "merged_at": "2026-01-02T00:00:00Z", "versions": ["20260101000000"]}
+    ours = {"id": 1, "path": m.WORKFLOW_PATH, "display_title": "DB preview apply abc PR7 20260101000000",
+            "status": "completed", "conclusion": "failure", "created_at": "2026-01-03T00:00:00Z"}
+
+    def test_an_alien_workflow_run_in_the_fixture_list_never_counts(self):
+        alien = {**self.ours, "id": 99, "path": ".github/workflows/some-experiment.yml"}
+        self.assertEqual(m.decide([self.pr], [self.ours, self.ours, alien], lambda n: [], main_sha="x")[0], "dispatch")
+        self.assertEqual(m.decide([self.pr], [self.ours, self.ours, self.ours, alien], lambda n: [], main_sha="x")[0], "idle")
+
+    def test_the_lane_queries_only_its_own_workflows_runs(self):
+        seen = []
+        with mock.patch.object(m, "gh", side_effect=lambda *a: seen.append(a) or [{"workflow_runs": []}]):
+            m.workflow_runs("o/r")
+        self.assertTrue(seen)
+        for args in seen:
+            self.assertIn(f"actions/workflows/{m.WORKFLOW}/runs", args[-1])
+
+    def test_a_run_created_before_the_merge_never_counts(self):
+        before = {**self.ours, "id": 5, "created_at": "2026-01-01T00:00:00Z"}
+        self.assertEqual(m.decide([self.pr], [before] * 3, lambda n: [], main_sha="x")[0], "dispatch")
 
 
 if __name__ == "__main__":

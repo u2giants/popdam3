@@ -51,8 +51,20 @@ from production_migration_guard import FOREIGN_TARGET_MIGRATIONS, HARD_BLOCKED
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
 WORKFLOW = "shared-supabase-migrations.yml"
+# The runs API stamps every run with its workflow path; a run of someone else's
+# experiment is never evidence for this lane (plan §9 2.4 trust boundary).
+WORKFLOW_PATH = f".github/workflows/{WORKFLOW}"
 MIGRATION_RE = re.compile(r"^supabase/migrations/(\d{14})_[^/]+\.sql$")
 MAX_ATTEMPTS = 3
+# Refund cap (plan §9 2.3, default from §8): a change is never parked by other
+# people's breakage, but persistently broken infrastructure must surface as
+# ENGINEER ACTION REQUIRED — at most MAX_REFUNDS classified failures per change
+# since merge are refunded, and the refund that finds the cap exhausted parks
+# the change with "3 refunds used, now parked" (unbounded is not acceptable).
+MAX_REFUNDS = 3
+# The workflow's fault-classification marker step (plan §9 2.1). A succeeded
+# step of exactly this name in any attempt marks the run refund-eligible.
+REFUND_STEP = "refund-eligible-fault"
 ALERT_AFTER = timedelta(minutes=30)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -273,6 +285,32 @@ def stale_main_refusal_only(repo: str, run: dict[str, Any]) -> bool:
     return bool(STALE_MAIN_RE.search(ANSI_RE.sub("", logs)))
 
 
+def our_workflow(run: dict[str, Any]) -> bool:
+    """A run is ours only when the API says so (or is silent about it). Titles are
+    forgeable by anyone who can dispatch a workflow (plan §9 2.4: a run titled
+    `DB preview apply …` from someone else's experiment must never count)."""
+    path = run.get("path")
+    return not path or path == WORKFLOW_PATH
+
+
+def refund_eligible_in_any_attempt(repo: str, run: dict[str, Any]) -> bool:
+    """True when any attempt carries a succeeded `refund-eligible-fault` marker
+    step (plan §9 2.1/2.2). Judged PER ATTEMPT and ANY attempt suffices: a re-run
+    must not hide an earlier attempt's classification (the same rule as
+    `applied_in_any_attempt`). The marker step is emitted only by our own
+    workflow, so this is forgable only by compromising the workflow itself."""
+    try:
+        return any(
+            any(s.get("name") == REFUND_STEP and s.get("conclusion") == "success"
+                for job in jobs for s in (job.get("steps") or []))
+            for jobs in attempt_jobs(repo, run))
+    except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+        # Fail safe: an unreadable marker never refunds (the status quo keeps
+        # counting the run) and the reason is named for the log reader.
+        print(f"::warning::reading refund marker of run {run.get('id')} failed ({exc}); treating as a change fault")
+        return False
+
+
 def names_pr(pr: dict[str, Any], title: str) -> bool:
     """True when the run title names every migration version this PR authored.
     Recovery runs title themselves "PR " with no number, so match the versions;
@@ -289,7 +327,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
            applied: callable = lambda run: False, main_sha: str = "",
            skipped: list[dict[str, Any]] | None = None,
            refused: callable = lambda run: set(),
-           stale: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
+           stale: callable = lambda run: False,
+           refunded: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
@@ -300,7 +339,13 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     child consumes attempts; dependency waits preserve independent progress.
     Dependency receipts are cached only for this call, never the fresh recheck.
     A run `stale` reports as a pure main-SHA staleness refusal never touched a
-    database and consumes no attempt (#5856)."""
+    database and consumes no attempt (#5856). A run `refunded` carries the
+    workflow's refund-eligible marker (plan §9 2.1/2.2). Both are CLASSIFIED
+    failures: each draws from one per-change refund budget (MAX_REFUNDS) since
+    the merge — refunds keep a good change alive through other people's
+    breakage, and the classified failure that finds the budget empty parks the
+    change ("3 refunds used, now parked", plan §9 2.3)."""
+    runs = [r for r in runs if our_workflow(r)]
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
@@ -378,20 +423,35 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         # production apply re-enters through a historical recovery preview that succeeds
         # by design, so counting only preview failures could never bound that loop. A
         # recovery run titles itself "PR " with no number, hence the version match.
-        # A pure main-SHA staleness refusal is NOT an attempt (#5856): the run
-        # never touched a database and re-dispatch against the new tip is the cure.
-        attempts = sum(1 for t, r in zip(titles, runs)
-                       if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
-                       and (tag in t or names_pr(pr, t))
-                       and r.get("created_at", "") > pr["merged_at"]
-                       and r.get("conclusion") != "success"
-                       and not stale(r))
-        if attempts >= MAX_ATTEMPTS:
-            # Out of automatic attempts: passed over like a held PR, with a loud
-            # alert in main(), so one dead PR cannot park every later promotion
-            # while still refusing to retry it (#5532).
+        # CLASSIFIED failures (plan §9 2.1–2.3): a pure main-SHA staleness refusal
+        # never touched a database (#5856) and a run marked refund-eligible-fault
+        # is an infrastructure/coordination fault, not the change's — neither burns
+        # an attempt while this change's refund budget (MAX_REFUNDS) lasts. The
+        # classified failure that finds the budget empty parks the change, and so
+        # does the MAX_ATTEMPTS-th ordinary (unclassified) failure, exactly as
+        # before. Per-attempt evidence (applied / refused / preview) is unaffected.
+        failures = [r for t, r in zip(titles, runs)
+                    if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
+                    and (tag in t or names_pr(pr, t))
+                    and r.get("created_at", "") > pr["merged_at"]
+                    and r.get("conclusion") != "success"]
+        attempts, refunds, refund_parked = 0, 0, False
+        for failure in sorted(failures, key=lambda r: r.get("created_at", "")):
+            if stale(failure) or refunded(failure):
+                if refunds >= MAX_REFUNDS:
+                    refund_parked = True
+                    break
+                refunds += 1
+            else:
+                attempts += 1
+                if attempts >= MAX_ATTEMPTS:
+                    break
+        if attempts >= MAX_ATTEMPTS or refund_parked:
+            # Out of automatic attempts or out of refunds: passed over like a held
+            # PR, with a loud alert in main(), so one dead PR cannot park every
+            # later promotion while still refusing to retry it (#5532).
             passed_over += 1
-            entry = {**pr, "findings": [], "exhausted": attempts}
+            entry = {**pr, "findings": [], "exhausted": attempts, "refunds": refunds}
             out_of_attempts.append(entry)
             if skipped is not None:
                 skipped.append(entry)
@@ -400,7 +460,10 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     if passed_over:
         base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
         if out_of_attempts:
-            names = ", ".join(f"PR #{e['number']} ({e['exhausted']} attempts)" for e in out_of_attempts)
+            names = ", ".join(
+                f"PR #{e['number']} ({e['exhausted']} attempts"
+                + (f", {e['refunds']} refunds used" if e.get("refunds") else "") + ")"
+                for e in out_of_attempts)
             return "idle", None, f"ENGINEER ACTION REQUIRED: {names} out of automatic attempts at this main commit; {base}"
         return "idle", None, base
     return "idle", None, "every merged migration PR since activation is in production"
@@ -429,7 +492,7 @@ def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     Dependency waits are not review holds; exhausted attempts alert on their own."""
     lines = []
     for pr in skipped:
-        if pr.get("exhausted") or pr.get("pending_dependencies"):
+        if pr.get("exhausted") or pr.get("refunds") or pr.get("pending_dependencies"):
             continue
         opened = [_time(f["created_at"]) for f in pr["findings"] if f.get("created_at")]
         since = max(_time(pr["merged_at"]), min(opened)) if opened else _time(pr["merged_at"])
@@ -494,14 +557,17 @@ def main(now: datetime | None = None) -> int:
     action, pr, reason = decide(merged_migration_prs(repo), runs, lambda n: is_held(repo, n),
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run),
-                                stale=lambda run: stale_main_refusal_only(repo, run))
+                                stale=lambda run: stale_main_refusal_only(repo, run),
+                                refunded=lambda run: refund_eligible_in_any_attempt(repo, run))
     for entry in skipped:
         if entry.get("pending_dependencies"):
             refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
             print(f"dependency: PR #{entry['number']} waiting on production evidence for {refs}; later independent PRs still promote")
             continue
-        if entry.get("exhausted"):
-            print(f"exhausted: PR #{entry['number']} out of automatic attempts; later PRs still promote")
+        if entry.get("exhausted") or entry.get("refunds"):
+            what = ("out of automatic attempts" if entry.get("exhausted")
+                    else f"out of refunds (cap {MAX_REFUNDS} per change)")
+            print(f"exhausted: PR #{entry['number']} {what}; later PRs still promote")
             continue
         refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "an unreadable finding query"
         print(f"held: PR #{entry['number']} by {refs}; later PRs still promote")
@@ -513,18 +579,21 @@ def main(now: datetime | None = None) -> int:
         action, pr, reason = decide([pr], workflow_runs(repo), lambda n: is_held(repo, n),
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
-                                    stale=lambda run: stale_main_refusal_only(repo, run))
+                                    stale=lambda run: stale_main_refusal_only(repo, run),
+                                    refunded=lambda run: refund_eligible_in_any_attempt(repo, run))
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
         dispatch(repo, pr, main_sha)
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
-    exhausted = [e for e in skipped if e.get("exhausted")]
+    exhausted = [e for e in skipped if e.get("exhausted") or e.get("refunds")]
     for entry in exhausted:
+        cap_note = (f" {entry['refunds']} refunds used, now parked (refund cap {MAX_REFUNDS} per change)"
+                    if entry.get("refunds") else "")
         print(f"::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::"
               f"PR #{entry['number']} (versions {','.join(entry['versions'])}) failed {entry['exhausted']} "
-              f"automatic attempts at this main commit; later PRs still promote")
+              f"automatic attempts at this main commit{cap_note}; later PRs still promote")
     # Step 2.3: open or update ONE tracking issue for exhausted PRs.
     if exhausted and not args.dry_run:
         report_stuck_change(repo, exhausted, now)
@@ -552,8 +621,9 @@ def main(now: datetime | None = None) -> int:
                 if entry.get("pending_dependencies"):
                     refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
                     fh.write(f"- Dependency wait: PR #{entry['number']} waiting on {refs}\n")
-                elif entry.get("exhausted"):
-                    fh.write(f"- Used-up attempts: PR #{entry['number']} ({entry['exhausted']} attempts)\n")
+                elif entry.get("exhausted") or entry.get("refunds"):
+                    fh.write(f"- Used-up attempts: PR #{entry['number']} ({entry['exhausted']} attempts"
+                             + (f", {entry['refunds']} refunds used" if entry.get("refunds") else "") + ")\n")
                 else:
                     refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "unreadable"
                     fh.write(f"- Held: PR #{entry['number']} by {refs}\n")
@@ -596,7 +666,9 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
         hours = max(0, int((now - merged_at).total_seconds() / 3600))
         lines.append(
             f"- PR #{e['number']} (versions {','.join(e.get('versions', []))}): "
-            f"failed {e['exhausted']} automatic attempts; merged {hours}h ago and not live"
+            f"failed {e['exhausted']} automatic attempts"
+            + (f" and used its {e['refunds']} refunds (refund cap {MAX_REFUNDS} per change)" if e.get("refunds") else "")
+            + f"; merged {hours}h ago and not live"
         )
     body = (
         "## Delivery needed\n\n"

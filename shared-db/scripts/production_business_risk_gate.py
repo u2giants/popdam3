@@ -812,6 +812,11 @@ PREVIEW_PRODUCER_PATHS = (
     # differ from exact main, the applied commit and the preview project ref in
     # the evidence would be whatever a doctored checkout chose to write.
     "scripts/preview_instance_binding.py",
+    # Plan §9 2.1 (issue #5782): the refund-eligible-fault marker step runs in
+    # the preview job after a failure and classifies that failure from the job's
+    # own logs. Unpinned, a doctored copy could mark a change fault refund-
+    # eligible and the promotion selector would stop counting its attempts.
+    "scripts/refund_fault_classification.py",
     # Issue #2342. The preview job's `gh api` evidence reads now go through this
     # thin CLI, and it and the transport beneath it decide what may be retried,
     # what may never be replayed, and when a read fails closed. A doctored copy
