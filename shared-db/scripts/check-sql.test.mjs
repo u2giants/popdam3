@@ -68,7 +68,7 @@ function withFixture(filenames, fn) {
   try {
     return fn(dir)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
 
@@ -582,7 +582,7 @@ test('Guard B2 passes a migration timestamped after everything the ledger holds'
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /Guard B2: no added migration is behind or duplicated in preview/)
   assert.match(result.stdout, /2 applied, newest 20260812211000/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 CATCHES THE #651 BLIND SPOT: passes Guard B, behind the live ledger', () => {
@@ -600,7 +600,7 @@ test('Guard B2 CATCHES THE #651 BLIND SPOT: passes Guard B, behind the live ledg
   assert.equal(result.status, 1, 'Guard B2 must fail it')
   assert.match(result.stderr, /sort BEFORE what preview has already applied/)
   assert.match(result.stderr, /20260812100000/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 evaluates EACH ledger independently -- preview is not a superset of production', () => {
@@ -622,7 +622,7 @@ test('Guard B2 evaluates EACH ledger independently -- preview is not a superset 
   assert.equal(result.status, 1)
   assert.match(result.stderr, /sort BEFORE what preview has already applied/)
   assert.match(result.stdout, /no added migration is behind or duplicated in production/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 fails a version that is ALREADY IN the ledger', () => {
@@ -638,7 +638,7 @@ test('Guard B2 fails a version that is ALREADY IN the ledger', () => {
   assert.equal(result.status, 1)
   assert.match(result.stderr, /ALREADY APPLIED in preview/)
   assert.match(result.stderr, /SILENTLY SKIPPED/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 ignores versions the branch did not add', () => {
@@ -655,7 +655,7 @@ test('Guard B2 ignores versions the branch did not add', () => {
   })
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /Guard B2: no added migration is behind or duplicated in preview/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 REFUSES to read an unparseable ledger as an empty one', () => {
@@ -671,7 +671,7 @@ test('Guard B2 REFUSES to read an unparseable ledger as an empty one', () => {
   assert.equal(result.status, 1)
   assert.match(result.stderr, /contains no 14-digit versions/)
   assert.match(result.stderr, /Refusing to treat an unreadable ledger as an empty one/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 fails when a ledger file is NAMED but absent', () => {
@@ -683,7 +683,7 @@ test('Guard B2 fails when a ledger file is NAMED but absent', () => {
   })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /ledger file \/nonexistent\/ledger\.txt does not exist/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 WARNS LOUDLY when unconfigured, and fails under CHECK_SQL_REQUIRE_LEDGER', () => {
@@ -700,7 +700,7 @@ test('Guard B2 WARNS LOUDLY when unconfigured, and fails under CHECK_SQL_REQUIRE
   const strict = runGuards(dir, { env: { ...baseEnv(), CHECK_SQL_REQUIRE_LEDGER: '1' } })
   assert.equal(strict.status, 1)
   assert.match(strict.stderr, /is set, so this is an ERROR rather than a warning/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('Guard B2 refuses to run when the ADDED set cannot be determined', () => {
@@ -714,7 +714,7 @@ test('Guard B2 refuses to run when the ADDED set cannot be determined', () => {
   })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /could not be determined/)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('issue 1235 rejects every unsafe expected-count template shape', () => {
@@ -1092,7 +1092,7 @@ test('issue 3280 EOL guard fetches the base branch when no origin/main ref exist
     // the run actually succeeded.
     assert.equal(result.status, 0, `guards should have passed, stderr was: ${result.stderr}`)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -1107,7 +1107,7 @@ test('issue 3280 EOL guard still fails closed when the base cannot be fetched at
     )
     assert.notEqual(result.status, 0)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -1164,7 +1164,7 @@ function runGuardsWithPsqlStub(migrationsDir, env) {
     const captured = existsSync(capture) ? readFileSync(capture, 'utf8') : ''
     return { status: result.status, stderr: result.stderr ?? '', captured }
   } finally {
-    rmSync(stubDir, { recursive: true, force: true })
+    rmSync(stubDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
 
@@ -1255,7 +1255,7 @@ test('pg_url_to_env: DATABASE_URL migration path uses PG* env, not argv', () => 
     assert.match(captured, /PGPASSWORD=hunter2/)
     assert.match(captured, /PGDATABASE=testdb/)
   } finally {
-    rmSync(stubDir, { recursive: true, force: true })
+    rmSync(stubDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 

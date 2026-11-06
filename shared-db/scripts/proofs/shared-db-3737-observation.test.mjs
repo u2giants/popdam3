@@ -39,7 +39,7 @@ test('main writes only fresh authenticated metadata and refuses stale directory 
  assert.equal(await main({...env(),RUNNER_TEMP:temp},options),0);const o=JSON.parse(await readFile(join(temp,'shared-db-3737-observation/observation.json'),'utf8'));assert.equal(o.work_issue,3737);
  assert.equal(await main({...env(),RUNNER_TEMP:temp},options),1);const before=calls;
  assert.equal(await main({...env(),RUNNER_TEMP:temp,GITHUB_REF:'refs/heads/feature'},options),1);assert.equal(calls,before);
- }finally{await rm(temp,{recursive:true,force:true});}
+ }finally{await rm(temp,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 });
 
 test('complete profile fits the original 8192-byte artifact bound and the query reads only catalog metadata',async()=>{

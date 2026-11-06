@@ -110,7 +110,7 @@ test('CLI and API reject malformed, duplicate, unknown or incomplete requests',(
   for(const argv of [['--unknown','x'],['--issue'],['--issue','1','--issue','2']])assert.throws(()=>parseArgs(argv))
   assert.throws(()=>validateRequest({...args,leaseHours:0.5}));assert.throws(()=>validateRequest({...args,expectedBlockedOn:'bad\nowner: foreign'}));assert.throws(()=>validateRequest({...args,authorizationQuote:'short'}))
   const dir=mkdtempSync(join(tmpdir(),'blocker-rebind-'))
-  try{const file=join(dir,'quote');writeFileSync(file,args.authorizationQuote);const flags={'issue':'--issue','claim':'--claim-number','pr':'--pr','headSha':'--head-sha','oldOwner':'--old-owner','branch':'--branch','worktree':'--worktree','expectedBlockedOn':'--expected-blocked-on','abandonmentIssue':'--abandonment-issue','authorizationChatId':'--authorization-chat-id'};const argv=Object.entries(flags).flatMap(([key,flag])=>[flag,String(args[key])]);assert.deepEqual(parseArgs([...argv,'--authorization-quote-file',file]),args)}finally{rmSync(dir,{recursive:true})}
+  try{const file=join(dir,'quote');writeFileSync(file,args.authorizationQuote);const flags={'issue':'--issue','claim':'--claim-number','pr':'--pr','headSha':'--head-sha','oldOwner':'--old-owner','branch':'--branch','worktree':'--worktree','expectedBlockedOn':'--expected-blocked-on','abandonmentIssue':'--abandonment-issue','authorizationChatId':'--authorization-chat-id'};const argv=Object.entries(flags).flatMap(([key,flag])=>[flag,String(args[key])]);assert.deepEqual(parseArgs([...argv,'--authorization-quote-file',file]),args)}finally{rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
 
 test('preserved dirty claim with work-issue blocker rebinds when published PR head is exact',()=>{

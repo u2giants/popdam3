@@ -50,7 +50,7 @@ test('one notify wakes each of 10 waiting processes exactly once with no upstrea
     }
     assert.equal(existsSync(path.join(dir, 'reads.log')), false)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -80,7 +80,7 @@ test('with no event, the fallback poll detects a change with bounded reads and s
     assert.ok(c.waits.every((ms) => ms >= 1 && ms <= 1000))
     assert.ok(c.waits.length <= 100, `slept ${c.waits.length} times`)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -103,7 +103,7 @@ test('x-poll-interval stretches the fallback and failed reads back off; timeout 
     assert.ok(at.length <= 5)
     assert.throws(() => waitForChange(ENDPOINT, { env, dir, read: () => { throw new Error('bad') }, now: c.now, wait: c.wait, timeoutMs: 100000, baseMs: 0 }), /bad/)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -127,7 +127,7 @@ test('an unreadable or vanished event or state file never wakes a waiter, and a 
     assert.equal(result.reason, 'timeout')
     assert.deepEqual(result.cursor, since)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -143,6 +143,6 @@ test('zero delays still sleep between polls and invalid windows are refused', ()
       assert.throws(() => waitForChange(ENDPOINT, { env, dir, now: c.now, wait: c.wait, timeoutMs: 10, windowMs }), /windowMs/)
     }
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })

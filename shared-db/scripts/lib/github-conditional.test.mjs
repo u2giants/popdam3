@@ -59,14 +59,14 @@ test('unchanged polling consumes no primary quota: every repeat poll is a 304', 
   const changed = read()
   assert.equal(changed.changed, true); assert.equal(changed.body, '{"n":2}')
   assert.equal(gh.counted, 2)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('x-poll-interval is surfaced to the caller', () => {
   const dir = scratch(); const gh = fakeGitHub({ pollInterval: 60 })
   const r = sharedConditionalGet('repos/o/r/events', { env, dir, executor: gh.executor, now: () => 0 })
   assert.equal(r.pollIntervalMs, 60000)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('ten simultaneous identical readers in separate processes make one upstream read per generation', async () => {
@@ -93,7 +93,7 @@ test('ten simultaneous identical readers in separate processes make one upstream
   const outputs = await Promise.all(runs)
   assert.equal(readFileSync(counter, 'utf8').length, 1, 'exactly one upstream read for ten concurrent readers')
   for (const out of outputs) assert.deepEqual(JSON.parse(out), { snapshot: 'one' })
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('a new generation makes a fresh read; a failed read is never served to other callers', () => {
@@ -103,7 +103,7 @@ test('a new generation makes a fresh read; a failed read is never served to othe
   assert.deepEqual(singleFlight({ dir, key: 'k', generation: 1, read: () => { reads += 1; return 'other' } }), { value: 'ok', shared: true })
   assert.deepEqual(singleFlight({ dir, key: 'k', generation: 2, read: () => { reads += 1; return 'next' } }), { value: 'next', shared: false })
   assert.equal(reads, 3)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('a crashed lock holder is taken over instead of wedging every reader', () => {
@@ -111,7 +111,7 @@ test('a crashed lock holder is taken over instead of wedging every reader', () =
   writeFileSync(path.join(dir, 'k.flight-3.lock'), '')
   const r = singleFlight({ dir, key: 'k', generation: 3, now: () => (clock += 30000), wait: () => {}, staleLockMs: 60000, read: () => 'recovered' })
   assert.equal(r.value, 'recovered')
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('while the quota latch is active a waiter waits for the holder; a holder that died mid-wait is still taken over after the reset', () => {
@@ -136,7 +136,7 @@ test('while the quota latch is active a waiter waits for the holder; a holder th
   const taken = singleFlight({ dir: dir2, key: 'k', generation: 8, now: () => clock, staleLockMs: 60000, latchResetMs: () => reset2, wait: (ms) => { clock += ms; spins += 1 }, read: () => clock })
   assert.equal(taken.shared, false); assert.ok(taken.value > reset2 + 60000, 'no takeover before the reset plus staleLockMs')
   assert.ok(spins < 900000 / 250 + 60000 / 25 + 10, `bounded local waits: ${spins}`)
-  rmSync(dir, { recursive: true, force: true }); rmSync(dir2, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); rmSync(dir2, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('failed polls back off 30/60/120/300s with jitter; x-poll-interval is only a floor', () => {
@@ -164,7 +164,7 @@ ${JSON.stringify({ resources: { core: { remaining: 0, reset: resetSeconds }, gra
   assert.throws(() => runGitHubCommand(['pr', 'view', '1'], { executor: () => { wire += 1 }, quotaLatch: hostQuotaLatch(latchEnv), now }), (e) => e.quotaLatched)
   runGitHubCommand(['api', 'graphql', '-f', 'query=x'], { executor: () => { wire += 1; return '{}' }, quotaLatch: hostQuotaLatch(latchEnv), now })
   assert.equal(wire, 1)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('staging files are removed even when the rename fails', () => {
@@ -175,7 +175,7 @@ test('staging files are removed even when the rename fails', () => {
   mkdirSync(target); writeFileSync(path.join(target, 'occupied'), '') // a non-empty directory where the file belongs makes rename fail
   assert.throws(() => latch.write(['api', 'x'], 2))
   assert.deepEqual(readdirSync(dir).filter((n) => n.endsWith('.tmp')), [])
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('conditional check-run pages follow Link and are validated exactly as before', () => {
@@ -221,7 +221,7 @@ test('rate-limit exhaustion seen by one caller stops every other caller until re
   let resumed = 0
   runGitHubCommand(['api', 'repos/o/r/pulls/4'], { executor: () => { resumed += 1; return '{}' }, quotaLatch: hostQuotaLatch(latchEnv), now })
   assert.equal(resumed, 1)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('a fail-fast caller that cannot probe still brakes others for a bounded window; a corrupt latch is ignored', () => {
@@ -237,7 +237,7 @@ test('a fail-fast caller that cannot probe still brakes others for a bounded win
   runGitHubCommand(['api', 'z'], { executor: () => { wire += 1; return '{}' }, quotaLatch: hostQuotaLatch(latchEnv), now })
   assert.equal(wire, 2)
   assert.equal(hostQuotaLatch({ GITHUB_QUOTA_LATCH: 'off' }), null)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 function readdirLatch(dir) {

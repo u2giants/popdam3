@@ -9,7 +9,7 @@ import { paidReviewGitReader, PAID_REVIEW_GIT_MAX_BYTES } from '../../manage-mig
 
 function fixture(run) {
  const dir=mkdtempSync(join(tmpdir(),'paid-git-reader-'))
- try {execFileSync('git',['init','-q',dir]); run(dir)} finally {rmSync(dir,{recursive:true,force:true})}
+ try {execFileSync('git',['init','-q',dir]); run(dir)} finally {rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 }
 const digest=s=>createHash('sha256').update(s).digest('hex')
 test('complete real Git source blob exceeds default output bound without losing bytes',()=>fixture(dir=>{

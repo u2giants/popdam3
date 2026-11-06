@@ -34,14 +34,14 @@ function run(root) {
 
 test('canonical shared skill is found and passes required safety assertions', () => {
   const root = fixture()
-  try { assert.equal(run(root).status, 0) } finally { rmSync(root, { recursive: true, force: true }) }
+  try { assert.equal(run(root).status, 0) } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('require-skills fails when only the retired claude path exists', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'skill-drift-'))
   mkdirSync(path.join(root, 'skills', 'claude', 'shared-db-orchestrator'), { recursive: true })
   writeFileSync(path.join(root, 'skills', 'claude', 'shared-db-orchestrator', 'SKILL.md'), 'old')
-  try { assert.notEqual(run(root).status, 0) } finally { rmSync(root, { recursive: true, force: true }) }
+  try { assert.notEqual(run(root).status, 0) } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#3874 a skill that still routes to the retired coordinator fails', () => {
@@ -52,7 +52,7 @@ test('#3874 a skill that still routes to the retired coordinator fails', () => {
     const result = run(root)
     assert.notEqual(result.status, 0)
     assert.match(result.stdout + result.stderr, /retired-coordinator-routing/)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#3874 a retired-marker query without --repo is still flagged', () => {
@@ -63,5 +63,5 @@ test('#3874 a retired-marker query without --repo is still flagged', () => {
     const result = run(root)
     assert.notEqual(result.status, 0)
     assert.match(result.stdout + result.stderr, /marker-query-without-repo/)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })

@@ -320,7 +320,7 @@ test('pre-merge preview apply: the statements reader refuses production and malf
 // Exercise the real canonical Python loader, not a second SQL parser or a stub.
 function atomicFixture(t, { body = 'BEGIN;\nselect 1;\nselect 2;\nCOMMIT;\n', policy = {} } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'atomic-preview-edit-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
   mkdirSync(path.join(root, MIGRATIONS_DIR), { recursive: true })
   mkdirSync(path.join(root, 'config'))
   const entry = { targets: ['preview', 'production'], strip_outer_transaction: true,

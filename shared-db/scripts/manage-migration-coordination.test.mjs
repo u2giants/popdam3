@@ -1419,7 +1419,7 @@ test('#2758 merge lane grants a real independent-main lock and refuses an overla
   } finally {
     process.chdir(previous)
     assert.ok(path.resolve(repo).startsWith(`${path.resolve(tmpdir())}${path.sep}`))
-    rmSync(repo,{recursive:true,force:true})
+    rmSync(repo,{recursive:true,force:true,maxRetries:10,retryDelay:100})
   }
 })
 
@@ -2377,7 +2377,7 @@ function withReversionRepo(files,run){
     const initialized=spawnSync('git',['init','--quiet',repo],{encoding:'utf8'});assert.equal(initialized.status,0,initialized.stderr)
     const added=spawnSync('git',['-C',repo,'add','--all'],{encoding:'utf8'});assert.equal(added.status,0,added.stderr)
     return run(repo)
-  }finally{rmSync(repo,{recursive:true,force:true})}
+  }finally{rmSync(repo,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 }
 
 test('REAL GIT: version rewrite discovers a migration whose version exists only in its filename and reverses it',()=>withReversionRepo({
@@ -4571,7 +4571,7 @@ test('DELIVERY PREFLIGHT (#2728): --delivery-preflight runs and registers a pref
     assert.deepEqual(gate.bundle.metadata.delivery_preflight,{preflight_id:gate.record.preflight_id,input_digest:gate.record.input_digest})
     assert.equal(refused,2);assert.equal(missing,2)
     assert.match(errors.join('\n'),/requires --preflight-input/);assert.match(errors.join('\n'),/requires --evidence-bundle/)
-  } finally { if(priorRoot===undefined)delete process.env.DELIVERY_EVIDENCE_REGISTRY_ROOT;else process.env.DELIVERY_EVIDENCE_REGISTRY_ROOT=priorRoot;rmSync(dir,{recursive:true,force:true}) }
+  } finally { if(priorRoot===undefined)delete process.env.DELIVERY_EVIDENCE_REGISTRY_ROOT;else process.env.DELIVERY_EVIDENCE_REGISTRY_ROOT=priorRoot;rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}) }
 })
 
 // Issue #2987: the verdict namespace reached its row ceiling and every reviewer
@@ -4764,7 +4764,7 @@ test('issue 2678: the doctor probe tells the wrapper who is calling, so a health
     process.env[PATH_KEY]=originalPath
     if(originalCaller===undefined)delete process.env.AI_MUSE_CALLER;else process.env.AI_MUSE_CALLER=originalCaller
     if(originalClaude===undefined)delete process.env.CLAUDECODE;else process.env.CLAUDECODE=originalClaude
-    rmSync(dir,{recursive:true,force:true})
+    rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})
   }
 })
 
@@ -4778,7 +4778,7 @@ test('issue 2678: an explicitly exported caller is never overruled by detection'
   }finally{
     process.env[PATH_KEY]=originalPath
     if(originalCaller===undefined)delete process.env.AI_MUSE_CALLER;else process.env.AI_MUSE_CALLER=originalCaller
-    rmSync(dir,{recursive:true,force:true})
+    rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})
   }
 })
 
@@ -5171,7 +5171,7 @@ test('#3411 real Git: production refresh carries only unchanged approval after a
     git(['switch','-q','-c','squash',`${merge}^1`])
     git(['merge','-q','--squash','pr']); const squash=commit('squashed PR')
     assert.throws(() => mergedReviewComparisonBase({mergeCommitSha:squash,head,main:squash,gitRunner:git}),/second parent/,'a squash has no reviewed second parent')
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('deepseek-v4.1-flash is drawable and reads the repository while deepseek-chat stays retired',()=>{
@@ -5345,7 +5345,7 @@ test('#2998 prompt: a handoff without a brief proceeds; a carried brief must be 
     assert.deepEqual(assertDrawPromptContract({ promptFile: bound, headSha: HANDOFF_HEAD }), { carried: true, headClean: true, validatedOnly: true })
     // Both forms at once is ambiguous and refuses instead of silently dropping one (L2).
     assert.throws(() => assertDrawPromptContract({ prompt: 'x', promptFile: bound, headSha: HANDOFF_HEAD }), /both --prompt and --prompt-file/)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 // A complete, valid keyed evidence pair for issue 2998 generation 7, with the
@@ -5811,7 +5811,7 @@ function nonclosingGitFixture(structural=false){
   const gitRunner=(args)=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
   io.verifyNonclosingMaintenanceBinding=request=>verifyNonclosingMaintenanceBinding(request,io,proofGit,{gitRunner})
   io.verifyNonclosingStructuralBinding=request=>verifyNonclosingMaintenanceBinding({...request,structural:true},io,proofGit,{gitRunner})
-  return {dir,git,gitRunner,put,contract,report,live,work,files,io,proofGit,head,base,close:()=>rmSync(dir,{recursive:true,force:true})}
+  return {dir,git,gitRunner,put,contract,report,live,work,files,io,proofGit,head,base,close:()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 }
 test('nonclosing maintenance binding proves canonical live direct and snapshot routes through real Git',()=>{
   const f=nonclosingGitFixture()

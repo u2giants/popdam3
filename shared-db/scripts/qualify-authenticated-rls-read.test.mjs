@@ -45,7 +45,7 @@ function fixture(mode = 'ok') {
     }
   }
   const options = { createClient: (_url, _key, options) => { assert.deepEqual(options.auth, { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }); return client; }, Client, versions: { sdk: '2.97.0', pg: '8.23.1' }, ca: Buffer.from('MOCK_CA'), publicKey: env.SUPABASE_PUBLISHABLE_KEY, output, env, now: () => now };
-  return { events, directory, output, env, options, cleanup: () => fs.rmSync(directory, { recursive: true, force: true }) };
+  return { events, directory, output, env, options, cleanup: () => fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
 }
 function assertClean(f, report) {
   const text = JSON.stringify(report);

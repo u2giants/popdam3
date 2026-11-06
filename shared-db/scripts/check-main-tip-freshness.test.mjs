@@ -40,7 +40,7 @@ test('arbitrary .agent code overlap refuses even when distant hunks merge cleanl
     const tip = commitFiles(repo, { '.agent/hook.mjs': main.join('\n') }, 'main changes agent code')
     const result = branch(repo, head, tip)
     assert.equal(result.ok, false); assert.match(result.reason, /main also changed \.agent\/hook.mjs/)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#2758: main moved by unrelated code, PR merges cleanly and touches none of it: accepted', () => {
@@ -49,7 +49,7 @@ test('#2758: main moved by unrelated code, PR merges cleanly and touches none of
     const tip = commitFiles(repo, { 'scripts/other.mjs': 'export const x = 1\n', 'supabase/migrations/20260911110000_other.sql': 'select 2;\n' }, 'main moves')
     const result = branch(repo, head, tip)
     assert.equal(result.ok, true, result.reason); assert.equal(result.independent, true)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 // #3669: the guarded merge acquires its lane inside a checkout of protected
@@ -69,7 +69,7 @@ test('#3669: independent main move is refused from a depth-1 clone and accepted 
     git(clone, ['fetch', '-q', '--no-tags', 'origin', 'main', head])
     const full = branch(clone, head, tip)
     assert.equal(full.ok, true, full.reason); assert.equal(full.independent, true)
-  } finally { rmSync(repo, { recursive: true, force: true }); rmSync(clone, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); rmSync(clone, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#2758: a branch that already merged main, with its own diff unchanged, is accepted', () => {
@@ -82,7 +82,7 @@ test('#2758: a branch that already merged main, with its own diff unchanged, is 
     const tip = commitFiles(repo, { 'scripts/third.mjs': 'export const y = 1\n' }, 'main moves again')
     const result = branch(repo, refreshed, tip)
     assert.equal(result.ok, true, result.reason)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#2758: an .agent-only overlap that merges cleanly is accepted', () => {
@@ -90,7 +90,7 @@ test('#2758: an .agent-only overlap that merges cleanly is accepted', () => {
   try {
     const tip = commitFiles(repo, { '.agent/completion.json': '{}\n', 'scripts/other.mjs': 'x\n' }, 'main moves with evidence')
     assert.equal(branch(repo, head, tip).ok, true)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('POSITIVE CONTROL #2758: main changed a file the PR also changes: refused', () => {
@@ -102,7 +102,7 @@ test('POSITIVE CONTROL #2758: main changed a file the PR also changes: refused',
     const tip = commitFiles(repo, { 'shared.mjs': 'export const a = 1\nexport const b = 3\n' }, 'main edits shared')
     const result = branch(repo, head, tip)
     assert.equal(result.ok, false); assert.match(result.reason, /REFUSED/)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('POSITIVE CONTROL #2758: main took the same migration version: refused', () => {
@@ -111,7 +111,7 @@ test('POSITIVE CONTROL #2758: main took the same migration version: refused', ()
     const tip = commitFiles(repo, { 'supabase/migrations/20260911120000_other.sql': 'select 3;\n' }, 'main takes the version')
     const result = branch(repo, head, tip)
     assert.equal(result.ok, false); assert.match(result.reason, /20260911120000/)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('POSITIVE CONTROL #2758: an .agent overlap that conflicts is refused', () => {
@@ -120,7 +120,7 @@ test('POSITIVE CONTROL #2758: an .agent overlap that conflicts is refused', () =
     const tip = commitFiles(repo, { '.agent/contract.json': '{"h":"main-later"}\n', 'scripts/other.mjs': 'x\n' }, 'main rewrites evidence')
     const result = branch(repo, head, tip)
     assert.equal(result.ok, false); assert.match(result.reason, /conflict/i)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 function git(repo, args) {
@@ -166,7 +166,7 @@ test('an unmoved tip is accepted, exactly as the bare equality test did', () => 
     assert.equal(verdict.ok, true)
     assert.match(verdict.reason, /exactly the dispatched commit/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -182,7 +182,7 @@ test('a tip that advanced by documentation only is accepted', () => {
     assert.equal(verdict.ok, true, verdict.reason)
     assert.match(verdict.reason, /every change since/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -199,7 +199,7 @@ test('POSITIVE CONTROL: a tip that advanced by a migration is still refused', ()
     assert.match(verdict.reason, /not documentation/)
     assert.match(verdict.reason, /20260901120000_thing\.sql/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -213,7 +213,7 @@ test('POSITIVE CONTROL: one code file among many documentation files still refus
     assert.equal(verdict.ok, false)
     assert.match(verdict.reason, /scripts\/thing\.mjs/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -236,7 +236,7 @@ test('POSITIVE CONTROL: the reviewed detector baseline is NOT documentation, des
     assert.equal(verdict.ok, false, 'a reviewed baseline must never pass as documentation')
     assert.match(verdict.reason, /throughput-guard-truth-baseline/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -258,7 +258,7 @@ test('POSITIVE CONTROL: a tip on a different line of history is refused, not dif
     assert.equal(verdict.ok, false)
     assert.match(verdict.reason, /different line of\s+history/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -316,7 +316,7 @@ test('POSITIVE CONTROL: a rename from code to Markdown is refused, not hidden', 
     assert.match(verdict.reason, /scripts\/thing\.mjs/)
     assert.equal(sha.length, 40)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -368,7 +368,7 @@ test('a documentation-only advance that lands through a merge commit is accepted
     assert.deepEqual(verdict.movedBy, ['HANDOFF.d/2026-09-06T2213Z-note.md'])
     assert.equal(sha.length, 40)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -385,7 +385,7 @@ test('POSITIVE CONTROL: a merge that lands code is still refused (#2465)', () =>
     assert.equal(verdict.ok, false)
     assert.match(verdict.reason, /scripts\/landed\.mjs/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -403,7 +403,7 @@ test('POSITIVE CONTROL: a rename from code to documentation is still refused (#2
     assert.match(verdict.reason, /scripts\/moved\.mjs/)
     assert.equal(sha.length, 40)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -423,7 +423,7 @@ test('#3153: production tip moved only by a test file and .agent evidence is acc
     assert.equal(verdict.ok, true, verdict.reason)
     assert.match(verdict.reason, /production-inert/)
   } finally {
-    rmSync(repo, { recursive: true, force: true })
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -436,7 +436,7 @@ test('production tip moved only by named non-production automation is accepted i
       const verdict = classifyMainTip({ mainSha: sha, tipSha: tip, gitRunner: (args) => git(repo, args), production: true })
       assert.equal(verdict.ok, true, verdict.reason)
     } finally {
-      rmSync(repo, { recursive: true, force: true })
+      rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
     }
   }
 })
@@ -473,7 +473,7 @@ test('POSITIVE CONTROL #3153: production mode still refuses migrations, gate cod
       assert.equal(verdict.ok, false, path)
       assert.ok(verdict.reason.includes(path), verdict.reason)
     } finally {
-      rmSync(repo, { recursive: true, force: true })
+      rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
     }
   }
 })
@@ -500,7 +500,7 @@ test('#4845: production accepts a tip moved only by a strictly later appended mi
     assert.equal(verdict.ok, true, verdict.reason)
     assert.match(verdict.reason, /verified prefix/)
     assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('step 2.7 accepts a crossed lower added migration; #4845 still refuses duplicates, modified and deleted migrations, and mixed code', () => {
@@ -523,7 +523,7 @@ test('step 2.7 accepts a crossed lower added migration; #4845 still refuses dupl
         tip = commitFiles(repo, { 'supabase/tests/t.sql': 'b;\n', 'supabase/migrations/20261026160000_c.sql': 'x;\n' }, 'modify test')
       }
       assert.equal(prod(repo, base, tip).ok, false, name)
-    } finally { rmSync(repo, { recursive: true, force: true }) }
+    } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
   }
 })
 
@@ -543,7 +543,7 @@ test('POSITIVE CONTROL #4845: an appended migration needs a dispatched ledger to
   try {
     const tip = commitFiles(repo, { 'supabase/migrations/20261026160000_c.sql': 'x;\n' }, 'first')
     assert.equal(prod(repo, sha, tip).ok, false)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 // STEP 2.5 (plan_ci-process-repair.md, #2367): preview evidence tracks the
@@ -566,7 +566,7 @@ test('step 2.5: production accepts a tip moved only by unrelated workflow edits;
       assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
       const verdict = prod(repo, sha, tip)
       assert.equal(verdict.ok, true, `${path}: ${verdict.reason}`)
-    } finally { rmSync(repo, { recursive: true, force: true }) }
+    } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
   }
 })
 
@@ -576,7 +576,7 @@ test('POSITIVE CONTROL step 2.5: the apply workflow itself is the apply tool and
   try {
     const tip = commitFiles(repo, { '.github/workflows/shared-supabase-migrations.yml': 'changed\n' }, 'apply tool edit')
     assert.equal(prod(repo, sha, tip).ok, false)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('step 2.5: an appended migration plus unrelated workflow edits is still a verified prefix', () => {
@@ -589,5 +589,5 @@ test('step 2.5: an appended migration plus unrelated workflow edits is still a v
     const verdict = prod(repo, sha, tip)
     assert.equal(verdict.ok, true, verdict.reason)
     assert.match(verdict.reason, /verified prefix/)
-  } finally { rmSync(repo, { recursive: true, force: true }) }
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })

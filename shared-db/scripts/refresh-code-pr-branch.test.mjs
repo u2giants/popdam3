@@ -65,7 +65,7 @@ test('#507(b) refresh merges main, keeps .agent off the implementation head, and
     assert.match(report.checks[0].evidence, /x 1\/1 pass, 0 fail, 0 skipped/)
     assert.equal(r.g(r.work, 'status', '--porcelain'), '')
     assert.equal(r.g(r.work, 'show', 'HEAD:base.txt'), '2')
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 test('#507(b) a real conflict refuses and leaves the branch unchanged', () => {
   const r = repo()
@@ -77,7 +77,7 @@ test('#507(b) a real conflict refuses and leaves the branch unchanged', () => {
     assert.equal(r.g(r.work, 'status', '--porcelain'), '')
     assert.throws(() => refresh({ issue: 9, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} }), /not #9/)
     assert.equal(r.g(r.work, 'status', '--porcelain'), '')
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 test('#507(b) a merge that fails without a conflict is rolled back so a retry starts clean', () => {
   const r = repo()
@@ -90,7 +90,7 @@ test('#507(b) a merge that fails without a conflict is rolled back so a retry st
     assert.equal(r.g(r.work, 'status', '--porcelain'), '')
     r.g(r.work, 'config', '--unset', 'merge.ff')
     assert.equal(refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} }).pushed, false)
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#507(b) a recorded assignment survives a stale-readback error (#2844); an unrecorded one refuses', () => {
@@ -123,7 +123,7 @@ test('#507(b) a recorded assignment survives a stale-readback error (#2844); an 
       } else {
         assert.throws(() => refresh(options, { run, log: () => {} }), /assigning a reviewer at the new head failed: REFUSED/)
       }
-    } finally { rmSync(r.root, { recursive: true, force: true }) }
+    } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
   }
 })
 
@@ -166,7 +166,7 @@ test('#2708/#2845 a generation-keyed pair refreshes although main has no copy of
     assert.equal(report.contract_ref, 'refs/db-contracts/7/2')
     // The predecessor pair is gone from the branch tip: exactly one pair claims the task.
     assert.equal(r.g(r.work, 'ls-tree', '--name-only', result.tip, '.agent/work/7/1/').trim(), '')
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('#2845 a legacy pair is rebound to the refreshed base as well', () => {
@@ -176,7 +176,7 @@ test('#2845 a legacy pair is rebound to the refreshed base as well', () => {
     refresh({ issue: 7, pr: 8, worktree: r.work, push: false, assign: false }, { log: () => {} })
     const report = JSON.parse(readFileSync(join(r.work, '.agent/completion.json'), 'utf8'))
     assert.equal(report.base_sha, r.g(r.work, 'rev-parse', 'origin/main'))
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 // #3380: the contract the refresh reads is evidence. A record whose generation
@@ -191,5 +191,5 @@ test('#3380 a branch contract with invalid generation lineage refuses the refres
       /invalid generation lineage/,
     )
     assert.equal(r.g(r.work, 'status', '--porcelain'), '')
-  } finally { rmSync(r.root, { recursive: true, force: true }) }
+  } finally { rmSync(r.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })

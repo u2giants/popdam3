@@ -306,7 +306,7 @@ test('protected scratch token is run-bound, exclusive and cleaned by exact owner
     assert.equal(readScratchAuthorityToken(f.env),'test-only-token')
     assert.throws(()=>captureAuthorityFile({...f.env,AUTHORITY_TOKEN:'second'}))
     cleanupAuthorityFile(f.env);assert.throws(()=>readFileSync(f.file))
-  }finally{rmSync(f.dir,{recursive:true,force:true})}
+  }finally{rmSync(f.dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
 for(const[name,mutate]of Object.entries({
   permissions:f=>chmodSync(f.file,0o644),hardlink:f=>linkSync(f.file,path.join(f.dir,'link')),
@@ -314,11 +314,11 @@ for(const[name,mutate]of Object.entries({
   missing:f=>unlinkSync(f.file),wrongRun:f=>f.env.GITHUB_RUN_ID='11',wrongAttempt:f=>f.env.GITHUB_RUN_ATTEMPT='3',
   malformed:f=>writeFileSync(f.file,'{"token":"test-only-secret-broken'),
   empty:f=>writeFileSync(f.file,''),replacement:f=>{unlinkSync(f.file);writeFileSync(f.file,'{}',{mode:0o600})},
-}))test(`protected scratch refuses ${name} read and cleanup`,()=>{const f=scratchFixture();try{mutate(f);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env))}finally{rmSync(f.dir,{recursive:true,force:true})}})
-test('authority scratch parse refusal never exposes malformed token content',()=>{const f=scratchFixture();try{writeFileSync(f.file,'{"token":"private-fixture-secret');assert.throws(()=>readScratchAuthorityToken(f.env),e=>!e.message.includes('private-fixture-secret'))}finally{rmSync(f.dir,{recursive:true,force:true})}})
+}))test(`protected scratch refuses ${name} read and cleanup`,()=>{const f=scratchFixture();try{mutate(f);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env))}finally{rmSync(f.dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})
+test('authority scratch parse refusal never exposes malformed token content',()=>{const f=scratchFixture();try{writeFileSync(f.file,'{"token":"private-fixture-secret');assert.throws(()=>readScratchAuthorityToken(f.env),e=>!e.message.includes('private-fixture-secret'))}finally{rmSync(f.dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})
 
 test('scratch refuses writable parent and does not delete a collided foreign path',()=>{
-  const f=scratchFixture();try{chmodSync(f.dir,0o777);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env));assert.ok(readFileSync(f.file).length)}finally{chmodSync(f.dir,0o700);rmSync(f.dir,{recursive:true,force:true})}
+  const f=scratchFixture();try{chmodSync(f.dir,0o777);assert.throws(()=>readScratchAuthorityToken(f.env));assert.throws(()=>cleanupAuthorityFile(f.env));assert.ok(readFileSync(f.file).length)}finally{chmodSync(f.dir,0o700);rmSync(f.dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
 
 test('independent final authority read refuses drift after the prior authority proof',()=>{

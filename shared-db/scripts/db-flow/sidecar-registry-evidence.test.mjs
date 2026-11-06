@@ -15,7 +15,7 @@ const fakeReader = (files) => ({
   isClean: () => true,
 })
 const repo = (declared, present) => ({ [SIDECAR_REGISTRY_PATH]: registry(declared), 'scripts/production_business_risk_gate.py': 'x', ...Object.fromEntries(present.map((v) => [`${SIDECAR_DIR}/${v}.json`, '{}'])) })
-const withRoot = (fn) => { const root = mkdtempSync(path.join(tmpdir(), 'sidecar-reg-')); try { return fn(root) } finally { rmSync(root, { recursive: true, force: true }) } }
+const withRoot = (fn) => { const root = mkdtempSync(path.join(tmpdir(), 'sidecar-reg-')); try { return fn(root) } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) } }
 const producersFor = (files) => Object.keys(files)
 
 test('one declaration registers a new sidecar and the preflight reads it back', () => withRoot((root) => {

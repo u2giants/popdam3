@@ -34,7 +34,7 @@ test('--out preserves arbitrary bytes without UTF-8 decoding', () => {
       }, log: () => {}, err: () => {},
     }), 0)
     assert.deepEqual(readFileSync(out), expected)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 async function runCliThroughPipe(args, payload, ghExit = 0) {
@@ -53,7 +53,7 @@ async function runCliThroughPipe(args, payload, ghExit = 0) {
     child.stderr.on('data', chunk => stderr.push(chunk))
     const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', resolve) })
     return { code, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) }
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 }
 
 for (const text of ['x'.repeat(512 * 1024), '你好 🦁 café'.repeat(50000)]) {

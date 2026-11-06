@@ -35,5 +35,5 @@ test('protected sidecar executable rejects malformed PR sidecar data without imp
   assert.equal(existsSync(marker),false,'PR Python code executed')
   assert.equal(git(source,['status','--porcelain']),'','protected source was mutated')
   assert.equal(git(source,['rev-parse','HEAD']),sourceSha)
- } finally {rmSync(directory,{recursive:true,force:true})}
+ } finally {rmSync(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })

@@ -298,7 +298,7 @@ function runCompletionCli(overrides = {}, expectedPr = 7) {
       '--expected-head-sha', head,
     ], { encoding: 'utf8', timeout: 10000 })
   } finally {
-    rmSync(directory, { recursive: true, force: true })
+    rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
 

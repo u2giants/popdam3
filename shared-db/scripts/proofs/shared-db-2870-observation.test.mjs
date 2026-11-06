@@ -167,7 +167,7 @@ test('main writes only observation on success and never logs secret or returned 
     assert.equal(actual.application_commit_sha, env.APPLICATION_COMMIT_SHA);
     assert.equal(await main(settings, { fetchImpl: async () => response(), log, error: log }), 1);
     assert.deepEqual(output, ['SHARED_DB_2870_OBSERVATION_CREATED', 'SHARED_DB_2870_OBSERVATION_REFUSED']);
-  } finally { await rm(directory, { recursive: true, force: true }); }
+  } finally { await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 test('main failure emits only fixed error and no artifact for every API refusal', async () => {
@@ -185,7 +185,7 @@ test('main failure emits only fixed error and no artifact for every API refusal'
         { fetchImpl, log, error: log }), 1);
       assert.deepEqual(output, ['SHARED_DB_2870_OBSERVATION_REFUSED']);
       assert.deepEqual(await readdir(directory), []);
-    } finally { await rm(directory, { recursive: true, force: true }); }
+    } finally { await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
   }
 });
 

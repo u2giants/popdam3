@@ -130,7 +130,7 @@ test('POSITIVE CONTROL: a PR that replaces a routine an older migration drops fa
     const calls = []
     assert.throws(() => runDeliveryPreflightGate({ currentBundle: bundleAt(HEAD_A), changedFiles: ['supabase/migrations/20260915200000_replace.sql'] }, { ...adaptersFor(HEAD_A, 'PASS', calls), repoRoot: root }), /blocked by routine_rebuild: 20260901000000_drop_old\.sql resurrects \[\] loses \[public\.deactivate_stale_sg_files\]/)
     assert.deepEqual(calls, [])
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('a PR that drops a routine with a matching rebuild passes and composes every gate', () => {
@@ -140,7 +140,7 @@ test('a PR that drops a routine with a matching rebuild passes and composes ever
     const result = runDeliveryPreflightGate({ currentBundle: bundleAt(HEAD_A), changedFiles: ['supabase/migrations/20260915200000_retire.sql'] }, { ...adaptersFor(HEAD_A, 'PASS', calls), repoRoot: root })
     assert.equal(result.status, 'PASS')
     assert.deepEqual(calls, DELIVERY_CHECKS)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('POSITIVE CONTROL: a drop without a matching rebuild refuses the reviewer draw', () => {
@@ -156,5 +156,5 @@ test('an unreadable rebuild check refuses rather than passing', () => {
   try {
     assert.throws(() => runRoutineRebuildCheck(['20260915200000_x.sql'], { repoRoot: root }), /routine rebuild check is unreadable/)
     assert.throws(() => assertRoutineRebuild(['supabase/migrations/20260915200000_x.sql'], { routineRebuild: () => ({ status: 'PASS?' }) }), /unreadable rebuild report/)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })

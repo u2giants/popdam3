@@ -300,7 +300,7 @@ test('a real prose-only commit takes the fast route from a real git inventory', 
     const verdict = classifyCiRouteFromGitRaw(raw)
     assert.equal(verdict.pureProse, true, verdict.reason)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -321,7 +321,7 @@ test('a real executable-bit flip on a prose file takes the full path', () => {
     assert.equal(verdict.pureProse, false)
     assert.match(verdict.reason, /mode/)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -345,7 +345,7 @@ test('a real code change and a real instruction change both take the full path',
     assert.equal(instructionVerdict.pureProse, false)
     assert.match(instructionVerdict.reason, /instruction-bearing/)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -365,7 +365,7 @@ test('a real rename out of a migration takes the full path', () => {
     const verdict = classifyCiRouteFromGitRaw(inventoryAt(dir, base, head))
     assert.equal(verdict.pureProse, false)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
 
@@ -389,6 +389,6 @@ test('a real symlink pointing at a prose name takes the full path', (t) => {
     assert.equal(verdict.pureProse, false)
     assert.match(verdict.reason, /mode/)
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })

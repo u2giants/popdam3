@@ -16,7 +16,7 @@ function makeZip(files, compression) {
     const py = process.platform === 'win32' ? 'python' : 'python3'
     execFileSync(py, ['-c', `import json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1],'w',${compression})\nfor k,v in json.loads(sys.stdin.read()).items(): z.writestr(k,v)\nz.close()`, out], { input: JSON.stringify(files) })
     return readFileSync(out)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 }
 
 for (const [label, compression] of [['deflated', 'zipfile.ZIP_DEFLATED'], ['stored', 'zipfile.ZIP_STORED']]) {

@@ -106,7 +106,7 @@ test('merged CLI operation is explicit and keeps ordinary transfer separate',()=
   try{
     const argv=['--issue','2110','--claim-number','3378','--pr','3391','--head-sha',HEAD,'--old-owner',args.oldOwner,'--new-owner',args.newOwner,'--branch',args.branch,'--worktree',args.worktree,'--target-worktree',args.targetWorktree,'--abandonment-issue','900','--worktree-state','remote','--authorization-chat-id','root','--authorization-quote-file',quoteFile,'--recovery-artifact',ARTIFACT,'--lease-hours','0.5']
     assert.equal(adoptionMain(argv,NOW,io),0);assert.equal(parseAuthorLease(io.issues.get(3378).body,NOW).owner,args.newOwner)
-  }finally{console.log=log;rmSync(dir,{recursive:true,force:true})}
+  }finally{console.log=log;rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
 
 test('missing abandonment audit refuses before receipt or claim mutation',()=>{const io=mergedFixture();io.issues.get(900).body='';const before=io.issues.get(3378).body;assert.throws(()=>transferExpiredMergedClaimAuthor(args,NOW,io),/exact abandonment audit proof is absent/);assert.equal(io.issues.get(3378).body,before);assert.equal([...io.refs.keys()].some(r=>r.includes('merged-claim-author-adoptions')),false)})

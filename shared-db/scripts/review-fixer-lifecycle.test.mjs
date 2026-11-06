@@ -75,7 +75,7 @@ test('proposed SQL reuses dispatch object parser; hostile paths and symlinks fai
       symlinkSync(path.join(root, name), path.join(root, link))
       assert.throws(() => proposedObjects(root, [link]), /symlink/)
     } catch (error) { if (!['EPERM', 'ENOSYS'].includes(error.code)) throw error }
-  } finally { rmSync(root, { recursive: true, force: true }) }
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 test('caller triggers mirror ai-devops step 1.5: push and delete are gone, PR cleanup stays', () => {
   const text = readFileSync(new URL('../.github/workflows/review-fixer.yml', import.meta.url), 'utf8')

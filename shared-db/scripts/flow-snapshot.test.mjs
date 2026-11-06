@@ -148,7 +148,7 @@ test('unchanged state produces zero output and no report; each transition wakes 
     assert.deepEqual(lines[2].wakes.map((w) => w.wake), ['state_changed'])
     assert.equal(lines[2].notification.event_type, 'orchestrator_state_changed')
     assert.equal(lines[2].notification.previous_snapshot_id, lines[0].snapshot.snapshot_id)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('file event store is create-only and converges on retries', () => {
@@ -159,7 +159,7 @@ test('file event store is create-only and converges on retries', () => {
     assert.equal(store.publish({ key: 'snapshot:e1', record }).status, 'created')
     assert.equal(store.publish({ key: 'snapshot:e1', record: { ...record, snapshot: { snapshot_id: 'y' } } }).status, 'existing')
     assert.equal(store.readPublished('snapshot:e1').snapshot.snapshot_id, 'x')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('GitHub reads go through the shared transport and refuse by name', () => {
@@ -220,7 +220,7 @@ test('store keys that sanitise alike never collide', () => {
     assert.equal(store.publish({ key: 'snapshot_a', record: { notification: { event_id: 'b' } } }).status, 'created')
     assert.equal(store.readPublished('snapshot_a').notification.event_id, 'b')
     assert.equal(readdirSync(path.join(dir, 'events')).length, 2)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('a corrupt last-report.json re-emits exactly once and is replaced atomically', () => {
@@ -236,7 +236,7 @@ test('a corrupt last-report.json re-emits exactly once and is replaced atomicall
     assert.equal(run(), 0)
     assert.equal(lines.length, 1, 'recovered state must not emit again')
     assert.ok(existsSync(path.join(dir, 'events')))
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 test('refuses without the flag', () => {

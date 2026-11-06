@@ -99,7 +99,7 @@ function boundaryFixture() {
 }
 test('explicit PR data identity accepts real data without executing malicious tracked scripts',()=>{
  const f=boundaryFixture()
- try {writeFileSync(path.join(f.data,'malicious.js'),'throw new Error("must never execute")');f.git(f.data,['add','malicious.js']);f.git(f.data,['commit','-qm','untrusted script data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD']);assert.equal(validatePrDataRoot(f.options,{}),f.data)} finally {rmSync(f.directory,{recursive:true,force:true})}
+ try {writeFileSync(path.join(f.data,'malicious.js'),'throw new Error("must never execute")');f.git(f.data,['add','malicious.js']);f.git(f.data,['commit','-qm','untrusted script data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD']);assert.equal(validatePrDataRoot(f.options,{}),f.data)} finally {rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 })
 for (const [label,mutate] of [
  ['wrong head',f=>f.options.headSha='a'.repeat(40)],
@@ -107,5 +107,5 @@ for (const [label,mutate] of [
  ['tracked symlink',f=>{symlinkSync('/etc/passwd',path.join(f.data,'escape'));f.git(f.data,['add','escape']);f.git(f.data,['commit','-qm','linked data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD'])}],
  ['unsafe Git hook',f=>f.git(f.data,['config','core.hooksPath','/unsafe'])],
  ['same root',f=>{f.options.sourceRoot=f.data;f.options.sourceSha=f.options.headSha}],
-]) test('PR data boundary refuses '+label,()=>{const f=boundaryFixture();try{mutate(f);assert.throws(()=>validatePrDataRoot(f.options,{}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true})}})
-for(const key of ['NODE_OPTIONS','BASH_ENV','PYTHONPATH','LD_PRELOAD','GIT_EXTERNAL_DIFF','GIT_CONFIG_PARAMETERS','GIT_CONFIG_GLOBAL']) test('PR data boundary refuses '+key+' injection',()=>{const f=boundaryFixture();try{assert.throws(()=>validatePrDataRoot(f.options,{[key]:'untrusted'}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true})}})
+]) test('PR data boundary refuses '+label,()=>{const f=boundaryFixture();try{mutate(f);assert.throws(()=>validatePrDataRoot(f.options,{}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})
+for(const key of ['NODE_OPTIONS','BASH_ENV','PYTHONPATH','LD_PRELOAD','GIT_EXTERNAL_DIFF','GIT_CONFIG_PARAMETERS','GIT_CONFIG_GLOBAL']) test('PR data boundary refuses '+key+' injection',()=>{const f=boundaryFixture();try{assert.throws(()=>validatePrDataRoot(f.options,{[key]:'untrusted'}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})

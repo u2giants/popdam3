@@ -397,7 +397,7 @@ test("lastActivityMs reads the newest of the git files, not the admin directory"
     );
     assert.equal(isIdle({ lastActivityMs: measured }, Date.now(), DEFAULT_IDLE_HOURS), true);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 

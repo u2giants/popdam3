@@ -145,7 +145,7 @@ test('a marker-corrupted COPY of the real directory is refused (never touch the 
   const result = checkWorkflowDirectory(tmp)
   assert.equal(result.ok, false)
   assert.ok(result.problems.some((p) => p.file === 'tools-offline-tests.yml' && p.message.includes('conflict marker')))
-  fs.rmSync(tmp, { recursive: true, force: true })
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
 
 test('an empty workflow directory is refused, not a vacuous pass', () => {
@@ -153,5 +153,5 @@ test('an empty workflow directory is refused, not a vacuous pass', () => {
   const result = checkWorkflowDirectory(tmp)
   assert.equal(result.ok, false)
   assert.ok(result.problems[0].message.includes('vacuous'))
-  fs.rmSync(tmp, { recursive: true, force: true })
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })

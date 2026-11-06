@@ -55,7 +55,7 @@ test('CLI keeps the preservation bundle separate and binds review issue 3618', (
     assert.equal(args.request.recoveryArtifact, request.recoveryArtifact)
     assert.equal(args.preservationBundle, join(dir, 'bundle'))
     assert.throws(() => parseArgs(['--request-file',requestFile,'--review-issue','4161','--review-pr','5000','--review-head-sha','a'.repeat(40),'--observation-file',observationFile,'--preservation-bundle',join(dir, 'bundle')]), /3618/)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
 
 function operationFixture() {

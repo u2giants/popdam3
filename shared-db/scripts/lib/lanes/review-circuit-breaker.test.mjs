@@ -91,7 +91,7 @@ import {mkdtempSync,writeFileSync,readFileSync,rmSync,mkdirSync,chmodSync} from 
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 function realGitFixture(t) {
- const dir=mkdtempSync(path.join(tmpdir(),'review-budget-git-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-git-'));t.after(()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.fileMode','false']);git(['config','core.autocrlf','false']);git(['config','core.eol','lf'])
  const commit=(file,text)=>{writeFileSync(path.join(dir,file),text);git(['add',file]);git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}
@@ -240,7 +240,7 @@ test('real Git offset-only main merge preserves count, but conflicting main ance
 })
 
 function appendFixture(t,{repair=false,revert=false,reordered=false,omit=false,mode=false,oldLine=false}={}) {
- const dir=mkdtempSync(path.join(tmpdir(),'review-budget-append-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-append-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test'])
  git(['config','core.fileMode','false']);git(['config','core.autocrlf','false']);git(['config','core.eol','lf'])
@@ -666,7 +666,7 @@ test('substantive content change drops old failure counts without adding failure
 test('start without reinstatable failure still counts toward paidAttempts but never refuses (uncapped)',()=>{assert.equal(assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{})).paidAttempts,2);assert.equal(assertPaidReviewCapacity(request,reinstateIo([row(1),row(2)],{1:failureMsg(1,{code:'local_dependency_unavailable'})})).paidAttempts,2)})
 test('mismatched or unreadable reinstatement binding refuses',()=>{for(const text of [failureMsg(1,{reviewer:'kimi-k3'}),failureMsg(1,{slot:2}),failureMsg(1,{h:next}),failureMsg(1).replace('verdict=none','verdict=APPROVE'),'garbage'])assert.throws(()=>assertPaidReviewCapacity(request,reinstateIo([row(1)],{1:text})),/reinstatement failure (binding mismatch|evidence unreadable)/)})
 function namedImportFixture(t,{variant='',repair=false,revert=false}={}){
- const dir=mkdtempSync(path.join(tmpdir(),'review-budget-import-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-import-real-'));t.after(()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false']);git(['config','core.fileMode','false'])
  const file='scripts/db-flow/admission-outcome.test.mjs';mkdirSync(path.join(dir,'scripts/db-flow'),{recursive:true})
@@ -1008,7 +1008,7 @@ test('duplicate-head starts are each counted',()=>{
 })
 
 test('#4397 a clean refresh across a rename made on protected main keeps the paid budget proof',t=>{
- const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-'));t.after(()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false'])
  const commit=(file,text)=>{writeFileSync(path.join(dir,file),text);git(['add',file]);git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}
@@ -1027,7 +1027,7 @@ test('#4397 a rename inside the pull request still refuses the budget replay',t=
 })
 
 test('#4397 a conflicted protected-rename replay reports the merge gap, not a hard refusal',t=>{
- const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-gap-'));t.after(()=>rmSync(dir,{recursive:true,force:true}))
+ const dir=mkdtempSync(path.join(tmpdir(),'review-budget-rename-gap-'));t.after(()=>rmSync(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100}))
  const git=args=>execFileSync('git',args,{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  git(['init','-q','-b','main']);git(['config','user.name','Fixture']);git(['config','user.email','fixture@example.test']);git(['config','core.autocrlf','false'])
  const commit=(file,text)=>{writeFileSync(path.join(dir,file),text);git(['add',file]);git(['commit','-qm','fixture']);return git(['rev-parse','HEAD']).trim()}

@@ -655,8 +655,8 @@ test('25b: a not-yet-existing --out path is still checked against real git, neve
   } finally {
     // Neither path was created by the guard (it only resolves and checks),
     // but clean up defensively in case a future change starts creating them.
-    rmSync(join(repoRoot, `${stamp}-unignored`), { recursive: true, force: true });
-    rmSync(join(repoRoot, '.private', `${stamp}-ignored`), { recursive: true, force: true });
+    rmSync(join(repoRoot, `${stamp}-unignored`), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    rmSync(join(repoRoot, '.private', `${stamp}-ignored`), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 
