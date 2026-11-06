@@ -43,7 +43,7 @@ begin
   if not exists (
     select 1 from pg_trigger
     where tgrelid = 'public.asset_tags'::regclass
-      and tgname in ('trg_sync_asset_tags', 'asset_tags_sync_assets_tags')
+      and tgname in ('trg_sync_asset_tags', 'asset_tags_sync_assets_tags_ins', 'asset_tags_sync_assets_tags_upd', 'asset_tags_sync_assets_tags_del')
       and not tgisinternal
       and tgenabled <> 'D'
   ) then

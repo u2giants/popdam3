@@ -25,7 +25,7 @@ begin
   if not exists (
     select 1 from pg_trigger
     where tgrelid = 'public.asset_tags'::regclass
-      and tgname = 'asset_tags_sync_assets_tags'
+      and tgname in ('asset_tags_sync_assets_tags_ins', 'asset_tags_sync_assets_tags_upd', 'asset_tags_sync_assets_tags_del')
       and not tgisinternal
   ) then
     raise exception 'status-aware compatibility trigger is missing';
