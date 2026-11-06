@@ -42,6 +42,7 @@ const SG_INGESTABLE_EXTENSIONS = new Set([
   "png",
 ]);
 
+import { changedFields } from "../_shared/changed-fields.js";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
@@ -1086,7 +1087,7 @@ async function handleIngest(
   const { data: existingByPath, error: existingByPathErr } = await db
     .from("assets")
     .select(
-      `id, is_deleted, style_group_id, style_groups!assets_style_group_id_fkey(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`,
+      `*, style_groups!assets_style_group_id_fkey(${STYLE_GROUP_ASSIGNMENT_COLUMNS.join(", ")})`,
     )
     .eq("relative_path", relativePath)
     .maybeSingle();
@@ -1114,11 +1115,11 @@ async function handleIngest(
   // scan pass set skip_move_detection for later copies. That is the only place
   // with live filesystem context, and it lets genuine duplicate copies settle
   // into one asset row per path instead of flip-flapping one row forever.
-  let existingByHash: { id: string; relative_path: string } | null = null;
+  let existingByHash: ({ id: string; relative_path: string } & Record<string, unknown>) | null = null;
   if (fileSize > 0 && !skipMoveDetection && !existingByPath) {
     const { data: hashCandidates } = await db
       .from("assets")
-      .select("id, relative_path")
+      .select("*")
       .eq("quick_hash", quickHash)
       .eq("filename", filename)
       .eq("is_deleted", false)
@@ -1161,7 +1162,9 @@ async function handleIngest(
       ...thumbMove,
       ...skuFields,
     };
-    const moveQuery = db.from("assets").update(moveUpdates).eq("id", existingByHash.id);
+    const { last_seen_at: _moveSeen, ...moveCandidate } = moveUpdates;
+    const moveDiff = { ...changedFields(existingByHash, moveCandidate), last_seen_at: moveUpdates.last_seen_at };
+    const moveQuery = db.from("assets").update(moveDiff).eq("id", existingByHash.id);
     const { data: movedRows, error: moveError } = INDEXED_WRITE_MEASUREMENT ? await moveQuery.select("id") : await moveQuery;
     logIndexedWriteResult("public.assets", "ingest-move", 1, moveError ? 0 : INDEXED_WRITE_MEASUREMENT ? movedRows?.length ?? null : null);
 
@@ -1239,11 +1242,19 @@ async function handleIngest(
       ...thumbnailFields,
       ...skuFields,
     };
-    const updateQuery = db.from("assets").update(updateFields).eq("id", existingByPath.id);
-    const { data: updatedRows, error: updateError } = INDEXED_WRITE_MEASUREMENT ? await updateQuery.select("id") : await updateQuery;
-    logIndexedWriteResult("public.assets", "ingest-update", 1, updateError ? 0 : INDEXED_WRITE_MEASUREMENT ? updatedRows?.length ?? null : null);
+    // Send only real differences; an unchanged re-scan writes nothing, because
+    // rewriting identical values (plus last_seen_at alone) bloats public.assets
+    // (popcre/shared-db#5747). last_seen_at therefore advances only when the
+    // file changed.
+    const { last_seen_at: _seen, ...updateCandidate } = updateFields;
+    const updateDiff = changedFields(existingByPath as Record<string, unknown>, updateCandidate);
+    if (Object.keys(updateDiff).length > 0) {
+      const updateQuery = db.from("assets").update({ ...updateDiff, last_seen_at: updateFields.last_seen_at }).eq("id", existingByPath.id);
+      const { data: updatedRows, error: updateError } = INDEXED_WRITE_MEASUREMENT ? await updateQuery.select("id") : await updateQuery;
+      logIndexedWriteResult("public.assets", "ingest-update", 1, updateError ? 0 : INDEXED_WRITE_MEASUREMENT ? updatedRows?.length ?? null : null);
 
-    if (updateError) return err(updateError.message, 500);
+      if (updateError) return err(updateError.message, 500);
+    }
 
     // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
