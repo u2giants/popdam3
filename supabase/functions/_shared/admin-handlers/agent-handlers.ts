@@ -8,6 +8,7 @@
 
 import { err, formatPostgrestError, json, optionalString, requireString, serviceClient } from "../admin-utils.ts";
 import { redactAdminConfigValues } from "../admin-config-secret.ts";
+import { generatePairingCode } from "../pairing-code.ts";
 
 // ── generate-agent-key ──────────────────────────────────────────────
 
@@ -627,14 +628,7 @@ export async function handleCreatePairingCode(
     return json({ ok: true, pairing_code: existing.pairing_code, expires_at: existing.expires_at, reused: true });
   }
 
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let raw = "";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < 16; i++) {
-    raw += chars[bytes[i] % chars.length];
-  }
-  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+  const pairingCode = generatePairingCode();
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
@@ -685,14 +679,7 @@ export async function handleGenerateBootstrapToken(userId: string) {
     return json({ ok: true, token: existing.pairing_code, expires_at: existing.expires_at });
   }
 
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let raw = "";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < 16; i++) {
-    raw += chars[bytes[i] % chars.length];
-  }
-  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+  const pairingCode = generatePairingCode();
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
@@ -885,12 +872,7 @@ export async function handleGenerateRepairCode(
   }
 
   // Generate a new pairing code and register it in agent_pairings
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  let raw = "";
-  for (let i = 0; i < 16; i++) raw += chars[bytes[i] % chars.length];
-  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+  const pairingCode = generatePairingCode();
 
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-min TTL
 
