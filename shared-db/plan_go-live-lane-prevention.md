@@ -8,9 +8,9 @@ Session handoff (read together with this plan): [`HANDOFF.d/20261105T2302Z-edge-
 
 | # | Step | State | Evidence (artifact, never a bare number) |
 |---|------|-------|------------------------------------------|
-| 1.1 | Wire `--acquire-promotion-freeze` into the qualification job before the risk assessment | ⬜ open | |
-| 1.2 | Keep the per-PR release + TTL guarantees; document the crash-recovery command | ⬜ open | |
-| 1.3 | Workflow-content + lane tests for the freeze window | ⬜ open | |
+| 1.1 | Wire `--acquire-promotion-freeze` into the qualification job before the risk assessment | ✅ done 2026-11-06 | PR #5838 (head `a786cec1b`, merge `083a5866c`): acquire step before `qualify-route` in `shared-supabase-migrations.yml`, same guarded source PR as the `always()` release, `--issue` from `--resolve-admitted-issue-for-pr`; CI green — https://github.com/popcre/shared-db/actions/runs/42169923794 |
+| 1.2 | Keep the per-PR release + TTL guarantees; document the crash-recovery command | ✅ done 2026-11-06 | Release block verified unchanged (`if: always() && inputs.source_pr != ''`, `continue-on-error: true`); recovery command in the acquire-step comment; TTL/expiry + unreadable-record recovery unit-proven in `manage-migration-coordination.test.mjs` (341 tests green). Staged run-cancellation proof rides the 4.2 live-proof window |
+| 1.3 | Workflow-content + lane tests for the freeze window | ✅ done 2026-11-06 | PR #5838: acquire-before-`qualify-route` + release-under-`always()` assertions in `check-merge-queue-workflows.test.mjs`; record pr/issue/owner + different-PR-release-refuses cases and the 4-command acquisitions invariant in `manage-migration-coordination.test.mjs`; guarded-read count 6 in `check-workflow-automatic-promotion-source.test.mjs` |
 | 2.1 | Emit a machine-readable fault-classification marker step on infrastructure / coordination failures | ⬜ open | |
 | 2.2 | Make the selector refund classified failures out of the attempt count (per-attempt evidence stays intact) | ⬜ open | |
 | 2.3 | Cap refunds (default 3 per change), then park with the existing ENGINEER ACTION REQUIRED channel | ⬜ open | |
