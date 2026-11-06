@@ -307,6 +307,15 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": "scripts/production_migration_guard.py:ff9f946083e5618681ad625cf3cd23e10d43babf3e83f3fc868b5e12bafc1b26:1"
+    },
+    {
+      "source": "scripts/production_migration_guard.py",
+      "site": "scripts/production_migration_guard.py:459",
+      "semantic_key": "scripts/production_migration_guard.py:4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16:context-884a317ffbd1a228024972d1ad94f001bcb7738b44355f35eb9e01fb08412b06",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16:1",
+      "line_sha256": "4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16",
+      "disposition": "excluded",
+      "reason": "Foreign-target registry note text for the #5026 production half (designflow-prod): data describing the migration self-check, not a call site that infers missing objects."
     }
   ]
 }
