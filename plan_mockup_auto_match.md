@@ -4,15 +4,15 @@
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | pop-mock: `artB`/`nameB` second image + shaped-product image guard + `fallback` art param (in `source/linkload.js`, release as v7.4) | ⬜ open | — |
-| 2 | Vendor into popdam3 `public/mockup/index.html` — now AUTOMATED: pop-mock `.github/workflows/sync-popdam.yml` copies every release on merge to pop-mock main and pushes it to popdam3 main | ⬜ open | — |
-| 3 | `pickMockupRoute()` keyword map + tests in `src/lib/mockup-tool.ts` | ⬜ open | — |
-| 4 | `buildMockupUrl()` v2 (route + artB) + tests | ⬜ open | — |
-| 5 | StyleGroupDetailPanel hero button uses route + A/B selection | ⬜ open | — |
-| 6 | AssetDetailPanel button uses route | ⬜ open | — |
-| 7 | Docs (`docs/MOCKUP_TOOL.md`, `AGENTS.md` router) updated | ⬜ open | — |
-| 8 | PR(s), CI green, merged, deployed SHA verified | ⬜ open | — |
-| 9 | Live proof on production (lenticular A/B, clock, framed, canvas, unmatched) | ⬜ open | — |
+| 1 | pop-mock: `artB`/`nameB` second image + shaped-product image guard + `fallback` art param (in `source/linkload.js`, release as v7.4) | ✅ done 2026-11-06 | pop-mock PR u2giants/pop-mock#12, squash-merged as `0339fcd` (v7.4). Headless Chrome gate: lenticular A/B fills both slots (`A: a.png · B: b.png`); `#/shadowbox`+image lands on framed with notice; art 404+fallback loads fallback on canvas; artB 404 loads A alone with notice; 37/37 script blocks parse. Stock 7.3 baselines show no regression. |
+| 2 | Vendor into popdam3 `public/mockup/index.html` — now AUTOMATED: pop-mock `.github/workflows/sync-popdam.yml` copies every release on merge to pop-mock main and pushes it to popdam3 main | ✅ done 2026-11-06 | sync run 42240738986 green (incl. live-serve wait); popdam3 main `1a96a6c9` "mockup: pop-mock 7.4 (u2giants/pop-mock@0339fcd)"; `curl dam.designflow.app/mockup/` shows `APP_VERSION="7.4"`. |
+| 3 | `pickMockupRoute()` keyword map + tests in `src/lib/mockup-tool.ts` | ✅ done 2026-11-06 | popdam3 PR (this branch) commit `pickMockupRoute keyword map + buildMockupUrl v2`; `npx vitest run src/lib/mockup-tool.test.ts` 11/11 green (priority, decorated canvas, default, clock, all routes). |
+| 4 | `buildMockupUrl()` v2 (route + artB) + tests | ✅ done 2026-11-06 | same commit; tests `emits artB/nameB and lenticular route`, `includes fallback param`, `keeps query in proxied path`, `encodes hostile names`. |
+| 5 | StyleGroupDetailPanel hero button uses route + A/B selection | ✅ done 2026-11-06 | commit `style-group mockup button routes by item description, lenticular A/B`; `StyleGroupDetailPanel.mockup.test.tsx` 6/6 green (page-renders A/B, one-file no-artB, non-lenticular route, group-thumbnail fallback). |
+| 6 | AssetDetailPanel button uses route | ✅ done 2026-11-06 | commit `asset-detail mockup button routes clocks to the clock product` (product_category "Clock" → clock, else canvas — plan §8 preferred default). |
+| 7 | Docs (`docs/MOCKUP_TOOL.md`, `AGENTS.md` router) updated | ✅ done 2026-11-06 | commit `docs(#544): mockup tool auto-matching…`; MOCKUP_TOOL.md covers 7.4 params, matching rules, A/B strategy, automated vendoring; AGENTS.md router row updated. |
+| 8 | PR(s), CI green, merged, deployed SHA verified | 🟨 in progress | pop-mock PR merged + live 7.4 verified (above). popdam3 PR open (steps 3-7); merge + deploy SHA check pending. |
+| 9 | Live proof on production (lenticular A/B, clock, framed, canvas, unmatched) | ⬜ open | tool-side cases verified headless (step 1); production click-through with real items pending step 8 merge. |
 
 **2026-11-06 refresh (issue #544 scope note):** pop-mock is no longer a hand-edited
 single file at v6.9. It is v7.3, built from `source/` (`python3 source/build.py`
