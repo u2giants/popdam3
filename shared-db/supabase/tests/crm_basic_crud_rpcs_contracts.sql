@@ -1,5 +1,5 @@
 -- Contract tests for issue #5791 (popcrm-web #24) / migration
--- the CRM basic-CRUD migrations (renamed to 20261106043500/20261106043600). All fixture changes are
+-- the CRM basic-CRUD migrations (renamed to 20261106144500/20261106144600). All fixture changes are
 -- transaction-bound and rolled back.
 
 begin;

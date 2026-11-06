@@ -820,9 +820,13 @@ class AdversarialUnmergedSource(unittest.TestCase):
         files = [[{"status": "renamed", "filename": "supabase/migrations/20261106043500_x.sql",
                    "previous_filename": "supabase/migrations/20261105235900_x.sql"}]]
         pulls = [{"number": 5830, "merged_at": "2026-11-06T04:50:00Z"}]
+        # The production_dependencies glob reads the checkout, but this
+        # fixture version is a live-repo version the rename cure can remove
+        # (PR #5857 renames 20261106043500 away); supply the path virtually.
         with mock.patch.object(m, "gh", side_effect=[[pulls], files]), \
                 mock.patch.object(m, "version_on_main", return_value=True), \
-                mock.patch.object(m, "declared_bases", return_value=[]):
+                mock.patch.object(m, "declared_bases", return_value=[]), \
+                mock.patch("glob.glob", return_value=["supabase/migrations/20261106043500_x.sql"]):
             found = m.merged_migration_prs("o/r")
         self.assertEqual([p["number"] for p in found], [5830])
         self.assertEqual(found[0]["versions"], ["20261106043500"])

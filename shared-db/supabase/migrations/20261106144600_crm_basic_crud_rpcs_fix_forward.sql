@@ -1,4 +1,6 @@
--- Fix-forward of 20261106043500 (popcre/shared-db, work issue #5791; renamed from 20261105231500/#5808 after that PR exhausted its automatic promotion attempts).
+-- Fix-forward of 20261106144500 (popcre/shared-db, work issue #5791; renamed from
+-- 20261105235900/#5808 -> 20261106043500/#5830 -> 20261106083500/#5857 after each
+-- PR exhausted its automatic promotion attempts against a moving main tip).
 -- The base migration stays byte-identical to the body preview applied. This file re-applies
 -- the whole, idempotent corrected body: empty email -> NULL, pim FK column names,
 -- customer archive via crm.customer_ext.archived_at, archived customers hidden from the

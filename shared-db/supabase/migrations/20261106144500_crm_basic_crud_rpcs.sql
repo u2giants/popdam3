@@ -1,7 +1,9 @@
--- Renamed from 20261105231500 -> 20261105235900 -> 20261106043500: first because the base
--- branch advanced past the number, then because PR #5808 exhausted its automatic
--- promotion attempts under 20261105235900 and a fresh governed version is a new
--- candidate. Body is byte-identical to what preview ran.
+-- Renamed from 20261105231500 -> 20261105235900 -> 20261106043500 -> 20261106083500:
+-- first because the base branch advanced past the number, then because PR #5808
+-- exhausted its automatic promotion attempts under 20261105235900, then because
+-- PR #5830 and PR #5857 each lost check-main-tip-freshness races against parallel
+-- merges and a fresh governed version is a new candidate. Body is byte-identical
+-- to what preview ran.
 -- Claim and work issue #5791 (popcrm-web #24, plan_crm_basic_crud.md Step 1).
 -- CRM basic add/archive/merge RPCs. Archive state is CRM-owned:
 --   contacts  -> crm.contact_ext.archived_at (mirrors the defunct marking of
