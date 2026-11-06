@@ -19,6 +19,33 @@ type SearchIdCacheEntry = {
 
 const assetSearchIdCache = new Map<string, SearchIdCacheEntry>();
 
+/** A resolved ranked-filtered ID list, kept briefly so a page change only re-reads its own rows. */
+type RankedListCacheEntry = {
+  expiresAt: number;
+  promise: Promise<string[]>;
+};
+
+const RANKED_LIST_CACHE_TTL_MS = SEARCH_ID_CACHE_TTL_MS;
+const assetRankedListCache = new Map<string, RankedListCacheEntry>();
+
+/** Test/refresh hook: drop every cached ranked-filtered list. */
+export function clearAssetRankedListCache(): void {
+  assetRankedListCache.clear();
+}
+
+function setRankedListCacheEntry(
+  cache: Map<string, RankedListCacheEntry>,
+  key: string,
+  promise: Promise<string[]>,
+): void {
+  // Prune expired entries so distinct searches cannot grow the cache unbounded.
+  const now = Date.now();
+  for (const [existingKey, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(existingKey);
+  }
+  cache.set(key, { expiresAt: now + RANKED_LIST_CACHE_TTL_MS, promise });
+}
+
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */
 export function useVisibilityDate() {
   return useQuery({
@@ -361,6 +388,57 @@ export function buildAssetCountQuery(
   );
 }
 
+/**
+ * Relevance ordering has no database ORDER BY: the full-text rank IS the result
+ * order. Resolve the ranked IDs that also survive every active filter and the
+ * visibility window (one narrow id-only read), rank them, and cache the list.
+ * A page change then fetches full rows for exactly its own slice instead of
+ * every matching row; the list length doubles as the exact total because it
+ * comes from the identical predicate the old exact-count HEAD used.
+ *
+ * The cached read never attaches a caller's abort signal: two page requests can
+ * share one in-flight promise, and aborting one must not kill the other (the
+ * same contract the full-text ID cache already follows). It still enters the
+ * effective-scope queue so the shared working set stays serialized.
+ */
+async function fetchRankedFilteredAssetIds(options: {
+  filters: AssetFilters;
+  minDate: string;
+  searchMode: string;
+  searchTerm: string;
+  fullTextAssetIds: string[];
+  fallbackSearchFilter: string | null;
+}): Promise<string[]> {
+  const { filters, minDate, searchMode, searchTerm, fullTextAssetIds, fallbackSearchFilter } = options;
+  const cacheKey = `${searchMode}\u0000${searchTerm}\u0000${minDate}\u0000${JSON.stringify(filters)}`;
+  const cached = assetRankedListCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+  const promise = (async () => {
+    const effectiveScope = needsEffectiveScope(filters);
+    let query: any = effectiveScope
+      ? supabase
+          .rpc("filter_effective_assets", { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json })
+          .select("id")
+      : supabase.from("assets").select("id");
+    query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope);
+    query = applyVisibility(query, minDate);
+    const { data, error } = effectiveScope ? await runEffectiveScopeQuery(() => query) : await query;
+    if (error) throw error;
+    return sortByRank((data ?? []) as { id: string }[], fullTextAssetIds, (row) => row.id).map((row) => row.id);
+  })();
+
+  setRankedListCacheEntry(assetRankedListCache, cacheKey, promise);
+
+  try {
+    return await promise;
+  } catch (error) {
+    // A failed (or aborted) lookup must not pin the UI to a stale list.
+    assetRankedListCache.delete(cacheKey);
+    throw error;
+  }
+}
+
 export function useAssets(
   filters: AssetFilters,
   sortField: SortField,
@@ -408,6 +486,48 @@ export function useAssets(
       }
       const { ids: fullTextAssetIds, fallback: fallbackSearchFilter } = await resolveAssetSearch(filters.search);
 
+      // Relevance path: the ranked, fully-filtered ID list is the pagination
+      // backbone (cached), so a page change fetches full rows for exactly its
+      // own slice. Ordering and page contents match the previous fetch-all-
+      // and-slice behavior because both come from the same ranked list.
+      if (filters.search?.trim() && fullTextAssetIds) {
+        const rankedIds = await fetchRankedFilteredAssetIds({
+          filters,
+          minDate,
+          searchMode,
+          searchTerm,
+          fullTextAssetIds,
+          fallbackSearchFilter,
+        });
+        const pageIds = rankedIds.slice(from, to + 1);
+        let assets: Asset[] = [];
+        if (pageIds.length > 0) {
+          const effectiveScope = needsEffectiveScope(filters);
+          let pageQuery: any = effectiveScope
+            ? supabase.rpc(
+                "filter_effective_assets",
+                { p_filters: buildEffectiveFilterPayload(filters) as unknown as Json },
+              )
+            : supabase.from("assets").select("*");
+          // pageIds already survived every active filter; the narrow IN keeps
+          // the full-row read bounded to this page.
+          pageQuery = applyFilters(pageQuery, filters, pageIds, null, effectiveScope);
+          pageQuery = applyVisibility(pageQuery, minDate);
+          const { data, error } = effectiveScope
+            ? await runEffectiveScopeQuery(() => pageQuery.abortSignal(signal), signal)
+            : await pageQuery;
+          if (error) throw error;
+          assets = sortByRank((data ?? []) as Asset[], pageIds, (asset) => asset.id);
+        }
+        return {
+          assets,
+          totalCount: rankedIds.length,
+          searchFacets: undefined as FacetCounts | undefined,
+          pageSize: effectivePageSize,
+          page,
+        };
+      }
+
       // Group-owned facts cannot be filtered from the asset's own columns, so
       // those queries start from the governed contract instead of the table.
       const effectiveScope = needsEffectiveScope(filters);
@@ -420,16 +540,13 @@ export function useAssets(
 
       query = applyFilters(query, filters, fullTextAssetIds, fallbackSearchFilter, effectiveScope);
       query = applyVisibility(query, minDate);
-      const useRelevance = Boolean(filters.search?.trim() && fullTextAssetIds);
-      if (!useRelevance) {
-        const assetSortField =
-          sortField === "relevance" ? "modified_at"
-          : sortField === "sku" ? "filename"
-          : sortField === "asset_count" ? "file_size"
-          : sortField;
-        query = query.order(assetSortField, { ascending: sortDirection === "asc" });
-        query = query.range(from, to);
-      }
+      const assetSortField =
+        sortField === "relevance" ? "modified_at"
+        : sortField === "sku" ? "filename"
+        : sortField === "asset_count" ? "file_size"
+        : sortField;
+      query = query.order(assetSortField, { ascending: sortDirection === "asc" });
+      query = query.range(from, to);
 
       // An exact count on a wide RPC materializes every matching asset. Fetch
       // full rows only for the page, and count the identical filtered IDs.
@@ -454,9 +571,7 @@ export function useAssets(
       if (countResult?.error) throw countResult.error;
       const count = countResult ? countResult.count : pageResult.count;
 
-      const assets = useRelevance
-        ? sortByRank((data ?? []) as Asset[], fullTextAssetIds!, (asset) => asset.id).slice(from, to + 1)
-        : (data ?? []) as Asset[];
+      const assets = (data ?? []) as Asset[];
       return {
         assets,
         totalCount: count ?? 0,

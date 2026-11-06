@@ -401,7 +401,10 @@ describe("successive filter changes do not queue obsolete effective-scope work",
   it("passes the cancellation signal into every queued page, count, and facet request", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync("src/hooks/useAssets.ts", "utf8");
-    expect(source.match(/runEffectiveScopeQuery\(/g)?.length).toBe(4); // page, count, standalone count, facets
-    expect(source.match(/\.abortSignal\(signal\)/g)?.length).toBe(4);
+    // ranked list, page (relevance + ordinary), count, standalone count, facets.
+    // The shared ranked-list read carries no caller signal so two page requests
+    // can share one in-flight promise.
+    expect(source.match(/runEffectiveScopeQuery\(/g)?.length).toBe(6);
+    expect(source.match(/\.abortSignal\(signal\)/g)?.length).toBe(5);
   });
 });

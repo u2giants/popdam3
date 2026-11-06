@@ -62,6 +62,33 @@ type SearchIdCacheEntry = {
 
 const styleGroupSearchIdCache = new Map<string, SearchIdCacheEntry>();
 
+/** A resolved ranked-filtered ID list, kept briefly so a page change only re-reads its own rows. */
+type RankedListCacheEntry = {
+  expiresAt: number;
+  promise: Promise<string[]>;
+};
+
+const RANKED_LIST_CACHE_TTL_MS = SEARCH_ID_CACHE_TTL_MS;
+const styleGroupRankedListCache = new Map<string, RankedListCacheEntry>();
+
+/** Test/refresh hook: drop every cached ranked-filtered list. */
+export function clearStyleGroupRankedListCache(): void {
+  styleGroupRankedListCache.clear();
+}
+
+function setRankedListCacheEntry(
+  cache: Map<string, RankedListCacheEntry>,
+  key: string,
+  promise: Promise<string[]>,
+): void {
+  // Prune expired entries so distinct searches cannot grow the cache unbounded.
+  const now = Date.now();
+  for (const [existingKey, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(existingKey);
+  }
+  cache.set(key, { expiresAt: now + RANKED_LIST_CACHE_TTL_MS, promise });
+}
+
 const STYLE_GROUP_SEARCH_COLUMNS = [
   "sku",
   "cover_description",
@@ -225,6 +252,48 @@ function applyStyleGroupFilters(
   return query;
 }
 
+/**
+ * Relevance ordering has no database ORDER BY: the full-text rank IS the result
+ * order. Resolve the ranked IDs that also survive every active filter and the
+ * visibility window (one narrow id-only read), rank them, and cache the list.
+ * A page change then fetches full rows for exactly its own slice instead of
+ * every matching group; the list length doubles as the exact total because it
+ * comes from the identical predicate the old exact count used.
+ */
+async function fetchRankedFilteredStyleGroupIds(options: {
+  filters: AssetFilters;
+  minDate: string;
+  searchMode: string;
+  searchTerm: string;
+  fullTextGroupIds: string[];
+  fallbackSearchFilter: string | null;
+}): Promise<string[]> {
+  const { filters, minDate, searchMode, searchTerm, fullTextGroupIds, fallbackSearchFilter } = options;
+  const cacheKey = `${searchMode}\u0000${searchTerm}\u0000${minDate}\u0000${JSON.stringify(filters)}`;
+  const cached = styleGroupRankedListCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+  const promise = (async () => {
+    let query: any = supabase.from("style_groups").select("id");
+    // Visibility date filter — use latest_file_date (max modified_at of member files)
+    query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
+    query = applyStyleGroupFilters(query, filters, fullTextGroupIds, fallbackSearchFilter);
+    const { data, error } = await query;
+    if (error) throw error;
+    return sortByRank((data ?? []) as { id: string }[], fullTextGroupIds, (row) => row.id).map((row) => row.id);
+  })();
+
+  setRankedListCacheEntry(styleGroupRankedListCache, cacheKey, promise);
+
+  try {
+    return await promise;
+  } catch (error) {
+    // A failed (or aborted) lookup must not pin the UI to a stale list.
+    styleGroupRankedListCache.delete(cacheKey);
+    throw error;
+  }
+}
+
 export function useStyleGroups(
   filters: AssetFilters,
   sortField: string,
@@ -271,6 +340,54 @@ export function useStyleGroups(
         return { groups, totalCount: ranked.totalCount, searchFacets: parseDamSearchFacets(ranked.facets), pageSize: effectivePageSize, page };
       }
       const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
+      const minDate = visibilityDate ?? "2020-01-01";
+
+      // Relevance path: the ranked, fully-filtered ID list is the pagination
+      // backbone (cached), so a page change fetches full rows for exactly its
+      // own slice. Ordering and page contents match the previous fetch-all-
+      // and-slice behavior because both come from the same ranked list.
+      if (filters.search?.trim() && fullTextGroupIds) {
+        const rankedIds = await fetchRankedFilteredStyleGroupIds({
+          filters,
+          minDate,
+          searchMode,
+          searchTerm,
+          fullTextGroupIds,
+          fallbackSearchFilter,
+        });
+        const pageIds = rankedIds.slice(from, to + 1);
+        let groups: StyleGroup[] = [];
+        if (pageIds.length > 0) {
+          let pageQuery: any = supabase
+            .from("style_groups")
+            .select(`*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`);
+          pageQuery = pageQuery.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
+          // pageIds already survived every active filter; the narrow IN keeps
+          // the full-row read bounded to this page.
+          pageQuery = applyStyleGroupFilters(pageQuery, filters, pageIds, null);
+          const { data, error } = await pageQuery;
+          if (error) throw error;
+          groups = sortByRank(
+            (data ?? []).map((row: any) => ({
+              ...row,
+              asset_count: row.asset_count ?? 0,
+              workflow_status: row.workflow_status ?? "other",
+              // Prefer live thumbnail from the joined primary asset over the cached column —
+              // eliminates stale-cache display bugs when the two drift out of sync.
+              thumbnail_url: (row.primary_asset as any)?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
+            })) as StyleGroup[],
+            pageIds,
+            (group) => group.id,
+          );
+        }
+        return {
+          groups,
+          totalCount: rankedIds.length,
+          searchFacets: undefined as FacetCounts | undefined,
+          pageSize: effectivePageSize,
+          page,
+        };
+      }
 
       let query = supabase
         .from("style_groups")
@@ -280,28 +397,24 @@ export function useStyleGroups(
         );
 
       // Visibility date filter — use latest_file_date (max modified_at of member files)
-      const minDate = visibilityDate ?? "2020-01-01";
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
       // Filters
       query = applyStyleGroupFilters(query, filters, fullTextGroupIds, fallbackSearchFilter);
 
-      const useRelevance = Boolean(filters.search?.trim() && fullTextGroupIds);
-      if (!useRelevance) {
-        // Sort — map the library sort fields onto real style_groups columns.
-        const sgSortField =
-          sortField === "file_created_at" ? "created_at"
-          : sortField === "sku" || sortField === "filename" ? "sku"
-          : sortField === "asset_count" || sortField === "file_size" ? "asset_count"
-          : "latest_file_date"; // modified_at + fallback
-        query = query.order(sgSortField, { ascending: sortDirection === "asc" });
-        query = query.range(from, to);
-      }
+      // Sort — map the library sort fields onto real style_groups columns.
+      const sgSortField =
+        sortField === "file_created_at" ? "created_at"
+        : sortField === "sku" || sortField === "filename" ? "sku"
+        : sortField === "asset_count" || sortField === "file_size" ? "asset_count"
+        : "latest_file_date"; // modified_at + fallback
+      query = query.order(sgSortField, { ascending: sortDirection === "asc" });
+      query = query.range(from, to);
 
       const { data, error, count } = await query;
       if (error) throw error;
 
-      let groups: StyleGroup[] = (data ?? []).map((row: any) => {
+      const groups: StyleGroup[] = (data ?? []).map((row: any) => {
         return {
           ...row,
           asset_count: row.asset_count ?? 0,
@@ -311,9 +424,6 @@ export function useStyleGroups(
           thumbnail_url: (row.primary_asset as any)?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
         };
       });
-      if (useRelevance) {
-        groups = sortByRank(groups, fullTextGroupIds!, (group) => group.id).slice(from, to + 1);
-      }
 
       return {
         groups,
