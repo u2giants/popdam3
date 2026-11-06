@@ -1,10 +1,7 @@
--- Fix-forward of 20261105231500 (popcre/shared-db#5808, work issue #5791, claim #5815).
--- 20261105231500 stays byte-identical to the body preview applied. This file re-applies
--- the whole, idempotent corrected body: empty email -> NULL, pim FK column names,
--- customer archive via crm.customer_ext.archived_at, archived customers hidden from the
--- picker, explicit view security options (review finding #5810), and the documented
--- IGNORED scope value. Every statement is create-or-replace / if-not-exists.
-
+-- Renamed from 20261105231500 -> 20261105235900 -> 20261106043500: first because the base
+-- branch advanced past the number, then because PR #5808 exhausted its automatic
+-- promotion attempts under 20261105235900 and a fresh governed version is a new
+-- candidate. Body is byte-identical to what preview ran.
 -- Claim and work issue #5791 (popcrm-web #24, plan_crm_basic_crud.md Step 1).
 -- CRM basic add/archive/merge RPCs. Archive state is CRM-owned:
 --   contacts  -> crm.contact_ext.archived_at (mirrors the defunct marking of
@@ -67,7 +64,7 @@ begin
   if v_email is not null and v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
     raise exception 'crm: valid contact email required' using errcode = 'check_violation';
   end if;
-  if v_scope not in ('', 'COMPANY_WIDE', 'DEPARTMENT', 'IGNORED') then
+  if v_scope not in ('', 'COMPANY_WIDE', 'DEPARTMENT') then
     raise exception 'crm: contact scope must be COMPANY_WIDE or DEPARTMENT'
       using errcode = 'check_violation';
   end if;
@@ -322,7 +319,7 @@ $fn$;
 -- Archived-row filters on the CRM list views (segment views read these and
 -- inherit). Column lists unchanged.
 
-create or replace view api.crm_contact_list with (security_invoker = false) as
+create or replace view api.crm_contact_list as
 select ct.id,
        coalesce(ct.full_name, nullif(btrim(concat_ws(' ', ct.first_name, ct.last_name)), '')) as name,
        ct.first_name,
@@ -355,7 +352,7 @@ where app.has_app_access('crm'::app.app_name)
     where xe.contact_id = ct.id and xe.archived_at is not null
   );
 
-create or replace view api.crm_customer_list with (security_invoker = false) as
+create or replace view api.crm_customer_list as
 select c.id,
        c.name,
        c.domain,
@@ -386,7 +383,7 @@ where (select app.has_app_access('crm'::app.app_name) as has_app_access)
     where xe.customer_id = c.id and xe.archived_at is not null
   );
 
-create or replace view api.crm_opportunity_list with (security_invoker = true) as
+create or replace view api.crm_opportunity_list as
 select o.id,
        o.name,
        o.estimated_value as amount,
@@ -424,7 +421,7 @@ where coalesce(o.status, '') <> 'archived';
 
 -- The picker feeds every create/assign combobox; an archived customer must not
 -- come back through it. Column list otherwise unchanged.
-create or replace view api.crm_customer_picker_list with (security_invoker = false, security_barrier = true) as
+create or replace view api.crm_customer_picker_list as
 select c.id,
        c.name,
        c.display_name,
