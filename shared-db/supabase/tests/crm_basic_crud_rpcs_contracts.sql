@@ -252,6 +252,26 @@ begin
     raise exception 'new program missing from api.crm_opportunity_list before archive';
   end if;
 
+  -- Review finding #5928: a second manual create must also succeed. The
+  -- NULLS NOT DISTINCT (external_source, external_id) key allows only one
+  -- null-null row, so 20261106212400 gives every CRM-created program the
+  -- distinct pair ('crm', 'crm-'||uuid); without it this second call dies on
+  -- opportunity_external_source_external_id_key (observed live 2026-11-06).
+  declare
+    v_second_program_id uuid;
+  begin
+    v_second_program_id := (api.crm_create_opportunity(
+      p_name => 'Issue 5791 Program 2',
+      p_company_id => v_customer_id)).id;
+    if not exists (select 1 from crm.opportunity
+                   where id = v_second_program_id
+                     and external_source = 'crm'
+                     and external_id like 'crm-%') then
+      raise exception 'second crm_create_opportunity failed or lacks the distinct crm external pair';
+    end if;
+    perform api.crm_archive_opportunity(v_second_program_id);
+  end;
+
   begin
     perform api.crm_archive_customer(v_customer_id);
     raise exception 'crm_archive_customer allowed a customer with open programs';
