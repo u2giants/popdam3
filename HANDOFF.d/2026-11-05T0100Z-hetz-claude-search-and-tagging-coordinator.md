@@ -128,25 +128,25 @@ Supabase MCP (confirm URL contains `qsllyeztdwjgirsysgai`). Secrets in 1Password
 
 ## Part (b): sub-sessions
 All preserved worktrees are clean unless noted and removable after review; none removed by this closeout.
-### [Task 1: tagging rules](claude://claude.ai/epitaxy/local_36180fb1-c4c7-4140-af97-c7778e251326)
+### Task 1: tagging rules (claude://claude.ai/epitaxy/local_36180fb1-c4c7-4140-af97-c7778e251326)
 Asked: rules, review page, full run. Did: all live, run started. Found: section 3. Worktree `angry-moser-354be3`. Helper worktree `agent-a224d21c32180547d` preserved with PR 731. Not done: tasks 1 to 3.
-### [Task 2](claude://claude.ai/epitaxy/local_ff4b7eb3-f35b-4a9a-ba1e-1d8e3d30ebe9)
+### Task 2 (claude://claude.ai/epitaxy/local_ff4b7eb3-f35b-4a9a-ba1e-1d8e3d30ebe9)
 Asked: agent update, proof. Did: confirmed update unnecessary. Worktree `reverent-mayer-2663a4`. No PR. Not done: task 4, scan unfinished.
-### [Task 3](claude://claude.ai/epitaxy/local_e4bf75ef-50af-4276-9afc-13432b7fdb81)
+### Task 3 (claude://claude.ai/epitaxy/local_e4bf75ef-50af-4276-9afc-13432b7fdb81)
 Asked: missing-record finish. Did: 2 corrected assets show replaced. Worktree `strange-franklin-10f6f6`. No PR. Not done: task 4's duplicate check.
-### [Task 7](claude://claude.ai/epitaxy/local_bc4fb79a-ffa2-4738-b4e1-e0d2cd3fa1a8)
+### Task 7 (claude://claude.ai/epitaxy/local_bc4fb79a-ffa2-4738-b4e1-e0d2cd3fa1a8)
 Asked: failed files. Did: PR 718, 634 sorted. Worktree `youthful-euler-5e3545`. Not done: tasks 3, 5.
-### [Picture check](claude://claude.ai/epitaxy/local_361fe4b9-548b-486d-9964-d7e8cd41b9a1)
+### Picture check (claude://claude.ai/epitaxy/local_361fe4b9-548b-486d-9964-d7e8cd41b9a1)
 PR 721, verdicts. Worktree `loving-rubin-2129f2`. Did not verify fixes on live files (task 3).
-### [Designer names](claude://claude.ai/epitaxy/local_e62de494-facb-4621-9446-b4ee578ec427)
+### Designer names (claude://claude.ai/epitaxy/local_e62de494-facb-4621-9446-b4ee578ec427)
 PRs 712, 732. Worktree `distracted-lichterman-13ff23`. Not done: task 8. Entire Gates failed on 712, not required, cause not investigated.
-### [Search test](claude://claude.ai/epitaxy/local_a9087004-83f9-480c-9822-92360ee78186)
+### Search test (claude://claude.ai/epitaxy/local_a9087004-83f9-480c-9822-92360ee78186)
 PR 720; parked 5582. Worktree `reverent-faraday-d39ea9`. Not done: task 6.
-### [Backup model](claude://claude.ai/epitaxy/local_8b59bbe0-b932-489e-bec7-ee17eccf2dc4)
+### Backup model (claude://claude.ai/epitaxy/local_8b59bbe0-b932-489e-bec7-ee17eccf2dc4)
 PRs 710, 724. Worktree `cool-leavitt-cb46c1`. No open tasks.
-### [October audit](claude://claude.ai/epitaxy/local_7970ddcd-d1c9-4e79-b284-89706ac54ece)
+### October audit (claude://claude.ai/epitaxy/local_7970ddcd-d1c9-4e79-b284-89706ac54ece)
 PR 713. Worktree `objective-cannon-c75936`. Not done: tasks 7, 9.
-### Tasks 4, 5 and [Task 6](claude://claude.ai/epitaxy/local_366207b5-bbba-4310-983c-7dc7fe26a0ba)
+### Tasks 4, 5 and Task 6 (claude://claude.ai/epitaxy/local_366207b5-bbba-4310-983c-7dc7fe26a0ba)
 Closed earlier, with nested promotion-trigger-fix and trace-5539-dispatch; outcomes in section 3.
 
 **Child handoffs:** none new. Existing: [2208Z](https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-11-03T2208Z-hetz-claude-tagging-after-indra-rescan.md) (successor review once task 3 ends), 2209Z and 2210Z (task 4 retires them).
