@@ -1,0 +1,72 @@
+[
+  {
+    "name": "trg_auto_queue_render",
+    "event_type": 17,
+    "function_name": "public.auto_queue_render()",
+    "original_prefix": "CREATE TRIGGER trg_auto_queue_render AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error)) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.filename IS DISTINCT FROM new.filename)))",
+    "current_prefix": "CREATE TRIGGER trg_auto_queue_render AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url) OR (old.filename IS DISTINCT FROM new.filename)))"
+  },
+  {
+    "name": "trg_auto_queue_render_ins_del",
+    "event_type": 5,
+    "function_name": "public.auto_queue_render()",
+    "original_prefix": "CREATE TRIGGER trg_auto_queue_render_ins_del AFTER INSERT ON public.assets FOR EACH ROW",
+    "current_prefix": "CREATE TRIGGER trg_auto_queue_render_ins_del AFTER INSERT ON public.assets FOR EACH ROW"
+  },
+  {
+    "name": "trg_dam_search_assets_refresh",
+    "event_type": 17,
+    "function_name": "public.trg_refresh_dam_asset_search_document()",
+    "original_prefix": "CREATE TRIGGER trg_dam_search_assets_refresh AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((((((((((((((((((((((old.id IS DISTINCT FROM new.id) OR (old.filename IS DISTINCT FROM new.filename)) OR (old.relative_path IS DISTINCT FROM new.relative_path)) OR (old.content_type IS DISTINCT FROM new.content_type)) OR (old.cover_description IS DISTINCT FROM new.cover_description)) OR (old.ai_description IS DISTINCT FROM new.ai_description)) OR (old.scene_description IS DISTINCT FROM new.scene_description)) OR (old.customer IS DISTINCT FROM new.customer)) OR (old.program IS DISTINCT FROM new.program)) OR (old.licensor_name IS DISTINCT FROM new.licensor_name)) OR (old.property_name IS DISTINCT FROM new.property_name)) OR (old.product_category IS DISTINCT FROM new.product_category)) OR (old.product_material IS DISTINCT FROM new.product_material)) OR (old.product_dimensions IS DISTINCT FROM new.product_dimensions)) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.file_type IS DISTINCT FROM new.file_type)) OR (old.asset_type IS DISTINCT FROM new.asset_type)) OR (old.workflow_status IS DISTINCT FROM new.workflow_status)) OR (old.is_licensed IS DISTINCT FROM new.is_licensed)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)) OR (old.modified_at IS DISTINCT FROM new.modified_at)))",
+    "current_prefix": "CREATE TRIGGER trg_dam_search_assets_refresh AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((old.id IS DISTINCT FROM new.id) OR (old.filename IS DISTINCT FROM new.filename) OR (old.relative_path IS DISTINCT FROM new.relative_path) OR (old.content_type IS DISTINCT FROM new.content_type) OR (old.cover_description IS DISTINCT FROM new.cover_description) OR (old.ai_description IS DISTINCT FROM new.ai_description) OR (old.scene_description IS DISTINCT FROM new.scene_description) OR (old.customer IS DISTINCT FROM new.customer) OR (old.program IS DISTINCT FROM new.program) OR (old.licensor_name IS DISTINCT FROM new.licensor_name) OR (old.property_name IS DISTINCT FROM new.property_name) OR (old.product_category IS DISTINCT FROM new.product_category) OR (old.product_material IS DISTINCT FROM new.product_material) OR (old.product_dimensions IS DISTINCT FROM new.product_dimensions) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url) OR (old.file_type IS DISTINCT FROM new.file_type) OR (old.asset_type IS DISTINCT FROM new.asset_type) OR (old.workflow_status IS DISTINCT FROM new.workflow_status) OR (old.is_licensed IS DISTINCT FROM new.is_licensed) OR (old.style_group_id IS DISTINCT FROM new.style_group_id) OR (old.is_deleted IS DISTINCT FROM new.is_deleted) OR (old.modified_at IS DISTINCT FROM new.modified_at)))"
+  },
+  {
+    "name": "trg_dam_search_assets_refresh_ins_del",
+    "event_type": 13,
+    "function_name": "public.trg_refresh_dam_asset_search_document()",
+    "original_prefix": "CREATE TRIGGER trg_dam_search_assets_refresh_ins_del AFTER INSERT OR DELETE ON public.assets FOR EACH ROW",
+    "current_prefix": "CREATE TRIGGER trg_dam_search_assets_refresh_ins_del AFTER INSERT OR DELETE ON public.assets FOR EACH ROW"
+  },
+  {
+    "name": "trg_sync_cover_description_to_style_group",
+    "event_type": 17,
+    "function_name": "public.sync_cover_description_to_style_group()",
+    "original_prefix": "CREATE TRIGGER trg_sync_cover_description_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((old.cover_description IS DISTINCT FROM new.cover_description) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)))",
+    "current_prefix": "CREATE TRIGGER trg_sync_cover_description_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((old.cover_description IS DISTINCT FROM new.cover_description) OR (old.style_group_id IS DISTINCT FROM new.style_group_id) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)))"
+  },
+  {
+    "name": "trg_sync_cover_description_to_style_group_ins_del",
+    "event_type": 5,
+    "function_name": "public.sync_cover_description_to_style_group()",
+    "original_prefix": "CREATE TRIGGER trg_sync_cover_description_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW",
+    "current_prefix": "CREATE TRIGGER trg_sync_cover_description_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW"
+  },
+  {
+    "name": "trg_sync_designer_to_style_group",
+    "event_type": 17,
+    "function_name": "public.sync_designer_to_style_group()",
+    "original_prefix": "CREATE TRIGGER trg_sync_designer_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((((old.designer_name IS DISTINCT FROM new.designer_name) OR (old.technical_designer_name IS DISTINCT FROM new.technical_designer_name)) OR (old.freelancer_name IS DISTINCT FROM new.freelancer_name)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)))",
+    "current_prefix": "CREATE TRIGGER trg_sync_designer_to_style_group AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((old.designer_name IS DISTINCT FROM new.designer_name) OR (old.technical_designer_name IS DISTINCT FROM new.technical_designer_name) OR (old.freelancer_name IS DISTINCT FROM new.freelancer_name) OR (old.style_group_id IS DISTINCT FROM new.style_group_id) OR (old.is_deleted IS DISTINCT FROM new.is_deleted)))"
+  },
+  {
+    "name": "trg_sync_designer_to_style_group_ins_del",
+    "event_type": 5,
+    "function_name": "public.sync_designer_to_style_group()",
+    "original_prefix": "CREATE TRIGGER trg_sync_designer_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW",
+    "current_prefix": "CREATE TRIGGER trg_sync_designer_to_style_group_ins_del AFTER INSERT ON public.assets FOR EACH ROW"
+  },
+  {
+    "name": "trg_sync_primary_on_thumbnail",
+    "event_type": 17,
+    "function_name": "public.sync_primary_asset_on_thumbnail()",
+    "original_prefix": "CREATE TRIGGER trg_sync_primary_on_thumbnail AFTER UPDATE ON public.assets FOR EACH ROW WHEN ((((((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url)) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error)) OR (old.style_group_id IS DISTINCT FROM new.style_group_id)) OR (old.asset_type IS DISTINCT FROM new.asset_type)))",
+    "current_prefix": "CREATE TRIGGER trg_sync_primary_on_thumbnail AFTER UPDATE ON public.assets FOR EACH ROW WHEN (((old.id IS DISTINCT FROM new.id) OR (old.thumbnail_url IS DISTINCT FROM new.thumbnail_url) OR (old.thumbnail_error IS DISTINCT FROM new.thumbnail_error) OR (old.style_group_id IS DISTINCT FROM new.style_group_id) OR (old.asset_type IS DISTINCT FROM new.asset_type)))"
+  },
+  {
+    "name": "trg_sync_primary_on_thumbnail_ins_del",
+    "event_type": 5,
+    "function_name": "public.sync_primary_asset_on_thumbnail()",
+    "original_prefix": "CREATE TRIGGER trg_sync_primary_on_thumbnail_ins_del AFTER INSERT ON public.assets FOR EACH ROW",
+    "current_prefix": "CREATE TRIGGER trg_sync_primary_on_thumbnail_ins_del AFTER INSERT ON public.assets FOR EACH ROW"
+  }
+]
