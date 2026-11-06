@@ -38,8 +38,13 @@ it("PopSG hybrid embeds the typed words while spelling runs", async () => {
   expect(result).toEqual({ embedding: [1], skipped: null });
 });
 it("PopSG hybrid skips pictures for words with no catalog meaning", async () => {
-  const result = await getPopSGQueryEmbedding("hybrid", "xqzvplm", async () => ({ data: [], error: null }), () => Promise.resolve([1]),
-    async () => ({ corrected: null, meaningful: false }));
+  const result = await getPopSGQueryEmbedding(
+    "hybrid",
+    "xqzvplm",
+    async () => ({ data: [], error: null }),
+    () => Promise.resolve([1]),
+    async () => ({ corrected: null, meaningful: false }),
+  );
   expect(result).toEqual({ embedding: null, skipped: "not_meaningful" });
 });
 it("PopSG name expansion needs a clear winner", async () => {
