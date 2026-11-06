@@ -259,13 +259,17 @@ export function appendClaimObjects(body, version, objects) {
   return body.slice(0,fences[0].index)+fences[0][0].replace(block,()=>replacement)+body.slice(fences[0].index+fences[0][0].length)
 }
 
-// Every migration version a pull request ADDED. `added` only, deliberately: a
-// rehearsal is allowed to apply versions this PR authored, never one it merely
-// touched, renamed or inherited from another claim.
+// Every migration version a pull request introduced. `added`, plus a rename
+// whose NEW path is a migration: a pure version rename (the documented cure
+// when a change exhausts its automatic attempts) authors the new version just
+// as much as a fresh file does — observed 2026-11-06 when PR #5830's renamed
+// versions passed the candidate scan (fixed separately) but the rehearsal lock
+// still refused them. A version the PR merely touched or inherited from
+// another claim is still excluded: renames carry the new name only.
 export function addedMigrationVersions(files) {
   if (!Array.isArray(files)) throw new LaneError('pull request files are unreadable; a post-merge preview rehearsal never assumes them')
   return files
-    .filter((file) => file?.status === 'added')
+    .filter((file) => file?.status === 'added' || file?.status === 'renamed')
     .map((file) => /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(file.filename ?? file.path ?? '')?.[1])
     .filter(Boolean)
 }

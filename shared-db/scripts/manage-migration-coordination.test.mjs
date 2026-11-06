@@ -1867,8 +1867,14 @@ test('added migration versions ignore anything the pull request did not add', ()
     { status: 'added', filename: 'supabase/migrations/20260818232639_a.sql' },
     { status: 'modified', filename: 'supabase/migrations/20260818203751_b.sql' },
     { status: 'added', filename: 'docs/notes.md' },
-    { status: 'renamed', filename: 'supabase/migrations/20260101000000_c.sql' },
-  ]), ['20260818232639'])
+    // A pure version rename authors the NEW version (2026-11-06, PR #5830):
+    // the new name is the version a rehearsal may apply.
+    { status: 'renamed', filename: 'supabase/migrations/20260101000000_c.sql', previous_filename: 'supabase/migrations/20251231235959_c.sql' },
+  ]), ['20260818232639', '20260101000000'])
+  // A rename whose destination is not a migration path contributes nothing.
+  assert.deepEqual(addedMigrationVersions([
+    { status: 'renamed', filename: 'docs/renamed.md', previous_filename: 'docs/old.md' },
+  ]), [])
   assert.throws(() => addedMigrationVersions(undefined), /unreadable/)
 })
 
