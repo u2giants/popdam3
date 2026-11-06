@@ -375,7 +375,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
 // allowed to freeze merges for more than 1hr. that's the new rule"
 export const PROMOTION_FREEZE_REF = 'refs/db-coordination/promotion-freeze'
 export const PROMOTION_FREEZE_MAX_TTL_MINUTES = 60
-const PROMOTION_FREEZE_HEADER = /^db-coordination promotion-freeze-record pr=(\d+) issue=(\d+)$/
+const PROMOTION_FREEZE_HEADER = /^db-coordination promotion-freeze-record pr=(\d+)(?: issue=(\d+))?$/
 
 export function readPromotionFreeze(io = githubIo, now = new Date()) {
   const sha = io.readRef(PROMOTION_FREEZE_REF)
@@ -389,11 +389,11 @@ export function readPromotionFreeze(io = githubIo, now = new Date()) {
   // An unreadable freeze fails CLOSED (treated as live) and is cleared only by
   // --release-promotion-freeze, never guessed away.
   if (!match || !body || Number.isNaN(Date.parse(body.expiresAt)) || !String(body.owner ?? '').trim()) return { sha, unreadable: true, expired: false }
-  return { sha, pr: Number(match[1]), issue: Number(match[2]), owner: String(body.owner ?? ''), acquiredAt: body.acquiredAt, expiresAt: body.expiresAt, expired: Date.parse(body.expiresAt) <= new Date(now).valueOf() }
+  return { sha, pr: Number(match[1]), issue: match[2] ? Number(match[2]) : null, owner: String(body.owner ?? ''), acquiredAt: body.acquiredAt, expiresAt: body.expiresAt, expired: Date.parse(body.expiresAt) <= new Date(now).valueOf() }
 }
 
 function promotionFreezeText(freeze) {
-  return freeze.unreadable ? `promotion freeze ${PROMOTION_FREEZE_REF} at ${freeze.sha} is unreadable; clear it with --release-promotion-freeze --pr <n> (any positive PR number releases an unreadable record)` : `promotion merge freeze held by ${JSON.stringify(freeze.owner)} for PR #${freeze.pr} (issue #${freeze.issue}) until ${freeze.expiresAt}`
+  return freeze.unreadable ? `promotion freeze ${PROMOTION_FREEZE_REF} at ${freeze.sha} is unreadable; clear it with --release-promotion-freeze --pr <n> (any positive PR number releases an unreadable record)` : `promotion merge freeze held by ${JSON.stringify(freeze.owner)} for PR #${freeze.pr}${freeze.issue == null ? '' : ` (issue #${freeze.issue})`} until ${freeze.expiresAt}`
 }
 
 // PATH-SCOPED FREEZE (#4845). The freeze exists so main does not move in a way
@@ -424,12 +424,22 @@ export function assertNoPromotionFreeze(io = githubIo, now = new Date()) {
 }
 
 export function acquirePromotionFreeze({ issue, pr, owner, ttlMinutes, now = new Date() }, io = githubIo) {
-  issue = Number(issue); pr = Number(pr); ttlMinutes = Number(ttlMinutes)
-  if (!Number.isInteger(issue) || issue < 1 || !Number.isInteger(pr) || pr < 1) throw new LaneError('--acquire-promotion-freeze requires --issue <n> and --pr <n>')
+  // Step 2.1 completion (plan_ci-process-repair.md, #2367): a MERGED source
+  // pull request whose admitted-issue resolution is null (no closing link, no
+  // title issue tag -- the shape of every claim-era merged PR) may still
+  // freeze merges. The freeze exists to hold main still around a production
+  // apply; the issue was bookkeeping. Refusing the freeze for an absent issue
+  // link refused a merged change for its pull request's wording, which step
+  // 2.1 removed from rehearsal and promotion. The PR alone keys the freeze;
+  // --issue stays accepted and recorded when a work issue IS resolvable.
+  const boundIssue = issue === undefined || issue === null || issue === '' ? null : Number(issue)
+  pr = Number(pr); ttlMinutes = Number(ttlMinutes)
+  if (boundIssue !== null && (!Number.isInteger(boundIssue) || boundIssue < 1)) throw new LaneError('--acquire-promotion-freeze requires --issue <n> and --pr <n>')
+  if (!Number.isInteger(pr) || pr < 1) throw new LaneError('--acquire-promotion-freeze requires --pr <n>')
   if (!String(owner ?? '').trim()) throw new LaneError('--acquire-promotion-freeze requires --owner <text>')
   if (!Number.isInteger(ttlMinutes) || ttlMinutes < 1 || ttlMinutes > PROMOTION_FREEZE_MAX_TTL_MINUTES) throw new LaneError(`--acquire-promotion-freeze requires --ttl-minutes between 1 and ${PROMOTION_FREEZE_MAX_TTL_MINUTES}`)
   const at = new Date(now), expiresAt = new Date(at.valueOf() + ttlMinutes * 60000).toISOString()
-  const record = io.makeOwnerCommit(`db-coordination promotion-freeze-record pr=${pr} issue=${issue}\n${JSON.stringify({ owner: String(owner), acquiredAt: at.toISOString(), expiresAt })}`)
+  const record = io.makeOwnerCommit(`db-coordination promotion-freeze-record pr=${pr}${boundIssue === null ? '' : ` issue=${boundIssue}`}\n${JSON.stringify({ owner: String(owner), acquiredAt: at.toISOString(), expiresAt })}`)
   const ownerSha = io.makeOwnerCommit(`db-coordination promotion-freeze pr=${pr} request=${randomUUID()}`)
   acquireMutex(ownerSha, io)
   try {
@@ -438,7 +448,7 @@ export function acquirePromotionFreeze({ issue, pr, owner, ttlMinutes, now = new
     requireOwnedRef(MUTEX_REF, ownerSha, io)
     if (existing) releaseOwnedRef(PROMOTION_FREEZE_REF, existing.sha, io)
     acquireRef(PROMOTION_FREEZE_REF, record, io)
-    return { ref: PROMOTION_FREEZE_REF, sha: record, issue, pr, owner: String(owner), acquiredAt: at.toISOString(), expiresAt, replacedExpired: Boolean(existing) }
+    return { ref: PROMOTION_FREEZE_REF, sha: record, issue: boundIssue, pr, owner: String(owner), acquiredAt: at.toISOString(), expiresAt, replacedExpired: Boolean(existing) }
   } finally { releaseMutexOnExit(ownerSha, io) }
 }
 

@@ -440,7 +440,13 @@ test('the qualification job acquires the promotion merge freeze before qualify-r
   assert.match(acquire, /SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/)
   assert.match(acquire, /WORK_ISSUE: \$\{\{ steps\.governed_review\.outputs\.work_issue \}\}/)
   assert.match(acquire, /--acquire-promotion-freeze/)
-  assert.match(acquire, /--pr "\$SOURCE_PR" --issue "\$WORK_ISSUE"/)
+  // Step 2.1 completion (#2367): the PR keys the freeze; the issue rides in
+  // ISSUE_ARGS only when the resolver found one (a merged PR with no closing
+  // link and no title issue tag has none, and step 2.1 removed issue links
+  // from promotion conditions).
+  assert.match(acquire, /--pr "\$SOURCE_PR" "\$\{ISSUE_ARGS\[@\]\}"/)
+  const acquireCommand = acquire.split('\n').find((line) => line.includes('--acquire-promotion-freeze'))
+  assert.ok(acquireCommand && !acquireCommand.includes('--issue'), 'the acquire command carries no unconditional issue')
   assert.match(acquire, /--ttl-minutes 45\b/)
   assert.ok(!/continue-on-error/.test(acquire), 'the acquire must fail loudly; qualification never continues without the freeze')
   // The release stays the exact counterpart: same source PR, under always().

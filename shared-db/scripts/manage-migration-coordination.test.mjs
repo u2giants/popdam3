@@ -1451,9 +1451,10 @@ test('database-only workflow acquisitions supply admission while guarded merge r
     if(command.includes('--acquire-promotion-freeze')){
       // plan_go-live-lane-prevention.md §9 step 1.1 (#5782): the qualification
       // job's freeze acquire is not a lane admission — it names the same source
-      // PR the always() release names and the resolved admitted work issue the
-      // freeze record header parses; never ADMIT_ARGS or a guessed issue.
-      assert.match(command,/--pr\s+"\$SOURCE_PR"\s+--issue\s+"\$WORK_ISSUE"/,command)
+      // PR the always() release names. Step 2.1 completion (#2367): the issue
+      // rides in ISSUE_ARGS only when the resolver found one; never
+      // ADMIT_ARGS or a guessed issue.
+      assert.match(command,/--pr\s+"\$SOURCE_PR"\s+"\$\{ISSUE_ARGS\[@\]\}"/,command)
       assert.doesNotMatch(command,/--admit-issue|ADMIT_ARGS/,command)
     }else if(command.startsWith('guarded-migration-merge.yml:')){
       assert.match(command,/acquire-merge-lane-waiting\.mjs["']?\s+--wait-seconds 900 --poll-seconds 15 -- --acquire-merge/,command)
@@ -5619,6 +5620,22 @@ test('promotion merge freeze blocks merges, never production, and expires by TTL
   assert.equal(releasePromotionFreeze({pr:3902},io).released,true,'the production cleanup releases by source PR')
   assert.equal(io.refs.has(PROMOTION_FREEZE_REF),false)
   assert.equal(releasePromotionFreeze({pr:3902},io).released,false)
+})
+
+test('step 2.1 completion: a merged PR with no resolvable work issue still freezes on the PR alone',()=>{
+  const io=freezeIo(),now=new Date('2026-11-06T12:00:00Z')
+  const freeze=acquirePromotionFreeze({pr:4531,owner:'automatic-production-qualification',ttlMinutes:45,now},io)
+  assert.equal(freeze.issue,null)
+  const record=readPromotionFreeze(io,now)
+  assert.equal(record.pr,4531)
+  assert.equal(record.issue,null,'a null-issue record reads back without the unreadable fail-closed path')
+  assert.ok(!record.unreadable)
+  assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},io),/for PR #4531 until/,'the freeze text names the PR without an issue clause')
+  try { acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},io); assert.fail('merge must be frozen') } catch (error) {
+    assert.ok(!String(error.message).includes('(issue'),'the freeze text carries no issue clause for a null-issue freeze')
+  }
+  assert.equal(releasePromotionFreeze({pr:4531},io).released,true,'cleanup still releases by source PR')
+  assert.throws(()=>acquirePromotionFreeze({issue:0,pr:1,owner:'x',ttlMinutes:30,now},freezeIo()),/--acquire-promotion-freeze requires --issue <n> and --pr <n>/,'a malformed issue still refuses')
 })
 
 test('#4845: a freeze lets only appended-migration, test and evidence merges through',()=>{
