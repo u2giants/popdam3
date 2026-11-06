@@ -2210,6 +2210,8 @@ export type Database = {
         Row: {
           asset_id: string | null
           char_count: number
+          declared_style_guide_key: string | null
+          declared_style_guide_label: string | null
           extracted_fields: Json | null
           extracted_text: string | null
           extraction_error: string | null
@@ -2228,6 +2230,8 @@ export type Database = {
         Insert: {
           asset_id?: string | null
           char_count?: number
+          declared_style_guide_key?: string | null
+          declared_style_guide_label?: string | null
           extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
@@ -2246,6 +2250,8 @@ export type Database = {
         Update: {
           asset_id?: string | null
           char_count?: number
+          declared_style_guide_key?: string | null
+          declared_style_guide_label?: string | null
           extracted_fields?: Json | null
           extracted_text?: string | null
           extraction_error?: string | null
@@ -2893,6 +2899,33 @@ export type Database = {
           source_system?: string
           style_guide_label?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sku_style_guide_resolver_progress: {
+        Row: {
+          active_link_ids: string[]
+          input_hash: string
+          output_hash: string
+          portal_hash: string
+          resolved_at: string
+          sku: string
+        }
+        Insert: {
+          active_link_ids?: string[]
+          input_hash: string
+          output_hash: string
+          portal_hash: string
+          resolved_at: string
+          sku: string
+        }
+        Update: {
+          active_link_ids?: string[]
+          input_hash?: string
+          output_hash?: string
+          portal_hash?: string
+          resolved_at?: string
+          sku?: string
         }
         Relationships: []
       }
@@ -4391,6 +4424,10 @@ export type Database = {
         Args: { p_after: string; p_limit?: number }
         Returns: Json
       }
+      backfill_sku_style_guide_key_batch: {
+        Args: { p_batch_size?: number }
+        Returns: number
+      }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
@@ -4856,6 +4893,7 @@ export type Database = {
           row_index: number
         }[]
       }
+      finish_sku_style_guide_catchup: { Args: never; Returns: undefined }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
       get_ai_tag_candidates: {
         Args: {
@@ -5105,6 +5143,10 @@ export type Database = {
       }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       parse_pdf_files_used_v2: { Args: { p_asset_id: string }; Returns: number }
+      prepare_sku_style_guide_resolution: {
+        Args: { p_full?: boolean }
+        Returns: number
+      }
       preview_stale_sg_files: {
         Args: { p_min_ratio?: number; p_root_label: string; p_run_id: string }
         Returns: {
@@ -5444,6 +5486,10 @@ export type Database = {
         Args: { p_threshold?: number }
         Returns: number
       }
+      resolve_sku_style_guide_batch: {
+        Args: { p_batch_size?: number }
+        Returns: Json
+      }
       resolve_sku_style_guide_links: { Args: never; Returns: Json }
       retry_sg_render_errors:
         | { Args: { p_file_ids?: string[] }; Returns: number }
@@ -5580,6 +5626,10 @@ export type Database = {
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
+      }
+      sku_declared_style_guide_label: {
+        Args: { p_text: string }
+        Returns: string
       }
       style_group_key_for_sku: {
         Args: { p_relative_path: string }
