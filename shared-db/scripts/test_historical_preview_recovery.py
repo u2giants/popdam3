@@ -176,6 +176,26 @@ class PerVersionSourceMapTests(unittest.TestCase):
                 verify(None, sha, ",".join(sorted(self.VERSIONS)), root, api, source_map=self.rendered(),
                        original_run_map=self.rendered_runs())
 
+    def test_a_renamed_migration_authors_its_new_version(self):
+        """A pure version rename (the documented exhausted-attempts cure) is
+        reported by the files API as "renamed", and the renamed-to filename is
+        the promoted version, exactly as candidate discovery accepts since
+        92123d0a7. Refusing it here stranded PR #5857 after its preview apply
+        (observed 2026-11-06): the recovery lane could never re-prove it.
+        """
+        t, root, sha = self.build()
+        with t:
+            def api(path):
+                if "/files" not in path:
+                    return {"merged": True, "merge_commit_sha": sha}
+                pr = int(path.split("/pulls/")[1].split("/")[0].split("?")[0])
+                version = {v: k for k, v in self.VERSIONS.items()}.get(pr)
+                status = "renamed" if pr == 1126 else "added"
+                return [{"filename": f"supabase/migrations/{version}_release_a.sql", "status": status}]
+            result = verify(None, sha, ",".join(sorted(self.VERSIONS)), root, api, source_map=self.rendered(),
+                            original_run_map=self.rendered_runs())
+            self.assertEqual(result["sourcePrMap"], self.VERSIONS)
+
     def test_single_pr_form_still_works_and_keeps_its_schema(self):
         """v1 callers must be untouched, so existing evidence stays verifiable."""
         t, root, sha = self.build()

@@ -171,7 +171,13 @@ def prove_pr_authored(source_pr, main_sha, versions, repo, api):
     for version in versions:
         matches = list(repo.glob(f"supabase/migrations/{version}_*.sql"))
         relative = matches[0].relative_to(repo).as_posix() if len(matches) == 1 else ""
-        if len(matches) != 1 or files.get(relative) != "added":
+        # "renamed" authors too: a pure version rename (the documented cure when
+        # a change exhausts its automatic attempts) is reported by the files API
+        # as a rename whose filename IS the promoted version, exactly as
+        # candidate discovery accepts since 92123d0a7 (observed 2026-11-06: PR
+        # #5857's renamed versions passed preview then died here). Every other
+        # status -- modified, removed, or absent -- still refuses.
+        if len(matches) != 1 or files.get(relative) not in ("added", "renamed"):
             raise ValueError(f"source PR {source_pr} did not author the exact migration {version}")
     return pr["merge_commit_sha"]
 
