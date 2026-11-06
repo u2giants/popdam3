@@ -169,7 +169,7 @@ export function buildPopSGSummaryIdentityFilters(guides: PopSGV2GuideViewRow[]):
  */
 export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null } {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const skip = row.mode === "keyword" || (row.mode === "hybrid" && row.skipped === "product_code");
+  const skip = row.mode === "keyword" || (row.mode === "hybrid" && (row.skipped === "product_code" || row.skipped === "not_meaningful"));
   if (!skip && row.mode !== "hybrid") throw new Error("Search unavailable. Please try again.");
   const vector = Array.isArray(row.embedding) && row.embedding.length === 768
     && row.embedding.every((n) => typeof n === "number" && Number.isFinite(n)) ? row.embedding : null;
