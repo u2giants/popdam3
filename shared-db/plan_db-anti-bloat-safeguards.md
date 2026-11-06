@@ -7,11 +7,11 @@ Sibling plan (read its STATUS, never redo its work): [plan_assets-bloat-permanen
 
 | Step | State | Evidence |
 |---|---|---|
-| 0 Baseline | ⬜ open | — |
-| 1 Stop ColdLion description flapping | ⬜ open | — |
-| 1v Vendor bug report + paging-order check | ⬜ open | — |
-| 2 ColdLion change_log rotation | ⬜ open | — |
-| 3 Skip-unchanged writers (4 targets) | ⬜ open | — |
+| 0 Baseline | ✅ done 2026-11-05 | docs/verification/db-anti-bloat-5758/20261105T2318Z/baseline.md (PR #5814); 2,994/3,000 slot updates and 2,981/3,000 item_header updates are description-only |
+| 1 Stop ColdLion description flapping | ✅ landed 2026-11-05 by PR #5807 (descriptions stay ingested per the 2026-09-03 ruling, excluded from change hashes; slot hash = {slotNo, mgCode}); gate (nightly updated rows down >90%) verifies on the second nightly run after promotion. **OPEN follow-up:** plan D4 (codes-only, drop mg_desc, labels by join) is not what landed; a successor decides the divergence on #5758 | popdam3 loader aligned to the same {slotNo, mgCode} slot hash (u2giants/popdam3 f19cbb9c) |
+| 1v Vendor bug report + paging-order check | 🔄 PR #5814 (report committed; duplicate/gap key guard live in fetchMasterSpec) | docs/verification/db-anti-bloat-5758/coldlion-items-desc-flap-report.md; tools/coldlion-master-http-paging.test.mjs |
+| 2 ColdLion change_log rotation | ✅ landed 2026-11-05 by PR #5807 (migration 20261106021547, claim #5778, weekly cron); read-only ranking validated 2026-11-05: 5,072 first-run victims, 0 newest-entry or 7-day-window violations | first production run is the Sunday 08:00 UTC cron (2026-11-08) |
+| 3 Skip-unchanged writers (4 targets) | 🔄 3a in PR #5814 (migration 20261106024854); 3c ✅ landed on popdam3 main (f19cbb9c codes-only hash parity + 2f8f907f bridge no-op guard); 3b DesignFlow blocked on the popcre GitHub identity not being authenticated on this machine; 3d conditional remains open | 3a: supabase/tests/sg_search_embedding_no_churn_contract.sql; 3c: popdam3 scripts/test-refresh-style-tracker-rows.py |
 | 4 Move queue/lease state off wide rows | ⬜ open | — |
 | 5 Index audit on busy tables | ⬜ open | — |
 | 6 Weekly bloat/churn check | ⬜ open | — |

@@ -369,4 +369,86 @@ begin
 end;
 $$;
 
+-- =====================================================================================
+-- H. #5758 label resolution. Whatever an item slot stores for its description,
+--    the durable label for a merch-group CODE lives on coldlion.merch_group_detail;
+--    the four-part key (company, division, mg_type_code, mg_code) is what
+--    disambiguates a mgCode shared by two types in one division.
+-- =====================================================================================
+do $$
+declare
+  v_run   uuid;
+  v_now   timestamptz := '2026-11-05T23:00:00Z';
+  v_label_05 text;
+  v_label_06 text;
+  v_distinct  int;
+begin
+  insert into coldlion.sync_run (endpoint, company_code, requested_by)
+  values ('/merchGroupDetails', 'ZZTEST', 'ZZTEST') returning id into v_run;
+
+  insert into coldlion.merch_group_header
+    (company_code, division_code, mg_type_code, mg_type_desc,
+     run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
+  values
+    ('ZZTEST', 'ZZ003', '05', 'Licensor', v_run, v_now, repeat('e', 64), v_now, v_now),
+    ('ZZTEST', 'ZZ003', '06', 'Property', v_run, v_now, repeat('f', 64), v_now, v_now);
+
+  -- One mgCode under two types in one division: the join must NOT collapse them.
+  insert into coldlion.merch_group_detail
+    (company_code, division_code, mg_type_code, mg_category, mg_code, mg_desc, active,
+     run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
+  values
+    ('ZZTEST', 'ZZ003', '05', 'CAT-A', 'ZZSHARED', 'ZZ licensor label', 'Y',
+     v_run, v_now, repeat('a', 64), v_now, v_now),
+    ('ZZTEST', 'ZZ003', '06', 'CAT-A', 'ZZSHARED', 'ZZ property label', 'Y',
+     v_run, v_now, repeat('b', 64), v_now, v_now);
+
+  -- The slot rows need their item-header parent (FK).
+  insert into coldlion.item_header
+    (company_code, division_code, item_no, run_id, fetched_at,
+     source_hash, first_seen_at, last_seen_at)
+  values ('ZZTEST', 'ZZ003', 'ZZLABEL', v_run, v_now, repeat('a1b2', 16), v_now, v_now);
+
+  insert into coldlion.item_merch_group
+    (company_code, division_code, item_no, item_pkey, slot_no, mg_code,
+     run_id, fetched_at, source_hash, first_seen_at, last_seen_at)
+  values
+    ('ZZTEST', 'ZZ003', 'ZZLABEL', null, 5, 'ZZSHARED',
+     v_run, v_now, repeat('c', 64), v_now, v_now),
+    ('ZZTEST', 'ZZ003', 'ZZLABEL', null, 6, 'ZZSHARED',
+     v_run, v_now, repeat('d', 64), v_now, v_now);
+
+  select d.mg_desc into v_label_05
+    from coldlion.item_merch_group g
+    join coldlion.merch_group_detail d
+      on d.company_code = g.company_code and d.division_code = g.division_code
+     and d.mg_type_code = lpad(g.slot_no::text, 2, '0') and d.mg_code = g.mg_code
+   where g.item_no = 'ZZLABEL' and g.slot_no = 5 and d.active = 'Y';
+
+  select d.mg_desc into v_label_06
+    from coldlion.item_merch_group g
+    join coldlion.merch_group_detail d
+      on d.company_code = g.company_code and d.division_code = g.division_code
+     and d.mg_type_code = lpad(g.slot_no::text, 2, '0') and d.mg_code = g.mg_code
+   where g.item_no = 'ZZLABEL' and g.slot_no = 6 and d.active = 'Y';
+
+  if v_label_05 is distinct from 'ZZ licensor label' or v_label_06 is distinct from 'ZZ property label' then
+    raise exception 'H FAILED: four-part label join returned "%" / "%", expected the two different type labels',
+      coalesce(v_label_05, '<null>'), coalesce(v_label_06, '<null>');
+  end if;
+
+  -- The join without the type code is ambiguous by design; prove it stays ambiguous
+  -- so nobody "simplifies" the reader join later.
+  select count(distinct d.mg_desc) into v_distinct
+    from coldlion.merch_group_detail d
+   where d.company_code = 'ZZTEST' and d.division_code = 'ZZ003' and d.mg_code = 'ZZSHARED';
+  if v_distinct <> 2 then
+    raise exception 'H FAILED: expected the shared mgCode to carry 2 distinct labels, got %', v_distinct;
+  end if;
+
+  raise notice 'H PASSED: slot codes resolve their labels by the four-part merch_group_detail join.';
+end;
+$$;
+
+
 rollback;

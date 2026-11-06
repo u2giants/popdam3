@@ -39,6 +39,24 @@ export async function fetchPagedMaster(endpoint, params, apiKey, options = {}) {
     if (page + 1 >= Math.max(1, payload.totalPages) || page > 10_000) throw new Error(`${endpoint} paging did not terminate`);
   }
   if (rows.length !== expectedTotal) throw new Error(`${endpoint} snapshot is incomplete: ${rows.length} of ${expectedTotal}`);
+  // Stable-page-boundary guard (#5758 1v). /items sends no sort parameter, so the
+  // vendor's page order is undefined; if boundaries move mid-snapshot a key can be
+  // duplicated on two pages while another slips out of every page, and the row-count
+  // check above still passes. When the caller names the natural key (every master
+  // spec does), demand the fetched set be exactly totalElements DISTINCT keys: no
+  // duplicates, no gaps.
+  if (options.keyOf) {
+    const keys = rows.map(options.keyOf);
+    const distinct = new Set(keys);
+    if (distinct.size !== keys.length) {
+      const seen = new Set();
+      for (const key of keys) {
+        if (seen.has(key)) throw new Error(`${endpoint} returned duplicate natural keys across pages (first duplicate seen twice; page boundaries are unstable)`);
+        seen.add(key);
+      }
+    }
+    if (distinct.size !== expectedTotal) throw new Error(`${endpoint} returned ${distinct.size} distinct natural keys for totalElements ${expectedTotal}: keys are missing or page boundaries are unstable`);
+  }
   return rows;
 }
 
@@ -82,8 +100,20 @@ export async function fetchArrayMaster(endpoint, params, apiKey, { fetchImpl = f
 
 export async function fetchMasterSpec(spec, params, apiKey, options = {}) {
   try {
+    // Every paged master spec names its natural key columns; the paging guard
+    // needs the API-side key of a row, so derive keyOf from the spec when the
+    // caller did not pass one (#5758 1v).
+    const pagedOptions = spec.paged && !options.keyOf
+      ? { ...options, keyOf: (row) => spec.key
+          .map((column) => {
+            const field = spec.fields.find((candidate) => candidate.column === column);
+            if (!field) throw new Error(`${spec.endpoint} key column ${column} has no mapped API field`);
+            return String(row[field.api] ?? "");
+          })
+          .join("\u001f") }
+      : options;
     return spec.paged
-      ? await fetchPagedMaster(spec.endpoint, params, apiKey, options)
+      ? await fetchPagedMaster(spec.endpoint, params, apiKey, pagedOptions)
       : await fetchArrayMaster(spec.endpoint, params, apiKey, options);
   } catch (error) {
     error.endpoint ??= spec.endpoint;
