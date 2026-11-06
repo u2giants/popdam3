@@ -1,0 +1,195 @@
+{
+  "schema": "shared-db-sku-style-guide-hosted-preview/v1",
+  "issue": 5608,
+  "recorded_at_est": "2026-11-06 01:29 PM EST",
+  "target": "configured_preview",
+  "production_acceptance_complete": false,
+  "source": {
+    "version": "20261106171924",
+    "migration_sha256": "1e8e96db3fb0be84c782be815d76a3e34539f2d2f23bd5c32f87cbef652f0c4a",
+    "source_pr": 5898,
+    "source_pr_head": "3bb25aae1e82a20e6cd04f4dbc41baa21ad95f4f",
+    "source_merge_sha": "6f1781ec412bed1dabe7e4ff3b173a8770c30a9f",
+    "workflow_main_sha": "33374870fae7180baff1a85b808ada1ab653ee88",
+    "required_checks_all_three_passed": true
+  },
+  "governed_preview": {
+    "run_id": 42268869549,
+    "run_url": "https://github.com/popcre/shared-db/actions/runs/42268869549",
+    "created_at": "2026-11-06T18:14:24Z",
+    "preview_job_id": 128069968094,
+    "preview_conclusion": "success",
+    "overall_conclusion": "failure",
+    "automatic_qualification_failing_step": "Acquire the promotion merge freeze for this source PR",
+    "hold_step_conclusion": "skipped",
+    "production_dispatch_step_conclusion": "skipped",
+    "production_apply_conclusion": "skipped",
+    "attempts": 1,
+    "retry_performed": false,
+    "preserved_foreign_active_preview_run": 42268437542,
+    "pending_foreign_preview_count_immediately_before_dispatch": 0
+  },
+  "original_preview_artifact": {
+    "id": 13528117696,
+    "name": "preview-migration-apply-33374870fae7180baff1a85b808ada1ab653ee88",
+    "digest": "sha256:a8a33497bea0612393695f36de09dccb283696ea6072da096b110086ed578d75",
+    "downloaded_archive_digest_verified": true,
+    "manifest_source_sha256_verified": true,
+    "is_automatic_review_artifact": false
+  },
+  "full_call": {
+    "preview_identity_matched": true,
+    "source_version": "20261106171924",
+    "phase": "full",
+    "verified_session_statement_timeout_ms": 60000,
+    "client_elapsed_seconds": 6.911497427998256,
+    "passed": true,
+    "completed_at": "2026-11-06 01:22:57 PM EST",
+    "query_sha256": "aeed123cbe68ed817759d8693c4164c13aca1ba1f59fe6e51bcf5d1bf7a97839"
+  },
+  "unchanged_call": {
+    "preview_identity_matched": true,
+    "source_version": "20261106171924",
+    "phase": "nochange",
+    "verified_session_statement_timeout_ms": 5000,
+    "client_elapsed_seconds": 2.2445362830003432,
+    "passed": true,
+    "completed_at": "2026-11-06 01:23:15 PM EST",
+    "query_sha256": "bea101826ca60fc3e068294da3cfb20b9c25e73c03dd74ea6bc6d74f13f286b3"
+  },
+  "exact_output_comparison": {
+    "preview_identity_matched": true,
+    "source_version": "20261106171924",
+    "parent_branch_verified": true,
+    "transaction_read_only": true,
+    "phase": "after",
+    "query_elapsed_seconds": 8.164126861000113,
+    "result": [
+      {
+        "expected_minus_actual_rows": 0,
+        "actual_minus_expected_rows": 0,
+        "expected_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+        "expected_output_rows": 334,
+        "actual_output_hash": "500a314ef7a2bb14d04c1e1a9b7d4aa9",
+        "actual_output_rows": 334,
+        "portal_input_hash": "8ba5ab3b33ce785fc65f8ed9c5c27c30",
+        "portal_input_rows": 565210,
+        "sheet_file_input_hash": "54cc92cecc83c11ec23656562ed02d66",
+        "sheet_file_input_rows": 3953
+      }
+    ]
+  },
+  "exact_parity_passed": true,
+  "poststate": {
+    "fresh_preview_identity_verified": true,
+    "transaction_read_only": true,
+    "result": [
+      {
+        "observed_at": "2026-11-06 13:24:25.2332-05",
+        "new_version_present": true,
+        "pending_keys": "0",
+        "eligible_skus": 754,
+        "input_rows": 909,
+        "portal_rows": 565210,
+        "progress_rows": 754,
+        "v4_progress_rows": 754,
+        "output_rows": 334,
+        "latest_seen_at": "2026-11-06 13:23:13.175123-05",
+        "catchup_jobs": 0,
+        "resolver_locks": 0
+      }
+    ],
+    "elapsed_seconds": 1.4459741979990213
+  },
+  "all_proof_clients_terminal": true,
+  "preview_lease_release_verified_by_coordinator": true,
+  "scope": {
+    "existing_preview_observations_only": true,
+    "preview_eligible_skus": 754,
+    "preview_eligible_raw_observations": 909,
+    "portal_observations": 565210,
+    "golden_sheet_file_fingerprint_rows": 3953,
+    "production_input_scale_reference_skus": 8050,
+    "production_input_scale_reference_observations": 21861,
+    "production_scale_reference": "production-readonly-diagnostics.json",
+    "disposable_volume_fixture": "disposable-results.json",
+    "preview_is_not_production_performance_proof": true,
+    "preview_calls_committed_legitimate_derived_history": true,
+    "synthetic_hosted_load_performed": false
+  },
+  "native_future_original_producer_validation": {
+    "validator_main_sha": "33374870fae7180baff1a85b808ada1ab653ee88",
+    "source_pr": 5898,
+    "source_pr_head": "3bb25aae1e82a20e6cd04f4dbc41baa21ad95f4f",
+    "source_merge_sha": "6f1781ec412bed1dabe7e4ff3b173a8770c30a9f",
+    "workflow_main_sha": "33374870fae7180baff1a85b808ada1ab653ee88",
+    "original_producer_run": 42268869549,
+    "original_artifact_id": 13528117696,
+    "original_artifact_digest": "sha256:a8a33497bea0612393695f36de09dccb283696ea6072da096b110086ed578d75",
+    "exact_job_count": 8,
+    "native_job_graph_accepted": true,
+    "read_only_github_validation_only": true,
+    "production_hold_bypassed": false,
+    "native_original_producer_proof_passed": true
+  },
+  "native_historical_recovery_record": {
+    "allowlist": [
+      "20261106171924"
+    ],
+    "mainSha": "33374870fae7180baff1a85b808ada1ab653ee88",
+    "originalApplyRuns": {
+      "20261106171924": 42268869549
+    },
+    "schema": "shared-db-historical-preview-source/v3",
+    "sourceMergeSha": "6f1781ec412bed1dabe7e4ff3b173a8770c30a9f",
+    "sourcePr": 5898
+  },
+  "binding_production_hold": {
+    "finding": 5899,
+    "finding_url": "https://github.com/popcre/shared-db/issues/5899",
+    "state": "closed",
+    "state_reason": "not_planned",
+    "closed_at": "2026-11-06T17:45:30Z",
+    "native_live_hold_exit_code": 3,
+    "expires_at": "2026-11-07T17:45:30Z",
+    "expires_at_est": "2026-11-07 12:45:30 PM EST",
+    "policy_or_disposition_changed_to_bypass": false
+  },
+  "preserved_evidence": {
+    "earlier_source_renewal_and_disposable_attempts": "disposable-results.json",
+    "actual_production_predecessor_delivery_and_120_second_failure": "production-delivery-and-failed-catchup.json",
+    "diagnosis_and_historical_limitations": "input-snapshot-v4.md",
+    "guarded_pre_dispatch_failure": {
+      "dispatch_created": false,
+      "reason": "active_foreign_preview",
+      "foreign_run": 42268437542
+    }
+  },
+  "remaining_acceptance": [
+    "Fresh normal automatic production eligibility after the binding hold",
+    "Automatic v4 production delivery and actual full/catch-up/output proof",
+    "Three genuine consecutive final-source scheduled nights under60 seconds"
+  ],
+  "future_route": "After hold eligibility, freshly prove current main, target and lane and use the existing historical PREVIEW requalification with original map20261106171924:42268869549; this re-proves the original artifact without replaying applied SQL, then existing normal automatic production gates decide. This receipt is not dispatch authorization or a promise of background execution.",
+  "issue_proof_comment": "https://github.com/popcre/shared-db/issues/5608#issuecomment-6692295877",
+  "future_historical_preview_workflow": {
+    "template_only_not_dispatched": true,
+    "workflow": "shared-supabase-migrations.yml",
+    "ref": "main",
+    "inputs": {
+      "target": "preview",
+      "mode": "apply",
+      "commit_sha": "CURRENT_MAIN",
+      "preview_allowlist": "20261106171924",
+      "historical_preview_source_pr": "5898",
+      "historical_preview_original_run_map": "20261106171924:42268869549"
+    },
+    "current_main_requirement": "Replace CURRENT_MAIN with a freshly re-proved exact current main SHA; recheck source SHA1e8e96db3fb0be84c782be815d76a3e34539f2d2f23bd5c32f87cbef652f0c4a and native original-producer proof against that main.",
+    "ordered_preconditions": [
+      "After the binding deadline, first check actual production ledger/job/progress and native delivery runs: if automatic production already delivered this source, do not duplicate recovery.",
+      "If still pending, freshly check live hold eligibility, production/preview ledgers and configured target/parent identity, current main/source binding, existing attempt budget and active/queued workflows/exclusive ownership through the supported route.",
+      "Only a genuinely needed supported historical PREVIEW recovery may use this template; it re-proves the original applied preview evidence without replaying SQL. Existing automatic production gates still decide."
+    ],
+    "background_wakeup_configured": false
+  }
+}

@@ -1,22 +1,24 @@
 # Plan: make the nightly SKU -> style guide link job finish
 
-Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); delivered preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
+Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); historical preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
 Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
 
-## STATUS (2026-11-06 11:41 AM EST)
+## STATUS (2026-11-06 01:29 PM EST)
 
 | Step | State | Evidence |
 |---|---|---|
 | 0 Real per-arm baseline | complete | Original per-arm plans and failed real-preview runtime retained in forward evidence |
 | 1 Persisted keys | production delivered | Automatic42241380486;703641 keys filled; zero pending at10:47 AM EST on November6 |
 | 2 Batched snapshot resolver | production delivered; real full failed | Automatic42243380012; zero-key10:50 AM EST resolver failed120.035070s/3400 committed SKUs |
-| 3 Contracts and recovery | v4 disposable checks passed; new CI pending | Whole8050-SKU calls, original nine-column/eight-portal parity, post-DML cancellation, input concurrency/security and24 actual proof-SQL cases |
-| 4 Governed preview + exact output | complete | Run 41987714096; 0/0 EXCEPT ALL, unchanged 334-row output and input fingerprints |
-| 5 v4 unified input snapshot | authored; not delivered | Version20261106171924; actual8050-SKU/21861-input scale; disposable full2.965543s / unchanged0.884081s; governed rehearsal/automatic production still required |
+| 3 Contracts and recovery | merged; all three required checks passed | Whole8050-SKU calls, original nine-column/eight-portal parity, post-DML cancellation, input concurrency/security and24 actual proof-SQL cases |
+| 4 Governed preview + exact output | v4 complete | Run42268869549 preview SUCCESS; full6.911497s/unchanged2.244536s; exact nine-column differences0/0 on334 rows |
+| 5 v4 unified input snapshot | preview delivered; production held | Version20261106171924/SHA1e8e96db…; #5899 native24-hour hold through November7 at12:45:30 PM EST; production runtime/output proof remains open |
 | 6 Three final-source nightly successes | open | No genuine final-v4 nights; synthetic proof cases do not count |
 
-- [ ] Implementation complete: v4 realistic hosted rehearsal, automatic delivery and actual production full/catchup/output proof remain required.
+- [ ] Implementation complete: v4 preview rehearsal passed; automatic production delivery and actual production full/catchup/output proof remain required.
 - [ ] live proof: three genuine consecutive source-tagged nights and freshness remain required on #5608.
+
+Current v4 [hosted preview receipt](docs/verification/database-efficiency/20261106-input-snapshot/hosted-preview-v4.json) preserves the exact source/producer/artifact, overall qualification freeze-acquisition failure, passing one-shot runtime/parity and native future original-producer validation. Preview has754 eligible SKUs/909 raw inputs; the separate8050-SKU/600000-portal disposable fixture covers scale, not production performance. Source #5898 is merged; the genuine production hold and three nights remain open. After the hold deadline, first check whether normal automatic production already delivered the source; never duplicate it. If recovery is genuinely needed, the receipt includes the exact historical-preview input template for original producer42268869549; refresh CURRENT_MAIN, source bytes, live ledgers/ownership and native proof before using it without replaying applied SQL. Normal automatic production gates still decide; no background wake-up is configured.
 
 Historical preview evidence: [actual preview proof and separate pre-production references](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md). The authoritative preview artifact is **13397091481**, `preview-migration-apply-51c366fa534a7182e3318405e0aa49398c6ba827`, digest `sha256:91730b63c6eb13a26dab411c4f654af30812f9f7eb1f40371707fd91f2033727`; automatic review artifact 13397176861 is separate. Generated types landed via #5645 (official producer 41973827983, unchanged artifact).
 
@@ -41,7 +43,7 @@ Objects involved (all defined in `supabase/migrations/20261030043848_sku_style_g
 
 ## 3. Trigger
 
-Supabase technician report (`/home/ahazan/Dropbox/ai/analysis-detail.md` §3, private, not in repo): job "never once succeeded", timeout on a regex-heavy CTE join of `pdf_text_samples` against `assets`, no batching. Verified 2026-11-04: 5 of 5 logged runs failed. Reproduce: `select status, start_time, end_time - start_time, left(return_message,300) from cron.job_run_details where jobid = 17 order by start_time;`
+Private Supabase technician report (§3, not in repo): job "never once succeeded", timeout on a regex-heavy CTE join of `pdf_text_samples` against `assets`, no batching. Verified 2026-11-04: 5 of 5 logged runs failed. Reproduce: `select status, start_time, end_time - start_time, left(return_message,300) from cron.job_run_details where jobid = 17 order by start_time;`
 
 ## 4. Scope
 
@@ -52,8 +54,8 @@ NOT in: changing match rules or confidence math; adding/removing portal arms of 
 
 - Original base/forward are genuinely in production through automatic42241380486 and42243380012; generated types remain delivered through#5645. Earlier missing-base refusals and all unsuccessful attempts remain historical evidence, not current delivery state.
 - Production persisted-key bootstrap reached0 at10:47:34 AM EST. Pure resolver work at10:50 AM EST then failed120.035070s after3400 committed SKUs. No production completion or full-runtime success is claimed.
-- The minimum v4 repair is authored: one exact raw input snapshot, pending-only derived keys, trusted temporary objects, preserved durable progress, once-only v4 invalidation and final-source nightly marker. [Current diagnosis and disposable proof](docs/verification/database-efficiency/20261106-input-snapshot/input-snapshot-v4.md) distinguish actual production facts from8050-SKU/600k-portal synthetic timings.
-- Existing November5 preview proof (8.103889s/3.247662s;0/0 differences on334 unchanged rows) remains historical preview evidence. V4 still needs realistic governed hosted rehearsal, automatic production and actual matching/runtime verification. Three genuine final-source nights remain open on#5608 under the coordinator.
+- The minimum v4 repair is merged and installed on preview: one exact raw input snapshot, pending-only derived keys, trusted temporary objects, preserved durable progress, once-only v4 invalidation and final-source nightly marker. [Current diagnosis and disposable proof](docs/verification/database-efficiency/20261106-input-snapshot/input-snapshot-v4.md) distinguish actual production facts from8050-SKU/600k-portal synthetic timings.
+- Existing November5 preview proof (8.103889s/3.247662s;0/0 differences on334 unchanged rows) remains historical. V4 governed preview now passed6.911497s/2.244536s and exact0/0 differences, with native original-producer recovery proof. Its overall workflow failed at freeze acquisition before the hold step; the separate #5899 hold still binds production. Automatic production, actual production matching/runtime and three genuine final-source nights remain open on#5608 under the coordinator.
 
 ## 6. Findings (read-only, production, 2026-11-04 ~8:45 PM EST)
 
@@ -124,8 +126,8 @@ The production read-only MCP attempt refused private `file_name_norm` EXECUTE (4
 ## 13. Done, risks, open questions
 
 Done criteria, not current status: migrations merged and promoted; tests green; catch-up completed; 3 consecutive nightly successes with artifact paths; STATUS table and same-issue continuity updated; #5608 live-proof box ticked.
-Delivered predecessor tradeoff: two ordinary covering indexes block portal writers while built; preview measured10.363s combined, with5s lock acquisition and no raised outer cap. The v4 change adds no permanent index and must still meet whole-invocation60s/5s on a realistic hosted target; fast disposable timings do not establish production performance. Plain keys avoid the rejected generated-column rewrite. View rewrite could change output — guarded by exact multiset/output tests; procedure-with-commit under pg_cron must not be wrapped in a transaction — verify in preview. Rollback overall: re-apply the old function body via a forward migration.
-Resolved: reliable timestamps are absent across the complete source set; deterministic exact portal fingerprints replace timestamp watermarks. Open: governed v4 rehearsal/automatic delivery, actual production full/catchup/output proof and three genuine final-source nightly successes. The original coordinator owns those remaining outcomes on #5608.
+Delivered predecessor tradeoff: two ordinary covering indexes block portal writers while built; preview measured10.363s combined, with5s lock acquisition and no raised outer cap. The v4 change adds no permanent index; actual preview passed whole-invocation60s/5s, while production performance remains unproved. Fast disposable timings do not establish production performance. Plain keys avoid the rejected generated-column rewrite. View rewrite could change output — guarded by exact multiset/output tests; procedure-with-commit under pg_cron must not be wrapped in a transaction — verify in preview. Rollback overall: re-apply the old function body via a forward migration.
+Resolved: reliable timestamps are absent across the complete source set; deterministic exact portal fingerprints replace timestamp watermarks. Open: hold eligibility and automatic v4 production delivery, actual production full/catchup/output proof and three genuine final-source nightly successes. Governed v4 preview and current native original-producer recovery proof have passed. The original coordinator owns those remaining outcomes on #5608.
 
 ## Self-audit
 
