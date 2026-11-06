@@ -47,10 +47,25 @@ export function projectRecord(raw, runId, fetchedAt) {
   }
   projected.run_id = runId;
   projected.fetched_at = fetchedAt;
-  projected.source_hash = sha256(stableJson(raw));
+  // shared-db #5758: the merchGroupNNDesc family is not item data. /items and
+  // /itemDetails intermittently omit it for the same merchGroupNN code, so a
+  // hash over the raw row records the omission as a nightly change. Hash the
+  // row with that family removed, exactly as the shared-db loader
+  // (tools/coldlion-landing/lib/project-masters.mjs) now does, so the two
+  // writers agree on what "unchanged" means.
+  projected.source_hash = sha256(stableJson(stripSlotDescFields(raw)));
   projected.first_seen_at = fetchedAt;
   projected.last_seen_at = fetchedAt;
   return projected;
+}
+
+function stripSlotDescFields(raw) {
+  const stripped = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (/^merchGroup\d\dDesc$/.test(key)) continue;
+    stripped[key] = value;
+  }
+  return stripped;
 }
 
 export function projectMerchGroups(raw, runId, fetchedAt, itemPkey = null) {
@@ -67,13 +82,16 @@ export function projectMerchGroups(raw, runId, fetchedAt, itemPkey = null) {
       item_pkey: itemPkey,
       slot_no: slot,
       mg_code: code,
-      mg_desc: scalar(raw[`merchGroup${suffix}Desc`]),
       run_id: runId,
       fetched_at: fetchedAt,
       first_seen_at: fetchedAt,
       last_seen_at: fetchedAt,
     };
-    row.source_hash = sha256(stableJson({ code: row.mg_code, description: row.mg_desc }));
+    // shared-db #5758 D4: codes only. The slot hash must be byte-identical to
+    // the shared-db loader's canonical {slotNo, mgCode} form so the two writers
+    // never disagree; a slot description belongs to
+    // coldlion.merch_group_detail, joined by code, never hashed here.
+    row.source_hash = sha256(stableJson({ slotNo: row.slot_no, mgCode: row.mg_code }));
     rows.push(row);
   }
   return rows;
