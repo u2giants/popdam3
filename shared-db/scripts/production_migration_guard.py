@@ -322,6 +322,10 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261015132149": "#4540 drain disposition (2026-11-06): stamp re-reserved AFTER its PR #4221 merged (commit 8717fc09f renamed 20261013144638_pm_jev_activity_triage_contract_a.sql), so no merged pull request adds this stamp and the post-merge rehearsal proof can never accept it; the historical lane cannot name an original apply run because it was never applied to preview. Retire this stamp; reissued byte-identical (body cmp-identical) as 20261106190000 under issue #3298 (PR #5913), which the normal automatic lane carries. Never apply this stamp.",
+    "20261021063716": "#4540 drain disposition (review-finding #5860, 2026-11-06): superseded body-only repair. It CREATE OR REPLACEs search_dam_documents and search_dam_document_counts with the 2026-10-21 body; production later applied 20261106042721 and 20261106095531, which now own search_dam_documents. Promoting this version would roll production search back about fifteen migrations (dropping exact totals and FTS dedup). Never apply; production already carries the later bodies. Preview holds the Oct body from replay runs 42183400427/42237043420 and needs a forward re-sync, not this promotion.",
+    "20261022032116": "#4540 drain disposition (2026-11-06): superseded CREATE OR REPLACE search_style_guide_library_v2 (forward-delivery recovery body). Its recovery-contract guard requires the parse-once body md5 9d5dd045810fa3fce5cc3d508e1210ff and refuses anything else, while production's function body was re-replaced by applied 20261022155012, 20261027183509, 20261104231707 and 20261105023331. It can never apply cleanly and would roll the function back. Never apply; the later applied bodies own the function.",
+    "20261012005136": "#4540 drain disposition (2026-11-06): superseded CREATE OR REPLACE search_style_guide_library_v2 (parse-once body). Its baseline guard requires the pre-parse-once body md5 3547b0f7d28d044ff6d6e031dcbeebbb and refuses anything else, while production's function body was re-replaced by applied 20261022155012, 20261027183509, 20261104231707 and 20261105023331. It can never apply cleanly and would roll the function back. Never apply; the later applied bodies own the function.",
     "20261106092127": "#5747/#5863: never applied anywhere (never dispatched). Its source PR #5862 renamed 20261106064511 to it, and production risk assessment refuses renamed migration files, so it can never promote. Successor 20261106095531 carries the identical body as an added file.",
     "20261106062730": "#5747: preview-only; three automatic attempts refused before production apply because main advanced (#5856); identical body re-issued as 20261106072548.",
     "20261106040512": "#5747: preview-only (preview42173060663). Production42173493786 refused its declared base 20260825010603 (not in production ledger); successor 20261106062730 carries the identical body with base 20260825082910.",
@@ -421,6 +425,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261013174336": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#3869",
+        "note": "Generation 11 performance repair derived from 20261009170724 (the #3869 generation-9 contract, scoped designflow-nonprod-only). The file header names Issue #3869 generation 11 and derived-from 20261009170724; source instructions prohibit shared production/preview apply. Reviewed disposition 2026-11-06 on popcre/shared-db#4540: do not drain. This is target scope, not retirement; it remains in-scope on designflow-nonprod. Separately, production's plm.v_prod_order_sales_order_link body was superseded by applied 20261024234538, so a shared-production apply would be a rollback as well.",
+    },
     "20261102215524": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
