@@ -1,0 +1,15 @@
+# Public-boundary path allowlist — popcre/shared-db (issue #5826).
+# Read by ai-devops bin/ai-public-boundary-check: an entry ending in "/" is a
+# directory prefix; any other entry is an exact tracked path (lowercase).
+# Matching paths skip ONLY the path-classification rules (generated AI
+# artifact / transcript / memory). Secret-bearing names and types and every
+# content-level check (credentials, topology, project IDs) still apply to
+# every tracked file, these included.
+#
+# Governed-review evidence published before the .ai/reviewer-issues/
+# convention existed (ai-devops PR #1626); named as permanent citations in
+# docs/configuration.md ("do not delete those").
+.ai/reviews/
+# One-off implementation brief from the same era, same intentional-publish
+# status.
+.ai/brief-1818-codex.md

@@ -1,0 +1,132 @@
+# Public-boundary identifier allowlist — popcre/shared-db (issue #5826).
+# The public-boundary gate (ai-devops bin/ai-public-boundary-check) rejects
+# any run of exactly 20 lowercase letters this allowlist does not carry as an
+# exact whole line. Every entry below is a token ALREADY committed in this
+# repository's tracked files; none is a secret. Each entry is one of:
+#  - a stable project reference already published in AGENTS.md / rulebook
+#    docs (production qsllyeztdwjgirsysgai, sandbox xupnyeifmpsacrqahwwm,
+#    retired preview rjyboqwcdzcocqgmsyel named in the runbook itself);
+#  - an infrastructure token already embedded verbatim in tracked evidence or
+#    docs — a BLIND clearing entry that makes no currency claim (preview refs
+#    rotate; do not read any entry here as "the current preview");
+#  - a synthetic test token (repeated letters, deadbeef, zzz/xxx patterns)
+#    in tests/tools fixtures;
+#  - a 20-letter fragment of ordinary English prose words — the pattern is
+#    deliberately blunt and catches long words (e.g. nondeterministically).
+# Standing rule #4910 (docs/agents/references-and-runbooks.md §8): do NOT
+# embed new stable infrastructure identifiers in new evidence; write neutral
+# placeholders (<project-ref>) there instead of extending this list.
+aaaaaaaaaaaaaaaaaaaa
+aaaabbbbccccddddeeee
+aaxtrlfpnoutziwhshlt
+abcdefghijabcdefghij
+abcdefghijklmnopqrst
+afternewsourcechecks
+afterpolicyisinstall
+allotherordinaryjobs
+allotherrequirements
+andretireonlyunmerge
+approvedartifactjoin
+ashboundtypedsidecar
+authorizedcleanupfix
+automatictimebasedsc
+bbbbbbbbbbbbbbbbbbbb
+beyondcurrentallowed
+boundedobservationsa
+causaleligibleblocke
+cccccccccccccccccccc
+cloudsqliamgroupuser
+cloudsqlimportexport
+cloudsqlinactiveuser
+completebackendvalid
+contingentonbindinga
+criticalpathwallcloc
+defensibleconversion
+detectorregeneration
+dgmebpgczkrxykqqfjev
+diagnoseactualsource
+dpartialreliefinvest
+eadycompletionactual
+eqccjfbyrywsqkxxpjvg
+estimatefeaturecosta
+evaluatedproposalonl
+everreapplyreservedv
+existingapprovedarti
+existingcatalogtests
+existingglobalfreeze
+extendexistingclassi
+filteringinvalidrows
+firstsmallreviewedfi
+firststagecomplexity
+foreignhistoryrewrit
+freezealonecoversall
+freshapprovalrequire
+frontendbaselinechan
+fullactualgroupdelta
+fulltreedenylistmode
+hedulerorhardperform
+holeclosureassertion
+immutablegenerations
+implementationcommit
+implementingworkstre
+inalsubstantivefiles
+independentlycleanup
+independentnamespace
+initialcriticalquota
+isauthoritativeprobe
+isolatedouterservice
+manuallyfixsharedpre
+metricsandactualbind
+mvpkijzfmfcxhnzqogzs
+naturallyauthorizedp
+nevercurrentdefaultu
+nlessseparatelyrevie
+noautomaticstrongern
+nofiltermalformedrow
+nonarrayalreadycover
+nondeterministically
+normalcurrentreviews
+normalrenewalexpires
+normaltypedimmutable
+owneralreadyrequeste
+pairoriginalbytecust
+pairprivatepreserved
+permittednativeevide
+perrootverifiedstate
+plusimplicitmetadata
+preauthorizedgroupsa
+previewqualification
+productionapplicatio
+productionheldfullbl
+productionwritepause
+publishedbeforeedits
+qsllyeztdwjgirsysgai
+qualifyoriginalapply
+readycompletionactua
+repairthroughsupport
+reserveoldbranchhist
+restoreonlyexactnoti
+reuseexistingcontext
+reviewerbudgetbypass
+reviewinflightmutati
+rjyboqwcdzcocqgmsyel
+ryltkzzernhwnojzouyb
+samplemayzeroreadypr
+sourceimplementation
+stopandreviseproposa
+stopforprospectiveam
+substantivefinaldiff
+truncatedcompletefla
+ullspecifiedofflinec
+withoutunrelatedpatc
+wxwtyxubjsfvxvjrajbk
+xactoriginalreviewed
+xistingmanualoptinpr
+xjcyeuvzkhtzsheknaiu
+xupnyeifmpsacrqahwwm
+zeroimprovementclaim
+zzzsemanticonlytoken
+zzzunmistakabletoken
+zzzzbbbbccccddddeeee
+zzzzyyyyxxxxwwwwvvvv
+zzzzzzzzzzzzzzzzzzzz

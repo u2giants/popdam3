@@ -52,6 +52,13 @@ See `AGENTS.md` “What to ignore” and `.gitignore` / `.claudeignore`. In shor
 `supabase/.temp/`, `node_modules/`, `__pycache__/`, `.ai/`, `.claude/`, review
 packets, and session scratch. A small named allowlist of committed
 `.ai/reviews/*` files is intentional (permanent citations) — do not delete those.
+The local `ai-doc-safety` gate stays green on clean `main` through two
+committed clearing files it reads: `tools/public-boundary-path-allowlist.txt`
+(intentional evidence publish paths, e.g. `.ai/reviews/`) and
+`tools/public-boundary-allowlist.txt` (identifier-shaped tokens already
+committed here; blind clearing entries, never a currency claim). Extend them
+only for tokens already committed — new evidence uses neutral placeholders
+(#4910, `docs/agents/references-and-runbooks.md` §8).
 
 ## Preview vs production identity
 
