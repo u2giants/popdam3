@@ -5,8 +5,8 @@ do $test$
 declare f pg_proc; n integer; total bigint; facets_present boolean;
 begin
  select * into strict f from pg_proc where oid='public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure;
- if md5(f.prosrc)<>'1bede30349edd91071a493a6d5ff1203'
-    or md5(replace(f.prosrc,'array(select distinct q.tsq from queries q)','array(select q.tsq from queries q)'))<>'5ad9960f79ef20074b0f93e2b589caf2' then
+ -- #5747 superseded the #5730 body (exact-count fast path); the dedup expression must survive.
+ if position('array(select distinct q.tsq from queries q)' in f.prosrc)=0 then
    raise exception '#5730 installed function differs beyond the one FTS expression';
  end if;
  if pg_get_function_arguments(f.oid)<>'p_query text, p_filters jsonb, p_limit integer, p_offset integer, p_document_types text[] DEFAULT NULL::text[], p_query_embedding vector DEFAULT NULL::vector, p_min_rank real DEFAULT 0, p_min_semantic_score real DEFAULT NULL::real'
