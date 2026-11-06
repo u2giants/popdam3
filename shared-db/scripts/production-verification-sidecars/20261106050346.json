@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261106050346",
+  "migration_sha256": "397444c4856e16375dca1dc269a9143ced074dfad37887684b2a4810b29fd1c5",
+  "checks": [
+    {
+      "id": "dflow_pd_combination_table_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow.mg_combination_description",
+      "filters": [
+        {
+          "column": "status",
+          "type": "text",
+          "equals": "pending"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_pd_item_table_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow.item_product_description",
+      "filters": [
+        {
+          "column": "source",
+          "type": "text",
+          "equals": "combination"
+        }
+      ],
+      "expected_count": 0
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 131,
+      "line_end": 131,
+      "disposition": "no_durable_target",
+      "reason": "Inner EXECUTE inside the audit trigger function body: runtime history-row insertion performed by the trigger, not a catalog object; no post-apply catalog probe can or should assert it. Its behavior is exercised by the committed supabase/tests/dflow_product_description_contracts.sql contract test (self-contained fixtures, one transaction, ROLLBACK) and re-proven read-only on the sandbox database at apply time."
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "generation": 16,
+  "evidence_parent": {
+    "work_issue": 5020,
+    "generation": 15,
+    "contract_sha256": "7180dc3e2b32ffe9d7aec3b44b85aac6469f7697e1fe76e546bdf4cff52792f7"
+  },
+  "work_issue": 5020,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Core Product Type storage, SANDBOX HALF (claim #5836, version 20261106050346): third park-resume retimestamp. 20261105231250 went backdated behind main's 20261106043600 after the merge queue's ascending-version gate cleared (eight lower-version open PRs — #5640, #5647, #5653, #5663, #5709, #5719, #5720, #4620 — were closed by owner instruction to unblock the queue; their branches and claims are intact and each carries reopen instructions). Content identical to generation 15: dflow product-description table pairs with audit and human-override guard, foreign-target registration, behavior contract test, arm-discriminated grants contract, hash-bound sidecar. Sidecar re-hashed (397444c4856e16375dca1dc269a9143ced074dfad37887684b2a4810b29fd1c5). Target scope: DesignFlow non-production only. Work issue popcre/designflow-item-master#150.",
+  "base_sha": "930a47f361fba7016ca510b3583ceb4458ab892a",
+  "dispatcher": "claim-first (claim #5836, owner MiMo chat unknown on EDGE-DEV)",
+  "worker": "MiMo chat unknown on EDGE-DEV",
+  "branch": "zcode/5020a-dflow-pd",
+  "worktree": "D:/repos/shared-db-worktrees/5020a",
+  "allowed_paths": [
+    ".agent/work/5020/16/completion.json",
+    ".agent/work/5020/16/contract.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261106050346.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/5020/16/completion.json",
+    ".agent/work/5020/16/contract.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261106050346.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "prohibited_actions": [
+    "Do not modify any applied migration.",
+    "Do not add a second migration version to this pull request; the production half is a separate claim and pull request on issue #5026.",
+    "Do not write to any live database from this pull request; the sandbox apply goes through the DesignFlow Sandbox Migrations workflow with its own allowlist and proofs.",
+    "Do not touch any dflow_prod object.",
+    "Do not bypass, weaken or retry around lane gates.",
+    "Do not rebase; merge main instead."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python -m unittest scripts.test_check_production_verification_sidecars",
+    "python -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261106050346",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "Version churn is structural: Guard B requires the migration to sort above main's newest at merge-group time and the queue gate refuses it behind any open lower-version PR, so every main advance or peer reservation forces a re-timestamp. This is the third (20261029161229 -> 20261105222623 -> 20261105231250 -> 20261106050346).",
+    "The Oct 29 owner ruling makes review advisory and never a merge gate.",
+    "supabase/tests/dflow_product_description_contracts.sql includes the migration by filename; each retimestamp sweeps those references (a missed sweep failed psql with 'No such file or directory' once)."
+  ],
+  "stop_conditions": [
+    "Stop if CI, the merge queue or any lane tool refuses; never work around a refusal.",
+    "Stop if main advances past the version again — report rather than loop all night; each retimestamp burns a permanent reservation."
+  ]
+}

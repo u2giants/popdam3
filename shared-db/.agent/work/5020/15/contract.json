@@ -1,0 +1,90 @@
+{
+  "schema_version": 2,
+  "generation": 15,
+  "evidence_parent": {
+    "work_issue": 5020,
+    "generation": 14,
+    "contract_sha256": "290240952e715de81dcb91cf51183d140db88f0f7e7f04a652f450e694587e3f"
+  },
+  "work_issue": 5020,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Core Product Type storage, SANDBOX HALF (claim #5793, version 20261105231250): park-resume of PR #5029 after the 2026-10-29 owner stop. The parked version 20261029161229 sorts behind main's newer versions (Guard B), so a fresh version was reserved and the migration retimestamped (content unchanged except the version strings and an added -- derived-from: none header). Main (bbc4890f) was merged in; the parked branch's additive edits to scripts/production_catalog_verification.py (three CATALOG_CONTRACTS probes), scripts/production_migration_guard.py (FOREIGN_TARGET_MIGRATIONS entry) and config/production-verification-sidecar-registry.json (registry row) were reconciled on top of main's current content of those shared files without discarding either side, and retimestamped to 20261105231250. The sidecar scripts/production-verification-sidecars/20261105231250.json was renamed, re-hashed (migration sha256 7e006d12c6a2819a1fce340a1025fb1f7e100b7dfe432a5ab8c0a25b8afb5597) and its marker review line re-anchored to 131 after the header addition. The throughput-guard truth baseline was regenerated (detector digest 4eba2588482c5a50c1766fcfff861ae3f22b724bf8f9fe0096159ac47cebbe28, totals refreshed to 979 files / 126 marker rows). Same static migration content as generation 14: dflow.mg_combination_description and dflow.item_product_description table pairs with audit and a human-override guard, foreign-target registration, committed supabase/tests behavior contract, arm-discriminated grants contract. Fail-loud self-checks keep it off the production project; the paired production half is issue #5026. Work issue popcre/designflow-item-master#150.",
+  "base_sha": "bbc4890f0f58eef2a841cc0c9ccd6087f6540f19",
+  "dispatcher": "claim-first (claim #5793, owner MiMo chat unknown on EDGE-DEV)",
+  "worker": "MiMo chat unknown on EDGE-DEV",
+  "branch": "zcode/5020a-dflow-pd",
+  "worktree": "D:/repos/shared-db-worktrees/5020a",
+  "allowed_paths": [
+    ".agent/work/5020/15/completion.json",
+    ".agent/work/5020/15/contract.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261105231250.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261105231250_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/5020/15/completion.json",
+    ".agent/work/5020/15/contract.json",
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261105231250.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261105231250_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "prohibited_actions": [
+    "Do not modify any applied migration.",
+    "Do not add a second migration version to this pull request; the production half is a separate claim and pull request on issue #5026.",
+    "Do not write to any live database from this pull request; the sandbox apply goes through the DesignFlow Sandbox Migrations workflow with its own allowlist and proofs.",
+    "Do not touch any dflow_prod object.",
+    "Do not bypass, weaken or retry around exact-head review, guarded merge or apply gates.",
+    "Do not rebase; merge main instead."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "python -m unittest scripts.test_check_production_verification_sidecars",
+    "python -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261105231250",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql",
+    "node scripts/check-throughput-truth-audit.mjs"
+  ],
+  "assumptions": [
+    "PR #5036 (the migration whose lower version ejected #5029 from the merge queue on 2026-10-29) closed unmerged on 2026-10-30, so the queue-order blocker is gone; merge order remains sandbox half before production half.",
+    "The Oct 29 owner ruling makes review advisory and never a merge gate (shared-db merge protocol, Review is advisory section), so this resume proceeds without a review round; the two generation-14 muse APPROVEs are historical evidence only.",
+    "Merging main conflicted in scripts/production_catalog_verification.py, scripts/production_migration_guard.py, config/production-verification-sidecar-registry.json and docs/verification/throughput-guard-truth-baseline-20260828.json because the parked branch's whole-file CRLF churn overlapped main's later edits. Resolution kept main's current content of those files and re-applied only this workstream's additive entries (three catalog contracts, one foreign-target entry, one registry row), retimestamped to 20261105231250; no other workstream's change was altered.",
+    "Editing the detector obligates regenerating the throughput-guard truth baseline; totals refreshed to the live scan (979 migration files, 126 marker rows, 20 appended).",
+    "scripts.test_production_catalog_verification is a CI (ubuntu) suite: on this Windows machine one fixture test fails by construction because its fixture hashes CRLF raw bytes while the loader normalizes newlines; verified identical on pristine main. The local required checks therefore cover the sidecar module, the scan-version proof and the truth audit; CI runs the full suite on the PR head, and supabase/tests/dflow_product_description_contracts.sql runs in CI's ephemeral database (no local disposable postgres on this machine).",
+    "Version 20261029161229 remains permanently reserved by claim #5043; the fresh reservation 20261105231250 is a pure retimestamp (SQL content unchanged except version strings in self-check messages and the added derived-from header) per the park-resume flow: PR #5029 was closed for the re-claim (#5772) and reopened at the new head."
+  ],
+  "stop_conditions": [
+    "Stop if CI, the guarded merge workflow or any lane tool refuses; never work around it.",
+    "Stop if main advances past the version; supersede through the lane tool.",
+    "Stop if the paired production half would be merged before this half lands."
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "work_issue": 5020,
+  "outcome": "ready-for-merge",
+  "pr": 5812,
+  "migration_versions": [
+    "20261105231250"
+  ],
+  "contract_ref": "refs/db-contracts/5020/15",
+  "contract_sha256": "7180dc3e2b32ffe9d7aec3b44b85aac6469f7697e1fe76e546bdf4cff52792f7",
+  "head_sha": "c92297bff8912897a1d603dff0929f5e34e60d10",
+  "base_sha": "a52d353504bcd34d7095ca74f11ced7efdd16bfa",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261105231250.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261105231250_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at implementation head c92297b after merging main a52d353; migration 20261105231250 sorts after main's newest 20261105222717 (Guard B clean; the previous 20261105222623 went backdated behind that very migration and was re-reserved)."
+    },
+    {
+      "command": "python -m unittest scripts.test_check_production_verification_sidecars",
+      "exit_code": 0,
+      "evidence": "16/16 tests OK at implementation head c92297b. The sibling module scripts.test_production_catalog_verification runs in full on CI (ubuntu); on this Windows host it has one pre-existing fixture error (CRLF hashing), verified identical on pristine main."
+    },
+    {
+      "command": "python -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261105231250",
+      "exit_code": 0,
+      "evidence": "Status OK; sidecars=107; generic exact_row_count checks load through the strict loader; sidecar hash matches the migration bytes (sha256 7e006d12c6a2819a1fce340a1025fb1f7e100b7dfe432a5ab8c0a25b8afb5597)."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Baseline verified against main a52d353: detector digest 4eba2588482c5a50c1766fcfff861ae3f22b724bf8f9fe0096159ac47cebbe28 matches; totals 980 live migration files against the reviewed 979 floor; the appended marker row carries the retimestamped path supabase/migrations/20261105231250_dflow_product_description.sql."
+    },
+    {
+      "command": "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Behavior contract test green on a bare throwaway PostgreSQL 18.6 (initdb -U postgres, database t_ct) at implementation head c92297b: fixtures, migration re-apply inside the transaction, guard assertions, ROLLBACK, EXITCODE=0. The same file runs in CI's ephemeral database."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK: call_sites=375 sources=111 derived_digest=9dda2ef6adc4 at implementation head c92297b."
+    }
+  ],
+  "assumptions_resolved": [
+    "Two park-resume retimestamps were needed: 20261029161229 (parked Oct 29) was backdated behind main, and the first re-reservation 20261105222623 (claim #5772) went backdated within a minute behind main's 20261105222717. Current reservation is 20261105231250 under claim #5793 (PR closed and reopened around each claim per park-resume order; #5772 closed as superseded; both older version refs stay permanently reserved).",
+    "The pull request moved from #5029 to #5812 on the same branch and head: a queued run from the first push (42123894491) held the database-contract-tests concurrency group for over an hour, ignored cancellation (zero jobs spawned), and blocked the required supabase/tests context; a fresh pull request takes a fresh ref-scoped concurrency group. #5029 is closed with the reason recorded on it.",
+    "Merging main conflicted in scripts/production_catalog_verification.py, scripts/production_migration_guard.py, config/production-verification-sidecar-registry.json and docs/verification/throughput-guard-truth-baseline-20260828.json (the parked branch's whole-file CRLF churn overlapped main's later edits). Resolution kept main's current content of those files and re-applied only this workstream's additive entries (three CATALOG_CONTRACTS probes, one FOREIGN_TARGET_MIGRATIONS entry, one sidecar registry row), retimestamped each time.",
+    "supabase/tests/dflow_product_description_contracts.sql \\i-included the migration by its parked filename and failed once on the rename (psql: No such file or directory); the three references now carry the current version and the test passed afterwards.",
+    "The Oct 29 owner ruling makes review advisory and never a merge gate, so this resume proceeded without a review round; generation-14's two muse APPROVEs are historical evidence only.",
+    "Editing the detector obligates regenerating the throughput-guard truth baseline; the appended marker row was re-pointed at the retimestamped migration path after the second rename."
+  ],
+  "stop_conditions_hit": []
+}

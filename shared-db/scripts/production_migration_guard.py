@@ -440,6 +440,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "note": "PR#4143, source issue #3869 and immutable generation 9 contract scope this link change to DesignFlow sandbox only. Source instructions prohibit shared production/preview apply. Exact version confirmed in sandbox ledger October11,2026. This is target scope, not retirement; it remains in-scope on designflow-nonprod.",
     },
 
+    "20261106050346": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#5020",
+        "note": "PR#5029, claim #5772. Core Product Type sandbox half: creates the dflow.mg_combination_description / dflow.item_product_description pairs with audit and human-override guard triggers on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is issue #5026 (version re-reserved on resume). This is target scope, not retirement.",
+    },
     "20260909121403": {
         "target": "designflow-nonprod",
         "project": (

@@ -4754,6 +4754,79 @@ CATEGORY_DFLOW_SAMPLE_QUANTITY_STATE = """
 CATALOG_CONTRACTS["dflow_sample_quantity_state_v1"] = CATEGORY_DFLOW_SAMPLE_QUANTITY_STATE
 
 
+# Durable catalog outcome of migration 20261105222623 (issue #5020,
+# Core Product Type): exactly one arm's four
+# product-description tables and four indexes exist. The sandbox project
+# (xupnyeifmpsacrqahwwm) carries only schema dflow; the production project
+# (qsllyeztdwjgirsysgai) carries dflow_prod plus a STALE dflow schema that the
+# migration must not touch, so each arm also asserts the other schema's pair
+# is absent.
+CATEGORY_DFLOW_PRODUCT_DESCRIPTION_TABLES = """
+  ((to_regclass('dflow.mg_combination_description') is not null
+    and to_regclass('dflow.mg_combination_description_history') is not null
+    and to_regclass('dflow.item_product_description') is not null
+    and to_regclass('dflow.item_product_description_history') is not null
+    and to_regclass('dflow.item_product_description_combination_idx') is not null
+    and to_regclass('dflow.item_product_description_review_idx') is not null
+    and to_regclass('dflow.item_product_description_run_idx') is not null
+    and to_regclass('dflow.mg_combination_description_run_idx') is not null
+    and to_regclass('dflow_prod.mg_combination_description') is null)
+   or (to_regclass('dflow_prod.mg_combination_description') is not null
+    and to_regclass('dflow_prod.mg_combination_description_history') is not null
+    and to_regclass('dflow_prod.item_product_description') is not null
+    and to_regclass('dflow_prod.item_product_description_history') is not null
+    and to_regclass('dflow_prod.item_product_description_combination_idx') is not null
+    and to_regclass('dflow_prod.item_product_description_review_idx') is not null
+    and to_regclass('dflow_prod.item_product_description_run_idx') is not null
+    and to_regclass('dflow_prod.mg_combination_description_run_idx') is not null
+    and to_regclass('dflow.mg_combination_description') is null))
+"""
+CATALOG_CONTRACTS["dflow_product_description_tables_v1"] = CATEGORY_DFLOW_PRODUCT_DESCRIPTION_TABLES
+
+# Same migration: both trigger functions exist and the three named triggers
+# fire on exactly the arm's tables (two audit triggers, one write guard).
+CATEGORY_DFLOW_PRODUCT_DESCRIPTION_TRIGGERS = """
+  ((to_regprocedure('dflow.product_description_row_audit()') is not null
+    and to_regprocedure('dflow.item_product_description_protect_human_override()') is not null
+    and (select count(*) from pg_trigger t
+          where t.tgname = 'product_description_audit'
+            and t.tgrelid in (to_regclass('dflow.mg_combination_description'),
+                              to_regclass('dflow.item_product_description'))) = 2
+    and exists (select 1 from pg_trigger t
+                 where t.tgname = 'item_product_description_write_guard'
+                   and t.tgrelid = to_regclass('dflow.item_product_description')))
+   or (to_regprocedure('dflow_prod.product_description_row_audit()') is not null
+    and to_regprocedure('dflow_prod.item_product_description_protect_human_override()') is not null
+    and (select count(*) from pg_trigger t
+          where t.tgname = 'product_description_audit'
+            and t.tgrelid in (to_regclass('dflow_prod.mg_combination_description'),
+                              to_regclass('dflow_prod.item_product_description'))) = 2
+    and exists (select 1 from pg_trigger t
+                 where t.tgname = 'item_product_description_write_guard'
+                   and t.tgrelid = to_regclass('dflow_prod.item_product_description'))))
+"""
+CATALOG_CONTRACTS["dflow_product_description_triggers_v1"] = CATEGORY_DFLOW_PRODUCT_DESCRIPTION_TRIGGERS
+
+# Same migration, grants: the sandbox arm is owner-only (postgres admin, no
+# grant roles exist there); the production arm — discriminated from the
+# sandbox arm exactly like its sibling contracts — grants the item-master
+# grants role all four verbs on both live tables and INSERT on both history
+# tables. The role-existence guard keeps the probe from raising instead of
+# failing cleanly if the role were missing.
+CATEGORY_DFLOW_PRODUCT_DESCRIPTION_GRANTS = """
+  ((to_regclass('dflow.mg_combination_description') is not null
+     and to_regclass('dflow_prod.mg_combination_description') is null)
+   or (to_regclass('dflow_prod.mg_combination_description') is not null
+     and to_regclass('dflow.mg_combination_description') is null
+     and exists (select 1 from pg_roles where rolname = 'designflow_prod_item_master_grants')
+     and has_table_privilege('designflow_prod_item_master_grants', 'dflow_prod.item_product_description', 'SELECT, INSERT, UPDATE, DELETE')
+     and has_table_privilege('designflow_prod_item_master_grants', 'dflow_prod.mg_combination_description', 'SELECT, INSERT, UPDATE, DELETE')
+     and has_table_privilege('designflow_prod_item_master_grants', 'dflow_prod.item_product_description_history', 'INSERT')
+     and has_table_privilege('designflow_prod_item_master_grants', 'dflow_prod.mg_combination_description_history', 'INSERT')))
+"""
+CATALOG_CONTRACTS["dflow_product_description_grants_v1"] = CATEGORY_DFLOW_PRODUCT_DESCRIPTION_GRANTS
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", type=Path, required=True)

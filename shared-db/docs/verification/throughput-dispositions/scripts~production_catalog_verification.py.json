@@ -211,6 +211,14 @@
       "legacy_semantic_key": "scripts/production_catalog_verification.py:abfc3737e6f888aaf8fca35a209e680fc5f574901d42b90b19b0fee004dc7273:1"
     },
     {
+      "site": "scripts/production_catalog_verification.py:4670",
+      "semantic_key": "scripts/production_catalog_verification.py:b13251affd2f0063f06ff5544bfcbb51d3c19b90a156fe89bd9933301b6b7fae:context-f5f4a3f17b7bb62c4a4f0d193d3d00dddd1c8ae0e60e8d434712a5b05e034488",
+      "line_sha256": "b13251affd2f0063f06ff5544bfcbb51d3c19b90a156fe89bd9933301b6b7fae",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:b13251affd2f0063f06ff5544bfcbb51d3c19b90a156fe89bd9933301b6b7fae:1",
+      "disposition": "excluded",
+      "reason": "New catalog-contract call site added by issue #5020 (dflow product-description tables/triggers/grants contracts): a read-only verifier-owned probe expression, same refusal behavior as every sibling contract site in this file; outside the blocker/queue semantics this audit disposes of."
+    },
+    {
       "site": "scripts/production_catalog_verification.py:3533",
       "semantic_key": "scripts/production_catalog_verification.py:b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525:context-77b1be9a0e838cf1032a2daa8f1bdaa545c4bb4f65708479cc99f59d860877c7",
       "line_sha256": "b5525d61a12e30af96d49030c2f843643fdd4cd51d176c39a9d64cddee170525",

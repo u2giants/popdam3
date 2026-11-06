@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "work_issue": 5020,
+  "outcome": "ready-for-merge",
+  "pr": 5812,
+  "migration_versions": [
+    "20261106050346"
+  ],
+  "contract_ref": "refs/db-contracts/5020/16",
+  "contract_sha256": "cc3ecfe34120de0ac81866b7c8dea1d20cc630358d046b8aff83a0d3853c9306",
+  "head_sha": "43da11c258a34c521462475d80151161363541ea",
+  "base_sha": "930a47f361fba7016ca510b3583ceb4458ab892a",
+  "files_changed": [
+    "docs/verification/throughput-dispositions/scripts~production_catalog_verification.py.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261106050346.json",
+    "scripts/production_catalog_verification.py",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at implementation head 43da11c; migration 20261106050346 sorts after main's newest 20261106043600."
+    },
+    {
+      "command": "python -m unittest scripts.test_check_production_verification_sidecars",
+      "exit_code": 0,
+      "evidence": "16/16 tests OK at implementation head 43da11c (rerun on the prior retimestamp head c92297b; code unchanged since)."
+    },
+    {
+      "command": "python -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261106050346",
+      "exit_code": 0,
+      "evidence": "Status OK; sidecars=107; sidecar hash matches migration bytes (397444c4856e16375dca1dc269a9143ced074dfad37887684b2a4810b29fd1c5)."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Baseline verified at implementation head 43da11c after the retimestamp commit (the scan set is drawn from committed diffs, so the check is only meaningful post-commit)."
+    },
+    {
+      "command": "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Behavior contract green on a bare throwaway PostgreSQL 18.6 at the earlier retimestamp head (c92297b, EXITCODE=0); the retimestamp only swept version strings and filenames the test itself references, and the test re-runs in CI's ephemeral database on this head."
+    },
+    {
+      "command": "node scripts/check-throughput-truth-audit.mjs",
+      "exit_code": 0,
+      "evidence": "truth audit OK (call_sites=375 sources=111 derived_digest=9dda2ef6adc4) at the prior head; detector unchanged since."
+    }
+  ],
+  "assumptions_resolved": [
+    "Third retimestamp (20261105231250 -> 20261106050346) after main advanced past the version; eight lower-version open PRs were closed by owner instruction to clear the queue's ascending-order gate, each with reopen instructions and no deletion.",
+    "The sidecar checker draws its mandatory scan from committed diffs against the working tree, so a retimestamp only verifies cleanly after the rename commit lands."
+  ],
+  "stop_conditions_hit": []
+}

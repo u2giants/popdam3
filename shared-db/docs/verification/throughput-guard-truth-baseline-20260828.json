@@ -1,7 +1,7 @@
 {
   "command": "node scripts/check-production-verification-sidecars.mjs",
   "detector_schema_version": 1,
-  "detector_source_sha256": "e121ca7dd56c0b3f7001c4332c947d416af87ea7ab2e169b1c6a9a6b86e1512f",
+  "detector_source_sha256": "f51275d9acc9893e49bd0e211f0cc91157cd61d67e7f5d3a56d9a494920cada9",
   "enforced_versions": [
     "20260621151155",
     "20260701154948",
@@ -17,7 +17,7 @@
     "20260825050407",
     "20260825082910"
   ],
-  "matched_count": 106,
+  "matched_count": 126,
   "matched_paths": [
     {
       "marker_count": 1,
@@ -548,7 +548,107 @@
       "marker_count": 2,
       "path": "supabase/migrations/20261009073649_popdam_orderlist_sheets_integration.sql",
       "version": "20261009073649"
+    },
+    {
+      "version": "20261009224453",
+      "path": "supabase/migrations/20261009224453_hash_pinned_licensing_consolidation.sql",
+      "marker_count": 11
+    },
+    {
+      "version": "20261010033616",
+      "path": "supabase/migrations/20261010033616_drop_frozen_designflow_schema.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261011170134",
+      "path": "supabase/migrations/20261011170134_apply_erp_item_updates.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20261012005136",
+      "path": "supabase/migrations/20261012005136_popsg_parse_search_query_once.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261013130102",
+      "path": "supabase/migrations/20261013130102_licensing_support_forward.sql",
+      "marker_count": 32
+    },
+    {
+      "version": "20261018134615",
+      "path": "supabase/migrations/20261018134615_licensing_recovery_timestamp.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261018164004",
+      "path": "supabase/migrations/20261018164004_nbcu_candidate_evidence.sql",
+      "marker_count": 3
+    },
+    {
+      "version": "20261019183716",
+      "path": "supabase/migrations/20261019183716_orderlist_so_date_sort_find.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261021134203",
+      "path": "supabase/migrations/20261021134203_reversible_canonical_licensing_merge.sql",
+      "marker_count": 15
+    },
+    {
+      "version": "20261022032116",
+      "path": "supabase/migrations/20261022032116_popsg_search_forward_delivery_recovery.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261022043547",
+      "path": "supabase/migrations/20261022043547_popsg_guides_matched_set_via_search_index.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261022155012",
+      "path": "supabase/migrations/20261022155012_popsg_search_compact_preview_state.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261027183509",
+      "path": "supabase/migrations/20261027183509_popsg_semantic_search_stage2.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261101153102",
+      "path": "supabase/migrations/20261101153102_retire_dc_hp_licensors_into_wb.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261102180759",
+      "path": "supabase/migrations/20261102180759_orderlist_find_occurrence.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261102215524",
+      "path": "supabase/migrations/20261102215524_sandbox_sample_tracking_baseline.sql",
+      "marker_count": 2
+    },
+    {
+      "version": "20261104231707",
+      "path": "supabase/migrations/20261104231707_popsg_search_keyword_outranks_meaning.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261105023331",
+      "path": "supabase/migrations/20261105023331_popsg_search_pdf_body_breaks_ties.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261105044255",
+      "path": "supabase/migrations/20261105044255_sku_style_guide_resolution_incremental.sql",
+      "marker_count": 1
+    },
+    {
+      "version": "20261106050346",
+      "path": "supabase/migrations/20261106050346_dflow_product_description.sql",
+      "marker_count": 1
     }
   ],
-  "total_migration_files": 771
+  "total_migration_files": 990
 }
