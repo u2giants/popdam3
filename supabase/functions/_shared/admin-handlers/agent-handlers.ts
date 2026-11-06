@@ -1351,9 +1351,44 @@ export async function handleDoctor() {
 
 // ── get-filter-options ──────────────────────────────────────────────
 
+/** Run async work over items with at most `limit` in flight, preserving order. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
+type FilterOptionCounts = {
+  licensors: Array<{ id: string; name: string; asset_count: number }>;
+  properties: Array<{ id: string; name: string; licensor_id: string; asset_count: number }>;
+};
+
+// The library page calls get-filter-options for every signed-in user (PR #820),
+// so a short-TTL cache per scope collapses repeated calls to zero queries.
+const FILTER_OPTIONS_CACHE_TTL_MS = 30_000;
+const filterOptionsCache = new Map<string, { expiresAt: number; value: FilterOptionCounts }>();
+
+/** Test/refresh hook: drop every cached filter-options scope. */
+export function clearFilterOptionsCache(): void {
+  filterOptionsCache.clear();
+}
+
 export async function handleGetFilterOptions(body: Record<string, unknown>) {
   const db = serviceClient();
   const licensorId = typeof body.licensor_id === "string" ? body.licensor_id : null;
+  const cacheKey = licensorId ?? "";
+
+  const cached = filterOptionsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return json({ ok: true, licensors: cached.value.licensors, properties: cached.value.properties });
+  }
 
   // Fetch licensors with asset counts
   const { data: licensors, error: licErr } = await db
@@ -1363,17 +1398,6 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
 
   if (licErr) return err(licErr.message, 500);
 
-  // Count assets per licensor
-  const licensorResults: Array<{ id: string; name: string; asset_count: number }> = [];
-  for (const lic of licensors ?? []) {
-    const { count } = await db
-      .from("assets")
-      .select("id", { count: "exact", head: true })
-      .eq("licensor_id", lic.id)
-      .eq("is_deleted", false);
-    licensorResults.push({ id: lic.id, name: lic.name, asset_count: count ?? 0 });
-  }
-
   // Fetch properties (optionally filtered by licensor)
   let propQuery = db.schema("core").from("property").select("id, name, licensor_id");
   if (licensorId) {
@@ -1382,19 +1406,39 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
   const { data: properties, error: propErr } = await propQuery;
   if (propErr) return err(propErr.message, 500);
 
-  const propertyResults: Array<{ id: string; name: string; licensor_id: string; asset_count: number }> = [];
-  for (const prop of properties ?? []) {
-    const { count } = await db
-      .from("assets")
-      .select("id", { count: "exact", head: true })
-      .eq("property_id", prop.id)
-      .eq("is_deleted", false);
-    propertyResults.push({ id: prop.id, name: prop.name, licensor_id: prop.licensor_id, asset_count: count ?? 0 });
-  }
+  // Per-entity counts. PostgREST aggregates are disabled project-wide
+  // (PGRST123 "Use of aggregate functions is not allowed") and a grouped-count
+  // view or RPC belongs to shared-db, so the exact counts still come from the
+  // narrow HEAD reads the audit measured — issued concurrently in bounded
+  // batches instead of ~205 sequential round trips.
+  const [licensorResults, propertyResults] = await Promise.all([
+    mapWithConcurrency(licensors ?? [], 16, async (lic) => {
+      const { count } = await db
+        .from("assets")
+        .select("id", { count: "exact", head: true })
+        .eq("licensor_id", lic.id)
+        .eq("is_deleted", false);
+      return { id: lic.id, name: lic.name, asset_count: count ?? 0 };
+    }),
+    mapWithConcurrency(properties ?? [], 16, async (prop) => {
+      const { count } = await db
+        .from("assets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", prop.id)
+        .eq("is_deleted", false);
+      return { id: prop.id, name: prop.name, licensor_id: prop.licensor_id, asset_count: count ?? 0 };
+    }),
+  ]);
 
-  return json({
-    ok: true,
+  const value: FilterOptionCounts = {
     licensors: licensorResults.filter((l) => l.asset_count > 0),
     properties: propertyResults.filter((p) => p.asset_count > 0),
-  });
+  };
+  const now = Date.now();
+  for (const [key, entry] of filterOptionsCache) {
+    if (entry.expiresAt <= now) filterOptionsCache.delete(key);
+  }
+  filterOptionsCache.set(cacheKey, { expiresAt: now + FILTER_OPTIONS_CACHE_TTL_MS, value });
+
+  return json({ ok: true, licensors: value.licensors, properties: value.properties });
 }
