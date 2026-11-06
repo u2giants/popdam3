@@ -136,3 +136,18 @@ export function selectPrimaryAsset(
   // Tier 10: fallback — first by created_at
   return [...assets].sort((a, b) => a.created_at.localeCompare(b.created_at))[0].id;
 }
+
+/** Keep the chosen primary identity and its derived thumbnail cache together. */
+export function primaryAssetCacheFields(asset: {
+  id: string;
+  asset_type?: string | null;
+  thumbnail_url?: string | null;
+  thumbnail_error?: string | null;
+}) {
+  return {
+    primary_asset_id: asset.id,
+    primary_asset_type: asset.asset_type ?? null,
+    primary_thumbnail_url: asset.thumbnail_url ?? null,
+    primary_thumbnail_error: asset.thumbnail_error ?? null,
+  };
+}

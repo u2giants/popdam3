@@ -44,7 +44,7 @@ const SG_INGESTABLE_EXTENSIONS = new Set([
 
 import { changedFields } from "../_shared/changed-fields.js";
 import { parseSku } from "../_shared/sku-parser.ts";
-import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
+import { extractSkuFolder, primaryAssetCacheFields, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
 import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
@@ -1900,12 +1900,10 @@ async function handleCompleteRender(body: Record<string, unknown>) {
         const primaryId = selectPrimaryAsset(groupAssets);
         if (primaryId) {
           const primaryAsset = groupAssets.find((ga: typeof groupAssets[number]) => ga.id === primaryId);
+          if (!primaryAsset) return err("Selected primary asset not found", 500);
           await db
             .from("style_groups")
-            .update({
-              primary_asset_id: primaryId,
-              primary_asset_type: primaryAsset?.asset_type ?? null,
-            })
+            .update(primaryAssetCacheFields(primaryAsset))
             .eq("id", asset.style_group_id);
         }
       }
