@@ -1,18 +1,32 @@
 # Implementation Plan — Mockup auto-match: right product, right images, sharper art
 
-**STATUS — 2026-10-27 (all rows open; nothing started)**
+**STATUS — 2026-11-06 (refreshed for pop-mock 7.3; see the 2026-11-06 refresh note below)**
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | pop-mock v6.10: `artB`/`nameB` second image + shaped-product image fallback + `fallback` art param | ⬜ open | — |
-| 2 | Vendor v6.10 into popdam3 `public/mockup/index.html` | ⬜ open | — |
-| 3 | `pickMockupRoute()` keyword map + tests in `src/lib/mockup-tool.ts` | ⬜ open | — |
-| 4 | `buildMockupUrl()` v2 (route + artB) + tests | ⬜ open | — |
-| 5 | StyleGroupDetailPanel hero button uses route + A/B selection | ⬜ open | — |
-| 6 | AssetDetailPanel button uses route | ⬜ open | — |
-| 7 | Docs (`docs/MOCKUP_TOOL.md`, `AGENTS.md` router) updated | ⬜ open | — |
-| 8 | PR(s), CI green, merged, deployed SHA verified | ⬜ open | — |
-| 9 | Live proof on production (lenticular A/B, clock, framed, canvas, unmatched) | ⬜ open | — |
+| 1 | pop-mock: `artB`/`nameB` second image + shaped-product image guard + `fallback` art param (in `source/linkload.js`, release as v7.4) | ✅ done 2026-11-06 | pop-mock PR u2giants/pop-mock#12, squash-merged as `0339fcd` (v7.4). Headless Chrome gate: lenticular A/B fills both slots (`A: a.png · B: b.png`); `#/shadowbox`+image lands on framed with notice; art 404+fallback loads fallback on canvas; artB 404 loads A alone with notice; 37/37 script blocks parse. Stock 7.3 baselines show no regression. |
+| 2 | Vendor into popdam3 `public/mockup/index.html` — now AUTOMATED: pop-mock `.github/workflows/sync-popdam.yml` copies every release on merge to pop-mock main and pushes it to popdam3 main | ✅ done 2026-11-06 | sync run 42240738986 green (incl. live-serve wait); popdam3 main `1a96a6c9` "mockup: pop-mock 7.4 (u2giants/pop-mock@0339fcd)"; `curl dam.designflow.app/mockup/` shows `APP_VERSION="7.4"`. |
+| 3 | `pickMockupRoute()` keyword map + tests in `src/lib/mockup-tool.ts` | ✅ done 2026-11-06 | popdam3 PR (this branch) commit `pickMockupRoute keyword map + buildMockupUrl v2`; `npx vitest run src/lib/mockup-tool.test.ts` 11/11 green (priority, decorated canvas, default, clock, all routes). |
+| 4 | `buildMockupUrl()` v2 (route + artB) + tests | ✅ done 2026-11-06 | same commit; tests `emits artB/nameB and lenticular route`, `includes fallback param`, `keeps query in proxied path`, `encodes hostile names`. |
+| 5 | StyleGroupDetailPanel hero button uses route + A/B selection | ✅ done 2026-11-06 | commit `style-group mockup button routes by item description, lenticular A/B`; `StyleGroupDetailPanel.mockup.test.tsx` 6/6 green (page-renders A/B, one-file no-artB, non-lenticular route, group-thumbnail fallback). |
+| 6 | AssetDetailPanel button uses route | ✅ done 2026-11-06 | commit `asset-detail mockup button routes clocks to the clock product` (product_category "Clock" → clock, else canvas — plan §8 preferred default). |
+| 7 | Docs (`docs/MOCKUP_TOOL.md`, `AGENTS.md` router) updated | ✅ done 2026-11-06 | commit `docs(#544): mockup tool auto-matching…`; MOCKUP_TOOL.md covers 7.4 params, matching rules, A/B strategy, automated vendoring; AGENTS.md router row updated. |
+| 8 | PR(s), CI green, merged, deployed SHA verified | 🟨 in progress | pop-mock PR merged + live 7.4 verified (above). popdam3 PR open (steps 3-7); merge + deploy SHA check pending. |
+| 9 | Live proof on production (lenticular A/B, clock, framed, canvas, unmatched) | ⬜ open | tool-side cases verified headless (step 1); production click-through with real items pending step 8 merge. |
+
+**2026-11-06 refresh (issue #544 scope note):** pop-mock is no longer a hand-edited
+single file at v6.9. It is v7.3, built from `source/` (`python3 source/build.py`
+→ `Product Mockups.html`; build verified byte-identical to the release), the
+link loader lives in `source/linkload.js`, hash routes (`#/<product>`) and
+`&product=` already exist, and vendoring into popdam3 is automated by
+pop-mock's `sync-popdam.yml` (fires on push to pop-mock main touching
+`Product Mockups.html`; pushes straight to popdam3 main and waits until
+dam.designflow.app serves the new `APP_VERSION`). Consequences: step 1 edits
+`source/linkload.js` + `source/changelog.js` and ships as **v7.4** (not 6.10)
+on a branch + PR (repo rule now: never push to pop-mock main directly); step 2
+is "merge the pop-mock release PR and let the sync workflow land the vendored
+file on popdam3 main", then rebase the popdam3 feature branch. PopDAM-side
+steps 3-9 are unchanged in substance.
 
 A fresh session starts at step 1 and re-reads this whole plan first.
 Handoff entry (discovery + traps): [HANDOFF.d/20261027T1434Z-edge-dev-zcode-mockup-auto-match-plan.md](HANDOFF.d/20261027T1434Z-edge-dev-zcode-mockup-auto-match-plan.md)
@@ -191,7 +205,8 @@ LOCKED (do not relitigate):
   B = that `pdf_page2_url` proxied); secondary strategy = primary thumbnail
   (A) + next art asset's thumbnail (B). Rationale: the two artboards are the
   real two images; the deterministic p1 key avoids a new DB read.
-- 2026-10-27: tool version ships as **v6.10**.
+- 2026-10-27: tool version ships as **v6.10**. (Superseded 2026-11-06: pop-mock
+  is at 7.3; this change ships as **v7.4**.)
 
 OPEN (implementer's judgment, state your choice in the PR):
 - Exact keyword priority order details beyond the required first-match list
@@ -207,17 +222,17 @@ OPEN (implementer's judgment, state your choice in the PR):
 
 ### Phase A — tool changes (pop-mock, then vendor)
 
-**Step 1 — pop-mock v6.10 loader upgrade** (edit
-`D:\repos\pop-mock\Product Mockups.html`; work directly on `main` of the
-pop-mock clone — it is a one-file app, single-session repo):
-1. Extend `loadFromLink` (last `<script>`): accept `artB` and `nameB` query
-   params. Fetch art and artB in parallel; build one File per image. Inject
-   BOTH files in one DataTransfer into the active product's `#file` input
-   (its change handler already routes a 2-file list to slots a/b on
-   lenticular; verify the lenticular input has `multiple` — if not, set
-   `.multiple=true` on it during injection, which is allowed from script).
-   If only `artB` fails, load `art` alone and toast that the second picture
-   could not be loaded.
+**Step 1 — pop-mock loader upgrade (v7.4)** (edit `source/linkload.js` in a
+pop-mock clone; the HTML is a build output — `cd source && python3 build.py`;
+branch + PR to pop-mock main, the repo now forbids direct pushes to main):
+1. Extend `loadFromLink`: accept `artB` and `nameB` query params. Fetch art
+   and artB in parallel; build one File per image. Inject BOTH files in one
+   DataTransfer into the active product's `#file` input (its change handler
+   already routes a 2-file list to slots a/b on lenticular — verified in 7.3
+   `source/lt_app.js` `loadFreeFiles`; the input's missing `multiple`
+   attribute only affects the picker dialog, not programmatic
+   `DataTransfer.files` assignment). If only `artB` fails, load `art` alone
+   and toast that the second picture could not be loaded.
 2. Accept `fallback` param (a second URL tried when `art` fails; used by
    PopDAM for thumbnail-behind-hi-res).
 3. Image-vs-product guard: when the link's explicit route (or `product=`
@@ -225,26 +240,25 @@ pop-mock clone — it is a one-file app, single-session repo):
    `image/*`, redirect to `#/framed`, load it there, and show the existing
    toast style: shadowboxes/die-cuts need the layered .ai — opened Framed
    Print with this picture instead (final wording open).
-4. Bump `APP_VERSION` to "6.10", prepend a CHANGELOG entry (one line,
-   matching the file's terse style), copy the file to
-   `Versions/Product Mockups v6.10.html`.
+4. Bump `APP_VERSION` to "7.4" in `source/changelog.js`, prepend a CHANGELOG
+   entry (short, matching the file's style), rebuild, copy the build over
+   `Product Mockups.html` and into `Versions/Product Mockups v7.4.html`.
 5. Verification gate:
-   - `node -e` script that extracts every plain `<script>` block and runs
-     `new Function(block)` — all parse.
-   - Local live test (this exact sequence worked in the planning session):
-     serve the repo (`python -m http.server 8931`), open in a browser
-     `http://localhost:8931/Product%20Mockups.html?art=<local png url>&artB=<second png url>&name=a.png&nameB=b.png#/lenticular`
-     → lenticular opens with BOTH images loaded (each slot shows its own
-     picture; the tool's "no file loaded" note gone). Also test:
-     `#/shadowbox` + image → lands on Framed Print with the notice; art URL
-     404 + `fallback` → fallback loads; `artB` 404 → A loads + notice.
-   - Commit + push to pop-mock `main` (allowed: single-file tool repo, direct
-     push is its convention; include the ZCode signature trailer).
+   - `node -e` script that extracts every plain `<script>` block from the
+     built HTML and runs `new Function(block)` — all parse.
+   - Serve the repo and drive the four cases in a browser (or Playwright if
+     available): `?art=…&artB=…&name=…&nameB=…#/lenticular` → both slots
+     filled; `#/shadowbox` + image art → lands on Framed Print with the
+     notice; art 404 + `fallback` → fallback loads; `artB` 404 → A loads +
+     notice. Record results in the PR.
 
-**Step 2 — vendor v6.10 into popdam3**: fresh worktree off `origin/main`,
-copy the file over `public/mockup/index.html`, commit, push, include in the
-Phase B PR (single PR is fine; it keeps the sync atomic).
-Gate: `curl -s <deploy>/mockup/ | grep -c APP_VERSION=\"6.10\"` after deploy.
+**Step 2 — vendor into popdam3 (AUTOMATED)**: merging the pop-mock release
+PR triggers pop-mock's `.github/workflows/sync-popdam.yml`, which copies
+`Product Mockups.html` over popdam3 `public/mockup/index.html` and pushes to
+popdam3 main, then waits until dam.designflow.app serves the new version.
+Gate: the sync run green + popdam3 main carries the
+`mockup: pop-mock 7.4 (u2giants/pop-mock@<sha>)` commit; rebase the popdam3
+feature branch on it. Do NOT also hand-copy the file into the feature branch.
 
 ### Phase B — PopDAM changes
 
@@ -337,7 +351,8 @@ New/extended unit tests (vitest, run `npx vitest run <path>`):
 ## Part 11 — Constraints, standing rules, gotchas
 
 - Branch policy: never push to popdam3 `main`; feature branch → PR → CI →
-  squash-merge. pop-mock (single-file tool) pushes to its own main directly.
+  squash-merge. pop-mock (since 7.x): branch → PR to its `main`; merging the
+  release PR is what fires the automated vendoring sync.
 - No DB changes of any kind; read-only use of existing columns.
 - Reviews: not required in this repo (owner ruling 2026-10-15); observation
   week rules: if `ai-task-gates check --before ship` prints MERGE-UNREVIEWED,
