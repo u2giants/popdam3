@@ -38,6 +38,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
+      # Observation workflow: drift reporting by design never blocks; the alert step
+      # below is the failure signal, and it runs on the failure outcome itself.
       - name: Read aggregate reconciler measurement
         id: observe
         continue-on-error: true
@@ -46,6 +48,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
           STYLE_GROUP_DRIFT_REPORT_PATH: style-group-drift-report.json
         run: node scripts/observe-style-group-drift.mjs
+      # Observation workflow: keeping the artifact best-effort never blocks; the
+      # alert step below reports a failed retain via its outcome.
       - name: Retain aggregate measurement
         id: retain
         if: always()

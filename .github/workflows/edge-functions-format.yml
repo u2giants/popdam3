@@ -39,6 +39,7 @@ jobs:
         with:
           deno-version: v2.x
 
+      # Display-only step: the real gate is the `deno fmt .` + commit steps below.
       - name: Show unformatted files (before fix)
         working-directory: supabase/functions
         run: deno fmt --check . 2>&1 || true
@@ -47,6 +48,7 @@ jobs:
         working-directory: supabase/functions
         run: deno fmt .
 
+      # Display-only step: the commit step below decides whether anything changed.
       - name: Show formatted diff
         run: git diff --stat || true
 
