@@ -58,7 +58,7 @@ class ForeignTargetVersions(unittest.TestCase):
     def prs(self, *versions):
         files = [[{"status": "added", "filename": f"supabase/migrations/{v}_x.sql"} for v in versions]]
         pulls = [{"number": 5503, "merged_at": "2026-11-02T22:31:03Z"}]
-        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+        with mock.patch.object(m, "gh", side_effect=[[pulls], files]):
             return m.merged_migration_prs("o/r")
 
     def test_retired_character_originals_never_reenter_the_automatic_queue(self):
@@ -601,7 +601,7 @@ class KnownProductionDependencies(unittest.TestCase):
                         "-- derived-from: none\nselect 1;")
             pulls = [{"number": n + 10, "merged_at": "2026-11-05T01:00:00Z"} for n in range(len(grouped))]
             pages = [[[{"status": "added", "filename": f"supabase/migrations/{v}_test.sql"} for v in vs]] for vs in grouped]
-            with mock.patch.object(m, "HERE", str(scripts)), mock.patch.object(m, "gh", side_effect=[pulls, *pages]):
+            with mock.patch.object(m, "HERE", str(scripts)), mock.patch.object(m, "gh", side_effect=[[pulls], *pages]):
                 return m.merged_migration_prs("o/r")
 
     def test_discovery_retains_dependency_for_single_candidate_recheck(self):
@@ -647,7 +647,7 @@ class CanonicalDependencyResolution(unittest.TestCase):
         root = Path(m.HERE).parent
         pulls = [{"number": 8000 + n, "merged_at": "2026-11-05T01:00:00Z"} for n in range(len(versions))]
         files = [[[{"status": "added", "filename": str(next((root / "supabase/migrations").glob(v + "_*.sql")).relative_to(root))}]] for v in versions]
-        with mock.patch.object(m, "gh", side_effect=[pulls, *files]):
+        with mock.patch.object(m, "gh", side_effect=[[pulls], *files]):
             return m.merged_migration_prs("o/r")
 
     def test_real_byte_pinned_non_ledger_source_does_not_invent_a_base(self):
@@ -803,13 +803,13 @@ class AdversarialUnmergedSource(unittest.TestCase):
     def test_unmerged_source_refused(self):
         files = [[{"status": "added", "filename": "supabase/migrations/20261105120000_x.sql"}]]
         pulls = [{"number": 5600, "merged_at": None}]
-        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+        with mock.patch.object(m, "gh", side_effect=[[pulls], files]):
             self.assertEqual(m.merged_migration_prs("o/r"), [])
 
     def test_closed_but_unmerged_source_refused(self):
         files = [[{"status": "added", "filename": "supabase/migrations/20261105120000_x.sql"}]]
         pulls = [{"number": 5601, "merged_at": ""}]
-        with mock.patch.object(m, "gh", side_effect=[pulls, files]):
+        with mock.patch.object(m, "gh", side_effect=[[pulls], files]):
             self.assertEqual(m.merged_migration_prs("o/r"), [])
 
     def test_pure_version_rename_is_a_candidate(self):
@@ -820,7 +820,7 @@ class AdversarialUnmergedSource(unittest.TestCase):
         files = [[{"status": "renamed", "filename": "supabase/migrations/20261106043500_x.sql",
                    "previous_filename": "supabase/migrations/20261105235900_x.sql"}]]
         pulls = [{"number": 5830, "merged_at": "2026-11-06T04:50:00Z"}]
-        with mock.patch.object(m, "gh", side_effect=[pulls, files]), \
+        with mock.patch.object(m, "gh", side_effect=[[pulls], files]), \
                 mock.patch.object(m, "version_on_main", return_value=True), \
                 mock.patch.object(m, "declared_bases", return_value=[]):
             found = m.merged_migration_prs("o/r")
@@ -929,6 +929,54 @@ class StuckChangeOwner(unittest.TestCase):
         finally:
             sp.run = saved_run
         self.assertEqual(len(calls), 0)
+
+
+class CompletePullDiscovery(unittest.TestCase):
+    def test_old_pending_base_and_child_survive_more_than_one_hundred_prs(self):
+        base = {"number": 5619, "merged_at": "2026-11-05T05:15:00Z"}
+        child = {"number": 5649, "merged_at": "2026-11-05T07:15:00Z"}
+        first = [{"number": 9000 + n, "merged_at": None} for n in range(100)]
+        second = [child, base, dict(base),
+                  {"number": 1, "merged_at": "2026-01-01T00:00:00Z"}]
+        versions = {5619: "20261105044255", 5649: "20261105061627"}
+        file_reads = []
+
+        def api(*args):
+            if "/pulls?" in args[-1]:
+                self.assertEqual(args[:2], ("--paginate", "--slurp"))
+                return [first, second]
+            number = int(args[-1].split("/pulls/")[1].split("/")[0])
+            file_reads.append(number)
+            path, = Path(m.HERE).parent.glob(f"supabase/migrations/{versions[number]}_*.sql")
+            return [[{"status": "added", "filename": str(path.relative_to(Path(m.HERE).parent))}]]
+
+        from pathlib import Path
+        with mock.patch.object(m, "gh", side_effect=api):
+            found = m.merged_migration_prs("o/r")
+        self.assertEqual([p["number"] for p in found], [5619, 5649])
+        self.assertEqual(sorted(file_reads), [5619, 5649])
+        self.assertEqual(found[1]["production_dependencies"], {"20261105044255": 5619})
+        self.assertEqual(m.decide(found, [], lambda n: [])[1]["number"], 5619)
+        skipped = []
+        self.assertEqual(m.decide([found[1]], [], lambda n: [], skipped=skipped)[0], "idle")
+        self.assertEqual(skipped[0]["pending_dependencies"], {"20261105044255": 5619})
+
+    def test_malformed_or_incomplete_discovery_fails_before_any_file_read(self):
+        good = {"number": 5619, "merged_at": "2026-11-05T05:15:00Z"}
+        for pages in (None, [], {}, [[good], {}], [[good], [None]],
+                      [[good], [{"number": True, "merged_at": None}]],
+                      [[good], [{"number": 5619}]],
+                      [[good], [{"number": 5619, "merged_at": None}]]):
+            with self.subTest(pages=pages), mock.patch.object(m, "gh", return_value=pages) as api:
+                with self.assertRaises(ValueError):
+                    m.merged_migration_prs("o/r")
+                self.assertEqual(api.call_count, 1)
+
+    def test_failed_later_page_is_not_treated_as_an_empty_queue(self):
+        import subprocess
+        with mock.patch.object(m, "gh", side_effect=subprocess.CalledProcessError(1, "gh")):
+            with self.assertRaises(subprocess.CalledProcessError):
+                m.merged_migration_prs("o/r")
 
 
 if __name__ == "__main__":

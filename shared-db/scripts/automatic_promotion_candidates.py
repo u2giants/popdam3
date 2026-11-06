@@ -74,7 +74,26 @@ def registered_orphan_versions() -> set[str]:
 
 
 def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
-    pulls = gh(f"repos/{repo}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100")
+    # Old unpromoted sources must survive unrelated PR activity (#5608).
+    # gh fails the whole request on a failed later page; validate every page
+    # before inspecting files, so incomplete discovery cannot dispatch a child.
+    pages = gh("--paginate", "--slurp", f"repos/{repo}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100")
+    if not isinstance(pages, list) or not pages:
+        raise ValueError("incomplete pull request discovery")
+    unique = {}
+    for page in pages:
+        if not isinstance(page, list):
+            raise ValueError("malformed pull request discovery page")
+        for pr in page:
+            if (not isinstance(pr, dict) or type(pr.get("number")) is not int
+                    or pr["number"] <= 0 or "merged_at" not in pr
+                    or pr["merged_at"] is not None and not isinstance(pr["merged_at"], str)):
+                raise ValueError("malformed pull request discovery row")
+            previous = unique.get(pr["number"])
+            if previous is not None and previous["merged_at"] != pr["merged_at"]:
+                raise ValueError("conflicting duplicate pull request discovery")
+            unique[pr["number"]] = pr
+    pulls = unique.values()
     manifest_orphans = registered_orphan_versions()
     found = []
     for pr in pulls:
