@@ -32,7 +32,10 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest now serves 26.04, and the repo's Playwright 1.57
+    # cannot install a browser there. Unpin only together with the Playwright
+    # upgrade (actions/runner-images#14748).
+    runs-on: ubuntu-24.04
     # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
     timeout-minutes: 30
     defaults:
@@ -49,7 +52,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/db-data-admin/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+        # Production launch gate: audit the dependencies that ship. Dev-tool
+        # advisories (vitest/tinypool, eslint chains) never reach the built
+        # app; a full-tree audit here let freshly-published dev-only
+        # advisories block unrelated PRs.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: VITE_BUILD_DATE="$(date -u +%Y-%m-%d)" npm run build
