@@ -8,6 +8,13 @@
  *   3. AI     — vision model from PDF_EXTRACTION_CONFIG/AI_MODELS catalog
  *
  * Reports per-file progress back to the cloud so the UI shows real-time status.
+ *
+ * The AI-provider cascade (ScaleDown -> OpenRouter -> direct Google/Anthropic)
+ * lives in packages/agent-common/src/pdf-ai-vision.ts, shared with the bridge
+ * agent's sampler (#708). This module keeps the Windows-specific extraction
+ * loop: OTA-safe lazy loading of mupdf/tesseract/the Anthropic SDK (dist
+ * updates may not include them) and the lease-bound directPdfVision route,
+ * which the bridge sampler deliberately does not have.
  */
 
 import { readFile, stat } from "node:fs/promises";
@@ -16,6 +23,7 @@ import { logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
 import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
+import { callPdfAiVision } from "./common/pdf-ai-vision.js";
 
 // OTA-safe: mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
 // a full installer run, not OTA dist updates. Load them lazily inside the function.
@@ -87,177 +95,15 @@ interface FileProgressEntry {
 
 // ── AI vision call ────────────────────────────────────────────────────────────
 
-const PDF_EXTRACTION_PROMPT = "Transcribe only text that is visually legible. Preserve reading order where possible. Do not infer, complete, correct, or invent unclear text. Omit unreadable text. Return only the transcription.";
-
-const SCALEDOWN_URL = "https://api.scaledown.xyz/v1/chat/completions";
-
-/**
- * ScaleDown's summarize model takes the page as a base64 `document` (its own
- * non-standard field, the same shape the worker's image tagging uses) and
- * usually answers with {"summary": "..."} — unwrap it, but accept plain text.
- * A truncated or error envelope is an error, not page text: extraction output
- * is indexed for search and fed into image tagging, so JSON must never land
- * there (the worker's ScaleDown client rejects the same condition).
- */
-async function transcribeWithScaleDown(base64: string, apiKey: string): Promise<string> {
-  const resp = await fetch(SCALEDOWN_URL, {
-    method: "POST",
-    headers: { "x-api-key": apiKey, "content-type": "application/json" },
-    signal: AbortSignal.timeout(60_000),
-    body: JSON.stringify({
-      model: "summarize",
-      messages: [
-        { role: "system", content: PDF_EXTRACTION_PROMPT },
-        { role: "user", content: "Transcribe the document image." },
-      ],
-      document: base64,
-      document_mime_type: "image/png",
-      max_tokens: 4096,
-    }),
-  });
-  const body = await resp.text();
-  if (!resp.ok) throw new Error(`ScaleDown ${resp.status}: ${body.slice(0, 200)}`);
-  const payload = JSON.parse(body) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
-  const choice = payload.choices?.[0];
-  if (choice?.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
-  const content = choice?.message?.content;
-  if (!content || !content.trim()) throw new Error("ScaleDown returned an empty PDF transcription");
-  const trimmed = content.trim();
-  let envelope: Record<string, unknown> | null = null;
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) envelope = parsed as Record<string, unknown>;
-  } catch {
-    // Not JSON — the model answered with the transcription itself.
-  }
-  if (envelope && ("summary" in envelope || "finish_reason" in envelope || "error" in envelope)) {
-    // The envelope's own finish_reason/error wins over a partial summary —
-    // same rule as the worker's ScaleDown client.
-    if (envelope.finish_reason === "length") throw new Error("ScaleDown PDF transcription hit the output token limit");
-    if (envelope.error) throw new Error(`ScaleDown returned an error envelope: ${trimmed.slice(0, 200)}`);
-    if (typeof envelope.summary === "string" && envelope.summary.trim()) return envelope.summary.trim();
-    throw new Error(`ScaleDown returned no transcription text: ${trimmed.slice(0, 200)}`);
-  }
-  return trimmed;
-}
-
 export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
-  if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("meta-direct/")) {
-    if (!aiConfig.directPdfVision) throw new Error("Direct PDF transcription requires a server-side content lease");
-    return aiConfig.directPdfVision(pngBuffer);
-  }
-  const base64 = pngBuffer.toString("base64");
-
-  // Checked before the OpenRouter path: a ScaleDown id must never be posted
-  // to openrouter.ai, which does not host it.
-  if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("scaledown/")) {
-    if (!aiConfig.scaleDownApiKey) throw new Error("SCALEDOWN_API_KEY is not configured in Settings");
-    return transcribeWithScaleDown(base64, aiConfig.scaleDownApiKey);
-  }
-
-  // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
-  if (aiConfig.openRouterApiKey) {
-    const model = aiConfig.aiTaskModels?.pdf_extraction;
-    if (!model) throw new Error("PDF AI configuration has an OpenRouter key but no pdf_extraction model");
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${aiConfig.openRouterApiKey}`,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(60_000),
-      body: JSON.stringify({
-        model,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: `data:image/png;base64,${base64}` } },
-            { type: "text", text: PDF_EXTRACTION_PROMPT },
-          ],
-        }],
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`OpenRouter API ${res.status}: ${errText.slice(0, 200)}`);
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await res.json() as any;
-    const choice = data?.choices?.[0];
-    if (choice?.message?.refusal || choice?.finish_reason === "content_filter") throw new Error("OpenRouter refused PDF transcription");
-    if (!choice?.message || typeof choice.message.content !== "string") throw new Error("OpenRouter returned a malformed PDF transcription response");
-    return choice.message.content.trim();
-  }
-
-  // ── Path 2: Legacy direct API (backward compat when no OpenRouter key) ──
-  const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
-  if (!modelId) throw new Error("No usable PDF AI provider is configured");
-
-  const modelDef = aiConfig.models.find((m) => m.id === modelId);
-  if (!modelDef) {
-    logger.warn("PDF text sample: ai vision model not found in catalog", { modelId });
-    throw new Error(`PDF AI model ${modelId} was not found in the catalog`);
-  }
-  if (!modelDef.capabilities.includes("vision")) {
-    logger.warn("PDF text sample: selected model has no vision capability", { modelId });
-    throw new Error(`PDF AI model ${modelId} does not support vision`);
-  }
-
-  if (modelDef.provider === "google") {
-    if (!aiConfig.googleApiKey) {
-      logger.warn("PDF text sample: GOOGLE_AI_API_KEY not configured");
-      throw new Error("GOOGLE_AI_API_KEY is not configured");
-    }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelDef.apiModel}:generateContent?key=${aiConfig.googleApiKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(60_000),
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/png", data: base64 } },
-            { text: PDF_EXTRACTION_PROMPT },
-          ],
-        }],
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Gemini API ${res.status}: ${errText.slice(0, 200)}`);
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await res.json() as any;
-    return (data?.candidates?.[0]?.content?.parts?.[0]?.text as string || "").trim();
-
-  } else if (modelDef.provider === "anthropic") {
-    if (!aiConfig.anthropicApiKey) {
-      logger.warn("PDF text sample: ANTHROPIC_API_KEY not configured");
-      throw new Error("ANTHROPIC_API_KEY is not configured");
-    }
-    const AnthropicLib = tryRequire("@anthropic-ai/sdk");
-    if (!AnthropicLib) throw new Error("@anthropic-ai/sdk not installed");
-    const Anthropic = AnthropicLib.default ?? AnthropicLib;
-    const anthropic = new Anthropic({ apiKey: aiConfig.anthropicApiKey });
-    const aiResponse = await anthropic.messages.create({
-      model: modelDef.apiModel,
-      max_tokens: 2048,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-          { type: "text", text: PDF_EXTRACTION_PROMPT },
-        ],
-      }],
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const first = aiResponse.content[0] as any;
-    return (first?.type === "text" ? (first.text as string) : "").trim();
-  }
-
-  logger.warn("PDF text sample: unsupported ai vision provider", { provider: modelDef.provider });
-  throw new Error(`Unsupported PDF AI provider: ${modelDef.provider}`);
+  return callPdfAiVision(pngBuffer, aiConfig, {
+    // OTA dist updates may not include the SDK; keep loading it lazily.
+    loadAnthropicSdk: () => tryRequire("@anthropic-ai/sdk"),
+    // Lease-bound server route for PopSG direct Meta selections; without an
+    // active lease the shared cascade fails closed.
+    directPdfVision: aiConfig.directPdfVision,
+    metaDirectUnavailableMessage: "Direct PDF transcription requires a server-side content lease",
+  });
 }
 
 // ── Progress reporter (fire-and-forget) ──────────────────────────────────────

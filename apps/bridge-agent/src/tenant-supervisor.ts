@@ -1,6 +1,14 @@
 /**
  * Multi-tenant supervisor for the Bridge Agent.
  *
+ * SEPARATE-BY-DESIGN from apps/windows-agent/src/tenant-supervisor.ts (#708):
+ * not a drifted copy. The tenant JSON schema is part of each host's install
+ * contract — this one takes scan_roots + supabase_anon_key and writes
+ * /data/agent-config-<tenant>.json; the Windows one takes nas{host,share,
+ * mount_path}, deletes BOOTSTRAP_TOKEN, and writes %ProgramData%\PopDAM\.
+ * Do not "fix" one to match the other; a shared abstraction would strand
+ * tenant agents on both hosts.
+ *
  * Reads a TENANTS env var (JSON array), spawns one child process per tenant
  * running the same single-tenant agent code (src/index.ts), each with its own
  * env-var view (server URL, agent key, scan roots, DO Spaces bucket, etc.).

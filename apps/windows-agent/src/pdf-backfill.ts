@@ -1,6 +1,13 @@
 /**
  * PDF/.ai full-library backfill — Windows render agent.
  *
+ * SEPARATE-BY-DESIGN from apps/bridge-agent/src/pdf-backfill.ts (#708): not a
+ * drifted copy. This one loads mupdf/sharp/tesseract.js lazily (OTA dist
+ * updates may not include them), destroys mupdf objects explicitly
+ * (WebAssembly memory), aggregates every extraction error, gates preview
+ * uploads, and carries the Indra rescan mode the bridge does not have.
+ * Do not "fix" one to match the other — differences are the platform contract.
+ *
  * Self-driven claim loop (claim 25 → process → commit → repeat). This is the same work the
  * bridge agent used to do, relocated to the on-LAN Windows VM so ALL text-extraction CPU
  * (mupdf parse, page render, tesseract OCR, AI vision) stays off the Synology NAS. Files are

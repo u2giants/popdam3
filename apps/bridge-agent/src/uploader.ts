@@ -6,36 +6,29 @@
  * - Returns the CDN-backed public URL
  * - Never uses Supabase Storage
  * - Supports hot-reload of S3 client when DO credentials change via heartbeat config sync
+ *
+ * The S3 client/credentials/upload core lives in
+ * packages/agent-common/src/spaces-uploader.ts (#708). The bridge policy is
+ * "eager-if-changed": a config sync that changes nothing is a no-op, and a
+ * real change rebuilds the S3Client immediately. The Windows agent uses the
+ * same core with an "always-lazy" policy. Key prefixes below are
+ * bridge-specific (the Windows agent uses sg-thumbnails/ for style guides).
  */
 
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "./config.js";
 import { logger } from "./common/logger.js";
+import { createSpacesUploader } from "./common/spaces-uploader.js";
 
-let s3Client: S3Client | null = null;
-let currentCredentials = { key: "", secret: "", bucket: "", region: "", endpoint: "" };
-
-function getClient(): S3Client {
-  if (!s3Client) {
-    currentCredentials = {
-      key: config.doSpacesKey,
-      secret: config.doSpacesSecret,
-      bucket: config.doSpacesBucket,
-      region: config.doSpacesRegion,
-      endpoint: config.doSpacesEndpoint,
-    };
-    s3Client = new S3Client({
-      region: currentCredentials.region,
-      endpoint: currentCredentials.endpoint,
-      credentials: {
-        accessKeyId: currentCredentials.key,
-        secretAccessKey: currentCredentials.secret,
-      },
-      forcePathStyle: false,
-    });
-  }
-  return s3Client;
-}
+const uploader = createSpacesUploader({
+  defaults: () => ({
+    key: config.doSpacesKey,
+    secret: config.doSpacesSecret,
+    bucket: config.doSpacesBucket,
+    region: config.doSpacesRegion,
+    endpoint: config.doSpacesEndpoint,
+  }),
+  reinitPolicy: "eager-if-changed",
+});
 
 /**
  * Re-initialize the S3 client when Spaces config changes via heartbeat.
@@ -48,59 +41,24 @@ export function reinitializeS3Client(doSpaces: {
   region?: string;
   endpoint?: string;
 }): boolean {
-  // Ensure client is initialized so currentCredentials is populated
-  getClient();
-
-  const effectiveKey = doSpaces.key || currentCredentials.key;
-  const effectiveSecret = doSpaces.secret || currentCredentials.secret;
-  const effectiveBucket = doSpaces.bucket || currentCredentials.bucket;
-  const effectiveRegion = doSpaces.region || currentCredentials.region;
-  const effectiveEndpoint = doSpaces.endpoint || currentCredentials.endpoint;
-
-  // Check if anything actually changed
-  if (
-    effectiveKey === currentCredentials.key &&
-    effectiveSecret === currentCredentials.secret &&
-    effectiveBucket === currentCredentials.bucket &&
-    effectiveRegion === currentCredentials.region &&
-    effectiveEndpoint === currentCredentials.endpoint
-  ) {
-    return false;
+  const changed = uploader.reinitialize(doSpaces);
+  if (changed) {
+    logger.info("DO Spaces config changed — reinitializing S3 client", {
+      bucket: uploader.getCurrentBucket(),
+      region: uploader.getCurrentRegion(),
+    });
   }
-
-  logger.info("DO Spaces config changed — reinitializing S3 client", {
-    bucket: effectiveBucket,
-    region: effectiveRegion,
-  });
-
-  currentCredentials = {
-    key: effectiveKey,
-    secret: effectiveSecret,
-    bucket: effectiveBucket,
-    region: effectiveRegion,
-    endpoint: effectiveEndpoint,
-  };
-  s3Client = new S3Client({
-    region: effectiveRegion,
-    endpoint: effectiveEndpoint,
-    credentials: {
-      accessKeyId: effectiveKey,
-      secretAccessKey: effectiveSecret,
-    },
-    forcePathStyle: false,
-  });
-
-  return true;
+  return changed;
 }
 
 /** Get the current bucket name (may have been updated via config sync) */
 export function getCurrentBucket(): string {
-  return currentCredentials.bucket || config.doSpacesBucket;
+  return uploader.getCurrentBucket();
 }
 
 /** Get the current region (may have been updated via config sync) */
 export function getCurrentRegion(): string {
-  return currentCredentials.region || config.doSpacesRegion;
+  return uploader.getCurrentRegion();
 }
 
 /**
@@ -112,7 +70,7 @@ export async function uploadThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `thumbnails/${assetId}.jpg`;
-  return uploadToSpaces(key, buffer);
+  return uploader.uploadToSpaces(key, buffer);
 }
 
 /**
@@ -124,7 +82,7 @@ export async function uploadSiblingThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `siblings/${pathHash}.jpg`;
-  return uploadToSpaces(key, buffer);
+  return uploader.uploadToSpaces(key, buffer);
 }
 
 /**
@@ -137,7 +95,7 @@ export async function uploadStyleGuideThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `styleguides/${pathKey}.jpg`;
-  return uploadToSpaces(key, buffer);
+  return uploader.uploadToSpaces(key, buffer);
 }
 
 /**
@@ -150,26 +108,5 @@ export async function uploadPdfPage(
   buffer: Buffer,
 ): Promise<string> {
   const key = `pdf-pages/${assetId}_p${pageNum}.jpg`;
-  return uploadToSpaces(key, buffer, 90);
-}
-
-async function uploadToSpaces(key: string, buffer: Buffer, quality?: number): Promise<string> {
-  const bucket = getCurrentBucket();
-  const region = getCurrentRegion();
-
-  const client = getClient();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: "image/jpeg",
-      CacheControl: "public, max-age=31536000, immutable",
-      ACL: "public-read",
-    }),
-  );
-
-  const url = `https://${bucket}.${region}.digitaloceanspaces.com/${key}`;
-  logger.info("Thumbnail uploaded", { key, url });
-  return url;
+  return uploader.uploadToSpaces(key, buffer);
 }
