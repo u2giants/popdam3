@@ -205,6 +205,8 @@ begin
     -- A department-only call for a contact with no buyer relation row used to
     -- land here, match nothing, and still report success. Create the row from
     -- the department's own company, the same inherit rule the flyout applies.
+    -- (p_contact_type-only / p_scope-only calls on a relation-less contact stay
+    -- intentional no-ops: there is no relation row to carry them.)
     if not found and p_crm_department_id is not null then
       insert into core.contact_company (
         contact_id,
@@ -225,10 +227,11 @@ begin
           when p_scope is not null then p_scope
           else 'DEPARTMENT'
         end,
-        p_crm_department_id,
+        case when p_clear_crm_department then null else p_crm_department_id end,
         not exists (
           select 1 from core.contact_company x
           where x.contact_id = p_contact_id
+            and x.relationship_type = 'buyer'
             and x.is_primary
         )
       );
