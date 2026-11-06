@@ -1,4 +1,6 @@
 import { db } from "./supabase.js";
+import { logger } from "./logger.js";
+import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 let lastHeartbeatAt = 0;
@@ -21,4 +23,26 @@ export async function maybeWriteWorkerHeartbeat(now = new Date()): Promise<void>
   });
   if (error) throw new Error(`Worker heartbeat failed: ${error.message}`);
   lastHeartbeatAt = now.getTime();
+}
+
+export interface WorkerHeartbeatTimer {
+  stop(): void;
+}
+
+/**
+ * Keep the worker heartbeat fresh independently of the operation loop. A bulk
+ * operation runs inline inside tick(), so the loop-top heartbeat write can stay
+ * unwritten for the whole operation and trip the 5-minute production canary
+ * (#836). This timer refreshes it even while a tick never returns.
+ */
+export function startHeartbeatTimer(
+  writeHeartbeat: () => Promise<void> = maybeWriteWorkerHeartbeat,
+  intervalMs = HEARTBEAT_INTERVAL_MS,
+): WorkerHeartbeatTimer {
+  const timer = setInterval(() => {
+    void withDependencyTimeout("worker heartbeat", writeHeartbeat())
+      .catch((error) => logger.warn("worker: interval heartbeat failed", { error: String(error) }));
+  }, intervalMs);
+  timer.unref?.();
+  return { stop: () => clearInterval(timer) };
 }
