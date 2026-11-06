@@ -6,7 +6,7 @@ import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
 import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
-import { buildMockupUrl } from "@/lib/mockup-tool";
+import { buildMockupUrl, pickMockupRoute, type MockupUrlOptions } from "@/lib/mockup-tool";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -219,6 +219,46 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
   const currentThumbAsset = thumbStrip[carouselIndex] ?? null;
   const displayThumbnail = currentThumbAsset?.thumbnail_url ?? group.thumbnail_url;
   const detailAsset = currentThumbAsset ?? groupAssets?.[0] ?? null;
+
+  // Product mockup: the product route comes from the item's own descriptions
+  // (lenticular > shadowbox > clock > framed > canvas > …; see mockup-tool.ts).
+  // Lenticular needs two pictures: when the current asset's PDF rendered two
+  // pages, window A = page-1 render and window B = page-2 render (thumbnail as
+  // the fallback art); otherwise A = the current thumbnail and B = the next
+  // thumbnail in the carousel.
+  const openMockupTool = () => {
+    if (!displayThumbnail) return;
+    const route = pickMockupRoute([
+      group.item_short_description,
+      group.cover_description,
+      itemDescription,
+    ]);
+    const name = currentThumbAsset?.filename ?? group.sku;
+    let opts: MockupUrlOptions = { art: displayThumbnail, name, route };
+    if (route === "lenticular") {
+      if (currentThumbAsset?.pdf_page2_url) {
+        opts = {
+          art: `/spaces/pdf-pages/${currentThumbAsset.id}_p1.jpg`,
+          name,
+          artB: currentThumbAsset.pdf_page2_url,
+          fallback: displayThumbnail,
+          route,
+        };
+      } else {
+        const others = thumbStrip.filter((a) => a.id !== currentThumbAsset?.id);
+        const pictureB = others.length ? others[carouselIndex % others.length] : null;
+        opts = {
+          art: displayThumbnail,
+          name,
+          artB: pictureB?.thumbnail_url ?? null,
+          nameB: pictureB?.filename ?? null,
+          route,
+        };
+      }
+    }
+    const win = window.open(buildMockupUrl(opts), "_blank", "noopener");
+    if (!win) toast.error("The mockup tool could not be opened — allow pop-ups for this site.");
+  };
 
   const paths = nasConfig && detailAsset
     ? getPathDisplayModes(detailAsset.relative_path, nasConfig, getUserSyncRoot())
@@ -487,8 +527,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 className="absolute top-2 right-11 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const win = window.open(buildMockupUrl(displayThumbnail, currentThumbAsset?.filename ?? group.sku), "_blank", "noopener");
-                  if (!win) toast.error("The mockup tool could not be opened — allow pop-ups for this site.");
+                  openMockupTool();
                 }}
                 aria-label="Create product mockup"
                 title="Create product mockup"
