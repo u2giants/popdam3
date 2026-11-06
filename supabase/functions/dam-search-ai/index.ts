@@ -81,14 +81,15 @@ const spellingLookup: SpellingLookup = {
     return words;
   },
   async countDocs(word, signal) {
-    const { data, error } = await serviceClient()
-      .from("dam_search_documents")
-      .select("entity_id")
+    // dam_search_keys carries the indexed copy of search_tsv (the documents copy lost its
+    // index). A count, not a limit: with LIMIT the planner seq-scans for rare words (~20 s).
+    const { count, error } = await serviceClient()
+      .from("dam_search_keys")
+      .select("entity_id", { count: "exact", head: true })
       .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
-      .limit(RARE_WORD_DOCS)
       .abortSignal(signal ?? AbortSignal.timeout(1000));
     if (error) throw new Error(error.message);
-    return data?.length ?? 0;
+    return Math.min(count ?? 0, RARE_WORD_DOCS);
   },
 };
 
@@ -208,6 +209,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         query,
         async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
         embedQueryText,
+        (text) => checkSpelling(text, spellingLookup),
       );
     } catch {
       return err("Search unavailable. Please try again.", 503);
