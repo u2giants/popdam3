@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { searchAccessStatus, buildDamSearchFilters, expandFallbackTerms, fetchHybridSearchPage, fetchSearchIds, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
+import { createFullTextSearchHelpers, setRankedListCacheEntry, type RankedListCacheEntry } from "@/lib/full-text-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters, FacetCounts } from "@/types/assets";
@@ -51,42 +52,13 @@ export interface StyleGroup {
 }
 
 const PAGE_SIZE = 200;
-const FULL_TEXT_SEARCH_LIMIT = 500;
-const SEARCH_ID_CACHE_TTL_MS = 30_000;
 const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
-type SearchIdCacheEntry = {
-  expiresAt: number;
-  promise: Promise<string[] | null | undefined>;
-};
-
-const styleGroupSearchIdCache = new Map<string, SearchIdCacheEntry>();
-
-/** A resolved ranked-filtered ID list, kept briefly so a page change only re-reads its own rows. */
-type RankedListCacheEntry = {
-  expiresAt: number;
-  promise: Promise<string[]>;
-};
-
-const RANKED_LIST_CACHE_TTL_MS = SEARCH_ID_CACHE_TTL_MS;
 const styleGroupRankedListCache = new Map<string, RankedListCacheEntry>();
 
 /** Test/refresh hook: drop every cached ranked-filtered list. */
 export function clearStyleGroupRankedListCache(): void {
   styleGroupRankedListCache.clear();
-}
-
-function setRankedListCacheEntry(
-  cache: Map<string, RankedListCacheEntry>,
-  key: string,
-  promise: Promise<string[]>,
-): void {
-  // Prune expired entries so distinct searches cannot grow the cache unbounded.
-  const now = Date.now();
-  for (const [existingKey, entry] of cache) {
-    if (entry.expiresAt <= now) cache.delete(existingKey);
-  }
-  cache.set(key, { expiresAt: now + RANKED_LIST_CACHE_TTL_MS, promise });
 }
 
 const STYLE_GROUP_SEARCH_COLUMNS = [
@@ -100,101 +72,16 @@ const STYLE_GROUP_SEARCH_COLUMNS = [
   "program",
 ] as const;
 
-/**
- * Build the ILIKE fallback OR filter across every searchable column for every
- * expanded term. `terms` should come from `expandFallbackTerms` so a query like
- * "spiderman" also matches stored "SPIDER MAN" / "Spider-Man".
- */
-export function buildStyleGroupSearchFilter(terms: string[] | string) {
-  const list = Array.isArray(terms)
-    ? terms
-    : (terms.replace(/[(),]/g, " ").trim() ? [terms.replace(/[(),]/g, " ").trim()] : []);
-  if (list.length === 0) return null;
-  const clauses: string[] = [];
-  for (const term of list) {
-    const safe = term.replace(/[(),]/g, " ").trim();
-    if (!safe) continue;
-    for (const col of STYLE_GROUP_SEARCH_COLUMNS) clauses.push(`${col}.ilike.%${safe}%`);
-  }
-  return clauses.length > 0 ? clauses.join(",") : null;
-}
+/** Shared full-text search plumbing (RPC retry, id cache, ILIKE fallback) for style groups. */
+const styleGroupSearch = createFullTextSearchHelpers({
+  documentType: "style_group",
+  rpcName: "search_style_groups_full_text",
+  idField: "style_group_id",
+  fallbackColumns: STYLE_GROUP_SEARCH_COLUMNS,
+});
 
-/** Precompute the synonym-aware ILIKE fallback filter (only used on RPC failure). */
-async function buildStyleGroupFallbackFilter(search: string) {
-  return buildStyleGroupSearchFilter(await expandFallbackTerms(search));
-}
-
-/**
- * Resolve a search term to indexed IDs, plus a synonym-aware ILIKE fallback
- * filter that is only populated (and thus only used) when the full-text RPC
- * failed. `ids === undefined` means the RPC errored → the fallback applies.
- */
-async function resolveStyleGroupSearch(
-  search?: string,
-): Promise<{ ids: string[] | null | undefined; fallback: string | null }> {
-  if (!search) return { ids: null, fallback: null };
-  const ids = await fetchStyleGroupFullTextIds(search);
-  const fallback = ids === undefined ? await buildStyleGroupFallbackFilter(search) : null;
-  return { ids, fallback };
-}
-
-function shouldFallbackFromFullTextRpc(error: unknown) {
-  if (searchAccessStatus(error)) return false;
-  const err = error as { code?: string; message?: string; details?: string };
-  const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
-  return (
-    err.code === "PGRST202" ||
-    err.code === "57014" ||
-    text.includes("search_style_groups_full_text") ||
-    text.includes("statement timeout") ||
-    text.includes("canceling statement due to statement timeout")
-  );
-}
-
-async function fetchStyleGroupFullTextIds(search: string) {
-  const term = search.replace(/[(),]/g, " ").trim();
-  if (!term) return null;
-  const searchMode = await getSearchMode();
-  const cacheKey = `${searchMode}\u0000${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
-  const cached = styleGroupSearchIdCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.promise;
-
-  const promise = (async () => {
-    return fetchSearchIds(searchMode, term, "style_group", FULL_TEXT_SEARCH_LIMIT, async () => {
-      // Retry once on a transient failure (e.g. statement timeout under load)
-      // before degrading to the ILIKE fallback, which cannot match synonyms.
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
-          p_query: term,
-          p_limit: FULL_TEXT_SEARCH_LIMIT,
-        });
-        if (!error) {
-          return ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
-        }
-        if (!shouldFallbackFromFullTextRpc(error)) throw error;
-        if (attempt === 0) continue;
-        return undefined; // both attempts hit a fallback-worthy error
-      }
-      return undefined;
-    });
-  })();
-
-  styleGroupSearchIdCache.set(cacheKey, {
-    expiresAt: Date.now() + SEARCH_ID_CACHE_TTL_MS,
-    promise,
-  });
-
-  try {
-    const result = await promise;
-    // Don't cache a failed lookup: a transient timeout must not pin the UI to
-    // the degraded ILIKE fallback for the full cache TTL.
-    if (result === undefined) styleGroupSearchIdCache.delete(cacheKey);
-    return result;
-  } catch (error) {
-    styleGroupSearchIdCache.delete(cacheKey);
-    throw error;
-  }
-}
+export const buildStyleGroupSearchFilter = styleGroupSearch.buildSearchFilter;
+const resolveStyleGroupSearch = styleGroupSearch.resolveSearch;
 
 function applyStyleGroupFilters(
   query: any,
