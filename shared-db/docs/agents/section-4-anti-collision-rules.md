@@ -1060,15 +1060,18 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    releasing the lock. This prevents a stale green authorization from surviving
    the production freeze.
 
-   **Narrowed holds (#4845, widened by step 2.5 of the CI process repair,
-   #2367).** Production may promote a *verified prefix* of main: main may have
-   moved past the dispatched commit only by production-inert paths
+   **Narrowed holds (#4845, widened by steps 2.5 and 2.7 of the CI process
+   repair, #2367).** Production may promote a *verified prefix* of main: main
+   may have moved past the dispatched commit only by production-inert paths
    (documentation, `.agent` evidence, test files, and — since step 2.5 —
    workflow files other than `shared-supabase-migrations.yml`, because a
    production dispatch runs the dispatched commit's pinned bytes and no
-   production step reads another workflow) or by migrations *added* with a
-   version strictly after every migration in the dispatched tree (plus added
-   `supabase/tests/*.sql`). Dispatch, review evidence, qualification, the
+   production step reads another workflow) or by migrations *added* whose
+   version duplicates nothing in the dispatched tree or in the same move
+   (crossed versions included since step 2.7; plus added
+   `supabase/tests/*.sql`). A duplicate version refuses: the ledger keys on
+   the version alone, so one of two same-version migrations would silently
+   skip at apply time. Dispatch, review evidence, qualification, the
    production lock and the in-job freshness check all apply this one rule
    (`check-main-tip-freshness.mjs --production`). The promotion merge freeze
    lets through only pull requests made entirely of such paths; gate code, the

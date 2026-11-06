@@ -8,7 +8,7 @@ import {
   REQUIRED_STATUS_CHECKS_RULE,
   REQUIRED_STATUS_CHECK_CONTEXTS,
   RULESET_NAME,
-  assertOldestMigration,
+  assertNoVersionCollision,
   assertProductionInterlock,
   assertQueueAuthorizationCurrent,
   awaitPreviewRehearsal,
@@ -84,23 +84,28 @@ test('migration versions are exact, unique, and ordered', () => {
   ]), ['20260825120000', '20260825120001'])
 })
 
-test('oldest open migration PR must enter first', () => {
+test('step 2.7: crossed versions land in merge order; only equal versions refuse', () => {
   const candidate = ['supabase/migrations/20260825120002_candidate.sql']
-  assert.throws(() => assertOldestMigration(20, candidate, [
+  // An open PR with an EARLIER version no longer holds the queue back.
+  assert.equal(assertNoVersionCollision(20, candidate, [
     { number: 19, isDraft: false, files: ['supabase/migrations/20260825120001_older.sql'] },
-  ]), /behind open PR #19/)
-  assert.equal(assertOldestMigration(20, candidate, [
-    { number: 19, isDraft: true, files: ['supabase/migrations/20260825120001_older.sql'] },
+  ]).relevant, true)
+  // A duplicate version in another open PR refuses: one would silently skip.
+  assert.throws(() => assertNoVersionCollision(20, candidate, [
+    { number: 19, isDraft: false, files: ['supabase/migrations/20260825120002_twin.sql'] },
+  ]), /migration version collision refused: PR #20 and open PR #19 both carry version 20260825120002/)
+  // Draft PRs never collide, and the candidate never blocks itself.
+  assert.equal(assertNoVersionCollision(20, candidate, [
+    { number: 19, isDraft: true, files: ['supabase/migrations/20260825120002_twin.sql'] },
     { number: 21, isDraft: false, files: ['supabase/migrations/20260825120003_newer.sql'] },
   ]).relevant, true)
-  // The candidate never blocks itself.
-  assert.equal(assertOldestMigration(20, candidate, [
+  assert.equal(assertNoVersionCollision(20, candidate, [
     { number: 20, isDraft: false, files: candidate },
   ]).relevant, true)
 })
 
 test('non-migration PRs do not participate and migration merges require preview', () => {
-  assert.equal(assertOldestMigration(20, ['README.md'], []).relevant, false)
+  assert.equal(assertNoVersionCollision(20, ['README.md'], []).relevant, false)
   assert.equal(baseNeedsPreview(['README.md']), false)
   assert.equal(baseNeedsPreview(['supabase/migrations/20260825120000_x.sql']), true)
 })
@@ -109,10 +114,17 @@ test('checkQueueOrder wires candidate files and open PRs through the reader', ()
   const read = (args) => {
     const target = args.at(-1)
     if (target.includes('pulls?state=open')) return [[{ number: 9, draft: false }]]
-    if (target.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825120001_old.sql' }]]
+    if (target.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825120002_twin.sql' }]]
     return [[{ filename: 'supabase/migrations/20260825120002_new.sql' }]]
   }
-  assert.throws(() => checkQueueOrder(10, { repo: REPO, read }), /behind open PR #9/)
+  const crossing = (args) => {
+    const target = args.at(-1)
+    if (target.includes('pulls?state=open')) return [[{ number: 9, draft: false }]]
+    if (target.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825110000_old.sql' }]]
+    return [[{ filename: 'supabase/migrations/20260825120002_new.sql' }]]
+  }
+  assert.equal(checkQueueOrder(10, { repo: REPO, read: crossing }).relevant, true)
+  assert.throws(() => checkQueueOrder(10, { repo: REPO, read }), /migration version collision refused/)
 })
 
 // ---------------------------------------------------------------------------
@@ -715,7 +727,9 @@ const orderReadNoMigrations = (args) => {
 const orderReadViolation = (args) => {
   const url = String(args.at(-1) ?? '')
   if (url.includes('pulls?state=open')) return [[{ number: 9, draft: false }]]
-  if (url.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825120001_old.sql' }]]
+  // Step 2.7: the one remaining violation is a duplicate version in another
+  // open pull request -- crossed (different) versions pass.
+  if (url.includes('pulls/9/files')) return [[{ filename: 'supabase/migrations/20260825120002_twin.sql' }]]
   return [[{ filename: 'supabase/migrations/20260825120002_new.sql' }]]
 }
 
@@ -735,10 +749,10 @@ test('merge_group context with a resolvable ref passes the queue-time order re-v
   }
 })
 
-test('the ref-derived order check still refuses a real ordering violation (not weakened)', async () => {
+test('the ref-derived check still refuses a real violation (not weakened)', async () => {
   await assert.rejects(
     contractMain([], { MERGE_GROUP_REF: 'refs/heads/gh-readonly-queue/main/pr-20-deadbeef' }, { read: orderReadViolation }),
-    /behind open PR #9/,
+    /migration version collision refused: PR #20 and open PR #9 both carry version 20260825120002/,
   )
 })
 

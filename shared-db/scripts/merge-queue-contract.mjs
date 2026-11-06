@@ -13,8 +13,9 @@
 //   1. resolving the ONE pull request a `merge_group` ref names, verified
 //      against the live API (open, base `main`, head readable) — zero,
 //      multiple, malformed, closed or wrong-base identities are refused;
-//   2. ascending earliest-migration-version ordering among open non-draft
-//      migration pull requests, so a later reservation cannot jump the queue;
+//   2. duplicate migration-version collision refusal among open non-draft
+//      migration pull requests (step 2.7): crossed versions land in merge
+//      order; the same version in two open pull requests refuses;
 //   3. GitHub's 3,000-file pull-request coverage ceiling, refused rather than
 //      treated as a complete file list;
 //   4. the shared-preview hold: a main commit that added migrations blocks the
@@ -125,18 +126,30 @@ export function migrationVersions(files) {
 // A migration pull request may enter the queue only when no OTHER open
 // non-draft migration pull request starts at an earlier version. Drafts do not
 // hold a reservation, and the candidate never blocks itself.
-export function assertOldestMigration(candidateNumber, candidateFiles, openPullRequests) {
+// STEP 2.7 (plan_ci-process-repair.md, #2367). This used to refuse any queued
+// migration pull request whose earliest version was not the oldest among open
+// pull requests -- an ascending-order rule. Versions are reserved early, so a
+// slow change held back every faster change with a later version, and the only
+// escape was re-stamping migrations under new versions, which caused weeks of
+// backdated-rename churn. The bounded lanes apply by version order regardless,
+// so merge order no longer needs to mirror version order. The ONE thing that
+// must never pass is a duplicate version in two open pull requests: the ledger
+// keys on the version alone, so one of the two migrations would silently skip
+// at apply time. Crossed versions are fine; equal versions refuse.
+export function assertNoVersionCollision(candidateNumber, candidateFiles, openPullRequests) {
   const candidate = migrationVersions(candidateFiles)
   if (candidate.length === 0) return { relevant: false, versions: [] }
-  const blockers = []
+  const mine = new Set(candidate)
+  const collisions = []
   for (const pr of openPullRequests ?? []) {
     if (Number(pr.number) === Number(candidateNumber) || pr.isDraft) continue
-    const versions = migrationVersions(pr.files ?? [])
-    if (versions.length && versions[0] < candidate[0]) blockers.push({ number: Number(pr.number), version: versions[0] })
+    for (const version of migrationVersions(pr.files ?? [])) {
+      if (mine.has(version)) collisions.push({ number: Number(pr.number), version })
+    }
   }
-  if (blockers.length) {
-    blockers.sort((a, b) => a.version.localeCompare(b.version) || a.number - b.number)
-    throw new MergeQueueError(`migration queue order refused: PR #${candidateNumber} starts at ${candidate[0]}, behind open PR #${blockers[0].number} at ${blockers[0].version}`)
+  if (collisions.length) {
+    collisions.sort((a, b) => a.version.localeCompare(b.version) || a.number - b.number)
+    throw new MergeQueueError(`migration version collision refused: PR #${candidateNumber} and open PR #${collisions[0].number} both carry version ${collisions[0].version}; a duplicate version silently skips one migration at apply time`)
   }
   return { relevant: true, versions: candidate }
 }
@@ -193,7 +206,7 @@ export function readOpenPullRequests({ repo, read = ghJson } = {}) {
 }
 
 export function checkQueueOrder(number, { repo, read = ghJson } = {}) {
-  return assertOldestMigration(number, readPullRequestFiles(number, { repo, read }), readOpenPullRequests({ repo, read }))
+  return assertNoVersionCollision(number, readPullRequestFiles(number, { repo, read }), readOpenPullRequests({ repo, read }))
 }
 
 export function readQueuePullRequest(number, { repo, read = ghJson } = {}) {
@@ -566,7 +579,7 @@ export async function awaitPreviewRehearsal({ sha, descendants = [], readStatuse
 // ---------------------------------------------------------------------------
 
 export const USAGE = `Usage:
-  node scripts/merge-queue-contract.mjs                       Ascending-version order check (PR_NUMBER, else MERGE_GROUP_REF)
+  node scripts/merge-queue-contract.mjs                       Migration version collision check (PR_NUMBER, else MERGE_GROUP_REF)
   node scripts/merge-queue-contract.mjs --resolve-queue-pr    Print the one queued PR as JSON (MERGE_GROUP_REF env)
   node scripts/merge-queue-contract.mjs --queue-mode          Print active|inactive; exit 3 when undecidable
   node scripts/merge-queue-contract.mjs --require-preview-rehearsal --sha <main-sha>
@@ -713,7 +726,7 @@ export async function main(argv, env = process.env, deps = {}) {
   if (!Number.isInteger(number) || number < 1) throw new MergeQueueError('PR_NUMBER must be a positive integer')
   const result = checkQueueOrder(number, { repo, read })
   console.log(result.relevant
-    ? `Migration queue order is valid: ${result.versions.join(', ')}`
+    ? `Migration versions are collision-free: ${result.versions.join(', ')}`
     : 'No migration files changed; migration queue ordering is not applicable.')
   return 0
 }

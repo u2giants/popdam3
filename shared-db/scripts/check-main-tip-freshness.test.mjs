@@ -503,9 +503,8 @@ test('#4845: production accepts a tip moved only by a strictly later appended mi
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
 
-test('POSITIVE CONTROL #4845: production still refuses back-dated, equal, modified and deleted migrations, and mixed code', () => {
+test('step 2.7 accepts a crossed lower added migration; #4845 still refuses duplicates, modified and deleted migrations, and mixed code', () => {
   const cases = [
-    ['back-dated', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150000_old.sql': 'x;\n' }, 'back')],
     ['equal version', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150931_twin.sql': 'x;\n' }, 'eq')],
     ['modified', (repo) => commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'drop table a;\n' }, 'mod')],
     ['deleted', (repo) => { git(repo, ['rm', '-q', 'supabase/migrations/20261026150931_a.sql']); git(repo, ['commit', '-q', '-m', 'del']); return git(repo, ['rev-parse', 'HEAD']).trim() }],
@@ -526,6 +525,17 @@ test('POSITIVE CONTROL #4845: production still refuses back-dated, equal, modifi
       assert.equal(prod(repo, base, tip).ok, false, name)
     } finally { rmSync(repo, { recursive: true, force: true }) }
   }
+})
+
+test('step 2.7: a crossed lower added migration is a verified prefix and never needs a rename', () => {
+  const { repo, sha } = prefixFixture()
+  try {
+    const tip = commitFiles(repo, { 'supabase/migrations/20261026150000_crossed.sql': 'create table crossed (id int);\n' }, 'crossed')
+    const verdict = prod(repo, sha, tip)
+    assert.equal(verdict.ok, true, verdict.reason)
+    assert.match(verdict.reason, /verified prefix/)
+    assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
+  } finally { rmSync(repo, { recursive: true, force: true }) }
 })
 
 test('POSITIVE CONTROL #4845: an appended migration needs a dispatched ledger to order against', () => {
