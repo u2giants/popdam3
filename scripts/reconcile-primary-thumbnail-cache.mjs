@@ -87,7 +87,9 @@ export async function reconcile(api, { apply = false, backup = () => {}, clock =
   return report;
 }
 
-const quote = (v) => v === null ? "is.null" : `eq."${String(v).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+// Scalar eq values are passed raw to URLSearchParams, as in supabase-js .eq().
+// Literal double quotes would become part of UUID/timestamp casts.
+const scalarFilter = (v) => v === null ? "is.null" : `eq.${String(v)}`;
 export function createApi({ url, key, expectedRef, fetchImpl = fetch }) {
   if (!/^[a-z]{20}$/.test(expectedRef || "") || url !== `https://${expectedRef}.supabase.co` || !key) throw new SafeRepairFailure("TARGET_OR_CREDENTIAL_CONFIGURATION");
   const deadline = Date.now() + 1200000;
@@ -120,14 +122,14 @@ export function createApi({ url, key, expectedRef, fetchImpl = fetch }) {
       throw new SafeRepairFailure("SCAN_CAP");
     },
     async read(id) {
-      const rows = await request(new URLSearchParams({ select: SELECT, id: quote(id), limit: "2" }));
+      const rows = await request(new URLSearchParams({ select: SELECT, id: scalarFilter(id), limit: "2" }));
       if (rows.length > 1) throw new SafeRepairFailure("AMBIGUOUS_GROUP");
       return rows[0] || null;
     },
     async patch(before, fields) {
       if (!same(Object.keys(fields).sort(), [...cacheKeys].sort())) throw new SafeRepairFailure("UNAPPROVED_PATCH_FIELDS");
-      const p = new URLSearchParams({ select: "id", id: quote(before.id), primary_asset_id: quote(before.primary_asset_id), updated_at: quote(before.updated_at) });
-      for (const k of cacheKeys) p.set(k, quote(before[k]));
+      const p = new URLSearchParams({ select: "id", id: scalarFilter(before.id), primary_asset_id: scalarFilter(before.primary_asset_id), updated_at: scalarFilter(before.updated_at) });
+      for (const k of cacheKeys) p.set(k, scalarFilter(before[k]));
       return request(p, { method: "PATCH", body: JSON.stringify(fields) });
     },
   };
