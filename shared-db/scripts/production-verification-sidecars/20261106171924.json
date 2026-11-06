@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261106171924",
+  "migration_sha256": "1e8e96db3fb0be84c782be815d76a3e34539f2d2f23bd5c32f87cbef652f0c4a",
+  "checks": [
+    {
+      "id": "sku_sg_v4_nightly_source_identity",
+      "kind": "exact_row_count",
+      "relation": "cron.job",
+      "filters": [
+        {
+          "column": "jobname",
+          "type": "text",
+          "equals": "resolve-sku-style-guide-links-nightly"
+        },
+        {
+          "column": "schedule",
+          "type": "text",
+          "equals": "30 4 * * *"
+        },
+        {
+          "column": "username",
+          "type": "text",
+          "equals": "postgres"
+        },
+        {
+          "column": "active",
+          "type": "boolean",
+          "equals": true
+        },
+        {
+          "column": "command",
+          "type": "text",
+          "equals": "call public.resolve_sku_style_guide_links_run() /* shared-db:20261106171924 */"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "sku_sg_v4_routine_security",
+      "kind": "catalog_contract",
+      "contract": "sku_style_guide_input_snapshot_v4",
+      "expected_count": 1
+    },
+    {
+      "id": "sku_sg_v4_prepare_body",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_proc",
+      "filters": [
+        {
+          "column": "proname",
+          "type": "text",
+          "equals": "prepare_sku_style_guide_resolution"
+        },
+        {
+          "column": "prosrc",
+          "type": "text",
+          "equals": "\ndeclare\n  v_portal_hash text;\n  v_count integer;\nbegin\n  if exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_inputs' and relkind='v') then\n    drop view pg_temp.sku_sg_inputs;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_inputs' and relkind='m') then\n    drop materialized view pg_temp.sku_sg_inputs;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_inputs' and relkind='f') then\n    drop foreign table pg_temp.sku_sg_inputs;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_inputs' and relkind='S') then\n    drop sequence pg_temp.sku_sg_inputs;\n  else\n    drop table if exists pg_temp.sku_sg_inputs;\n  end if;\n  if exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_portal' and relkind='v') then\n    drop view pg_temp.sku_sg_portal;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_portal' and relkind='m') then\n    drop materialized view pg_temp.sku_sg_portal;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_portal' and relkind='f') then\n    drop foreign table pg_temp.sku_sg_portal;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_portal' and relkind='S') then\n    drop sequence pg_temp.sku_sg_portal;\n  else\n    drop table if exists pg_temp.sku_sg_portal;\n  end if;\n  if exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_pending' and relkind='v') then\n    drop view pg_temp.sku_sg_pending;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_pending' and relkind='m') then\n    drop materialized view pg_temp.sku_sg_pending;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_pending' and relkind='f') then\n    drop foreign table pg_temp.sku_sg_pending;\n  elsif exists (select from pg_catalog.pg_class where relnamespace=pg_catalog.pg_my_temp_schema() and relname='sku_sg_pending' and relkind='S') then\n    drop sequence pg_temp.sku_sg_pending;\n  else\n    drop table if exists pg_temp.sku_sg_pending;\n  end if;\n  -- Freeze every observation once; duplicates and NULL filename keys remain significant.\n  create temporary table pg_temp.sku_sg_portal on commit preserve rows as\n  with portal as (\nselect * from plm.asset_file_style_guide_keys\n  ) select i.*,pg_catalog.hash_record_extended(row(i.source_system COLLATE \"C\",i.file_name_norm COLLATE \"C\",i.source_style_guide_key COLLATE \"C\",\n     i.style_guide_label COLLATE \"C\",i.core_style_guide_id,i.matched_file_name COLLATE \"C\"),5608) as portal_hash_1,\n     pg_catalog.hash_record_extended(row(i.source_system COLLATE \"C\",i.file_name_norm COLLATE \"C\",i.source_style_guide_key COLLATE \"C\",\n     i.style_guide_label COLLATE \"C\",i.core_style_guide_id,i.matched_file_name COLLATE \"C\"),5609) as portal_hash_2\n  from portal i;\n  select 'v4:'||md5(concat_ws(':',count(*),sum(portal_hash_1::numeric),sum(portal_hash_2::numeric)))\n  into v_portal_hash from pg_temp.sku_sg_portal;\n  create temporary table pg_temp.sku_sg_pending (\n    sku text primary key,input_hash text not null,portal_hash text not null,output_hash text\n  ) on commit preserve rows;\n  -- One UNION ALL statement freezes the same input multiset used by hashing\n  -- and all batches. Keep raw duplicates and the original eligibility predicates.\n  create temporary table pg_temp.sku_sg_inputs on commit preserve rows as\n    select u.sku, 'file'::text as input_kind, u.file_name,\n      null::text as file_name_norm,\n      null::text as declared_label, null::text as declared_key,\n      null::text as label_key, md5(row('file', u.file_name)::text) as row_hash\n    from public.sku_files_used u\n    where u.sku is not null and u.file_name is not null and btrim(u.file_name) <> ''\n    union all\n    select a.sku, 'sheet'::text, null::text, null::text,\n      p.declared_style_guide_label, p.declared_style_guide_key,\n      null::text,\n      md5(row('sheet', p.declared_style_guide_label,p.declared_style_guide_key)::text)\n    from public.pdf_text_samples p join public.assets a on a.id=p.asset_id\n    where a.sku is not null and btrim(a.sku) <> ''\n      and public.is_style_guide_source_pdf(a.file_type::text,a.filename)\n      and nullif(p.declared_style_guide_key,'') is not null;\n  insert into pg_temp.sku_sg_pending(sku,input_hash,portal_hash)\n  select sku,md5(string_agg(row_hash,'' order by row_hash)),v_portal_hash\n  from pg_temp.sku_sg_inputs group by sku;\n\n  -- Re-derive if an independent parser/service changed the semantic output.\n  update pg_temp.sku_sg_pending q set output_hash = (\n    select md5(coalesce(string_agg(row(l.id,l.sku,l.file_name,l.source_system,l.source_style_guide_key,l.style_guide_label,l.match_method,l.match_confidence,l.matched_asset_count,l.core_style_guide_id)::text, E'\\n' order by l.id), '')) from public.sku_style_guide_links l\n      where l.id = any(p.active_link_ids))\n    from public.sku_style_guide_resolver_progress p where p.sku = q.sku;\n  if not p_full then\n    -- Exact observed membership preserves quarantined history while allowing\n    -- independent parsers to touch currently valid evidence between nightly runs.\n    update public.sku_style_guide_links l set last_seen_at = now()\n    from public.sku_style_guide_resolver_progress p, pg_temp.sku_sg_pending q\n    where l.sku = p.sku and p.sku = q.sku\n      and p.input_hash = q.input_hash and p.portal_hash = q.portal_hash\n      and p.output_hash = q.output_hash and l.id = any(p.active_link_ids);\n    update public.sku_style_guide_resolver_progress p set resolved_at = now()\n    from pg_temp.sku_sg_pending q where p.sku = q.sku\n      and p.input_hash = q.input_hash and p.portal_hash = q.portal_hash and p.output_hash = q.output_hash;\n    delete from pg_temp.sku_sg_pending q using public.sku_style_guide_resolver_progress p\n      where p.sku = q.sku and p.input_hash = q.input_hash and p.portal_hash = q.portal_hash and p.output_hash = q.output_hash;\n  end if;\n  select count(*) into v_count from pg_temp.sku_sg_pending;\n  if v_count > 0 then\n    create index on pg_temp.sku_sg_portal(file_name_norm);\n    create index on pg_temp.sku_sg_portal(style_guide_label_key);\n    analyze pg_temp.sku_sg_portal;\n    create index on pg_temp.sku_sg_inputs(input_kind,sku);\n    update pg_temp.sku_sg_inputs i set file_name_norm=public.file_name_norm(i.file_name)\n      from pg_temp.sku_sg_pending q where q.sku=i.sku and i.input_kind='file';\n    update pg_temp.sku_sg_inputs i set label_key=public.style_guide_label_norm(i.declared_label)\n      from pg_temp.sku_sg_pending q where q.sku=i.sku and i.input_kind='sheet';\n    analyze pg_temp.sku_sg_inputs;\n  end if;\n  return v_count;\nend;\n"
+        },
+        {
+          "column": "prosecdef",
+          "type": "boolean",
+          "equals": true
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "sku_sg_v4_batch_body",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_proc",
+      "filters": [
+        {
+          "column": "proname",
+          "type": "text",
+          "equals": "resolve_sku_style_guide_batch"
+        },
+        {
+          "column": "prosrc",
+          "type": "text",
+          "equals": "\ndeclare\n  v_skus text[];\n  v_file_ids uuid[]; v_declared_ids uuid[]; v_label_ids uuid[]; v_active_ids uuid[];\n  v_filename_rows int := 0;\n  v_declared_rows int := 0;\n  v_label_rows    int := 0;\nbegin\n  if p_batch_size < 1 or p_batch_size > 1000 then\n    raise exception 'Batch size must be between 1 and 1000';\n  end if;\n  -- Catalog-only checks precede reading any caller-controlled temporary source.\n  if not (select count(*)=3 and coalesce(bool_and(\n      c.relkind='r' and c.relpersistence='t' and c.relowner=current_user::regrole::oid\n      and not c.relrowsecurity and not c.relforcerowsecurity\n      and coalesce((select jsonb_agg(jsonb_build_array(a.attname::text,a.atttypid::integer,a.atttypmod,a.attnum::integer) order by a.attnum)\n        from pg_catalog.pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped)=e.shape,false)\n      and not exists(select from pg_catalog.pg_attribute a where a.attrelid=c.oid and a.attnum>0 and a.attisdropped)\n      and not exists(select from pg_catalog.pg_trigger t where t.tgrelid=c.oid)\n      and not exists(select from pg_catalog.pg_rewrite r where r.ev_class=c.oid)\n    ),false)\n    from (values\n      ('sku_sg_inputs','[[\"sku\",25,-1,1],[\"input_kind\",25,-1,2],[\"file_name\",25,-1,3],[\"file_name_norm\",25,-1,4],[\"declared_label\",25,-1,5],[\"declared_key\",25,-1,6],[\"label_key\",25,-1,7],[\"row_hash\",25,-1,8]]'::jsonb),\n      ('sku_sg_portal','[[\"source_system\",25,-1,1],[\"file_name_norm\",25,-1,2],[\"source_style_guide_key\",25,-1,3],[\"style_guide_label\",25,-1,4],[\"core_style_guide_id\",2950,-1,5],[\"matched_file_name\",25,-1,6],[\"style_guide_label_key\",25,-1,7],[\"portal_hash_1\",20,-1,8],[\"portal_hash_2\",20,-1,9]]'::jsonb),\n      ('sku_sg_pending','[[\"sku\",25,-1,1],[\"input_hash\",25,-1,2],[\"portal_hash\",25,-1,3],[\"output_hash\",25,-1,4]]'::jsonb)\n    ) e(name,shape) join pg_catalog.pg_class c on c.relnamespace=pg_catalog.pg_my_temp_schema() and c.relname=e.name\n  ) then\n    raise exception using errcode='42501',message='Trusted SKU resolution temporary snapshot is missing or incompatible';\n  end if;\n  perform pg_advisory_xact_lock(5608, 1);\n  select array_agg(sku) into v_skus from\n    (select sku from pg_temp.sku_sg_pending order by sku limit p_batch_size) q;\n  if v_skus is null then\n    return jsonb_build_object('sku_rows', 0, 'filename_rows', 0, 'declared_rows', 0, 'label_match_rows', 0);\n  end if;\n  -- ARM 1 - extracted file name -> portal style guide.\n  with src as (\n    select distinct u.sku,u.file_name,u.file_name_norm as fn\n    from pg_temp.sku_sg_inputs u\n    where u.input_kind='file' and u.sku=any(v_skus)\n  ),\n  hits as (\n    select s.sku, s.file_name, i.source_system, i.source_style_guide_key,\n           min(i.style_guide_label) as style_guide_label,\n           min(i.core_style_guide_id::text)::uuid as core_style_guide_id,\n           bool_or(lower(btrim(s.file_name)) = lower(btrim(i.matched_file_name))) as exact_match,\n           count(distinct i.matched_file_name)    as matched_asset_count\n    from src s\n    join pg_temp.sku_sg_portal i on i.file_name_norm = s.fn\n    group by s.sku, s.file_name, i.source_system, i.source_style_guide_key\n  ),\n  scored as (\n    -- How many distinct portal guides this one (sku, file_name) lands on. More than\n    -- one means the file name is not decisive, so confidence is divided accordingly.\n    select h.*, count(*) over (partition by h.sku, h.file_name) as guide_count\n    from hits h\n  ),\n  ins as (\n    insert into public.sku_style_guide_links\n      (sku, file_name, source_system, source_style_guide_key, style_guide_label,\n       match_method, match_confidence, matched_asset_count, core_style_guide_id)\n    select s.sku, s.file_name, s.source_system, s.source_style_guide_key,\n           s.style_guide_label,\n           case when s.exact_match\n                then 'filename_exact' else 'filename_normalized' end,\n           1.0 / greatest(s.guide_count, 1)::real,\n           s.matched_asset_count,\n           s.core_style_guide_id\n    from scored s\n    on conflict on constraint sku_style_guide_links_identity_key\n    do update\n      set last_seen_at = now(),\n          style_guide_label   = excluded.style_guide_label,\n          match_method        = excluded.match_method,\n          match_confidence    = excluded.match_confidence,\n          matched_asset_count = excluded.matched_asset_count,\n          core_style_guide_id = coalesce(excluded.core_style_guide_id,\n                                        public.sku_style_guide_links.core_style_guide_id)\n    returning id\n  )\n  select count(*), coalesce(array_agg(id),'{}'::uuid[]) into v_filename_rows,v_file_ids from ins;\n\n  -- ARM 2 - the sheet's own declared style guide, verbatim.\n  with raw_decl as (\n    select i.sku,i.declared_label as label,i.label_key\n    from pg_temp.sku_sg_inputs i\n    where i.input_kind='sheet' and i.sku=any(v_skus)\n  ),\n  decl as (\n    -- One proposal per result identity, including equivalent OCR spellings.\n    select sku, label_key as label_key, min(label) as label\n    from raw_decl\n    where label <> ''\n      and label_key is not null\n      and public.is_plausible_source_file_name(label)\n    group by sku, label_key\n  ),\n  ins as (\n    insert into public.sku_style_guide_links\n      (sku, file_name, source_system, source_style_guide_key, style_guide_label,\n       match_method, match_confidence, matched_asset_count)\n    select d.sku, null, 'sheet_declared', d.label_key,\n           d.label, 'sheet_declared', 1.0, 1\n    from decl d\n    where d.label <> ''\n      and d.label_key is not null\n      and public.is_plausible_source_file_name(d.label)\n    on conflict on constraint sku_style_guide_links_identity_key\n    do update set last_seen_at = now(), style_guide_label = excluded.style_guide_label\n    returning id\n  )\n  select count(*), coalesce(array_agg(id),'{}'::uuid[]) into v_declared_rows,v_declared_ids from ins;\n\n  -- ARM 3 - declared label matched against a portal style-guide label.\n  with decl as (\n    select i.sku,i.declared_label as label,i.label_key\n    from pg_temp.sku_sg_inputs i\n    where i.input_kind='sheet' and i.sku=any(v_skus)\n  ),\n  guides as (\n    select distinct i.source_system, i.source_style_guide_key, i.style_guide_label,\n           i.core_style_guide_id,\n           i.style_guide_label_key as ln\n    from pg_temp.sku_sg_portal i\n    where btrim(i.style_guide_label) <> ''\n      and i.style_guide_label_key in (select label_key from decl)\n  ),\n  hits as (\n    select d.sku, g.source_system, g.source_style_guide_key,\n           min(g.style_guide_label) as style_guide_label\n    from decl d\n    join guides g on g.ln = d.label_key\n    where d.label_key is not null\n    group by d.sku, g.source_system, g.source_style_guide_key\n  ),\n  ins as (\n    insert into public.sku_style_guide_links\n      (sku, file_name, source_system, source_style_guide_key, style_guide_label,\n       match_method, match_confidence, matched_asset_count)\n    select h.sku, null, h.source_system, h.source_style_guide_key,\n           h.style_guide_label, 'sheet_label_match', 1.0, 1\n    from hits h\n    on conflict on constraint sku_style_guide_links_identity_key\n    do update set last_seen_at = now(),\n                  style_guide_label   = excluded.style_guide_label,\n                  core_style_guide_id = coalesce(excluded.core_style_guide_id,\n                                                public.sku_style_guide_links.core_style_guide_id)\n    returning id\n  )\n  select count(*), coalesce(array_agg(id),'{}'::uuid[]) into v_label_rows,v_label_ids from ins;\n\n  v_active_ids := v_file_ids || v_declared_ids || v_label_ids;\n  insert into public.sku_style_guide_resolver_progress(sku,input_hash,portal_hash,active_link_ids,output_hash,resolved_at)\n    select q.sku,q.input_hash,q.portal_hash,\n      coalesce((select array_agg(l.id order by l.id) from public.sku_style_guide_links l\n        where l.sku=q.sku and l.id=any(v_active_ids)), '{}'::uuid[]),\n      (select md5(coalesce(string_agg(row(l.id,l.sku,l.file_name,l.source_system,l.source_style_guide_key,l.style_guide_label,l.match_method,l.match_confidence,l.matched_asset_count,l.core_style_guide_id)::text, E'\\n' order by l.id), '')) from public.sku_style_guide_links l\n        where l.sku=q.sku and l.id=any(v_active_ids)),now()\n    from pg_temp.sku_sg_pending q where q.sku = any(v_skus)\n    on conflict(sku) do update set input_hash=excluded.input_hash,\n      portal_hash=excluded.portal_hash,active_link_ids=excluded.active_link_ids,\n      output_hash=excluded.output_hash,resolved_at=excluded.resolved_at;\n  delete from pg_temp.sku_sg_pending where sku = any(v_skus);\n  return jsonb_build_object(\n    'sku_rows', cardinality(v_skus),\n    'filename_rows', v_filename_rows,\n    'declared_rows', v_declared_rows,\n    'label_match_rows', v_label_rows\n  );\nend;\n"
+        },
+        {
+          "column": "prosecdef",
+          "type": "boolean",
+          "equals": true
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}

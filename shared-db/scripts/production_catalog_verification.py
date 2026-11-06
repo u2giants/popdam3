@@ -4756,9 +4756,9 @@ CATALOG_CONTRACTS["dflow_sample_quantity_state_v1"] = CATEGORY_DFLOW_SAMPLE_QUAN
 
 # Durable catalog outcome of migration 20261105222623 (issue #5020,
 # Core Product Type): exactly one arm's four
-# product-description tables and four indexes exist. The sandbox project
-# (xupnyeifmpsacrqahwwm) carries only schema dflow; the production project
-# (qsllyeztdwjgirsysgai) carries dflow_prod plus a STALE dflow schema that the
+# product-description tables and four indexes exist. The configured sandbox
+# carries only schema dflow; configured production carries dflow_prod plus a
+# STALE dflow schema that the
 # migration must not touch, so each arm also asserts the other schema's pair
 # is absent.
 CATEGORY_DFLOW_PRODUCT_DESCRIPTION_TABLES = """
@@ -5986,6 +5986,25 @@ CATALOG_CONTRACTS["assets_update_trigger_scoping_v1"] = """(SELECT coalesce((SEL
     AND t.tgfoid=to_regprocedure(expected.signature)
     AND md5(split_part(pg_get_triggerdef(t.oid,false),' EXECUTE FUNCTION ',1))=expected.definition_md5
 ),false))"""
+
+# #5608: fixed identity/security contract for the two existing v4 resolver helpers.
+CATALOG_CONTRACTS["sku_style_guide_input_snapshot_v4"] = """
+not exists (
+  select 1 from (values
+    ('public.prepare_sku_style_guide_resolution(boolean)','search_path=public, pg_temp','d59eab95461811d644d1ce3a0f5bc07a'),
+    ('public.resolve_sku_style_guide_batch(integer)','search_path=public','9e14ef0dd7ea8c92529c806b46f5637a')
+  ) e(signature,search_path,body_md5)
+  left join pg_catalog.pg_proc p on p.oid=to_regprocedure(e.signature)
+  where p.oid is null or pg_get_userbyid(p.proowner) is distinct from 'postgres'
+    or p.prosecdef is distinct from true or p.prokind is distinct from 'f'::"char"
+    or p.proconfig is distinct from array[e.search_path]::text[]
+    or md5(p.prosrc) is distinct from e.body_md5
+    or not has_function_privilege('service_role',p.oid,'EXECUTE')
+    or has_function_privilege('anon',p.oid,'EXECUTE')
+    or has_function_privilege('authenticated',p.oid,'EXECUTE')
+    or exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl where acl.grantee=0)
+)
+"""
 
 if __name__ == "__main__":
     raise SystemExit(main())

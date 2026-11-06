@@ -1,0 +1,587 @@
+{
+  "catalog": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "catalog",
+    "sql_sha256": "db8452538bd18b96fe425ce53a521fdaa46fd4c816ee84dc44384588f036cd66",
+    "elapsed_seconds": 0.8872657350002555,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:59:40.09043-05",
+        "assets_sku_indexes": [
+          {
+            "name": "idx_assets_sku_division_active",
+            "bytes": 2146304,
+            "ready": true,
+            "valid": true,
+            "predicate": "(is_deleted = false)",
+            "definition": "CREATE INDEX idx_assets_sku_division_active ON public.assets USING btree (sku, division_code) WHERE (is_deleted = false)"
+          }
+        ],
+        "relations": [
+          {
+            "table": "assets",
+            "heap_bytes": 292282368,
+            "last_analyze": "2026-11-05T21:46:52.530059-05:00",
+            "estimated_rows": 156339,
+            "last_autoanalyze": "2026-11-06T09:03:54.187971-05:00",
+            "modified_since_analyze": 6150
+          },
+          {
+            "table": "sku_files_used",
+            "heap_bytes": 2048000,
+            "last_analyze": "2026-11-05T13:46:19.604238-05:00",
+            "estimated_rows": 11602,
+            "last_autoanalyze": null,
+            "modified_since_analyze": 0
+          },
+          {
+            "table": "sku_style_guide_links",
+            "heap_bytes": 5578752,
+            "last_analyze": "2026-11-05T13:46:20.225377-05:00",
+            "estimated_rows": 14150,
+            "last_autoanalyze": "2026-11-06T10:57:31.617003-05:00",
+            "modified_since_analyze": 0
+          },
+          {
+            "table": "pdf_text_samples",
+            "heap_bytes": 49504256,
+            "last_analyze": "2026-11-05T13:46:19.504756-05:00",
+            "estimated_rows": 27915,
+            "last_autoanalyze": "2026-11-06T10:28:10.680389-05:00",
+            "modified_since_analyze": 0
+          }
+        ],
+        "column_statistics": [
+          {
+            "table": "assets",
+            "column": "id",
+            "correlation": 0.0365246,
+            "average_width": 16,
+            "null_fraction": 0,
+            "distinct_estimate": -1
+          },
+          {
+            "table": "assets",
+            "column": "file_type",
+            "correlation": 0.249195,
+            "average_width": 4,
+            "null_fraction": 0,
+            "distinct_estimate": 5
+          },
+          {
+            "table": "assets",
+            "column": "is_deleted",
+            "correlation": 0.862391,
+            "average_width": 1,
+            "null_fraction": 0,
+            "distinct_estimate": 2
+          },
+          {
+            "table": "assets",
+            "column": "sku",
+            "correlation": 0.0455911,
+            "average_width": 12,
+            "null_fraction": 0.3608,
+            "distinct_estimate": 8677
+          },
+          {
+            "table": "pdf_text_samples",
+            "column": "asset_id",
+            "correlation": 0.124113,
+            "average_width": 16,
+            "null_fraction": 0,
+            "distinct_estimate": -1
+          },
+          {
+            "table": "pdf_text_samples",
+            "column": "declared_style_guide_key",
+            "correlation": 0.417328,
+            "average_width": 9,
+            "null_fraction": 0,
+            "distinct_estimate": 1016
+          }
+        ],
+        "statement_statistics_schema": "extensions",
+        "statement_tracking": "top",
+        "function_tracking": "none"
+      }
+    ]
+  },
+  "arm2": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "arm2",
+    "sql_sha256": "755356008a5d9cace3bb9b5cc05b66eb3e99b26218bd5e13960cea5338a711ee",
+    "elapsed_seconds": 0.7343192380012624,
+    "result": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Aggregate",
+              "Strategy": "Plain",
+              "Partial Mode": "Simple",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 27604.13,
+              "Total Cost": 27604.14,
+              "Plan Rows": 1,
+              "Plan Width": 8,
+              "Plans": [
+                {
+                  "Node Type": "Limit",
+                  "Parent Relationship": "InitPlan",
+                  "Subplan Name": "CTE batch",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Startup Cost": 0.28,
+                  "Total Cost": 2.42,
+                  "Plan Rows": 100,
+                  "Plan Width": 12,
+                  "Plans": [
+                    {
+                      "Node Type": "Index Only Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Scan Direction": "Forward",
+                      "Index Name": "sku_style_guide_resolver_progress_pkey",
+                      "Relation Name": "sku_style_guide_resolver_progress",
+                      "Alias": "sku_style_guide_resolver_progress",
+                      "Startup Cost": 0.28,
+                      "Total Cost": 169.38,
+                      "Plan Rows": 7900,
+                      "Plan Width": 12
+                    }
+                  ]
+                },
+                {
+                  "Node Type": "Aggregate",
+                  "Strategy": "Sorted",
+                  "Partial Mode": "Simple",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Startup Cost": 27601.42,
+                  "Total Cost": 27601.69,
+                  "Plan Rows": 1,
+                  "Plan Width": 76,
+                  "Group Key": [
+                    "a.sku",
+                    "(style_guide_label_norm(p.declared_style_guide_label))"
+                  ],
+                  "Plans": [
+                    {
+                      "Node Type": "Aggregate",
+                      "Strategy": "Plain",
+                      "Partial Mode": "Simple",
+                      "Parent Relationship": "InitPlan",
+                      "Subplan Name": "InitPlan 2",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Startup Cost": 2.25,
+                      "Total Cost": 2.26,
+                      "Plan Rows": 1,
+                      "Plan Width": 32,
+                      "Plans": [
+                        {
+                          "Node Type": "CTE Scan",
+                          "Parent Relationship": "Outer",
+                          "Parallel Aware": false,
+                          "Async Capable": false,
+                          "CTE Name": "batch",
+                          "Alias": "batch",
+                          "Startup Cost": 0,
+                          "Total Cost": 2,
+                          "Plan Rows": 100,
+                          "Plan Width": 32
+                        }
+                      ]
+                    },
+                    {
+                      "Node Type": "Sort",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Startup Cost": 27599.16,
+                      "Total Cost": 27599.17,
+                      "Plan Rows": 1,
+                      "Plan Width": 44,
+                      "Sort Key": [
+                        "a.sku",
+                        "(style_guide_label_norm(p.declared_style_guide_label))"
+                      ],
+                      "Plans": [
+                        {
+                          "Node Type": "Nested Loop",
+                          "Parent Relationship": "Outer",
+                          "Parallel Aware": false,
+                          "Async Capable": false,
+                          "Join Type": "Inner",
+                          "Startup Cost": 0.42,
+                          "Total Cost": 27599.15,
+                          "Plan Rows": 1,
+                          "Plan Width": 44,
+                          "Inner Unique": true,
+                          "Plans": [
+                            {
+                              "Node Type": "Seq Scan",
+                              "Parent Relationship": "Outer",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Relation Name": "pdf_text_samples",
+                              "Alias": "p",
+                              "Startup Cost": 0,
+                              "Total Cost": 20419.22,
+                              "Plan Rows": 4230,
+                              "Plan Width": 37,
+                              "Filter": "((NULLIF(declared_style_guide_key, ''::text) IS NOT NULL) AND (declared_style_guide_label <> ''::text) AND (style_guide_label_norm(declared_style_guide_label) IS NOT NULL) AND is_plausible_source_file_name(declared_style_guide_label))"
+                            },
+                            {
+                              "Node Type": "Index Scan",
+                              "Parent Relationship": "Inner",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Scan Direction": "Forward",
+                              "Index Name": "assets_pkey",
+                              "Relation Name": "assets",
+                              "Alias": "a",
+                              "Startup Cost": 0.42,
+                              "Total Cost": 1.7,
+                              "Plan Rows": 1,
+                              "Plan Width": 28,
+                              "Index Cond": "(id = p.asset_id)",
+                              "Filter": "((sku IS NOT NULL) AND (btrim(sku) <> ''::text) AND ((file_type)::text = 'pdf'::text) AND (sku = ANY ((InitPlan 2).col1)) AND ((filename ~~* '%licensing sheet%'::text) OR (filename ~~* '%licensing_sheet%'::text) OR (filename ~~* '%license sheet%'::text) OR (filename ~~* '%license_sheet%'::text) OR (filename ~~* '%tech pack%'::text) OR (filename ~~* '%tech_pack%'::text) OR (filename ~~* '%techpack%'::text)))"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "arm3": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "arm3",
+    "sql_sha256": "2eb2df315015c5b0aad803c40847524c493147ec5d6d8dec411fce7a2070f2a2",
+    "elapsed_seconds": 0.6950379480003903,
+    "result": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Aggregate",
+              "Strategy": "Plain",
+              "Partial Mode": "Simple",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 40841.93,
+              "Total Cost": 40841.94,
+              "Plan Rows": 1,
+              "Plan Width": 8,
+              "Plans": [
+                {
+                  "Node Type": "Limit",
+                  "Parent Relationship": "InitPlan",
+                  "Subplan Name": "CTE batch",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Startup Cost": 0.28,
+                  "Total Cost": 2.42,
+                  "Plan Rows": 100,
+                  "Plan Width": 12,
+                  "Plans": [
+                    {
+                      "Node Type": "Index Only Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Scan Direction": "Forward",
+                      "Index Name": "sku_style_guide_resolver_progress_pkey",
+                      "Relation Name": "sku_style_guide_resolver_progress",
+                      "Alias": "sku_style_guide_resolver_progress",
+                      "Startup Cost": 0.28,
+                      "Total Cost": 169.38,
+                      "Plan Rows": 7900,
+                      "Plan Width": 12
+                    }
+                  ]
+                },
+                {
+                  "Node Type": "Aggregate",
+                  "Strategy": "Plain",
+                  "Partial Mode": "Simple",
+                  "Parent Relationship": "InitPlan",
+                  "Subplan Name": "InitPlan 2",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Startup Cost": 2.25,
+                  "Total Cost": 2.26,
+                  "Plan Rows": 1,
+                  "Plan Width": 32,
+                  "Plans": [
+                    {
+                      "Node Type": "CTE Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "CTE Name": "batch",
+                      "Alias": "batch",
+                      "Startup Cost": 0,
+                      "Total Cost": 2,
+                      "Plan Rows": 100,
+                      "Plan Width": 32
+                    }
+                  ]
+                },
+                {
+                  "Node Type": "Nested Loop",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Join Type": "Inner",
+                  "Startup Cost": 4327.31,
+                  "Total Cost": 40837.25,
+                  "Plan Rows": 1,
+                  "Plan Width": 0,
+                  "Inner Unique": true,
+                  "Plans": [
+                    {
+                      "Node Type": "Bitmap Heap Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Relation Name": "assets",
+                      "Alias": "a",
+                      "Startup Cost": 4327.02,
+                      "Total Cost": 40834.49,
+                      "Plan Rows": 1,
+                      "Plan Width": 16,
+                      "Recheck Cond": "((filename ~~* '%licensing sheet%'::text) OR (filename ~~* '%licensing_sheet%'::text) OR (filename ~~* '%license sheet%'::text) OR (filename ~~* '%license_sheet%'::text) OR (filename ~~* '%tech pack%'::text) OR (filename ~~* '%tech_pack%'::text) OR (filename ~~* '%techpack%'::text))",
+                      "Filter": "((sku IS NOT NULL) AND (btrim(sku) <> ''::text) AND ((file_type)::text = 'pdf'::text) AND (sku = ANY ((InitPlan 2).col1)))",
+                      "Plans": [
+                        {
+                          "Node Type": "BitmapOr",
+                          "Parent Relationship": "Outer",
+                          "Parallel Aware": false,
+                          "Async Capable": false,
+                          "Startup Cost": 4327.02,
+                          "Total Cost": 4327.02,
+                          "Plan Rows": 61873,
+                          "Plan Width": 0,
+                          "Plans": [
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 625.12,
+                              "Plan Rows": 6595,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%licensing sheet%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 612.38,
+                              "Plan Rows": 6595,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%licensing_sheet%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 581.28,
+                              "Plan Rows": 16,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%license sheet%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 568.53,
+                              "Plan Rows": 16,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%license_sheet%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 657.87,
+                              "Plan Rows": 17263,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%tech pack%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 662.05,
+                              "Plan Rows": 20402,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%tech_pack%'::text)"
+                            },
+                            {
+                              "Node Type": "Bitmap Index Scan",
+                              "Parent Relationship": "Member",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Index Name": "idx_assets_filename_trgm",
+                              "Startup Cost": 0,
+                              "Total Cost": 619.79,
+                              "Plan Rows": 10986,
+                              "Plan Width": 0,
+                              "Index Cond": "(filename ~~* '%techpack%'::text)"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "Node Type": "Index Scan",
+                      "Parent Relationship": "Inner",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Scan Direction": "Forward",
+                      "Index Name": "pdf_text_samples_asset_id_unique",
+                      "Relation Name": "pdf_text_samples",
+                      "Alias": "p",
+                      "Startup Cost": 0.29,
+                      "Total Cost": 2.76,
+                      "Plan Rows": 1,
+                      "Plan Width": 16,
+                      "Index Cond": "(asset_id = a.id)",
+                      "Filter": "((NULLIF(declared_style_guide_key, ''::text) IS NOT NULL) AND (style_guide_label_norm(declared_style_guide_label) IS NOT NULL))"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "statements": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "statements",
+    "sql_sha256": "3305fa9fb797d89b819d8ab530bf26b3cde14ccb1d0dcde771b0e36632207380",
+    "elapsed_seconds": 1.2280155590015056,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:59:59.591109-05",
+        "resolver_call_statistics": null
+      }
+    ]
+  },
+  "types": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "types",
+    "sql_sha256": "f6e7f8a6cfbb80094c18f61d3ee9e2354d9c8842dc0bf37cef5d18c2f64ff790",
+    "elapsed_seconds": 0.7704033749996597,
+    "result": [
+      {
+        "observed_at": "2026-11-06 11:09:13.905748-05",
+        "input_types": [
+          {
+            "type": "text",
+            "table": "assets",
+            "column": "sku",
+            "collation": "default"
+          },
+          {
+            "type": "text",
+            "table": "pdf_text_samples",
+            "column": "declared_style_guide_label",
+            "collation": "default"
+          },
+          {
+            "type": "text",
+            "table": "pdf_text_samples",
+            "column": "declared_style_guide_key",
+            "collation": "default"
+          },
+          {
+            "type": "text",
+            "table": "sku_files_used",
+            "column": "sku",
+            "collation": "default"
+          },
+          {
+            "type": "text",
+            "table": "sku_files_used",
+            "column": "file_name",
+            "collation": "default"
+          }
+        ],
+        "current_functions": [
+          {
+            "owner": "postgres",
+            "definer": true,
+            "body_md5": "7aa17531d3135f6c25694f71ae36753a",
+            "function": "prepare_sku_style_guide_resolution(boolean)",
+            "settings": [
+              "search_path=public, pg_temp"
+            ]
+          },
+          {
+            "owner": "postgres",
+            "definer": true,
+            "body_md5": "662810c83fd92dce19966baab00ef029",
+            "function": "resolve_sku_style_guide_batch(integer)",
+            "settings": [
+              "search_path=public"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "eligible": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "mode": "eligible",
+    "sql_sha256": "e240835a1b591698d5e799556dba194cb452b85cb11ab89caa58878bbe085d4d",
+    "elapsed_seconds": 6.2943649900007586,
+    "result": [
+      {
+        "observed_at": "2026-11-06 11:13:05.403578-05",
+        "input_rows": 21861,
+        "eligible_distinct_skus": 8050,
+        "file_rows": 11602,
+        "sheet_rows": 10259
+      }
+    ]
+  }
+}

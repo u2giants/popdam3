@@ -1,0 +1,342 @@
+{
+  "base-postprod-reconcile": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 0.1645404030005011,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:21:00.615206-05",
+        "base_present": true,
+        "forward_present": false,
+        "progress_table_present": true,
+        "nightly": [
+          {
+            "jobid": 17,
+            "active": true,
+            "schedule": "30 4 * * *",
+            "username": "postgres",
+            "tagged_command": false
+          }
+        ],
+        "recent": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-05T23:32:00.11354-05:00",
+            "start_time": "2026-11-05T23:30:00.105385-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.008155
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-04T23:32:02.638401-05:00",
+            "start_time": "2026-11-04T23:30:02.631898-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.006503
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-03T23:32:00.192305-05:00",
+            "start_time": "2026-11-03T23:30:00.104858-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.087447
+          }
+        ]
+      }
+    ]
+  },
+  "forward-postprod-reconcile": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 0.172470303999944,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:33:11.273906-05",
+        "base_present": true,
+        "forward_present": true,
+        "progress_table_present": true,
+        "nightly": [
+          {
+            "jobid": 17,
+            "active": true,
+            "schedule": "30 4 * * *",
+            "username": "postgres",
+            "tagged_command": true
+          }
+        ],
+        "recent": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-05T23:32:00.11354-05:00",
+            "start_time": "2026-11-05T23:30:00.105385-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.008155
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-04T23:32:02.638401-05:00",
+            "start_time": "2026-11-04T23:30:02.631898-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.006503
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-03T23:32:00.192305-05:00",
+            "start_time": "2026-11-03T23:30:00.104858-05:00",
+            "tagged_command": false,
+            "elapsed_seconds": 120.087447
+          }
+        ]
+      }
+    ]
+  },
+  "production-catchup": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 0.7306402779995551,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:21:53.343959-05",
+        "pending_keys": "703641",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": null,
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "production-catchup-first-run": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 6.894390732000829,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:29:20.054744-05",
+        "pending_keys": "556726",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:27:00.042367-05:00",
+            "start_time": "2026-11-06T10:25:00.039815-05:00",
+            "elapsed_seconds": 120.002552
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "forward-postprod-catchup": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 3.5864898990002985,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:33:19.110768-05",
+        "pending_keys": "399461",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:32:00.094088-05:00",
+            "start_time": "2026-11-06T10:30:00.090318-05:00",
+            "elapsed_seconds": 120.00377
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:27:00.042367-05:00",
+            "start_time": "2026-11-06T10:25:00.039815-05:00",
+            "elapsed_seconds": 120.002552
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "production-catchup-third-run": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 6.727264928000295,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:37:22.849221-05",
+        "pending_keys": "268461",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:37:00.04768-05:00",
+            "start_time": "2026-11-06T10:35:00.042002-05:00",
+            "elapsed_seconds": 120.005678
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:32:00.094088-05:00",
+            "start_time": "2026-11-06T10:30:00.090318-05:00",
+            "elapsed_seconds": 120.00377
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:27:00.042367-05:00",
+            "start_time": "2026-11-06T10:25:00.039815-05:00",
+            "elapsed_seconds": 120.002552
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "production-catchup-fourth-run": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 4.360017769999104,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:42:24.001113-05",
+        "pending_keys": "123947",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:42:00.088995-05:00",
+            "start_time": "2026-11-06T10:40:00.079197-05:00",
+            "elapsed_seconds": 120.009798
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:37:00.04768-05:00",
+            "start_time": "2026-11-06T10:35:00.042002-05:00",
+            "elapsed_seconds": 120.005678
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:32:00.094088-05:00",
+            "start_time": "2026-11-06T10:30:00.090318-05:00",
+            "elapsed_seconds": 120.00377
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "production-catchup-fifth-run": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 2.3079969250011345,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:47:34.000039-05",
+        "pending_keys": "0",
+        "resolved_skus": 0,
+        "output_rows": 10680,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:47:00.161751-05:00",
+            "start_time": "2026-11-06T10:45:00.080345-05:00",
+            "elapsed_seconds": 120.081406
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:42:00.088995-05:00",
+            "start_time": "2026-11-06T10:40:00.079197-05:00",
+            "elapsed_seconds": 120.009798
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:37:00.04768-05:00",
+            "start_time": "2026-11-06T10:35:00.042002-05:00",
+            "elapsed_seconds": 120.005678
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  },
+  "production-catchup-final": {
+    "production_identity_verified": true,
+    "transaction_read_only": true,
+    "query_elapsed_seconds": 0.501372918000925,
+    "result": [
+      {
+        "observed_at": "2026-11-06 10:52:49.828813-05",
+        "pending_keys": "0",
+        "resolved_skus": 3400,
+        "output_rows": 12702,
+        "catchup_jobs": [
+          {
+            "jobid": 21,
+            "active": true,
+            "schedule": "*/5 * * * *"
+          }
+        ],
+        "recent_catchup": [
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:52:00.111748-05:00",
+            "start_time": "2026-11-06T10:50:00.076678-05:00",
+            "elapsed_seconds": 120.03507
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:47:00.161751-05:00",
+            "start_time": "2026-11-06T10:45:00.080345-05:00",
+            "elapsed_seconds": 120.081406
+          },
+          {
+            "status": "failed",
+            "end_time": "2026-11-06T10:42:00.088995-05:00",
+            "start_time": "2026-11-06T10:40:00.079197-05:00",
+            "elapsed_seconds": 120.009798
+          }
+        ],
+        "resolver_lock_holders": 0
+      }
+    ]
+  }
+}

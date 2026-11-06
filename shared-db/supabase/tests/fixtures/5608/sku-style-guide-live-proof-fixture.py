@@ -18,23 +18,30 @@ for original, fixture in [
     ('public.sku_style_guide_links', 'pg_temp.proof_links'),
 ]:
     proof = proof.replace(original, fixture)
-tag = 'call public.resolve_sku_style_guide_links_run() /* shared-db:20261105061627 */'
+tag = 'call public.resolve_sku_style_guide_links_run() /* shared-db:20261106171924 */'
 setup = """BEGIN;
 DO $$BEGIN IF current_setting('app.sku_sg_disposable',true) IS DISTINCT FROM 'yes' THEN RAISE EXCEPTION 'Disposable fixture required';END IF;END$$;
 CREATE TEMP TABLE proof_job(jobid bigint,jobname text,command text,active boolean default true,username text default 'postgres',schedule text default '30 4 * * *');
 CREATE TEMP TABLE proof_runs(jobid bigint,status text,start_time timestamptz,end_time timestamptz,command text);
 CREATE TEMP TABLE proof_ledger(version text);
-CREATE TEMP TABLE proof_progress(active_link_ids uuid[]);
+CREATE TEMP TABLE proof_progress(active_link_ids uuid[],portal_hash text);
 CREATE TEMP TABLE proof_links(last_seen_at timestamptz);
 INSERT INTO proof_job VALUES(17,'resolve-sku-style-guide-links-nightly','TAG');
-INSERT INTO proof_ledger VALUES('20261105061627');
-INSERT INTO proof_progress VALUES(ARRAY['00000000-0000-0000-0000-000000000001'::uuid]);
+INSERT INTO proof_ledger VALUES('20261105061627'),('20261106171924');
+INSERT INTO proof_progress VALUES(ARRAY['00000000-0000-0000-0000-000000000001'::uuid],'v4:fixture');
 INSERT INTO proof_links VALUES(now());
 INSERT INTO proof_runs SELECT 17,'succeeded',date_trunc('day',now())-make_interval(days=>n)+interval '4 hours 30 minutes',date_trunc('day',now())-make_interval(days=>n)+interval '4 hours 30 minutes 1 second',CASE WHEN n=1 THEN 'TAG' ELSE 'old command' END FROM generate_series(1,3) n;
 """.replace('TAG', tag)
 cases = [
     ('two historical plus one tagged', '', False),
     ('three tagged consecutive successes', "UPDATE proof_runs SET command='TAG';", True),
+    ('legacy v3 cache cannot pass', "UPDATE proof_progress SET portal_hash='v3:fixture';", False),
+    ('NULL cache cannot pass', "UPDATE proof_progress SET portal_hash=NULL;", False),
+    ('restored v4 cache', "UPDATE proof_progress SET portal_hash='v4:fixture';", True),
+    ('missing final source ledger', "DELETE FROM proof_ledger WHERE version='20261106171924';", False),
+    ('restored final source ledger', "INSERT INTO proof_ledger VALUES('20261106171924');", True),
+    ('prior repaired source tags cannot pass', "UPDATE proof_runs SET command='call public.resolve_sku_style_guide_links_run() /* shared-db:20261105061627 */';", False),
+    ('restored final source tags', "UPDATE proof_runs SET command='TAG';", True),
     ('NULL stored command', "UPDATE proof_runs SET command=NULL WHERE start_time=(SELECT max(start_time) FROM proof_runs);", False),
     ('restore tagged before failure', "UPDATE proof_runs SET command='TAG';", True),
     ('intervening failure', "UPDATE proof_runs SET status='failed' WHERE start_time=(SELECT start_time FROM proof_runs ORDER BY start_time DESC OFFSET 1 LIMIT 1);", False),
@@ -44,7 +51,7 @@ cases = [
     ('duplicate current job', "INSERT INTO proof_job VALUES(18,'resolve-sku-style-guide-links-nightly','TAG');", False),
     ('current job command mismatch', "DELETE FROM proof_job WHERE jobid=18;UPDATE proof_job SET command='old command';", False),
     ('forward ledger absent', "UPDATE proof_job SET command='TAG';DELETE FROM proof_ledger;", False),
-    ('over budget nightly', "INSERT INTO proof_ledger VALUES('20261105061627');UPDATE proof_runs SET end_time=start_time+interval '61 seconds' WHERE start_time=(SELECT max(start_time) FROM proof_runs);", False),
+    ('over budget nightly', "INSERT INTO proof_ledger VALUES('20261105061627'),('20261106171924');UPDATE proof_runs SET end_time=start_time+interval '61 seconds' WHERE start_time=(SELECT max(start_time) FROM proof_runs);", False),
     ('inactive current job', "UPDATE proof_runs SET end_time=start_time+interval '1 second';UPDATE proof_job SET active=false;", False),
     ('rescheduled current job', "UPDATE proof_job SET active=true,schedule='* * * * *';", False),
     ('changed current owner', "UPDATE proof_job SET schedule='30 4 * * *',username='other';", False),

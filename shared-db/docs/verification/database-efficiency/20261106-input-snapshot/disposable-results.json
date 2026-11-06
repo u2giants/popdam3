@@ -1,0 +1,190 @@
+{
+  "v2-old-runtime": {
+    "source": "20261105061627",
+    "strict_statement_cap_seconds": 60,
+    "wall_seconds": 14.794740553999873,
+    "returncode": 0,
+    "stdout": "                              jsonb_build_object                               \n-------------------------------------------------------------------------------\n {\"links\": 32120, \"pending\": 0, \"progress\": 8050, \"session_advisory_locks\": 0}\n(1 row)\n\n",
+    "stderr": "NOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\n",
+    "synthetic_only": true,
+    "no_downstream_business_triggers_added": true
+  },
+  "v4-runtime": {
+    "source_sha256": "8c2d8dccb310214382901db13279123720504b5b521d493e2656e624f6e205d2",
+    "wall_seconds": 3.92641821899997,
+    "returncode": 0,
+    "stdout": "{\"links\": 32120, \"locks\": 0, \"pending\": 0, \"progress\": 8050, \"differences\": 0, \"full_seconds\": 2.965543}\n{\"locks\": 0, \"pending\": 0, \"same_session_unchanged_seconds\": 0.884081}\n",
+    "stderr": "NOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\n",
+    "cron_before": " jobid |                jobname                |  schedule  |                                    command                                     \n-------+---------------------------------------+------------+--------------------------------------------------------------------------------\n    17 | resolve-sku-style-guide-links-nightly | 30 4 * * * | call public.resolve_sku_style_guide_links_run() /* shared-db:20261105061627 */\n(1 row)\n\n",
+    "cron_after": " jobid |                jobname                |  schedule   |                                    command                                     \n-------+---------------------------------------+-------------+--------------------------------------------------------------------------------\n    17 | resolve-sku-style-guide-links-nightly | 30 4 * * *  | call public.resolve_sku_style_guide_links_run() /* shared-db:20261106161310 */\n  5608 | sku-style-guide-links-catchup-5608    | */5 * * * * | call public.resolve_sku_style_guide_links_run()\n(2 rows)\n\n",
+    "synthetic_only": true
+  },
+  "v4-fresh": {
+    "fresh_session_unchanged_wall_seconds": 0.8926071250007226,
+    "returncode": 0,
+    "stdout": "0\n",
+    "stderr": "NOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\n"
+  },
+  "eight-parity": {
+    "database": "sku5608_input_parity_index_agent_v2",
+    "returncode": 0,
+    "stdout": "{\"portal_arms\": 8, \"deleted_source_retained\": true, \"numeric_label_portal_match\": true, \"output_multiset_differences\": 0, \"portal_multiset_differences\": 0, \"quarantined_history_retained\": true, \"numeric_label_declared_absent\": true}\n",
+    "stderr": "NOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\nNOTICE:  schema \"pg_temp\" does not exist, skipping\n",
+    "synthetic_only": true
+  },
+  "cancellation": {
+    "synthetic_only": true,
+    "actual_after_batch2_DML_cancellation": true,
+    "first_committed_batch": {
+      "links": 100,
+      "locks": 0,
+      "catchup": true,
+      "counter": 1,
+      "progress": 100
+    },
+    "same_session_resumed": {
+      "links": 201,
+      "locks": 0,
+      "catchup": false,
+      "progress": 201
+    },
+    "fresh_session_pending_zero": true,
+    "exact_session_pid_targeted": 418,
+    "same_and_fresh_strict_5s_calls_succeeded": true
+  },
+  "blank-parity": {
+    "original43848": {
+      "sqlstate": "23514",
+      "transaction_rollback_verified": true,
+      "returncode": 0
+    },
+    "forward_v4": {
+      "sqlstate": "23514",
+      "transaction_rollback_verified": true,
+      "returncode": 0
+    },
+    "unmatched_blank_fingerprint_asymmetry": {
+      "blank_file_pending": true,
+      "blank_file_hash_exact": true,
+      "whitespace_sheet_excluded": true
+    }
+  },
+  "input_sessions": {
+    "security_contract_positive": true,
+    "security_contract_negative_cases": 8,
+    "frozen_file_and_pdf_changes": true,
+    "arm2_norm_of_min_equivalent_raw_spellings": true,
+    "next_invocation_converges": true,
+    "asset_sku_type_changes_deferred": true,
+    "zero_pending_skips_normalization": true,
+    "hostile_owner_shape_view_sequence_missing_sources_rejected": true,
+    "hostile_view_never_evaluated": true,
+    "service_prepare_recreates_trusted_snapshot": true,
+    "repeated_same_session_wrappers_and_procedures": true
+  },
+  "live_proof_cases": {
+    "actual_live_proof_sql_cases": 24,
+    "all_passed": true
+  },
+  "portable_reproduction": {
+    "migration_sha256": "8c2d8dccb310214382901db13279123720504b5b521d493e2656e624f6e205d2",
+    "whole_session_seconds": 5.030507932000546,
+    "fresh_session_unchanged_wall_seconds": 1.0280002189992956,
+    "results": [
+      {
+        "links": 32120,
+        "pending": 0,
+        "progress": 8050,
+        "differences": 0,
+        "full_seconds": 2.975465
+      },
+      {
+        "pending": 0,
+        "same_session_unchanged_seconds": 0.920149
+      }
+    ],
+    "synthetic_only": true
+  },
+  "unapplied_source_version_renewal": {
+    "old_version": "20261106161310",
+    "new_version": "20261106171924",
+    "old_sha256": "8c2d8dccb310214382901db13279123720504b5b521d493e2656e624f6e205d2",
+    "new_sha256": "1e8e96db3fb0be84c782be815d76a3e34539f2d2f23bd5c32f87cbef652f0c4a",
+    "routine_body_md5": [
+      "d59eab95461811d644d1ce3a0f5bc07a",
+      "9e14ef0dd7ea8c92529c806b46f5637a"
+    ],
+    "routine_bodies_byte_identical": true,
+    "old_reservation_preserved": true,
+    "portable_fresh_database_result": {
+      "migration_sha256": "1e8e96db3fb0be84c782be815d76a3e34539f2d2f23bd5c32f87cbef652f0c4a",
+      "whole_session_seconds": 7.680902348000018,
+      "fresh_session_unchanged_wall_seconds": 1.039087474999178,
+      "results": [
+        {
+          "links": 32120,
+          "pending": 0,
+          "progress": 8050,
+          "differences": 0,
+          "full_seconds": 5.638229
+        },
+        {
+          "pending": 0,
+          "same_session_unchanged_seconds": 0.932501
+        }
+      ],
+      "synthetic_only": true
+    },
+    "preview_absence_observed_at": "2026-11-06 12:18:13.74503-05",
+    "production_absence_observed_at": "2026-11-06 12:18:17.479693-05",
+    "old_version_unapplied_on_both_targets": true,
+    "preview_absence_evidence": {
+      "fresh_preview_identity_verified": true,
+      "transaction_read_only": true,
+      "result": [
+        {
+          "observed_at": "2026-11-06 12:18:13.74503-05",
+          "new_version_present": false,
+          "pending_keys": "0",
+          "eligible_skus": 754,
+          "input_rows": 909,
+          "portal_rows": 565210,
+          "progress_rows": 754,
+          "v4_progress_rows": 0,
+          "output_rows": 334,
+          "latest_seen_at": "2026-11-05 23:30:00.213767-05",
+          "catchup_jobs": 0,
+          "resolver_locks": 0
+        }
+      ],
+      "elapsed_seconds": 1.5318688260013005
+    },
+    "production_absence_evidence": [
+      {
+        "source_renewal_read": {
+          "reader": "supabase_read_only_user",
+          "observed_at": "2026-11-06T12:18:17.479693-05:00",
+          "base_applied": true,
+          "forward_applied": true,
+          "resolver_functions": [
+            {
+              "owner": "postgres",
+              "body_md5": "7aa17531d3135f6c25694f71ae36753a",
+              "signature": "prepare_sku_style_guide_resolution(boolean)",
+              "security_definer": true
+            },
+            {
+              "owner": "postgres",
+              "body_md5": "662810c83fd92dce19966baab00ef029",
+              "signature": "resolve_sku_style_guide_batch(integer)",
+              "security_definer": true
+            }
+          ],
+          "version_161310_applied": false,
+          "maximum_production_version": "20261106095531"
+        }
+      }
+    ],
+    "renewal_claim": "https://github.com/popcre/shared-db/issues/5608#issuecomment-6690963332"
+  }
+}
