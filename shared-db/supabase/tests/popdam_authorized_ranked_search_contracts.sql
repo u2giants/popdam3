@@ -207,10 +207,12 @@ begin
      or position('select c.document_type,c.entity_id,c.asset_id,c.style_group_id,' in v_definition) = 0 then
     raise exception 'ranked search must use keyed asset and Style Group visibility joins';
   end if;
-  if position('d.search_tsv @@ any(array(select q.tsq from queries q))' in v_definition) = 0
+  if position('d.search_tsv @@ any(array(select distinct q.tsq from queries q))' in v_definition) = 0
      or position('full_text_matches as materialized' in v_definition) = 0
      -- #4529 (20261021203304): best tier over the synonym rank queries is a
      -- per-row scalar subquery; substring matching is one regex alternation.
+     or position('(select max(' in split_part(split_part(v_definition,
+       'keyword_candidates as materialized',2),'), semantic_ann as materialized',1)) = 0
      or position(') from rank_queries q)::real keyword_rank' in v_definition) = 0
      or position('substring_regex as materialized' in v_definition) = 0
      -- #4529: ts_rank_cd over the TOASTed search_tsv cost 9.7s for one
