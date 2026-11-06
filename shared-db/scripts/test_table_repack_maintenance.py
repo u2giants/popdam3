@@ -150,4 +150,44 @@ class StateMachineTests(unittest.TestCase):
         self.assertNotEqual(maintenance.executor_digest(OP),maintenance.executor_digest('sg-hnsw-rebuild-706b'))
 
 
+
+class AllowlistTests(unittest.TestCase):
+    """plan_db-anti-bloat-safeguards.md Step 7 (#5758)."""
+    def write(self,tables):
+        import tempfile
+        handle=tempfile.NamedTemporaryFile('w',suffix='.json',delete=False)
+        json.dump({'schema_version':1,'tables':tables},handle);handle.close();return handle.name
+    def good(self,**over):
+        value=dict(table='plm.item',max_heap_mb=1024,automatic=True,source_issue=5758,reason='x');value.update(over);return value
+    def test_committed_allowlist_loads_and_keeps_assets_manual(self):
+        allow=repack.load_allowlist()
+        self.assertIn('public.assets',allow);self.assertFalse(allow['public.assets']['automatic'])
+        self.assertNotIn('coldlion.change_log',allow)
+    def test_non_allowlisted_table_refused(self):
+        for table in ['coldlion.change_log','public.style_groups']:
+            with self.subTest(table=table),self.assertRaises(maintenance.Refusal):
+                maintenance.operation({'schema_version':1,'operations':{'repack-x':entry(table=table)}},'repack-x')
+    def test_allowlist_entry_missing_or_bad_fields_refused(self):
+        for bad in [{k:v for k,v in self.good().items() if k!='reason'},{k:v for k,v in self.good().items() if k!='max_heap_mb'},
+                    {**self.good(),'extra':1},self.good(table='plm.item; drop'),self.good(max_heap_mb=0),self.good(automatic='yes'),self.good(reason=' ')]:
+            with self.subTest(bad=bad),self.assertRaises(maintenance.Refusal):repack.load_allowlist(self.write([bad]))
+        with self.assertRaises(maintenance.Refusal):repack.load_allowlist(self.write([self.good(),self.good()]))
+    def test_heap_over_allowlisted_limit_refuses_before_running(self):
+        db=FakeDB();db.state=state(heap_bytes=(4096<<20)+1);job,calls=runner(db,MemoryReceipts())
+        with self.assertRaises(maintenance.Refusal):job.apply()
+        self.assertEqual(calls,[])
+    def test_second_concurrent_operation_refused(self):
+        db=FakeDB();db.locked=True;job,calls=runner(db,MemoryReceipts())
+        with self.assertRaises(maintenance.Refusal):job.apply()
+        self.assertEqual(calls,[])
+    def test_preview_only_operation_never_runs_on_production(self):
+        receipts=MemoryReceipts();value=entry(preview_only=True)
+        runner(FakeDB(),receipts,value=value)[0].apply()
+        job,calls=runner(FakeDB(),receipts,'production',value=value)
+        with self.assertRaises(maintenance.Refusal):job.apply()
+        self.assertEqual(calls,[])
+        with self.assertRaises(maintenance.Refusal):
+            maintenance.operation({'schema_version':1,'operations':{OP:entry(preview_only=False)}},OP)
+
+
 if __name__=='__main__':unittest.main()

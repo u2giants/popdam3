@@ -712,6 +712,7 @@ PREVIEW_PRODUCER_PATHS = (
     PREVIEW_WORKFLOW,
     # Exact maintenance policy is runtime input to automatic preview selection.
     "config/nontransactional-index-maintenance.json",
+    "config/table-repack-allowlist.json",
     "config/health-initial-index-definitions.json",
     "scripts/production_migration_guard.py",
     # Hash-bound verification declarations are read by the catalog verifier in

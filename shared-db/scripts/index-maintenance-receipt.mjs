@@ -46,7 +46,8 @@ export function verifyMaintenanceClaim(request,io=githubIo){
  return {admitted:true,claim_issue:owner.number,work_issue:request.work_issue}
 }
 // One allowlisted table rewritten in place by the pinned pg_repack client (popdam3#804).
-const REPACK_TABLES=['table public.assets']
+// Allowlist: config/table-repack-allowlist.json (shared-db#5758 Step 7), validated by the Python runner.
+const REPACK_TABLES=JSON.parse(readFileSync(new URL('../config/table-repack-allowlist.json',import.meta.url))).tables.map(t=>'table '+t.table)
 export function verifyTableRepackClaim(request,io=githubIo){
  if(request?.kind!=='table-repack/v1')throw Error('table repack kind required')
  if(!Number.isSafeInteger(request.claim_issue)||!Number.isSafeInteger(request.work_issue)||!/^repack-[a-z0-9-]{1,33}$/.test(request.operation_id??'')

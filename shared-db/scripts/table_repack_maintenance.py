@@ -19,15 +19,41 @@ from nontransactional_index_maintenance import Maintenance, Refusal, digest
 
 KIND='table-repack/v1'
 PREFIX='repack-'
-TABLES=frozenset(['public.assets'])
+ALLOWLIST=Path(__file__).resolve().parents[1]/'config/table-repack-allowlist.json'
+ALLOWLIST_FIELDS={'table','max_heap_mb','automatic','source_issue','reason'}
 EXTENSION_VERSION='1.5.2'
 FIELDS={'kind','source_pr','work_issue','claim_issue','table','client_sha256','wait_timeout_s','total_timeout_s'}
+# A preview-only operation (test-mode run of the weekly check) never reaches production.
+OPTIONAL_FIELDS={'preview_only'}
+
+
+def load_allowlist(path=None):
+    """Governed allowlist (plan_db-anti-bloat-safeguards.md Step 7). Any malformed entry refuses the whole file."""
+    value=json.loads(Path(path or ALLOWLIST).read_text())
+    if not isinstance(value,dict) or set(value)!={'schema_version','tables'} or value['schema_version']!=1 or not isinstance(value['tables'],list):
+        raise Refusal('repack allowlist shape refused')
+    out={}
+    for item in value['tables']:
+        if not isinstance(item,dict) or set(item)!=ALLOWLIST_FIELDS:raise Refusal('repack allowlist entry fields refused')
+        if not isinstance(item['table'],str) or not re.fullmatch(r'[a-z_][a-z0-9_]{0,62}\.[a-z_][a-z0-9_]{0,62}',item['table']):
+            raise Refusal('repack allowlist table name refused')
+        if type(item['max_heap_mb']) is not int or not 0<item['max_heap_mb']<=16384:raise Refusal('repack allowlist size limit refused')
+        if type(item['source_issue']) is not int or item['source_issue']<=0:raise Refusal('repack allowlist source issue refused')
+        if type(item['automatic']) is not bool or not isinstance(item['reason'],str) or not item['reason'].strip():
+            raise Refusal('repack allowlist entry refused')
+        if item['table'] in out:raise Refusal('repack allowlist duplicate table refused')
+        out[item['table']]=dict(item)
+    return out
+
+
+TABLES=frozenset(load_allowlist())
 
 
 def validate_operation(entry,operation_id):
     if not operation_id.startswith(PREFIX):raise Refusal('repack operation identity refused')
-    if not isinstance(entry,dict) or set(entry)!=FIELDS or entry.get('kind')!=KIND:
+    if not isinstance(entry,dict) or not FIELDS<=set(entry)<=FIELDS|OPTIONAL_FIELDS or entry.get('kind')!=KIND:
         raise Refusal('repack policy shape refused')
+    if 'preview_only' in entry and entry['preview_only'] is not True:raise Refusal('repack preview_only flag refused')
     for field in ['source_pr','work_issue','claim_issue','wait_timeout_s','total_timeout_s']:
         if type(entry[field]) is not int or entry[field]<=0:raise Refusal('repack policy integer refused')
     if entry['table'] not in TABLES:raise Refusal('repack table is not allowlisted')
@@ -106,6 +132,7 @@ class TableRepack(Maintenance):
 
     def apply(self,env=None):
         if self.identity['target']=='production':
+            if self.entry.get('preview_only'):raise Refusal('preview-only repack operation never runs on production')
             preview=self.read('complete','preview')
             if preview is None or preview.get('phase')!='complete' or not preview.get('repacked'):
                 raise Refusal('exact completed preview repack receipt required')
@@ -123,6 +150,8 @@ class TableRepack(Maintenance):
                 self.save('started',start)
                 start=self.read('started')
             if start.get('table_oid')!=state['oid']:raise Refusal('repack table OID changed')
+            if state['heap_bytes']>load_allowlist()[self.entry['table']]['max_heap_mb']*1048576:
+                raise Refusal('repack table heap exceeds its allowlisted size limit')
             before=start['before']
             if state['relfilenode']==before['relfilenode']:
                 if self.db.repack_leftovers():raise Refusal('leftover pg_repack objects; preserve for governed recovery')

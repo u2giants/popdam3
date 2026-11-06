@@ -36,6 +36,14 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(select(policy,read,[],lambda pr:False,'a'*40)['target'],'production')
         records['refs/db-index-maintenance/test-operation/production/complete']={'phase':'complete','operation_id':'test-operation','target':'production','source_pr':1,'policy_digest':maintenance.digest(entry())}
         self.assertIsNone(select(policy,read,[],lambda pr:False,'a'*40))
+    def test_preview_only_repack_stops_after_preview(self):
+        import test_table_repack_maintenance as rt
+        value=rt.entry(preview_only=True);op='repack-test-1'
+        policy={'schema_version':1,'operations':{op:value}}
+        records={};read=lambda ref:records.get(ref)
+        self.assertEqual(select(policy,read,[],lambda pr:False,'a'*40)['target'],'preview')
+        records[f'refs/db-index-maintenance/{op}/preview/complete']={'phase':'complete','operation_id':op,'target':'preview','source_pr':1,'policy_digest':maintenance.digest(value)}
+        self.assertIsNone(select(policy,read,[],lambda pr:False,'a'*40))
     def test_malformed_completion_fails_loudly_instead_of_skipping_work(self):
         policy={'schema_version':1,'operations':{'test-operation':entry()}}
         with self.assertRaises(maintenance.Refusal):select(policy,lambda ref:{'phase':'complete'},[],lambda pr:False,'a'*40)

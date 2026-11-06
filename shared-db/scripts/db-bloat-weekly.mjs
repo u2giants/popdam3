@@ -16,6 +16,7 @@
 // public.assets monitor of #5747's plan once both run (retire that with a note
 // on #5747). Never writes to the database; public.assets is only read.
 import { PROJECT_REFS, Unknown } from './db-flow/read-preview-ledger.mjs'
+import * as repack from './db-repack-proposer.mjs'
 
 export const HEALTH_ISSUE = '5886'
 export const MIN_BYTES = 100 * 1048576
@@ -28,14 +29,14 @@ export const ROTATED_TABLES = new Set(['coldlion.change_log'])
 export const LEDGER_MARKER = '<!-- db-bloat-weekly:ledger -->'
 const DAY = 86400000
 
-export const READING_SQL = `with t as (
+export const readingSql = (include = null) => `with t as (
  select c.oid, n.nspname, c.relname, n.nspname||'.'||c.relname as tbl,
   pg_relation_size(c.oid)::bigint as heap_bytes, pg_indexes_size(c.oid)::bigint as index_bytes,
   greatest(c.reltuples,0)::bigint as est_rows,
   (greatest(c.reltuples,0)*(28+coalesce((select sum(s.avg_width) from pg_stats s where s.schemaname=n.nspname and s.tablename=c.relname),0)))::bigint as live_bytes,
   st.n_tup_ins::bigint, st.n_tup_upd::bigint, st.n_tup_hot_upd::bigint, st.n_tup_del::bigint
  from pg_class c join pg_namespace n on n.oid=c.relnamespace join pg_stat_user_tables st on st.relid=c.oid
- where c.relkind='r' and pg_relation_size(c.oid) > ${MIN_BYTES})
+ where c.relkind='r' and (pg_relation_size(c.oid) > ${MIN_BYTES}${include ? ` or n.nspname||'.'||c.relname = '${include}'` : ''}))
 select t.tbl, t.heap_bytes, t.index_bytes, t.est_rows, t.live_bytes, t.n_tup_ins, t.n_tup_upd, t.n_tup_hot_upd, t.n_tup_del,
  coalesce((select left(regexp_replace(q.query,'\\s+',' ','g'),160) from extensions.pg_stat_statements q
    where q.rows > 0 and q.query ~* ('\\m(update|insert\\s+into|delete\\s+from)\\s+("?' || t.nspname || '"?\\.)?"?' || t.relname || '"?\\M')
@@ -47,12 +48,15 @@ select t.tbl, t.heap_bytes, t.index_bytes, t.est_rows, t.live_bytes, t.n_tup_ins
  (select stats_reset from pg_stat_database where datname=current_database()) as stats_reset,
  now() as read_at
 from t order by t.heap_bytes desc`
+export const READING_SQL = readingSql()
 
-export async function fetchReading(projectRef, token = process.env.SUPABASE_ACCESS_TOKEN, { fetchImpl = fetch } = {}) {
+export async function fetchReading(projectRef, token = process.env.SUPABASE_ACCESS_TOKEN, { fetchImpl = fetch, include = null } = {}) {
+  // include: one allowlisted table (test mode); names come only from the allowlist file.
+  if (include && !repack.loadAllowlist().some((a) => a.table === include && a.automatic)) throw new Unknown(`${include} is not an automatic allowlist entry`)
   if (!token) throw new Unknown('SUPABASE_ACCESS_TOKEN is not set; no reading was taken')
   const res = await fetchImpl(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: READING_SQL }),
+    body: JSON.stringify({ query: readingSql(include) }),
   })
   const body = await res.text()
   if (!res.ok) throw new Unknown(`Management API returned ${res.status}: ${body.slice(0, 300)}`)
@@ -152,7 +156,7 @@ async function main() {
   const runUrl = process.env.RUN_URL ?? '(local run)'
   const signature = `Posted by db-bloat-weekly workflow (${runUrl})`
 
-  const reading = await fetchReading(projectRef)
+  const reading = await fetchReading(projectRef, undefined, { include: args['test-table'] ?? null })
   const useGitHub = Boolean(process.env.GH_TOKEN) && target === 'production'
   const comments = useGitHub ? await listComments(repo, issue) : []
   const ledger = comments.find((c) => c.body?.startsWith(LEDGER_MARKER))
@@ -161,10 +165,32 @@ async function main() {
   const text = renderReading(reading, results, prev, { target, runUrl })
   console.log(text)
   const code = results.some((r) => r.flags.length) ? 1 : 0
-  if (!useGitHub) return code
+  const propose = async () => {
+    // Step 7 (after the reading is posted, so a proposal failure never loses it): propose at most one governed online repack (PR + claim; never a DB write).
+    const testTable = args['test-table'] ?? null
+    if (testTable && target !== 'preview') throw new Unknown('test mode runs against preview only')
+    if (args.propose === 'true') {
+      if (!process.env.REPACK_GH_TOKEN) throw new Unknown('REPACK_GH_TOKEN is not set; no repack proposal was considered')
+      const policy = repack.loadPolicy(); const done = repack.completed(repo); const claims = repack.openDbClaims(repo)
+      repack.closeFinishedClaims(repo, policy, done, claims, signature)
+      const { candidate, log } = repack.choose(results, { policy, allowlist: repack.loadAllowlist(), done,
+        openClaims: repack.openDbClaims(repo), diskAvail: await repack.diskAvailable(projectRef), testTable })
+      for (const line of log) console.log(`repack: ${line}`)
+      if (candidate) {
+        const reason = testTable
+          ? `Preview-only test-mode run (plan Step 7 gate) for \`${candidate.tbl}\`: heap ${mb(candidate.heap_bytes)}, ratio ${candidate.ratio?.toFixed(2)}.`
+          : `\`${candidate.tbl}\` heap ${mb(candidate.heap_bytes)} is ${candidate.ratio.toFixed(2)}x its estimated live size (> ${repack.REPACK_RATIO}) on ${target}.`
+        const opened = repack.openRepackPr(repo, { table: candidate.tbl, work: Number(HEALTH_ISSUE), previewOnly: Boolean(testTable),
+          day: reading.read_at.slice(0, 10), reason, signature })
+        console.log(`repack: opened ${opened.prUrl} (operation ${opened.id}, claim #${opened.claim}), queued to merge`)
+      }
+    }
+  }
+  if (!useGitHub) { await propose(); return code }
   if (ledger) await gh(`repos/${repo}/issues/comments/${ledger.id}`, { method: 'PATCH', body: { body: renderLedger(reading) } })
   else await gh(`repos/${repo}/issues/${issue}/comments`, { method: 'POST', body: { body: renderLedger(reading) } })
   if (post) await gh(`repos/${repo}/issues/${issue}/comments`, { method: 'POST', body: { body: `${text}\n\n${signature}` } })
+  await propose()
   return code
 }
 

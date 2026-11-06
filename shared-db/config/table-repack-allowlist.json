@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "tables": [
+    {"table": "public.assets", "max_heap_mb": 4096, "automatic": false, "source_issue": 5747,
+     "reason": "PopDAM search table; owned by plan_assets-bloat-permanent-fix.md (#5747). Manual governed operations only; the weekly check never proposes it."},
+    {"table": "public.style_guide_search_documents", "max_heap_mb": 2048, "automatic": true, "source_issue": 5758,
+     "reason": "PopSG search rows; embedding lease churn (plan F4)."},
+    {"table": "hts_rag.hts_rag_rulings", "max_heap_mb": 2048, "automatic": true, "source_issue": 5758,
+     "reason": "Unconditional ruling rewrites by the DesignFlow HTS pipeline (plan §3)."},
+    {"table": "hts_rag.hts_rag_ruling_ingest_jobs", "max_heap_mb": 1024, "automatic": true, "source_issue": 5758,
+     "reason": "Job queue; two updates per job plus 30-day pruning (plan Step 4)."},
+    {"table": "plm.style_tracker_item_bridge", "max_heap_mb": 1024, "automatic": true, "source_issue": 5758,
+     "reason": "Bridge refresh rewrote nearly every row each run (plan F5)."},
+    {"table": "plm.item", "max_heap_mb": 1024, "automatic": true, "source_issue": 5758,
+     "reason": "Nightly item-master sweep updates (plan §3)."},
+    {"table": "plm.item_import", "max_heap_mb": 1024, "automatic": true, "source_issue": 5758,
+     "reason": "Nightly item-master sweep updates (plan §3)."},
+    {"table": "ingest.raw_record", "max_heap_mb": 2048, "automatic": true, "source_issue": 5758,
+     "reason": "Nightly item-master sweep updates (plan §3)."},
+    {"table": "plm.item_import_unresolved", "max_heap_mb": 1024, "automatic": true, "source_issue": 5758,
+     "reason": "Per-sweep quarantine snapshot: insert + delete every run (plan §3)."}
+  ]
+}

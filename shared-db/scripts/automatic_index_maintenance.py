@@ -32,6 +32,8 @@ def select(policy,read_receipt,active_runs,held,source_sha):
             return record
         if completed('production') is not None:continue
         preview=completed('preview')
+        # Test-mode operations (weekly check, Step 7 gate) stop after preview.
+        if entry.get('preview_only') and preview is not None:continue
         target='production' if preview is not None else 'preview'
         return dict(operation_id=operation_id,target=target,source_sha=source_sha)
     return None

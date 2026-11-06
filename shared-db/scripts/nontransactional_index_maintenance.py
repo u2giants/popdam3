@@ -337,7 +337,7 @@ def executor_digest(operation_id=None):
     if operation_id and operation_id.startswith('health-'):
         paths+=['scripts/health_initial_index_maintenance.py','config/health-initial-index-definitions.json']
     if operation_id and operation_id.startswith('repack-'):
-        paths+=['scripts/table_repack_maintenance.py']
+        paths+=['scripts/table_repack_maintenance.py','config/table-repack-allowlist.json']
     return digest({path:hashlib.sha256((ROOT/path).read_bytes()).hexdigest() for path in paths})
 
 
