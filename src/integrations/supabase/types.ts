@@ -1082,6 +1082,7 @@ export type Database = {
           asset_id: string | null
           content_sha256: string
           customer: string | null
+          default_visible_min_date: string | null
           document_type: string
           embedding: string | null
           embedding_attempts: number
@@ -1095,6 +1096,7 @@ export type Database = {
           embedding_next_retry_at: string | null
           embedding_updated_at: string | null
           entity_id: string
+          has_default_visible_member: boolean | null
           indexed_at: string
           metadata: Json
           path: string
@@ -1109,6 +1111,7 @@ export type Database = {
           asset_id?: string | null
           content_sha256?: string
           customer?: string | null
+          default_visible_min_date?: string | null
           document_type: string
           embedding?: string | null
           embedding_attempts?: number
@@ -1122,6 +1125,7 @@ export type Database = {
           embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id: string
+          has_default_visible_member?: boolean | null
           indexed_at?: string
           metadata?: Json
           path?: string
@@ -1136,6 +1140,7 @@ export type Database = {
           asset_id?: string | null
           content_sha256?: string
           customer?: string | null
+          default_visible_min_date?: string | null
           document_type?: string
           embedding?: string | null
           embedding_attempts?: number
@@ -1149,6 +1154,7 @@ export type Database = {
           embedding_next_retry_at?: string | null
           embedding_updated_at?: string | null
           entity_id?: string
+          has_default_visible_member?: boolean | null
           indexed_at?: string
           metadata?: Json
           path?: string
@@ -4615,6 +4621,23 @@ export type Database = {
         Args: { p_format: string }
         Returns: boolean
       }
+      dam_default_visible_member: {
+        Args: {
+          p_asset_id: string
+          p_document_type: string
+          p_min_date: string
+          p_style_group_id: string
+        }
+        Returns: boolean
+      }
+      dam_lock_default_visible_owner: {
+        Args: { p_document_type: string; p_entity_id: string }
+        Returns: undefined
+      }
+      dam_refresh_default_visible_flag: {
+        Args: { p_document_type: string; p_entity_id: string }
+        Returns: undefined
+      }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
@@ -4630,6 +4653,10 @@ export type Database = {
           query_index: number
           score: number
         }[]
+      }
+      dam_sweep_default_visible_flags: {
+        Args: { p_limit?: number }
+        Returns: number
       }
       delete_style_tracker_rows: {
         Args: { p_row_ids: string[] }
