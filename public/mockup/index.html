@@ -30879,15 +30879,16 @@ confirmButton($("newBtn"), newMockup);
 api.loadFile=loadFile; api.state=S;
 }
 </script>
-<script>const APP_BUILD="2026-11-03 17:12";</script>
+<script>const APP_BUILD="2026-11-06 10:03";</script>
 <script>
 /* ---------- version history ----------
    1.x Shadowbox Mockup (standalone) · 2.x Canvas Mockup (standalone)
    3.x Product Mockups (both tools in one page) · 4.x Product Mockups on the Pop Creations design system
    A new feature set bumps the second number; a big change in structure or look bumps the first.
    Notes: short, most important first; cosmetic changes summed up in one "Visual updates" line. */
-const APP_VERSION="7.3";
+const APP_VERSION="7.4";
 const CHANGELOG=[
+  {v:"7.4", date:"2026-11-06", items:["Link-in (PopDAM item pages): a second picture with &artB/&nameB fills both windows of Framed 3D Lenticular straight from the link; &fallback= is a backup address tried when &art fails; and a flat image linked into Shadowbox, Shaped Frame or MDF Die-Cut opens Framed Print with a note (those products need the layered .ai)."]},
   {v:"7.3", date:"2026-11-03", items:["Fixed: embellishments work again (they stopped in 7.2, after chiffon was turned off).","New: drop an art file on the home and the product is picked from its name (high gloss canvas, floating frame, cork…), with a window to confirm or change it.","Framed Print: Floating frame style, a gallery-wrapped canvas with softly rounded edges floating inside the frame (gap, back color and the canvas sides: bleed, mirror, stretch or a color); and an option for glass in front of the print.","New: PNG + mockup file button, both saved in one click.","Visual updates: every number field looks the same, with the unit inside (More size options too); new product pictures on the home; a new sample in Die-cut MDF Photo Frame; the side bar lists ready products only, with every branch open."]},
   {v:"7.2", date:"2026-11-03", items:["New product: Die-cut MDF Photo Frame (Home Goods \u203a Tabletop & D\u00e9cor). The cut and the photo window come from the dielines, the photo insert sits behind the window, with a kraft or black backing, easel and hangers on the back; die-cut attachments are glued on the front.","New product: Corkboard. Die-cut cork in any shape (from the DIE CUT layer) with the art printed on the cork texture; add post-its and pins and move, size, turn and color them right on the image. Before a file is loaded it shows a sample cork board.","New product: Shaped Canvas. Arched and round canvases drawn like the real thing (folded and tucked on the back, stretcher bent to the shape); the shape comes from the BLEED - DO NOT PRINT layer, any other shape gets a gray back board.","New: Embellishment card in Canvas and Shaped Canvas. Foil, glitter, chenille, handpaint and LED, read from the file\u2019s PLACEMENT layers (the type can be changed in the card), with colors chosen for the mockup; LED shows off and lit side by side in one image.","Side shade also lightens: 0 in the middle, darker above, lighter below (better on black or dark art). The tool picks the direction for each art.","Canvas bleed: 4 in is the safe amount; the least is the wrap depth + 0.5 in (the 0.5 in folds over the back). New script Canvas Bleeding Custom asks how much bleed you want.","Canvas high gloss: the shine only, no canvas weave or gel brush strokes.","Layers named GUIDES (like BLEED GUIDES) no longer print.","Catalog: coming-soon entries that a ready product now covers are gone: Canvas with chenille, handpaint, LED, glitter, foil and High-gloss Canvas (all in Canvas), Die-cut MDF Blocks (MDF Die-Cut) and the MDF photo frames (Die-cut MDF Photo Frame)."]},
   {v:"7.1", date:"2026-10-29", items:["Canvas: new file setup. Make the artboard the full art with bleed, and mark the canvas front with one rectangle on a BLEED - DO NOT PRINT layer; the sides then come straight from the file. The Canvas Bleeding script (server, Pop Mockups Tool \u203a Scripts) does it in one click.","Canvas and Stager: the art folded over the back edge carries on from the file\u2019s bleed, instead of a mirror of the side, when the art reaches that far.","Canvas and Stager: the sides now show all the art past the artboard, even loose shapes the file\u2019s PDF copy leaves out (the tool also reads Illustrator\u2019s own copy of the art).","CMYK colors now go through the file\u2019s own color profile (e.g. U.S. Web Coated SWOP), the way Illustrator shows them.","Canvas and Stager: small loose shapes past the artboard (like an extra icon) show on the sides even in files with linked images.","New: View code. Copy the view of one product (angle, light, camera, zoom) and paste it in another.","MDF Die-Cut: choose Perspective or Orthographic; Orthographic Front is drawn with the edges at 45\u00b0, like the canvas.","Visual updates: \u201cOblique projection\u201d sits under the view buttons, so they line up; the \u201cSaved\u201d message shows once, in green, under the product; Show less at the end of the file guide."]},
@@ -31980,31 +31981,48 @@ html[lang="es-419"] .guide[open] summary::after{content:"Cerrar"}
    Another app (PopDAM's item page) can link in with the art already loaded.
    The product comes from &product=, or from the file type: an image opens in
    Canvas, an .ai/.pdf/.psd file in Shadowbox. A hash route (#/canvas) in the
-   link wins over the product guess. */
+   link wins over the product guess.
+   7.4: &artB=&nameB= load a second picture too (Framed 3D Lenticular's two
+   windows), &fallback= is a backup address tried when &art fails, and a flat
+   image linked into a product that needs the layered .ai (Shadowbox, Shaped
+   Frame, MDF Die-Cut) opens Framed Print with a note instead. */
 (async function loadFromLink(){
   const q=new URLSearchParams(location.search);
   const art=q.get("art"); if(!art) return;
+  const artB=q.get("artB"); const fallback=q.get("fallback");
   // capture the link's own route now, before the app's boot can normalize the hash
   const route0=(location.hash.replace(/^#\/?/,"")||"").toLowerCase();
   const explicit=TOOLS[route0]?route0:null;
   let name=q.get("name")||"";
   try{ if(!name) name=decodeURIComponent(new URL(art,location.href).pathname.split("/").pop()||"")||"art"; }catch(_){ name="art"; }
+  let nameB=q.get("nameB")||"";
+  if(artB&&!nameB){ try{ nameB=decodeURIComponent(new URL(artB,location.href).pathname.split("/").pop()||"")||"artB"; }catch(_){ nameB="artB"; } }
   const note=(msg)=>{ const t=document.createElement("p");
     t.setAttribute("role","status");
     t.textContent=msg;
     t.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:9999;margin:0;background:#9b2c24;color:#fff;padding:10px 16px;border-radius:10px;font:500 13px var(--font-ui,system-ui,sans-serif);box-shadow:0 10px 15px -3px rgba(0,0,0,.2)";
     document.body.append(t); setTimeout(()=>t.remove(),15000);
     console.error("Link art:",msg); };
-  let blob;
-  try{ const r=await fetch(art,{credentials:"omit"}); if(!r.ok) throw new Error("HTTP "+r.status); blob=await r.blob(); }
-  catch(e){ return note("The art could not be loaded from the link ("+((e&&e.message)||e)+"). Save it and drop it here instead."); }
+  const fetchBlob=async(url)=>{ const r=await fetch(url,{credentials:"omit"}); if(!r.ok) throw new Error("HTTP "+r.status); return r.blob(); };
+  // art, with &fallback behind it; artB in parallel so a slow B never delays A
+  const artP=(async()=>{ try{ return {blob:await fetchBlob(art)}; }catch(e1){ if(fallback){ try{ return {blob:await fetchBlob(fallback)}; }catch(_){} } throw e1; } })();
+  const artBP=artB?(async()=>{ try{ return {blob:await fetchBlob(artB)}; }catch(e){ return {err:e}; } })():null;
+  let a,b=null;
+  try{ a=await artP; }catch(e){ return note("The art could not be loaded from the link ("+((e&&e.message)||e)+"). Save it and drop it here instead."); }
+  if(artBP) b=await artBP;
   // the product: an explicit #/route in the link wins; else the file type decides.
   // A rendered image (PopDAM thumbnails are JPGs even when the source file is .ai) opens in Canvas.
   let product=explicit;
+  const looksImage=/^image\//.test(a.blob.type||"");
   if(!product){
-    const looksImage=/^image\//.test(blob.type||"");
     const wanted=q.get("product")||( looksImage ? "canvas" : /\.(ai|pdf|psd|psb)$/i.test(name) ? "shadowbox" : "canvas" );
     product=TOOLS[wanted]?wanted:"canvas";
+  }
+  // Shadowbox, Shaped Frame and MDF Die-Cut read layers from the .ai; a linked
+  // flat image cannot give them any, so it would end in their "no file" state.
+  if((product==="shadowbox"||product==="shaped"||product==="plaque")&&looksImage){
+    product="framed";
+    note("Shadowboxes, shaped frames and die-cuts need the layered .ai file. Opened Framed Print with this picture instead.");
   }
   if((location.hash.replace(/^#\/?/,"")||"").toLowerCase()!==product) location.hash="#/"+product;
   await new Promise(res=>{ window.addEventListener("hashchange",res,{once:true}); setTimeout(res,400); });
@@ -32013,9 +32031,11 @@ html[lang="es-419"] .guide[open] summary::after{content:"Cerrar"}
   const inp=document.querySelector("#tool-"+product+' input[type="file"]');
   if(!inp) return note("No product page is open. Pick a product, then drop the file.");
   try{
-    const f=new File([blob],name,{type:blob.type||"application/octet-stream"});
-    const dt=new DataTransfer(); dt.items.add(f); inp.files=dt.files;
+    const mk=(blob,fname)=>new File([blob],fname,{type:blob.type||"application/octet-stream"});
+    const files=[mk(a.blob,name)]; if(b&&b.blob) files.push(mk(b.blob,nameB));
+    const dt=new DataTransfer(); files.forEach(f=>dt.items.add(f)); inp.files=dt.files;
     inp.dispatchEvent(new Event("change",{bubbles:true}));
+    if(artB&&!(b&&b.blob)) note("The second picture could not be loaded ("+(((b&&b.err)&&(b.err.message))||(b&&b.err)||"load failed")+"). The first one is loaded.");
   }catch(e){ note("The linked file could not be opened ("+((e&&e.message)||e)+"). Drop it here instead."); }
 })();
 </script>
