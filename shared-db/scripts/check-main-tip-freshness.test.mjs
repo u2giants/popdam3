@@ -535,3 +535,49 @@ test('POSITIVE CONTROL #4845: an appended migration needs a dispatched ledger to
     assert.equal(prod(repo, sha, tip).ok, false)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// STEP 2.5 (plan_ci-process-repair.md, #2367): preview evidence tracks the
+// database surface -- migration bytes, the ledger prefix, the apply tool --
+// not the workflow folder. A workflow-only change merged between preview and
+// production no longer voids evidence; the apply workflow itself still does,
+// because it carries the production job's own steps.
+test('step 2.5: production accepts a tip moved only by unrelated workflow edits; the merge/preview lane still refuses them', () => {
+  for (const path of [
+    '.github/workflows/merge-queue-gate.yml',
+    '.github/workflows/review-fixer.yml',
+    '.github/workflows/queue-hygiene-report.yml',
+    '.github/workflows/some-future-job.yml',
+    '.github/workflows/automatic-production-trigger.yml',
+    '.github/workflows/designflow-sandbox-migrations.yml',
+  ]) {
+    const { repo, sha } = makeRepo()
+    try {
+      const tip = commitFiles(repo, { [path]: 'changed\n' }, 'workflow edit')
+      assert.equal(classify(repo, sha, tip).ok, false, 'the default (merge/preview) lane is unchanged')
+      const verdict = prod(repo, sha, tip)
+      assert.equal(verdict.ok, true, `${path}: ${verdict.reason}`)
+    } finally { rmSync(repo, { recursive: true, force: true }) }
+  }
+})
+
+test('POSITIVE CONTROL step 2.5: the apply workflow itself is the apply tool and still refuses', () => {
+  assert.equal(isProductionInertPath('.github/workflows/shared-supabase-migrations.yml'), false)
+  const { repo, sha } = prefixFixture()
+  try {
+    const tip = commitFiles(repo, { '.github/workflows/shared-supabase-migrations.yml': 'changed\n' }, 'apply tool edit')
+    assert.equal(prod(repo, sha, tip).ok, false)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+test('step 2.5: an appended migration plus unrelated workflow edits is still a verified prefix', () => {
+  const { repo, sha } = prefixFixture()
+  try {
+    const tip = commitFiles(repo, {
+      'supabase/migrations/20261026155023_b.sql': 'create function b() returns int language sql as $$ select 1 $$;\n',
+      '.github/workflows/queue-hygiene-report.yml': 'changed\n',
+    }, 'mixed move')
+    const verdict = prod(repo, sha, tip)
+    assert.equal(verdict.ok, true, verdict.reason)
+    assert.match(verdict.reason, /verified prefix/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

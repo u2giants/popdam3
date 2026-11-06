@@ -1060,16 +1060,21 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    releasing the lock. This prevents a stale green authorization from surviving
    the production freeze.
 
-   **Narrowed holds (#4845).** Production may promote a *verified prefix* of
-   main: main may have moved past the dispatched commit only by
-   production-inert paths (documentation, `.agent` evidence, test files) or by
-   migrations *added* with a version strictly after every migration in the
-   dispatched tree (plus added `supabase/tests/*.sql`). Dispatch, review
-   evidence, qualification, the production lock and the in-job freshness check
-   all apply this one rule (`check-main-tip-freshness.mjs --production`). The
-   promotion merge freeze lets through only pull requests made entirely of
-   such paths; gate code, workflows, config, and modified, renamed or removed
-   migrations still wait. An active production lock still blocks every merge.
+   **Narrowed holds (#4845, widened by step 2.5 of the CI process repair,
+   #2367).** Production may promote a *verified prefix* of main: main may have
+   moved past the dispatched commit only by production-inert paths
+   (documentation, `.agent` evidence, test files, and — since step 2.5 —
+   workflow files other than `shared-supabase-migrations.yml`, because a
+   production dispatch runs the dispatched commit's pinned bytes and no
+   production step reads another workflow) or by migrations *added* with a
+   version strictly after every migration in the dispatched tree (plus added
+   `supabase/tests/*.sql`). Dispatch, review evidence, qualification, the
+   production lock and the in-job freshness check all apply this one rule
+   (`check-main-tip-freshness.mjs --production`). The promotion merge freeze
+   lets through only pull requests made entirely of such paths; gate code, the
+   apply workflow itself (`shared-supabase-migrations.yml`), config, and
+   modified, renamed or removed migrations still wait. An active production
+   lock still blocks every merge.
 
    The lock fails closed if the PR is not merged, if its
    merge commit is not carried by the main tip, if the named versions were not

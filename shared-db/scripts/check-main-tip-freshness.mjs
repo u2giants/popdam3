@@ -109,10 +109,25 @@ export const PRODUCTION_INERT_AUTOMATION = new Set([
   'scripts/sandbox_migration_preflight.py',
 ])
 
+// STEP 2.5 (plan_ci-process-repair.md, #2367): a production dispatch runs the
+// dispatched commit's pinned bytes, so whether its evidence survives main
+// moving is decided by the DATABASE surface alone -- migration bytes, the
+// ledger prefix, and the apply tool that executes them. An unrelated WORKFLOW
+// file (a fixer lane, a report job, a gate for a different lane) is outside
+// that surface: no production step reads it and the dispatched checkout is
+// pinned, so it could change neither what the run applies nor what it proves.
+// Refusing those edits forced identical SQL to be reissued under fresh
+// versions, up to nine times, only to refresh evidence. Exactly one workflow
+// file IS the apply tool -- the one that carries the production job's own
+// steps -- and it stays blocking. The default (merge/preview) lane still
+// refuses every workflow edit, exactly as before.
+const APPLY_TOOL_WORKFLOW_PATH = '.github/workflows/shared-supabase-migrations.yml'
+
 export function isProductionInertPath(path) {
   if (isDocumentationPath(path)) return true
   if (PRODUCTION_INERT_AUTOMATION.has(path)) return true
   if (typeof path !== 'string' || path.includes('\n') || path.includes('\0')) return false
+  if (path.toLowerCase().startsWith('.github/workflows/') && path !== APPLY_TOOL_WORKFLOW_PATH) return true
   return PRODUCTION_INERT_EVIDENCE.test(path) || PRODUCTION_INERT_TEST_FILE.test(path)
 }
 
