@@ -1,3 +1,4 @@
+-- (Re-stamped from never-applied 20261106064511.)
 -- #5747 Step 5 (fix-forward of preview-only 20261106060723, retired by #5850):
 -- exact unfiltered total without per-candidate heap probes. A maintained "has a
 -- default-visible member" flag on dam_search_documents is used only for
