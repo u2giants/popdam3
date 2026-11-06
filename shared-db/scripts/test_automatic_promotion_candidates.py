@@ -812,6 +812,21 @@ class AdversarialUnmergedSource(unittest.TestCase):
         with mock.patch.object(m, "gh", side_effect=[pulls, files]):
             self.assertEqual(m.merged_migration_prs("o/r"), [])
 
+    def test_pure_version_rename_is_a_candidate(self):
+        # Observed 2026-11-06 (PR #5830): a rename the files API reports as
+        # "renamed" carries the NEW version and must be promotable, or the
+        # documented exhausted-attempts cure (a pure version rename) never
+        # reaches production.
+        files = [[{"status": "renamed", "filename": "supabase/migrations/20261106043500_x.sql",
+                   "previous_filename": "supabase/migrations/20261105235900_x.sql"}]]
+        pulls = [{"number": 5830, "merged_at": "2026-11-06T04:50:00Z"}]
+        with mock.patch.object(m, "gh", side_effect=[pulls, files]), \
+                mock.patch.object(m, "version_on_main", return_value=True), \
+                mock.patch.object(m, "declared_bases", return_value=[]):
+            found = m.merged_migration_prs("o/r")
+        self.assertEqual([p["number"] for p in found], [5830])
+        self.assertEqual(found[0]["versions"], ["20261106043500"])
+
 
 class StuckChangeOwner(unittest.TestCase):
     """Step 2.3: later changes promote past a failed one; exhausted PRs get one

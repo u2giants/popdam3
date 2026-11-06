@@ -85,7 +85,13 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
         versions = sorted(
             m.group(1)
             for page in files for f in page
-            if f.get("status") == "added" and (m := MIGRATION_RE.match(f.get("filename", "")))
+            # "renamed" matters as much as "added": a pure version rename (the
+            # documented cure when a change exhausts its automatic attempts)
+            # shows up on the files API as a rename, and the version to promote
+            # is the NEW filename's. Observed 2026-11-06: PR #5830's byte-identical
+            # renames were invisible to the lane, which idled claiming every PR
+            # was in production while the renamed versions sat unpromoted.
+            if f.get("status") in ("added", "renamed") and (m := MIGRATION_RE.match(f.get("filename", "")))
             # A version registered for another database (#5504: the DesignFlow
             # sandbox) never reaches production; promoting it would only fail
             # until MAX_ATTEMPTS parks the lane.
