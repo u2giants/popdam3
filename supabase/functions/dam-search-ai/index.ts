@@ -45,8 +45,13 @@ const PRODUCT_WORDS = [
   "sign",
 ];
 let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
+/** Exact licensor, property and character names, filled with the spelling vocabulary. */
+const knownFullNames = new Set<string>();
+const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-async function loadNames(table: "licensor" | "property" | "character", vocabulary: Map<string, number>, signal: AbortSignal) {
+const SPELLING_NAMES_KEY = "SEARCH_SPELLING_NAMES";
+
+async function loadNames(table: "licensor" | "property" | "character", signal: AbortSignal): Promise<string[]> {
   // Pages load in parallel: ~15k characters paged one by one overran the spelling budget.
   const pageSize = 1000;
   const { count, error: countError } = await serviceClient().schema("core").from(table).select("id", { count: "exact", head: true }).abortSignal(signal);
@@ -57,10 +62,40 @@ async function loadNames(table: "licensor" | "property" | "character", vocabular
     if (error) throw new Error(error.message);
     return (data ?? []) as Record<string, unknown>[];
   }));
-  for (const row of pages.flat()) {
-    // Canonical names have equal authority; core.character has no usage_count.
-    if (typeof row.name === "string") addNameToVocabulary(vocabulary, row.name, 1_000_000);
+  return pages.flat().flatMap((row) => typeof row.name === "string" ? [row.name] : []);
+}
+
+/** Live name load from the core tables, saved as one admin_config row for cold starts. */
+async function rebuildSpellingNames(signal: AbortSignal): Promise<string[]> {
+  const names = (await Promise.all([
+    loadNames("licensor", signal),
+    loadNames("property", signal),
+    loadNames("character", signal),
+  ])).flat();
+  await serviceClient().from("admin_config").upsert({
+    key: SPELLING_NAMES_KEY,
+    value: { built_at: new Date().toISOString(), names },
+    updated_at: new Date().toISOString(),
+  });
+  return names;
+}
+
+/**
+ * One saved row instead of ~17 page reads, so a cold isolate answers inside the
+ * spelling budget. A stale row is used as is and refreshed in the background.
+ */
+async function spellingNames(signal: AbortSignal): Promise<string[]> {
+  const { data } = await serviceClient().from("admin_config").select("value")
+    .eq("key", SPELLING_NAMES_KEY).abortSignal(signal).maybeSingle();
+  const saved = unwrapConfigValue(data?.value) as { built_at?: string; names?: unknown } | null;
+  if (!Array.isArray(saved?.names)) return await rebuildSpellingNames(signal);
+  if (!saved.built_at || Date.now() - Date.parse(saved.built_at) > VOCABULARY_TTL_MS) {
+    const refresh = rebuildSpellingNames(AbortSignal.timeout(30_000)).catch((error) => {
+      console.error("spelling name refresh failed", error instanceof Error ? error.message : error);
+    });
+    (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(refresh);
   }
+  return saved.names.filter((name): name is string => typeof name === "string");
 }
 
 /** PopSG licensor/property name vectors (scripts/popsg-name-vectors.mjs), cached hourly. */
@@ -85,12 +120,11 @@ const spellingLookup: SpellingLookup = {
     const words = (async () => {
       const vocabulary = new Map<string, number>();
       PRODUCT_WORDS.forEach((word) => vocabulary.set(word, 1_000_000));
-      const signal = AbortSignal.timeout(1500);
-      await Promise.all([
-        loadNames("licensor", vocabulary, signal),
-        loadNames("property", vocabulary, signal),
-        loadNames("character", vocabulary, signal),
-      ]);
+      for (const name of await spellingNames(AbortSignal.timeout(1500))) {
+        // Canonical names have equal authority; core.character has no usage_count.
+        addNameToVocabulary(vocabulary, name, 1_000_000);
+        knownFullNames.add(normalizeName(name));
+      }
       return vocabulary;
     })();
     words.catch(() => {
@@ -234,7 +268,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       return err("Search unavailable. Please try again.", 503);
     }
     // Optional help: a missing or stale name list only skips the expansion.
-    const expansion = nameExpansion(semantic.embedding, await popsgNameVectors());
+    // An exact known name ("captain america") already searches well; widening it to
+    // its property (Avengers) only floods the top. Only inexact words get the help.
+    await spellingLookup.vocabulary().catch(() => null);
+    const expansion = knownFullNames.has(normalizeName(query)) ? null : nameExpansion(semantic.embedding, await popsgNameVectors());
     return json({
       ok: true,
       mode,
