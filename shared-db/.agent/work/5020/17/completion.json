@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_issue": 5020,
+  "outcome": "ready-for-merge",
+  "pr": 5812,
+  "migration_versions": [
+    "20261106050346"
+  ],
+  "contract_ref": "refs/db-contracts/5020/17",
+  "contract_sha256": "02f68cf546d2755b4a0f10fe4b62af40b5dad60327ec5da1e2237d9bca4a1fd9",
+  "head_sha": "c657352a2cfdcd5b14073793229bdb9b3bc5e3a3",
+  "base_sha": "930a47f361fba7016ca510b3583ceb4458ab892a",
+  "files_changed": [
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "scripts/production-verification-sidecars/20261106050346.json"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static checks passed at implementation head c657352; version 20261106050346 still sorts after main's newest 20261106043600."
+    },
+    {
+      "command": "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+      "exit_code": 0,
+      "evidence": "Sidecar status OK (107 sidecars) at implementation head c657352; marker review covers line 135 exactly once; hash matches the split bytes."
+    },
+    {
+      "command": "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql",
+      "exit_code": 0,
+      "evidence": "Behavior contract green on bare throwaway PostgreSQL 18.6 at the split (EXITCODE=0, ROLLBACK)."
+    }
+  ],
+  "assumptions_resolved": [
+    "The DesignFlow sandbox preflight refused the mixed-schema self-check; splitting it into a pure dflow_prod guard and a live-schemas check is the sanctioned conditioning shape, with identical runtime behavior on every database.",
+    "The merged-but-unapplied status of version 20261106050346 (no ledger anywhere carries it) makes this statement-shape edit permissible; the sidecar hash pin is re-pointed in the same change."
+  ],
+  "stop_conditions_hit": []
+}

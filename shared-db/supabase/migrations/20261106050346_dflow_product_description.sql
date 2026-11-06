@@ -44,12 +44,16 @@ set statement_timeout = '2min';
 
 do $$
 begin
-  if to_regnamespace('dflow') is null then
-    raise exception '#5020/20261106050346 self-check: schema dflow is missing — wrong database for the sandbox half'
-      using errcode = 'feature_not_supported';
-  end if;
   if to_regnamespace('dflow_prod') is not null then
     raise exception '#5020/20261106050346 self-check: schema dflow_prod exists here — this is the production project; the paired dflow_prod version applies there, never this one'
+      using errcode = 'feature_not_supported';
+  end if;
+end $$;
+
+do $$
+begin
+  if to_regnamespace('dflow') is null then
+    raise exception '#5020/20261106050346 self-check: schema dflow is missing — wrong database for the sandbox half'
       using errcode = 'feature_not_supported';
   end if;
   if to_regclass('core."merchGroup"') is null then

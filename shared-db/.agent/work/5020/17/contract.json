@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "generation": 17,
+  "evidence_parent": {
+    "work_issue": 5020,
+    "generation": 16,
+    "contract_sha256": "cc3ecfe34120de0ac81866b7c8dea1d20cc630358d046b8aff83a0d3853c9306"
+  },
+  "work_issue": 5020,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Core Product Type SANDBOX HALF, self-check split (version 20261106050346, merged by PR #5812 but not yet applied anywhere): the DesignFlow sandbox preflight (absent-schema statement conditioning, issue #2986) refused the migration's single mixed-schema self-check do-block because it named the absent conditioned schema dflow_prod together with live schemas core/dflow. The block is split into a pure dflow_prod guard (the lane conditions it to run only where dflow_prod exists — exactly the raise-if-present semantics) and a live-schemas-only prerequisite check that runs raw. No object, privilege or behavior change; sidecar re-hashed (7492ed341217ea2597f556189a3da6fd250ac87293520e52d27441b15fbde17a) and its marker review re-anchored to line 135 (the audit-trigger EXECUTE marker shifts with the split; marker count unchanged at 1).",
+  "base_sha": "930a47f361fba7016ca510b3583ceb4458ab892a",
+  "dispatcher": "claim-first (claim #5836 lineage, owner MiMo chat unknown on EDGE-DEV)",
+  "worker": "MiMo chat unknown on EDGE-DEV",
+  "branch": "zcode/5020a-dflow-pd",
+  "worktree": "D:/repos/shared-db-worktrees/5020a",
+  "allowed_paths": [
+    ".agent/work/5020/17/completion.json",
+    ".agent/work/5020/17/contract.json",
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "scripts/production-verification-sidecars/20261106050346.json"
+  ],
+  "file_writes": [
+    ".agent/work/5020/17/completion.json",
+    ".agent/work/5020/17/contract.json",
+    "supabase/migrations/20261106050346_dflow_product_description.sql",
+    "scripts/production-verification-sidecars/20261106050346.json"
+  ],
+  "db_reads": [
+    "table core.\"merchGroup\"",
+    "table dflow.\"itemHeader\""
+  ],
+  "db_writes": [
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow.item_product_description",
+    "table dflow.item_product_description_history",
+    "function dflow.product_description_row_audit",
+    "function dflow.item_product_description_protect_human_override",
+    "index dflow.item_product_description_combination_idx",
+    "index dflow.item_product_description_review_idx",
+    "index dflow.item_product_description_run_idx",
+    "index dflow.mg_combination_description_run_idx",
+    "trigger product_description_audit on dflow.mg_combination_description",
+    "trigger product_description_audit on dflow.item_product_description",
+    "trigger item_product_description_write_guard on dflow.item_product_description"
+  ],
+  "prohibited_actions": [
+    "Do not change any object, privilege or behavior — statement shape only.",
+    "Do not apply this from anywhere but the DesignFlow Sandbox Migrations workflow.",
+    "Do not touch any dflow_prod object."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "node scripts/check-production-verification-sidecars.mjs --base origin/main",
+    "psql -h localhost -p 55432 -U postgres -d t_ct -v ON_ERROR_STOP=1 -f supabase/tests/dflow_product_description_contracts.sql"
+  ],
+  "assumptions": [
+    "Editing a merged migration is safe here because version 20261106050346 is present in NO ledger (shared preview/production never receive this foreign-target migration, and the DesignFlow sandbox apply has not run); check-applied-migration-edit guards ledger-present versions only. The sidecar hash pin is re-pointed in the same change so the bytes remain honest.",
+    "The sandbox preflight conditions statements in the bounded checkout only ('the repository file is immutable' refers to the conditioner, not to authoring); the split lets the pure dflow_prod guard be conditioned with correct polarity."
+  ],
+  "stop_conditions": [
+    "Stop if any gate refuses the split; never weaken the preflight."
+  ]
+}
