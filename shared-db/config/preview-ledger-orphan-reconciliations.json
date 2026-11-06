@@ -428,6 +428,58 @@
       "issue_state": "open",
       "claim_state": "closed",
       "note": "Never applied anywhere: its preview rehearsal failed on a wrong type name (the enum is app.source_confidence). The replacement adds the same body with the type corrected as a new file."
+    },
+    {
+      "issue": 5791,
+      "claim": 5815,
+      "source_pr": 5808,
+      "mode": "preview_null_statements_orphan",
+      "orphan_version": "20261105231500",
+      "project_ref": "mvpkijzfmfcxhnzqogzs",
+      "expected_name": "crm_basic_crud_rpcs.sql",
+      "tracking_issue": 5816,
+      "object_proofs": [
+        {
+          "kind": "column",
+          "object": "crm.contact_ext.archived_at"
+        },
+        {
+          "kind": "column",
+          "object": "crm.contact_ext.archived_by"
+        },
+        {
+          "kind": "column",
+          "object": "crm.customer_ext.archived_at"
+        },
+        {
+          "kind": "column",
+          "object": "crm.customer_ext.archived_by"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_create_contact"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_archive_contact"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_merge_contacts"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_create_opportunity"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_archive_opportunity"
+        },
+        {
+          "kind": "function",
+          "object": "api.crm_archive_customer"
+        }
+      ]
     }
   ]
 }

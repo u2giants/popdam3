@@ -19,6 +19,9 @@ class Refusal(RuntimeError):
     pass
 
 
+PREVIEW_NULL_STATEMENTS_ORPHAN = "preview_null_statements_orphan"
+
+
 def load_supported_cases() -> dict:
     manifest = Path(__file__).resolve().parents[1] / "config" / "preview-ledger-orphan-reconciliations.json"
     data = read_json(manifest)
@@ -52,6 +55,33 @@ def load_supported_cases() -> dict:
                 raise Refusal("sandbox reconciliation case must pin the expected remaining ledger versions")
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", case["expected_name"]):
                 raise Refusal("sandbox reconciliation case pins an expected_name outside the closed migration-name charset")
+            if key in result:
+                raise Refusal("preview ledger reconciliation manifest contains a duplicate identity")
+            result[key] = case
+            continue
+        if case.get("mode") == PREVIEW_NULL_STATEMENTS_ORPHAN:
+            # A preview row written OUTSIDE the governed apply (statements NULL) has
+            # no immutable preview-run artifact to bind. Its identity is the issue,
+            # claim, open source PR and exact version; the case pins the ledger
+            # row name and catalog proofs that the source PR's objects really exist.
+            try:
+                key = (issue, case["mode"], int(case["claim"]), int(case["source_pr"]), case["orphan_version"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise Refusal("null-statements reconciliation manifest has a malformed identity") from exc
+            for field in ("project_ref", "expected_name", "object_proofs"):
+                if field not in case:
+                    raise Refusal(f"null-statements reconciliation case does not carry the pinned field {field}")
+            if case["project_ref"] == "qsllyeztdwjgirsysgai" or not re.fullmatch(r"[a-z]{20}", case["project_ref"]):
+                raise Refusal("null-statements reconciliation case pins an invalid target ref")
+            if not re.fullmatch(r"\d{14}", str(case["orphan_version"])):
+                raise Refusal("null-statements reconciliation case pins an invalid version")
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", case["expected_name"]):
+                raise Refusal("null-statements reconciliation case pins an expected_name outside the closed migration-name charset")
+            proofs = case["object_proofs"]
+            if not isinstance(proofs, list) or not proofs or not all(
+                isinstance(x, dict) and x.get("kind") in {"column", "function"} and re.fullmatch(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)?", str(x.get("object", "")))
+                for x in proofs):
+                raise Refusal("null-statements reconciliation case must pin non-empty column/function object proofs")
             if key in result:
                 raise Refusal("preview ledger reconciliation manifest contains a duplicate identity")
             result[key] = case
@@ -416,10 +446,104 @@ commit;
     return before, after
 
 
+def null_statements_case(args) -> dict:
+    case = SUPPORTED_CASES.get((args.issue, PREVIEW_NULL_STATEMENTS_ORPHAN, args.claim, args.source_pr, args.orphan_version))
+    if not case:
+        raise Refusal("issue, claim, source PR and orphan version are not an explicitly supported null-statements case")
+    return case
+
+
+def validate_governance_null_statements(args, case: dict) -> dict:
+    """Prove a statements-NULL preview orphan belongs to one open, claimed source PR.
+
+    The row was written outside the governed apply, so there is no preview-run
+    artifact. Instead: exact current main with no file at the version, the open
+    unmerged source PR adds exactly that version, the claim and work issue are
+    open, and (in reconcile) the live row and pinned catalog objects match.
+    """
+    repo = args.repo.resolve()
+    if git(repo, "rev-parse", "HEAD") != args.main_sha or git(repo, "rev-parse", "origin/main") != args.main_sha:
+        raise Refusal("checkout is not exact current main")
+    if args.expected_project_ref != case["project_ref"]:
+        raise Refusal("target ref is not the pinned null-statements case ref")
+    if list((repo / "supabase/migrations").glob(f"{args.orphan_version}_*.sql")):
+        raise Refusal("null-statements reconciliation requires a version with no migration file on current main")
+    issue, claim, pr = read_json(args.issue_json), read_json(args.claim_json), read_json(args.pr_json)
+    if issue.get("number") != args.issue or issue.get("state") != "open":
+        raise Refusal("work issue is not the exact open supported-case issue")
+    if claim.get("number") != args.claim or claim.get("state") != "open":
+        raise Refusal("claim is not the exact open supported-case claim")
+    if pr.get("number") != args.source_pr or pr.get("state") != "open" or pr.get("merged_at"):
+        raise Refusal("source pull request is not the exact open, unmerged supported-case PR")
+    files = read_json(args.pr_files_json)
+    adds = [row for row in files if str(row.get("filename", "")).startswith(f"supabase/migrations/{args.orphan_version}_")]
+    if len(adds) != 1 or adds[0].get("status") != "added":
+        raise Refusal("source pull request does not add exactly one migration at the orphan version")
+    return {"case_mode": PREVIEW_NULL_STATEMENTS_ORPHAN, "source_pr_head": pr.get("head", {}).get("sha"), "source_file": adds[0]["filename"]}
+
+
+def object_proof_sql(proofs: list[dict]) -> str:
+    """One boolean per pinned object, built only from closed-charset identifiers."""
+    parts = []
+    for proof in proofs:
+        bits = proof["object"].split(".")
+        if proof["kind"] == "column":
+            if len(bits) != 3:
+                raise Refusal("column proof must be schema.table.column")
+            parts.append(f"exists(select 1 from information_schema.columns where table_schema='{bits[0]}' and table_name='{bits[1]}' and column_name='{bits[2]}')")
+        else:
+            if len(bits) != 2:
+                raise Refusal("function proof must be schema.function")
+            parts.append(f"exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='{bits[0]}' and p.proname='{bits[1]}')")
+    return " and ".join(parts)
+
+
+def reconcile_null_statements(url: str, env: dict[str, str], args, case: dict) -> tuple[list[dict], list[dict]]:
+    """Delete exactly one pinned statements-NULL preview row, refusing on any drift."""
+    before = ledger_rows(url, env, args.orphan_version, args.orphan_version)
+    if len(before) != 1 or str(before[0].get("version")) != args.orphan_version:
+        raise Refusal("preview ledger does not hold the orphan exactly once")
+    if before[0].get("name") != case["expected_name"] or before[0].get("statements") is not None:
+        raise Refusal("orphan ledger row is not the pinned name with NULL statements")
+    proofs = object_proof_sql(case["object_proofs"])
+    if psql(url, env, f"select ({proofs})::text;\n").strip() != "true":
+        raise Refusal("pinned source-PR objects are not all present on preview")
+    if args.mode == "check":
+        return before, before
+    name = case["expected_name"].replace("'", "''")
+    sql = rf"""\set ON_ERROR_STOP on
+begin;
+lock table supabase_migrations.schema_migrations in exclusive mode;
+do $reconcile$
+declare n integer; total integer;
+begin
+  select count(*) into total from supabase_migrations.schema_migrations;
+  if (select count(*) from supabase_migrations.schema_migrations where version='{args.orphan_version}' and name='{name}' and statements is null) <> 1 then
+    raise exception 'ledger row changed before reconciliation';
+  end if;
+  if not ({proofs}) then
+    raise exception 'pinned objects changed before reconciliation';
+  end if;
+  delete from supabase_migrations.schema_migrations where version='{args.orphan_version}' and statements is null;
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'reconciliation did not delete exactly one row'; end if;
+  if (select count(*) from supabase_migrations.schema_migrations) <> total - 1 then
+    raise exception 'ledger row count after delete is not exactly one less';
+  end if;
+end $reconcile$;
+commit;
+"""
+    psql(url, env, sql)
+    after = ledger_rows(url, env, args.orphan_version, args.orphan_version)
+    if after:
+        raise Refusal("post-reconciliation readback still shows the orphan row")
+    return before, after
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=("check", "apply"), required=True)
-    p.add_argument("--reconciliation", choices=("preview", "sandbox"), default="preview",
+    p.add_argument("--reconciliation", choices=("preview", "sandbox", "preview-null-statements"), default="preview",
                    help="preview: the shared preview branch, bound to a replacement migration; "
                         "sandbox: one pinned DesignFlow-sandbox orphan with no replacement file")
     p.add_argument("--repo", type=Path, required=True); p.add_argument("--linked-dir", type=Path, required=True)
@@ -433,7 +557,15 @@ def parse_args():
     p.add_argument("--remote-ledger", type=Path)
     p.add_argument("--evidence-out", type=Path, required=True)
     args = p.parse_args()
-    if args.reconciliation == "preview":
+    if args.reconciliation == "preview-null-statements":
+        for name in ("claim", "source_pr", "issue_json", "claim_json", "pr_json", "pr_files_json"):
+            if getattr(args, name) is None:
+                raise Refusal(f"null-statements reconciliation requires --{name.replace('_', '-')}")
+        for name in ("source_pr_dir", "orphan_source_dir", "replacement_version", "preview_run_id",
+                     "preview_artifact_id", "preview_artifact_digest", "run_json", "artifact_json", "preview_evidence_dir"):
+            if getattr(args, name) is not None:
+                raise Refusal(f"null-statements reconciliation refuses the replacement-only argument --{name.replace('_', '-')}")
+    elif args.reconciliation == "preview":
         for name in ("source_pr_dir", "orphan_source_dir", "replacement_version", "claim", "source_pr",
                      "preview_run_id", "preview_artifact_id", "preview_artifact_digest", "issue_json",
                      "claim_json", "pr_json", "pr_files_json", "run_json", "artifact_json", "preview_evidence_dir"):
@@ -473,6 +605,23 @@ def main() -> int:
                 "restore_sql": restore_sql,
             }, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
             print(f"SANDBOX LEDGER RECONCILIATION {args.mode.upper()} OK: removed={args.orphan_version if args.mode == 'apply' else 'none'}")
+            return 0
+        if args.reconciliation == "preview-null-statements":
+            if not re.fullmatch(r"[a-z]{20}", args.expected_project_ref) or args.expected_project_ref == "qsllyeztdwjgirsysgai":
+                raise Refusal("reconciliation requires a configured non-production Supabase project ref")
+            case = null_statements_case(args)
+            governance = validate_governance_null_statements(args, case)
+            url, env = linked_connection(args.linked_dir, args.expected_project_ref)
+            before, after = reconcile_null_statements(url, env, args, case)
+            args.evidence_out.write_text(json.dumps({
+                "schema": "shared-db-preview-ledger-orphan-reconciliation/v1",
+                "mode": args.mode, "project_ref": args.expected_project_ref, "main_sha": args.main_sha,
+                "issue": args.issue, "claim": args.claim, "source_pr": args.source_pr,
+                "orphan_version": args.orphan_version, "governance": governance,
+                "object_proofs": case["object_proofs"], "before": before, "after": after,
+                "restore_sql": f"insert into supabase_migrations.schema_migrations (version, name) values ('{args.orphan_version}', '{case['expected_name']}');",
+            }, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+            print(f"PREVIEW NULL-STATEMENTS RECONCILIATION {args.mode.upper()} OK: removed={args.orphan_version if args.mode == 'apply' else 'none'}")
             return 0
         case = SUPPORTED_CASES.get(
             (args.issue, args.claim, args.source_pr, args.orphan_version, args.replacement_version),

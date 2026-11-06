@@ -10,7 +10,7 @@ class Tests(unittest.TestCase):
         workflow=(P.parent.parent/'.github/workflows/preview-ledger-orphan-reconciliation.yml').read_text(encoding='utf-8')
         self.assertIn('config/preview-ledger-orphan-reconciliations.json',workflow)
         self.assertNotIn('case "$ISSUE:$CLAIM:$SOURCE_PR:$ORPHAN:$REPLACEMENT"',workflow)
-        self.assertEqual(len(M.SUPPORTED_CASES),30)
+        self.assertEqual(len(M.SUPPORTED_CASES),31)
 
     def test_stage_catalog_open_successor_governance_and_substitution_refusals(self):
         """Execute real governance, distinguishing producer from applied-source commits."""
@@ -657,3 +657,90 @@ class OrphanSourceCommitTests(unittest.TestCase):
         with self.assertRaisesRegex(M.Refusal,'full commit sha'): M.load_orphan_at_commit(P.parent.parent,'abc','20261030014205')
 
 if __name__=='__main__': unittest.main()
+
+
+class NullStatementsOrphanTests(unittest.TestCase):
+    """Issue #5816: one statements-NULL preview row written outside the governed apply."""
+
+    KEY = (5791, M.PREVIEW_NULL_STATEMENTS_ORPHAN, 5815, 5808, "20261105231500")
+
+    def case(self):
+        return M.SUPPORTED_CASES[self.KEY]
+
+    def args(self, tmp, **over):
+        from types import SimpleNamespace
+        d = pathlib.Path(tmp)
+        files = {
+            "issue_json": {"number": 5791, "state": "open"},
+            "claim_json": {"number": 5815, "state": "open"},
+            "pr_json": {"number": 5808, "state": "open", "merged_at": None, "head": {"sha": "b" * 40}},
+            "pr_files_json": [{"filename": "supabase/migrations/20261105231500_crm_basic_crud_rpcs.sql", "status": "added"}],
+        }
+        files.update(over.pop("files", {}))
+        paths = {}
+        for name, value in files.items():
+            path = d / f"{name}.json"; path.write_text(json.dumps(value)); paths[name] = path
+        base = dict(mode="check", repo=d, main_sha="a" * 40, expected_project_ref="mvpkijzfmfcxhnzqogzs",
+                    orphan_version="20261105231500", issue=5791, claim=5815, source_pr=5808, **paths)
+        base.update(over)
+        (d / "supabase/migrations").mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(**base)
+
+    def governance(self, args):
+        with patch.object(M, "git", return_value="a" * 40):
+            return M.validate_governance_null_statements(args, self.case())
+
+    def test_manifest_pins_the_case_and_its_object_proofs(self):
+        case = self.case()
+        self.assertEqual(case["expected_name"], "crm_basic_crud_rpcs.sql")
+        self.assertNotEqual(case["project_ref"], "qsllyeztdwjgirsysgai")
+        self.assertIn({"kind": "column", "object": "crm.customer_ext.archived_at"}, case["object_proofs"])
+
+    def test_open_claimed_source_pr_is_admitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.governance(self.args(tmp))["case_mode"], M.PREVIEW_NULL_STATEMENTS_ORPHAN)
+
+    def test_refuses_merged_pr_closed_claim_wrong_ref_and_file_on_main(self):
+        cases = [
+            {"files": {"pr_json": {"number": 5808, "state": "closed", "merged_at": "2026-11-06T00:00:00Z"}}},
+            {"files": {"claim_json": {"number": 5815, "state": "closed"}}},
+            {"files": {"pr_files_json": [{"filename": "supabase/migrations/20261105231500_x.sql", "status": "modified"}]}},
+            {"expected_project_ref": "abcdefghijabcdefghij"},
+        ]
+        for over in cases:
+            with self.subTest(over=over), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(M.Refusal):
+                    self.governance(self.args(tmp, **over))
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self.args(tmp)
+            (pathlib.Path(tmp) / "supabase/migrations/20261105231500_crm_basic_crud_rpcs.sql").write_text("select 1;")
+            with self.assertRaises(M.Refusal):
+                self.governance(args)
+
+    def test_unlisted_identity_is_refused(self):
+        from types import SimpleNamespace
+        with self.assertRaises(M.Refusal):
+            M.null_statements_case(SimpleNamespace(issue=5791, claim=5815, source_pr=9999, orphan_version="20261105231500"))
+
+    def test_reconcile_refuses_non_null_statements_and_missing_objects(self):
+        from types import SimpleNamespace
+        args = SimpleNamespace(mode="check", orphan_version="20261105231500")
+        row = {"version": "20261105231500", "name": "crm_basic_crud_rpcs.sql", "statements": None}
+        with patch.object(M, "ledger_rows", return_value=[dict(row, statements=["select 1"])]), patch.object(M, "psql", return_value="true"):
+            with self.assertRaises(M.Refusal):
+                M.reconcile_null_statements("u", {}, args, self.case())
+        with patch.object(M, "ledger_rows", return_value=[row]), patch.object(M, "psql", return_value="false"):
+            with self.assertRaises(M.Refusal):
+                M.reconcile_null_statements("u", {}, args, self.case())
+        with patch.object(M, "ledger_rows", return_value=[row]), patch.object(M, "psql", return_value="true"):
+            self.assertEqual(M.reconcile_null_statements("u", {}, args, self.case()), ([row], [row]))
+
+    def test_apply_deletes_only_the_null_row_under_lock(self):
+        from types import SimpleNamespace
+        args = SimpleNamespace(mode="apply", orphan_version="20261105231500")
+        row = {"version": "20261105231500", "name": "crm_basic_crud_rpcs.sql", "statements": None}
+        sent = []
+        with patch.object(M, "ledger_rows", side_effect=[[row], []]), patch.object(M, "psql", side_effect=lambda u, e, sql: sent.append(sql) or "true"):
+            M.reconcile_null_statements("u", {}, args, self.case())
+        self.assertIn("lock table supabase_migrations.schema_migrations in exclusive mode", sent[-1])
+        self.assertIn("where version='20261105231500' and statements is null", sent[-1])
