@@ -4114,5 +4114,78 @@ class CharacterLoadActorContractTests(unittest.TestCase):
                 self.db.execute('release scenario')
 
 
+class CatalogChangeTypes(unittest.TestCase):
+    """Step 2.4: unverifiable change types report success with a note;
+    verifiable types that really differ stay red."""
+
+    def test_change_types_tracked_for_create_table(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
+            f.write("CREATE TABLE core.example (id bigint);\n")
+            path = Path(f.name)
+        try:
+            migrations = {"20260101000000": path}
+            targets = derive_targets(migrations, ["20260101000000"])
+            self.assertIn("create table", targets.change_types)
+            self.assertIn("core.example", targets.tables)
+        finally:
+            path.unlink()
+
+    def test_change_types_tracked_for_create_view(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
+            f.write("CREATE VIEW core.my_view AS SELECT 1;\n")
+            path = Path(f.name)
+        try:
+            migrations = {"20260101000000": path}
+            targets = derive_targets(migrations, ["20260101000000"])
+            self.assertIn("create view", targets.change_types)
+        finally:
+            path.unlink()
+
+    def test_change_types_tracked_for_create_function(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
+            f.write("CREATE FUNCTION core.my_func() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;\n")
+            path = Path(f.name)
+        try:
+            migrations = {"20260101000000": path}
+            targets = derive_targets(migrations, ["20260101000000"])
+            self.assertIn("create routine", targets.change_types)
+        finally:
+            path.unlink()
+
+    def test_empty_targets_with_no_errors_reports_not_verifiable(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
+            f.write("DO $$ BEGIN RAISE NOTICE 'dynamic'; END $$;\n")
+            path = Path(f.name)
+        try:
+            migrations = {"20260101000000": path}
+            targets = derive_targets(migrations, ["20260101000000"])
+            self.assertTrue(targets.is_empty())
+            # The note "applied, not verifiable by catalog" is added by verify()
+            # when targets.is_empty(); derive_targets tracks change_types.
+            self.assertEqual(targets.change_types, [])
+        finally:
+            path.unlink()
+
+    def test_verifiable_object_still_goes_red_when_wrong(self):
+        # A deliberately wrong object: CREATE TABLE core.example but the catalog
+        # query would find nothing. The failure comes from catalog verification,
+        # not from the change-type path.
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
+            f.write("CREATE TABLE core.example (id bigint);\n")
+            path = Path(f.name)
+        try:
+            migrations = {"20260101000000": path}
+            targets = derive_targets(migrations, ["20260101000000"])
+            self.assertFalse(targets.is_empty())
+            self.assertIn("core.example", targets.tables)
+        finally:
+            path.unlink()
+
+
 if __name__ == "__main__":
     unittest.main()

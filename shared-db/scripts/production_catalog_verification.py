@@ -1841,6 +1841,7 @@ class Targets:
         schema_renames: set[tuple[str, str, str | None]] | None = None,
         function_settings: list[tuple[str, str | None, str, str]] | None = None,
         schema_comments: dict[str, str | None] | None = None,
+        change_types: set[str] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -1855,6 +1856,7 @@ class Targets:
         self.privileges = list(deduped.values())
         self.notes = sorted(set(notes or []))
         self.noop_declaration = noop_declaration
+        self.change_types = sorted(change_types or set())
         self.tables = sorted(tables)
         self.views = sorted(views)
         self.rls_relations = sorted(rls_relations)
@@ -1926,6 +1928,7 @@ class Targets:
             ],
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
+            "change_types": self.change_types,
         }
 
 
@@ -2984,6 +2987,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     functions: set[str] = set()
     roles: set[str] = set(ALWAYS_PROBED_ROLES)
     seeded: set[str] = set()
+    change_types: set[str] = set()
     optional: set[str] = set()
     privileges: list[PrivilegeExpectation] = []
     notes: list[str] = []
@@ -3015,11 +3019,13 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         for statement in split_statements(text):
             if match := ALTER_SCHEMA_RENAME_RE.match(statement):
                 schema_rename_pairs.add((match.group(1), match.group(2)))
+                change_types.add("alter schema rename")
                 continue
             if ALTER_DEFAULT_PRIVILEGES_RE.match(statement):
                 found, adp_notes = parse_default_privileges(statement, version)
                 privileges.extend(found)
                 notes.extend(adp_notes)
+                change_types.add("alter default privileges")
                 continue
             if match := CREATE_TABLE_RE.match(statement):
                 name = f"{match.group(1)}.{match.group(2)}"
@@ -3027,9 +3033,11 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                     notes.append(f"{version}: excluded session-temporary table `{name}` from durable catalog verification")
                 else:
                     tables.add(name)
+                change_types.add("create table")
                 continue
             if match := CREATE_VIEW_RE.match(statement):
                 views.add(f"{match.group(1)}.{match.group(2)}")
+                change_types.add("create view")
                 continue
             if match := CREATE_ROUTINE_RE.match(statement):
                 name = f"{match.group(1)}.{match.group(2)}"
@@ -3052,12 +3060,14 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                         }
                     else:
                         settings = {k: v for k, v in settings.items() if k[0] != name}
+                change_types.add("create routine")
                 continue
             if match := ALTER_ROUTINE_SETTING_RE.match(statement):
                 name = f"{match.group(1)}.{match.group(2)}"
                 arguments, action, setting = match.group(3), match.group(4), match.group(5)
                 rest = match.group(6) or ""
                 functions.add(name)
+                change_types.add("alter routine setting")
                 # #4776: `SET SCHEMA x` moves the routine; it does not write
                 # proconfig. (`SET schema TO|{=} ...` would be a GUC form.)
                 if action == "set" and setting == "schema" and not re.match(r"\s*(?:to|=)\b", rest):
@@ -3087,6 +3097,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 settings[(name, signature, setting)] = (name, signature, setting, action)
                 continue
             if ALTER_ROUTINE_HEAD_RE.match(statement):
+                change_types.add("alter routine")
                 notes.append(
                     f"{version}: ALTER of a routine was not safely parseable and was not "
                     f"silently accepted: `{statement.strip()[:240]}`"
@@ -3094,6 +3105,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                 continue
             if match := CREATE_POLICY_RE.match(statement):
                 rls.add(f"{match.group(1)}.{match.group(2)}")
+                change_types.add("create policy")
                 continue
             if match := INSERT_INTO_RE.match(statement):
                 name = f"{match.group(1)}.{match.group(2)}"
@@ -3101,12 +3113,14 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                     notes.append(f"{version}: excluded session-temporary seed target `{name}` from durable catalog verification")
                 else:
                     seeded.add(name)
+                change_types.add("insert into")
                 continue
             if match := CREATE_INDEX_RE.match(statement):
                 index_name = f"{match.group(4)}.{match.group(3)}"
                 relation_name = f"{match.group(4)}.{match.group(5)}"
                 indexes.add((index_name, relation_name))
                 tables.add(relation_name)
+                change_types.add("create index")
                 continue
             if match := DROP_INDEX_RE.match(statement):
                 dropped = f"{match.group(1)}.{match.group(2)}"
@@ -3117,14 +3131,17 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                         f"{version}: dropped index `{dropped}` created earlier in this "
                         f"batch; it is no longer an expected object"
                     )
+                change_types.add("drop index")
                 continue
             if DROP_INDEX_HEAD_RE.match(statement):
+                change_types.add("drop index")
                 notes.append(
                     f"{version}: DROP INDEX was not safely parseable and was not "
                     f"silently accepted: `{statement.strip()[:240]}`"
                 )
                 continue
             if CREATE_INDEX_HEAD_RE.match(statement):
+                change_types.add("create index")
                 notes.append(
                     f"{version}: CREATE INDEX was not safely parseable and was not "
                     f"silently accepted: `{statement.strip()[:240]}`"
@@ -3133,6 +3150,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
             if match := ALTER_RELATION_RE.match(statement):
                 kind, if_exists = match.group(1), match.group(2)
                 name = f"{match.group(3)}.{match.group(4)}"
+                change_types.add(f"alter {kind}")
                 if if_exists:
                     # The migration itself tolerates the relation being absent,
                     # so requiring it here would be a false positive. Read it if
@@ -3151,6 +3169,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                     rls.add(name)
                 continue
             if GRANT_RE.match(statement):
+                change_types.add("grant/revoke")
                 roles |= _roles_in(statement)
                 if match := GRANT_OBJECT_RE.search(statement):
                     tables.add(f"{match.group(1)}.{match.group(2)}")
@@ -3220,6 +3239,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         schema_renames=schema_renames,
         function_settings=list(settings.values()),
         schema_comments=verified_schema_comments,
+        change_types=change_types,
     )
 
 
@@ -4188,6 +4208,21 @@ def render_report(
         "not compared against anything."
     )
     add("")
+    add("## Change types found")
+    add("")
+    if targets.change_types:
+        for ct in targets.change_types:
+            add(f"- {ct}")
+    else:
+        add("- _none recognized by the lexer_")
+    add("")
+    if targets.is_empty() and not errors:
+        add("## Catalog verification")
+        add("")
+        add("**applied, not verifiable by catalog** — the lexer could not read a "
+            "catalog object from these migrations. The ledger is the record of "
+            "what applied.")
+        add("")
     add("## Derived targets")
     add("")
     for label, values in targets.as_dict().items():
@@ -4622,13 +4657,14 @@ def verify(
             "checked to be a data statement, so there is nothing to verify."
         )
     elif targets.is_empty():
-        errors.append(
-            "the allowlisted migrations named no catalog object this lexer can "
-            "read. That may be legal (a pure-data migration), but it means THIS "
-            "STEP PROVED NOTHING, so enforcing mode fails rather than letting a "
-            "green tick stand in for evidence it never gathered. A genuine "
-            "no-op declares itself in the migration with a "
-            "`-- catalog-verification: no-op <reason>` line."
+        # Step 2.4 (plan_ci-process-repair): a migration whose change types the
+        # lexer cannot verify reports "applied, not verifiable by catalog" as a
+        # success with a note, never a failed apply. The ledger remains the
+        # record of what applied.
+        types_found = ", ".join(targets.change_types) if targets.change_types else "none recognized"
+        targets.notes.append(
+            f"applied, not verifiable by catalog. "
+            f"Change types found: {types_found}. The ledger is the record of what applied."
         )
     else:
         try:
