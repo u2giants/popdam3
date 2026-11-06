@@ -75,7 +75,9 @@ function GlassBadge({ children, className }: { children: React.ReactNode; classN
 
 function useNasConfig(): NasConfig | null {
   const { data } = useQuery({
-    queryKey: ["nas-config"],
+    // Cache key "strict": queryFn returns null when any key is missing.
+    // Do not share with the defaults-backfilled shape in the detail panels.
+    queryKey: ["nas-config", "strict"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_config")
