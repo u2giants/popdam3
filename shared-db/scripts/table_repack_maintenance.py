@@ -56,6 +56,8 @@ def validate_operation(entry,operation_id):
     if 'preview_only' in entry and entry['preview_only'] is not True:raise Refusal('repack preview_only flag refused')
     for field in ['source_pr','work_issue','claim_issue','wait_timeout_s','total_timeout_s']:
         if type(entry[field]) is not int or entry[field]<=0:raise Refusal('repack policy integer refused')
+    # Placeholder ownership numbers (an unbound proposer entry) can never run; refuse them offline.
+    if min(entry['source_pr'],entry['work_issue'],entry['claim_issue'])<100:raise Refusal('repack placeholder ownership number refused')
     if entry['table'] not in TABLES:raise Refusal('repack table is not allowlisted')
     if not isinstance(entry['client_sha256'],str) or not re.fullmatch('[a-f0-9]{64}',entry['client_sha256']):
         raise Refusal('repack client digest refused')

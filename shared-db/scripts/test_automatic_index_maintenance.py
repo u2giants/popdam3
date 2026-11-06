@@ -42,7 +42,7 @@ class SelectionTests(unittest.TestCase):
         policy={'schema_version':1,'operations':{op:value}}
         records={};read=lambda ref:records.get(ref)
         self.assertEqual(select(policy,read,[],lambda pr:False,'a'*40)['target'],'preview')
-        records[f'refs/db-index-maintenance/{op}/preview/complete']={'phase':'complete','operation_id':op,'target':'preview','source_pr':1,'policy_digest':maintenance.digest(value)}
+        records[f'refs/db-index-maintenance/{op}/preview/complete']={'phase':'complete','operation_id':op,'target':'preview','source_pr':5757,'policy_digest':maintenance.digest(value)}
         self.assertIsNone(select(policy,read,[],lambda pr:False,'a'*40))
     def test_malformed_completion_fails_loudly_instead_of_skipping_work(self):
         policy={'schema_version':1,'operations':{'test-operation':entry()}}

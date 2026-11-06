@@ -12,7 +12,7 @@ OP='repack-assets-804'
 
 
 def entry(**over):
-    value=dict(kind=repack.KIND,source_pr=1,work_issue=5745,claim_issue=5742,table='public.assets',
+    value=dict(kind=repack.KIND,source_pr=5757,work_issue=5745,claim_issue=5742,table='public.assets',
                client_sha256='a'*64,wait_timeout_s=30,total_timeout_s=3000)
     value.update(over);return value
 
@@ -47,7 +47,7 @@ class FakeDB:
 def identity(target='preview'):
     return dict(target=target,project_ref='abcdefghijklmnopqrst' if target=='preview' else maintenance.PROD,
                 preview_project_ref='abcdefghijklmnopqrst',source_sha='b'*40,execution_sha='c'*40,
-                executor_digest='d'*64,source_pr=1,work_issue=5745,run_id=5)
+                executor_digest='d'*64,source_pr=5757,work_issue=5745,run_id=5)
 
 
 def runner(db,receipts,target='preview',client=None,gate=lambda:None,value=None):
@@ -180,6 +180,9 @@ class AllowlistTests(unittest.TestCase):
         db=FakeDB();db.locked=True;job,calls=runner(db,MemoryReceipts())
         with self.assertRaises(maintenance.Refusal):job.apply()
         self.assertEqual(calls,[])
+    def test_placeholder_source_pr_refused(self):
+        with self.assertRaises(maintenance.Refusal):
+            maintenance.operation({'schema_version':1,'operations':{OP:entry(source_pr=1)}},OP)
     def test_preview_only_operation_never_runs_on_production(self):
         receipts=MemoryReceipts();value=entry(preview_only=True)
         runner(FakeDB(),receipts,value=value)[0].apply()

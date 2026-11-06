@@ -123,10 +123,12 @@ export function openRepackPr(repo, { table, work, previewOnly, day, reason, sign
   }
   // The entry must name its own PR; the PR number exists only after the PR does.
   put(buildEntry(policy, { table, pr: 1, claim, work, previewOnly }), `Propose online repack of ${table} (${id})`)
-  const prUrl = gh(['pr', 'create', '--repo', repo, '--base', 'main', '--head', branch, '--title', `Automatic online repack: ${table}${previewOnly ? ' (preview-only test)' : ''}`,
+  const prUrl = gh(['pr', 'create', '--draft', '--repo', repo, '--base', 'main', '--head', branch, '--title', `Automatic online repack: ${table}${previewOnly ? ' (preview-only test)' : ''}`,
     '--body', `Opened by the weekly database health check (popcre/shared-db#5758 Step 7, health issue #${work}).\n\n${reason}\n\nAdds operation \`${id}\` (\`table-repack/v1\`) for \`${table}\`; claim #${claim}. The existing maintenance route repacks preview first${previewOnly ? ' and stops there (preview_only test run)' : ', then production'}. No migration, no manual database command.\n\n${signature}`]).trim()
   const pr = Number(prUrl.split('/').pop())
   put(buildEntry(policy, { table, pr, claim, work, previewOnly }), `Bind ${id} to its source PR #${pr}`)
+  // Draft until bound: reviews and the queue only ever see the entry naming its own PR.
+  gh(['pr', 'ready', String(pr), '--repo', repo])
   gh(['pr', 'merge', String(pr), '--repo', repo, '--auto', '--merge'])
   return { id, pr, prUrl, claim }
 }
