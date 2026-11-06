@@ -136,6 +136,12 @@ export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promi
     if (!aiConfig.scaleDownApiKey) throw new Error("SCALEDOWN_API_KEY is not configured in Settings");
     return transcribeWithScaleDown(base64, aiConfig.scaleDownApiKey);
   }
+  // Checked before the OpenRouter path too: a direct Meta selection is
+  // lease-bound and Windows-only, so the bridge fails closed instead of
+  // posting a `meta-direct/` id to openrouter.ai (docs/MODEL_RULES.md).
+  if (selectedModel?.startsWith("meta-direct/")) {
+    throw new Error("Direct Meta PDF transcription runs on the Windows agent; select a regular model or scaledown/ for the bridge");
+  }
   if (aiConfig.openRouterApiKey) {
     const model = aiConfig.aiTaskModels?.pdf_extraction;
     if (!model) throw new Error("PDF AI configuration has an OpenRouter key but no pdf_extraction model");
