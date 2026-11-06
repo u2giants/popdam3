@@ -419,3 +419,32 @@ test('preview ordering uses the candidate migration paths and retains the latest
 // checks) and never a broad authority secret.
 
 // A full pre-acquisition wait must retain the original post-acquisition margin.
+// plan_go-live-lane-prevention.md §9 step 1.1 (#5782): the qualification job
+// acquires the promotion merge freeze BEFORE it draws the production-risk
+// assessment, so main cannot move between qualification and the production
+// apply (the 2026-11-05 seven-refusal starvation). The acquire must name the
+// same source PR the production job's always() release names, must fail
+// loudly (never continue-on-error), and must never invent a work issue: the
+// bound admitted issue resolved by the governed-review step is the only source.
+test('the qualification job acquires the promotion merge freeze before qualify-route', () => {
+  const text = readWorkflow('shared-supabase-migrations.yml')
+  const job = jobBlockByName(text, 'Automatic production qualification and dispatch')
+  assert.ok(job, 'the qualification job was not found in shared-supabase-migrations.yml')
+  const acquire = stepBlock(job, 'Acquire the promotion merge freeze for this source PR')
+  assert.ok(acquire, 'the acquire-freeze step was not found in the qualification job')
+  const qualify = job.indexOf('production_business_risk_gate.py qualify-route')
+  assert.ok(qualify > 0, 'the qualify-route call was not found in the qualification job')
+  assert.ok(job.indexOf(acquire) < qualify, 'the freeze must be acquired before qualify-route draws the risk assessment')
+  assert.ok(job.indexOf('work_issue=$WORK_ISSUE" >> "$GITHUB_OUTPUT"') < job.indexOf(acquire), 'the freeze may only run after the bound work issue is resolved')
+  assert.match(acquire, /GH_TOKEN: \$\{\{ github\.token \}\}/)
+  assert.match(acquire, /SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/)
+  assert.match(acquire, /WORK_ISSUE: \$\{\{ steps\.governed_review\.outputs\.work_issue \}\}/)
+  assert.match(acquire, /--acquire-promotion-freeze/)
+  assert.match(acquire, /--pr "\$SOURCE_PR" --issue "\$WORK_ISSUE"/)
+  assert.match(acquire, /--ttl-minutes 45\b/)
+  assert.ok(!/continue-on-error/.test(acquire), 'the acquire must fail loudly; qualification never continues without the freeze')
+  // The release stays the exact counterpart: same source PR, under always().
+  const release = text.indexOf('- name: Release the promotion merge freeze for this source PR')
+  assert.ok(release > 0)
+  assert.match(text.slice(release, text.indexOf('\n      - name:', release + 10)), /if: always\(\) && inputs\.source_pr != ''/)
+})

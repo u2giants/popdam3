@@ -139,7 +139,10 @@ test('every later step uses the guarded source PR, and recovery re-proves the li
   const job = jobSection()
   const afterGuard = job.split('      - name: Re-prove current main and the merged source PR', 2)[1]
   assert.doesNotMatch(afterGuard, /SOURCE_PR: \$\{\{ inputs\./, 'a step after the guard reads the raw input instead of the guarded output')
-  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 5)
+  // plan_go-live-lane-prevention.md §9 step 1.1 (#5782): the sixth guarded
+  // read is the promotion-freeze acquire, which must name the SAME guarded
+  // source PR the always() release releases for.
+  assert.equal((afterGuard.match(/SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/g) ?? []).length, 6)
   assert.match(afterGuard, /git merge-base --is-ancestor "\$RECOVERED_MERGE_SHA" "\$MAIN_SHA"/)
   assert.ok(!afterGuard.includes('--authorization-state'), 'promotion still reads the retired guarded-merge authorization')
   for (const gate of ['merge-base --is-ancestor "$SOURCE_MERGE_SHA" "$MAIN_SHA"', '--resolve-admitted-issue-for-pr']) assert.ok(afterGuard.includes(gate), `shared gate ${gate} is absent`)
