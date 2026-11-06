@@ -115,6 +115,49 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         for conclusion in ("cancelled", "timed_out", None):
             self.assertFalse(preview_run_has_immutable_apply({"status": "completed", "conclusion": conclusion}, jobs))
 
+    def test_index_maintenance_era_preview_with_queue_nudge_is_immutable(self):
+        # Native runs 42183400427 and 42184929162 (#4540 backlog drain,
+        # #2367 step 2.10): preview applied and saved the artifact; only
+        # downstream qualification failed on the promotion freeze. That era's
+        # default job set also carries "Exact concurrent index maintenance",
+        # skipped on a plain migration dispatch.
+        run = {"status": "completed", "conclusion": "failure"}
+        conclusions = {
+            "SQL migration guards": "success", "preview": "success",
+            "production-dry-run": "skipped",
+            "Exact concurrent index maintenance": "skipped",
+            "Production apply (automatic evidence gates)": "skipped",
+            "Production apply review (immutable evidence + hard guards)": "skipped",
+            "Automatic production qualification and dispatch": "failure",
+            "Nudge the production queue": "success",
+        }
+        jobs = {"total_count": 8, "jobs": [
+            {"name": name, "status": "completed", "conclusion": conclusion}
+            for name, conclusion in conclusions.items()
+        ]}
+        self.assertTrue(preview_run_has_immutable_apply(run, jobs))
+        mutations = [
+            lambda value: value.update(total_count=7),
+            lambda value: value["jobs"][7].update(name="unknown extra job"),
+            lambda value: value["jobs"][7].update(status="in_progress"),
+            lambda value: value["jobs"].append(dict(value["jobs"][7])),
+            lambda value: value["jobs"][1].update(conclusion="failure"),
+            lambda value: value["jobs"][0].update(conclusion="failure"),
+            lambda value: value["jobs"][3].update(name="unknown extra job"),
+            lambda value: value["jobs"][6].update(conclusion="cancelled"),
+        ]
+        for conclusion in ("failure", "cancelled", "skipped", None):
+            mutations.append(lambda value, c=conclusion: value["jobs"][7].update(conclusion=c))
+        for conclusion in ("success", "failure", "cancelled", None):
+            mutations.append(lambda value, c=conclusion: value["jobs"][3].update(conclusion=c))
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                candidate = json.loads(json.dumps(jobs))
+                mutate(candidate)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+        for conclusion in ("cancelled", "timed_out", None):
+            self.assertFalse(preview_run_has_immutable_apply({"status": "completed", "conclusion": conclusion}, jobs))
+
     def test_failed_workflow_is_preview_evidence_when_only_lane_release_failed(self):
         run = {"status": "completed", "conclusion": "failure"}
         conclusions = {

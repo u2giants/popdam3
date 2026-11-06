@@ -170,6 +170,18 @@ def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
             **PREVIEW_FAILURE_JOB_CONCLUSIONS,
             "Nudge the production queue": "success",
         })
+    # "Exact concurrent index maintenance" then joined the default job set
+    # beside the queue notification. On a plain migration dispatch that job is
+    # skipped, so a historical original apply run from that era (the #4540
+    # merged-but-unapplied backlog, drained under #2367 step 2.10) proves the
+    # same immutable preview apply: preview succeeded, only promotion failed.
+    # Accept exactly these two additions, never arbitrary extra jobs.
+    if len(rows) == 8:
+        return _exact_job_graph(rows, {
+            **PREVIEW_FAILURE_JOB_CONCLUSIONS,
+            "Exact concurrent index maintenance": "skipped",
+            "Nudge the production queue": "success",
+        })
     if len(rows) != 6:
         return False
     if _exact_job_graph(rows, PREVIEW_FAILURE_JOB_CONCLUSIONS):
