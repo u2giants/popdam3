@@ -1,4 +1,4 @@
--- #5758 Step 3a: the PopSG embedding writers perform ZERO no-op writes.
+-- #5758 Steps 3a and 4: the PopSG embedding writers perform ZERO no-op writes.
 -- A repeat result, a repeat error, or a repeat reset with every target value
 -- already in place must not rewrite the wide, 14-index style_guide_search_documents
 -- row (baseline: 197,739 updates, 0% HOT). Rewrite detection is content-based
@@ -48,12 +48,23 @@ begin
 
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-  -- Lease both documents the way the claimer does, so the token guard is live.
-  update public.style_guide_search_documents
-     set embedding_lease_token = v_token,
-         embedding_lease_owner = 'zz5758-worker',
-         embedding_lease_expires_at = now() + interval '5 minutes',
-         embedding_attempts = embedding_attempts + 1
+  -- Step 4: a real claim leases both documents through the narrow job table
+  -- and leaves the wide document rows byte-identical.
+  select jsonb_agg(to_jsonb(d) order by d.style_guide_file_id) into v_row
+    from public.style_guide_search_documents d where style_guide_file_id in (v_file1, v_file2);
+  select count(*) into v_count
+    from public.claim_sg_search_embedding_documents(p_limit => 1000, p_worker_id => 'zz5758-worker') c
+   where c.style_guide_file_id in (v_file1, v_file2);
+  if v_count is distinct from 2 then
+    raise exception 'contract 0: claim leased % of the two fixture documents', v_count;
+  end if;
+  if (select jsonb_agg(to_jsonb(d) order by d.style_guide_file_id)
+        from public.style_guide_search_documents d where style_guide_file_id in (v_file1, v_file2)) is distinct from v_row then
+    raise exception 'contract 0: the lease claim rewrote style_guide_search_documents';
+  end if;
+  -- Pin a known token so the rest of the contract can use it.
+  update public.style_guide_search_embedding_jobs
+     set lease_token = v_token
    where style_guide_file_id in (v_file1, v_file2);
 
   -- 1) A first result writes; a byte-identical repeat under the same lease
@@ -85,9 +96,17 @@ begin
 
   -- 3) mark_error under the live lease writes; the SAME error under a dead
   --    lease writes nothing.
+  select to_jsonb(d) into v_row from public.style_guide_search_documents d where style_guide_file_id = v_file2;
   select public.mark_sg_search_embedding_error(v_file2, v_sha2, v_token, 'zz5758 boom') into v_ret;
   if v_ret is distinct from true then
     raise exception 'contract 3: first mark_error did not report writing';
+  end if;
+  if (select to_jsonb(d) from public.style_guide_search_documents d where style_guide_file_id = v_file2) is distinct from v_row then
+    raise exception 'contract 3: mark_error rewrote the wide document row (state belongs in the job table)';
+  end if;
+  if not exists (select 1 from public.style_guide_search_embedding_jobs
+                  where style_guide_file_id = v_file2 and error = 'zz5758 boom' and lease_token is null) then
+    raise exception 'contract 3: mark_error did not record the error on the job row';
   end if;
   select to_jsonb(d) into v_row from public.style_guide_search_documents d where style_guide_file_id = v_file2;
   select public.mark_sg_search_embedding_error(v_file2, v_sha2, v_dead, 'zz5758 boom') into v_ret;
@@ -115,11 +134,9 @@ begin
 
   -- 5) A DIFFERENT vector under a fresh live lease is a real change and still
   --    writes (the guards suppress only equal values, never real results).
-  update public.style_guide_search_documents
-     set embedding_lease_token = v_token,
-         embedding_lease_expires_at = now() + interval '5 minutes',
-         embedding_attempts = embedding_attempts + 1
-   where style_guide_file_id = v_file1;
+  insert into public.style_guide_search_embedding_jobs
+    (style_guide_file_id, content_sha256, lease_token, claimed_by, lease_expires_at, attempt_count)
+  values (v_file1, v_sha1, v_token, 'zz5758-worker', now() + interval '5 minutes', 1);
   select public.upsert_sg_search_embedding(v_file1, v_sha1, v_token, v_vec2) into v_ret;
   if v_ret is distinct from true then
     raise exception 'contract 5: a changed embedding value did not report writing';

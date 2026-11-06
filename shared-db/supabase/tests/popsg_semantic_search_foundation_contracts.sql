@@ -44,13 +44,13 @@ select f.id, f.root_label, 'TestLicensor', f.property_folder, f.style_guide_fold
        to_tsvector('simple', f.filename)
   from public.style_guide_files f where f.root_label = 'ZZ4437';
 
--- B starts exhausted: embedding null, attempts spent, transient error recorded.
-update public.style_guide_search_documents
-   set embedding_attempts = embedding_max_attempts,
-       embedding_error = 'zz4437 boom',
-       embedding_error_category = 'transient',
-       embedding_next_retry_at = now() + interval '1 hour'
- where style_guide_file_id = '44370000-0000-4000-8000-000000000002';
+-- B starts exhausted: embedding null, attempts spent, transient error recorded
+-- (queue state lives in style_guide_search_embedding_jobs since #5758 Step 4).
+insert into public.style_guide_search_embedding_jobs
+  (style_guide_file_id, content_sha256, attempt_count, max_attempts, error, error_category, next_retry_at)
+select d.style_guide_file_id, d.content_sha256, 5, 5, 'zz4437 boom', 'transient', now() + interval '1 hour'
+  from public.style_guide_search_documents d
+ where d.style_guide_file_id = '44370000-0000-4000-8000-000000000002';
 
 -- D starts embedded; E starts embedded with unchanged content ahead.
 update public.style_guide_search_documents d
@@ -169,18 +169,18 @@ begin
                   where style_guide_file_id = '44370000-0000-4000-8000-000000000001'
                     and embedding is not null
                     and embedding_model = 'google/siglip2-base-patch16-naflex'
-                    and embedding_updated_at is not null
-                    and embedding_lease_token is null
-                    and embedding_lease_owner is null
-                    and embedding_lease_expires_at is null) then
+                    and embedding_updated_at is not null)
+     or exists (select 1 from public.style_guide_search_embedding_jobs
+                 where style_guide_file_id = '44370000-0000-4000-8000-000000000001') then
     raise exception 'contract 6: successful upsert did not store vector and clear lease';
   end if;
 
   -- Contract 7: error marking uses the lease, backs off, and categorizes;
   -- the coverage meter reports the true states; reset re-opens exhausted rows.
   update public.style_guide_search_documents
-     set embedding = null, embedding_model = null, embedding_updated_at = null,
-         embedding_attempts = 0, embedding_lease_token = null, embedding_lease_expires_at = null
+     set embedding = null, embedding_model = null, embedding_updated_at = null
+   where style_guide_file_id = '44370000-0000-4000-8000-000000000001';
+  delete from public.style_guide_search_embedding_jobs
    where style_guide_file_id = '44370000-0000-4000-8000-000000000001';
   select lease_token into v_token
     from public.claim_sg_search_embedding_documents(p_limit => 1, p_worker_id => 'zz4437-worker')
@@ -197,13 +197,13 @@ begin
        p_category => 'transient') then
     raise exception 'contract 7: error marking refused a live lease';
   end if;
-  if not exists (select 1 from public.style_guide_search_documents
+  if not exists (select 1 from public.style_guide_search_embedding_jobs
                   where style_guide_file_id = '44370000-0000-4000-8000-000000000001'
-                    and embedding_error = 'zz4437 transient'
-                    and embedding_error_category = 'transient'
-                    and embedding_next_retry_at > now()
-                    and embedding_attempts >= 1
-                    and embedding_lease_token is null) then
+                    and error = 'zz4437 transient'
+                    and error_category = 'transient'
+                    and next_retry_at > now()
+                    and attempt_count >= 1
+                    and lease_token is null) then
     raise exception 'contract 7: transient error state was not recorded with backoff';
   end if;
 
@@ -213,8 +213,8 @@ begin
   declare
     v_retry timestamptz;
   begin
-    update public.style_guide_search_documents
-       set embedding_next_retry_at = null
+    update public.style_guide_search_embedding_jobs
+       set next_retry_at = null
      where style_guide_file_id = '44370000-0000-4000-8000-000000000001';
     select lease_token into v_token
       from public.claim_sg_search_embedding_documents(p_limit => 1, p_worker_id => 'zz4437-worker')
@@ -229,16 +229,16 @@ begin
       p_lease_token => v_token,
       p_error => 'zz4437 second',
       p_category => 'transient');
-    select embedding_next_retry_at into v_retry
-      from public.style_guide_search_documents
+    select next_retry_at into v_retry
+      from public.style_guide_search_embedding_jobs
      where style_guide_file_id = '44370000-0000-4000-8000-000000000001';
     if v_retry < now() + interval '55 seconds' or v_retry > now() + interval '65 seconds' then
       raise exception 'contract 7: backoff at attempts=2 is not the exponential 60 seconds (%)', v_retry;
     end if;
-    update public.style_guide_search_documents
-       set embedding_error = 'zz4437 transient',
-           embedding_error_category = 'transient',
-           embedding_next_retry_at = null
+    update public.style_guide_search_embedding_jobs
+       set error = 'zz4437 transient',
+           error_category = 'transient',
+           next_retry_at = null
      where style_guide_file_id = '44370000-0000-4000-8000-000000000001';
   end;
 
@@ -261,10 +261,8 @@ begin
   select public.reset_sg_search_embedding_errors(
            array['44370000-0000-4000-8000-000000000002']::uuid[]) into v_reset;
   if v_reset is distinct from 1 or exists (
-    select 1 from public.style_guide_search_documents
-     where style_guide_file_id = '44370000-0000-4000-8000-000000000002'
-       and (embedding_error is not null or embedding_attempts is distinct from 0
-            or embedding_next_retry_at is not null)) then
+    select 1 from public.style_guide_search_embedding_jobs
+     where style_guide_file_id = '44370000-0000-4000-8000-000000000002') then
     raise exception 'contract 7: reset did not re-open the exhausted document';
   end if;
 
@@ -593,7 +591,8 @@ begin
   if not exists (
     select 1 from pg_proc p
      where p.oid = to_regprocedure('public.get_sg_search_embedding_status()')
-       and md5(p.prosrc) = '0366a4d0bddee2c5a8b8f2d4ba73c69a'
+       -- #5758 Step 4 replaced the reviewed body: queue state is read from the jobs table.
+       and p.prosrc like '%style_guide_search_embedding_jobs%'
        and p.prosecdef and p.provolatile = 's'
        and (select coalesce(array_agg(s.setting order by s.setting), '{}'::text[])
               from unnest(coalesce(p.proconfig, '{}'::text[])) s(setting))
@@ -604,7 +603,9 @@ begin
   if not exists (
     select 1 from pg_proc p
      where p.oid = to_regprocedure('public.claim_sg_search_embedding_documents(integer,text,integer)')
-       and md5(p.prosrc) = '1c6af615af8ecc225cbc57638bd4fd9c'
+       -- #5758 Step 4: the claim leases through the jobs table, never the wide row.
+       and p.prosrc like '%insert into public.style_guide_search_embedding_jobs%'
+       and p.prosrc not like '%embedding_lease_token%'
   ) then
     raise exception 'contract 13: claim body changed; the incident fix must not alter claim semantics';
   end if;
