@@ -60,7 +60,7 @@ vi.mock("sharp", () => ({
 }));
 
 // Mock logger
-vi.mock("./logger", () => ({
+vi.mock("./common/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),

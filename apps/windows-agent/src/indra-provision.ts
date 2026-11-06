@@ -29,7 +29,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 const execFileAsync = promisify(execFile);
 

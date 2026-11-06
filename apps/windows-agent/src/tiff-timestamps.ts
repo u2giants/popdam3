@@ -14,7 +14,7 @@
 import { stat, utimes } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 const execFileAsync = promisify(execFile);
 

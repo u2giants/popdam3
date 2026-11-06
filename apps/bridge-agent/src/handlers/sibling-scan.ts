@@ -1,7 +1,7 @@
 /** Moved out of index.ts (#234) — pure move, no behavior change. */
 import { stat, readdir } from "node:fs/promises";
 import * as api from "../api-client.js";
-import { logger } from "../logger.js";
+import { logger } from "../common/logger.js";
 import { isPdfCandidate } from "../scanner.js";
 import { generateThumbnail } from "../thumbnailer.js";
 

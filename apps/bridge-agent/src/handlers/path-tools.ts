@@ -3,7 +3,7 @@ import { stat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import * as api from "../api-client.js";
 import { config } from "../config.js";
-import { logger } from "../logger.js";
+import { logger } from "../common/logger.js";
 
 // ── Path Test Handler ────────────────────────────────────────────
 

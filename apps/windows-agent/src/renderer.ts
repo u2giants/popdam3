@@ -36,7 +36,7 @@ import { mkdtemp, rm, readdir, open, copyFile } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import { readFileWithinLimit } from "./common/bounded-read.js";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 import { compositePsdWithPsdTools, isPsdDecodeFailure, psdToolsPython } from "./psd-tools-fallback";

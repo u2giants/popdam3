@@ -1,6 +1,6 @@
 /** Moved out of index.ts (#234) — pure move, no behavior change. */
 import * as api from "../api-client.js";
-import { logger } from "../logger.js";
+import { logger } from "../common/logger.js";
 import { createCompatAuditWorker, isCompatAlertThumbnail } from "../thumbnailer.js";
 
 // ── Compat audit ────────────────────────────────────────────────────────────

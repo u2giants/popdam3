@@ -16,7 +16,7 @@ import { stat, readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 const execFileAsync = promisify(execFile);
 

@@ -14,7 +14,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { resolveUnderRoot } from "./common/path-containment.js";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { uploadPdfPage, uploadThumbnail } from "./uploader";
 import { type AiConfig, callAiVision } from "./pdf-text-sampler";

@@ -5,7 +5,7 @@ import type { CommandDeferral } from "./maintenance-lease";
  */
 
 import { config } from "./config";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import type { IndraStatus } from "./indra-provision";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────

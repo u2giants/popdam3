@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { open, stat } from "node:fs/promises";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 
 const CHUNK_SIZE = 65536; // 64KB
 const HASH_VERSION = 1;

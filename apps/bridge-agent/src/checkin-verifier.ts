@@ -22,7 +22,7 @@ import { resolveUnderRoot } from "./common/path-containment.js";
 import { stat } from "node:fs/promises";
 import * as api from "./api-client.js";
 import { computeQuickHash } from "./hasher.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 
 let running = false;
 

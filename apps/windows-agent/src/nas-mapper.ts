@@ -13,7 +13,7 @@ import { promisify } from "node:util";
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 const execFileAsync = promisify(execFile);
 

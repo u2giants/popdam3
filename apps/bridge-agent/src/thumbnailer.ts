@@ -20,7 +20,7 @@ import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createWorker } from "tesseract.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import { isAiSentinel } from "./ai-sentinel-detect.js";
 
 const execFileAsync = promisify(execFile);

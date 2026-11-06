@@ -12,7 +12,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { resolveUnderRoot } from "./common/path-containment.js";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
 import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";

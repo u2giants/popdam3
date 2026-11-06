@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { processOne } from "./pdf-backfill";
 import type { AiConfig } from "./pdf-text-sampler";

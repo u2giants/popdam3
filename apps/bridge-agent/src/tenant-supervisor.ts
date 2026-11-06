@@ -29,7 +29,7 @@
  */
 
 import { spawn, ChildProcess } from "node:child_process";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 
 interface TenantSpaces {
   key?: string;
