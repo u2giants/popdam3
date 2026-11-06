@@ -1,97 +1,35 @@
 /**
  * Cloud API client — all outbound HTTPS calls to agent-api edge function.
  * No inbound networking required per PROJECT_BIBLE §2.
+ *
+ * Transport (fetch + auth-failure backoff + retry policy) lives in
+ * packages/agent-common/src/agent-api-transport.ts. The bridge policy is
+ * 5 attempts with exponential backoff on 5xx/network errors and a hard 30s
+ * default timeout; the Windows agent uses the same engine single-shot (#708).
+ * The endpoint functions below are bridge-specific.
  */
 
 import { config } from "./config.js";
 import { logger } from "./common/logger.js";
+import { createAgentApiTransport } from "./common/agent-api-transport.js";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────
 // A stale/revoked agent key is permanent until re-paired. Hammering every 30s
 // only creates a steady 401 stream in production. Track auth failures and slow
 // the heartbeat instead.
-let consecutiveAuthFailures = 0;
+const transport = createAgentApiTransport({
+  getUrl: () => config.agentApiUrl,
+  getKey: () => config.agentKey,
+  maxAttempts: 5,
+  defaultTimeoutMs: 30_000,
+});
 
 export function suggestedHeartbeatDelayMs(): number {
-  if (consecutiveAuthFailures === 0) return 30_000;
-  if (consecutiveAuthFailures < 3) return 30_000;
-  if (consecutiveAuthFailures < 10) return 120_000;
-  return 300_000;
-}
-
-function noteAuthFailure(action: string, status: number, text: string): never {
-  consecutiveAuthFailures++;
-  const delayMs = suggestedHeartbeatDelayMs();
-  logger.error(`agent-api ${action} auth failure (${status}) — check agent key / re-pair`, {
-    consecutiveAuthFailures,
-    nextHeartbeatDelayMs: delayMs,
-    // Response body is the public error message (never the key).
-    error: text.slice(0, 200),
-  });
-  throw new Error(`agent-api ${action} returned ${status}: ${text}`);
-}
-
-function noteAuthSuccess(): void {
-  consecutiveAuthFailures = 0;
+  return transport.suggestedHeartbeatDelayMs();
 }
 
 async function callApi(action: string, payload: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<Record<string, unknown>> {
-  const body = JSON.stringify({ action, ...payload });
-  const maxAttempts = 5;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await fetch(config.agentApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-agent-key": config.agentKey,
-        },
-        body,
-        signal: AbortSignal.timeout(timeoutMs), // hard timeout per request — prevents hung connections stalling the scan
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        // Don't retry client errors (4xx) — they are permanent
-        if (res.status === 401) {
-          noteAuthFailure(action, res.status, text);
-        }
-        if (res.status >= 400 && res.status < 500) {
-          throw new Error(`agent-api ${action} returned ${res.status}: ${text}`);
-        }
-        // Retry server errors (5xx)
-        lastError = new Error(`agent-api ${action} returned ${res.status}: ${text}`);
-        if (attempt < maxAttempts) {
-          const delay = Math.min(5000, 1000 * Math.pow(2, attempt - 1));
-          logger.warn(`agent-api ${action} returned ${res.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
-          await new Promise( r => setTimeout(r, delay));
-          continue;
-        }
-        throw lastError;
-      }
-
-      const data = await res.json();
-      if (data && !data.ok) {
-        throw new Error(`agent-api ${action} error: ${data.error || "unknown"}`);
-      }
-      noteAuthSuccess();
-      return data;
-
-    } catch (e) {
-      // Re-throw already-formatted errors (4xx or data.ok === false)
-      if (e instanceof Error && e.message.startsWith("agent-api")) throw e;
-      // Network error — retry
-      lastError = e as Error;
-      if (attempt < maxAttempts) {
-        const delay = Math.min(5000, 1000 * Math.pow(2, attempt - 1));
-        logger.warn(`agent-api ${action} network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`, { error: (e as Error).message });
-        await new Promise( r => setTimeout(r, delay));
-      }
-    }
-  }
-  throw lastError ?? new Error(`agent-api ${action} failed after ${maxAttempts} attempts`);
+  return transport.callApi(action, payload, timeoutMs);
 }
 
 // ── Public API ──────────────────────────────────────────────────

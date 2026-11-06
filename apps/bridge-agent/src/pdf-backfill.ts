@@ -1,6 +1,13 @@
 /**
  * PDF Backfill Worker
  *
+ * SEPARATE-BY-DESIGN from apps/windows-agent/src/pdf-backfill.ts (#708): not a
+ * drifted copy. The Windows file is the same queue work deliberately relocated
+ * to the on-LAN Windows VM; this one remains the Synology-side processor with
+ * eager native deps (mupdf/tesseract.js/@anthropic-ai/sdk ship in the Docker
+ * image), the .ai sentinel pass (isAiWithoutPdfCompat), and no rescan mode.
+ * Do not "fix" one to match the other — differences are the platform contract.
+ *
  * Processes every PDF asset in the library that hasn't been sampled yet.
  * Runs as a self-driven claim loop: claim 25 → process → commit → repeat.
  *

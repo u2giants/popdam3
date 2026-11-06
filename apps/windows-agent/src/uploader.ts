@@ -2,38 +2,30 @@
  * DigitalOcean Spaces thumbnail uploader for Windows Render Agent.
  * Same logic as bridge-agent uploader — uploads JPG thumbnails.
  * Supports hot-reloading credentials from heartbeat config sync.
+ *
+ * The S3 client/credentials/upload core lives in
+ * packages/agent-common/src/spaces-uploader.ts (#708). The Windows policy is
+ * "always-lazy": every config sync adopts the merged credentials and drops
+ * the client, which is rebuilt on the next upload (the bridge instead
+ * rebuilds only when something changed). Key prefixes below are
+ * Windows-specific (style-guide thumbnails use sg-thumbnails/, not the
+ * bridge's styleguides/).
  */
 
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "./config";
 import { logger } from "./common/logger.js";
+import { createSpacesUploader } from "./common/spaces-uploader.js";
 
-let s3Client: S3Client | null = null;
-
-// ── Mutable credentials state (updated from heartbeat) ──────────
-
-let currentCredentials = {
-  key: config.doSpacesKey,
-  secret: config.doSpacesSecret,
-  bucket: config.doSpacesBucket,
-  region: config.doSpacesRegion,
-  endpoint: config.doSpacesEndpoint,
-};
-
-function getClient(): S3Client {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: currentCredentials.region,
-      endpoint: currentCredentials.endpoint,
-      credentials: {
-        accessKeyId: currentCredentials.key,
-        secretAccessKey: currentCredentials.secret,
-      },
-      forcePathStyle: false,
-    });
-  }
-  return s3Client;
-}
+const uploader = createSpacesUploader({
+  defaults: () => ({
+    key: config.doSpacesKey,
+    secret: config.doSpacesSecret,
+    bucket: config.doSpacesBucket,
+    region: config.doSpacesRegion,
+    endpoint: config.doSpacesEndpoint,
+  }),
+  reinitPolicy: "always-lazy",
+});
 
 /**
  * Reinitialize the S3 client with new credentials from cloud config.
@@ -46,21 +38,7 @@ export function reinitializeS3Client(doSpaces: {
   region?: string;
   endpoint?: string;
 }): void {
-  const effectiveKey = doSpaces.key || currentCredentials.key;
-  const effectiveSecret = doSpaces.secret || currentCredentials.secret;
-  const effectiveBucket = doSpaces.bucket || currentCredentials.bucket;
-  const effectiveRegion = doSpaces.region || currentCredentials.region;
-  const effectiveEndpoint = doSpaces.endpoint || currentCredentials.endpoint;
-
-  currentCredentials = {
-    key: effectiveKey,
-    secret: effectiveSecret,
-    bucket: effectiveBucket,
-    region: effectiveRegion,
-    endpoint: effectiveEndpoint,
-  };
-
-  s3Client = null; // force reinit on next upload
+  uploader.reinitialize(doSpaces);
   logger.info("S3 client credentials updated from cloud config");
 }
 
@@ -73,44 +51,30 @@ export async function uploadThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `thumbnails/${assetId}.jpg`;
-  return uploadToSpaces(key, buffer);
+  return uploader.uploadToSpaces(key, buffer);
 }
 
 /**
- * Upload a PDF page image to Spaces (high-res for AI/OCR).
- * Stored under pdf-pages/ prefix.
+ * Upload a style-guide page thumbnail to Spaces.
+ * Stored under sg-thumbnails/ prefix.
  */
 export async function uploadSgThumbnail(
   fileId: string,
   buffer: Buffer,
 ): Promise<string> {
   const key = `sg-thumbnails/${fileId}.jpg`;
-  return uploadToSpaces(key, buffer);
+  return uploader.uploadToSpaces(key, buffer);
 }
 
+/**
+ * Upload a PDF page image to Spaces (high-res for AI/OCR).
+ * Stored under pdf-pages/ prefix.
+ */
 export async function uploadPdfPage(
   assetId: string,
   pageNum: number,
   buffer: Buffer,
 ): Promise<string> {
   const key = `pdf-pages/${assetId}_p${pageNum}.jpg`;
-  return uploadToSpaces(key, buffer);
-}
-
-async function uploadToSpaces(key: string, buffer: Buffer): Promise<string> {
-  const client = getClient();
-  await client.send(
-    new PutObjectCommand({
-      Bucket: currentCredentials.bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: "image/jpeg",
-      CacheControl: "public, max-age=31536000, immutable",
-      ACL: "public-read",
-    }),
-  );
-
-  const url = `https://${currentCredentials.bucket}.${currentCredentials.region}.digitaloceanspaces.com/${key}`;
-  logger.info("Thumbnail uploaded", { key, url });
-  return url;
+  return uploader.uploadToSpaces(key, buffer);
 }

@@ -2,71 +2,38 @@ import type { CommandDeferral } from "./maintenance-lease";
 /**
  * Cloud API client for Windows Render Agent.
  * Handles registration, heartbeat, claim-render, and complete-render.
+ *
+ * Transport (fetch + auth-failure backoff) lives in
+ * packages/agent-common/src/agent-api-transport.ts. The Windows policy is
+ * single-shot with an OPTIONAL timeout (no AbortSignal unless the call site
+ * passes one); the bridge agent uses the same engine with 5 retries and a 30s
+ * default timeout (#708). The endpoint functions below are Windows-specific.
  */
 
 import { config } from "./config";
 import { logger } from "./common/logger.js";
+import { createAgentApiTransport } from "./common/agent-api-transport.js";
 import type { IndraStatus } from "./indra-provision";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────
 // A stale/revoked agent key is permanent until re-paired. Restarting or
 // retrying every 30s only creates a steady 401 stream in production.
-let consecutiveAuthFailures = 0;
+const transport = createAgentApiTransport({
+  getUrl: () => config.agentApiUrl,
+  getKey: () => config.agentKey,
+  maxAttempts: 1,
+  defaultTimeoutMs: undefined,
+});
 
 export function suggestedHeartbeatDelayMs(): number {
-  if (consecutiveAuthFailures === 0) return 30_000;
-  if (consecutiveAuthFailures < 3) return 30_000;
-  if (consecutiveAuthFailures < 10) return 120_000;
-  return 300_000;
+  return transport.suggestedHeartbeatDelayMs();
 }
 
 export function isAuthFailure(): boolean {
-  return consecutiveAuthFailures > 0;
+  return transport.isAuthFailure();
 }
 
-function noteAuthFailure(action: string, status: number, text: string): never {
-  consecutiveAuthFailures++;
-  const delayMs = suggestedHeartbeatDelayMs();
-  logger.error(`agent-api ${action} auth failure (${status}) — check agent key / re-pair`, {
-    consecutiveAuthFailures,
-    nextHeartbeatDelayMs: delayMs,
-    error: text.slice(0, 200),
-  });
-  throw new Error(`agent-api ${action} returned ${status}: ${text}`);
-}
-
-function noteAuthSuccess(): void {
-  consecutiveAuthFailures = 0;
-}
-
-export async function callApi(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<Record<string, unknown>> {
-  const body = JSON.stringify({ action, ...payload });
-
-  const res = await fetch(config.agentApiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-agent-key": config.agentKey,
-    },
-    body,
-    signal: timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 401) {
-      noteAuthFailure(action, res.status, text);
-    }
-    throw new Error(`agent-api ${action} returned ${res.status}: ${text}`);
-  }
-
-  const data = await res.json();
-  if (data && !data.ok) {
-    throw new Error(`agent-api ${action} error: ${data.error || "unknown"}`);
-  }
-  noteAuthSuccess();
-  return data;
-}
+export const callApi = transport.callApi;
 
 // ── Public API ───────────────────────────────────────────────
 
