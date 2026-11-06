@@ -629,7 +629,7 @@ async function handleSetUserApps(body: Record<string, unknown>, _userId: string)
 
   const missing = apps.filter((app) => !held.has(app));
   if (missing.length > 0) {
-    const rows = missing.map((app) => ({ user_id: targetUserId, app, granted_by: _userId }));
+    const rows = missing.map((app) => ({ user_id: targetUserId, app, granted_by: _userId === "system" ? null : _userId }));
     const { error: insErr } = await db.from("app_access").insert(rows);
     if (insErr) return err(insErr.message, 500);
   }
