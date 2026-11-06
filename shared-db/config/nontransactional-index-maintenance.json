@@ -10,6 +10,16 @@
       "statement_timeout_ms": 900000,
       "swap_timeout_ms": 3000,
       "total_timeout_s": 3600
+    },
+    "repack-assets-804": {
+      "kind": "table-repack/v1",
+      "source_pr": 5757,
+      "work_issue": 5745,
+      "claim_issue": 5742,
+      "table": "public.assets",
+      "client_sha256": "e69ddbcff74e9400452ed06b26a452d80a771a46b46d1de59f7b1f9e105ea14d",
+      "wait_timeout_s": 30,
+      "total_timeout_s": 3300
     }
   }
 }
