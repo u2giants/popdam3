@@ -114,4 +114,85 @@ begin
   end if;
 end;
 $test$;
+
+-- #5747 truncation shortcut: when the unfiltered fast path is valid and the
+-- flag count already proves the visibility probe would truncate, the probe is
+-- skipped. Totals, the page, and has_more must equal the probe path exactly;
+-- facets keep the blank-when-truncated fallback (and stay filled below the
+-- cap). 1001 visible + 20 hidden documents matching one token, plus a small
+-- 3-document control token, cover both branches.
+do $test$
+declare
+  fast_total bigint; probe_total bigint;
+  fast_facets jsonb; probe_facets jsonb;
+  fast_page uuid[]; probe_page uuid[];
+  fast_more boolean; probe_more boolean;
+  small_total bigint; small_facets jsonb;
+begin
+  insert into public.assets (id, filename, relative_path, file_type, quick_hash, modified_at, file_created_at, thumbnail_url)
+  select md5('zq5747t-a' || i)::uuid, 'zq5747trunc' || i || '.pdf', 'zq5747/trunc/' || i || '.pdf', 'pdf',
+         'zq5747trunc' || i, now(), now(), 'https://example.invalid/t.png'
+  from generate_series(1, 1021) i;
+  -- 20 hidden extras: older than the active THUMBNAIL_MIN_DATE (the first test
+  -- block above sets it to 1999-01-01), no thumbnail -> flags false, candidates
+  -- but not visible
+  update public.assets set thumbnail_url = null, modified_at = '1990-01-01', file_created_at = '1990-01-01'
+  where id in (select md5('zq5747t-a' || i)::uuid from generate_series(1002, 1021) i);
+  insert into public.dam_search_documents (document_type, entity_id, asset_id, style_group_id, title, path)
+  select 'asset', md5('zq5747t-a' || i)::uuid, md5('zq5747t-a' || i)::uuid, null,
+         'zq5747trunc doc ' || i, 'zq5747/trunc/' || i || '.pdf'
+  from generate_series(1, 1021) i
+  on conflict (document_type, entity_id) do update
+    set asset_id = excluded.asset_id, style_group_id = excluded.style_group_id,
+        title = excluded.title, path = excluded.path;
+  insert into public.assets (id, filename, relative_path, file_type, quick_hash, modified_at, file_created_at, thumbnail_url)
+  select md5('zq5747s-a' || i)::uuid, 'zq5747small' || i || '.pdf', 'zq5747/small/' || i || '.pdf', 'pdf',
+         'zq5747small' || i, now(), now(), 'https://example.invalid/s.png'
+  from generate_series(1, 3) i;
+  insert into public.dam_search_documents (document_type, entity_id, asset_id, style_group_id, title, path)
+  select 'asset', md5('zq5747s-a' || i)::uuid, md5('zq5747s-a' || i)::uuid, null,
+         'zq5747small doc ' || i, 'zq5747/small/' || i || '.pdf'
+  from generate_series(1, 3) i
+  on conflict (document_type, entity_id) do update
+    set asset_id = excluded.asset_id, style_group_id = excluded.style_group_id,
+        title = excluded.title, path = excluded.path;
+
+  select min(total_count), min(facets::text)::jsonb, bool_and(has_more)
+    into fast_total, fast_facets, fast_more
+  from public.search_dam_documents('zq5747trunc', '{}'::jsonb, 5, 0, null, null, 0, null);
+  select min(total_count), min(facets::text)::jsonb, bool_and(has_more)
+    into probe_total, probe_facets, probe_more
+  from public.search_dam_documents('zq5747trunc', '{"customer":""}'::jsonb, 5, 0, null, null, 0, null);
+  if fast_total <> 1001 or probe_total <> 1001 then
+    raise exception '#5747 trunc totals fast=% probe=% (want 1001)', fast_total, probe_total;
+  end if;
+  if fast_more is not true or probe_more is not true then
+    raise exception '#5747 trunc has_more fast=% probe=% (want true)', fast_more, probe_more;
+  end if;
+  if fast_facets->'fileType' <> '{}'::jsonb or probe_facets->'fileType' <> '{}'::jsonb
+     or fast_facets->>'totalExact' is distinct from 'true' then
+    raise exception '#5747 truncated facets must be the blank fallback (fast=% probe=%)', fast_facets, probe_facets;
+  end if;
+
+  select array_agg(r.entity_id order by r.rank desc nulls last, r.document_type nulls last, r.entity_id nulls last)
+    into fast_page
+  from (select * from public.search_dam_documents('zq5747trunc', '{}'::jsonb, 5, 0, null, null, 0, null)) r;
+  select array_agg(r.entity_id order by r.rank desc nulls last, r.document_type nulls last, r.entity_id nulls last)
+    into probe_page
+  from (select * from public.search_dam_documents('zq5747trunc', '{"customer":""}'::jsonb, 5, 0, null, null, 0, null)) r;
+  if fast_page is distinct from probe_page then
+    raise exception '#5747 trunc page differs between shortcut and probe';
+  end if;
+
+  select min(total_count), min(facets::text)::jsonb into small_total, small_facets
+  from public.search_dam_documents('zq5747small', '{}'::jsonb, 5, 0, null, null, 0, null);
+  if small_total <> 3 then
+    raise exception '#5747 small total % (want 3)', small_total;
+  end if;
+  if small_facets->'fileType'->>'pdf' is distinct from '3'
+     or small_facets->>'totalExact' is distinct from 'true' then
+    raise exception '#5747 small facets must be filled below the cap (%)', small_facets;
+  end if;
+end;
+$test$;
 rollback;
