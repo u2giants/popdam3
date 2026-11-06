@@ -100,6 +100,13 @@ begin
   fast := pg_temp.t5747('{}'); probe := pg_temp.t5747('{"customer":""}');
   if fast <> probe then raise exception '#5747 null-flag fast=% probe=%', fast, probe; end if;
 
+  -- #5850: no shared-lock-table use; cron sweep commits per document
+  if exists (select 1 from pg_proc where proname in ('dam_refresh_default_visible_flag','dam_search_documents_set_default_visible','assets_refresh_default_visible_flags','dam_lock_default_visible_owner') and prosrc ilike '%advisory%')
+     or to_regprocedure('public.dam_sweep_default_visible_flags_batched(integer)') is null
+     or not exists (select 1 from pg_proc where oid=to_regprocedure('public.dam_sweep_default_visible_flags_batched(integer)') and prokind='p') then
+    raise exception '#5850 flag locking contract changed';
+  end if;
+
   -- Internal functions are not callable by API roles
   if has_function_privilege('authenticated','public.dam_sweep_default_visible_flags(integer)','EXECUTE')
      or has_function_privilege('anon','public.dam_refresh_default_visible_flag(text,uuid)','EXECUTE') then
