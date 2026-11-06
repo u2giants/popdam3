@@ -110,3 +110,22 @@ test("CLI persists a private failure receipt when the initial read throws before
   assert.equal(statSync(packet).mode & 0o777, 0o700); assert.equal(statSync(join(packet, "receipt.json")).mode & 0o777, 0o600);
   assert.ok(!stdout.includes("fixture-private-data")); assert.ok(!stdout.includes("fixture-only"));
 });
+test("read UUID scalar is raw eq value, never a quoted UUID cast", async () => {
+  const ref = "a".repeat(20), id = "11111111-2222-4333-8444-555555555555"; let seen;
+  const api = createApi({ url: `https://${ref}.supabase.co`, expectedRef: ref, key: "test", fetchImpl: async (url) => { seen = new URL(url).searchParams; return { ok: true, json: async () => [] }; } });
+  await api.read(id);
+  assert.equal(seen.get("id"), `eq.${id}`); assert.ok(!seen.get("id").includes('"'));
+});
+test("PATCH guards retain exact UUID/timestamp/text/null values with special URL punctuation", async () => {
+  const ref = "a".repeat(20); let seen, payload;
+  const api = createApi({ url: `https://${ref}.supabase.co`, expectedRef: ref, key: "test", fetchImpl: async (url, options) => { seen = new URL(url).searchParams; payload = JSON.parse(options.body); return { ok: true, json: async () => [{ id: "group" }] }; } });
+  const before = { ...row(), id: "11111111-2222-4333-8444-555555555555", primary_asset_id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", updated_at: "2026-11-06T09:01:02.123456-05:00", primary_thumbnail_url: 'https://example.invalid/a,b(c).jpg?x=a+b&token="quoted"#fragment', primary_thumbnail_error: null };
+  await api.patch(before, { primary_thumbnail_url: null, primary_thumbnail_error: 'new,error (with) "quotes"' });
+  for (const k of ["id", "primary_asset_id", "updated_at", "primary_thumbnail_url"]) assert.equal(seen.get(k), `eq.${before[k]}`);
+  assert.equal(seen.get("primary_thumbnail_error"), "is.null");
+  assert.equal([...seen.keys()].length, 6); assert.equal(seen.has("token"), false);
+  assert.deepEqual(payload, { primary_thumbnail_url: null, primary_thumbnail_error: 'new,error (with) "quotes"' });
+  before.primary_thumbnail_error = 'old,error "quoted"';
+  await api.patch(before, { primary_thumbnail_url: "next", primary_thumbnail_error: null });
+  assert.equal(seen.get("primary_thumbnail_error"), `eq.${before.primary_thumbnail_error}`);
+});
