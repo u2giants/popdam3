@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, readFileSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createApi, reconcile, MAX_CANDIDATES } from "./reconcile-primary-thumbnail-cache.mjs";
+import { createApi, reconcile, MAX_CANDIDATES, executeRepair, SafeRepairFailure } from "./reconcile-primary-thumbnail-cache.mjs";
 const clone = (x) => structuredClone(x);
 const row = () => ({ id: "group", primary_asset_id: "selected", primary_thumbnail_url: "old", primary_thumbnail_error: "old error", updated_at: "v1", title: "preserved", primary_asset: { id: "selected", style_group_id: "group", is_deleted: false, thumbnail_url: "new", thumbnail_error: null, updated_at: "a1" } });
 function fixture() {
@@ -45,7 +49,7 @@ test("null source URL and non-null error are preserved exactly", async () => {
 });
 test("candidate cap refuses before any writes", async () => {
   const f = fixture(); f.api.list = async () => Array.from({ length: MAX_CANDIDATES + 1 }, row);
-  await assert.rejects(reconcile(f.api, { apply: true }), /candidate cap/); assert.equal(f.writes, 0);
+  await assert.rejects(reconcile(f.api, { apply: true }), /CANDIDATE_CAP/); assert.equal(f.writes, 0);
 });
 test("unrelated fields changed by a concurrent writer fail preservation proof", async () => {
   const f = fixture(); const patch = f.api.patch; f.api.patch = async (...args) => { const result = await patch(...args); f.current.title = "different"; return result; };
@@ -53,7 +57,7 @@ test("unrelated fields changed by a concurrent writer fail preservation proof", 
 });
 test("REST patch contains only cache fields and exact optimistic guards; mismatched target refuses", async () => {
   let call; const ref = "a".repeat(20);
-  assert.throws(() => createApi({ url: "https://wrong.invalid", expectedRef: ref, key: "test" }), /target/);
+  assert.throws(() => createApi({ url: "https://wrong.invalid", expectedRef: ref, key: "test" }), /TARGET_OR_CREDENTIAL_CONFIGURATION/);
   const api = createApi({ url: `https://${ref}.supabase.co`, expectedRef: ref, key: "test", fetchImpl: async (url, options) => { call = { url, options }; return { ok: true, json: async () => [{ id: "group" }] }; } });
   await api.patch(row(), { primary_thumbnail_url: "new", primary_thumbnail_error: null });
   const p = new URL(call.url).searchParams;
@@ -62,9 +66,47 @@ test("REST patch contains only cache fields and exact optimistic guards; mismatc
 });
 test("outside-scope primary references refuse before writing", async () => {
   const f = fixture(); f.current.primary_asset.style_group_id = "another-group";
-  await assert.rejects(reconcile(f.api, { apply: true }), /outside approved/); assert.equal(f.writes, 0);
+  await assert.rejects(reconcile(f.api, { apply: true }), /OUTSIDE_SCOPE_PRIMARY/); assert.equal(f.writes, 0);
 });
 test("a newly drifted group in the final census refuses success", async () => {
   const f = fixture(); let lists = 0; f.api.list = async () => ++lists === 1 ? [clone(f.current)] : [clone(f.current), { ...row(), id: "new-group", primary_asset: { ...row().primary_asset, style_group_id: "new-group" } }];
   const result = await reconcile(f.api, { apply: true }); assert.equal(result.final_drift, 1); assert.equal(result.ok, false);
+});
+test("initial scan failure returns safe zero-write diagnostics without provider text", async () => {
+  const f = fixture(); f.api.list = async () => { throw new SafeRepairFailure("REST_HTTP_FAILURE", 500, "57014"); };
+  const receipt = await executeRepair(f.api, { apply: true });
+  assert.equal(receipt.ok, false); assert.equal(receipt.phase, "initial_scan"); assert.equal(receipt.attempted_patches, 0); assert.equal(receipt.confirmed_patches, 0);
+  assert.deepEqual(receipt.failure, { phase: "initial_scan", code: "REST_HTTP_FAILURE", http_status: 500, provider_code: "57014" });
+});
+test("failure after a confirmed repair retains partial counts and preimages, never claims rollback", async () => {
+  const f = fixture(); let lists = 0; f.api.list = async () => { if (++lists === 2) throw Error("private provider body and credential MUST NOT LEAK"); return [clone(f.current)]; };
+  const receipt = await executeRepair(f.api, { apply: true, backup: f.backup });
+  assert.equal(receipt.ok, false); assert.equal(receipt.phase, "final_scan"); assert.equal(receipt.repaired, 1); assert.equal(receipt.attempted_patches, 1); assert.equal(receipt.confirmed_patches, 1); assert.equal(receipt.mutation_outcome_complete, false);
+  assert.equal(f.backups[0].kind, "before_patch"); assert.ok(!JSON.stringify(receipt).includes("MUST NOT LEAK"));
+});
+test("unconfirmed PATCH transport failure is distinguished from confirmed writes", async () => {
+  const f = fixture(); f.api.patch = async () => { throw new TypeError("private network detail"); };
+  const receipt = await executeRepair(f.api, { apply: true });
+  assert.equal(receipt.attempted_patches, 1); assert.equal(receipt.confirmed_patches, 0); assert.equal(receipt.failure.code, "NETWORK_FAILURE"); assert.equal(receipt.phase, "conditional_patch");
+});
+test("HTTP diagnostics retain only a safe code and status, never message or details", async () => {
+  const ref = "a".repeat(20); const api = createApi({ url: `https://${ref}.supabase.co`, expectedRef: ref, key: "test", fetchImpl: async () => ({ ok: false, status: 400, json: async () => ({ code: "PGRST200", message: "licensed private provider data", details: "secret" }) }) });
+  const receipt = await executeRepair(api);
+  assert.equal(receipt.failure.provider_code, "PGRST200"); assert.equal(receipt.failure.http_status, 400); assert.ok(!JSON.stringify(receipt).includes("licensed")); assert.ok(!JSON.stringify(receipt).includes("secret"));
+});
+
+test("CLI persists a private failure receipt when the initial read throws before any mutation", () => {
+  const dir = mkdtempSync(join(tmpdir(), "5609-diagnostics-test-"));
+  const preload = join(dir, "mock-fetch.mjs");
+  writeFileSync(preload, 'globalThis.fetch = async () => ({ok:false,status:500,json:async()=>({code:"57014",message:"fixture-private-data"})});');
+  const packet = join(dir, "packet"); let stdout;
+  try {
+    execFileSync(process.execPath, ["--import", preload, "scripts/reconcile-primary-thumbnail-cache.mjs", "--apply"], { env: { ...process.env, SUPABASE_URL: `https://${"a".repeat(20)}.supabase.co`, SUPABASE_EXPECTED_PROJECT_REF: "a".repeat(20), SUPABASE_SERVICE_ROLE_KEY: "fixture-only", PRIMARY_CACHE_REPAIR_PACKET: packet }, encoding: "utf8" });
+    assert.fail("failed scan must exit nonzero");
+  } catch (error) { assert.equal(error.status, 1); stdout = error.stdout; }
+  const receipt = JSON.parse(readFileSync(join(packet, "receipt.json"), "utf8"));
+  assert.equal(receipt.phase, "initial_scan"); assert.equal(receipt.attempted_patches, 0); assert.equal(receipt.confirmed_patches, 0); assert.equal(receipt.failure.provider_code, "57014");
+  assert.equal(readFileSync(join(packet, "before-and-after.jsonl"), "utf8"), "");
+  assert.equal(statSync(packet).mode & 0o777, 0o700); assert.equal(statSync(join(packet, "receipt.json")).mode & 0o777, 0o600);
+  assert.ok(!stdout.includes("fixture-private-data")); assert.ok(!stdout.includes("fixture-only"));
 });
