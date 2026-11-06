@@ -47,15 +47,19 @@ const PRODUCT_WORDS = [
 let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
 
 async function loadNames(table: "licensor" | "property" | "character", vocabulary: Map<string, number>, signal: AbortSignal) {
+  // Pages load in parallel: ~15k characters paged one by one overran the spelling budget.
   const pageSize = 1000;
-  for (let from = 0;; from += pageSize) {
+  const { count, error: countError } = await serviceClient().schema("core").from(table).select("id", { count: "exact", head: true }).abortSignal(signal);
+  if (countError) throw new Error(countError.message);
+  const pages = await Promise.all(Array.from({ length: Math.ceil((count ?? 0) / pageSize) }, async (_, page) => {
+    const from = page * pageSize;
     const { data, error } = await serviceClient().schema("core").from(table).select("name").order("id").range(from, from + pageSize - 1).abortSignal(signal);
     if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as Record<string, unknown>[]) {
-      // Canonical names have equal authority; core.character has no usage_count.
-      if (typeof row.name === "string") addNameToVocabulary(vocabulary, row.name, 1_000_000);
-    }
-    if ((data?.length ?? 0) < pageSize) return;
+    return (data ?? []) as Record<string, unknown>[];
+  }));
+  for (const row of pages.flat()) {
+    // Canonical names have equal authority; core.character has no usage_count.
+    if (typeof row.name === "string") addNameToVocabulary(vocabulary, row.name, 1_000_000);
   }
 }
 
