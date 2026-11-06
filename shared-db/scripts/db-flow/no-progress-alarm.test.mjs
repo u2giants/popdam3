@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { FALLBACK_LABEL, FALLBACK_TITLE, LEGACY_FALLBACK_TITLE, alarmKey, findOrCreateFallback, latestSnapshotFromComments, main, postedKeys, runAlarm, runResume } from './no-progress-alarm.mjs'
+import { FALLBACK_LABEL, FALLBACK_TITLE, LEGACY_FALLBACK_TITLE, alarmKey, findOrCreateFallback, latestSnapshotFromComments, main, parsePromotionTrace, postedKeys, promotionStalls, runAlarm, runResume } from './no-progress-alarm.mjs'
 import { gatherLiveInput } from '../flow-snapshot.mjs'
 
 const T0 = '2026-09-16T08:00:00.000Z'
@@ -12,11 +12,17 @@ function input({ events = [{ event_id: 'e1', event_type: 'dispatched', work_issu
     outcome_events: events,
   }
 }
-function io(state = input()) {
+function io(state = input(), promotion = null) {
   const comments = new Map(), posts = []
   return {
     posts, comments,
     gatherLiveInput: () => ({ input: state, sessionStarted: null }),
+    // Quiet by default: no holds, no exhausted changes, an apply within the
+    // hour, a green hygiene report and no freeze. Canary tests override.
+    gatherPromotionInput: () => promotion ?? {
+      trace: { held: [], exhausted: [], action: 'idle' }, last_apply_success_at: '2026-09-16T11:59:00.000Z',
+      hygiene_run: { conclusion: 'success', url: 'u/hygiene' }, freeze: null, error: null,
+    },
     issueComments: (_repo, issue) => comments.get(issue) ?? [],
     postComment: (_repo, issue, body) => {
       posts.push({ issue, body })
@@ -160,4 +166,140 @@ test('resume names the missing claim-first session identity instead of a shape e
   runAlarm({ repo: 'r', now: '2026-09-16T10:30:00.000Z', postIssue: 5 }, fake)
   const gone = { ...fake, gatherLiveInput: () => ({ input: { ...input(), marker: null }, sessionStarted: null }) }
   assert.throws(() => runResume({ repo: 'r', issue: 5, now: '2026-09-16T10:31:00.000Z' }, gone), /no open routable claim-first session identity/)
+})
+
+// --- Promotion-lane stalls (plan_go-live-lane-prevention.md §9 3.2/3.3, #5782) ---
+// One staged canary per new class; each fires exactly once and the comment names
+// the class's own evidence. The claim-first input is empty of stalls throughout,
+// so every assertion below is about the promotion lane alone.
+
+const QUIET_APPLY = '2026-09-16T11:59:00.000Z'
+const promotionInput = (overrides = {}) => ({
+  trace: { held: [], exhausted: [], action: 'idle', ...(overrides.trace ?? {}) },
+  last_apply_success_at: QUIET_APPLY, hygiene_run: { conclusion: 'success', url: 'u/hygiene' },
+  freeze: null, error: null, ...overrides,
+})
+
+test('canary: a PR held by a review finding over 60 minutes alarms once and names the finding', () => {
+  const fake = io(input({ events: [] }), promotionInput({
+    trace: { held: [{ pr: 5630, minutes: 1036, findings: '#5631' }], exhausted: [], action: 'idle' },
+    last_apply_success_at: QUIET_APPLY,
+  }))
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['promotion_held:PR #5630'])
+  assert.match(fake.posts[0].body, /PR #5630 — `promotion_held` for 1036 minutes \(held 1036 min by #5631\)/)
+  assert.match(fake.posts[0].body, /resolve or dismiss the named review finding/)
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:31:00.000Z', postIssue: 3027 }, fake).status, 'already-posted')
+  assert.equal(fake.posts.length, 1)
+})
+
+test('canary: a change out of automatic attempts alarms once and surfaces the ENGINEER text', () => {
+  const fake = io(input({ events: [] }), promotionInput({
+    trace: { held: [], exhausted: [{ pr: 5686, note: 'ENGINEER ACTION REQUIRED: automatic attempts exhausted: PR #5686 (versions 20261105142616) failed 3 automatic attempts at this main commit; later PRs still promote' }], action: 'idle' },
+    last_apply_success_at: QUIET_APPLY,
+  }))
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['promotion_exhausted:PR #5686'])
+  assert.match(fake.posts[0].body, /PR #5686 — `promotion_exhausted` \(ENGINEER ACTION REQUIRED: automatic attempts exhausted: PR #5686/)
+  assert.match(fake.posts[0].body, /ENGINEER ACTION REQUIRED/)
+})
+
+test('canary: a starved lane (candidates exist, no successful apply in 60 minutes) alarms', () => {
+  const fake = io(input({ events: [] }), promotionInput({
+    trace: { held: [{ pr: 5619, minutes: 45, findings: '#5620' }], exhausted: [], action: 'idle' },
+    last_apply_success_at: '2026-09-16T10:50:00.000Z',
+  }))
+  const quiet = runAlarm({ repo: 'r', now: '2026-09-16T11:49:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(quiet.status, 'quiet')
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['promotion_starved:the promotion lane'])
+  assert.match(fake.posts[0].body, /no successful apply in 60 minutes/)
+})
+
+test('canary: a Queue Hygiene Report run that failed is named as the instrument going down', () => {
+  const fake = io(input({ events: [] }), promotionInput({
+    hygiene_run: { conclusion: 'failure', url: 'https://github.com/o/r/actions/runs/42027627758' },
+  }))
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['instrument_down:the Queue Hygiene Report'])
+  assert.match(fake.posts[0].body, /the instrument could not run: https:\/\/github\.com\/o\/r\/actions\/runs\/42027627758/)
+  assert.match(fake.posts[0].body, /silence is never a clean queue/)
+})
+
+test('canary: a promotion freeze live over 15 minutes surfaces the merges-are-paused complaint', () => {
+  const fake = io(input({ events: [] }), promotionInput({
+    freeze: {
+      pr: 5619, issue: 5608, owner: 'automatic-production-qualification',
+      acquired_at: '2026-09-16T11:40:00.000Z', expires_at: '2026-09-16T12:25:00.000Z',
+      complaint: 'merges are paused for a production run; promotion merge freeze held by "automatic-production-qualification" for PR #5619 (issue #5608) until 2026-09-16T12:25:00.000Z',
+    },
+    last_apply_success_at: '2026-09-16T11:30:00.000Z',
+  }))
+  const quiet = runAlarm({ repo: 'r', now: '2026-09-16T11:54:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(quiet.status, 'quiet')
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T11:56:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['freeze_wedged:the promotion merge freeze for PR #5619'])
+  assert.match(fake.posts[0].body, /merges are paused for a production run; promotion merge freeze held by "automatic-production-qualification" for PR #5619 \(issue #5608\) until /)
+})
+
+test('canary: a failing report and a staged freeze are named together in one comment', () => {
+  // The plan §9 3.3 verification gate: "the alarm comment names both".
+  const fake = io(input({ events: [] }), promotionInput({
+    hygiene_run: { conclusion: 'failure', url: 'https://github.com/o/r/actions/runs/42027627758' },
+    freeze: {
+      pr: 5619, issue: 5608, owner: 'automatic-production-qualification',
+      acquired_at: '2026-09-16T11:00:00.000Z', expires_at: '2026-09-16T11:45:00.000Z',
+      complaint: 'merges are paused for a production run; promotion merge freeze held by "automatic-production-qualification" for PR #5619 (issue #5608) until 2026-09-16T11:45:00.000Z',
+    },
+  }))
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T11:20:00.000Z', postIssue: 3027, stagedLabel: 'STAGED CANARY' }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.match(fake.posts[0].body, /^<!-- db-no-progress-alarm alarm_key=[0-9a-f]{64} .* staged=true -->\n## STAGED CANARY: No-progress alarm/)
+  assert.match(fake.posts[0].body, /the instrument could not run: https:\/\/github\.com\/o\/r\/actions\/runs\/42027627758/)
+  assert.match(fake.posts[0].body, /merges are paused for a production run/)
+})
+
+test('the promotion selector trace parser reads holds, exhaustion and the terminal action', () => {
+  const trace = parsePromotionTrace([
+    'held: PR #5630 by #5631; later PRs still promote',
+    '::error title=Production release held over 30 minutes::PR #5630 (versions 20261105042549) held 1036 min by #5631',
+    'exhausted: PR #5686 out of automatic attempts; later PRs still promote',
+    '::error title=ENGINEER ACTION REQUIRED: automatic attempts exhausted::PR #5686 (versions 20261105142616) failed 3 automatic attempts at this main commit; later PRs still promote',
+    'exhausted: PR #7 out of refunds (cap 3 per change); later PRs still promote',
+    'dispatch: PR #5619 versions 20261105044255 not yet in production',
+  ].join('\n'))
+  assert.deepEqual(trace.held, [{ pr: 5630, minutes: 1036, findings: '#5631' }])
+  assert.deepEqual(trace.exhausted, [
+    { pr: 5686, note: 'ENGINEER ACTION REQUIRED: automatic attempts exhausted: PR #5686 (versions 20261105142616) failed 3 automatic attempts at this main commit; later PRs still promote' },
+    { pr: 7, note: 'out of refunds (cap 3 per change)' },
+  ])
+  assert.equal(trace.action, 'dispatch')
+  assert.deepEqual(parsePromotionTrace('idle: every merged migration PR since activation is in production\n').held, [])
+})
+
+test('an unreadable promotion evaluator becomes a loud instrument row, never silence', () => {
+  const fake = io(input({ events: [] }), promotionInput({ error: 'the promotion selector --dry-run trace could not be read (gh api failed)' }))
+  const fired = runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake)
+  assert.equal(fired.status, 'posted')
+  assert.deepEqual(fired.promotion, ['instrument_down:the promotion lane evaluator'])
+  assert.match(fake.posts[0].body, /the promotion selector --dry-run trace could not be read/)
+})
+
+test('a quiet promotion lane changes nothing: no comment and legacy alarms keep their key', () => {
+  const legacy = { stalled_outcomes: [{ work_issue: 11, state: 'dispatched' }], zero_closures_4h: false }
+  const withPromotion = { stalled_outcomes: [...legacy.stalled_outcomes, { lane: 'promotion', state: 'promotion_held', work_issue: 5630 }], zero_closures_4h: false }
+  // Legacy-only sets key exactly as before the promotion classes existed: only
+  // the work-issue numbers and the zero-closure flag participate.
+  assert.equal(alarmKey(legacy), alarmKey({ stalled_outcomes: [{ work_issue: 11, state: 'yielded' }], zero_closures_4h: false }))
+  // A promotion row is its own key component: a new stall class fires again.
+  assert.notEqual(alarmKey(legacy), alarmKey(withPromotion))
+  const fake = io(input({ events: [] }))
+  assert.equal(runAlarm({ repo: 'r', now: '2026-09-16T12:00:00.000Z', postIssue: 3027 }, fake).status, 'quiet')
+  assert.equal(fake.posts.length, 0)
+  assert.deepEqual(promotionStalls(promotionInput(), '2026-09-16T12:00:00.000Z'), [])
 })

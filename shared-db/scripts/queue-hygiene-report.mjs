@@ -27,7 +27,12 @@
 //      could be produced. The interactive `--queue-audit` stays the loud
 //      refusal. A throw (unreadable GitHub state) falls through to exit 2:
 //      an instrument that could not read must never be mistaken for a clean
-//      queue. Exit-non-zero-on-dirty-queue is deliberately NOT implemented
+//      queue. READABLE-BUT-INVALID STATE IS NOT AN INSTRUMENT FAILURE: an
+//      issue whose `db-work-scope` block is not a valid admission scope is
+//      reported as a loud MALFORMED finding and the run stays exit 0 (plan
+//      §9 3.1 — classifying those as "could not read" is what silenced this
+//      report five days running). Exit-non-zero-on-dirty-queue is
+//      deliberately NOT implemented
 //      (plan §8 open question — decide after a week of daily runs).
 import { githubIo, buildDynamicQueues, parseAuthorLease, parseQueueScope, verifyCompletionAcceptance, WORK_LABEL, OUTSIDE_ORCHESTRATOR_EXITS, LaneError } from './manage-migration-coordination.mjs'
 import { classifyDependency, dependencyIssue, findDependencyCycles, findCompletionRecord } from './lib/work-dependencies.mjs'
@@ -128,11 +133,19 @@ export function dependencyHygiene(issues, io, repository) {
       status: terminal.status === 'unverifiable' ? 'unknown' : terminal.status,
       reason: `Current completion verification: ${terminal.status}`,
     } : stageAcceptance
+    // A scope this program COULD READ but that is not a valid admission scope
+    // (plan §9 3.1, issue #5782) is a FINDING about the issue's metadata, not
+    // an instrument failure: since 2026-11-01 two issues carried `db-work-scope`
+    // fences used as live-proof routing metadata (no ready/blocked/owner-decision
+    // status), and classifying them as "unverifiable" made the daily report exit
+    // 2 ("could not run") five days running — silence wearing an error's clothes.
+    // Only unreadable QUEUE state (below, `state.unreadable`) may exit 2.
     rows.push({ issue: number, work_type: scope?.workType ?? 'unclassified', route: scope?.route ?? null,
-      owner: state.owner, delivery: scopeError ? 'unverifiable' : acceptance.satisfied ? (state.open ? 'verified-awaiting-closure' : 'verified-closed') : acceptance.status === 'unknown' ? 'unverifiable' : 'not-verified',
+      owner: state.owner, delivery: scopeError ? 'scope-invalid' : acceptance.satisfied ? (state.open ? 'verified-awaiting-closure' : 'verified-closed') : acceptance.status === 'unknown' ? 'unverifiable' : 'not-verified',
       evidence_reason: scopeError ?? acceptance.reason, oldest_meaningful_event: null,
       current_failing_gate: scopeError ?? dependencies.find(x => !x.satisfied)?.reason ?? (acceptance.status === 'unknown' ? acceptance.reason : null),
-      dependencies, next_step: state.unreadable ? 'Restore readable ownership and completion evidence.' : !state.owner ? 'Assign an owner.' : acceptance.satisfied ? 'Owner must reconcile accepted completion and administrative closure.' :
+      dependencies, next_step: scopeError ? 'Repair the db-work-scope metadata on this issue; the queue itself was readable.' :
+        state.unreadable ? 'Restore readable ownership and completion evidence.' : !state.owner ? 'Assign an owner.' : acceptance.satisfied ? 'Owner must reconcile accepted completion and administrative closure.' :
         dependencies.some(x => !x.satisfied) ? 'Resolve the named prerequisite stage; closure alone is not proof.' : 'Owner must deliver and verify the declared outcome.' })
   }
   return { outcomes: rows, verified_but_open: rows.filter(x => x.delivery === 'verified-awaiting-closure').map(x => x.issue),
@@ -196,9 +209,15 @@ export function main(argv = [], now = new Date(), io = githubIo) {
       const unaddressed = result.notOrchestratorWork.filter((item)=>item.needsReturnAddress)
       if (unaddressed.length) console.error(`NO RETURN ADDRESS on ${unaddressed.map((item)=>`#${item.issue}`).join(', ')} — a reject with no forwarding address closes into silence.`)
     }
+    const malformed = report.dependency_hygiene.outcomes.filter((row) => row.delivery === 'scope-invalid')
+    if (malformed.length) {
+      // Readable queue, invalid metadata (plan §9 3.1): a FINDING, never exit 2.
+      console.error('MALFORMED db-work-scope (the queue was readable; this issue\'s scope metadata is not a valid admission scope):')
+      for (const row of malformed) console.error(`  #${row.issue} — ${row.evidence_reason}`)
+    }
     const unknown = report.dependency_hygiene.unverifiable.length || report.dependency_hygiene.outcomes.some(row => row.delivery === 'unverifiable' || row.dependencies.some(dependency => dependency.status === 'unknown'))
     if (unknown) console.error('INCOMPLETE: dependency or completion evidence is unverifiable; inspect dependency_hygiene findings.')
-    else if (!result.unlabelled.length && !result.expiredClaims.length) console.error('Queue hygiene clean: no unlabelled issues, no expired author leases. Dependency and ownership findings are listed separately.')
+    else if (!result.unlabelled.length && !result.expiredClaims.length && !malformed.length) console.error('Queue hygiene clean: no unlabelled issues, no expired author leases. Dependency and ownership findings are listed separately.')
     return unknown ? 2 : 0
   } catch (error) {
     console.error(`REFUSED: ${error.message}`)

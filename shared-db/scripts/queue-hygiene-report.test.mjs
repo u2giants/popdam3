@@ -280,12 +280,26 @@ test('owner omitted by queue projection is read from GitHub, unreadable owner is
   assert.equal(report.unverifiable.length, 1)
 })
 
-test('malformed scope remains a visible unknown alongside other outcomes', () => {
-  const issues = [work(1, '', { body: '```db-work-scope\nstatus: invented\n```' }), work(2)]
+test('malformed scope is a loud finding on a readable queue and the CLI still exits 0', () => {
+  // Plan §9 3.1 regression — the throw that silenced the daily report 2026-11-01
+  // through 2026-11-06: issues carried `db-work-scope` fences used as live-proof
+  // routing metadata (one with a status outside the admission enum, one with no
+  // status at all). Both are READABLE state and must surface as findings; only
+  // an unreadable queue may exit 2.
+  const invented = work(1, '', { body: '```db-work-scope\nstatus: invented\n```' })
+  const noStatus = work(2, '', { body: '```db-work-scope\nwork_type: structural\nlive_assertion: three nights\n```' })
+  const issues = [invented, noStatus, work(3)]
   const report = dependencyHygiene(issues, fixtureIo({ issues }).io, 'popcre/shared-db')
-  assert.equal(report.outcomes.length, 2)
-  assert.equal(report.outcomes[0].delivery, 'unverifiable')
+  assert.equal(report.outcomes.length, 3)
+  assert.equal(report.outcomes[0].delivery, 'scope-invalid')
   assert.match(report.outcomes[0].current_failing_gate, /status/)
+  assert.equal(report.outcomes[1].delivery, 'scope-invalid')
+  assert.deepEqual(report.unverifiable, [])
+  const result = runReport(fixtureIo({ issues }))
+  assert.equal(result.code, 0)
+  assert.match(result.err, /MALFORMED db-work-scope/)
+  assert.match(result.err, /#1/)
+  assert.match(result.err, /#2/)
 })
 
 test('CLI accepts a proven explicit stage while legacy dependencies still await closure', () => {
