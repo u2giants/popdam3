@@ -15,7 +15,7 @@ import { logger } from "./logger.js";
 import { tick } from "./operation-loop.js";
 import { maybeEmbedPendingSearchDocuments } from "./handlers/embed-search.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
-import { maybeWriteWorkerHeartbeat } from "./worker-heartbeat.js";
+import { maybeWriteWorkerHeartbeat, startHeartbeatTimer } from "./worker-heartbeat.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,6 +24,7 @@ let running = true;
 function shutdown(signal: string) {
   logger.info("worker: shutdown signal received", { signal });
   running = false;
+  heartbeatTimer.stop();
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
@@ -43,6 +44,11 @@ process.on("uncaughtException", (err) => {
     stack: err.stack,
   });
 });
+
+// A bulk operation runs inline inside tick(), so the loop-top heartbeat write
+// can stay unwritten for the whole operation and trip the 5-minute production
+// canary (#836). Keep the heartbeat fresh on an independent timer instead.
+const heartbeatTimer = startHeartbeatTimer();
 
 async function main() {
   logger.info("worker: starting", {
