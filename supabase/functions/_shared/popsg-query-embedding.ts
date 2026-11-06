@@ -3,8 +3,11 @@ import type { SpellingResult } from "./search-spelling.ts";
 
 /**
  * Decide intentional keyword-only queries separately from embedding failures.
- * Picture vectors cannot read typos, so the corrected words are embedded, and words
- * with no catalog meaning (gibberish) skip the picture leg, as DAM search does.
+ * Meaning-based PopSG search uses the query's text vector only to recognise the
+ * licensor or property it means (nameExpansion). Picture matches are not sent:
+ * they stop near 100 files and cost ~2 s, and lost to names-only on the judged
+ * set (2026-11-05, #706). Words with no catalog meaning (gibberish) get no help.
+ * Spelling and embedding run side by side so the help adds no serial wait.
  */
 export async function getPopSGQueryEmbedding(
   mode: "keyword" | "hybrid",
@@ -14,12 +17,11 @@ export async function getPopSGQueryEmbedding(
   spelling: (query: string) => Promise<SpellingResult> = async () => ({ corrected: null, meaningful: true }),
 ) {
   const productCode = mode === "hybrid" && !!query && await isProductCodeSearch(query, lookup);
-  const wanted = mode === "hybrid" && !!query && !productCode;
-  const checked = wanted ? await spelling(query) : null;
-  if (checked && !checked.meaningful) return { embedding: null, skipped: "not_meaningful" };
-  const embedding = wanted ? await embed(checked?.corrected ?? query) : null;
-  if (wanted && !embedding) throw new Error("Search unavailable. Please try again.");
-  return { embedding, skipped: productCode ? "product_code" : null };
+  if (mode !== "hybrid" || !query || productCode) return { embedding: null, skipped: productCode ? "product_code" : null };
+  const [checked, embedding] = await Promise.all([spelling(query), embed(query)]);
+  if (!checked.meaningful) return { embedding: null, skipped: "not_meaningful" };
+  if (!embedding) throw new Error("Search unavailable. Please try again.");
+  return { embedding, skipped: null };
 }
 
 /** Name vectors must beat this cosine and the runner-up by NAME_MARGIN (measured 2026-11-05, #706). */
@@ -42,9 +44,9 @@ const cosine = (a: number[], b: number[]) => {
 };
 
 /**
- * The licensor or property a query clearly means, from its text vector. Picture
- * matches cap near 100 files, so the name is added to the keyword words to reach
- * the whole property ("harry poter" -> Harry Potter). Null when no name stands out.
+ * The licensor or property a query clearly means, from its text vector, added to
+ * the keyword words to reach the whole property ("harry poter" -> Harry Potter).
+ * Null when no name stands out.
  */
 export function nameExpansion(embedding: number[] | null, names: NameVectors | null): string | null {
   if (!embedding || !names?.names.length) return null;

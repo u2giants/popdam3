@@ -238,7 +238,9 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     return json({
       ok: true,
       mode,
-      ...semantic,
+      // The vector stays here: PopSG searches by names only (see getPopSGQueryEmbedding).
+      embedding: null,
+      skipped: semantic.skipped ?? (mode === "hybrid" && semantic.embedding ? "names_only" : null),
       expansion,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
