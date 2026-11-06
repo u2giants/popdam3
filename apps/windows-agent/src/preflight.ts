@@ -5,7 +5,7 @@
  * the agent to claim render jobs.
  */
 
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import { ensureNasMapped } from "./nas-mapper";
 
 // ── Types ───────────────────────────────────────────────────────

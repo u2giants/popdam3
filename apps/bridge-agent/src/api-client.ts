@@ -4,7 +4,7 @@
  */
 
 import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 
 // ── Auth-failure backoff (issue #141) ───────────────────────────────
 // A stale/revoked agent key is permanent until re-paired. Hammering every 30s

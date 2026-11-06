@@ -20,7 +20,7 @@ import { stat, rename, unlink, readdir, lstat, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import {
   captureTimestamps,
   restoreTimestamps,

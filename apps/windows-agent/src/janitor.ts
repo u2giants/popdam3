@@ -17,7 +17,7 @@
 import { readdir, stat, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 // ── Configuration ───────────────────────────────────────────────
 

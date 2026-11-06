@@ -5,6 +5,7 @@
 import { corsHeaders, err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
+import { generatePairingCode } from "../pairing-code.ts";
 
 export async function handleGenerateInstallBundle(
   body: Record<string, unknown>,
@@ -34,14 +35,7 @@ export async function handleGenerateInstallBundle(
 
   // Create pairing code
   const db = serviceClient();
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let raw = "";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < 16; i++) {
-    raw += chars[bytes[i] % chars.length];
-  }
-  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+  const pairingCode = generatePairingCode();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
 

@@ -12,7 +12,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { resolveUnderRoot } from "./common/path-containment.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { uploadPdfPage } from "./uploader.js";
 import { inspectAiPage } from "./ai-sentinel-detect.js";

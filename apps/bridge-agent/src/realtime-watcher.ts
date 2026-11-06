@@ -13,7 +13,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import ws from "ws";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 
 // @supabase/realtime-js >= 2.11 requires globalThis.WebSocket on Node.js < 22
 if (typeof globalThis.WebSocket === "undefined") {

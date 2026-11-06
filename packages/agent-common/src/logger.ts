@@ -1,10 +1,13 @@
 /**
- * Structured logger for Windows Render Agent.
- * Outputs JSON lines for easy log parsing.
- * Also maintains an in-memory circular buffer for remote log tail access.
+ * Structured logger shared by the bridge agent and the Windows render agent.
+ * Outputs JSON lines for easy log parsing and keeps an in-memory circular
+ * buffer for remote log-tail access (shipped with each Windows heartbeat).
  *
- * LOG_LEVEL (debug|info|warn|error) controls verbosity. Default: info.
- * The 3s poll loop logs idle chatter at debug; leave it off in production.
+ * LOG_LEVEL (debug|info|warn|error) controls verbosity. When LOG_LEVEL is
+ * unset the platform default applies: the Windows agent filters debug (its
+ * 3s poll loop logs idle chatter at debug — leave it off in production),
+ * while the bridge agent (Docker) keeps every line, matching each agent's
+ * behavior before the modules were shared (#708).
  */
 
 type LogLevel = "debug" | "info" | "warn" | "error";
@@ -17,11 +20,12 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
 };
 
 function resolveMinLevel(): number {
-  const raw = (process.env.LOG_LEVEL || "info").trim().toLowerCase();
+  const raw = (process.env.LOG_LEVEL || "").trim().toLowerCase();
   if (raw === "debug") return LEVEL_ORDER.debug;
   if (raw === "warn") return LEVEL_ORDER.warn;
   if (raw === "error") return LEVEL_ORDER.error;
-  return LEVEL_ORDER.info;
+  // Unset or unrecognized: platform default (see header).
+  return process.platform === "win32" ? LEVEL_ORDER.info : LEVEL_ORDER.debug;
 }
 
 const MIN_LEVEL = resolveMinLevel();

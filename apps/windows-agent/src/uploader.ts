@@ -6,7 +6,7 @@
 
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { config } from "./config";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 let s3Client: S3Client | null = null;
 

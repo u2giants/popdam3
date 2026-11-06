@@ -12,7 +12,7 @@
 import { readdir, stat, lstat } from "node:fs/promises";
 import { join, extname, basename, relative } from "node:path";
 import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 

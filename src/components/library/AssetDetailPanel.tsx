@@ -205,7 +205,9 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
 
   // ── NAS config ──────────────────────────────────────────────
   const { data: nasConfig } = useQuery({
-    queryKey: ["nas-config"],
+    // Cache key "defaults": queryFn backfills defaults (never null).
+    // Do not share with the strict-nullable shape in AssetGrid.
+    queryKey: ["nas-config", "defaults"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_config")

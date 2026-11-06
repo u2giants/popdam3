@@ -16,7 +16,7 @@ import { toSmbClientRelativePath } from "./smb-names";
 import { resolveExistingSmbPath } from "./smb-resolve";
 import { config } from "./config";
 import { ClaimAccounting, maintenancePausesClaims, currentCommandDeferral, heartbeatDelivery } from "./maintenance-lease";
-import { getLogTail, logger } from "./logger";
+import { getLogTail, logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { type CompatWorker, type PdfRenderResult, renderFile, renderNativeImage } from "./renderer";
 import { reinitializeS3Client, uploadPdfPage, uploadSgThumbnail, uploadThumbnail } from "./uploader";

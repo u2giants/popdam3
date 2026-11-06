@@ -31,7 +31,7 @@
 
 import { spawn, ChildProcess } from "node:child_process";
 import path from "node:path";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 
 interface TenantSpaces {
   key?: string;

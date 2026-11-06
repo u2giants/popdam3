@@ -1,6 +1,6 @@
 import { resolveUnderRoot } from "./common/path-containment.js";
 import * as api from "./api-client.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import { isAiSentinel } from "./ai-sentinel-detect.js";
 
 interface SentinelAsset {

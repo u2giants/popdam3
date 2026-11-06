@@ -14,7 +14,7 @@
  */
 
 import sharp from "sharp";
-import { logger } from "./logger";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client";
 
 // ── Perceptual hash (dHash) ──────────────────────────────────────────────────

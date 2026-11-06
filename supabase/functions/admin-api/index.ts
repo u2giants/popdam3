@@ -12,6 +12,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { isAllowedThumbnailUrl, optionalString, requireString } from "../_shared/validators.ts";
+import { formatPostgrestError, isTransientError, withRetry } from "../_shared/admin-utils.ts";
 import {
   directGeminiBatchAllowedForServerConsumer,
   directGeminiBatchSelectionHasKey,
@@ -217,88 +218,6 @@ async function authenticateDesignerOrAdmin(
     console.error("designer role check failed:", e instanceof Error ? e.message : String(e));
   }
   return err("Forbidden: designer or admin role required", 403);
-}
-
-// ── Retry helper for transient connection / body-read errors ────────
-
-const TRANSIENT_ERROR_PATTERNS = [
-  "connection reset",
-  "connection error",
-  "sendrequest",
-  "error reading a body",
-  "error reading body",
-  "error reading a body from connection",
-  "network error",
-  "fetch failed",
-  "broken pipe",
-  "eof",
-];
-
-function isTransientError(e: unknown): boolean {
-  const msg = ((e as Error)?.message || "").toLowerCase();
-  return TRANSIENT_ERROR_PATTERNS.some((p) => msg.includes(p));
-}
-
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  delayMs = 200,
-  label = "",
-): Promise<T> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (e) {
-      if (!isTransientError(e) || attempt === maxAttempts) throw e;
-      const msg = ((e as Error)?.message || "").toLowerCase();
-      console.warn(
-        `withRetry [${label || "?"}] transient error (attempt ${attempt}/${maxAttempts}): ${msg.slice(0, 120)}`,
-      );
-      await new Promise((r) => setTimeout(r, delayMs * attempt));
-    }
-  }
-  throw new Error("withRetry: unreachable");
-}
-
-function formatPostgrestError(error: unknown): string {
-  const normalizeMessage = (message: string) => {
-    const msg = (message || "").trim();
-    if (!msg) return "Unknown database error";
-    const lower = msg.toLowerCase();
-    const looksHtml = lower.includes("<html") || lower.includes("<!doctype") || lower.includes("<head>");
-    if (looksHtml) {
-      return "Upstream gateway returned an HTML 500 page (transient infrastructure error). Please retry.";
-    }
-    return msg;
-  };
-
-  if (!error) return "Unknown database error";
-  if (typeof error === "string") return normalizeMessage(error);
-  if (error instanceof Error) return normalizeMessage(error.message);
-
-  const e = error as Record<string, unknown>;
-  const message = normalizeMessage(typeof e.message === "string" ? e.message : "Database error");
-  const details = typeof e.details === "string" ? e.details : "";
-  const hint = typeof e.hint === "string" ? e.hint : "";
-  const code = typeof e.code === "string" ? e.code : "";
-  const status = typeof e.status === "number" ? String(e.status) : "";
-  const raw = (() => {
-    try {
-      const serialized = JSON.stringify(e);
-      return serialized && serialized !== "{}" ? serialized : "";
-    } catch {
-      return "";
-    }
-  })();
-
-  return [
-    status ? `[status=${status}]` : "",
-    code ? `[${code}]` : "",
-    message,
-    details ? `details: ${details}` : "",
-    hint ? `hint: ${hint}` : "",
-    raw && message === "Bad Request" ? `raw: ${raw}` : "",
-  ].filter(Boolean).join(" | ");
 }
 
 async function handleFetchThumbnailByUrl(body: Record<string, unknown>): Promise<Response> {

@@ -15,7 +15,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { resolveUnderRoot } from "./common/path-containment.js";
 import sharp from "sharp";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { uploadThumbnail, uploadPdfPage } from "./uploader.js";
 import * as mupdf from "mupdf";

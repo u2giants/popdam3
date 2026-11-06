@@ -14,7 +14,7 @@
 
 import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
 import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";

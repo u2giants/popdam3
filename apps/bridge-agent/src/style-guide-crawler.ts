@@ -11,7 +11,7 @@
 
 import { readdir, lstat } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
-import { logger } from "./logger.js";
+import { logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { safeFilesystemModifiedAt } from "./file-date-validation.js";
 import { isIngestableFile } from "./sg-ingest-filter.js";

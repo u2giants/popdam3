@@ -1,7 +1,7 @@
 /** Moved out of index.ts (#234) — pure move, no behavior change. */
 import path from "node:path";
 import * as api from "../api-client";
-import { logger } from "../logger";
+import { logger } from "../common/logger.js";
 
 /** @param getMountRoot effective NAS mount root, read when an empty path is browsed. */
 export async function handleDirBrowse(cmd: { request_id: string; path: string }, getMountRoot: () => string) {
