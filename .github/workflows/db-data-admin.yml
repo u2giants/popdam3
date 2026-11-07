@@ -148,7 +148,11 @@ jobs:
   # Proves on every pull request that this repository's Coolify token can read both
   # DB Data Admin applications, so a wrong token fails here instead of at deploy time.
   coolify-access:
-    if: github.event_name == 'pull_request'
+    # GitHub withholds repository secrets from Dependabot-triggered and fork runs,
+    # so the token arrives empty there and this probe would only report a fake 401.
+    # Those runs cannot introduce a wrong token either (deploy jobs never run on
+    # pull requests), so skip them and stay strict for every trusted pull request.
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -158,6 +162,10 @@ jobs:
       - name: Read both Coolify applications (read-only)
         run: |
           set -euo pipefail
+          if [ -z "${COOLIFY_TOKEN}" ]; then
+            echo "::error::DB_DATA_ADMIN_COOLIFY_TOKEN is empty in a trusted run; this check cannot prove Coolify access without it."
+            exit 1
+          fi
           for uuid in "${{ vars.DB_DATA_ADMIN_COOLIFY_APP_UUID }}" "${{ vars.DB_DATA_ADMIN_COOLIFY_PROD_APP_UUID }}"; do
             curl --fail-with-body --silent --show-error --output /dev/null               --header "Authorization: Bearer ${COOLIFY_TOKEN}"               "${COOLIFY_URL}/api/v1/applications/${uuid}"
             echo "Coolify application ${uuid} readable"
