@@ -4,6 +4,10 @@ Housekeeping review of all `HANDOFF.d/` notes. Each note was checked against
 its issue, PRs, branches, and live proof. Retired notes are gone from git
 working tree; git history preserves their text.
 
+> **2026-11-08 3:10 PM EST supersession:** the #2421, #5608 and #5747 entries
+> below were stale at publication (triage found later facts). Each carries a
+> corrected resume prompt; the #2421 note is retired since publication.
+
 ## Retired (5 notes — issue closed, outcome verified)
 
 | File | Issue | Proof |
@@ -38,16 +42,20 @@ Each needs a new session. Resume prompts below.
 
 ### #2421 — style-group change watermark (1 note)
 
-- `2026-10-11T1324Z-edge-dev3-codex-style-group-watermark.md`
+- `2026-10-11T1324Z-edge-dev3-codex-style-group-watermark.md` — **retired 2026-11-08** (this entry supersedes the note and the original resume prompt, which were stale: PR #4161 is MERGED, claim #4158 was explicitly released 2026-10-18, migration `20261012012727` is in the production ledger as of 2026-11-08).
 
-**Resume prompt:**
-> In popcre/shared-db (own worktree from origin/main), resume the style-group
-> change-watermark delivery for issue #2421. PR [popcre/shared-db#4161](https://github.com/popcre/shared-db/pull/4161)
-> is OPEN with implementation at `5f08ddbd`. Claim #4158 was leased to Codex
-> chat `01a12b02-63e2-7d62-b0b4-52e7c6b0f804` — verify whether it is still
-> active or release it. Migration `20261011125719` is reserved. Read the
-> handoff note for the full contract/custody state. Goal: reduce nightly
-> full-walk rebuild via a change watermark, without overwriting file dates.
+**Resume prompt (corrected 2026-11-08 3:10 PM EST):**
+> In popcre/shared-db (own worktree from origin/main), finish the authoritative
+> outcome for issue #2421. Delivery is done: PR
+> [popcre/shared-db#4161](https://github.com/popcre/shared-db/pull/4161) merged
+> 2026-10-12, migration `20261012012727` in production (confirmed 2026-11-08),
+> worker deployed (popdam3 PR 355), native full/incremental/watermark runs and
+> full-population zero-drift reads observed 2026-10-13–18 on the issue. Claim
+> #4158 released 2026-10-18. What remains: produce the
+> `shared-db-live-proof-2421-<sha>` artifact from popdam3 (its proof workflow
+> has no `2421` dispatch option yet) and the generated-types evidence, then
+> advance the outcome ledger past `dispatched` and run `--complete-outcome`.
+> Never close #2421 by hand — a close before `live_verified` blocks completion.
 
 ### #4248 — DesignFlow Cloud SQL → Supabase migration (2 notes)
 
@@ -101,23 +109,27 @@ Each needs a new session. Resume prompts below.
 
 - `20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md`
 
-**Resume prompt:**
-> In popcre/shared-db (own worktree from origin/main), pick up the Supabase
-> assessment follow-up plans. Read `plan_sku-style-guide-link-job.md` STATUS
-> first (issue #5608). Two companion plans exist: `plan_assets-update-trigger-scoping.md`
+**Resume prompt (corrected 2026-11-08 3:10 PM EST — "none is started" was stale):**
+> In popcre/shared-db (own worktree from origin/main), continue issue #5608.
+> Read `plan_sku-style-guide-link-job.md` STATUS first (authoritative). Steps
+> 0–5 are done and migration `20261106171924` is already in production (auto
+> 2026-11-07 4:09 PM EST, run 42414494992 — never re-apply). Night 1 of the
+> three tagged nightly successes is done (26.1 s); check nights 2–3 after
+> 11:30 PM EST on 2026-11-08 and 2026-11-09, then run
+> `.github/live-proofs/5608.sql`, record in the verification folder and tick
+> the live-proof box on #5608. Companions: `plan_assets-update-trigger-scoping.md`
 > (#5609) and `plan_unused-index-cleanup.md` (#5610, no drops before
-> 2026-11-18). None is started. Claim the work on #5608.
+> 2026-11-18).
 
 ### #5747 — assets bloat permanent fix (1 note)
 
 - `20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md`
 
-**Resume prompt:**
-> In popcre/shared-db (own worktree from origin/main), execute the assets-bloat
-> permanent-fix plan for issue #5747. Read `plan_assets-bloat-permanent-fix.md`
-> STATUS table, Step 0. No step has been executed. The repack capability is
-> PR #5744 (another session). Owner ruling: totals stay exact. Claim the work
-> on #5747.
+**Resume prompt (corrected 2026-11-08 — "no step has been executed" was stale):**
+> In popcre/shared-db (own worktree from origin/main), handle the #5747
+> 7-day measurement when it is due **2026-11-12 9:47 PM EST**. Steps 0–6 are
+> done (repack live); see `plan_assets-bloat-permanent-fix.md` STATUS. Nothing
+> to do before the due date. Owner ruling: totals stay exact.
 
 ---
 
