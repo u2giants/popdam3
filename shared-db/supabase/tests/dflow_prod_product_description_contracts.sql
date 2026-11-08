@@ -103,7 +103,7 @@ begin
 end
 $fixture$;
 
-\i supabase/migrations/20261106174810_dflow_prod_product_description.sql
+\i supabase/migrations/20261108135128_dflow_prod_product_description_reissue.sql
 
 -- A. Positive chain: a published combination and its per-item row insert cleanly.
 insert into dflow_prod.mg_combination_description
@@ -264,6 +264,6 @@ end $$;
 select set_config('app.product_description.human', '', true);
 
 -- H. Idempotent re-apply.
-\i supabase/migrations/20261106174810_dflow_prod_product_description.sql
+\i supabase/migrations/20261108135128_dflow_prod_product_description_reissue.sql
 
 rollback;

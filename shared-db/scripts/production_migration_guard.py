@@ -105,6 +105,10 @@ HARD_BLOCKED = {
     "20261007232712",
     "20261008160444",
     "20261009040550",
+    # #5026: merged PR5910 carries no PR-owned evidence pair, so the DesignFlow
+    # release observer cannot bind it. Claim5909 reissued as claim5943; only
+    # forward replacement 20261108135128 may apply.
+    "20261106174810",
     # #3890: preserve applied historical ledgers; only the governed forward release may promote.
     "20261006203846",
     # #2874: merged PR3707 has an immutable production-risk REVISE; preview
@@ -389,6 +393,7 @@ RETIRED_VERSION_REASONS = {
     "20260825031841": "preview-only historical #1471 forward; production timed out and rolled back because its full reconciliation remained one statement; use prerequisite 20260825041343 and its governed dependent recovery",
     "20261006221530": "Original preview37542145935 at fd62f194fb9ca8fed3513d589a26c5ed9384f60d differs in session-authority producer from authoring merge74e4ee847d3e960af5cfbcddfe2e0ae9aaafb248. Qualification37550480001 refused before production dispatch. Preserve original migration and preview history; governed replacement20261007002113 under issue3907 claim4004 only.",
     "20261018191107": "production apply run 39425038130 rolled back at its own #2873 post-check because designflow_prod_backend_runtime is a member of designflow_prod_tracking_grants in production; preview-only; forward reissue 20261020125826 under issue 4464 claim 4467 grants designflow_prod_tracking_runtime directly",
+    "20261106174810": "merged-stranded: PR5910 merged without a PR-owned evidence pair, so the DesignFlow release observer refuses its issue binding; never applied to DesignFlow production; retain source, never apply this version; claim5909 reissued as claim5943 to forward replacement 20261108135128 under issue5026",
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})
@@ -477,6 +482,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "project": "DesignFlow production qsllyeztdwjgirsysgai (popdam)",
         "issue": "#5026",
         "note": "Paired production half of PR#5812 (issue #5020): creates the dflow_prod.mg_combination_description / dflow_prod.item_product_description pairs with audit and human-override guard triggers on the DesignFlow production project only. The migration's own self-check refuses to run where dflow_prod is missing, and the paired sandbox half is version 20261106050346 (issue #5020). This is target scope, not retirement.",
+    },
+    "20261108135128": {
+        "target": "designflow-prod",
+        "project": "DesignFlow production qsllyeztdwjgirsysgai (popdam)",
+        "issue": "#5026",
+        "note": "Forward reissue (claim #5943) of retired 20261106174810, same SQL: creates the dflow_prod.mg_combination_description / dflow_prod.item_product_description pairs with audit and human-override guard triggers on the DesignFlow production project only. The migration's own self-check refuses to run where dflow_prod is missing; the paired sandbox half is version 20261106050346 (issue #5020). This is target scope, not retirement.",
     },
     "20261106050346": {
         "target": "designflow-nonprod",
