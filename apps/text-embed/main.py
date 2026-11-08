@@ -28,6 +28,11 @@ app = FastAPI(title="PopDAM SigLIP2 text embed", version="1.0.0")
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 _processor = AutoProcessor.from_pretrained(MODEL_ID)
 _model = AutoModel.from_pretrained(MODEL_ID).to(_device).eval()
+if _device == "cpu":
+    try:
+        _model = torch.compile(_model, mode="reduce-overhead")
+    except Exception:
+        pass  # older torch or unsupported backend; plain eager is fine
 
 
 class EmbedRequest(BaseModel):
@@ -49,7 +54,7 @@ def _as_tensor(out):
     return out
 
 
-@torch.no_grad()
+@torch.inference_mode()
 def _embed_texts(texts: list[str]) -> list[list[float]]:
     inputs = _processor(
         text=texts,
