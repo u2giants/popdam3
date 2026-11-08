@@ -310,21 +310,12 @@
     },
     {
       "source": "scripts/production_migration_guard.py",
-      "site": "scripts/production_migration_guard.py:490",
-      "semantic_key": "scripts/production_migration_guard.py:129fe2514b9a269332b587755703e808f7215d3dc1327aa7a64276438d76b79e:context-0b76a8dca9f57a44beb7466ed5ecdcd42074d9b4a3f695640a76f9a7746ec39b",
-      "legacy_semantic_key": "scripts/production_migration_guard.py:129fe2514b9a269332b587755703e808f7215d3dc1327aa7a64276438d76b79e:1",
-      "line_sha256": "129fe2514b9a269332b587755703e808f7215d3dc1327aa7a64276438d76b79e",
-      "disposition": "excluded",
-      "reason": "Foreign-target registry note text for the #5026 forward reissue 20261108135128 (designflow-prod): data describing the migration self-check, not a call site that infers missing objects."
-    },
-    {
-      "source": "scripts/production_migration_guard.py",
       "site": "scripts/production_migration_guard.py:484",
-      "semantic_key": "scripts/production_migration_guard.py:4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16:context-99ffd81fae2cf0a030c5bf76f0f41aae5cd800f9f4b270fd8bcfb21732e3db05",
+      "semantic_key": "scripts/production_migration_guard.py:4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16:context-884a317ffbd1a228024972d1ad94f001bcb7738b44355f35eb9e01fb08412b06",
       "legacy_semantic_key": "scripts/production_migration_guard.py:4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16:1",
       "line_sha256": "4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16",
       "disposition": "excluded",
-      "reason": "Foreign-target registry note text for the #5026 production half (designflow-prod): data describing the migration self-check, not a call site that infers missing objects."
+      "reason": "Foreign-target registry note text for the retired #5026 version 20261106174810: data describing the migration self-check, not a call site that infers missing objects."
     }
   ]
 }

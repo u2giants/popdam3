@@ -1,6 +1,6 @@
 -- =====================================================================================
 -- Core Product Type (product description tables) behavior contracts — migration
--- 20261106174810 (dflow_prod half), issue #5026. Mirrors the hardened sandbox
+-- 20261108135128 (dflow_prod half), issue #5026. Mirrors the hardened sandbox
 -- test (issue #5020, PR #5812): the governed deepseek review there proved the
 -- original human-override guard could be bypassed three ways and that no
 -- committed behavior test existed.

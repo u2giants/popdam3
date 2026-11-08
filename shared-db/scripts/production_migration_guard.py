@@ -483,12 +483,6 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#5026",
         "note": "Paired production half of PR#5812 (issue #5020): creates the dflow_prod.mg_combination_description / dflow_prod.item_product_description pairs with audit and human-override guard triggers on the DesignFlow production project only. The migration's own self-check refuses to run where dflow_prod is missing, and the paired sandbox half is version 20261106050346 (issue #5020). This is target scope, not retirement.",
     },
-    "20261108135128": {
-        "target": "designflow-prod",
-        "project": "DesignFlow production qsllyeztdwjgirsysgai (popdam)",
-        "issue": "#5026",
-        "note": "Forward reissue (claim #5943) of retired 20261106174810, same SQL: creates the dflow_prod.mg_combination_description / dflow_prod.item_product_description pairs with audit and human-override guard triggers on the DesignFlow production project only. The migration's own self-check refuses to run where dflow_prod is missing; the paired sandbox half is version 20261106050346 (issue #5020). This is target scope, not retirement.",
-    },
     "20261106050346": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
