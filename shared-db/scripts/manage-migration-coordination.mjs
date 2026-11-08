@@ -20,6 +20,7 @@ import { reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 import { createHash, randomUUID } from 'node:crypto'
 import { constants as fsConstants, closeSync, existsSync, fstatSync, openSync, readFileSync, renameSync, writeFileSync, lstatSync, realpathSync, readdirSync } from 'node:fs'
 import { readZipEntries } from './lib/zip-entries.mjs'
+import { acceptedApplyArtifactNames, compareAncestry } from './lib/production-apply-artifact-name.mjs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gatherOpenPrObjects, normalizeObject, parseClaimBlock } from './check-dispatch-collision.mjs'
@@ -1236,7 +1237,8 @@ export const githubIo = {
     if(!['identical','ahead'].includes(ancestry?.status)||Number(ancestry?.behind_by)!==0)return false
     const artifacts=ghJson(['api',`repos/${REPO}/actions/runs/${match[2]}/artifacts`])?.artifacts
     const artifact=Array.isArray(artifacts)?artifacts.find((row)=>Number(row.id)===Number(evidence.production_artifact_id)):null
-    if(!(artifact?.name===`production-migration-apply-${String(evidence.production_commit_sha).toLowerCase()}`&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.production_artifact_digest).toLowerCase()))return false
+    const names=acceptedApplyArtifactNames(run,compareAncestry((b,h)=>ghJson(['api',`repos/${REPO}/compare/${b}...${h}`])))
+    if(!(names.has(artifact?.name)&&artifact.expired===false&&String(artifact.digest??'').toLowerCase()===String(evidence.production_artifact_digest).toLowerCase()))return false
     const files=this.readArtifactFiles(REPO,artifact.id,['production-apply.txt','production-ledger-after.txt','migration-content-manifest.json','production-catalog-verification.json'])
     if(!files.get('production-apply.txt')?.trim())return false
     try{JSON.parse(files.get('production-catalog-verification.json'));JSON.parse(files.get('migration-content-manifest.json'))}catch{return false}

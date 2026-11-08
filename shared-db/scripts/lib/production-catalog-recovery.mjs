@@ -1,6 +1,7 @@
 import {verifyCurrentLiveAttestation,readMetadataZip} from './current-live-attestation.mjs'
 import {runGitHubCommand} from './github-transport.mjs'
 import {readZipEntries} from './zip-entries.mjs'
+import {acceptedApplyArtifactNames,compareAncestry,applyArtifactName,dispatchCommitFromTitle} from './production-apply-artifact-name.mjs'
 import {createHash} from 'node:crypto'
 import {gzipSync,gunzipSync} from 'node:zlib'
 import {execFileSync} from 'node:child_process'
@@ -66,7 +67,8 @@ export function verifyProductionEvidence(evidence,io,read=ghJson,repository=curr
   }
   if(!io.mergeCommitInMain(evidence.production_recovery_commit_sha))return false
   const artifact=(read(['api',`repos/${repository}/actions/runs/${match[2]}/artifacts`])?.artifacts??[]).find(row=>Number(row.id)===evidence.production_artifact_id)
-  if(artifact?.expired!==false||artifact.name!==`production-migration-apply-${evidence.production_commit_sha}`||artifact.digest!==evidence.production_artifact_digest)return false
+  const names=String(run?.head_sha??'')===String(evidence.production_commit_sha)?acceptedApplyArtifactNames(run,compareAncestry((b,h)=>read(['api',`repos/${repository}/compare/${b}...${h}`]))):new Set([applyArtifactName(evidence.production_commit_sha)])
+  if(artifact?.expired!==false||!names.has(artifact.name)||artifact.digest!==evidence.production_artifact_digest)return false
   const original=io.readArtifactFiles(repository,artifact.id,['production-apply.txt','production-ledger-before.txt','production-ledger-after.txt','migration-content-manifest.json'])
   if(!original.get('production-apply.txt')?.trim())return false
   const recoveryArtifact=(read(['api',`repos/${repository}/actions/runs/${recoveryMatch[2]}/artifacts`])?.artifacts??[]).find(row=>Number(row.id)===evidence.production_recovery_artifact_id)
@@ -78,7 +80,7 @@ export function verifyProductionEvidence(evidence,io,read=ghJson,repository=curr
 
 // Separate present-state evidence. Never interprets this as a historical apply delta.
 export const CURRENT_LIVE_KIND='shared-db-current-live-reverification/v1'
-export const CURRENT_LIVE_TRUSTED_PATHS=['.github/workflows/production-catalog-verification-recovery.yml','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']
+export const CURRENT_LIVE_TRUSTED_PATHS=['.github/workflows/production-catalog-verification-recovery.yml','scripts/lib/production-apply-artifact-name.mjs','scripts/designflow-db-release.mjs','scripts/lib/production-catalog-recovery.mjs','scripts/lib/current-live-attestation.mjs','scripts/production_catalog_recovery_evidence.py','scripts/production_catalog_verification.py','scripts/review_finding_hold.py','scripts/check-applied-migration-edit.mjs','scripts/atomic_migration_apply.py']
 const SHA=/^[a-f0-9]{40}$/
 const HEX=/^[a-f0-9]{64}$/
 const APPLY_JOBS=['SQL migration guards','Production apply review (immutable evidence + hard guards)','Production apply (automatic evidence gates)']
@@ -97,7 +99,7 @@ export function assertCurrentLiveProducer({original,jobs,later,latestAttempt,art
     checkJobs(run,envelope)
     const apply=envelope.jobs.filter(j=>j.name===APPLY_JOBS[2]);if(apply.length!==1||apply[0].conclusion!=='skipped')refuse()
   }
-  if(!upload||!Number.isSafeInteger(upload.artifact_id)||upload.artifact_id<1||!/^sha256:[a-f0-9]{64}$/.test(upload.digest)||upload.name!==`production-migration-apply-${original.head_sha}`||!HEX.test(upload.log_sha256)||!Number.isSafeInteger(upload.job_id)||!jobs.jobs.some(j=>j.id===upload.job_id&&j.name===APPLY_JOBS[2]))refuse()
+  if(!upload||!Number.isSafeInteger(upload.artifact_id)||upload.artifact_id<1||!/^sha256:[a-f0-9]{64}$/.test(upload.digest)||!(upload.name===applyArtifactName(original.head_sha)||(dispatchCommitFromTitle(original.display_title)!==null&&upload.name===applyArtifactName(dispatchCommitFromTitle(original.display_title))))||!HEX.test(upload.log_sha256)||!Number.isSafeInteger(upload.job_id)||!jobs.jobs.some(j=>j.id===upload.job_id&&j.name===APPLY_JOBS[2]))refuse()
   if(artifact){
     if(artifact.id!==upload.artifact_id||artifact.name!==upload.name||artifact.digest!==upload.digest||artifact.expired!==true||artifact.workflow_run?.id!==original.id||artifact.workflow_run?.head_sha!==original.head_sha||absence!=='verified-expiration')refuse()
   }else if(absence!=='authenticated-404')refuse()

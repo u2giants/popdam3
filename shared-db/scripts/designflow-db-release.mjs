@@ -13,6 +13,7 @@ import { admitIssue, mergedPrSourceIssues } from './lib/lanes/admission.mjs';
 import { formatEventComment } from './db-coordination-events.mjs';
 import { productionCatalogQuery, verifyCatalogProof } from './lib/designflow-db-catalog.mjs';
 import { readZipEntries } from './lib/zip-entries.mjs';
+import { acceptedApplyArtifactNames, compareAncestry, dispatchCommitFromTitle, applyArtifactName } from './lib/production-apply-artifact-name.mjs';
 import { selectArtifactFiles } from './lib/lanes/review-leases.mjs';
 import { fileMatchesLedgerStatements } from './check-applied-migration-edit.mjs';
 import { runGitHubCommand } from './lib/github-transport.mjs';
@@ -289,9 +290,12 @@ export function verifyBatchProductionFiles(requirement, facts, files, proof) {
     migration_hashes, ledger_fingerprints: ledger, catalog_sha256: hash(files.get('production-catalog-verification.json')) };
 }
 
+const runAncestry = compareAncestry((base, head) => api(`repos/${CANONICAL}/compare/${base}...${head}`));
+const applyNames = run => acceptedApplyArtifactNames(run, runAncestry);
+
 async function productionArchive(run, artifactId, expectedDigest) {
   const artifact = api(`repos/${CANONICAL}/actions/artifacts/${artifactId}`);
-  if (artifact.id !== artifactId || artifact.expired !== false || artifact.name !== `production-migration-apply-${run.head_sha}` ||
+  if (artifact.id !== artifactId || artifact.expired !== false || !applyNames(run).has(artifact.name) ||
       artifact.digest !== expectedDigest || artifact.workflow_run?.head_sha !== run.head_sha || artifact.workflow_run?.id !== run.id)
     throw Error('Batch production archive producer changed');
   let bytes;
@@ -408,7 +412,8 @@ async function productionEvidence(requirement, facts) {
     if (!verifyProducer(run)) continue;
     const artifacts = api(`repos/${CANONICAL}/actions/runs/${id}/artifacts?per_page=100`);
     if (artifacts.total_count > 100) throw Error('Artifact pagination required');
-    for (const artifact of artifacts.artifacts.filter(a => a.name === `production-migration-apply-${run.head_sha}` && a.expired === false)) {
+    const names = applyNames(run);
+    for (const artifact of artifacts.artifacts.filter(a => names.has(a.name) && a.expired === false)) {
       const evidence = { schema_version: 1, work_issue: requirement.work_issue, merge_pr: requirement.source_pr,
         merge_sha: facts.merge_sha40, application_repository: scope.applicationReturnTo,
         production_evidence: run.html_url, production_commit_sha: run.head_sha,
@@ -645,12 +650,12 @@ function liveSource(requirement,facts) {
 function proveAssignedSource(requirement) {
   return hash(proveCurrentLiveAssignedSource(requirement.source_pr));
 }
-export function parseOriginalUpload(log,run,jobId) {
+export function parseOriginalUpload(log,run,jobId,accepted=new Set([applyArtifactName(run?.head_sha)])) {
   if(typeof log!=='string'||Buffer.byteLength(log)>20*1024*1024)throw Error('Original upload log unavailable');
   const digests=[...new Set([...log.matchAll(/SHA256 digest of uploaded artifact zip is ([a-f0-9]{64})/g)].map(x=>x[1]))];
   const ids=[...new Set([...log.matchAll(/Artifact ID(?: is)? ([1-9][0-9]*)/g)].map(x=>Number(x[1])))];
   const names=[...new Set([...log.matchAll(/Artifact (production-migration-apply-[a-f0-9]{40})\.zip successfully finalized/g)].map(x=>x[1]))];
-  if(digests.length!==1||ids.length!==1||names.length!==1||names[0]!==`production-migration-apply-${run.head_sha}`)throw Error('Original upload identity is ambiguous');
+  if(digests.length!==1||ids.length!==1||names.length!==1||!accepted.has(names[0]))throw Error('Original upload identity is ambiguous');
   return {artifact_id:ids[0],digest:`sha256:${digests[0]}`,name:names[0],job_id:jobId,log_sha256:hash(log)};
 }
 export function authenticatedMissingArtifact(error) {return authenticatedArtifact404(error);}
@@ -675,7 +680,7 @@ function currentLiveProducer(input) {
   const jobs=api(`repos/${CANONICAL}/actions/runs/${id}/attempts/${attempt}/jobs?per_page=100`);
   const apply=(jobs.jobs??[]).filter(j=>j.name==='Production apply (automatic evidence gates)');if(apply.length!==1)throw Error('Original apply job ambiguous');
   const log=command(['api',`repos/${CANONICAL}/actions/jobs/${apply[0].id}/logs`,'--allow-escape-sequences']);
-  const upload=parseOriginalUpload(log,original,apply[0].id);
+  const upload=parseOriginalUpload(log,original,apply[0].id,applyNames(original));
   if(upload.artifact_id!==exactPositive(input.original_artifact_id)||upload.digest!==input.original_artifact_digest)throw Error('Original artifact differs from specified inputs');
   const latest=api(`repos/${CANONICAL}/actions/runs/${id}`),later=[];
   if(!Number.isSafeInteger(latest.run_attempt)||latest.run_attempt<attempt||latest.run_attempt-attempt>100)throw Error('Later attempt discovery is incomplete');
