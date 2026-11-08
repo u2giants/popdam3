@@ -24,4 +24,8 @@ ENV PORT=8090
 EXPOSE 8090
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s CMD curl -fsS http://127.0.0.1:8090/health || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090"]
+# Two bounded workers so two concurrent embed requests (search queries from
+# different users) run forward passes in parallel instead of queueing on one
+# process (#804); two torch threads each keeps total CPU use at four cores.
+ENV OMP_NUM_THREADS=2 MKL_NUM_THREADS=2
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "2"]
