@@ -1148,6 +1148,23 @@ class StuckChangeOwner(unittest.TestCase):
         self.assertIn("stderr=Resource not accessible by integration", out)
 
 
+class TriggerTokenCanOwnTheTrackingIssue(unittest.TestCase):
+    def test_trigger_job_grants_issues_write(self):
+        # #5771: report_stuck_change creates/updates the tracking issue with the
+        # job token. Losing this grant silently re-breaks owned tracking (the
+        # create then exits 1 with only a run annotation), so it is guarded here.
+        wf = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..",
+            ".github", "workflows", "automatic-production-trigger.yml",
+        )
+        with open(wf, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("  trigger:", text)
+        job = text.split("  trigger:", 1)[1]
+        self.assertIn("issues: write", job)
+        self.assertNotIn("issues: read", job)
+
+
 class CompletePullDiscovery(unittest.TestCase):
     def test_old_pending_base_and_child_survive_more_than_one_hundred_prs(self):
         base = {"number": 5619, "merged_at": "2026-11-05T05:15:00Z"}
