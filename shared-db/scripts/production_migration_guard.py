@@ -67,6 +67,14 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #5758: one-shot coldlion.change_log rotation for the 2026-11-06 10:00 PM EST
+    # slot (PR #5929, re-issued from #5885's 20261106152843). The promotion queue
+    # lost every tip race and the slot closed before it reached production; the
+    # body schedules nothing after 02:55 UTC 2026-11-07, so a production apply
+    # would be inert. The weekly job 20261106021547 (live in production) runs the
+    # rotation. Preview holds this version from run 42298839910, so the file
+    # stays to keep source truth aligned with that ledger.
+    "20261106205842",
     # #5747/#5863: renamed-file source PR #5862 can never promote; successor 20261106095531.
     "20261106092127",
     # #5747: preview-only tags-sync file with a wrong derived-from base; fix-forward successor carries it.
@@ -322,6 +330,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261106205842": "#5758: one-shot coldlion.change_log rotation for the 2026-11-06 10:00 PM EST slot (PR #5929, re-issued from #5885's 20261106152843 after that stamp was parked by main-staleness refusals). The queue lost every tip race and the slot closed before either stamp reached production. The body schedules nothing after 02:55 UTC 2026-11-07, so a production apply would be inert; the weekly job 20261106021547 (applied by PR #5807, live in production) runs the same rotation on its own schedule. Preview holds this version from run 42298839910, so the file stays to keep source truth aligned with that ledger. Never apply.",
     "20261021152741": "#4540 drain disposition (2026-11-06): superseded by the applied re-land. The work (#4529) was re-landed reviewed as 20261021190510 (commit 630623a4e, popdam_search_exact_relevance_paging_reland.sql), which production applied; this original drops and recreates search_assets_full_text, search_style_groups_full_text and search_dam_document_counts with the pre-re-land bodies, so promoting it would roll those live functions back. The historical lane also cannot prove it: its only preview evidence is pull_request rehearsal run 39628737449 (wrong event per the production gate, run 42307695050) and the migration is high-risk (destructive drops), so the ephemeral route cannot substitute. Never apply; the applied 20261021190510 owns the change.",
     "20261015132149": "#4540 drain disposition (2026-11-06): stamp re-reserved AFTER its PR #4221 merged (commit 8717fc09f renamed 20261013144638_pm_jev_activity_triage_contract_a.sql), so no merged pull request adds this stamp and the post-merge rehearsal proof can never accept it; the historical lane cannot name an original apply run because it was never applied to preview. Retire this stamp; reissued byte-identical (body cmp-identical) under issue #3298 (PR #5913; the queue ejected the initial 20261106190000 stamp as backdated and the file was renamed 20261106214905, SQL unchanged), which the normal automatic lane carries. Never apply this stamp.",
     "20261021063716": "#4540 drain disposition (review-finding #5860, 2026-11-06): superseded body-only repair. It CREATE OR REPLACEs search_dam_documents and search_dam_document_counts with the 2026-10-21 body; production later applied 20261106042721 and 20261106095531, which now own search_dam_documents. Promoting this version would roll production search back about fifteen migrations (dropping exact totals and FTS dedup). Never apply; production already carries the later bodies. Preview holds the Oct body from replay runs 42183400427/42237043420 and needs a forward re-sync, not this promotion.",
