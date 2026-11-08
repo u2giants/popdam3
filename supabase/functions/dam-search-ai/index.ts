@@ -333,21 +333,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     }
     // A real product code, whole or its start, has no visual meaning: its picture leg only returns
     // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
-    // Spelling, the floor read and the query embedding run alongside the
-    // product-code check instead of queueing behind it (and the embedding used
-    // to wait for spelling on top of that): serially that was ~2 s for a broad
-    // name like "disney". The decisions and results are unchanged; the
-    // embedding is ignored when the checks say the picture leg is off.
-    const [productCodeSearch, spellingHelp, floorConfig, embedding] = await Promise.all([
-      isProductCodeSearch(
-        query,
-        async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
-      ),
-      checkSpelling(query, spellingLookup),
-      // Server-side only: callers cannot override the admin-configured floor.
-      serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
-      embedQueryText(query),
-    ]);
+    const productCodeSearch = await isProductCodeSearch(
+      query,
+      async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+    );
     let unknownCatalogFormat = false;
     try {
       if (!productCodeSearch) {
@@ -360,8 +349,13 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     } catch {
       return err("Search unavailable", 503);
     }
-    const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : spellingHelp;
+    const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
     const usePictures = !productCodeSearch && spelling.meaningful;
+    const [embedding, floorConfig] = await Promise.all([
+      usePictures ? embedQueryText(query) : Promise.resolve(null),
+      // Server-side only: callers cannot override the admin-configured floor.
+      serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
+    ]);
     // Fail open: a config read failure must not take search down; it only
     // drops the optional floor for this request.
     if (floorConfig.error) {
@@ -477,7 +471,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       total_count: merged.total_count,
       has_more: merged.has_more,
       facets: merged.facets,
-      semantic: usePictures ? "siglip2" : "skipped",
+      semantic: embedding ? "siglip2" : "skipped",
       corrected_query: spelling.corrected,
     });
   }
