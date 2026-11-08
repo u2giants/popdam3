@@ -1074,6 +1074,31 @@ class StuckChangeOwner(unittest.TestCase):
             sp.run = saved_run
         self.assertEqual(len(calls), 0)
 
+    def test_failure_warning_carries_gh_stderr(self):
+        # #5771: the create used to fail as a bare "exit status 1"; the warning
+        # must carry gh's stderr so the cause (e.g. missing issues:write) is visible.
+        import subprocess as sp
+        pr = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        entries = [{**pr, "findings": [], "exhausted": 3}]
+
+        def fake_run(cmd, **kw):
+            raise sp.CalledProcessError(1, cmd, output="", stderr="Resource not accessible by integration")
+
+        saved_run = sp.run
+        saved_gh = m.gh
+        sp.run = fake_run
+        m.gh = lambda *a: []
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+            m.gh = saved_gh
+        out = buf.getvalue()
+        self.assertIn("::warning::", out)
+        self.assertIn("stderr=Resource not accessible by integration", out)
+
 
 class CompletePullDiscovery(unittest.TestCase):
     def test_old_pending_base_and_child_survive_more_than_one_hundred_prs(self):

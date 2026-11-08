@@ -698,7 +698,14 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
             )
             print(f"Opened tracking issue for {len(entries)} stuck migration(s): {result.stdout.strip()}")
     except (subprocess.CalledProcessError, ValueError, OSError) as exc:
-        print(f"::warning::could not open/update the stuck-change tracking issue ({exc}); the alert above is still the signal")
+        stderr = getattr(exc, "stderr", None)
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", "replace")
+        print(
+            f"::warning::could not open/update the stuck-change tracking issue ({exc})"
+            + (f" stderr={stderr.strip()}" if stderr else "")
+            + "; the alert above is still the signal"
+        )
 
 
 if __name__ == "__main__":
