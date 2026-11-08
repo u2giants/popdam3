@@ -421,9 +421,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // forward pass per request and serialises concurrent requests, so separate
     // calls (one per variant, or query-then-variants) queue behind each other
     // and pay 1–3 s of tail (#804). One call, one latency draw.
-    const semanticTexts = usePictures
-      ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))]
-      : [];
+    const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
     const [embeddings, floorConfig] = await Promise.all([
       semanticTexts.length ? queryEmbedder.embedAll(semanticTexts) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
