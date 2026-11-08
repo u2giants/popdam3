@@ -48,6 +48,11 @@ text-embed SigLIP2 query key"). If it is down, search silently becomes
 keyword-only: check function logs for `text-embed call failed`, and check that
 `dam-search-ai` responses say `semantic: "siglip2"`. Replaced the temporary edge-dev
 trycloudflare tunnel on 2026-10-26 (that tunnel died and caused keyword-only search).
+The service answers one CPU forward pass per request and serialises concurrent
+requests, so `dam-search-ai` sends the query plus its product-phrase variants
+through `POST /embed-text-batch` (one pass, one latency draw) and caches the
+deterministic results per isolate (#804); `/embed-text` remains for single
+queries and as the fallback while an older image is running.
 
 ## Railway Worker
 

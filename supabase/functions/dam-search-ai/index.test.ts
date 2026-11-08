@@ -67,7 +67,7 @@ describe("DAM search embedding availability", () => {
   it("retries a failed provider then returns unavailable before any keyword result", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 }));
     vi.stubGlobal("fetch", fetch);
-    const response = await search();
+    const response = await search("retry provider");
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "Search unavailable" });
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -81,7 +81,7 @@ describe("DAM search embedding availability", () => {
       vi.fn().mockResolvedValueOnce(Response.json({ ok: true, vector: Array(768).fill(0) }))
         .mockResolvedValue(new Response("unavailable", { status: 503 })),
     );
-    expect((await search()).status).toBe(503);
+    expect((await search("corrected main")).status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -91,16 +91,18 @@ describe("DAM search embedding availability", () => {
       state.meaningful = kind !== "nonsense";
       const fetch = vi.fn();
       vi.stubGlobal("fetch", fetch);
-      const response = await search();
+      const response = await search(`keyword only ${kind}`);
       expect(response.status).toBe(200);
-      expect(fetch).not.toHaveBeenCalled();
+      // The speculative phase-0 embed fires while the checks run and its
+      // result is discarded when the picture leg is off (#5747 reorder).
+      expect(fetch).toHaveBeenCalled();
       expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
     });
   }
 
   it("a later successful attempt uses semantic ranking", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
-    expect((await search()).status).toBe(200);
+    expect((await search("semantic ranking")).status).toBe(200);
     expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
   });
@@ -130,7 +132,7 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     for (const query of ["VDD83MVSP01", "VDD83"]) expect((await search(query)).status).toBe(200);
     expect(state.formatRpc).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalled();
   });
 
   it("does not turn unsupported alternating nonsense into a picture query", async () => {
@@ -139,19 +141,17 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await search("x7q9v2n8")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledOnce();
-    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
   });
 
   for (const result of [{ data: null, error: { message: "unavailable" } }, { data: null, error: null }, { data: "false", error: null }]) {
-    it("returns unavailable before provider or downstream search when the required hint fails", async () => {
+    it("returns unavailable before downstream search when the required hint fails", async () => {
       state.formatRpc.mockResolvedValue(result);
       const fetch = vi.fn();
       vi.stubGlobal("fetch", fetch);
       const response = await search("ZZZ83MVSP99");
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: "Search unavailable" });
-      expect(fetch).not.toHaveBeenCalled();
       expect(state.rpc).not.toHaveBeenCalled();
     });
   }
@@ -175,11 +175,10 @@ describe("DAM search embedding availability", () => {
     controller.abort();
     expect((await response).status).toBe(503);
     expect(readerSignal.aborted).toBe(true);
-    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
-  it("returns unavailable at the1000ms hint deadline before any provider or downstream call", async () => {
+  it("returns unavailable at the1000ms hint deadline before any downstream call", async () => {
     vi.useFakeTimers();
     state.formatRpc.mockImplementation(() => new Promise(() => {}));
     const fetch = vi.fn();
@@ -190,7 +189,6 @@ describe("DAM search embedding availability", () => {
     expect(state.formatRpc.mock.calls[0][2].aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect((await response).status).toBe(503);
-    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -207,7 +205,6 @@ describe("DAM search embedding availability", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect((await response).status).toBe(503);
     expect(state.formatRpc.mock.calls[0][2].aborted).toBe(true);
-    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -230,5 +227,46 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
     expect((await search("ZZZ83MVSP99")).status).toBe(403);
     expect(state.rpc).not.toHaveBeenCalledWith("dam_catalog_code_format_exists", expect.anything());
+  });
+
+  it("rides product-phrase variants in ONE batched text-embed call instead of one request each", async () => {
+    const fetch = vi.fn(async (input: URL | RequestInfo) =>
+      ({
+        "/embed-text": () => Response.json({ ok: true, vector: Array(768).fill(1) }),
+        "/embed-text-batch": () => Response.json({ ok: true, vectors: [Array(768).fill(2), Array(768).fill(3)] }),
+      })[new URL(String(input)).pathname]!()
+    );
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("spiderman floor covering")).status).toBe(200);
+    const batchCalls = fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch");
+    expect(batchCalls).toHaveLength(1);
+    expect(batchCalls[0][1]?.body).toEqual(JSON.stringify({ texts: ["spiderman mat", "spiderman rug"] }));
+    // Each variant's picture leg carries its own vector from the batch.
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(2) }));
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(3) }));
+  });
+
+  it("falls back to single-text embed calls while the service predates the batch endpoint", async () => {
+    const fetch = vi.fn(async (input: URL | RequestInfo) => {
+      const pathname = new URL(String(input)).pathname;
+      if (pathname === "/embed-text-batch") return new Response("no such endpoint", { status: 404 });
+      return Response.json({ ok: true, vector: Array(768).fill(1) });
+    });
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("batman floor covering")).status).toBe(200);
+    expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text").length).toBe(3);
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "batman mat" }));
+  });
+
+  it("returns unavailable when the batched variant embedding fails after its retry", async () => {
+    const fetch = vi.fn(async (input: URL | RequestInfo) => {
+      const pathname = new URL(String(input)).pathname;
+      if (pathname === "/embed-text-batch") return new Response("unavailable", { status: 503 });
+      return Response.json({ ok: true, vector: Array(768).fill(1) });
+    });
+    vi.stubGlobal("fetch", fetch);
+    expect((await search("disney floor covering")).status).toBe(503);
+    expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")).toHaveLength(2);
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 });

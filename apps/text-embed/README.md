@@ -10,8 +10,16 @@ model that produced the library picture vectors.
 |---|---|---|
 | `GET /health` | — | `{ok, model, device, dim}` |
 | `POST /embed-text` | `{text}` | `{ok, dim, model, vector[768], took_ms}` |
+| `POST /embed-text-batch` | `{texts: [up to 16]}` | `{ok, dim, model, vectors[768][], took_ms}` |
 
 Auth: optional `X-Embed-Key` header matching `EMBED_API_KEY` (open if unset).
+
+The service answers ONE CPU forward pass per request and serialises concurrent
+requests, so `dam-search-ai` sends the typed query plus its product-phrase
+variants together through `/embed-text-batch` — one forward pass and one
+latency draw instead of calls that queue behind each other (#804). Texts are
+padded to a fixed 64 tokens either way, so extra texts in a batch cost almost
+nothing.
 
 ## Run locally (edge-dev GPU)
 

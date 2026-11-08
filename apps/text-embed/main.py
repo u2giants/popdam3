@@ -4,8 +4,9 @@ SigLIP2 text-embedding service for PopDAM typed search queries.
 Same model / math as the GPU image embedder (D:\\ai\\siglip2-embed):
   text tower -> pooler_output -> L2 normalize -> 768 floats.
 
-POST /embed-text  {"text": "..."}  -> {"ok":true,"dim":768,"model":"...","vector":[...]}
-GET  /health                      -> {"ok":true,"model":"...","device":"..."}
+POST /embed-text        {"text": "..."}    -> {"ok":true,"dim":768,"model":"...","vector":[...]}
+POST /embed-text-batch  {"texts": ["..."]} -> {"ok":true,"dim":768,"model":"...","vectors":[[...],...]}
+GET  /health                               -> {"ok":true,"model":"...","device":"..."}
 """
 from __future__ import annotations
 
@@ -33,6 +34,13 @@ class EmbedRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=8000)
 
 
+class EmbedBatchRequest(BaseModel):
+    # Search sends the typed query plus its product-phrase variants together:
+    # one forward pass for them all instead of requests that queue on the CPU
+    # (padding is already fixed at max_length, so extra texts cost ~nothing).
+    texts: list[str] = Field(..., min_length=1, max_length=16)
+
+
 def _as_tensor(out):
     if hasattr(out, "pooler_output"):
         return out.pooler_output
@@ -42,9 +50,9 @@ def _as_tensor(out):
 
 
 @torch.no_grad()
-def embed_text(text: str) -> list[float]:
+def _embed_texts(texts: list[str]) -> list[list[float]]:
     inputs = _processor(
-        text=[text],
+        text=texts,
         return_tensors="pt",
         padding="max_length",
         max_length=64,
@@ -53,7 +61,11 @@ def embed_text(text: str) -> list[float]:
     inputs = {k: v.to(_device) for k, v in inputs.items()}
     feats = _as_tensor(_model.get_text_features(**inputs))
     feats = torch.nn.functional.normalize(feats, dim=-1)
-    return feats[0].cpu().tolist()
+    return feats.cpu().tolist()
+
+
+def embed_text(text: str) -> list[float]:
+    return _embed_texts([text])[0]
 
 
 def _check_key(x_embed_key: str | None) -> None:
@@ -91,6 +103,28 @@ def embed_text_route(
         "dim": 768,
         "model": MODEL_STAMP,
         "vector": vector,
+        "took_ms": int((time.perf_counter() - started) * 1000),
+    }
+
+
+@app.post("/embed-text-batch")
+def embed_text_batch_route(
+    body: EmbedBatchRequest,
+    x_embed_key: str | None = Header(default=None),
+) -> dict:
+    _check_key(x_embed_key)
+    texts = [t.strip() for t in body.texts]
+    if not all(texts):
+        raise HTTPException(status_code=400, detail="empty text in batch")
+    started = time.perf_counter()
+    vectors = _embed_texts(texts)
+    if not vectors or any(len(v) != 768 for v in vectors):
+        raise HTTPException(status_code=500, detail="bad dims in batch")
+    return {
+        "ok": True,
+        "dim": 768,
+        "model": MODEL_STAMP,
+        "vectors": vectors,
         "took_ms": int((time.perf_counter() - started) * 1000),
     }
 
