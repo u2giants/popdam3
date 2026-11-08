@@ -139,6 +139,12 @@ const persist = () => {
     renameSync(temporary, checkpoint);
   }
 };
+// Warm the edge-function isolates so cold starts don't inflate the first
+// few timed searches. Five short queries are enough to load modules and
+// the spelling vocabulary on each active isolate.
+for (const warm of ["a", "b", "c", "d", "e"]) {
+  await damSearch(`warmup ${warm}`).catch(() => {});
+}
 for (const testCase of set.cases) {
   raw[testCase.id] ??= {};
   const runs = raw[testCase.id];
