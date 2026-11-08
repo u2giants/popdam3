@@ -411,11 +411,25 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     }
     const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
     const usePictures = !productCodeSearch && spelling.meaningful;
-    const [embedding, floorConfig] = await Promise.all([
-      usePictures ? embedQueryText(query) : Promise.resolve(null),
+    // Product-type phrases ("floor covering") also run as catalog nouns
+    // ("mat", "rug") so compound queries do not drop real mats.
+    // Keyword-only variants skip the picture leg (no embedding).
+    const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
+      .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
+    // Every text the picture leg needs — the typed query plus its product-phrase
+    // variants — rides ONE batched text-embed call: the service answers one CPU
+    // forward pass per request and serialises concurrent requests, so separate
+    // calls (one per variant, or query-then-variants) queue behind each other
+    // and pay 1–3 s of tail (#804). One call, one latency draw.
+    const semanticTexts = usePictures
+      ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))]
+      : [];
+    const [embeddings, floorConfig] = await Promise.all([
+      semanticTexts.length ? queryEmbedder.embedAll(semanticTexts) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
     ]);
+    const embedding = embeddings?.get(query) ?? null;
     // Fail open: a config read failure must not take search down; it only
     // drops the optional floor for this request.
     if (floorConfig.error) {
@@ -429,25 +443,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // The caller-scoped client is required here: the RPC enforces DAM access
     // from auth.uid(), which a service-role client would bypass.
     // A required embedding failure must remain unavailable, never a partial keyword answer.
-    // Product-type phrases ("floor covering") also run as catalog nouns
-    // ("mat", "rug") so compound queries do not drop real mats.
-    // Keyword-only variants skip the picture leg (no embedding).
-    const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
-      .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
     const queryVariants = expanded.map((v) => v.query);
-    // The variants other than the typed query need their own picture vectors.
-    // They ride ONE batched text-embed call: fanned out as one HTTP request
-    // each they serialised on the service's single CPU (1–3 s of tail, #804).
-    const variantTexts = expanded
-      .filter(({ query: variant, semantic }) => semantic && usePictures && variant !== query)
-      .map(({ query: variant }) => variant);
-    const batchedEmbeddings = variantTexts.length ? await queryEmbedder.embedAll(variantTexts) : null;
     const variantEmbeddings = new Map<string, number[] | null>();
     for (const { query: variant, semantic } of expanded) {
-      variantEmbeddings.set(
-        variant,
-        !semantic || !usePictures ? null : variant === query ? embedding : (batchedEmbeddings?.get(variant) ?? null),
-      );
+      variantEmbeddings.set(variant, !semantic || !usePictures ? null : (embeddings?.get(variant) ?? null));
     }
 
     if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {

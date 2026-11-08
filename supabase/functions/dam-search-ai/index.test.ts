@@ -38,6 +38,17 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
 await import("./index.ts");
+// Answers both text-embed endpoints like the real service: batch requests get
+// one vector per requested text, single-text requests get one vector.
+const embedFetch = () =>
+  vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === "/embed-text-batch") {
+      const texts = JSON.parse(String(init?.body ?? "{}")).texts as string[];
+      return Response.json({ ok: true, vectors: texts.map(() => Array(768).fill(0)) });
+    }
+    return Response.json({ ok: true, vector: Array(768).fill(0) });
+  });
+
 const search = (query = "test phrase", signal?: AbortSignal, documentTypes?: string[]) =>
   state.handler!(
     new Request("https://example.invalid", {
@@ -99,7 +110,7 @@ describe("DAM search embedding availability", () => {
   }
 
   it("a later successful attempt uses semantic ranking", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+    vi.stubGlobal("fetch", embedFetch());
     expect((await search("semantic ranking")).status).toBe(200);
     expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
@@ -116,11 +127,11 @@ describe("DAM search embedding availability", () => {
   it("keeps pictures for the settled unknown full-code example after a real format hint", async () => {
     state.meaningful = false;
     state.formatRpc.mockResolvedValue({ data: true, error: null });
-    const fetch = vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) }));
+    const fetch = embedFetch();
     vi.stubGlobal("fetch", fetch);
     expect((await search("ZZZ83MVSP99")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledWith("dam_catalog_code_format_exists", { p_format: "AAA99AAAA99" }, expect.any(AbortSignal));
-    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce(); // query + variants in one batched call
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }));
   });
 
@@ -214,7 +225,7 @@ describe("DAM search embedding availability", () => {
     it(`preserves the exact ${scope} scope while keeping unknown-code pictures`, async () => {
       state.meaningful = false;
       state.formatRpc.mockResolvedValue({ data: true, error: null });
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+      vi.stubGlobal("fetch", embedFetch());
       expect((await search("ZZZ83MVSP99", undefined, [scope])).status).toBe(200);
       expect(state.rpc).toHaveBeenCalledWith(
         "search_dam_documents",
@@ -226,26 +237,22 @@ describe("DAM search embedding availability", () => {
   it("retains caller-scoped DAM permission failure rather than using the service client for search", async () => {
     state.formatRpc.mockResolvedValue({ data: true, error: null });
     state.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "denied" } });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, vector: Array(768).fill(0) })));
+    vi.stubGlobal("fetch", embedFetch());
     expect((await search("ZZZ83MVSP99")).status).toBe(403);
     expect(state.rpc).not.toHaveBeenCalledWith("dam_catalog_code_format_exists", expect.anything());
   });
 
-  it("rides product-phrase variants in ONE batched text-embed call instead of one request each", async () => {
-    const fetch = vi.fn(async (input: URL | RequestInfo) =>
-      ({
-        "/embed-text": () => Response.json({ ok: true, vector: Array(768).fill(1) }),
-        "/embed-text-batch": () => Response.json({ ok: true, vectors: [Array(768).fill(2), Array(768).fill(3)] }),
-      })[new URL(String(input)).pathname]!()
-    );
+  it("rides the query and its product-phrase variants in ONE batched text-embed call", async () => {
+    const fetch = embedFetch();
     vi.stubGlobal("fetch", fetch);
     expect((await search("spiderman floor covering")).status).toBe(200);
-    const batchCalls = fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch");
-    expect(batchCalls).toHaveLength(1);
-    expect(batchCalls[0][1]?.body).toEqual(JSON.stringify({ texts: ["spiderman mat", "spiderman rug"] }));
+    // One service round trip total: the typed query plus mat/rug variants.
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0][1]?.body).toEqual(
+      JSON.stringify({ texts: ["spiderman floor covering", "spiderman mat", "spiderman rug"] }),
+    );
     // Each variant's picture leg carries its own vector from the batch.
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(2) }));
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(3) }));
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
   });
 
   it("falls back to single-text embed calls while the service predates the batch endpoint", async () => {
