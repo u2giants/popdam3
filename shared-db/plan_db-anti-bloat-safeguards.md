@@ -1,6 +1,6 @@
 # Plan: database anti-bloat safeguards and ColdLion change-history rotation (popcre/shared-db#5758)
 
-Handoff for this plan: [HANDOFF.d/20261105T2111Z-edge-dev3-claude-db-anti-bloat-plan.md](HANDOFF.d/20261105T2111Z-edge-dev3-claude-db-anti-bloat-plan.md).
+Handoff for this plan: [HANDOFF.d/20261108T1305Z-edge-dev3-claude-close-nested-5758-anti-bloat.md](HANDOFF.d/20261108T1305Z-edge-dev3-claude-close-nested-5758-anti-bloat.md) (earlier handoffs retired 2026-11-08; see [docs/handoff-review-2026-11-08.md](docs/handoff-review-2026-11-08.md)).
 Sibling plan (read its STATUS, never redo its work): [plan_assets-bloat-permanent-fix.md](plan_assets-bloat-permanent-fix.md) (#5747) owns everything on `public.assets`, including its no-op writers, its index audit, its repack and its count fix.
 
 ## STATUS (plan written 2026-11-05 4:11 PM EST; no step executed)
