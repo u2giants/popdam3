@@ -67,6 +67,13 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #5950: parked 20261106214905 (PR #5913) declared derived-from:
+    # 20261015132149, a retired stamp held by no preview or production ledger,
+    # so the issue #1608 base-absent derivation gate blocked its preview
+    # applies (runs 42309935289, 42311124480) and automatic promotion parked
+    # it. Only forward replacement 20261108195205 (claim #5971) may apply;
+    # never apply this version.
+    "20261106214905",
     # #5758: one-shot coldlion.change_log rotation for the 2026-11-06 10:00 PM EST
     # slot (PR #5929, re-issued from #5885's 20261106152843). The promotion queue
     # lost every tip race and the slot closed before it reached production; the
@@ -394,6 +401,7 @@ RETIRED_VERSION_REASONS = {
     "20261006221530": "Original preview37542145935 at fd62f194fb9ca8fed3513d589a26c5ed9384f60d differs in session-authority producer from authoring merge74e4ee847d3e960af5cfbcddfe2e0ae9aaafb248. Qualification37550480001 refused before production dispatch. Preserve original migration and preview history; governed replacement20261007002113 under issue3907 claim4004 only.",
     "20261018191107": "production apply run 39425038130 rolled back at its own #2873 post-check because designflow_prod_backend_runtime is a member of designflow_prod_tracking_grants in production; preview-only; forward reissue 20261020125826 under issue 4464 claim 4467 grants designflow_prod_tracking_runtime directly",
     "20261106174810": "merged-stranded: PR5910 merged without a PR-owned evidence pair, so the DesignFlow release observer refuses its issue binding; never applied to DesignFlow production; retain source, never apply this version; claim5909 reissued as claim5943 to forward replacement 20261108135128 under issue5026",
+    "20261106214905": "merged-stranded on the issue #1608 derivation gate: declared derived-from: 20261015132149, a retired stamp held by no preview or production ledger, so the base-absent gate blocked its preview applies (runs 42309935289, 42311124480) and automatic promotion parked it after three attempts; retain source, never apply this version; reissued with the same executable SQL as 20261108195205 under issue 5950 claim 5971",
 }
 RETIRED_VERSIONS = frozenset(RETIRED_VERSION_REASONS)
 HELD_VERSIONS = frozenset({"20260802170000", "20260802171000"})

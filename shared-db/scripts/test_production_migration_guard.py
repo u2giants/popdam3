@@ -390,6 +390,7 @@ class GuardTests(unittest.TestCase):
                 "20261007232712",
                 "20261008160444",
                 "20261009040550",
+                "20261106214905",
                 "20261106174810",
                 "20261006203846",
                 "20261006211240",
@@ -430,6 +431,40 @@ class GuardTests(unittest.TestCase):
                 "20261006221530",
                 "20261018191107",
             },
+        )
+
+    def test_5950_parked_derivation_reissue_original_is_retired(self) -> None:
+        """20261106214905 was parked by the issue #1608 base-absent derivation
+        gate: it declared derived-from: 20261015132149, a retired stamp held by
+        no preview or production ledger. It may never apply; the same executable
+        SQL rides in forward reissue 20261108195205 with `derived-from: none`.
+        """
+        for allowlist in ("20261106214905", "20261106214905,20261108195205"):
+            with self.subTest(allowlist=allowlist), self.assertRaisesRegex(
+                GuardError, "20261106214905"
+            ):
+                parse_allowlist(allowlist)
+        self.assertEqual(parse_allowlist("20261108195205"), ["20261108195205"])
+        self.assertIn(
+            "20261108195205",
+            production_migration_guard.RETIRED_VERSION_REASONS["20261106214905"],
+        )
+        for applied in (set(), {"20261106214905"}):
+            self.assertEqual(
+                classify_pending_version("20261106214905", applied, REPO)["kind"],
+                "retired",
+            )
+        parked = (
+            REPO
+            / "supabase/migrations/20261106214905_pm_jev_activity_triage_contract_a.sql"
+        ).read_bytes().replace(b"\r\n", b"\n")
+        reissue = (
+            REPO
+            / "supabase/migrations/20261108195205_pm_jev_activity_triage_contract_a_reissue.sql"
+        ).read_bytes().replace(b"\r\n", b"\n")
+        marker = b"-- Migration A:"
+        self.assertEqual(
+            parked[parked.index(marker) :], reissue[reissue.index(marker) :]
         )
 
     def test_stranded_coldlion_division_original_is_blocked_but_reissue_is_allowed(
