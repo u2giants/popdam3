@@ -2,8 +2,8 @@
 
 ## STATUS — read first
 
-Execution snapshot: October 29, 2026, 12:13 PM EDT. Administrator family #4427 has accepted installed-migration, production/application, preview rollback and complete synthetic performance evidence; its source maintenance merged through PR #4971 at `aafdea08946b8465e6966bbf1cd7cdab765b999e`. [Final acceptance](docs/verification/rls-initplan/4427/acceptance.md) records the exact scopes and retained historical flags. [Final proof PR #5023](https://github.com/popcre/shared-db/pull/5023) merged as `da271bfa11e3681969ec37429f27d96a8c844b48`; [production certificate 40826924347](https://github.com/popcre/shared-db/actions/runs/40826924347) passed on that exact source. #4427 and its maintenance #4890 are CLOSED with accepted native completion. Wider programme reconciliation remains separately owned. Later families #4428–#4430 remain OPEN and dependency-gated; their work is not accepted by this record.
-Fresh sessions must not redo accepted #4427 work. Start at the actual owning issue for #4428 or another unaccepted family; refresh upstream, this table and that live issue before editing. Update this table and §5 after every executed step. A done row must cite immutable file/commit/run evidence, not a count or issue number alone.
+Execution snapshot: November 5, 2026, 5:00 PM EST. All six sub-phase families are CLOSED with completion records. Administrator family #4427 has accepted installed-migration, production/application, preview rollback and complete synthetic performance evidence; its source maintenance merged through PR #4971 at `aafdea08946b8465e6966bbf1cd7cdab765b999e`. [Final acceptance](docs/verification/rls-initplan/4427/acceptance.md) records the exact scopes and retained historical flags. [Final proof PR #5023](https://github.com/popcre/shared-db/pull/5023) merged as `da271bfa11e3681969ec37429f27d96a8c844b48`; [production certificate 40826924347](https://github.com/popcre/shared-db/actions/runs/40826924347) passed on that exact source. #4427 and its maintenance #4890 are CLOSED with accepted native completion. Later families #4428–#4430 are now CLOSED with completion records: #4428 closed after live re-proof (run 42140556791), #4429 and #4430 closed with production apply and installed-catalog live proof. Wider programme reconciliation remains separately owned. Parent #4421 is CLOSED; broader programme #2326 remains open.
+Fresh sessions must not redo any accepted family work. All sub-phases are complete. Update this table and §5 after every executed step. A done row must cite immutable file/commit/run evidence, not a count or issue number alone.
 
 | Step | Deliverable | Status / date | Evidence required to mark done |
 |---|---|---|---|
@@ -13,28 +13,28 @@ Fresh sessions must not redo accepted #4427 work. Start at the actual owning iss
 | 4 | Preview rehearsal and independent review | ✅ #4427 accepted | [Shared-preview rehearsal/rollback and exact reviews](docs/verification/rls-initplan/4427/acceptance.md#shared-preview-acceptance) |
 | 5 | Guarded merge and governed production apply | ✅ #4427 accepted | [Installed source/production verification and PR4971 merge](docs/verification/rls-initplan/4427/acceptance.md#installed-source-and-current-production-verification) |
 | 6 | Production live proof and consumer acceptance | ✅ #4427 scoped acceptance | [Application/production evidence and retained warning dispositions](docs/verification/rls-initplan/4427/acceptance.md) |
-| 7 | Final reconciliation and retirement | ✅ #4427 scoped closeout accepted October 29, 2026 EDT; wider programme open | [PR #5023](https://github.com/popcre/shared-db/pull/5023), [production certificate](https://github.com/popcre/shared-db/actions/runs/40826924347), closed [#4427](https://github.com/popcre/shared-db/issues/4427) / [#4890](https://github.com/popcre/shared-db/issues/4890); #4421/#2326 and later families remain OPEN |
+| 7 | Final reconciliation and retirement | ✅ All six families closed; parent #4421 closed November 5, 2026 EST; broader #2326 open | [PR #5023](https://github.com/popcre/shared-db/pull/5023), [production certificate](https://github.com/popcre/shared-db/actions/runs/40826924347), closed [#4427](https://github.com/popcre/shared-db/issues/4427) / [#4890](https://github.com/popcre/shared-db/issues/4890) / [#4428](https://github.com/popcre/shared-db/issues/4428) / [#4429](https://github.com/popcre/shared-db/issues/4429) / [#4430](https://github.com/popcre/shared-db/issues/4430) |
 
 Owning outcome: [issue #4421](https://github.com/popcre/shared-db/issues/4421).
 Parent program: [#2326](https://github.com/popcre/shared-db/issues/2326), specifically the RLS initialization-performance slice of [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) Step 6.
-Handoff: [HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md](HANDOFF.d/2026-10-18T1421Z-edge-dev3-codex-rls-performance-plan.md).
+Handoff: retired — all four session notes deleted November 5, 2026 (work is complete).
 Evidence: [baseline inventory and measured timings](docs/verification/rls-initplan/2026-10-18-baseline.md).
 This is a planning deliverable. It does not begin implementation, claim objects, reserve versions, or authorize a production write.
 
-### Execution issue map — updated October 29, 2026 EDT
+### Execution issue map — updated November 5, 2026 EST
 
-Parent #4421 now has six verified native sub-issues and native blocked-by links. Publication #4425 and inventory #4426 are closed with native merged prerequisite records. Administrator #4427 now has accepted scoped evidence and merged source; its native accepted issue closure is complete. #4428–#4430 remain OPEN. Preparation and isolated CI alone are not live repair.
+Parent #4421 has six verified native sub-issues and native blocked-by links. All six are CLOSED with completion records. Publication #4425 and inventory #4426 closed with native merged prerequisite records. Administrator #4427 closed with accepted scoped evidence and merged source. #4428–#4430 are now CLOSED: #4428 after live re-proof, #4429 and #4430 with production apply and installed-catalog live proof.
 
 | Child | Responsibility | Prerequisites |
 |---|---|---|
-| [#4425](https://github.com/popcre/shared-db/issues/4425) | Resolve publication gate conflict and land existing plan | None |
-| [#4426](https://github.com/popcre/shared-db/issues/4426) | Fresh read-only inventory, actual query baselines and test specification | None; may proceed independently of publication |
-| [#4427](https://github.com/popcre/shared-db/issues/4427) | All 46 public-admin policies end-to-end | #4425, #4426 |
-| [#4428](https://github.com/popcre/shared-db/issues/4428) | All 17 owner-uid policies end-to-end | #4425, #4426, #4427 |
-| [#4429](https://github.com/popcre/shared-db/issues/4429) | All four app-access policies end-to-end | #4425, #4426, #4428 |
-| [#4430](https://github.com/popcre/shared-db/issues/4430) | Both packaging/JWT policies end-to-end | #4425, #4426, #4429 |
+| [#4425](https://github.com/popcre/shared-db/issues/4425) | Resolve publication gate conflict and land existing plan | None | CLOSED |
+| [#4426](https://github.com/popcre/shared-db/issues/4426) | Fresh read-only inventory, actual query baselines and test specification | None; may proceed independently of publication | CLOSED |
+| [#4427](https://github.com/popcre/shared-db/issues/4427) | All 46 public-admin policies end-to-end | #4425, #4426 | CLOSED |
+| [#4428](https://github.com/popcre/shared-db/issues/4428) | All 17 owner-uid policies end-to-end | #4425, #4426, #4427 | CLOSED |
+| [#4429](https://github.com/popcre/shared-db/issues/4429) | All four app-access policies end-to-end | #4425, #4426, #4428 | CLOSED |
+| [#4430](https://github.com/popcre/shared-db/issues/4430) | Both packaging/JWT policies end-to-end | #4425, #4426, #4429 | CLOSED |
 
-This refines §8's formerly open batching choice: use family deliveries in that order, each carrying its own live-proof checklist through completion; do not create separate proof tickets. Preparation does not claim objects or write fixtures. Each structural child redoes fresh Step 1 custody and executes Steps 2–7 for its family, including preview fixtures, review, merge, production and live acceptance. Parent #4421 remains tracking-only; the admitted repair child is its source PR's single structural issue. Update this plan and each relevant child as results land. Codex chat 01a14fa2-bd3e-7d62-ba77-7bdfd7976f0e owns continuation. Native subagents prepare later-family tests concurrently; implementation and closure remain ordered by each predecessor’s live acceptance.
+This refines §8's formerly open batching choice: family deliveries completed in that order, each carrying its own live-proof checklist through completion. All six families and parent #4421 are now CLOSED. Preparation did not claim objects or write fixtures. Each structural child redid fresh Step 1 custody and executed Steps 2–7 for its family, including preview fixtures, review, merge, production and live acceptance.
 
 
 ## 1. Ultimate goal
