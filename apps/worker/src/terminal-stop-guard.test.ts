@@ -111,3 +111,30 @@ test("batch-error terminal failure save cannot replace a concurrent user Stop", 
     assert.equal(stopped.status, "interrupted");
   } finally { globalThis.fetch = original; }
 });
+
+// #863: an APPLIED terminal save must return true so the outcome row is
+// recorded. The applied-check once hardcoded status === "running", so a
+// successfully persisted "completed"/"failed" write read back as refused and
+// silently skipped recordStyleGroupTerminalOutcome — the nightly rebuild
+// stopped landing terminal rows on 2026-11-05.
+test("an applied terminal save returns true and records its outcome", async () => {
+  const original = globalThis.fetch;
+  const key = "rebuild-style-groups";
+  const writes: Record<string, unknown>[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    assert.ok(url.pathname.endsWith("/rpc/update_bulk_operation"));
+    const params = JSON.parse(String(init?.body));
+    writes.push(params);
+    assert.equal(params.p_only_if_status, "running");
+    // The RPC applied the write: echo the persisted state back.
+    return Response.json({ [key]: params.p_op_state });
+  };
+  try {
+    for (const status of ["completed", "failed"] as const) {
+      const terminal: OpState = { status, run_id: "applied-run", started_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      assert.equal(await persistOpState(key, terminal, { onlyIfRunning: true }), true);
+    }
+    assert.equal(writes.length, 2);
+  } finally { globalThis.fetch = original; }
+});

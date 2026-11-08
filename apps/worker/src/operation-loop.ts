@@ -1012,9 +1012,14 @@ export async function persistOpState(
 
   if (!data) return false;
   if (!options.onlyIfRunning) return true;
-  // Check if our write was applied: the returned state should have status="running"
+  // Check if our write was applied: the returned state should carry the exact
+  // status we persisted — "running" for checkpoint saves, a terminal status
+  // for completion/failure writes. Comparing to the persisted status (not a
+  // hardcoded "running") is what lets an applied terminal save return true so
+  // its outcome row is recorded; a concurrent user Stop leaves a different
+  // status and still correctly reads as refused (#863).
   const allOps = data as Record<string, OpState>;
-  return allOps[opKey]?.status === "running";
+  return allOps[opKey]?.status === opState.status;
 }
 
 /**
