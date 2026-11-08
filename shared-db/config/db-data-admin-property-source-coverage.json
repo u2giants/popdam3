@@ -385,6 +385,14 @@
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_names": ["customs_benchmark_dataset", "customs_benchmark_artifact", "customs_benchmark_observation"],
       "reason": "Private application evidence archive (#5447), including original customs documents and historical style associations; not a licensor portal Property vocabulary."
+    },
+    {
+      "family": "licensor_submission_pdf_readings",
+      "licensor": "All licensors (our submission confirmation PDFs on the NAS)",
+      "business_purpose": "Per-style evidence read from licensor submission confirmation pages",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["licensor_submission_pdf", "licensor_submission_pdf_capture"],
+      "reason": "OCR readings of our own submission confirmation PDFs, one row per PDF keyed to our style number (#5952); per-item evidence for review against ColdLion, not a licensor portal Property vocabulary."
     }
   ]
 }
