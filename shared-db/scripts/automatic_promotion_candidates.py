@@ -730,6 +730,25 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
 STUCK_ISSUE_TITLE = "Automatic promotion: stuck migrations need repair"
 
 
+def find_stuck_issue(repo: str) -> dict[str, Any] | None:
+    """Locate the open tracking issue anywhere in the open-issue list.
+
+    A parked change can leave the tracking issue past the first 100 open
+    issues; a single-page lookup would then open a duplicate."""
+    page = 1
+    while True:
+        batch = gh(f"repos/{repo}/issues?state=open&per_page=100&page={page}") or []
+        match = next(
+            (i for i in batch if i.get("title") == STUCK_ISSUE_TITLE and not i.get("pull_request")),
+            None,
+        )
+        if match:
+            return match
+        if len(batch) < 100:
+            return None
+        page += 1
+
+
 def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime) -> None:
     """Step 2.3: open or update ONE tracking issue for exhausted PRs, with
     delivery wording, failure text, and merged-not-live duration."""
@@ -754,11 +773,7 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
         "and re-dispatch through the normal promotion path.\n"
     )
     try:
-        found = gh(f"repos/{repo}/issues?state=open&per_page=100")
-        existing = next(
-            (i for i in (found or []) if i.get("title") == STUCK_ISSUE_TITLE and not i.get("pull_request")),
-            None,
-        )
+        existing = find_stuck_issue(repo)
         if existing:
             number = existing["number"]
             subprocess.run(

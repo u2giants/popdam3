@@ -1105,6 +1105,75 @@ class StuckChangeOwner(unittest.TestCase):
         self.assertEqual(len(creates), 0)
         self.assertEqual(len(comments), 1)
 
+    def test_tracking_issue_past_first_page_is_updated_not_duplicated(self):
+        # Closeout note #5758: a parked tracking issue beyond the first 100
+        # open issues must be found by pagination, not re-created.
+        import subprocess as sp
+        pr = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        entries = [{**pr, "findings": [], "exhausted": 3}]
+        pages = {
+            1: [{"number": n, "title": f"other issue {n}", "state": "open"} for n in range(100)],
+            2: [{"number": 42, "title": m.STUCK_ISSUE_TITLE, "state": "open"}],
+        }
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                stdout = ""
+                stderr = ""
+            return R()
+        def fake_gh(*a):
+            calls.append(a)
+            return pages[int(a[-1].rsplit("page=", 1)[1])]
+        saved_run = sp.run
+        saved_gh = m.gh
+        sp.run = fake_run
+        m.gh = fake_gh
+        try:
+            m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+            m.gh = saved_gh
+        creates = [c for c in calls if "create" in c]
+        comments = [c for c in calls if "comment" in c]
+        self.assertEqual(len(creates), 0)
+        self.assertEqual(len(comments), 1)
+        self.assertIn("42", comments[0])
+
+    def test_create_only_after_every_page_is_scanned(self):
+        import subprocess as sp
+        pr = {"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": ["20261101000000"]}
+        entries = [{**pr, "findings": [], "exhausted": 3}]
+        pages = {
+            1: [{"number": n, "title": f"other issue {n}", "state": "open"} for n in range(100)],
+            2: [{"number": 7, "title": "some other issue", "state": "open"}],
+        }
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                stdout = "https://github.com/o/r/issues/99\n"
+                stderr = ""
+            return R()
+        def fake_gh(*a):
+            calls.append(a)
+            return pages[int(a[-1].rsplit("page=", 1)[1])]
+        saved_run = sp.run
+        saved_gh = m.gh
+        sp.run = fake_run
+        m.gh = fake_gh
+        try:
+            m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            sp.run = saved_run
+            m.gh = saved_gh
+        creates = [c for c in calls if "create" in c]
+        comments = [c for c in calls if "comment" in c]
+        self.assertEqual(len(creates), 1)
+        self.assertEqual(len(comments), 0)
+        # Both pages were read before deciding to create.
+        self.assertEqual(len([c for c in calls if "page=" in c[-1]]), 2)
+
     def test_no_entries_no_issue(self):
         import subprocess as sp
         calls = []
