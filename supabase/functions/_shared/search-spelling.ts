@@ -106,20 +106,26 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
     }, SPELLING_BUDGET_MS);
   });
   try {
+    // The vocabulary decides meaning and correction for known words, so their
+    // corpus counts are never consulted. Counting them anyway cost 0.5-2.3 s
+    // per broad name search ("disney", "marvel": frequent lexemes in
+    // dam_search_keys), on the critical path before the query embedding.
+    const vocabulary = await Promise.race([lookup.vocabulary(controller.signal), deadline]);
     const counts = new Map<string, number>();
+    const needsCount = unique.filter((word) => !vocabulary.has(word));
+    for (const word of unique) {
+      if (!/^[\p{L}\p{N}]+$/u.test(word)) counts.set(word, RARE_WORD_DOCS);
+    }
     let next = 0;
     const countWorker = async () => {
-      while (next < unique.length) {
+      while (next < needsCount.length) {
         if (controller.signal.aborted) throw new Error("Spelling budget exceeded");
-        const word = unique[next++];
-        counts.set(word, /^[\p{L}\p{N}]+$/u.test(word) ? await lookup.countDocs(word, controller.signal) : RARE_WORD_DOCS);
+        const word = needsCount[next++];
+        counts.set(word, await lookup.countDocs(word, controller.signal));
       }
     };
-    const [vocabulary] = await Promise.race([
-      Promise.all([
-        lookup.vocabulary(controller.signal),
-        Promise.all(Array.from({ length: Math.min(unique.length, SPELLING_LOOKUP_CONCURRENCY) }, countWorker)),
-      ]),
+    await Promise.race([
+      Promise.all(Array.from({ length: Math.min(needsCount.length, SPELLING_LOOKUP_CONCURRENCY) }, countWorker)),
       deadline,
     ]);
     let meaningful = false;

@@ -66,7 +66,7 @@ describe("search spelling", () => {
     };
     expect(await checkSpelling("xqzvplm", broken)).toEqual({ corrected: null, meaningful: true });
   });
-  it("starts unique word counts and vocabulary together, preserving query order", async () => {
+  it("skips corpus counts for words the vocabulary already knows", async () => {
     const started: string[] = [];
     const releases = new Map<string, (value: number) => void>();
     let resolveVocabulary!: (value: Map<string, number>) => void;
@@ -82,10 +82,12 @@ describe("search spelling", () => {
           releases.set(word, resolve);
         }),
     });
-    expect(started).toEqual(["vocabulary", "captian", "america"]);
-    releases.get("america")!(3);
-    releases.get("captian")!(0);
+    // Vocabulary decides first: "america" is a known name word and needs no count.
+    expect(started).toEqual(["vocabulary"]);
     resolveVocabulary(vocabulary);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(started).toEqual(["vocabulary", "captian"]);
+    releases.get("captian")!(0);
     expect(await result).toEqual({ corrected: "captain America captain", meaningful: true });
   });
 
@@ -131,6 +133,7 @@ describe("search spelling", () => {
         vocabulary: async () => new Map(),
         countDocs,
       });
+      await vi.advanceTimersByTimeAsync(0);
       expect(countDocs).toHaveBeenCalledTimes(SPELLING_LOOKUP_CONCURRENCY);
       await vi.advanceTimersByTimeAsync(SPELLING_BUDGET_MS);
       expect(await result).toEqual({ corrected: null, meaningful: true });
