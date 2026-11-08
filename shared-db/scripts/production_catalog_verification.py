@@ -252,6 +252,15 @@ COMMENT_SCHEMA_RE = re.compile(
     re.IGNORECASE | re.MULTILINE | re.DOTALL,
 )
 COMMENT_ON_RE = re.compile(r"^\s*comment\s+on\b")
+# Issue #5874: `create extension [if not exists] <name> [with ...]` names a
+# pg_extension row that must exist afterwards. Only a plain or double-quoted
+# lowercase identifier is read (it is interpolated into the catalog query);
+# anything else stays unparsed and is noted.
+CREATE_EXTENSION_RE = re.compile(
+    r'^\s*create\s+extension\s+(?:if\s+not\s+exists\s+)?(?:"([a-z_][a-z0-9_]*)"|([a-z_][a-z0-9_]*))(?:\s+.*)?$',
+    re.IGNORECASE | re.DOTALL,
+)
+CREATE_EXTENSION_HEAD_RE = re.compile(r"^\s*create\s+extension\b", re.IGNORECASE)
 COMMENT_RELATION_RE = re.compile(
     rf"^\s*comment\s+on\s+(?:table|view|materialized\s+view|foreign\s+table)\s+{QUALIFIED}\s+is\b"
 )
@@ -1842,6 +1851,7 @@ class Targets:
         function_settings: list[tuple[str, str | None, str, str]] | None = None,
         schema_comments: dict[str, str | None] | None = None,
         change_types: set[str] | None = None,
+        extensions: set[str] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -1864,6 +1874,7 @@ class Targets:
         self.roles = sorted(roles)
         self.seeded = sorted(seeded)
         self.indexes = sorted(indexes or set())
+        self.extensions = sorted(extensions or set())
         self.schema_renames = sorted(schema_renames or set())
         # Filled only for a batch of nothing but `comment on` statements.
         self.schema_comments = sorted((schema_comments or {}).items())
@@ -1905,6 +1916,7 @@ class Targets:
             or self.schema_renames
             or self.schema_comments
             or self.function_settings
+            or self.extensions
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -1926,6 +1938,7 @@ class Targets:
                 f"{signature or family}|{action}|{setting}"
                 for family, signature, setting, action in self.function_settings
             ],
+            "extensions": self.extensions,
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
             "change_types": self.change_types,
@@ -2997,6 +3010,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     schema_comments: dict[str, str | None] = {}
     settings: dict[tuple[str, str | None, str], tuple[str, str | None, str, str]] = {}
     batch_statements: list[str] = []
+    extensions: set[str] = set()
 
     for version in allowlist:
         path = migrations.get(version)
@@ -3017,6 +3031,18 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         text = strip_sql(raw)
         batch_statements.extend(split_statements(text))
         for statement in split_statements(text):
+            if match := CREATE_EXTENSION_RE.match(statement):
+                name = match.group(1) or match.group(2).lower()
+                extensions.add(name)
+                change_types.add("create extension")
+                continue
+            if CREATE_EXTENSION_HEAD_RE.match(statement):
+                change_types.add("create extension")
+                notes.append(
+                    f"{version}: CREATE EXTENSION was not safely parseable and was not "
+                    f"silently accepted: `{statement.strip()[:240]}`"
+                )
+                continue
             if match := ALTER_SCHEMA_RENAME_RE.match(statement):
                 schema_rename_pairs.add((match.group(1), match.group(2)))
                 change_types.add("alter schema rename")
@@ -3240,6 +3266,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         function_settings=list(settings.values()),
         schema_comments=verified_schema_comments,
         change_types=change_types,
+        extensions=extensions,
     )
 
 
@@ -3354,6 +3381,7 @@ def build_catalog_sql(targets: Targets) -> str:
             | {name for name, _ in targets.schema_comments}
         )
     )
+    extension_names = _sql_array(targets.extensions)
     defacl = targets.default_acls
     defacl_schemas = _sql_array([row[0] for row in defacl])
     defacl_roles = _sql_array([row[1] for row in defacl])
@@ -3394,6 +3422,17 @@ select jsonb_build_object(
   -- the two need different verdicts.
   'probe_roles', coalesce((
     select jsonb_agg(probe_roles.role order by probe_roles.role) from probe_roles
+  ), '[]'::jsonb),
+  'extensions', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'name', x.name,
+      'exists', e.oid is not null,
+      'version', e.extversion,
+      'schema', en.nspname
+    ) order by x.name)
+    from unnest({extension_names}) as x(name)
+    left join pg_extension e on e.extname = x.name
+    left join pg_namespace en on en.oid = e.extnamespace
   ), '[]'::jsonb),
   'schemas', coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -4362,6 +4401,26 @@ def render_report(
             f"`{row.get('acl_text') or 'NULL'}` |"
         )
     add("")
+
+    if targets.extensions:
+        add("## Extensions (`pg_extension`)")
+        add("")
+        add("| extension | present | version | schema |")
+        add("| --- | --- | --- | --- |")
+        extension_rows = {
+            str(row.get("name")): row for row in (data.get("extensions") or [])
+            if isinstance(row, dict)
+        }
+        for name in targets.extensions:
+            row = extension_rows.get(name) or {}
+            present = row.get("exists") is True
+            add(
+                f"| `{name}` | {present} | `{row.get('version') or 'NULL'}` | "
+                f"`{row.get('schema') or 'NULL'}` |"
+            )
+            if not present:
+                failures.append(f"extension {name}: must be installed (pg_extension)")
+        add("")
 
     add("## Schema rename assertions (`pg_namespace`)")
     add("")
