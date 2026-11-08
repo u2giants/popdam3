@@ -16,6 +16,7 @@ set local statement_timeout='2500ms';
 set local transaction_timeout='3s';
 set local search_path=pg_catalog,public,extensions;
 
+-- Accept the predecessor or this migration's own installed body for retry.
 do $guard$
 begin
   if not exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)')
@@ -36,7 +37,7 @@ alter table public.dam_search_documents
 comment on column public.dam_search_documents.default_visible_member_count is
   '#5938: number of member assets (the asset itself for asset documents) passing dam_asset_matches_filters with empty filters, computed with default_visible_min_date. Maintained with has_default_visible_member; NULL = unknown.';
 
--- Same predicate as dam_default_visible_member, counted.
+-- Canonical empty-filter visibility predicate, shared by the boolean helper.
 create or replace function public.dam_default_visible_member_count(p_document_type text, p_asset_id uuid, p_style_group_id uuid, p_min_date timestamptz)
 returns integer language sql stable
 set search_path = public, pg_temp
@@ -49,6 +50,14 @@ as $f$
       select count(*)::integer from public.assets a where a.style_group_id = p_style_group_id and not a.is_deleted
         and (a.modified_at >= p_min_date or a.file_created_at >= p_min_date or a.thumbnail_url is not null))
     else 0 end
+$f$;
+
+-- Preserve existing callers while keeping the visibility predicate in one place.
+create or replace function public.dam_default_visible_member(p_document_type text, p_asset_id uuid, p_style_group_id uuid, p_min_date timestamptz)
+returns boolean language sql stable
+set search_path = public, pg_temp
+as $f$
+  select public.dam_default_visible_member_count(p_document_type, p_asset_id, p_style_group_id, p_min_date) > 0
 $f$;
 
 create or replace function public.dam_refresh_default_visible_flag(p_document_type text, p_entity_id uuid)
@@ -471,5 +480,19 @@ AS $function$
   left join page p on true
   order by p.rank desc nulls last, p.document_type nulls last, p.entity_id nulls last;
 $function$;
+
+do $guard$
+begin
+  if not exists (select 1 from pg_proc p where p.oid=to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)')
+      and md5(p.prosrc)='e5a91c3487599c6a66944c94c2bb0518' and pg_get_userbyid(p.proowner)='postgres'
+      and p.prosecdef and p.provolatile='s' and p.proretset
+      and pg_get_function_arguments(p.oid)='p_query text, p_filters jsonb, p_limit integer, p_offset integer, p_document_types text[] DEFAULT NULL::text[], p_query_embedding vector DEFAULT NULL::vector, p_min_rank real DEFAULT 0, p_min_semantic_score real DEFAULT NULL::real'
+      and pg_get_function_result(p.oid)='TABLE(document_type text, entity_id uuid, asset_id uuid, style_group_id uuid, keyword_rank real, semantic_rank real, rank real, total_count bigint, has_more boolean, facets jsonb)'
+      and p.proconfig=ARRAY['search_path=public, extensions','statement_timeout=30s']::text[]
+      and p.proacl::text='{postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}') then
+    raise exception '#5938 installed search contract differs; reconcile rather than overwrite';
+  end if;
+end;
+$guard$;
 
 commit;

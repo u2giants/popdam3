@@ -195,4 +195,68 @@ begin
   end if;
 end;
 $test$;
+-- #5967: one candidate with >1000 members (searched by its SKU, which the
+-- asset-triggered document refresh keeps as the title) exercises #5938 independently
+-- of the older >1000-document shortcut. Every fixture is rolled back.
+do $test$
+declare
+  g uuid;
+  result record;
+  expected_facets jsonb;
+  filters jsonb;
+  mode text;
+begin
+  insert into public.style_groups (sku, folder_path)
+    values ('ZQ5967', '/zq5967') returning id into g;
+  insert into public.assets (filename, relative_path, file_type, quick_hash,
+                             modified_at, file_created_at, thumbnail_url, style_group_id)
+    select 'zq5967-' || i || '.pdf', 'zq5967/' || i || '.pdf', 'pdf',
+           'zq5967-' || i, now(), now(), 'https://example.invalid/t.png', g
+    from generate_series(1, 1001) i;
+  insert into public.dam_search_documents (document_type, entity_id, style_group_id, title, path)
+    values ('style_group', g, g, 'ZQ5967', '/zq5967')
+    on conflict (document_type, entity_id) do update
+      set style_group_id=excluded.style_group_id, title=excluded.title, path=excluded.path;
+  if (select default_visible_member_count from public.dam_search_documents
+      where document_type='style_group' and entity_id=g) is distinct from 1001
+     or public.dam_default_visible_member_count('style_group', null, g, public.assets_thumbnail_min_date()) <> 1001
+     or public.dam_default_visible_member('style_group', null, g, public.assets_thumbnail_min_date()) is not true then
+    raise exception '#5967 insert-time member count wrong';
+  end if;
+
+  foreach mode in array array['current', 'filtered', 'null', 'stale', 'swept', 'below_cap'] loop
+    filters := '{}';
+    if mode = 'filtered' then filters := '{"customer":""}'; end if;
+    if mode in ('null', 'swept') then
+      update public.dam_search_documents set default_visible_member_count=null
+        where document_type='style_group' and entity_id=g;
+    end if;
+    if mode = 'stale' then
+      update public.dam_search_documents
+        set default_visible_member_count=0, default_visible_min_date='1900-01-01'
+        where document_type='style_group' and entity_id=g;
+    end if;
+    if mode = 'swept' then
+      perform public.dam_sweep_default_visible_flags(1000000);
+      if (select default_visible_member_count from public.dam_search_documents
+          where document_type='style_group' and entity_id=g) is distinct from 1001 then
+        raise exception '#5967 sweep did not backfill NULL member count';
+      end if;
+    end if;
+    if mode = 'below_cap' then
+      update public.assets set is_deleted=true
+        where id=(select id from public.assets where style_group_id=g order by id limit 1);
+    end if;
+    select * into strict result from public.search_dam_documents(
+      'ZQ5967', filters, 5, 0, array['style_group'], null, 0, null);
+    expected_facets := case when mode='below_cap' then '{"pdf":1000}'::jsonb else '{}'::jsonb end;
+    if result.entity_id is distinct from g or result.total_count is distinct from 1::bigint
+       or result.has_more is distinct from false
+       or result.facets->>'totalExact' is distinct from 'true'
+       or result.facets->'fileType' is distinct from expected_facets then
+      raise exception '#5967 member shortcut/fallback failed in mode %: %', mode, row_to_json(result);
+    end if;
+  end loop;
+end;
+$test$;
 rollback;
