@@ -6102,3 +6102,27 @@ test('curated SQL reports plm.set_source_resolution calls as plm.source_resoluti
   assert.throws(()=>inspectCuratedSql("update plm.opa_character set core_character_id = null where character_id = 1;"),/outside curated Master Data/)
   assert.throws(()=>inspectCuratedSql("insert into plm.source_resolution (source_id) values ('x');"),/outside curated Master Data/)
 })
+
+test('#5937: the same source PR takes over its own live freeze; another PR still refuses',()=>{
+  const io=freezeIo(),now=new Date('2026-11-06T16:00:00Z')
+  acquirePromotionFreeze({pr:5929,owner:'automatic-promotion-backstop',ttlMinutes:15,now},io)
+  const next=acquirePromotionFreeze({pr:5929,owner:'automatic-production-qualification',ttlMinutes:45,now},io)
+  assert.equal(next.replacedOwn,true)
+  assert.equal(readPromotionFreeze(io,now).owner,'automatic-production-qualification')
+  assert.throws(()=>acquirePromotionFreeze({pr:1,owner:'x',ttlMinutes:15,now},io),/already set/)
+})
+
+test('#5937: --check-promotion-freeze refuses a non-tolerant queued PR while a freeze is live',()=>{
+  const io=freezeIo(),now=new Date('2026-11-06T16:00:00Z')
+  io.getPrFiles=(n)=>n===10?[{filename:'docs/notes.md',status:'modified'}]:[{filename:'scripts/x.mjs',status:'modified'}]
+  const errors=[],logs=[],ce=console.error,cl=console.log
+  console.error=(m)=>errors.push(String(m));console.log=(m)=>logs.push(String(m))
+  try{
+    assert.equal(main(['--check-promotion-freeze','--pr','11'],now,io),0,'no freeze: allowed')
+    acquirePromotionFreeze({pr:5929,owner:'automatic-promotion-backstop',ttlMinutes:15,now},io)
+    assert.notEqual(main(['--check-promotion-freeze','--pr','11'],now,io),0,'live freeze refuses')
+    assert.match(errors.join('\n'),/merges are paused for a production run; promotion merge freeze held by "automatic-promotion-backstop"/)
+    assert.equal(main(['--check-promotion-freeze','--pr','10'],now,io),0,'freeze-tolerant PR merges through')
+    assert.equal(main(['--check-promotion-freeze','--pr','11'],new Date('2026-11-06T16:16:00Z'),io),0,'TTL expiry resumes merges')
+  }finally{console.error=ce;console.log=cl}
+})

@@ -66,6 +66,16 @@ MAX_REFUNDS = 3
 # step of exactly this name in any attempt marks the run refund-eligible.
 REFUND_STEP = "refund-eligible-fault"
 ALERT_AFTER = timedelta(minutes=30)
+# #5937 deadline ordering: a migration may declare `-- promote-by: <UTC ISO
+# timestamp>` (e.g. `-- promote-by: 2026-11-07T03:00:00Z`) in its file. Eligible
+# candidates promote earliest deadline first, then merge order.
+PROMOTE_BY_RE = re.compile(r"^--\s*promote-by:\s*(\S+)\s*$", re.MULTILINE | re.IGNORECASE)
+# #5937 backstop: after this many consecutive main-moved refusals of the SAME
+# change, the selector freezes merges for BACKSTOP_FREEZE_TTL_MINUTES before
+# re-dispatching, so the rehearsal can finish against an unmoving main.
+BACKSTOP_AFTER_STALE = 2
+BACKSTOP_FREEZE_TTL_MINUTES = 15
+BACKSTOP_FREEZE_OWNER = "automatic-promotion-backstop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -83,6 +93,32 @@ def registered_orphan_versions() -> set[str]:
         return {c.get("orphan_version") for c in cases if c.get("orphan_version")}
     except (OSError, ValueError):
         return set()
+
+
+def promote_by(path: str) -> str | None:
+    """The file's `-- promote-by:` deadline as a canonical UTC string, or None.
+    A malformed header is warned about and ignored (never blocks promotion)."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            match = PROMOTE_BY_RE.search(fh.read())
+    except OSError:
+        return None
+    if not match:
+        return None
+    try:
+        at = datetime.fromisoformat(match.group(1).replace("Z", "+00:00"))
+    except ValueError:
+        at = None
+    if at is None or at.tzinfo is None:
+        print(f"::warning::{os.path.basename(path)}: ignoring malformed promote-by {match.group(1)!r} (need UTC ISO timestamp)")
+        return None
+    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def candidate_order(pr: dict[str, Any]) -> tuple[int, str, str]:
+    """Earliest declared deadline first, then merge order (#5937)."""
+    deadline = pr.get("promote_by")
+    return (0 if deadline else 1, deadline or "", pr["merged_at"])
 
 
 def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
@@ -146,16 +182,21 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
     owners = {v: pr["number"] for pr in found for v in pr["versions"]}
     for pr in found:
         bases = set()
+        deadlines = []
         for version in pr["versions"]:
             paths = glob.glob(os.path.join(os.path.dirname(HERE), "supabase", "migrations", f"{version}_*.sql"))
             if len(paths) != 1:
                 raise ValueError(f"ambiguous migration source for {version}")
             bases.update(declared_bases(version, path=Path(paths[0])) or ())
+            if deadline := promote_by(paths[0]):
+                deadlines.append(deadline)
+        if deadlines:
+            pr["promote_by"] = min(deadlines)
         # Retain ownership on the candidate itself: the final fresh recheck only
         # receives this PR, not the complete earlier candidate list.
         pr["production_dependencies"] = {v: owners[v] for v in sorted(bases)
                                          if v in owners and owners[v] != pr["number"]}
-    return sorted(found, key=lambda p: p["merged_at"])
+    return sorted(found, key=candidate_order)
 
 
 def workflow_runs(repo: str) -> list[dict[str, Any]]:
@@ -340,12 +381,15 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     Dependency receipts are cached only for this call, never the fresh recheck.
     A run `stale` reports as a pure main-SHA staleness refusal never touched a
     database and consumes no attempt (#5856). A run `refunded` carries the
-    workflow's refund-eligible marker (plan §9 2.1/2.2). Both are CLASSIFIED
-    failures: each draws from one per-change refund budget (MAX_REFUNDS) since
+    workflow's refund-eligible marker (plan §9 2.1/2.2). A `stale` run costs
+    nothing at all (#5937: other people's merges say nothing about the change);
+    a `refunded` run draws from one per-change refund budget (MAX_REFUNDS) since
     the merge — refunds keep a good change alive through other people's
     breakage, and the classified failure that finds the budget empty parks the
     change ("3 refunds used, now parked", plan §9 2.3)."""
     runs = [r for r in runs if our_workflow(r)]
+    # #5937: deadline first, then merge order (stable for callers' own order).
+    prs = sorted(prs, key=candidate_order)
     if any(r.get("status") != "completed" for r in runs):
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
@@ -435,9 +479,15 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
                     and (tag in t or names_pr(pr, t))
                     and r.get("created_at", "") > pr["merged_at"]
                     and r.get("conclusion") != "success"]
-        attempts, refunds, refund_parked = 0, 0, False
+        attempts, refunds, refund_parked, stale_streak = 0, 0, False, 0
         for failure in sorted(failures, key=lambda r: r.get("created_at", "")):
-            if stale(failure) or refunded(failure):
+            # #5937: a main-moved refusal never touched a database and is caused
+            # by other people's merges -- it counts neither attempt nor refund.
+            if stale(failure):
+                stale_streak += 1
+                continue
+            stale_streak = 0
+            if refunded(failure):
                 if refunds >= MAX_REFUNDS:
                     refund_parked = True
                     break
@@ -456,6 +506,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if skipped is not None:
                 skipped.append(entry)
             continue
+        if stale_streak >= BACKSTOP_AFTER_STALE:
+            pr = {**pr, "stale_streak": stale_streak}
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
     if passed_over:
         base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
@@ -584,6 +636,8 @@ def main(now: datetime | None = None) -> int:
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
+        if pr.get("stale_streak", 0) >= BACKSTOP_AFTER_STALE:
+            backstop_freeze(pr)
         dispatch(repo, pr, main_sha)
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
@@ -632,6 +686,27 @@ def main(now: datetime | None = None) -> int:
             if reruns:
                 fh.write(f"- Acknowledged re-runs: {len(reruns)}\n")
     return 0
+
+
+def backstop_freeze(pr: dict[str, Any]) -> bool:
+    """#5937 backstop: freeze merges for BACKSTOP_FREEZE_TTL_MINUTES before
+    re-dispatching a change main movement refused BACKSTOP_AFTER_STALE times in
+    a row. The merge-queue gate refuses non-tolerant groups while it is live;
+    production qualification takes it over for this PR and the production
+    job's always() cleanup releases it, else the TTL does. Failure to freeze
+    (e.g. another PR's freeze is live) is a warning: dispatch still proceeds."""
+    print(f"backstop: PR #{pr['number']} refused for main movement {pr['stale_streak']} times in a row; "
+          f"freezing merges for {BACKSTOP_FREEZE_TTL_MINUTES} minutes")
+    result = subprocess.run(
+        ["node", os.path.join(HERE, "manage-migration-coordination.mjs"), "--acquire-promotion-freeze",
+         "--pr", str(pr["number"]), "--owner", BACKSTOP_FREEZE_OWNER,
+         "--ttl-minutes", str(BACKSTOP_FREEZE_TTL_MINUTES)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+    print(result.stdout.strip())
+    if result.returncode != 0:
+        print(f"::warning::backstop merge freeze for PR #{pr['number']} not set (exit {result.returncode}); dispatching anyway")
+        return False
+    return True
 
 
 def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:

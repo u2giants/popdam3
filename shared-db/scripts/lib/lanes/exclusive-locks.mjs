@@ -444,11 +444,14 @@ export function acquirePromotionFreeze({ issue, pr, owner, ttlMinutes, now = new
   acquireMutex(ownerSha, io)
   try {
     const existing = readPromotionFreeze(io, at)
-    if (existing && !existing.expired) throw new LaneError(`a promotion merge freeze is already set; ${promotionFreezeText(existing)}`)
+    // #5937: the same source PR may take over its own live freeze (the
+    // selector's 15-minute backstop is replaced by production qualification's
+    // freeze for that PR). Another PR's live freeze still refuses.
+    if (existing && !existing.expired && (existing.unreadable || existing.pr !== pr)) throw new LaneError(`a promotion merge freeze is already set; ${promotionFreezeText(existing)}`)
     requireOwnedRef(MUTEX_REF, ownerSha, io)
     if (existing) releaseOwnedRef(PROMOTION_FREEZE_REF, existing.sha, io)
     acquireRef(PROMOTION_FREEZE_REF, record, io)
-    return { ref: PROMOTION_FREEZE_REF, sha: record, issue: boundIssue, pr, owner: String(owner), acquiredAt: at.toISOString(), expiresAt, replacedExpired: Boolean(existing) }
+    return { ref: PROMOTION_FREEZE_REF, sha: record, issue: boundIssue, pr, owner: String(owner), acquiredAt: at.toISOString(), expiresAt, replacedExpired: Boolean(existing?.expired), replacedOwn: Boolean(existing && !existing.expired) }
   } finally { releaseMutexOnExit(ownerSha, io) }
 }
 

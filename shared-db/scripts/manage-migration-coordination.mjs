@@ -95,7 +95,7 @@ import { workIssuesFromRows, openIssueNumbersFromRows, memoizePrFiles, closedCla
 // (the GitHub signature form). Both name one UUID and one machine; nothing else
 // is treated as equal, so an alias, a different UUID or machine never matches.
 export { workIssuesFromRows, openIssueNumbersFromRows, memoizePrFiles, closedClaimAuthoredOnMain, RELINQUISH_ONLY_LEASE_FIELDS, wrongOwnerMessage, renewalIssueScope, claimCoversObject, addedMigrationVersions, parseVersionPrMap, assertMergeCommitInMainHistory, completeWork }
-import { readExclusiveLease, assertExclusive, assertNoPromotionFreeze, acquireExclusive, releaseExclusive, recoverExclusive, acquirePromotionFreeze, releasePromotionFreeze } from './lib/lanes/exclusive-locks.mjs'
+import { readExclusiveLease, assertExclusive, assertNoPromotionFreeze, freezeTolerantMerge, acquireExclusive, releaseExclusive, recoverExclusive, acquirePromotionFreeze, releasePromotionFreeze } from './lib/lanes/exclusive-locks.mjs'
 export { readExclusiveLease, assertExclusive }
 import { trainIo, assertTrainLiveOnMain, runTrainCommand } from './lib/lanes/cli-train.mjs'
 import { verifyMergedWorkRecord } from './lib/lanes/claim-maintenance.mjs'
@@ -2178,6 +2178,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]
     if (a === '--acquire-promotion-freeze') out.acquirePromotionFreeze = true
+    else if (a === '--check-promotion-freeze') out.checkPromotionFreeze = true
     else if (a === '--release-promotion-freeze') out.releasePromotionFreeze = true
     else if (a === '--ttl-minutes') out.ttlMinutes = Number(next(i++))
     else if (a === '--authorize-repository-maintenance-status') out.authorizeRepositoryMaintenanceStatus = true
@@ -2238,7 +2239,7 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','reviewerPreflight','deliveryPreflight','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','recoverCompletedClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','reviewerPreflight','deliveryPreflight','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','checkPromotionFreeze','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','recoverCompletedClaim','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
@@ -2264,6 +2265,10 @@ export function main(argv, now = new Date(), io = githubIo) {
     }
     const previewAdmission=databasePreviewAdmission(o,io)
     if(previewAdmission.decision==='NO_DATABASE_PREVIEW'){console.log(JSON.stringify(previewAdmission,null,2));return 0}
+    // #5937: the merge-queue gate refuses a group while a live promotion freeze
+    // holds main still, unless the queued PR is freeze-tolerant (inert paths or
+    // appended migrations). Exit 1 with the freeze text; resumes on release/TTL.
+    if(o.checkPromotionFreeze){if(!(Number(o.pr)>0))throw new LaneError('--check-promotion-freeze requires --pr <n>');if(freezeTolerantMerge(io,o.pr)){console.log(JSON.stringify({pr:Number(o.pr),allowed:true,reason:'freeze-tolerant merge'}));return 0}assertNoPromotionFreeze(io,now);console.log(JSON.stringify({pr:Number(o.pr),allowed:true,reason:'no live promotion freeze'}));return 0}
     if(o.acquirePromotionFreeze){console.log(JSON.stringify(acquirePromotionFreeze({issue:o.issue,pr:o.pr,owner:o.owner,ttlMinutes:o.ttlMinutes},io),null,2));return 0}
     if(o.releasePromotionFreeze){if(o.ttlMinutes!==undefined)throw new LaneError('--ttl-minutes applies only to --acquire-promotion-freeze');console.log(JSON.stringify(releasePromotionFreeze({owner:o.owner,pr:o.pr},io),null,2));return 0}
     if(o.authorizeRepositoryMaintenanceStatus){console.log(JSON.stringify(authorizeRepositoryMaintenanceStatus(o,io),null,2));return 0}

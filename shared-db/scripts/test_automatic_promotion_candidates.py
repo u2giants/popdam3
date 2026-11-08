@@ -80,6 +80,54 @@ class StaleRefusalsDoNotConsumeAttempts(unittest.TestCase):
         self.assertEqual(m.decide([self.pr], runs, lambda n: [], stale=only_stale)[0], "idle")
 
 
+class PromotionStarvationFixes(unittest.TestCase):
+    """#5937: deadline ordering, no budget charge for main-moved refusals, and
+    the backstop streak that arms the 15-minute merge freeze."""
+
+    old = {"number": 1, "merged_at": "2026-11-06T10:00:00Z", "versions": ["20261106100000"]}
+    urgent = {"number": 2, "merged_at": "2026-11-06T15:00:00Z", "versions": ["20261106150000"],
+              "promote_by": "2026-11-07T03:00:00Z"}
+
+    def run_(self, n, pr=2, version="20261106150000"):
+        return {"id": n, "display_title": f"DB preview apply sha{n} PR{pr} {version}",
+                "status": "completed", "conclusion": "failure", "created_at": f"2026-11-06T16:{n:02d}:00Z"}
+
+    def test_deadline_dispatches_ahead_of_older_candidates(self):
+        action, got, _ = m.decide([self.old, self.urgent], [], lambda n: [])
+        self.assertEqual((action, got["number"]), ("dispatch", 2))
+        later = {**self.urgent, "number": 3, "promote_by": "2026-11-08T00:00:00Z"}
+        self.assertEqual(m.decide([self.old, later, self.urgent], [], lambda n: [])[1]["number"], 2)
+        plain = {**self.urgent, "promote_by": None}
+        self.assertEqual(m.decide([plain, self.old], [], lambda n: [])[1]["number"], 1)
+
+    def test_promote_by_header_parsing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            good, bad = os.path.join(d, "a.sql"), os.path.join(d, "b.sql")
+            with open(good, "w") as fh:
+                fh.write("-- promote-by: 2026-11-07T03:00:00Z\nselect 1;\n")
+            with open(bad, "w") as fh:
+                fh.write("-- promote-by: tonight\nselect 1;\n")
+            self.assertEqual(m.promote_by(good), "2026-11-07T03:00:00Z")
+            self.assertIsNone(m.promote_by(bad))
+
+    def test_many_main_moved_refusals_never_park(self):
+        runs = [self.run_(n) for n in range(10)]
+        action, got, _ = m.decide([self.urgent], runs, lambda n: [], stale=lambda r: True)
+        self.assertEqual((action, got["number"]), ("dispatch", 2))
+        self.assertEqual(got["stale_streak"], 10)
+
+    def test_backstop_arms_only_after_two_consecutive_stale_refusals(self):
+        runs = [self.run_(n) for n in range(3)]
+        one = m.decide([self.urgent], runs, lambda n: [], stale=lambda r: r["id"] == 2)[1]
+        self.assertNotIn("stale_streak", one)
+        broken = m.decide([self.urgent], runs, lambda n: [], stale=lambda r: r["id"] in (0, 2))[1]
+        self.assertNotIn("stale_streak", broken)
+        two = m.decide([self.urgent], runs, lambda n: [], stale=lambda r: r["id"] >= 1)[1]
+        self.assertEqual(two["stale_streak"], m.BACKSTOP_AFTER_STALE)
+        self.assertEqual(m.BACKSTOP_FREEZE_TTL_MINUTES, 15)
+
+
 class StaleMainRefusalDetector(unittest.TestCase):
     """The detector proves staleness from the run's own failure evidence: every
     failed step must be a tip-proof coordination step AND the failed log must
@@ -1370,9 +1418,13 @@ class ClassifiedRefundBudget(unittest.TestCase):
         stale = lambda run: run["id"] == 1  # ...one via the staleness reader
         action, got, _ = m.decide([self.pr], runs, lambda n: [], stale=stale, refunded=mixed)
         self.assertEqual((action, got["number"]), ("dispatch", 7))
-        runs = self.failures(m.MAX_REFUNDS + 1)
+        # #5937: main-moved refusals no longer draw from the refund budget at
+        # all; any number of them never parks the change.
+        runs = self.failures(m.MAX_REFUNDS + 5)
         always = lambda run: True
-        self.assertEqual(m.decide([self.pr], runs, lambda n: [], stale=always)[0], "idle")
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [], stale=always)[0], "dispatch")
+        runs = self.failures(m.MAX_REFUNDS + 1)
+        self.assertEqual(m.decide([self.pr], runs, lambda n: [], refunded=always)[0], "idle")
 
     def test_a_refunded_run_still_counts_as_evidence(self):
         # Only the attempt budget is affected: a refunded run that applied its
