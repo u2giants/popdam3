@@ -393,10 +393,14 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     }
     // A real product code, whole or its start, has no visual meaning: its picture leg only returns
     // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
-    const productCodeSearch = await isProductCodeSearch(
-      query,
-      async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
-    );
+    // The product-code check and spelling resolve together so neither waits on the other.
+    const [productCodeSearch, spellingHelp] = await Promise.all([
+      isProductCodeSearch(
+        query,
+        async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+      ),
+      checkSpelling(query, spellingLookup),
+    ]);
     let unknownCatalogFormat = false;
     try {
       if (!productCodeSearch) {
@@ -409,7 +413,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     } catch {
       return err("Search unavailable", 503);
     }
-    const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : await checkSpelling(query, spellingLookup);
+    const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : spellingHelp;
     const usePictures = !productCodeSearch && spelling.meaningful;
     // Product-type phrases ("floor covering") also run as catalog nouns
     // ("mat", "rug") so compound queries do not drop real mats.
