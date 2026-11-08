@@ -13,6 +13,7 @@ import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
+import { createQueryEmbedder, type BatchEmbedOutcome } from "../_shared/query-embed-batch.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -170,57 +171,116 @@ async function authenticateCaller(req: Request) {
 
 /**
  * Embed typed query words with SigLIP2 text tower via apps/text-embed.
- * Returns null when unavailable; callers preserve Search unavailable/Retry.
- * One immediate retry: a single
- * slow embed must not silently downgrade a search to keyword-only (that
- * downgrade is itself a result-set change users see between refreshes).
+ * All texts a search needs ride ONE batched call: the service answers one CPU
+ * forward pass per request and serialises concurrent requests, so a variant
+ * fan-out of one HTTP call each paid 1–3 s of tail (measured #804, 2026-11-08).
+ * Falls back to the single-text endpoint while the old service image runs.
+ * One immediate retry: a single slow embed must not silently downgrade a
+ * search to keyword-only (that downgrade is itself a result-set change users
+ * see between refreshes). Deterministic results are cached per isolate.
  */
-async function embedQueryText(input: string): Promise<number[] | null> {
-  const attempt = async (): Promise<number[] | null> => {
-    const base = Deno.env.get("TEXT_EMBED_URL");
-    if (!base) {
-      console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
-      return null;
-    }
-    const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
-    try {
-      const res = await fetch(new URL("/embed-text", base), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(key ? { "X-Embed-Key": key } : {}),
-        },
-        body: JSON.stringify({ text: input.slice(0, 8000) }),
-        signal: AbortSignal.timeout(4000),
-      });
-      if (!res.ok) {
-        console.error(`text-embed failed: HTTP ${res.status}`);
+const queryEmbedder = createQueryEmbedder({
+  async embedBatch(texts) {
+    const attempt = async (): Promise<BatchEmbedOutcome> => {
+      const base = Deno.env.get("TEXT_EMBED_URL");
+      if (!base) {
+        console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
+        return { status: "failed" };
+      }
+      const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
+      try {
+        const res = await fetch(new URL("/embed-text-batch", base), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(key ? { "X-Embed-Key": key } : {}),
+          },
+          body: JSON.stringify({ texts: texts.map((text) => text.slice(0, 8000)) }),
+          signal: AbortSignal.timeout(4000),
+        });
+        if (res.status === 404 || res.status === 405) return { status: "absent" };
+        if (!res.ok) {
+          console.error(`text-embed batch failed: HTTP ${res.status}`);
+          return { status: "failed" };
+        }
+        const payload = await res.json() as {
+          ok?: boolean;
+          dim?: number;
+          model?: string;
+          vectors?: number[][];
+        };
+        if (
+          !payload.ok || !Array.isArray(payload.vectors) || payload.vectors.length !== texts.length ||
+          payload.vectors.some((v) => !Array.isArray(v) || v.length !== SIGLIP2_DIM)
+        ) {
+          console.error(
+            `text-embed batch returned bad vectors count=${payload.vectors?.length ?? 0} texts=${texts.length}`,
+          );
+          return { status: "failed" };
+        }
+        if (payload.model && payload.model !== SIGLIP2_MODEL) {
+          console.error(`text-embed model mismatch: ${payload.model}`);
+          return { status: "failed" };
+        }
+        return { status: "ok", vectors: payload.vectors };
+      } catch (e) {
+        console.error("text-embed batch call failed", e instanceof Error ? e.message : e);
+        return { status: "failed" };
+      }
+    };
+    const first = await attempt();
+    if (first.status !== "failed") return first;
+    return attempt();
+  },
+  async embedOne(input) {
+    const attempt = async (): Promise<number[] | null> => {
+      const base = Deno.env.get("TEXT_EMBED_URL");
+      if (!base) {
+        console.error("TEXT_EMBED_URL is not configured; semantic leg skipped");
         return null;
       }
-      const payload = await res.json() as {
-        ok?: boolean;
-        dim?: number;
-        model?: string;
-        vector?: number[];
-      };
-      if (!payload.ok || !Array.isArray(payload.vector) || payload.vector.length !== SIGLIP2_DIM) {
-        console.error(`text-embed returned bad vector dim=${payload.vector?.length ?? 0}`);
+      const key = Deno.env.get("TEXT_EMBED_KEY") ?? "";
+      try {
+        const res = await fetch(new URL("/embed-text", base), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(key ? { "X-Embed-Key": key } : {}),
+          },
+          body: JSON.stringify({ text: input.slice(0, 8000) }),
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!res.ok) {
+          console.error(`text-embed failed: HTTP ${res.status}`);
+          return null;
+        }
+        const payload = await res.json() as {
+          ok?: boolean;
+          dim?: number;
+          model?: string;
+          vector?: number[];
+        };
+        if (!payload.ok || !Array.isArray(payload.vector) || payload.vector.length !== SIGLIP2_DIM) {
+          console.error(`text-embed returned bad vector dim=${payload.vector?.length ?? 0}`);
+          return null;
+        }
+        if (payload.model && payload.model !== SIGLIP2_MODEL) {
+          console.error(`text-embed model mismatch: ${payload.model}`);
+          return null;
+        }
+        return payload.vector;
+      } catch (e) {
+        console.error("text-embed call failed", e instanceof Error ? e.message : e);
         return null;
       }
-      if (payload.model && payload.model !== SIGLIP2_MODEL) {
-        console.error(`text-embed model mismatch: ${payload.model}`);
-        return null;
-      }
-      return payload.vector;
-    } catch (e) {
-      console.error("text-embed call failed", e instanceof Error ? e.message : e);
-      return null;
-    }
-  };
-  const first = await attempt();
-  if (first) return first;
-  return attempt();
-}
+    };
+    const first = await attempt();
+    if (first) return first;
+    return attempt();
+  },
+});
+
+const embedQueryText = (input: string) => queryEmbedder.embed(input);
 
 async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<Response> {
   if (req.method !== "POST") return err("Method not allowed", 405);
@@ -381,12 +441,24 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     const expanded = [...expandProductQueries(query), ...(spelling.corrected ? expandProductQueries(spelling.corrected) : [])]
       .filter((variant, index, all) => all.findIndex((other) => other.query === variant.query) === index);
     const queryVariants = expanded.map((v) => v.query);
+    // The variants other than the typed query need their own picture vectors.
+    // They ride ONE batched text-embed call: fanned out as one HTTP request
+    // each they serialised on the service's single CPU (1–3 s of tail, #804).
+    const variantTexts = expanded
+      .filter(({ query: variant, semantic }) => semantic && usePictures && variant !== query)
+      .map(({ query: variant }) => variant);
+    const batchedEmbeddings = variantTexts.length ? await queryEmbedder.embedAll(variantTexts) : null;
     const variantEmbeddings = new Map<string, number[] | null>();
-    await Promise.all(
-      expanded.map(async ({ query: variant, semantic }) => {
-        variantEmbeddings.set(variant, !semantic || !usePictures ? null : variant === query ? embedding : await embedQueryText(variant));
-      }),
-    );
+    for (const { query: variant, semantic } of expanded) {
+      variantEmbeddings.set(
+        variant,
+        !semantic || !usePictures
+          ? null
+          : variant === query
+            ? embedding
+            : (batchedEmbeddings?.get(variant) ?? null),
+      );
+    }
 
     if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {
       return err("Search unavailable", 503);
