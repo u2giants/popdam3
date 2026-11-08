@@ -93,9 +93,7 @@ describe("DAM search embedding availability", () => {
       vi.stubGlobal("fetch", fetch);
       const response = await search(`keyword only ${kind}`);
       expect(response.status).toBe(200);
-      // The speculative phase-0 embed fires while the checks run and its
-      // result is discarded when the picture leg is off (#5747 reorder).
-      expect(fetch).toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
       expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
     });
   }
@@ -132,7 +130,7 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     for (const query of ["VDD83MVSP01", "VDD83"]) expect((await search(query)).status).toBe(200);
     expect(state.formatRpc).not.toHaveBeenCalled();
-    expect(fetch).toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("does not turn unsupported alternating nonsense into a picture query", async () => {
@@ -141,6 +139,7 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await search("x7q9v2n8")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
   });
 
@@ -152,6 +151,7 @@ describe("DAM search embedding availability", () => {
       const response = await search("ZZZ83MVSP99");
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: "Search unavailable" });
+      expect(fetch).not.toHaveBeenCalled();
       expect(state.rpc).not.toHaveBeenCalled();
     });
   }
@@ -175,6 +175,7 @@ describe("DAM search embedding availability", () => {
     controller.abort();
     expect((await response).status).toBe(503);
     expect(readerSignal.aborted).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -189,6 +190,7 @@ describe("DAM search embedding availability", () => {
     expect(state.formatRpc.mock.calls[0][2].aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect((await response).status).toBe(503);
+    expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
