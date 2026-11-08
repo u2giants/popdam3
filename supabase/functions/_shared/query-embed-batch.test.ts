@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createQueryEmbedder, type BatchEmbedOutcome, type QueryEmbedTransport } from "./query-embed-batch.ts";
+import { type BatchEmbedOutcome, createQueryEmbedder, type QueryEmbedTransport } from "./query-embed-batch.ts";
 
 const vector = (fill: number) => Array.from({ length: 4 }, () => fill);
 

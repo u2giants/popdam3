@@ -230,10 +230,12 @@ describe("DAM search embedding availability", () => {
   });
 
   it("rides product-phrase variants in ONE batched text-embed call instead of one request each", async () => {
-    const fetch = vi.fn(async (input: URL | RequestInfo) => ({
-      "/embed-text": () => Response.json({ ok: true, vector: Array(768).fill(1) }),
-      "/embed-text-batch": () => Response.json({ ok: true, vectors: [Array(768).fill(2), Array(768).fill(3)] }),
-    })[new URL(String(input)).pathname]!());
+    const fetch = vi.fn(async (input: URL | RequestInfo) =>
+      ({
+        "/embed-text": () => Response.json({ ok: true, vector: Array(768).fill(1) }),
+        "/embed-text-batch": () => Response.json({ ok: true, vectors: [Array(768).fill(2), Array(768).fill(3)] }),
+      })[new URL(String(input)).pathname]!()
+    );
     vi.stubGlobal("fetch", fetch);
     expect((await search("spiderman floor covering")).status).toBe(200);
     const batchCalls = fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch");

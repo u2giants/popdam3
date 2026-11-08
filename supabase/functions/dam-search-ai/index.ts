@@ -13,7 +13,7 @@ import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
-import { createQueryEmbedder, type BatchEmbedOutcome } from "../_shared/query-embed-batch.ts";
+import { type BatchEmbedOutcome, createQueryEmbedder } from "../_shared/query-embed-batch.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -452,11 +452,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     for (const { query: variant, semantic } of expanded) {
       variantEmbeddings.set(
         variant,
-        !semantic || !usePictures
-          ? null
-          : variant === query
-            ? embedding
-            : (batchedEmbeddings?.get(variant) ?? null),
+        !semantic || !usePictures ? null : variant === query ? embedding : (batchedEmbeddings?.get(variant) ?? null),
       );
     }
 
