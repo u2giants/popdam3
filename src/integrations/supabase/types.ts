@@ -3700,6 +3700,56 @@ export type Database = {
           },
         ]
       }
+      style_guide_search_embedding_jobs: {
+        Row: {
+          attempt_count: number
+          claimed_by: string | null
+          content_sha256: string
+          error: string | null
+          error_category: string | null
+          lease_expires_at: string | null
+          lease_token: string | null
+          max_attempts: number
+          next_retry_at: string | null
+          style_guide_file_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claimed_by?: string | null
+          content_sha256: string
+          error?: string | null
+          error_category?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          max_attempts?: number
+          next_retry_at?: string | null
+          style_guide_file_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claimed_by?: string | null
+          content_sha256?: string
+          error?: string | null
+          error_category?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          max_attempts?: number
+          next_retry_at?: string | null
+          style_guide_file_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_search_embedding_jobs_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_search_documents"
+            referencedColumns: ["style_guide_file_id"]
+          },
+        ]
+      }
       style_guide_search_sync_queue: {
         Row: {
           queued_at: string
@@ -4912,6 +4962,7 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      get_dam_asset_taxonomy_counts: { Args: never; Returns: Json }
       get_dam_customer_facets: { Args: never; Returns: Json }
       get_dam_material_facets: {
         Args: never
@@ -4928,6 +4979,7 @@ export type Database = {
           quantity_source: string
         }[]
       }
+      get_dam_order_list_status_counts: { Args: never; Returns: Json }
       get_dam_order_sales_order_dates: {
         Args: { p_line_ids: string[] }
         Returns: {
@@ -4970,6 +5022,15 @@ export type Database = {
           shared_blks_read: number
           total_exec_ms: number
         }[]
+      }
+      get_dam_style_group_asset_count: {
+        Args: {
+          p_fallback_terms?: string[]
+          p_filters?: Json
+          p_min_date?: string
+          p_search_ids?: string[]
+        }
+        Returns: number
       }
       get_dam_style_tracker_license_status: {
         Args: { p_row_ids: string[] }
@@ -5015,6 +5076,17 @@ export type Database = {
         }[]
       }
       get_render_z_nas_password: { Args: never; Returns: string }
+      get_search_embedding_health: {
+        Args: never
+        Returns: {
+          corpus: string
+          errored: number
+          last_write: string
+          minutes_since_last_write: number
+          pending: number
+          stale: boolean
+        }[]
+      }
       get_sg_nas_password: { Args: never; Returns: string }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
