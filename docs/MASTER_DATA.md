@@ -97,7 +97,13 @@ Ambiguous identities are replaced without guessing. Refreshed rows are stamped
 as system updates, and changed source cells are recorded in audit history.
 Recovery preimages and source/database fingerprints are mandatory.
 
-**Latest refresh (2026-10-26, ~12:40 PM EDT):** source is the plain Google
+**Latest refresh (2026-11-09, ~8:36 AM EST):** 16,277 Google rows (12,954 Licensed,
+3,323 Generic), 16,158 IDs retained, 119 replaced, source equality passed. The one
+PopDAM-only autoflow row it dropped (absent from Google) was restored by running
+`public.sync_new_items_into_style_tracker(false, '2026-10-28T00:00:00Z')`; 16,278 rows
+live. Apply needs the owner's quoted authorization via `ai-task-gates --acknowledge`.
+
+**Previous refresh (2026-10-26, ~12:40 PM EDT):** source is the plain Google
 `export?format=xlsx` download of the workbook (anonymous export works again).
 Result: 16,137 → 16,156 rows (12,872 Licensed, 3,284 Generic), 16,114 IDs
 retained, 23 unprovable identities replaced, post-load source equality passed.

@@ -41,7 +41,13 @@ The historical first-import CLI's production replacement refusal remains intact.
 Do not delete or merge ColdLion records based on matching PO/style/quantity;
 uncertain identities and malformed Google entries stay held on the same issue.
 
-**Latest refresh (2026-10-26, ~12:45 PM EDT).** Source: Google `export?format=csv&gid=0`
+**Latest refresh (2026-11-09, ~8:38 AM EST).** Same CSV export path, run after
+the Master Data refresh: 33 new / 58 updated orders, 61 new / 36 updated lines,
+1,192 ColdLion lines preserved; 1,038 held (1,022 `shared_coldlion_line`, 8
+`blank_quantity_coldlion_overlap`, 8 `new_cross_source_overlap`). A follow-up dry
+run predicts zero changes. 25,060 lines live.
+
+**Previous refresh (2026-10-26, ~12:45 PM EDT).** Source: Google `export?format=csv&gid=0`
 parsed with Python's `csv` module (multiline cells survive) and padded to 48
 columns; the dry run matched the earlier clipboard-acquired data closely (only 42
 line updates). Applied 7 new / 5 updated orders, 24 new / 42 updated lines; 562
