@@ -1,6 +1,9 @@
 name: Search test set
 
-# Manual only: run before and after the full tagging run. About 250 searches, no AI tagging cost.
+# Manual: run before and after the full tagging run. About 250 searches, no AI tagging cost.
+# Plus one scheduled run: the 7-day re-measure for popcre/shared-db#5747 Step 7,
+# due 9:47 PM EST Thu Nov 12, 2026 (02:47 UTC Nov 13). Year-guarded in the job;
+# remove the schedule entry once that reading has run.
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +11,8 @@ on:
         description: "Name for this run, such as before-full-tagging"
         required: true
         type: string
+  schedule:
+    - cron: '47 2 13 11 *' # 02:47 UTC Nov 13 = 9:47 PM EST Nov 12
 
 permissions:
   contents: read
@@ -17,16 +22,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - id: guard
+        name: One-shot year guard (scheduled 2026 reading only)
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%Y)" != "2026" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Scheduled one-shot reading for 2026-11-12 only; skipping $(date -u +%Y) run."
+          fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.guard.outputs.skip != 'true'
       - name: Score live search
+        if: steps.guard.outputs.skip != 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SEARCH_EVAL_PUBLISHABLE_KEY }}
           SEARCH_EVAL_EMAIL: ${{ secrets.SEARCH_EVAL_EMAIL }}
           SEARCH_EVAL_PASSWORD: ${{ secrets.SEARCH_EVAL_PASSWORD }}
-          LABEL: ${{ inputs.label }}
+          LABEL: ${{ inputs.label || 'issue-5747-after-7d' }}
         run: node scripts/search-eval/run.mjs --label "$LABEL" --report report.json > /dev/null
       - name: Summarize
+        if: steps.guard.outputs.skip != 'true'
         run: |
           node -e '
             const r = JSON.parse(require("fs").readFileSync("report.json", "utf8"));
@@ -39,6 +54,7 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
           '
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.guard.outputs.skip != 'true'
         with:
           name: search-eval-report
           path: report.json
