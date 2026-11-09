@@ -518,3 +518,15 @@ test('open work without production evidence still promotes', async () => {
   assert.equal(result.status, 'waiting');
   assert.deepEqual(f.effects, ['promote']);
 });
+
+test('trustedPathsMatch treats a certificate missing a newer trusted file as stale, not fatal', async () => {
+  const { trustedPathsMatch } = await import('./designflow-db-release.mjs');
+  const OLD = '1'.repeat(40), MAIN = '2'.repeat(40);
+  const tree = { [MAIN]: { a: 'x', b: 'y' }, [OLD]: { a: 'x' } };
+  const read = (_repo, p, ref) => { const v = tree[ref]?.[p]; if (typeof v !== 'string') throw Error('Source content is absent or exceeds the bounded file size'); return v; };
+  assert.equal(trustedPathsMatch(OLD, MAIN, read, ['a', 'b']), false);
+  assert.equal(trustedPathsMatch(MAIN, MAIN, read, ['a', 'b']), true);
+  tree[OLD].b = 'changed';
+  assert.equal(trustedPathsMatch(OLD, MAIN, read, ['a', 'b']), false);
+  assert.throws(() => trustedPathsMatch(OLD, MAIN, read, ['a', 'missing-on-main']), /absent/);
+});

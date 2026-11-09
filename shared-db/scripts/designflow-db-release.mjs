@@ -745,6 +745,17 @@ export function currentLiveRecoveryCommandFrom(binding, requirement) {
     + ` -f main_sha=$(gh api repos/${CANONICAL}/commits/main --jq .sha)`;
 }
 
+// A certificate whose producer commit lacks a trusted path that current main
+// has (or vice versa) is stale, not an error: never abort the whole scan.
+export function trustedPathsMatch(certificateSha, mainSha, read = content, paths = CURRENT_LIVE_TRUSTED_PATHS) {
+  const readOrNull = (ref, path) => { try { return read(CANONICAL, path, ref); } catch { return null; } };
+  return paths.every(path => {
+    const main = read(CANONICAL, path, mainSha);
+    const cert = readOrNull(certificateSha, path);
+    return cert !== null && cert === main;
+  });
+}
+
 function staleCertificateRecoveryCommand(requirement, facts) {
   const prefix = `refs/designflow-db-current-live-receipts/${requirement.work_issue}/${requirement.source_pr}/${facts.head_sha40}/`;
   const stale = [];
@@ -760,7 +771,7 @@ function staleCertificateRecoveryCommand(requirement, facts) {
           run.path !== '.github/workflows/production-catalog-verification-recovery.yml' ||
           run.head_branch !== 'main' || !githubIo.mergeCommitInMain(run.head_sha)) continue;
       const currentMain = api(`repos/${CANONICAL}/commits/main`).sha;
-      if (!CURRENT_LIVE_TRUSTED_PATHS.some(path => content(CANONICAL, path, run.head_sha) !== content(CANONICAL, path, currentMain)))
+      if (trustedPathsMatch(run.head_sha, currentMain))
         continue; // still fresh: the evidence path owns it
       const packageFiles = retainedCurrentLivePackage(receipt, receipt.proof);
       const binding = JSON.parse(readMetadataZip(packageFiles.get('current-live-content.zip')).get('current-live-binding.json'));
@@ -781,7 +792,7 @@ async function currentLiveEvidence(requirement,facts,ledger) {
     if(!Array.isArray(proofJobs.jobs)||proofJobs.total_count!==proofJobs.jobs.length||proofJobs.total_count>100||proofJobs.jobs.filter(j=>j.name==='Current live reverification'&&j.run_attempt===run.run_attempt&&j.run_id===run.id&&j.conclusion==='success'&&j.status==='completed').length!==1)continue;
     const currentMain=api(`repos/${CANONICAL}/commits/main`).sha;
     const trustedPaths=CURRENT_LIVE_TRUSTED_PATHS;
-    if(trustedPaths.some(path=>content(CANONICAL,path,run.head_sha)!==content(CANONICAL,path,currentMain)))continue;
+    if(!trustedPathsMatch(run.head_sha,currentMain))continue;
     const retained=retainedRows.filter(r=>r.ref===`${prefix}${run.id}`);if(retained.length>1)throw Error('Ambiguous retained certificate ref');
     const candidates=[];
     if(retained.length){

@@ -163,6 +163,27 @@ Roll back defective observer source through the guarded repository route; retain
 the last valid application runtime while readiness is unavailable. Structural
 rollback remains a new reviewed forward migration.
 
+### Common `database/production-ready` blocks (learned 2026-11-08/09)
+
+- **The status is published only on an app's `develop` and `main` heads.** A main
+  source counts only when it comes from a merged `develop`→`main` PR
+  (`sourceAllowed`). A PR from any other branch, such as `promote/*` (item-master
+  #184), never receives the status and stays blocked. Open the main PR from
+  `develop` instead.
+- **"body must name exactly one `Work issue #N`"**: anyone can fix this by
+  editing the merged source PR's body and rerunning workflow
+  "DesignFlow database release readiness".
+- **"evidence is inherited; exactly one PR-owned complete pair is required"**:
+  the source PR merged without `.agent/work/<issue>/<gen>/` evidence. Editing
+  can't fix this. A shared-db session must reissue the migration with an
+  evidence pair (precedents #4075, #5944), and the app manifest must then point
+  at the new PR.
+- **"Source content is absent or exceeds the bounded file size" after a green
+  current-live recovery**: until #5986/#5987 this meant an older certificate
+  predated a newly trusted file and the scan aborted. Since that fix, stale
+  certificates are skipped. If the error still appears, the file is missing on
+  current main, which is a real defect.
+
 ## Exact protection activation inputs
 
 Each application's `main_protection` in the central policy records the complete
