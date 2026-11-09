@@ -31,6 +31,16 @@
       "wait_timeout_s": 30,
       "total_timeout_s": 3300,
       "preview_only": true
+    },
+    "repack-20261109-6c9d5541": {
+      "kind": "table-repack/v1",
+      "source_pr": 5984,
+      "work_issue": 5886,
+      "claim_issue": 5983,
+      "table": "plm.style_tracker_item_bridge",
+      "client_sha256": "e69ddbcff74e9400452ed06b26a452d80a771a46b46d1de59f7b1f9e105ea14d",
+      "wait_timeout_s": 30,
+      "total_timeout_s": 3300
     }
   }
 }
