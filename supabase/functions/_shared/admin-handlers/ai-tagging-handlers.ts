@@ -35,7 +35,7 @@ export async function handleCountUntaggedAssets() {
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null)
     .not("style_group_id", "is", null)
-    .not("primary_sort_tier", "in", "(4,8)")
+    .not("primary_sort_tier", "in", "(5,9)")
     .limit(100_000);
 
   const taggableGroupSet = new Set<string>(
@@ -54,7 +54,7 @@ export async function handleCountUntaggedAssets() {
     .not("thumbnail_url", "is", null)
     .is("style_group_id", null)
     .neq("status", "tagged")
-    .not("primary_sort_tier", "in", "(4,8)");
+    .not("primary_sort_tier", "in", "(5,9)");
 
   const { count: totalWithThumb } = await db
     .from("assets")

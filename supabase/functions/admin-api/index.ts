@@ -1227,7 +1227,7 @@ async function selectRandomBakeoffAssets(db: ReturnType<typeof serviceClient>, s
       .select("id, filename, relative_path, quick_hash, sku")
       .eq("is_deleted", false)
       .not("thumbnail_url", "is", null)
-      .not("primary_sort_tier", "in", "(4,8)");
+      .not("primary_sort_tier", "in", "(5,9)");
 
   const pageSize = Math.min(1000, Math.max(100, sampleSize * 25));
   const seenIds = new Set<string>();
