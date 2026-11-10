@@ -28,6 +28,9 @@ import { correctionExpressions, buildSourceCorrectionPreflightSql, buildCancella
 // without a database (the locked §8 testability decision).
 
 import { sqlJson, sqlNumber, sqlText, sqlTimestamp, sqlUuid } from "./values.mjs";
+
+/** coldlion:prod refs — no-sales-order production lines (order-intake-prod-only.mjs). */
+export const PROD_REF_PATTERN = "^coldlion:prod:[0-9]+:line:[0-9]+:component:[0-9]+$";
 // The Phase B staging specs are the single source of truth for the staging
 // columns the winner selection reads (round-3 review #5).
 import { INTAKE_LINE_SPEC, INTAKE_COMPONENT_SPEC } from "./order-intake-stage.mjs";
@@ -1094,8 +1097,12 @@ g as (
     and gp.production_order_number !~ '^COLDLION-SO-'
     and exists (select 1 from plm.production_order_line_source_ref r
                 where r.production_order_line_id = gl.id and r.source_system = 'google_order_list')
+    -- A Google line linked only to a no-sales-order ColdLion PRODUCTION line
+    -- (coldlion:prod:… refs, order-intake-prod-only.mjs) is still waiting for
+    -- its sales order and stays mergeable; any sales-order ref closes it.
     and not exists (select 1 from plm.production_order_line_source_ref r
-                    where r.production_order_line_id = gl.id and r.source_system = 'coldlion')
+                    where r.production_order_line_id = gl.id and r.source_system = 'coldlion'
+                      and r.source_id !~ '${PROD_REF_PATTERN}')
 ),
 pairs as (
   select ph.id as placeholder_line, g.id as google_line, ph.q as pq, g.q as gq, ph.sales_order_no, ph.sales_order_line_no, g.import_po,
@@ -1149,6 +1156,15 @@ update plm.production_order_line g
    and g.assortment_id is not distinct from pl.assortment_id
    and not (coalesce(g.metadata,'{}'::jsonb) ? 'component_source_hash')
    and nullif(btrim(pl.metadata->>'component_source_hash'),'') is not null;
+
+-- The sales-order ref is the stronger identity: a production-only ref already
+-- on the Google line gives up its primary flag before the move, so the one-
+-- primary-per-line index holds.
+update plm.production_order_line_source_ref r
+   set is_primary = false
+  from pg_temp.coldlion_auto_merge m
+ where r.production_order_line_id = m.google_line and r.source_system = 'coldlion'
+   and r.is_primary and r.source_id ~ '${PROD_REF_PATTERN}';
 
 update plm.production_order_line_source_ref r
    set production_order_line_id = m.google_line
@@ -1328,6 +1344,9 @@ export const WRITE_REQUIRED_TABLES = Object.freeze([
   // reference and moves line snapshots onto the Google line.
   "coldlion.order_history_line",
   "dam.production_order_snapshot",
+  // The no-sales-order production claim (order-intake-prod-only.mjs).
+  "coldlion.prod_history_line",
+  "coldlion.prod_history_component",
 ]);
 
 export const WRITE_REQUIRED_CONSTRAINTS = Object.freeze([
