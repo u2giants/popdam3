@@ -139,7 +139,7 @@ async function fetchPopSGQueryEmbedding(query: string, signal?: AbortSignal) {
   return parsePopSGQueryEmbedding(data);
 }
 
-async function fetchPopSGV2Page(
+export async function fetchPopSGV2Page(
   mode: PopSGDisplayMode,
   filters: LibraryFilters,
   sortField: PopSGSortField,
