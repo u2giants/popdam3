@@ -76,7 +76,8 @@ ColdLion. These are legitimate, not data errors:
    get started in production while sales and the buyer hammer out some details."
    Such orders can be factory-confirmed (`Confirmed CRD`, `Confirmed Booking`)
    with a blank Customer PO. Example (Yuchen, 2026-11-10): Dollar General's
-   official PO usually arrives 1–2 months after production starts.
+   official PO usually arrives 1–2 months after production starts. Burlington
+   D3722–D3730 (Albert, 2026-11-10) are the same case: official POs not received yet.
 2. **Not confirmed with the factory.** "Some production orders are not confirmed
    with the factory yet, we are hammering out details or further negotiating
    price."
