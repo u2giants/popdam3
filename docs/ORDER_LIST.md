@@ -87,14 +87,18 @@ ColdLion. These are legitimate, not data errors:
 Therefore Google-only OrderList lines must be kept, not deleted, and later
 merged with the ColdLion line once it arrives (owner merge ruling 2026-10-22).
 
-**Known gap (verified 2026-11-10):** ColdLion production orders that have no
-linked sales order yet (`coldlion.prod_history_line.sales_order_no = 0`, no
-`cust_po_number`) are present in the ColdLion landing tables but do not appear
-as ColdLion lines in OrderList. Example: Amazon D3678 (ColdLion production order
-24377), D3690, D3695 and Lidl D3651 all exist in `prod_history_line` (keyed by
-`prod_reference_no`), yet OrderList shows them only from Google. Yuchen had sent
-them to ColdLion, so case 1 orders need the import to accept production orders
-without a customer order. Lidl orders split across distribution centers are
+**Production orders with no sales order (fixed 2026-11-10):** ColdLion
+production orders that have no linked sales order yet
+(`coldlion.prod_history_line.sales_order_no = 0`, no `cust_po_number`) used to
+appear in OrderList only from Google — e.g. Amazon D3678 (ColdLion production
+order 24377), D3690, D3695 and Lidl D3651, which made it look as if ColdLion had
+lost them. The hourly ColdLion writer now links each such production line to
+the Google line with the same production reference (`prod_reference_no`, the
+D-number) and SKU, so the row shows as ColdLion-backed with no duplicate
+(shared-db [PR 6001](https://github.com/popcre/shared-db/pull/6001)). Several
+Google lines for one reference + SKU pair only on equal quantity; anything
+ambiguous stays Google-only. When the customer's sales order arrives later it
+merges onto the same row. Lidl orders split across distribution centers are
 entered manually by ColdLion (Yuchen, 2026-11-10).
 
 ## ColdLion pack-variant reference
