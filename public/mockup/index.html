@@ -57267,7 +57267,7 @@ confirmButton($("newBtn"), newMockup);
 api.loadFile=loadFile; api.state=S;
 }
 </script>
-<script>const APP_BUILD="2026-11-09 14:54";</script>
+<script>const APP_BUILD="2026-11-10 6:22 PM EST · 14f3a29";</script>
 <script>
 /* ---------- version history ----------
    1.x Shadowbox Mockup (standalone) · 2.x Canvas Mockup (standalone)
@@ -58132,7 +58132,7 @@ function pickMockupFile(){
     btn("tb-btn", `${ic("i-upload")}<span>Open mockup</span>`, () => pickMockupFile(), "Open a .popmockup file (or drop it anywhere on the page)"),
     btn("tb-btn", `${ic("i-book")}<span>How to use</span>`, () => { if(here()){ go(""); setTimeout(showGuide, 60); } else showGuide(); }),
     Object.assign(document.createElement("i"), {className:"tb-sep"}),
-    btn("tb-ver", `${ic("i-history")}<span>v${APP_VERSION}</span>`, () => document.getElementById("versionBtn").click(), typeof APP_BUILD !== "undefined" ? "What changed · build " + APP_BUILD : "What changed"));
+    btn("tb-ver", `${ic("i-history")}<span>v${APP_VERSION}${typeof APP_BUILD !== "undefined" ? " · " + APP_BUILD : ""}</span>`, () => document.getElementById("versionBtn").click(), typeof APP_BUILD !== "undefined" ? "What changed · build " + APP_BUILD : "What changed"));
 
   // language: a menu, filled from I18N (i18n.js)
   const lang = document.createElement("div"); lang.className = "tb-lang";
