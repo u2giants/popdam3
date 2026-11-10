@@ -1,5 +1,5 @@
 import { isProductCodeSearch, type ProductCodeLookup } from "./product-code.ts";
-import type { SpellingResult } from "./search-spelling.ts";
+import { nearestWord, type SpellingResult } from "./search-spelling.ts";
 
 /**
  * Decide intentional keyword-only queries separately from embedding failures.
@@ -60,4 +60,27 @@ export function nameExpansion(embedding: number[] | null, names: NameVectors | n
     } else if (score > second) second = score;
   });
   return best >= NAME_MATCH_MIN && best - second >= NAME_MATCH_MARGIN ? bestName : null;
+}
+
+/**
+ * What to search instead when the words as typed find nothing in PopSG: every
+ * word must match there, so one extra or misspelt word empties the page
+ * ("chase paw patrol" when the files only say Paw Patrol; "spidermen").
+ * The longest known name inside the query wins; otherwise each word moves to
+ * its nearest known word. Null when neither changes the query. The caller uses
+ * it only after an empty first search, so it can never narrow or reorder
+ * results that already exist.
+ */
+export function zeroResultFallback(query: string, knownNames: Set<string>, vocabulary: Map<string, number> | null): string | null {
+  const words = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  if (!words.length || words.length > 8) return null;
+  for (let size = words.length - 1; size >= 1; size--) {
+    for (let start = 0; start + size <= words.length; start++) {
+      const phrase = words.slice(start, start + size).join(" ");
+      if (phrase.length >= 4 && knownNames.has(phrase)) return phrase;
+    }
+  }
+  if (!vocabulary) return null;
+  const corrected = words.map((word) => nearestWord(word, vocabulary) ?? word).join(" ");
+  return corrected !== words.join(" ") ? corrected : null;
 }

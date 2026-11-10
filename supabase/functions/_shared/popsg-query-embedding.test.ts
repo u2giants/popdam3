@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { getPopSGQueryEmbedding } from "./popsg-query-embedding.ts";
+import { getPopSGQueryEmbedding, zeroResultFallback } from "./popsg-query-embedding.ts";
 
 it("PopSG hybrid awaits the catalog and embeds ordinary words", async () => {
   let calls = 0;
@@ -55,4 +55,17 @@ it("PopSG name expansion needs a clear winner", async () => {
   expect(nameExpansion([0.5, 0.5, 0.5], names)).toBeNull();
   expect(nameExpansion(null, names)).toBeNull();
   expect(nameExpansion([1, 0, 0], null)).toBeNull();
+});
+
+it("empty-result fallback prefers the longest known name inside the words, then the nearest spelling", () => {
+  const names = new Set(["example hero", "hero", "sidekick"]);
+  const vocabulary = new Map([["example", 1], ["hero", 1], ["sidekick", 1], ["sidekicks", 1]]);
+  expect(zeroResultFallback("Sidekick Example-Hero", names, vocabulary)).toBe("example hero");
+  expect(zeroResultFallback("amazing hero", names, vocabulary)).toBe("hero");
+  expect(zeroResultFallback("sidekicks", names, vocabulary)).toBe("sidekick");
+  expect(zeroResultFallback("exampel", names, vocabulary)).toBe("example");
+  expect(zeroResultFallback("example hero", names, vocabulary)).toBe("hero");
+  expect(zeroResultFallback("zzzzqq", names, vocabulary)).toBeNull();
+  expect(zeroResultFallback("zzzzqq", names, null)).toBeNull();
+  expect(zeroResultFallback("", names, vocabulary)).toBeNull();
 });
