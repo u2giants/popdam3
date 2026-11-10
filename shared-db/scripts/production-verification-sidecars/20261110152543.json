@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261110152543",
+  "migration_sha256": "1982835764cde32b7e7c60569628e0dd4cd7bfe600a81653c27252b28575b61f",
+  "checks": [
+    {
+      "id": "popsg_search_v2_fallback_query",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_fallback_query_v1",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 425,
+      "line_end": 425,
+      "disposition": "checks",
+      "check_ids": [
+        "popsg_search_v2_fallback_query"
+      ],
+      "reason": "This marker covers the dynamic guides-body execution at line 425. The migration replaces the 17-argument function with an 18-argument one ending in p_fallback_query and adds fallback rows after rows matching all words in names, folders or tags in both files-mode and guides-mode; the catalog check pins the exact installed body, settings and privileges and the absence of the old signature, not ranking behavior. Contract 14 in supabase/tests/popsg_search_style_guide_library_v2_contracts.sql separately asserts the ordering, totals, paging and the unchanged no-fallback result in both modes when CI runs the SQL contracts."
+    }
+  ]
+}
