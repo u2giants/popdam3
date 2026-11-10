@@ -24,10 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
       - name: Make the natural service-role call
@@ -55,7 +55,7 @@ jobs:
         run: node scripts/shared-db-generated-types-proof.mjs
       - name: Upload the generated-types proof
         if: steps.prove.outputs.applied == 'true' && (inputs.issue == '4257' || inputs.issue == '4268')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shared-db-generated-types-${{ inputs.issue }}-${{ github.sha }}
           path: generated/db-generated-types-proof.json
@@ -63,7 +63,7 @@ jobs:
       - name: Upload the proof
         # A migration not yet on production reports NOT YET APPLIED and uploads nothing.
         if: steps.prove.outputs.applied == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shared-db-live-proof-${{ inputs.issue }}-${{ github.sha }}
           path: proof/db-live-proof.json
