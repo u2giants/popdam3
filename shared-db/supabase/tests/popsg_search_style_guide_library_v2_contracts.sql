@@ -19,19 +19,22 @@ declare
   v_result jsonb;
   v_mode text;
 begin
-  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is null then
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
   end if;
-  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'))) <> '99cb8f8bfa4037ee6f022672a1902bdc' then
+  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)'))) <> 'a4387673de2ace2e455412894ccf93ce' then
     raise exception 'contract 1: v2 search body is not the reviewed semantic stage-2 body';
   end if;
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is not null then
     raise exception 'contract 1: the 15-argument overload must be dropped';
   end if;
-  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)', 'execute') then
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is not null then
+    raise exception 'contract 1: the 17-argument overload must be dropped';
+  end if;
+  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)', 'execute') then
     raise exception 'contract 1: anon can execute v2 search';
   end if;
-  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)', 'execute') then
+  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)', 'execute') then
     raise exception 'contract 1: authenticated lost execute on v2 search';
   end if;
 
@@ -257,7 +260,7 @@ begin
     raise exception 'contract 10: default files total is not exact';
   end if;
   if not exists (select 1 from pg_proc p
-                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)'::regprocedure
+                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)'::regprocedure
                     and (select array_agg(setting order by setting) from unnest(p.proconfig) setting)
                         = array['search_path=pg_catalog, auth', 'statement_timeout=30s', 'work_mem=64MB']::text[]) then
     raise exception 'contract 10: function settings changed beyond search_path, statement_timeout and work_mem';
@@ -353,6 +356,83 @@ begin
            (v_result->'results'->0->>'style_guide_name') is distinct from 'GuideA') then
       raise exception 'contract 13: % filename match must outrank repeated PDF body: %',
         v_mode, v_result;
+    end if;
+  end loop;
+
+  -- popdam3#887: rows matching only p_fallback_query come AFTER every row matching
+  -- all words in names, folders or tags, even when their own keyword rank is far
+  -- higher, and are counted. An all-word match found only in PDF body text (D)
+  -- gets no such precedence.
+  update public.style_guide_search_documents
+     set search_vector = case
+           when style_guide_file_id = '25060000-0000-4000-8000-000000000011'
+             then setweight(to_tsvector('simple', 'zz887name zz887extra'), 'C')
+           else setweight(to_tsvector('simple', repeat('zz887name ', 5)), 'A')
+         end
+   where style_guide_file_id in (
+     '25060000-0000-4000-8000-000000000011',
+     '25060000-0000-4000-8000-000000000014');
+
+  foreach v_mode in array array['files', 'guides']
+  loop
+    v_result := public.search_style_guide_library_v2(
+      p_result_mode => v_mode, p_query => 'zz887name zz887extra',
+      p_sort => 'relevance', p_limit => 200);
+    if (v_result->>'total')::integer is distinct from 1 then
+      raise exception 'contract 14: % without a fallback must keep all-word matching: %', v_mode, v_result;
+    end if;
+    if v_result is distinct from public.search_style_guide_library_v2(
+         p_result_mode => v_mode, p_query => 'zz887name zz887extra',
+         p_sort => 'relevance', p_limit => 200, p_fallback_query => '  ') then
+      raise exception 'contract 14: % blank fallback changed the result', v_mode;
+    end if;
+    v_result := public.search_style_guide_library_v2(
+      p_result_mode => v_mode, p_query => 'zz887name zz887extra',
+      p_sort => 'relevance', p_limit => 200, p_fallback_query => 'zz887name');
+    if (v_result->>'total')::integer is distinct from 2
+       or jsonb_array_length(v_result->'results') is distinct from 2
+       or (v_mode = 'files' and
+           (v_result->'results'->0->>'style_guide_file_id') is distinct from
+             '25060000-0000-4000-8000-000000000011')
+       or (v_mode = 'guides' and
+           (v_result->'results'->0->>'style_guide_name') is distinct from 'GuideA') then
+      raise exception 'contract 14: % all-word match must precede fallback-only rows: %', v_mode, v_result;
+    end if;
+    -- paging continues from all-word rows into fallback-only rows
+    v_result := public.search_style_guide_library_v2(
+      p_result_mode => v_mode, p_query => 'zz887name zz887extra',
+      p_sort => 'relevance', p_limit => 1, p_offset => 1, p_fallback_query => 'zz887name');
+    if (v_result->>'total')::integer is distinct from 2
+       or jsonb_array_length(v_result->'results') is distinct from 1
+       or (v_mode = 'files' and
+           (v_result->'results'->0->>'style_guide_file_id') is distinct from
+             '25060000-0000-4000-8000-000000000014')
+       or (v_mode = 'guides' and
+           (v_result->'results'->0->>'style_guide_name') is not distinct from 'GuideA') then
+      raise exception 'contract 14: % second page must hold the fallback-only row: %', v_mode, v_result;
+    end if;
+    -- an all-word match found only in PDF body text does not precede the name match
+    update public.style_guide_search_documents
+       set search_vector = setweight(to_tsvector('simple', 'zz887name zz887extra'), 'D')
+     where style_guide_file_id = '25060000-0000-4000-8000-000000000011';
+    v_result := public.search_style_guide_library_v2(
+      p_result_mode => v_mode, p_query => 'zz887name zz887extra',
+      p_sort => 'relevance', p_limit => 200, p_fallback_query => 'zz887name');
+    if (v_result->>'total')::integer is distinct from 2
+       or (v_mode = 'files' and
+           (v_result->'results'->0->>'style_guide_file_id') is distinct from
+             '25060000-0000-4000-8000-000000000014')
+       or (v_mode = 'guides' and
+           (v_result->'results'->0->>'style_guide_name') is not distinct from 'GuideA') then
+      raise exception 'contract 14: % body-only all-word match must not precede the name match: %', v_mode, v_result;
+    end if;
+    update public.style_guide_search_documents
+       set search_vector = setweight(to_tsvector('simple', 'zz887name zz887extra'), 'C')
+     where style_guide_file_id = '25060000-0000-4000-8000-000000000011';
+    -- a fallback without a query never widens a browse
+    if public.search_style_guide_library_v2(p_result_mode => v_mode, p_fallback_query => 'zz887name')
+       is distinct from public.search_style_guide_library_v2(p_result_mode => v_mode) then
+      raise exception 'contract 14: % fallback without a query changed the browse', v_mode;
     end if;
   end loop;
 

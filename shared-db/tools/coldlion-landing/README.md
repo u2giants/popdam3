@@ -160,6 +160,22 @@ node tools/coldlion-landing/sync-prod-details.mjs --mode keys --keys 20000
 Add `--dry-run` to any of these to see the outstanding work without fetching or
 writing anything.
 
+## Production orders with no sales order (`lib/order-intake-prod-only.mjs`)
+
+Owner ruling 2026-11-09: production can start before the customer's official
+PO exists, so ColdLion holds production orders with `sales_order_no = 0`. The
+sales-order intake never sees them. After its automatic merge, the hourly
+canonical writer (`order-intake-write.mjs`) attaches each such production
+line to the Google OrderList line with the same production reference
+(`prod_reference_no`, the D-number = the Google Import PO) and SKU, as a
+`coldlion:prod:<prodOrderNo>:line:<seq>:component:<k>` source ref. One Google
+line per key takes every matching ColdLion item; several Google lines pair
+only on equal quantity; anything else is left alone. ColdLion's quantity and
+reference refresh into `metadata.coldlion_values` every run. When the sales
+order arrives later, the automatic merge still lands on that Google line and
+its sales-order ref becomes primary. Behaviour is pinned by
+`tools/coldlion-order-intake-prod-only-pg.test.mjs`.
+
 ## Forward scan for sales orders (`sync-history.mjs --forward`)
 
 Sales orders are keyed into ColdLion with FUTURE start dates, and `/orderHistory` filters

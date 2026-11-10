@@ -36,6 +36,7 @@ import {
   buildWriterObjectAssertionSql,
   parseWriteSummary,
 } from "./lib/order-intake-write.mjs";
+import { buildProdOnlyClaimSql } from "./lib/order-intake-prod-only.mjs";
 
 export function parseArgs(argv) {
   const options = { write: false, limit: null, order: null };
@@ -134,6 +135,21 @@ async function main() {
     throw error;
   }
   console.log(`automatic merge onto Google OrderList lines ${options.write ? "" : "(dry run — nothing written) "}complete: linesMerged=${merged}`);
+
+  // Owner ruling 2026-11-09: a production order can exist in ColdLion before
+  // the customer's sales order does. Attach each unambiguous no-sales-order
+  // production line to its Google OrderList line by production reference + SKU.
+  let prodClaimed;
+  let prodLines;
+  try {
+    [[prodClaimed, prodLines] = []] = queryRows(buildProdOnlyClaimSql({ runId: randomUUID(), write: options.write }), {});
+  } catch (error) {
+    if (options.write && !isClientSpawnFault(error) && !isClientUriFault(error)) {
+      runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
+    }
+    throw error;
+  }
+  console.log(`no-sales-order production lines ${options.write ? "" : "(dry run — nothing written) "}complete: refsAttached=${prodClaimed} googleLines=${prodLines}`);
 
   // The recurring component-identity guard (SO 7128092, 2026-10-26): every
   // run re-proves that each staged component of every created order has

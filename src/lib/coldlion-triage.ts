@@ -81,9 +81,11 @@ export function buildTriageItems(rows: TriageRow[]): TriageItem[] {
 }
 
 /** "coldlion:so:7128092:line:3:component:1" → "ColdLion order 7128092, line 3". */
+/** "coldlion:prod:24377:line:1:component:1" → "ColdLion production order 24377, line 1" (no sales order yet). */
 export function describeColdLionSource(sourceId: string | null): string | null {
-  const match = /^coldlion:so:(\d+):line:(\d+)/.exec(sourceId ?? "");
-  return match ? `ColdLion order ${match[1]}, line ${match[2]}` : null;
+  const match = /^coldlion:(so|prod):(\d+):line:(\d+)/.exec(sourceId ?? "");
+  if (!match) return null;
+  return `ColdLion ${match[1] === "prod" ? "production order" : "order"} ${match[2]}, line ${match[3]}`;
 }
 
 const sameCustomer = (a: string | null, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();

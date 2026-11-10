@@ -574,6 +574,31 @@ export async function runObserver(policy, io) {
       results.push({ repository: app.repository, branch, head_sha: head, status: 'blocked', reason: error.message });
     }
   }
+  // Release PRs into main (for example cherry-picks from promote/* branches) are
+  // checked on their own head. Verify-only: a main assessment never promotes, so
+  // only develop can start database work. Uma's merge remains the release review.
+  if (io.mainPullHeads) for (const app of policy.repositories) {
+    let pulls;
+    try { pulls = await io.mainPullHeads(app.repository); }
+    catch (error) { results.push({ repository: app.repository, branch: 'main-pr', status: 'blocked', reason: error.message }); continue; }
+    for (const { number, head } of pulls) {
+      try {
+        if (!SHA.test(head) || !Number.isSafeInteger(number)) throw Error('Pull request head is not exact');
+        const prIo = { ...io, sourceAllowed: async () => true,
+          applicationHead: async () => io.pullHead(app.repository, number) };
+        await io.status(app.repository, head, 'pending', 'Checking required production database changes');
+        const manifest = await io.manifest(app.repository, head);
+        const result = await assessRelease({ repository: app.repository, head, manifest, policy, branch: 'main' }, prIo);
+        await io.status(app.repository, head, result.status === 'ready' ? 'success' : 'pending',
+          result.status === 'ready' ? 'Required production database changes and contracts verified'
+            : 'Required database promotion remains pending (promote through develop first)');
+        results.push({ ...result, branch: 'main-pr', pull_request: number });
+      } catch (error) {
+        if (SHA.test(head ?? '')) await io.status(app.repository, head, 'failure', 'Database readiness could not be proven; see central run');
+        results.push({ repository: app.repository, branch: 'main-pr', pull_request: number, head_sha: head, status: 'blocked', reason: error.message });
+      }
+    }
+  }
   return results;
 }
 
@@ -867,6 +892,10 @@ export async function main() {
       if (eligible.length !== 1) return false;
       return api(`repos/${repo}/commits/${eligible[0].head.sha}`).commit.tree.sha === commit.commit.tree.sha;
     },
+    mainPullHeads: repo => pages(`repos/${repo}/pulls?state=open&base=main`, 2)
+      .filter(p => p.head.repo?.full_name === repo && p.base.repo.full_name === repo && p.head.ref !== 'develop')
+      .map(p => ({ number: p.number, head: p.head.sha })),
+    pullHead: (repo, number) => api(`repos/${repo}/pulls/${number}`).head.sha,
     manifest: (repo, head) => JSON.parse(content(repo, policy.manifest_path, head)),
     sourceFacts: requirement => memo(factsCache, requirement.source_pr, () => sourceFacts(requirement)),
     productionEvidence: (requirement, facts) => memo(evidenceCache, requirement.source_pr, () => productionEvidence(requirement, facts)),

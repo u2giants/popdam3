@@ -50,6 +50,7 @@ describe("triage items", () => {
 
   it("describes the ColdLion source and ranks the same customer PO first, ignoring leading zeros", () => {
     expect(describeColdLionSource("coldlion:so:7128092:line:3:component:1")).toBe("ColdLion order 7128092, line 3");
+    expect(describeColdLionSource("coldlion:prod:24377:line:1:component:1")).toBe("ColdLion production order 24377, line 1");
     const ranked = rankLinkCandidates(row({ order_line_id: "u", customer_po_number: "0001220303" }), [
       row({ order_line_id: "a", production_order_number: "D1", customer_po_number: "999", coldlion_source_id: null }),
       row({ order_line_id: "b", production_order_number: "D2", customer_po_number: "1220303", coldlion_source_id: null }),
