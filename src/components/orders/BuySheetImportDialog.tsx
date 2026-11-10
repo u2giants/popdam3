@@ -18,7 +18,7 @@ type ResultLine = {
   delivery_date: string;
   quantity: number;
   group: string;
-  outcome: "new" | "updated" | "unchanged" | "held" | "skipped";
+  outcome: "new" | "updated" | "unchanged" | "held" | "skipped" | "revision";
   reason: string | null;
   order_number: string | null;
   previous_quantity: number | null;
@@ -47,6 +47,7 @@ const OUTCOME_LABEL: Record<ResultLine["outcome"], string> = {
   unchanged: "Unchanged",
   held: "Held",
   skipped: "No quantity",
+  revision: "Revision",
 };
 
 /** Raw sheet, kept with the import: formulas as text, values as written. */
@@ -151,6 +152,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   }, [preview, orderNumbers]);
 
   const counts = preview?.counts ?? {};
+  const isRevision = (counts.revision ?? 0) > 0;
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
@@ -159,7 +161,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           <DialogTitle>Import customer buy sheet</DialogTitle>
           <DialogDescription>
             Upload a bulk buy sheet (Burlington purchase order worksheet). You see a preview first; nothing changes until you
-            press Import. Each style and delivery becomes one OrderList line and a revised sheet updates the same lines.
+            press Import. Each style and delivery becomes one OrderList line. A sheet that revises one already imported is stopped.
           </DialogDescription>
         </DialogHeader>
 
@@ -200,6 +202,13 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
               {preview.applied ? "Imported" : "Preview"}: {counts.new ?? 0} new · {counts.updated ?? 0} updated · {counts.unchanged ?? 0} unchanged ·{" "}
               {counts.held ?? 0} held · {preview.unmatched_styles.length} styles not linked to Item Master
             </p>
+            {isRevision && (
+              <div role="alert" className="rounded border border-destructive/40 bg-destructive/10 p-2 text-destructive">
+                Stop: this sheet revises a buy sheet that was already imported ({counts.revision} lines). Revised buy sheets
+                are not supported yet, so nothing can be imported. Do not enter the changes by hand; report this sheet to
+                Albert.
+              </div>
+            )}
             {preview.unmatched_styles.length > 0 && (
               <p className="text-amber-700">Not linked to Item Master (fix the style, then re-import): {preview.unmatched_styles.join(", ")}</p>
             )}
@@ -251,7 +260,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }}>Close</Button>
           <Button
             type="button"
-            disabled={!preview || preview.applied || busy || ((counts.new ?? 0) + (counts.updated ?? 0) === 0)}
+            disabled={!preview || preview.applied || busy || isRevision || ((counts.new ?? 0) + (counts.updated ?? 0) === 0)}
             onClick={() => void apply()}
           >
             Import
