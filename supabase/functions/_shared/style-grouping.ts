@@ -1,3 +1,4 @@
+import { isCompFilename } from "./ingestion-rules.ts";
 /**
  * Style grouping utilities.
  * A "style group" = all files sharing the same SKU folder on the NAS.
@@ -51,9 +52,10 @@ export function extractSkuFolder(relativePath: string): string | null {
  * Select the primary asset from a list of assets in the same group.
  *
  * Priority tiers (highest → lowest):
- *  0. png/jpg with "comp-view" or "compview" in filename (default cover)
  *  1. in a "photography" subfolder + filename base ends in "3-4" (any file type)
  *  2. "mockup" in filename + usable thumbnail
+ *  2b. COMP / COMPVIEW / COMP-VIEW / COMP_VIEW in filename + usable thumbnail
+ *      (owner ruling 2026-11-10: right after 3-4 and mockup)
  *  3. "art" in filename + usable thumbnail
  *  4. other files (not mockup/art/packaging) + usable thumbnail
  *  5. "packaging" in filename + usable thumbnail
@@ -90,13 +92,6 @@ export function selectPrimaryAsset(
   const hasUsableThumbnail = (a: typeof assets[0]) => !!a.thumbnail_url && !a.thumbnail_error;
   const isOther = (a: typeof assets[0]) => !hasMockup(a) && !hasArt(a) && !hasPackaging(a);
 
-  // Tier 0: comp-view png/jpg is always the default cover
-  const p0 = assets.find((a) => {
-    const name = fn(a);
-    return /\.(png|jpe?g)$/.test(name) && (name.includes("comp-view") || name.includes("compview"));
-  });
-  if (p0) return p0.id;
-
   // Tier 1: photography subfolder + filename base ends in "3-4" (any file type, any thumbnail state)
   const p1 = assets.find((a) => isPhotography34(a));
   if (p1) return p1.id;
@@ -104,6 +99,10 @@ export function selectPrimaryAsset(
   // Tier 2: mockup + usable thumbnail
   const p2 = assets.find((a) => hasMockup(a) && hasUsableThumbnail(a));
   if (p2) return p2.id;
+
+  // Tier 2b: COMP file + usable thumbnail
+  const p2b = assets.find((a) => isCompFilename(a.filename) && hasUsableThumbnail(a));
+  if (p2b) return p2b.id;
 
   // Tier 3: art + usable thumbnail
   const p3 = assets.find((a) => hasArt(a) && hasUsableThumbnail(a));

@@ -129,9 +129,21 @@ export function matchesPdfRules(filename: string, rules: IngestionRule[]): boole
   return PDF_KEYWORDS.some((k) => lower.includes(k)) || firstMatch(lower, rules, "pdf_include") !== undefined;
 }
 
+/**
+ * "COMP" as its own word, optionally followed by "view": COMP, COMPVIEW,
+ * COMP-VIEW, COMP_VIEW, COMP VIEW (owner ruling 2026-11-10). Whole-word so
+ * "complete" or "component" do not match.
+ */
+export const COMP_NAME_PATTERN = /(^|[^a-z])comp([-_ ]?view)?([^a-z]|$)/;
+
+export function isCompFilename(filename: string): boolean {
+  return COMP_NAME_PATTERN.test(filename.toLowerCase());
+}
+
 export function matchesImageRules(filename: string, rules: IngestionRule[]): boolean {
   const lower = filename.toLowerCase();
-  return IMAGE_KEYWORDS.some((k) => lower.includes(k)) || firstMatch(lower, rules, "image_include") !== undefined;
+  return IMAGE_KEYWORDS.some((k) => lower.includes(k)) || isCompFilename(lower) ||
+    firstMatch(lower, rules, "image_include") !== undefined;
 }
 
 export interface IngestionVerdict {
