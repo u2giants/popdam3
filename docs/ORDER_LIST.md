@@ -126,8 +126,19 @@ Required OrderList behavior:
 
 Live examples (2026-11-10): D3651 (Google bulk; styles VDC83DYMM14–17) replaced
 by ColdLion sales orders 7128093/7128094/7128095 (342/797/336 per style). D3533
-(VDC83DYMM12–13) replaced by 7127982/7127989/7127994. As of 2026-11-10 the
-import does not apply this yet, so both the bulk and distro lines appear.
+(VDC83DYMM12–13) replaced by 7127982/7127989/7127994.
+
+**Applied (2026-11-10, shared-db [PR 6018](https://github.com/popcre/shared-db/pull/6018)).**
+The hourly ColdLion writer, after the one-to-one merge, pairs each ColdLion
+sales-order line with the Google line whose header number equals the line's
+ColdLion production reference and whose SKU matches. When exactly one such
+Google line exists and its customer PO is blank (or two or more sales orders
+match), the distro lines move under that D-number and the Google line is voided
+with the reason "Replaced by distro…", linked to its replacements in
+`metadata.orderlist_replaced_by_distro`, and shown struck through. Anything
+ambiguous stays as it was. The first run also covered D3541 (Lidl) and D3248 and
+D3305 (Walmart), which match the same pattern. Google lines for the same styles
+with no D-number (e.g. sheet row 12212) are not keyed by reference and stay.
 
 ## Customer buy-sheet import (Burlington HFC, 2026-11-10)
 
