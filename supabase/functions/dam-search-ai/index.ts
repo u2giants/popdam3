@@ -46,6 +46,7 @@ const PRODUCT_WORDS = [
   "print",
   "sign",
 ];
+const PRODUCT_WORD_SET: ReadonlySet<string> = new Set(PRODUCT_WORDS);
 let vocabularyCache: { expires: number; words: Promise<Map<string, number>> } | null = null;
 /** Exact licensor, property and character names, filled with the spelling vocabulary. */
 const knownFullNames = new Set<string>();
@@ -359,8 +360,9 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // its property (Avengers) only floods the top. Only inexact words get the help.
     const vocabulary = await spellingLookup.vocabulary().catch(() => null);
     const expansion = knownFullNames.has(normalizeName(query)) ? null : nameExpansion(semantic.embedding, await popsgNameVectors());
-    // Used by the page only when the words as typed find nothing.
-    const fallback = mode === "hybrid" && !semantic.skipped && !expansion ? zeroResultFallback(query, knownFullNames, vocabulary) : null;
+    // Kind "name" is listed after the all-word matches (#887); the other kinds
+    // are used by the page only when the words as typed find nothing.
+    const fallback = mode === "hybrid" && !semantic.skipped && !expansion ? zeroResultFallback(query, knownFullNames, vocabulary, PRODUCT_WORD_SET) : null;
     return json({
       ok: true,
       mode,
@@ -368,7 +370,8 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       embedding: null,
       skipped: semantic.skipped ?? (mode === "hybrid" && semantic.embedding ? "names_only" : null),
       expansion,
-      fallback,
+      fallback: fallback?.fallback ?? null,
+      fallback_kind: fallback?.kind ?? null,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
   }
