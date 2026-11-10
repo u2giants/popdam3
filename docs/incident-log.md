@@ -2,6 +2,16 @@
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## 2026-11-10: OrderList showed a replaced assortment on PO 62012008
+
+What happened: a buyer reported PO 62012008 (Ross, ColdLion SO 7128129) listed assortment AAH6208 next to the correct BRG6205, and asked why AAH6208 was linked.
+
+Root cause: ColdLion itself changed the order. Its 2026-10-23 sync showed SO 7128129 line 1 as AAH6208 (high-gloss canvas); its 2026-10-26 sync showed the same line as BRG6205 (framed). The intake created lines for both versions. On 2026-11-02 the AAH6208 lines were correctly voided ("Superseded ColdLion source component"), so the data was right. But the OrderList grid still listed voided lines, only faded with a strike-through style, among live ones. The buyer read them as a live wrong link. The PO number and SKUs were never matched incorrectly.
+
+Fix: the OrderList now hides voided lines everywhere — rows, row counts, status counts and Find (`orderListFilters` in `src/hooks/useOrderList.ts`). Find runs server-side, so shared-db [#6022](https://github.com/popcre/shared-db/issues/6022) / [PR #6023](https://github.com/popcre/shared-db/pull/6023) added `line_voided_at`/`order_voided_at` to its filter allowlist; it must reach production before this app change, or Find refuses the filter.
+
+Rule: anything the system retires must leave the working list, not just be styled differently. Voided-order rows (a person's decision, with Restore) still show struck through; only voided lines are hidden.
+
 ## Resolved 2026-11-01: DAM picture search times out under cold database load
 
 The exact query `spiderman coir` intermittently fails in `dam-search-ai`, causing the app to fall back to broader word matching. The earlier planning-cost repair (shared-db #5075) is live; this is a separate execution-I/O regression as style-group picture coverage grows.
