@@ -96,6 +96,7 @@ export function buildBambooRoseRows(parse: BuySheetParse, facts: OrderListFact[]
   }
 
   const rows: BambooRoseRow[] = [];
+  const guessed: string[] = [];
   for (const lines of groups.values()) {
     const date = lines[0].delivery_date;
     const facts = lines.map((l) => fact.get(`${l.sku}|${date}`));
@@ -138,7 +139,7 @@ export function buildBambooRoseRows(parse: BuySheetParse, facts: OrderListFact[]
       let hts = opts.hts?.[l.sku] ?? "";
       if (!hts) {
         hts = guessHts(description);
-        checks.push(`${l.sku}: HTS ${hts} guessed from "${description}" (not in ColdLion).`);
+        guessed.push(l.sku);
       }
       rows.push({
         ...shared,
@@ -156,6 +157,8 @@ export function buildBambooRoseRows(parse: BuySheetParse, facts: OrderListFact[]
       });
     }
   }
+  const uniqueGuessed = [...new Set(guessed)];
+  if (uniqueGuessed.length) checks.push(`HTS codes for ${uniqueGuessed.length} styles were set from the product wording (canvas/gel/glitter 4911914040, framed/glass/molded 4911998000); Yuchen to confirm.`);
   return { rows, checks };
 }
 

@@ -51,7 +51,8 @@ describe("Bamboo Rose sheet from the 10-20-26 HFC", () => {
   it("fills the fixed fields and lists only HTS guesses to check", () => {
     const { rows, checks } = build();
     expect(rows[0]).toMatchObject({ Buyer: "BUYER", "Pack Method": "COMPLEX", "Vendor #": "90001808", "Terms Set/Inco": "DI FOB CY", "Size Range": "ITEM NOT SIZED" });
-    expect(checks.every((c) => /HTS .* guessed/.test(c))).toBe(true);
+    expect(checks).toHaveLength(1);
+    expect(checks[0]).toMatch(/Yuchen to confirm/);
   });
 
   it("writes into a template, keeping other sheets and later-row formulas", async () => {

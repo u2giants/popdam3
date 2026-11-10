@@ -100,10 +100,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
         .in("sku", skus)
         .in("start_ship_date", dates);
       if (factError) throw factError;
-      const { data: hts } = await (supabase as any).schema("plm").from("coldlion_item_header").select("item_no,hts_number").in("item_no", skus);
-      const htsBySku: Record<string, string> = {};
-      for (const h of hts ?? []) if (h.hts_number) htsBySku[String(h.item_no).toUpperCase()] = String(h.hts_number).replace(/\D/g, "");
-      const { rows, checks } = buildBambooRoseRows(parsed, (facts ?? []) as OrderListFact[], { ...quote, hts: htsBySku });
+      const { rows, checks } = buildBambooRoseRows(parsed, (facts ?? []) as OrderListFact[], quote);
       const bytes = await fillBambooRoseTemplate(await template.arrayBuffer(), rows);
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a");
