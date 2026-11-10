@@ -162,16 +162,6 @@ async function fetchPopSGV2Page(
     extensions: filters.fileTypes,
     preview: filters.thumbStatus,
   };
-  // Every word must match, so one extra or misspelt word can empty the page.
-  // Only then search the known name or nearest spelling the words contain.
-  if (fallback && pageOffset === 0) {
-    const probe = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
-      mode, filters: searchFilters, sortField, sortDirection, limit: 1, offset: 0, ...semantic,
-    })).abortSignal(signal);
-    if (!probe.error && parsePopSGV2Payload(probe.data).total === 0) {
-      searchFilters.query = buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback));
-    }
-  }
   const fetchChunk = async (offset: number, limit: number) => {
     const { data, error } = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
       mode,
@@ -190,7 +180,14 @@ async function fetchPopSGV2Page(
     return payload;
   };
 
-  const first = await fetchChunk(pageOffset, Math.min(pageSize, POPSG_SEARCH_RPC_LIMIT));
+  let first = await fetchChunk(pageOffset, Math.min(pageSize, POPSG_SEARCH_RPC_LIMIT));
+  // Every word must match, so one extra or misspelt word can empty the page.
+  // Only then search the known name or nearest spelling the words contain;
+  // a search that finds anything pays nothing extra.
+  if (fallback && first.total === 0) {
+    searchFilters.query = buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback));
+    first = await fetchChunk(pageOffset, Math.min(pageSize, POPSG_SEARCH_RPC_LIMIT));
+  }
   const continuationOffsets = getPopSGV2ContinuationOffsets(pageOffset, pageSize, first.total);
   const continuations = await Promise.all(
     continuationOffsets.map((offset) => fetchChunk(
