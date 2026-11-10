@@ -65,6 +65,38 @@ Google line with a blank quantity whose PO + style already exists in ColdLion
 duplicates on PO 62011483 were deleted (backup kept privately). A dry run after
 both changes inserts nothing.
 
+## Google-only orders (owner rules, 2026-11-09)
+
+Albert, 2026-11-09, on why an order can be in Google OrderList but not in
+ColdLion. These are legitimate, not data errors:
+
+1. **No customer order yet.** "Sometime we have not received the official order
+   from the customer (which is what goes into Coldlion), the salesman manually
+   puts the order details into orderlist because we're in a rush and we want to
+   get started in production while sales and the buyer hammer out some details."
+   Such orders can be factory-confirmed (`Confirmed CRD`, `Confirmed Booking`)
+   with a blank Customer PO. Example (Yuchen, 2026-11-10): Dollar General's
+   official PO usually arrives 1–2 months after production starts.
+2. **Not confirmed with the factory.** "Some production orders are not confirmed
+   with the factory yet, we are hammering out details or further negotiating
+   price."
+3. **Production PO not entered yet.** "Some, yuchen is in the process of creating
+   the production orders, he just hasn't gotten to it yet." (Typically `Creating
+   PO`.)
+
+Therefore Google-only OrderList lines must be kept, not deleted, and later
+merged with the ColdLion line once it arrives (owner merge ruling 2026-10-22).
+
+**Known gap (verified 2026-11-10):** ColdLion production orders that have no
+linked sales order yet (`coldlion.prod_history_line.sales_order_no = 0`, no
+`cust_po_number`) are present in the ColdLion landing tables but do not appear
+as ColdLion lines in OrderList. Example: Amazon D3678 (ColdLion production order
+24377), D3690, D3695 and Lidl D3651 all exist in `prod_history_line` (keyed by
+`prod_reference_no`), yet OrderList shows them only from Google. Yuchen had sent
+them to ColdLion, so case 1 orders need the import to accept production orders
+without a customer order. Lidl orders split across distribution centers are
+entered manually by ColdLion (Yuchen, 2026-11-10).
+
 ## ColdLion pack-variant reference
 
 **Case Pack meaning (corrected 2026-10-27, Albert relaying Yuchen):** "It
