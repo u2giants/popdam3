@@ -167,7 +167,7 @@ export function buildPopSGSummaryIdentityFilters(guides: PopSGV2GuideViewRow[]):
  * valid vector in hybrid mode must show the existing error and Retry state.
  * Keyword mode and explicitly identified product codes intentionally skip it.
  */
-export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null; expansion: string | null } {
+export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null; expansion: string | null; fallback: string | null } {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const skip = row.mode === "keyword" || (row.mode === "hybrid" && (row.skipped === "product_code" || row.skipped === "not_meaningful" || row.skipped === "names_only"));
   if (!skip && row.mode !== "hybrid") throw new Error("Search unavailable. Please try again.");
@@ -179,6 +179,8 @@ export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: stri
     minSemanticScore: typeof row.min_semantic_score === "number" ? row.min_semantic_score : null,
     // A licensor/property name the words clearly mean; searched as an extra keyword.
     expansion: row.mode === "hybrid" && typeof row.expansion === "string" && row.expansion.trim() ? row.expansion.trim() : null,
+    // Searched instead only when the words as typed find nothing.
+    fallback: row.mode === "hybrid" && typeof row.fallback === "string" && row.fallback.trim() ? row.fallback.trim() : null,
   };
 }
 

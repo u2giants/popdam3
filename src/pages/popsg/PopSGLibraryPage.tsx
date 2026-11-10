@@ -150,7 +150,7 @@ async function fetchPopSGV2Page(
 ) {
   const pageOffset = page * pageSize;
   // Embed the words as typed: the expansion below is keyword OR-syntax.
-  const [fallbackTerms, { expansion, ...semantic }] = await Promise.all([
+  const [fallbackTerms, { expansion, fallback, ...semantic }] = await Promise.all([
     filters.nameSearch ? expandFallbackTerms(filters.nameSearch) : Promise.resolve([]),
     fetchPopSGQueryEmbedding(filters.nameSearch.trim(), signal),
   ]);
@@ -162,6 +162,16 @@ async function fetchPopSGV2Page(
     extensions: filters.fileTypes,
     preview: filters.thumbStatus,
   };
+  // Every word must match, so one extra or misspelt word can empty the page.
+  // Only then search the known name or nearest spelling the words contain.
+  if (fallback && pageOffset === 0) {
+    const probe = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
+      mode, filters: searchFilters, sortField, sortDirection, limit: 1, offset: 0, ...semantic,
+    })).abortSignal(signal);
+    if (!probe.error && parsePopSGV2Payload(probe.data).total === 0) {
+      searchFilters.query = buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback));
+    }
+  }
   const fetchChunk = async (offset: number, limit: number) => {
     const { data, error } = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
       mode,

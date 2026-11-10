@@ -74,7 +74,7 @@ const damSearch = (query) => timed(async () => {
 });
 
 // Same expansion and query text as src/pages/popsg/PopSGLibraryPage.tsx.
-async function popsgQuery(query) {
+async function popsgQuery(query, expansion = null) {
   const variants = new Set();
   const add = (value) => {
     const v = value.trim().toLowerCase();
@@ -92,6 +92,7 @@ async function popsgQuery(query) {
     return null;
   });
   if (typeof spelling?.corrected === "string") add(spelling.corrected);
+  if (expansion) add(expansion);
   return [...variants]
     .map((t) => t.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim())
     .filter(Boolean)
@@ -109,14 +110,36 @@ const sgDetail = (r) => ({
   tags: r.tag_names ?? [],
 });
 
+// Same meaning-based leg as fetchPopSGQueryEmbedding / parsePopSGQueryEmbedding on the live page:
+// without it this harness scored the retired keyword-only path, not what people see.
+async function popsgSemantic(query) {
+  const row = await viewerPost("/functions/v1/dam-search-ai", { action: "popsg-query-embedding", query: query.trim() });
+  const skip = row?.mode === "keyword" || (row?.mode === "hybrid" && ["product_code", "not_meaningful", "names_only"].includes(row.skipped));
+  if (!skip && row?.mode !== "hybrid") throw new Error("popsg-query-embedding: unexpected mode");
+  const vector = Array.isArray(row?.embedding) && row.embedding.length === 768 ? row.embedding : null;
+  if (!skip && !vector) throw new Error("popsg-query-embedding: no embedding");
+  return {
+    embedding: !skip && vector ? `[${vector.join(",")}]` : null,
+    floor: typeof row?.min_semantic_score === "number" ? row.min_semantic_score : null,
+    expansion: row?.mode === "hybrid" && typeof row.expansion === "string" && row.expansion.trim() ? row.expansion.trim() : null,
+    fallback: row?.mode === "hybrid" && typeof row.fallback === "string" && row.fallback.trim() ? row.fallback.trim() : null,
+    mode: row?.mode ?? null,
+  };
+}
+
 const sgSearch = (query, mode) => timed(async () => {
-  const p_query = await popsgQuery(query);
-  const data = await viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
+  const semantic = await popsgSemantic(query);
+  const search = (p_query) => viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
     p_result_mode: mode, p_query, p_sort: "relevance", p_limit: 50, p_offset: 0,
+    ...(semantic.embedding ? { p_query_embedding: semantic.embedding } : {}),
+    ...(semantic.embedding && semantic.floor != null ? { p_min_semantic_score: semantic.floor } : {}),
   }, 45_000);
+  let data = await search(await popsgQuery(query, semantic.expansion));
+  // Same empty-result retry as the live page.
+  if (semantic.fallback && (data.total ?? (data.results ?? []).length) === 0) data = await search(await popsgQuery(semantic.fallback));
   const results = data.results ?? [];
   const hits = results.map((r) => (mode === "guides" ? r.guide_key : r.style_guide_file_id));
-  return { hits, total: data.total ?? hits.length, details: results.map(sgDetail) };
+  return { hits, total: data.total ?? hits.length, details: results.map(sgDetail), semantic: semantic.embedding ? "siglip2" : semantic.mode };
 });
 
 const set = await loadSet();

@@ -7,7 +7,7 @@ import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_K
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
-import { getPopSGQueryEmbedding, nameExpansion, type NameVectors } from "../_shared/popsg-query-embedding.ts";
+import { getPopSGQueryEmbedding, nameExpansion, type NameVectors, zeroResultFallback } from "../_shared/popsg-query-embedding.ts";
 import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
 import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
@@ -330,8 +330,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // Optional help: a missing or stale name list only skips the expansion.
     // An exact known name ("captain america") already searches well; widening it to
     // its property (Avengers) only floods the top. Only inexact words get the help.
-    await spellingLookup.vocabulary().catch(() => null);
+    const vocabulary = await spellingLookup.vocabulary().catch(() => null);
     const expansion = knownFullNames.has(normalizeName(query)) ? null : nameExpansion(semantic.embedding, await popsgNameVectors());
+    // Used by the page only when the words as typed find nothing.
+    const fallback = mode === "hybrid" && !semantic.skipped && !expansion ? zeroResultFallback(query, knownFullNames, vocabulary) : null;
     return json({
       ok: true,
       mode,
@@ -339,6 +341,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       embedding: null,
       skipped: semantic.skipped ?? (mode === "hybrid" && semantic.embedding ? "names_only" : null),
       expansion,
+      fallback,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
   }

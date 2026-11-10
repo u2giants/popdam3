@@ -36,6 +36,7 @@ for (const failSpelling of [false, true]) {
           if (path === "/rest/v1/rpc/expand_dam_search_queries") result = [];
           else if (path === "/rest/v1/rpc/search_style_guide_library_v2") { guideSearches++; result = { results: [], total: 0 }; }
           else if (body.action === "spelling") result = {};
+          else if (body.action === "popsg-query-embedding") result = { mode: "keyword" };
           else result = { results: [], total_count: 0 };
         }
       }
@@ -70,11 +71,11 @@ test("checkpoints each engine and resumes without replaying completed searches",
   let searches = 0;
   let changedSet = false;
   t.mock.method(console, "log", () => {});
-  t.mock.method(globalThis, "fetch", async (url) => {
+  t.mock.method(globalThis, "fetch", async (url, options) => {
     const path = new URL(url).pathname;
     if (path === "/auth/v1/token") return Response.json({ access_token: "fake", expires_in: 3600 });
     if (path === "/rest/v1/admin_config") return Response.json([{ value: { version: changedSet ? "changed" : "fake", cases: [{ id: "fake-case", kind: "character", query: "example", dam: {} }] } }]);
-    searches++;
+    if (!String(JSON.parse(options.body).query ?? "").startsWith("warmup ")) searches++;
     return Response.json({ results: [], total_count: 0 });
   });
   await import("./run.mjs?test=checkpoint-first");
@@ -125,7 +126,8 @@ test("a failed checkpoint replacement preserves the prior engine and partial res
       return Response.json({ results: [], total: 0 });
     }
     if (JSON.parse(options.body).action === "spelling") return Response.json({});
-    damSearches++;
+    if (JSON.parse(options.body).action === "popsg-query-embedding") return Response.json({ mode: "keyword" });
+    if (!String(JSON.parse(options.body).query ?? "").startsWith("warmup ")) damSearches++;
     return Response.json({ results: [], total_count: 0 });
   });
   await assert.rejects(import("./run.mjs?test=partial-failed-write"), /EISDIR|EEXIST/);
