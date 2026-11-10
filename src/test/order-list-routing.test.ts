@@ -26,6 +26,6 @@ describe("OrderList route and navigation", () => {
     const header = await readSource("../components/AppHeader.tsx");
     const popdamNav = header.slice(header.indexOf("const popdamNavItems"), header.indexOf("const popsgNavItems"));
     expect(popdamNav).toContain('{ to: "/orders", label: "Orders", icon: ClipboardList }');
-    expect(header).toContain('const SECONDARY_NAV_LABELS = new Set(["Sell-through", "Master Data", "Orders", "Setup"]);');
+    expect(header).toContain('const SECONDARY_NAV_LABELS = new Set(["Sell-through", "Master Data", "Mockups", "Orders", "Setup"]);');
   });
 });
