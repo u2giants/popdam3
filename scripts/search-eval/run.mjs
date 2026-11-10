@@ -176,7 +176,7 @@ for (const testCase of set.cases) {
   if (testCase.sg_files && !runs.sg_files) { runs.sg_files = await sgSearch(testCase.query, "files"); persist(); }
   for (const [engine, run] of Object.entries(runs)) {
     raw[testCase.id][engine] = run;
-    rows[engine].push(scoreSearch(testCase, testCase[engine], run.hits, run));
+    rows[engine].push(scoreSearch(testCase, testCase[engine], run.hits, { ...run, engine }));
   }
 }
 
