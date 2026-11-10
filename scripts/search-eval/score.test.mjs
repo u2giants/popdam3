@@ -61,3 +61,16 @@ test("PopSG guides pass when a guide named for the search is first, even with co
   assert.equal(scoreSearch(testCase, judged, ["x", "a", "y", "z"], { engine: "sg_guides" }).pass, false);
   assert.equal(scoreSearch(testCase, judged, ["a", "x", "y", "z"], { engine: "sg_files" }).pass, false);
 });
+
+test("PopSG guides pass on order but still need must-find recall", () => {
+  const g = { relevant: ["a"], irrelevant: ["x", "y", "z"], must_find: ["a", "m1", "m2"] };
+  const opts = { engine: "sg_guides" };
+  assert.equal(scoreSearch({ id: "1", kind: "character" }, { ...g, must_find: [] }, ["a", "x", "y", "z"], opts).pass, true);
+  assert.equal(scoreSearch({ id: "1", kind: "character" }, g, ["a", "x", "y", "z"], opts).pass, false);
+  assert.equal(scoreSearch({ id: "1", kind: "character" }, g, ["a", "m1", "x"], opts).pass, true);
+});
+
+test("the PopSG guides order rule does not apply to code or nonsense cases", () => {
+  const g = { relevant: ["a"], irrelevant: ["x", "y", "z"] };
+  assert.equal(scoreSearch({ id: "1", kind: "code" }, g, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, false);
+});

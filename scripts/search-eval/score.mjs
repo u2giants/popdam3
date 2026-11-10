@@ -44,10 +44,12 @@ function passes(testCase, row, judged, engine) {
   if (row.relevant_top10 === 0) return false;
   // Owner ruling 2026-11-10 ("Keep all five"): a guide that merely contains the character
   // stays listed after the guides named for it. So guides pass on order, not on share.
-  if (engine === "sg_guides") return row.first_relevant_rank === 1;
+  // The test checks order only: the judged set has no "contains the character" label, so any
+  // result may follow a named guide at rank 1. Must-find recall still applies.
+  if (row.must_find > 0 && row.must_found / row.must_find < 0.5) return false;
+  if (engine === "sg_guides" && testCase.kind !== "code" && testCase.kind !== "nonsense") return row.first_relevant_rank === 1;
   const judgedTop = row.relevant_top10 + row.irrelevant_top10;
   if (judgedTop > 0 && row.relevant_top10 / judgedTop < 0.5) return false;
-  if (row.must_find > 0 && row.must_found / row.must_find < 0.5) return false;
   return true;
 }
 
