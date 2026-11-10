@@ -120,6 +120,20 @@ test('develop and main readiness are independently checked and published', async
   assert.deepEqual(result.map(r => [r.branch, r.status]), [['develop', 'ready'], ['main', 'ready']]);
   assert.equal(f.effects.filter(x => Array.isArray(x) && x[2] === 'success').length, 2);
 });
+test('open release PRs into main get their own verify-only status', async () => {
+  const f = fixture(); const pr = 'f'.repeat(40);
+  f.io.mainPullHeads = async () => [{ number: 7, head: pr }]; f.io.pullHead = async () => pr;
+  const result = await runObserver(f.policy, f.io);
+  assert.deepEqual(result.map(r => [r.branch, r.status]), [['develop', 'ready'], ['main-pr', 'ready']]);
+  assert.ok(f.effects.some(x => Array.isArray(x) && x[1] === pr && x[2] === 'success'));
+  const w = fixture(); w.io.mainPullHeads = async () => [{ number: 7, head: pr }]; w.io.pullHead = async () => pr;
+  w.io.productionEvidence = async () => null;
+  const waiting = await runObserver(w.policy, w.io);
+  assert.equal(waiting[1].status, 'waiting'); assert.equal(w.effects.filter(x => x === 'promote').length, 1);
+  const d = fixture(); d.io.mainPullHeads = async () => [{ number: 7, head: pr }]; d.io.pullHead = async () => 'e'.repeat(40);
+  const drift = await runObserver(d.policy, d.io);
+  assert.equal(drift[1].status, 'blocked'); assert.ok(!d.effects.some(x => Array.isArray(x) && x[1] === pr && x[2] === 'success'));
+});
 
 async function receiptFixture() {
   const f = fixture(), facts = await f.io.sourceFacts();

@@ -105,8 +105,10 @@ are cached within one observer run, and the observer preserves an API reserve.
 ## Readiness is separate from release enforcement
 
 Statuses and a digest-bearing Actions artifact bind each result to an exact app
-commit and manifest. Main readiness additionally requires an actual merged PR
-from that repository's develop branch and an identical source tree. A main snapshot
+commit and manifest. Main-head readiness additionally requires an actual merged PR
+from that repository's develop branch and an identical source tree. Each open
+same-repository PR into main (for example a `promote/*` cherry-pick) is also
+checked on its own head, verify-only, from the manifest in that head. A main snapshot
 with missing production requirements waits; it never initiates a belated apply.
 Application acceptance and business acceptance remain separate from database
 readiness. A failed or waiting result is never reported as ready.
@@ -165,11 +167,11 @@ rollback remains a new reviewed forward migration.
 
 ### Common `database/production-ready` blocks (learned 2026-11-08/09)
 
-- **The status is published only on an app's `develop` and `main` heads.** A main
-  source counts only when it comes from a merged `develop`→`main` PR
-  (`sourceAllowed`). A PR from any other branch, such as `promote/*` (item-master
-  #184), never receives the status and stays blocked. Open the main PR from
-  `develop` instead.
+- **The status is published on `develop`, `main`, and every open same-repository
+  PR into `main`** (since 2026-11-10; cherry-pick `promote/*` PRs included). A PR
+  from a fork never receives it. A main PR waits if its manifest names a
+  migration that is not yet in production; that migration must go through
+  `develop` first, because a main PR never starts a promotion.
 - **"body must name exactly one `Work issue #N`"**: anyone can fix this by
   editing the merged source PR's body and rerunning workflow
   "DesignFlow database release readiness".
