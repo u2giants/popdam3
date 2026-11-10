@@ -14,6 +14,7 @@ import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 import { type BatchEmbedOutcome, createQueryEmbedder } from "../_shared/query-embed-batch.ts";
+import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -97,6 +98,32 @@ async function spellingNames(signal: AbortSignal): Promise<string[]> {
     (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime?.waitUntil(refresh);
   }
   return saved.names.filter((name): name is string => typeof name === "string");
+}
+
+/**
+ * Licensor ids and names, cached hourly (a few dozen rows). Fails open to an empty list:
+ * a failed read only skips the licensor scope for that search (#892), it never fails it.
+ */
+let licensorCache: { expires: number; value: Promise<LicensorName[]> } | null = null;
+function licensorNames(): Promise<LicensorName[]> {
+  if (licensorCache && licensorCache.expires > Date.now()) return licensorCache.value;
+  const value = (async () => {
+    const { data, error } = await serviceClient().schema("core").from("licensor").select("id,name")
+      .abortSignal(AbortSignal.timeout(1000));
+    if (error) throw new Error(error.message);
+    const names = ((data ?? []) as Record<string, unknown>[]).flatMap((row) =>
+      typeof row.id === "string" && typeof row.name === "string" ? [{ id: row.id, name: row.name }] : []
+    );
+    // Never keep an empty answer for the hour: the next search reads again.
+    if (names.length === 0) licensorCache = null;
+    return names;
+  })().catch((error) => {
+    console.error("licensor names read failed; searching without licensor scope", error instanceof Error ? error.message : error);
+    licensorCache = null;
+    return [];
+  });
+  licensorCache = { expires: Date.now() + VOCABULARY_TTL_MS, value };
+  return value;
 }
 
 /** PopSG licensor/property name vectors (scripts/popsg-name-vectors.mjs), cached hourly. */
@@ -429,11 +456,15 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // calls (one per variant, or query-then-variants) queue behind each other
     // and pay 1–3 s of tail (#804). One call, one latency draw.
     const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-    const [embeddings, floorConfig] = await Promise.all([
+    const [embeddings, floorConfig, licensors] = await Promise.all([
       semanticTexts.length ? queryEmbedder.embedAll(semanticTexts) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
       serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
+      usePictures ? licensorNames() : Promise.resolve([]),
     ]);
+    // A search that names a licensor keeps a picture-only match only when it belongs to that
+    // licensor: pictures match the product's look, not whose artwork it is (#892).
+    const semanticLicensorIds = namedLicensorIds([query, spelling.corrected], licensors);
     const embedding = embeddings?.get(query) ?? null;
     // Fail open: a config read failure must not take search down; it only
     // drops the optional floor for this request.
@@ -490,7 +521,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       const invoke = () =>
         auth.client.rpc("search_dam_documents", {
           p_query: variant,
-          p_filters: filters,
+          p_filters: withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, variantEmbedding !== null),
           p_limit: limit,
           p_offset: offset,
           p_document_types: documentTypes,
