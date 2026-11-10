@@ -50,6 +50,12 @@ const OUTCOME_LABEL: Record<ResultLine["outcome"], string> = {
   revision: "Revision",
 };
 
+const REVISION_STOP = "Stop: this sheet revises a buy sheet that was already imported. Revised buy sheets are not supported yet, so nothing can be imported. Do not enter the changes by hand; report this sheet to Albert.";
+
+function revisionCount(result: ImportResult | null) {
+  return Math.max(result?.counts?.revision ?? 0, result?.lines.filter((line) => line.outcome === "revision").length ?? 0);
+}
+
 /** Raw sheet, kept with the import: formulas as text, values as written. */
 function rawSheet(sheetName: string, grid: BuySheetGrid) {
   return {
@@ -125,11 +131,20 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   };
 
   const apply = async () => {
+    if (!preview || preview.applied || revisionCount(preview) > 0 || busy) return;
     setBusy(true);
     setError(null);
     try {
       const result = await call(true);
       setPreview(result);
+      if (revisionCount(result) > 0) {
+        setError(REVISION_STOP);
+        return;
+      }
+      if (!result.applied) {
+        setError("Buy sheet was not imported. Review the preview before trying again.");
+        return;
+      }
       const c = result.counts ?? {};
       toast.success(`Buy sheet imported: ${c.new ?? 0} new, ${c.updated ?? 0} updated, ${c.held ?? 0} held.`);
       onApplied();
@@ -152,7 +167,8 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   }, [preview, orderNumbers]);
 
   const counts = preview?.counts ?? {};
-  const isRevision = (counts.revision ?? 0) > 0;
+  const revisions = revisionCount(preview);
+  const isRevision = revisions > 0;
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
@@ -200,13 +216,11 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           <div className="space-y-3 text-sm">
             <p className="font-medium">
               {preview.applied ? "Imported" : "Preview"}: {counts.new ?? 0} new · {counts.updated ?? 0} updated · {counts.unchanged ?? 0} unchanged ·{" "}
-              {counts.held ?? 0} held · {preview.unmatched_styles.length} styles not linked to Item Master
+              {counts.held ?? 0} held · {revisions} revision · {preview.unmatched_styles.length} styles not linked to Item Master
             </p>
             {isRevision && (
               <div role="alert" className="rounded border border-destructive/40 bg-destructive/10 p-2 text-destructive">
-                Stop: this sheet revises a buy sheet that was already imported ({counts.revision} lines). Revised buy sheets
-                are not supported yet, so nothing can be imported. Do not enter the changes by hand; report this sheet to
-                Albert.
+                {REVISION_STOP} ({revisions} revision lines).
               </div>
             )}
             {preview.unmatched_styles.length > 0 && (

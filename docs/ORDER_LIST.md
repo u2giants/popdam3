@@ -187,8 +187,13 @@ style-tracker bridge rule of the OrderList editor; others are reported.
 entered only after the buyer commits and is almost never revised afterwards, so
 revisions are not handled. A line that would change or add to an order an
 earlier buy-sheet upload filled shows as "Revision"; the screen shows a stop
-message, Import stays disabled, and the database refuses the whole sheet
-(shared-db PR 6026). An identical re-upload shows "Unchanged". Business rule and
+message and Import stays disabled. Apply responses reporting refusal or revision
+lines must not be reported as successful imports. Database enforcement depends
+on shared-db PR 6026: its merge and production application are **not verified
+in this checkout**. The vendored `20261110210943` migration still permits
+in-place updates and has no revision outcome. Before release, verify PR 6026
+is merged and applied and obtain the canonical mirror sync; do not treat the
+screen's stop as proof of database protection. An identical re-upload shows "Unchanged". Business rule and
 the Fabi → JamieLynn → master SKU process: shared-db
 `docs/business-rules/erp-orders-and-source-meaning.md` → *Burlington HFC (bulk)
 buy sheet*.
@@ -725,3 +730,9 @@ Live `9883315` focused checks and native workflow `37987001226` passed; shared-d
 and malformed-row choices separate.
 
 Execution plan: [native Sheets integration](../plan_orderlist_sheets_full_integration.md), with current STATUS. The completed session handoff was retired after successor review.
+
+**Correction to the Burlington handoff (issue #927).** Open item 4 in
+`HANDOFF.d/2026-11-10T2216Z-hetz-claude-burlington-buy-sheet.md` is superseded
+by the 2026-11-10 owner rule above. Revised sheets, including a style reduced
+to zero, must stop; do not implement cancellation or quantity updates for them.
+This closes that old design question, not the database verification dependency.
