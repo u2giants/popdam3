@@ -7,8 +7,8 @@
  * labels sit one column off the data), so item columns are found by content.
  * Its quantity cells are mostly formulas saved without results, so the
  * worksheet's own formula rules are re-applied here:
- *   - Total # of Prepacks: a typed number, or (formula) the previous row's
- *     value while the Complex Pack ID is unchanged, else nothing;
+ *   - Total # of Prepacks: a typed number, or (formula) the last value for
+ *     that Complex Pack ID, else nothing;
  *   - Total Prepack Units: prepacks x qty in each prepack.
  * The database function (public.import_dam_buy_sheet) decides matching.
  */
@@ -89,6 +89,8 @@ export function exFactoryDate(label: string, reference: Date): string | null {
     const floor = Date.UTC(reference.getFullYear(), reference.getMonth(), reference.getDate()) - 120 * 86400000;
     if (candidate < floor) year += 1;
   }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
@@ -173,15 +175,13 @@ export function parseBuySheetGrid(grid: BuySheetGrid, reference: Date = new Date
     }
     const date = label ? exFactoryDate(label, reference) : null;
     // A delivery with no date and no quantity is an unused block.
-    let previousPack: number | null = null;
-    let previousPrepacks = 0;
+    const prepacksByPack = new Map<number, number>();
     const rows = itemRows.map((r) => {
       const pack = num(cell(r, packCol))!;
       const raw = cell(r, packsCol);
       let prepacks = num(raw);
-      if (prepacks == null) prepacks = isFormula(raw) && pack === previousPack ? previousPrepacks : 0;
-      previousPack = pack;
-      previousPrepacks = prepacks;
+      if (prepacks == null) prepacks = isFormula(raw) ? prepacksByPack.get(pack) ?? 0 : 0;
+      prepacksByPack.set(pack, prepacks);
       const qtyPer = num(cell(r, qtyCol)) ?? 0;
       const typedUnits = num(cell(r, unitsCol));
       const units = typedUnits ?? prepacks * qtyPer;

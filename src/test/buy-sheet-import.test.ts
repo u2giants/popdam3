@@ -86,3 +86,26 @@ describe("rejects other spreadsheets", () => {
     expect(() => parseBuySheetGrid([["a", "b"], [1, 2]])).toThrow(/Complex Pack ID/);
   });
 });
+
+
+describe("buy-sheet regressions", () => {
+  it("rejects impossible calendar dates and accepts leap days", () => {
+    expect(exFactoryDate("2/30/2026 X FACT", REFERENCE)).toBeNull();
+    expect(exFactoryDate("4/31/2026 X FACT", REFERENCE)).toBeNull();
+    expect(exFactoryDate("2/29/2026 X FACT", REFERENCE)).toBeNull();
+    expect(exFactoryDate("2/29/2028 X FACT", REFERENCE)).toBe("2028-02-29");
+  });
+
+  it("carries prepacks across non-contiguous blocks of the same pack", () => {
+    const result = parseBuySheetGrid([
+      [null, null, "DELIVERY #1"],
+      [null, null, "12/20/2026 X FACT"],
+      ["Complex Pack ID", "Style", "Qty in Each Prepack", "Total # of Prepacks", "Total Prepack Units"],
+      [1, "STYLE001", 2, 10, { formula: "C4*D4" }],
+      [2, "STYLE002", 3, 20, { formula: "C5*D5" }],
+      [1, "STYLE003", 4, { formula: "D4" }, { formula: "C6*D6" }],
+    ], REFERENCE);
+    expect(result.lines.map((line) => line.quantity)).toEqual([20, 60, 40]);
+    expect(result.lines[2].case_pack).toBe(6);
+  });
+});

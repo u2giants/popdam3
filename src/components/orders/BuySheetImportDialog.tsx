@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,8 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const [parsed, setParsed] = useState<BuySheetParse | null>(null);
   const [orderNumbers, setOrderNumbers] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<ImportResult | null>(null);
+  const inFlight = useRef(false);
+  const [previewCurrent, setPreviewCurrent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customer = customerId || defaultCustomer;
@@ -75,6 +77,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     setFile(null);
     setParsed(null);
     setPreview(null);
+    setPreviewCurrent(false);
     setOrderNumbers({});
     setError(null);
   };
@@ -87,7 +90,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
       p_file_sha256: file.sha,
       p_raw_sheet: apply ? { ...rawSheet(file.sheetName, file.grid), header_fields: parsed.headerFields } : {},
       p_lines: parsed.lines,
-      p_order_numbers: Object.fromEntries(Object.entries(numbers).filter(([, v]) => v.trim())),
+      p_order_numbers: Object.fromEntries(Object.entries(numbers).map(([key, value]) => [key, value.trim()]).filter(([, value]) => value)),
       p_apply: apply,
     });
     if (rpcError) throw rpcError;
@@ -95,20 +98,27 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   };
 
   const runPreview = async (numbers = orderNumbers) => {
+    if (inFlight.current) return;
+    setPreviewCurrent(false);
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       setPreview(await call(false, numbers));
+      setPreviewCurrent(true);
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
 
   const onFile = async (picked: File | undefined) => {
+    if (inFlight.current) return;
     reset();
     if (!picked) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const bytes = await picked.arrayBuffer();
@@ -119,11 +129,14 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
 
   const apply = async () => {
+    if (!previewCurrent || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -135,6 +148,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -142,7 +156,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const heldGroups = useMemo(() => {
     const groups = new Map<string, ResultLine[]>();
     for (const l of preview?.lines ?? []) {
-      if (l.outcome === "held" && /order number/.test(l.reason ?? "")) groups.set(l.group, [...(groups.get(l.group) ?? []), l]);
+      if (l.outcome === "held" && !l.order_number) groups.set(l.group, [...(groups.get(l.group) ?? []), l]);
     }
     for (const g of Object.keys(orderNumbers)) {
       if (!groups.has(g)) groups.set(g, (preview?.lines ?? []).filter((l) => l.group === g));
@@ -153,7 +167,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const counts = preview?.counts ?? {};
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next && !inFlight.current) { reset(); onClose(); } }}>
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import customer buy sheet</DialogTitle>
@@ -167,6 +181,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           <label className="flex flex-col gap-1">
             Customer
             <select
+              disabled={busy}
               aria-label="Customer"
               className="h-9 rounded-md border bg-background px-2"
               value={customer}
@@ -178,7 +193,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           </label>
           <label className="flex flex-col gap-1">
             Buy sheet (.xlsx)
-            <Input aria-label="Buy sheet file" type="file" accept=".xlsx" onChange={(e) => void onFile(e.target.files?.[0])} />
+            <Input aria-label="Buy sheet file" type="file" disabled={busy} accept=".xlsx" onChange={(e) => void onFile(e.target.files?.[0])} />
           </label>
           <Button type="button" disabled={!parsed || !customer || busy} onClick={() => void runPreview()}>
             Preview
@@ -197,7 +212,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
         {preview && (
           <div className="space-y-3 text-sm">
             <p className="font-medium">
-              {preview.applied ? "Imported" : "Preview"}: {counts.new ?? 0} new · {counts.updated ?? 0} updated · {counts.unchanged ?? 0} unchanged ·{" "}
+              {preview.applied ? "Imported" : previewCurrent ? "Preview" : "Preview again after changes"}: {counts.new ?? 0} new · {counts.updated ?? 0} updated · {counts.unchanged ?? 0} unchanged ·{" "}
               {counts.held ?? 0} held · {preview.unmatched_styles.length} styles not linked to Item Master
             </p>
             {preview.unmatched_styles.length > 0 && (
@@ -214,8 +229,8 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
                       aria-label={`Order number for ${group}`}
                       className="h-8 w-32"
                       value={orderNumbers[group] ?? ""}
-                      onChange={(e) => setOrderNumbers((prev) => ({ ...prev, [group]: e.target.value }))}
-                      onBlur={() => void runPreview()}
+                      disabled={busy}
+                      onChange={(e) => { setOrderNumbers((prev) => ({ ...prev, [group]: e.target.value })); setPreviewCurrent(false); }}
                     />
                   </label>
                 ))}
@@ -230,8 +245,8 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
                 </tr>
               </thead>
               <tbody>
-                {preview.lines.filter((l) => l.outcome !== "skipped").map((l) => (
-                  <tr key={`${l.sku}|${l.delivery_date}`} className="border-b">
+                {preview.lines.filter((l) => l.outcome !== "skipped").map((l, index) => (
+                  <tr key={`${l.group}|${l.order_number}|${l.sku}|${l.delivery_date}|${index}`} className="border-b">
                     <td className="p-1">{OUTCOME_LABEL[l.outcome]}</td>
                     <td className="p-1">{l.order_number ?? ""}</td>
                     <td className="p-1">{l.sku}</td>
@@ -248,10 +263,10 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
         )}
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }}>Close</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => { reset(); onClose(); }}>Close</Button>
           <Button
             type="button"
-            disabled={!preview || preview.applied || busy || ((counts.new ?? 0) + (counts.updated ?? 0) === 0)}
+            disabled={!previewCurrent || !preview || preview.applied || busy || ((counts.new ?? 0) + (counts.updated ?? 0) === 0)}
             onClick={() => void apply()}
           >
             Import

@@ -82,7 +82,11 @@ def merged_payload(old,desired,metadata,columns,source_id=None):
         # quantity and case pack of a line Google left blank; a blank Google
         # cell must not erase them.
         for field in ('quantity_ordered','case_pack'):
-            if result.get(field) is None and old.get(field) is not None:
+            invalid = metadata.get('invalid_line_values') or {}
+            raw = ((metadata.get('order_list_snapshot') or {}).get('quantity_raw')
+                   if field == 'quantity_ordered' else invalid.get(m.COL_CASE_PACK))
+            if (result.get(field) is None and old.get(field) is not None
+                    and not normalized(raw)):
                 result[field]=Decimal(str(old[field]))
     if old and 'sku' in columns and normalized(old['sku'])==normalized(result.get('sku')):
         # Preserve an established item link and its decision; the sheet has no
