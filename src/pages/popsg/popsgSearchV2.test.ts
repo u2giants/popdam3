@@ -201,6 +201,11 @@ describe("PopSG meaning-based search args", () => {
     expect(parsePopSGQueryEmbedding({ mode: "keyword", expansion: "Harry Potter" }).expansion).toBeNull();
     expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", fallback: " paw patrol " }).fallback).toBe("paw patrol");
     expect(parsePopSGQueryEmbedding({ mode: "keyword", fallback: "paw patrol" }).fallback).toBeNull();
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", fallback: "paw patrol", fallback_kind: "name" }).fallbackAfterMatches).toBe(true);
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", fallback: "paw patrol", fallback_kind: "narrowed_name" }).fallbackAfterMatches).toBe(false);
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", fallback: "paw patrol", fallback_kind: "spelling" }).fallbackAfterMatches).toBe(false);
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", fallback: "paw patrol" }).fallbackAfterMatches).toBe(false);
+    expect(parsePopSGQueryEmbedding({ mode: "keyword", fallback: "paw patrol", fallback_kind: "name" }).fallbackAfterMatches).toBe(false);
   });
 
   it.each([null, {}, { mode: "hybrid", embedding: null }, { mode: "hybrid", embedding: Array(768).fill(NaN) }])(
@@ -208,6 +213,12 @@ describe("PopSG meaning-based search args", () => {
       expect(() => parsePopSGQueryEmbedding(value)).toThrow("Search unavailable. Please try again.");
     },
   );
+
+  it("sends the fallback query only alongside a query", () => {
+    expect(buildPopSGV2Args({ ...base }).p_fallback_query).toBeUndefined();
+    expect(buildPopSGV2Args({ ...base, filters: { ...base.filters, query: "amazing hero" }, fallbackQuery: "hero" }).p_fallback_query).toBe("hero");
+    expect(buildPopSGV2Args({ ...base, filters: { ...base.filters, query: "" }, fallbackQuery: "hero" }).p_fallback_query).toBeUndefined();
+  });
 
   it("sends the floor only with a vector, so keyword search stays unchanged", () => {
     const keyword = buildPopSGV2Args({ ...base, queryEmbedding: null, minSemanticScore: 0.3 });

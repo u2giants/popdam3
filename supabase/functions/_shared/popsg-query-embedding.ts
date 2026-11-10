@@ -68,21 +68,34 @@ export function nameExpansion(embedding: number[] | null, names: NameVectors | n
  * ("chase paw patrol" when the files only say Paw Patrol; "spidermen").
  * The longest known name inside the query wins; otherwise each word moves to
  * its nearest known word. Null when neither changes the query. The caller uses
- * it only after an empty first search, so it can never narrow or reorder
- * results that already exist.
+ * a "spelling" or "narrowed_name" fallback only after an empty first search, so
+ * it can never narrow or reorder results that already exist.
+ *
+ * Kind "name" (#887): a known name plus words that are not product words
+ * ("amazing hero"). The search lists the name's own files after the files that
+ * match every word. A known name plus a product word ("hero canvas") is a
+ * deliberate narrowing and stays "narrowed_name": nothing is added to it.
  */
-export function zeroResultFallback(query: string, knownNames: Set<string>, vocabulary: Map<string, number> | null): string | null {
+export type PopSGFallbackKind = "name" | "narrowed_name" | "spelling";
+export function zeroResultFallback(
+  query: string,
+  knownNames: Set<string>,
+  vocabulary: Map<string, number> | null,
+  productWords: ReadonlySet<string> = new Set(),
+): { fallback: string; kind: PopSGFallbackKind } | null {
   const words = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
   if (!words.length || words.length > 8) return null;
   for (let size = words.length - 1; size >= 1; size--) {
     for (let start = 0; start + size <= words.length; start++) {
       const phrase = words.slice(start, start + size).join(" ");
-      if (phrase.length >= 4 && knownNames.has(phrase)) return phrase;
+      if (phrase.length < 4 || !knownNames.has(phrase)) continue;
+      const others = [...words.slice(0, start), ...words.slice(start + size)];
+      return { fallback: phrase, kind: others.some((word) => productWords.has(word)) ? "narrowed_name" : "name" };
     }
   }
   if (!vocabulary) return null;
   const corrected = words.map((word) => nearestKnownWord(word, knownNames, vocabulary) ?? word).join(" ");
-  return corrected !== words.join(" ") ? corrected : null;
+  return corrected !== words.join(" ") ? { fallback: corrected, kind: "spelling" } : null;
 }
 
 /**

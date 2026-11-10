@@ -5664,6 +5664,7 @@ export type Database = {
       search_style_guide_library_v2: {
         Args: {
           p_extensions?: string[]
+          p_fallback_query?: string
           p_licensors?: string[]
           p_limit?: number
           p_min_semantic_score?: number

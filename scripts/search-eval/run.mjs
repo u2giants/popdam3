@@ -123,20 +123,24 @@ async function popsgSemantic(query) {
     floor: typeof row?.min_semantic_score === "number" ? row.min_semantic_score : null,
     expansion: row?.mode === "hybrid" && typeof row.expansion === "string" && row.expansion.trim() ? row.expansion.trim() : null,
     fallback: row?.mode === "hybrid" && typeof row.fallback === "string" && row.fallback.trim() ? row.fallback.trim() : null,
+    fallbackAfterMatches: row?.mode === "hybrid" && row.fallback_kind === "name",
     mode: row?.mode ?? null,
   };
 }
 
 const sgSearch = (query, mode) => timed(async () => {
   const semantic = await popsgSemantic(query);
-  const search = (p_query) => viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
+  // Same as the live page: a known name inside the words is listed after the all-word matches.
+  const after = semantic.fallback && semantic.fallbackAfterMatches ? await popsgQuery(semantic.fallback) : null;
+  const search = (p_query, p_fallback_query = null) => viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
     p_result_mode: mode, p_query, p_sort: "relevance", p_limit: 50, p_offset: 0,
+    ...(p_fallback_query ? { p_fallback_query } : {}),
     ...(semantic.embedding ? { p_query_embedding: semantic.embedding } : {}),
     ...(semantic.embedding && semantic.floor != null ? { p_min_semantic_score: semantic.floor } : {}),
   }, 45_000);
-  let data = await search(await popsgQuery(query, semantic.expansion));
+  let data = await search(await popsgQuery(query, semantic.expansion), after);
   // Same empty-result retry as the live page.
-  if (semantic.fallback && (data.total ?? (data.results ?? []).length) === 0) data = await search(await popsgQuery(semantic.fallback));
+  if (semantic.fallback && (data.total ?? (data.results ?? []).length) === 0) data = await search(after ?? await popsgQuery(semantic.fallback));
   const results = data.results ?? [];
   const hits = results.map((r) => (mode === "guides" ? r.guide_key : r.style_guide_file_id));
   return { hits, total: data.total ?? hits.length, details: results.map(sgDetail), semantic: semantic.embedding ? "siglip2" : semantic.mode };

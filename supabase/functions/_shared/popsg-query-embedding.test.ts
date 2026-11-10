@@ -60,18 +60,28 @@ it("PopSG name expansion needs a clear winner", async () => {
 it("empty-result fallback prefers the longest known name inside the words, then the nearest spelling", () => {
   const names = new Set(["example hero", "hero", "sidekick"]);
   const vocabulary = new Map([["example", 1], ["hero", 1], ["sidekick", 1], ["sidekicks", 1]]);
-  expect(zeroResultFallback("Sidekick Example-Hero", names, vocabulary)).toBe("example hero");
-  expect(zeroResultFallback("amazing hero", names, vocabulary)).toBe("hero");
-  expect(zeroResultFallback("sidekicks", names, vocabulary)).toBe("sidekick");
-  expect(zeroResultFallback("exampel", names, vocabulary)).toBe("example");
-  expect(zeroResultFallback("example hero", names, vocabulary)).toBe("hero");
+  expect(zeroResultFallback("Sidekick Example-Hero", names, vocabulary)?.fallback).toBe("example hero");
+  expect(zeroResultFallback("amazing hero", names, vocabulary)?.fallback).toBe("hero");
+  expect(zeroResultFallback("sidekicks", names, vocabulary)?.fallback).toBe("sidekick");
+  expect(zeroResultFallback("exampel", names, vocabulary)?.fallback).toBe("example");
+  expect(zeroResultFallback("example hero", names, vocabulary)?.fallback).toBe("hero");
   expect(zeroResultFallback("zzzzqq", names, vocabulary)).toBeNull();
   expect(zeroResultFallback("zzzzqq", names, null)).toBeNull();
   expect(zeroResultFallback("", names, vocabulary)).toBeNull();
 });
 
+it("fallback kind: a name plus other words is listed after all-word matches unless a product word narrows it", () => {
+  const names = new Set(["example hero", "hero"]);
+  const vocabulary = new Map([["example", 1], ["hero", 1]]);
+  const products = new Set(["canvas"]);
+  expect(zeroResultFallback("amazing hero", names, vocabulary, products)).toEqual({ fallback: "hero", kind: "name" });
+  expect(zeroResultFallback("hero canvas", names, vocabulary, products)).toEqual({ fallback: "hero", kind: "narrowed_name" });
+  expect(zeroResultFallback("amazing example hero canvas", names, vocabulary, products)?.kind).toBe("narrowed_name");
+  expect(zeroResultFallback("exampel", names, vocabulary, products)).toEqual({ fallback: "example", kind: "spelling" });
+});
+
 it("empty-result fallback prefers a whole name over a joined two-word form on a tie", () => {
   const names = new Set(["heroman", "hero ben"]);
   const vocabulary = new Map([["heroben", 1], ["heroman", 1], ["hero", 1]]);
-  expect(zeroResultFallback("heromen", names, vocabulary)).toBe("heroman");
+  expect(zeroResultFallback("heromen", names, vocabulary)?.fallback).toBe("heroman");
 });

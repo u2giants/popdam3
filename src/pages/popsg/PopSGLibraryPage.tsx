@@ -150,7 +150,7 @@ async function fetchPopSGV2Page(
 ) {
   const pageOffset = page * pageSize;
   // Embed the words as typed: the expansion below is keyword OR-syntax.
-  const [fallbackTerms, { expansion, fallback, ...semantic }] = await Promise.all([
+  const [fallbackTerms, { expansion, fallback, fallbackAfterMatches, ...semantic }] = await Promise.all([
     filters.nameSearch ? expandFallbackTerms(filters.nameSearch) : Promise.resolve([]),
     fetchPopSGQueryEmbedding(filters.nameSearch.trim(), signal),
   ]);
@@ -162,6 +162,10 @@ async function fetchPopSGV2Page(
     extensions: filters.fileTypes,
     preview: filters.thumbStatus,
   };
+  // A known name inside the words (#887): its files follow the all-word matches.
+  let fallbackQuery = fallback && fallbackAfterMatches
+    ? buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback))
+    : null;
   const fetchChunk = async (offset: number, limit: number) => {
     const { data, error } = await supabase.rpc("search_style_guide_library_v2", buildPopSGV2Args({
       mode,
@@ -170,6 +174,7 @@ async function fetchPopSGV2Page(
       sortDirection,
       limit,
       offset,
+      fallbackQuery,
       ...semantic,
     })).abortSignal(signal);
     if (error) throw error;
@@ -185,7 +190,8 @@ async function fetchPopSGV2Page(
   // Only then search the known name or nearest spelling the words contain;
   // a search that finds anything pays nothing extra.
   if (fallback && first.total === 0) {
-    searchFilters.query = buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback));
+    searchFilters.query = fallbackQuery ?? buildPopSGV2WebsearchQuery(await expandFallbackTerms(fallback));
+    fallbackQuery = null;
     first = await fetchChunk(pageOffset, Math.min(pageSize, POPSG_SEARCH_RPC_LIMIT));
   }
   const continuationOffsets = getPopSGV2ContinuationOffsets(pageOffset, pageSize, first.total);
