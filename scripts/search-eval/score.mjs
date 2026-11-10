@@ -4,7 +4,7 @@
 const TOP = 10;
 
 /** Score one search of one case. `judged` = { relevant: [], irrelevant: [], must_find: [] }. */
-export function scoreSearch(testCase, judged, hits, { error = null, total = hits.length, ms = 0, semantic = null, corrected_query = null } = {}) {
+export function scoreSearch(testCase, judged, hits, { error = null, total = hits.length, ms = 0, semantic = null, corrected_query = null, engine = null } = {}) {
   const relevant = new Set(judged?.relevant ?? []);
   const irrelevant = new Set(judged?.irrelevant ?? []);
   const top = hits.slice(0, TOP);
@@ -29,11 +29,11 @@ export function scoreSearch(testCase, judged, hits, { error = null, total = hits
     must_found: found,
     first_relevant_rank: hits.findIndex((id) => relevant.has(id)) + 1 || null,
   };
-  row.pass = passes(testCase, row, judged);
+  row.pass = passes(testCase, row, judged, engine);
   return row;
 }
 
-function passes(testCase, row, judged) {
+function passes(testCase, row, judged, engine) {
   if (row.error) return false;
   if (testCase.expected_correction && row.corrected_query !== testCase.expected_correction) return false;
   // Unknown-code picture guesses are a policy check, not a relevance judgment.
@@ -42,6 +42,9 @@ function passes(testCase, row, judged) {
   if (testCase.kind === "code" && testCase.exact) return row.first_relevant_rank === 1;
   if (judged?.expected_total && row.total < judged.expected_total * 0.5) return false;
   if (row.relevant_top10 === 0) return false;
+  // Owner ruling 2026-11-10 ("Keep all five"): a guide that merely contains the character
+  // stays listed after the guides named for it. So guides pass on order, not on share.
+  if (engine === "sg_guides") return row.first_relevant_rank === 1;
   const judgedTop = row.relevant_top10 + row.irrelevant_top10;
   if (judgedTop > 0 && row.relevant_top10 / judgedTop < 0.5) return false;
   if (row.must_find > 0 && row.must_found / row.must_find < 0.5) return false;

@@ -53,3 +53,11 @@ test("a canonical spelling policy requires the actual returned correction", () =
   assert.equal(scoreSearch(testCase, judged, ["a"], { corrected_query: "example" }).pass, true);
   assert.equal(scoreSearch(testCase, judged, ["a"], { corrected_query: null }).pass, false);
 });
+
+test("PopSG guides pass when a guide named for the search is first, even with containing guides after it", () => {
+  const judged = { relevant: ["a"], irrelevant: ["x", "y", "z"] };
+  const testCase = { id: "1", kind: "character" };
+  assert.equal(scoreSearch(testCase, judged, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, true);
+  assert.equal(scoreSearch(testCase, judged, ["x", "a", "y", "z"], { engine: "sg_guides" }).pass, false);
+  assert.equal(scoreSearch(testCase, judged, ["a", "x", "y", "z"], { engine: "sg_files" }).pass, false);
+});
