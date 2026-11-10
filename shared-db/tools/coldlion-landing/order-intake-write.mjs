@@ -37,6 +37,7 @@ import {
   parseWriteSummary,
 } from "./lib/order-intake-write.mjs";
 import { buildProdOnlyClaimSql } from "./lib/order-intake-prod-only.mjs";
+import { buildDistroReplaceSql } from "./lib/order-intake-distro.mjs";
 
 export function parseArgs(argv) {
   const options = { write: false, limit: null, order: null };
@@ -150,6 +151,22 @@ async function main() {
     throw error;
   }
   console.log(`no-sales-order production lines ${options.write ? "" : "(dry run — nothing written) "}complete: refsAttached=${prodClaimed} googleLines=${prodLines}`);
+
+  // Owner rule 2026-11-10: distro (per-distribution-center) sales orders
+  // replace a Google bulk (HFC) line with the same production reference and
+  // SKU. The distro lines move under the bulk line's D-number; the bulk line
+  // is retired (voided, linked, kept).
+  let distroMoved;
+  let bulkRetired;
+  try {
+    [[distroMoved, bulkRetired] = []] = queryRows(buildDistroReplaceSql({ runId: randomUUID(), write: options.write }), {});
+  } catch (error) {
+    if (options.write && !isClientSpawnFault(error) && !isClientUriFault(error)) {
+      runSql(buildWriteFailureSql({ runId, error, startedAt }), {});
+    }
+    throw error;
+  }
+  console.log(`distro orders replacing bulk lines ${options.write ? "" : "(dry run — nothing written) "}complete: distroLinesMoved=${distroMoved} bulkLinesRetired=${bulkRetired}`);
 
   // The recurring component-identity guard (SO 7128092, 2026-10-26): every
   // run re-proves that each staged component of every created order has
