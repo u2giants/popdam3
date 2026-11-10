@@ -310,10 +310,41 @@ const queryEmbedder = createQueryEmbedder({
 
 const embedQueryText = (input: string) => queryEmbedder.embed(input);
 
+/**
+ * Per-step search timings (#804), returned as a Server-Timing header and one
+ * log line. Measurement only: nothing here changes what a search returns.
+ */
+function stepTimer() {
+  const started = performance.now();
+  const steps: Record<string, number> = {};
+  return {
+    add(name: string, ms: number) {
+      steps[name] = Math.max(steps[name] ?? 0, ms);
+    },
+    async time<T>(name: string, work: PromiseLike<T> | (() => PromiseLike<T>)): Promise<T> {
+      const t = performance.now();
+      try {
+        return await (typeof work === "function" ? work() : work);
+      } finally {
+        this.add(name, performance.now() - t);
+      }
+    },
+    finish(response: Response): Response {
+      steps.total = performance.now() - started;
+      const header = Object.entries(steps).map(([name, ms]) => `${name};dur=${ms.toFixed(1)}`).join(", ");
+      console.log(JSON.stringify({ event: "dam_search_timing", status: response.status, steps }));
+      const headers = new Headers(response.headers);
+      headers.set("Server-Timing", header);
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    },
+  };
+}
+
 async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<Response> {
   if (req.method !== "POST") return err("Method not allowed", 405);
 
-  const auth = await authenticateCaller(req);
+  const timer = stepTimer();
+  const auth = await timer.time("auth", authenticateCaller(req));
   if (!auth) return err("Unauthorized", 401);
 
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
@@ -408,7 +439,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     return json({ ok: true, reset: data });
   }
 
-  if (action === "search") {
+  if (action === "search") return timer.finish(await (async () => {
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (!query) return err("Missing query", 400);
     const limit = Math.min(200, Math.max(1, Math.trunc(Number(body.limit) || 50)));
@@ -427,21 +458,21 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // A real product code, whole or its start, has no visual meaning: its picture leg only returns
     // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
     // The product-code check and spelling resolve together so neither waits on the other.
-    const [productCodeSearch, spellingHelp] = await Promise.all([
+    const [productCodeSearch, spellingHelp] = await timer.time("precheck", Promise.all([
       isProductCodeSearch(
         query,
         async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
       ),
       checkSpelling(query, spellingLookup),
-    ]);
+    ]));
     let unknownCatalogFormat = false;
     try {
       if (!productCodeSearch) {
-        unknownCatalogFormat = await hasCatalogCodeFormat(
+        unknownCatalogFormat = await timer.time("catalog_format", () => hasCatalogCodeFormat(
           query,
           (format, signal) => serviceClient().rpc("dam_catalog_code_format_exists", { p_format: format }).abortSignal(signal),
           requestSignal,
-        );
+        ));
       }
     } catch {
       return err("Search unavailable", 503);
@@ -459,12 +490,12 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
     // calls (one per variant, or query-then-variants) queue behind each other
     // and pay 1–3 s of tail (#804). One call, one latency draw.
     const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-    const [embeddings, floorConfig, licensors] = await Promise.all([
-      semanticTexts.length ? queryEmbedder.embedAll(semanticTexts) : Promise.resolve(null),
+    const [embeddings, floorConfig, licensors] = await timer.time("prepare", Promise.all([
+      semanticTexts.length ? timer.time("embed", queryEmbedder.embedAll(semanticTexts)) : Promise.resolve(null),
       // Server-side only: callers cannot override the admin-configured floor.
-      serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle(),
-      usePictures ? licensorNames() : Promise.resolve([]),
-    ]);
+      timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
+      usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
+    ]));
     // A search that names a licensor keeps a picture-only match only when it belongs to that
     // licensor: pictures match the product's look, not whose artwork it is (#892).
     const semanticLicensorIds = namedLicensorIds([query, spelling.corrected], licensors);
@@ -510,7 +541,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
             p_query_embedding: variantEmbedding,
             p_document_types: documentTypes,
           });
-        let anchor = await anchorCall();
+        let anchor = await timer.time("anchor_rpc", anchorCall);
         if (anchor.error) {
           console.error("dam_search_semantic_anchor failed; retrying once", anchor.error.message);
           anchor = await anchorCall();
@@ -532,7 +563,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           p_min_rank: minRank,
           p_min_semantic_score: floor,
         });
-      let { data, error } = await invoke();
+      let { data, error } = await timer.time("search_rpc", invoke);
       if (error) {
         console.error(`search_dam_documents variant "${variant}" failed; retrying once`, error.message);
         ({ data, error } = await invoke());
@@ -540,9 +571,11 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       return { data, error };
     };
 
-    const variantResults = await Promise.all(
+    timer.add("variants", queryVariants.length);
+    const variantResults = await timer.time("rpc_phase", Promise.all(
       queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) })),
-    );
+    ));
+    const shapeStarted = performance.now();
     const failed = variantResults.find(({ result }) => result.error);
     if (failed) {
       // Fail loud: a partial merge is a wrong answer, not a degraded one.
@@ -571,6 +604,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       } satisfies SearchPage;
     });
     const merged = mergeSearchPages(pages);
+    timer.add("shape", performance.now() - shapeStarted);
     return json({
       ok: true,
       results: merged.results,
@@ -580,7 +614,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       semantic: embedding ? "siglip2" : "skipped",
       corrected_query: spelling.corrected,
     });
-  }
+  })());
 
   // PopSG runs its own library search but shares this spelling help.
   if (action === "spelling") {
