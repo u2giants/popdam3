@@ -102,6 +102,32 @@ ambiguous stays Google-only. When the customer's sales order arrives later it
 merges onto the same row. Lidl orders split across distribution centers are
 entered manually by ColdLion (Yuchen, 2026-11-10).
 
+### Bulk (HFC) vs distro orders (owner rule, 2026-11-10)
+
+Albert, 2026-11-10: "a 'distro' order (broken down by DC) replaces a bulk
+(sometimes called HFC) order." A customer such as Lidl may first issue one bulk
+order, which the salesman enters in Google as a single production line (often
+with no customer PO or quantity). It later issues a distro order: one customer
+order per distribution center, entered in ColdLion. The distro orders **replace**
+the bulk order; they are not additional goods.
+
+Required OrderList behavior:
+
+- When ColdLion distro orders arrive for the same customer, production reference
+  and styles as a Google bulk line, the distro lines become the live lines. They
+  carry the bulk line's production order number (e.g. D3651) so production
+  tracking stays together.
+- The Google bulk line is retired (kept for history with a link to its
+  replacements, never hard-deleted) and excluded from totals, so goods are not
+  counted twice.
+- This is one bulk line to many DC lines. It is separate from the one-to-one
+  merge rule of 2026-10-22.
+
+Live examples (2026-11-10): D3651 (Google bulk; styles VDC83DYMM14–17) replaced
+by ColdLion sales orders 7128093/7128094/7128095 (342/797/336 per style). D3533
+(VDC83DYMM12–13) replaced by 7127982/7127989/7127994. As of 2026-11-10 the
+import does not apply this yet, so both the bulk and distro lines appear.
+
 ## ColdLion pack-variant reference
 
 **Case Pack meaning (corrected 2026-10-27, Albert relaying Yuchen):** "It
