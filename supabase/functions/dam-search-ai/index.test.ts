@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   formatRpc: vi.fn(),
   authenticate: vi.fn(),
   licensors: [] as { id: string; name: string }[],
+  aliases: [] as { licensor_id: string; alias: string }[],
 }));
 vi.mock("../_shared/http.ts", () => ({
   corsServe: (handler: typeof state.handler) => {
@@ -22,7 +23,11 @@ vi.mock("../_shared/service-client.ts", () => ({
   serviceClient: () => ({
     rpc: (name: string, args: unknown) => ({ abortSignal: (signal: AbortSignal) => state.formatRpc(name, args, signal) }),
     schema: () => ({
-      from: () => ({ select: () => ({ abortSignal: async () => ({ data: state.licensors, error: null }) }) }),
+      from: (table: string) => ({
+        select: () => ({
+          abortSignal: async () => ({ data: table === "licensor_alias" ? state.aliases : state.licensors, error: null }),
+        }),
+      }),
     }),
     from: () => ({
       select: () => ({
@@ -41,7 +46,7 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   addNameToVocabulary: vi.fn(),
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
-await import("./index.ts");
+const { resetLicensorCacheForTests } = await import("./index.ts");
 // Answers both text-embed endpoints like the real service: batch requests get
 // one vector per requested text, single-text requests get one vector.
 const embedFetch = () =>
@@ -67,6 +72,9 @@ describe("DAM search embedding availability", () => {
   afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     vi.restoreAllMocks();
+    state.licensors.length = 0;
+    state.aliases.length = 0;
+    resetLicensorCacheForTests();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
     state.productCode = false;
     state.meaningful = true;
@@ -255,6 +263,15 @@ describe("DAM search embedding availability", () => {
     state.rpc.mockClear();
     expect((await search("plain toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{}]);
+  });
+
+  it("scopes a search that names a licensor by a recorded alias (#897)", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.licensors.push({ id: "22222222-2222-4222-8222-222222222222", name: "Quill Worldwide" });
+    state.aliases.push({ licensor_id: "22222222-2222-4222-8222-222222222222", alias: "Quillies" });
+    const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
+    expect((await search("quillies rug")).status).toBe(200);
+    expect(filtersOf()).toEqual([{ semanticLicensorIds: ["22222222-2222-4222-8222-222222222222"] }]);
   });
 
   it("rides the query and its product-phrase variants in ONE batched text-embed call", async () => {

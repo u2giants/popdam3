@@ -105,16 +105,28 @@ async function spellingNames(signal: AbortSignal): Promise<string[]> {
  * Licensor ids and names, cached hourly (a few dozen rows). Fails open to an empty list:
  * a failed read only skips the licensor scope for that search (#892), it never fails it.
  */
+/** Test hook: forget cached licensor names. */
+export function resetLicensorCacheForTests() {
+  licensorCache = null;
+}
 let licensorCache: { expires: number; value: Promise<LicensorName[]> } | null = null;
 function licensorNames(): Promise<LicensorName[]> {
   if (licensorCache && licensorCache.expires > Date.now()) return licensorCache.value;
   const value = (async () => {
-    const { data, error } = await serviceClient().schema("core").from("licensor").select("id,name")
-      .abortSignal(AbortSignal.timeout(1000));
-    if (error) throw new Error(error.message);
-    const names = ((data ?? []) as Record<string, unknown>[]).flatMap((row) =>
-      typeof row.id === "string" && typeof row.name === "string" ? [{ id: row.id, name: row.name }] : []
-    );
+    // Recorded aliases ("Peanuts" for "Peanuts Worldwide") name a licensor too (#897).
+    const core = serviceClient().schema("core");
+    const [licensors, aliases] = await Promise.all([
+      core.from("licensor").select("id,name").abortSignal(AbortSignal.timeout(1000)),
+      core.from("licensor_alias").select("licensor_id,alias").abortSignal(AbortSignal.timeout(1000)),
+    ]);
+    if (licensors.error) throw new Error(licensors.error.message);
+    const rows = (data: unknown, idKey: string, nameKey: string) =>
+      ((data ?? []) as Record<string, unknown>[]).flatMap((row) =>
+        typeof row[idKey] === "string" && typeof row[nameKey] === "string" ? [{ id: row[idKey] as string, name: row[nameKey] as string }] : []
+      );
+    // A failed alias read keeps the canonical names: scoping by name still works.
+    if (aliases.error) console.error("licensor alias read failed; scoping by canonical names only", aliases.error.message);
+    const names = [...rows(licensors.data, "id", "name"), ...(aliases.error ? [] : rows(aliases.data, "licensor_id", "alias"))];
     // Never keep an empty answer for the hour: the next search reads again.
     if (names.length === 0) licensorCache = null;
     return names;
