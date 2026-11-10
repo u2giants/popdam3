@@ -206,6 +206,24 @@ PR 6021 made the lookups run once per sheet.
 Fixture: `src/test/fixtures/burlington-buy-sheet-2026-10-20.xlsx`; tests:
 `src/test/buy-sheet-import.test.ts`.
 
+
+### Burlington Bamboo Rose quote sheet (2026-11-10)
+
+After a buy sheet is imported, the same dialog fills Burlington's Bamboo Rose
+quote template (`src/lib/bamboo-rose-sheet.ts`). The user picks the blank
+template downloaded from the portal; the browser writes columns A–AT of its
+first sheet directly in the file's XML (every lookup sheet, dropdown and hidden
+formula stays) and downloads the result. Rules come from the sales assistant's
+field guide: one PARENT row per pack per delivery (assortment ID from OrderList,
+`-MMDD` added when the assortment ships on several dates, pack name
+`<parent>-<ending>`, units = prepacks), then one CHILD row per style (units, qty
+per prepack, FOB cost, label, NEW when the sheet's BURL style says NEW). HTS
+comes from ColdLion item headers, otherwise a wording guess that is listed under
+"Please check". Factory numbers per OrderList vendor are in
+`BAMBOO_ROSE_FACTORY`. Carton sizes, weights, materials, inner packs and pallets
+are left blank for a person. Verified against the hand-made sheet for the
+10-20-26 buy: all 67 rows match (`src/test/bamboo-rose-sheet.test.ts`).
+
 ## ColdLion pack-variant reference
 
 **Case Pack meaning (corrected 2026-10-27, Albert relaying Yuchen):** "It
