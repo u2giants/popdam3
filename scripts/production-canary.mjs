@@ -65,6 +65,19 @@ if (url !== EXPECTED_URL || !key) {
   record("Railway worker heartbeat", Number.isFinite(workerAt) && now - workerAt <= 5 * 60_000,
     Number.isFinite(workerAt) ? `${Math.round((now - workerAt) / 60_000)} minutes old` : "missing");
 
+  // Picture/search indexing worker (GPU poller). It heartbeats every 30 s and must
+  // always be up: it also answers uploaded-picture searches. It went silent for
+  // 3.5 days in November 2026 with no alarm (#804).
+  const embedResponse = await request("database rpc/image_embed_status", `${url}/rest/v1/rpc/image_embed_status`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  let embedStatus = null;
+  if (embedResponse?.ok) { try { embedStatus = await embedResponse.json(); } catch { embedStatus = null; } }
+  record("picture indexing worker heartbeat", embedStatus?.workers_fresh === true,
+    embedStatus ? `fresh=${embedStatus.workers_fresh}, pending=${embedStatus.pending}` : "status unavailable");
+
   const operationRows = await rest("admin_config?select=value&key=eq.BULK_OPERATIONS");
   const operations = operationRows?.[0]?.value || {};
   const recentFailures = Object.entries(operations).filter(([, state]) => {

@@ -128,6 +128,25 @@ Proven environment: Python 3.13 + `.venv` in `D:\ai\siglip2-embed`.
      (New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0))
    ```
 
+   **Then make it independent of the desktop session and self-restarting**
+   (the 2026-11-06 outage: the task was "Interactive only", died with the
+   signed-in session, and stayed down 3.5 days). Run elevated, once:
+
+   ```powershell
+   $boot = New-ScheduledTaskTrigger -AtStartup
+   $rep  = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)
+   $set  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
+     -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+   $pri  = New-ScheduledTaskPrincipal -UserId "$env:COMPUTERNAME\<user>" -LogonType S4U -RunLevel Limited
+   Set-ScheduledTask -TaskName PopDAM-ImageEmbedWorker -Trigger $boot,$rep -Settings $set -Principal $pri
+   ```
+
+   The 5-minute trigger is ignored while the service runs and restarts it
+   when it is not. Check: `(Get-ScheduledTask PopDAM-ImageEmbedWorker).Principal.LogonType`
+   is `S4U` and there are two triggers. The Production Canary workflow
+   opens an alert issue when the heartbeat goes stale
+   (`public.image_embed_status().workers_fresh`).
+
    `run_service.cmd` (create alongside the script):
 
    ```bat
