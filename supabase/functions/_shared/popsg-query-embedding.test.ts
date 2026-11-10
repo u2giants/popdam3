@@ -77,6 +77,7 @@ it("fallback kind: a name plus other words is listed after all-word matches unle
   expect(zeroResultFallback("amazing hero", names, vocabulary, products)).toEqual({ fallback: "hero", kind: "name" });
   expect(zeroResultFallback("hero canvas", names, vocabulary, products)).toEqual({ fallback: "hero", kind: "narrowed_name" });
   expect(zeroResultFallback("amazing example hero canvas", names, vocabulary, products)?.kind).toBe("narrowed_name");
+  expect(zeroResultFallback("example hero", names, vocabulary, products)).toEqual({ fallback: "hero", kind: "narrowed_name" });
   expect(zeroResultFallback("exampel", names, vocabulary, products)).toEqual({ fallback: "example", kind: "spelling" });
 });
 
