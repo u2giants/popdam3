@@ -10,6 +10,14 @@ class RefreshBoundaryTests(unittest.TestCase):
   actual=s.merged_payload(old,desired,{'order_list_snapshot':{'description':'latest'}},s.m.LINE_COLUMNS)
   self.assertEqual(actual['item_id'],'confirmed');self.assertEqual(actual['master_data_match_status'],'manual')
   self.assertEqual(actual['metadata']['original_order_list_snapshot'],{'description':'original'});self.assertEqual(actual['metadata']['review'],'kept')
+ def test_blank_google_quantity_keeps_buy_sheet_quantity(self):
+  old={'sku':'AAQ14DYWP01','quantity_ordered':'100','case_pack':'4','metadata':{'buy_sheet':{'quantity':100}}}
+  actual=s.merged_payload(old,{'sku':'AAQ14DYWP01','quantity_ordered':None,'case_pack':None},{},s.m.LINE_COLUMNS)
+  self.assertEqual((actual['quantity_ordered'],actual['case_pack']),(s.Decimal('100'),s.Decimal('4')))
+  typed=s.merged_payload(old,{'sku':'AAQ14DYWP01','quantity_ordered':s.Decimal('120')},{},s.m.LINE_COLUMNS)
+  self.assertEqual(typed['quantity_ordered'],s.Decimal('120'))
+  plain=s.merged_payload({'sku':'X','quantity_ordered':'5','metadata':{}},{'sku':'X','quantity_ordered':None},{},s.m.LINE_COLUMNS)
+  self.assertIsNone(plain['quantity_ordered'])
  def test_item_link_is_not_carried_to_a_different_style(self):
   old={'sku':'first','item_id':'first-id','metadata':{}}
   desired={'sku':'second','item_id':'second-id'}
