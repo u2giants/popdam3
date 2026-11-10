@@ -9,6 +9,53 @@ let siblingScanInProgress = false;
 
 const SIBLING_SCAN_CONCURRENCY = 4;
 
+
+const SIBLING_SCAN_MAX_DEPTH = 3;
+const SIBLING_SCAN_MAX_FILES = 200;
+
+/**
+ * Matching files in the style folder and its subfolders (e.g. ART/), up to
+ * SIBLING_SCAN_MAX_DEPTH levels down. Skips Synology/hidden metadata folders
+ * (@eaDir, #recycle, .*) whose entries are not real files.
+ */
+export async function listSiblingCandidates(
+  root: string,
+  extensions: Set<string>,
+): Promise<Array<{ name: string; rel: string }>> {
+  const out: Array<{ name: string; rel: string }> = [];
+  const walk = async (rel: string, depth: number) => {
+    if (out.length >= SIBLING_SCAN_MAX_FILES) return;
+    let entries;
+    try {
+      entries = await readdir(rel ? `${root}/${rel}` : root, { withFileTypes: true });
+    } catch {
+      if (!rel) throw new Error("Cannot read folder");
+      return;
+    }
+    const subdirs: string[] = [];
+    for (const entry of entries) {
+      if (out.length >= SIBLING_SCAN_MAX_FILES) return;
+      const name = entry.name;
+      if (name.startsWith(".") || name.startsWith("@") || name.startsWith("#")) continue;
+      const childRel = rel ? `${rel}/${name}` : name;
+      if (entry.isDirectory()) {
+        subdirs.push(childRel);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = "." + name.split(".").pop()?.toLowerCase();
+      if (!extensions.has(ext)) continue;
+      if (ext === ".pdf" && !isPdfCandidate(name)) continue;
+      out.push({ name, rel: childRel });
+    }
+    if (depth < SIBLING_SCAN_MAX_DEPTH) {
+      for (const d of subdirs) await walk(d, depth + 1);
+    }
+  };
+  await walk("", 0);
+  return out;
+}
+
 async function executeSiblingScan(request: api.SiblingScanRequest, mountRoot: string): Promise<void> {
   const effectiveMountRoot = mountRoot.replace(/\/+$/, "");
   const folderPath = request.folder_path.replace(/^\/+/, "").replace(/\/+$/, "");
@@ -36,22 +83,18 @@ async function executeSiblingScan(request: api.SiblingScanRequest, mountRoot: st
     return;
   }
 
-  const entries = await readdir(resolved, { withFileTypes: true });
   const extensions = new Set((request.extensions || [".jpg", ".jpeg", ".png"]).map(e => e.toLowerCase()));
   const images: api.SiblingImageResult[] = [];
+  const candidates = await listSiblingCandidates(resolved, extensions);
 
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const ext = "." + entry.name.split(".").pop()?.toLowerCase();
-    if (!extensions.has(ext)) continue;
-    if (ext === ".pdf" && !isPdfCandidate(entry.name)) continue;
-
+  for (const { name, rel } of candidates) {
+    const ext = "." + name.split(".").pop()?.toLowerCase();
     try {
-      const filePath = `${resolved}/${entry.name}`;
+      const filePath = `${resolved}/${rel}`;
       const fileStat = await stat(filePath);
       const result: api.SiblingImageResult = {
-        filename: entry.name,
-        relative_path: `${folderPath}/${entry.name}`,
+        filename: name,
+        relative_path: `${folderPath}/${rel}`,
         file_size: fileStat.size,
       };
 
@@ -73,7 +116,7 @@ async function executeSiblingScan(request: api.SiblingScanRequest, mountRoot: st
         const { uploadSiblingThumbnail } = await import("../uploader.js");
         result.thumbnail_url = await uploadSiblingThumbnail(pathHash, buffer);
       } catch (thumbErr) {
-        logger.warn("Sibling thumbnail generation failed", { file: entry.name, error: (thumbErr as Error).message });
+        logger.warn("Sibling thumbnail generation failed", { file: rel, error: (thumbErr as Error).message });
       }
 
       images.push(result);
