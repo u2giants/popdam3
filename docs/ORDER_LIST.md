@@ -194,10 +194,15 @@ lines: if Burlington's official POs arrive as per-DC distro orders, the
 "Bulk (HFC) vs distro orders" rule below applies to them, not the one-to-one
 merge.
 
-**First import (sample 10-20-26).** Burlington orders D3722–D3726 and
-D3728–D3730 (D3727 is a Ross order) carried this buy from Google with blank
-quantities; the import updated their lines. Packs 1, 7, 10 and 11 (GFZ/BGX/
-PFX/MBX/XA styles) had no OrderList order and were held for order numbers.
+**First import (sample 10-20-26, applied 2026-11-10 4:50 PM EST on the live
+page).** All 54 style-deliveries matched exactly one existing Google line:
+D3722–D3726, D3728–D3730 and D3733–D3736 (D3727 is a Ross order). Result: 54
+updated, 0 new, 0 held, all linked to Item Master; quantities total 14,400 /
+11,400 / 4,800 for 12/20, 12/30, 12/10; Burlington line count unchanged; an
+immediate re-upload previews 54 unchanged. Recorded in
+`dam.order_buy_sheet_import` with the 224-row raw sheet. The first live apply
+hit the 8 s API statement limit (rolled back, nothing written); shared-db
+PR 6021 made the lookups run once per sheet.
 Fixture: `src/test/fixtures/burlington-buy-sheet-2026-10-20.xlsx`; tests:
 `src/test/buy-sheet-import.test.ts`.
 
