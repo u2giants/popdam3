@@ -2961,8 +2961,13 @@ async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: s
     .from("admin_config")
     .select("key, value, updated_at")
     .like("key", "sibling_scan_request_%")
-    .order("updated_at", { ascending: true })
-    .limit(20);
+    // Only open requests. Finished rows are never deleted, so without this
+    // filter the oldest finished rows filled the window and no new request
+    // was ever claimed (dead since 2026-06-09). Newest first: the newest
+    // request is the one a user is watching a spinner for.
+    .in("value->>status", ["pending", "claimed"])
+    .order("updated_at", { ascending: false })
+    .limit(50);
 
   if (fetchErr) return err(fetchErr.message, 500);
 
@@ -2981,7 +2986,7 @@ async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: s
     return json({ ok: true, request: null });
   }
 
-  // Claim the oldest one
+  // Claim the newest one
   const oldest = pendingRequests[0];
   const requestId = oldest.key.replace("sibling_scan_request_", "");
 
