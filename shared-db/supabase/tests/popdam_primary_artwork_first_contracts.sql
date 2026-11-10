@@ -35,14 +35,14 @@ begin
     raise exception 'ZZ5250: expected artwork PSD primary, got %', coalesce(v_primary::text, '<null>');
   end if;
 
-  -- Tier numbers: neutral artwork+thumb = 5, neutral pdf+thumb = 7,
-  -- pdf without thumbnail = 11 (below every renderable tier),
-  -- mockup without thumbnail = 8 (renders above nothing-but-no-thumb tiers).
-  if (select primary_sort_tier from public.assets where id = v_psd_late) <> 5 then
-    raise exception 'ZZ5250: artwork-with-thumbnail tier expected 5';
+  -- Tier numbers (renumbered by 20261110192227, COMP tiers 3/10): neutral artwork+thumb = 6, neutral pdf+thumb = 8,
+  -- pdf without thumbnail = 13 (below every renderable tier),
+  -- mockup without thumbnail = 9 (renders above nothing-but-no-thumb tiers).
+  if (select primary_sort_tier from public.assets where id = v_psd_late) <> 6 then
+    raise exception 'ZZ5250: artwork-with-thumbnail tier expected 6';
   end if;
-  if (select primary_sort_tier from public.assets where id = v_pdf_early) <> 7 then
-    raise exception 'ZZ5250: pdf-with-thumbnail tier expected 7';
+  if (select primary_sort_tier from public.assets where id = v_pdf_early) <> 8 then
+    raise exception 'ZZ5250: pdf-with-thumbnail tier expected 8';
   end if;
 
   insert into public.assets(
@@ -54,11 +54,11 @@ begin
     (v_mockup_nothumb, 'ZZ5250_mockup.psd', 'ZZ5250/A/mockup.psd', 'psd',
       'zz5250-mkup-' || txid_current(), now(), v_group, false, null, null, now());
 
-  if (select primary_sort_tier from public.assets where id = v_pdf_nothumb) <> 11 then
-    raise exception 'ZZ5250: pdf-without-thumbnail tier expected 11';
+  if (select primary_sort_tier from public.assets where id = v_pdf_nothumb) <> 13 then
+    raise exception 'ZZ5250: pdf-without-thumbnail tier expected 13';
   end if;
-  if (select primary_sort_tier from public.assets where id = v_mockup_nothumb) <> 8 then
-    raise exception 'ZZ5250: mockup-without-thumbnail tier expected 8';
+  if (select primary_sort_tier from public.assets where id = v_mockup_nothumb) <> 9 then
+    raise exception 'ZZ5250: mockup-without-thumbnail tier expected 9';
   end if;
 
   -- A renderable PDF still beats a no-thumbnail mockup when it is the only
@@ -93,14 +93,14 @@ begin
       'zz5259-pdf-' || txid_current(), now(), v_group, false,
       'https://example.invalid/zz5259.jpg', null);
 
-  if (select primary_sort_tier from public.assets where id = v_pdf) <> 7 then
-    raise exception 'ZZ5259: pdf-with-thumbnail tier expected 7';
+  if (select primary_sort_tier from public.assets where id = v_pdf) <> 8 then
+    raise exception 'ZZ5259: pdf-with-thumbnail tier expected 8';
   end if;
 
   -- Correct the file type: the trigger must recompute pdf(7) -> artwork(5)
   -- without any filename or thumbnail change.
   update public.assets set file_type = 'psd' where id = v_pdf;
-  if (select primary_sort_tier from public.assets where id = v_pdf) <> 5 then
+  if (select primary_sort_tier from public.assets where id = v_pdf) <> 6 then
     raise exception 'ZZ5259: file_type correction did not recompute the tier (trigger must watch file_type)';
   end if;
 
