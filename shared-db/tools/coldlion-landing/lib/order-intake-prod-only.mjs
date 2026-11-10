@@ -97,7 +97,7 @@ g as materialized (
     and gl.status is distinct from 'cancelled'
     and not (coalesce(gl.metadata, '{}'::jsonb) ? 'orderlist_source_cancellation')
     and exists (select 1 from plm.production_order_line_source_ref r
-                where r.production_order_line_id = gl.id and r.source_system = 'google_order_list')
+                where r.production_order_line_id = gl.id and r.source_system in ('google_order_list', 'popdam_buy_sheet'))
     and not exists (select 1 from plm.production_order_line_source_ref r
                     where r.production_order_line_id = gl.id and r.source_system = 'coldlion')
 ),
