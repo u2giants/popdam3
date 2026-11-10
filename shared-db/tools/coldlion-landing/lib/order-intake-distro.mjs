@@ -1,4 +1,4 @@
-// Bulk (HFC) vs distro orders — owner rule 2026-11-10 (popdam docs/ORDER_LIST.md).
+// Bulk (HFC) vs distro orders — owner rule 2026-11-10 (docs/business-rules/erp-orders-and-source-meaning.md).
 //
 // Albert, 2026-11-10: "a 'distro' order (broken down by DC) replaces a bulk
 // (sometimes called HFC) order." The salesman enters the bulk order in Google
@@ -23,7 +23,9 @@
 //   * exactly one live Google line for the (reference, SKU) key, on a header
 //     whose number is that reference;
 //   * the Google line has no sales-order ref yet (a one-to-one merge already
-//     made it the live line) and is not voided/cancelled/source-cancelled;
+//     made it the live line), no production ref whose linkage would be stranded,
+//     and is not voided/cancelled/source-cancelled;
+//   * the distro line has no human keep-separate decision;
 //   * the Google line has a blank customer PO, or at least two distinct
 //     sales orders match (one order per distribution center). A single sales
 //     order against a Google line with a different PO is left alone.
@@ -56,6 +58,7 @@ d as materialized (
   where pl.voided_at is null and p.voided_at is null
     and pl.status is distinct from 'cancelled'
     and not (coalesce(pl.metadata, '{}'::jsonb) ? 'orderlist_source_cancellation')
+    and coalesce(pl.metadata ->> 'coldlion_kept_separate', '') <> 'true'
     and p.metadata ->> 'production_order_number_origin' = 'coldlion_intake_placeholder'
     and p.production_order_number ~ '^COLDLION-SO-[0-9]+$'
     and not exists (select 1 from plm.production_order_line_source_ref x
@@ -75,7 +78,7 @@ g as materialized (
                 where r.production_order_line_id = gl.id and r.source_system in ('google_order_list', 'popdam_buy_sheet'))
     and not exists (select 1 from plm.production_order_line_source_ref r
                     where r.production_order_line_id = gl.id and r.source_system = 'coldlion'
-                      and r.source_id ~ '^coldlion:so:')
+                      and r.source_id ~ '^coldlion:(so|prod):')
 ),
 gkey as materialized (
   select ref, sku, min(id::text)::uuid as id, count(*) as n, bool_and(po_blank) as po_blank, min(header_id::text)::uuid as header_id

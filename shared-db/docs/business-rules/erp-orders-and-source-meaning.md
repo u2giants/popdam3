@@ -10,6 +10,21 @@ An ERP field name does not establish its business meaning. Every imported field 
 
 Google OrderList rows and future ColdLion rows describe the same real orders. They are not competing order systems. One canonical order and line must retain separate source references for each system. The ultimate item list belongs to the canonical PLM item identity.
 
+## Bulk (HFC) orders replaced by distro orders
+
+Albert's 2026-11-10 rule, recorded in PopDAM's `docs/ORDER_LIST.md`, says that
+per-distribution-center (distro) orders replace the bulk order, sometimes called
+HFC. They represent the same goods. Match by production reference and SKU to
+exactly one live Google bulk line. Automatic replacement requires a blank bulk
+customer PO or at least two distinct matching sales orders. Move the distro
+lines under the bulk production header and retire the bulk line, preserving its
+history and replacement links so live totals count the goods once.
+
+A human keep-separate choice remains binding. Bulk lines already carrying
+ColdLion sales-order or production-order references are excluded from automatic
+replacement and left for triage, preserving production linkage on a live line.
+Cancelled, source-cancelled, voided and ambiguous candidates are excluded.
+
 ## How a new order enters the system (OrderList intake)
 
 **Future production PO reuse is prohibited (Settled, Albert, 2026-10-13).**
