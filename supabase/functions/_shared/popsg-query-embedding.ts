@@ -74,7 +74,9 @@ export function nameExpansion(embedding: number[] | null, names: NameVectors | n
  * Kind "name" (#887): a known name plus words that are not product words
  * ("amazing hero"). The search lists the name's own files after the files that
  * match every word. A known name plus a product word ("hero canvas") is a
- * deliberate narrowing and stays "narrowed_name": nothing is added to it.
+ * deliberate narrowing, and words that are themselves a whole known name
+ * ("example hero") already say what is wanted: both stay "narrowed_name" and
+ * nothing is added to them.
  */
 export type PopSGFallbackKind = "name" | "narrowed_name" | "spelling";
 export function zeroResultFallback(
@@ -85,12 +87,13 @@ export function zeroResultFallback(
 ): { fallback: string; kind: PopSGFallbackKind } | null {
   const words = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
   if (!words.length || words.length > 8) return null;
+  const wholeName = knownNames.has(words.join(" "));
   for (let size = words.length - 1; size >= 1; size--) {
     for (let start = 0; start + size <= words.length; start++) {
       const phrase = words.slice(start, start + size).join(" ");
       if (phrase.length < 4 || !knownNames.has(phrase)) continue;
       const others = [...words.slice(0, start), ...words.slice(start + size)];
-      return { fallback: phrase, kind: others.some((word) => productWords.has(word)) ? "narrowed_name" : "name" };
+      return { fallback: phrase, kind: wholeName || others.some((word) => productWords.has(word)) ? "narrowed_name" : "name" };
     }
   }
   if (!vocabulary) return null;
