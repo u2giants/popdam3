@@ -250,9 +250,10 @@ export function buildOrderListFindPayload(request: OrderListFindRequest): OrderL
   };
 }
 
-function isMissingOrderListFindRpc(error: { code?: string; message?: string } | null | undefined) {
-  // Deployment skew only: do not hide permissions, validation, timeout, or SQL errors.
-  return error?.code === "42883" || error?.code === "PGRST202";
+function isUnavailableOrderListFindRpc(error: { code?: string; message?: string } | null | undefined) {
+  // Older servers reject the mandatory void filter until their allowlist is updated.
+  return error?.code === "42883" || error?.code === "PGRST202"
+    || (error?.code === "22023" && error.message === "Unsupported normalized filter");
 }
 
 /** Applies filters, search and sort identically to the row and count queries. */
@@ -318,7 +319,7 @@ async function fetchOrderListRowsById(ids: string[]): Promise<OrderListRow[]> {
   if (ids.length === 0) return [];
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += ORDER_LIST_ID_CHUNK) chunks.push(ids.slice(i, i + ORDER_LIST_ID_CHUNK));
-  const results = await Promise.all(chunks.map((chunk) => orderListTable().select(ORDER_LIST_SELECT).in("order_line_id", chunk)));
+  const results = await Promise.all(chunks.map((chunk) => orderListTable().select(ORDER_LIST_SELECT).is("line_voided_at", null).in("order_line_id", chunk)));
   const byId = new Map<string, OrderListRow>();
   for (const { data, error } of results as Array<{ data: OrderListRow[] | null; error: unknown }>) {
     if (error) throw error;
@@ -442,7 +443,7 @@ async function findOrderListRowWithLegacyScan(
 /**
  * Finds a database-wide match and its position without downloading every
  * preceding OrderList ID. The legacy scan exists only during deployment skew
- * where a client reaches a server that genuinely lacks the RPC.
+ * where a server lacks the RPC or its mandatory void-filter support.
  */
 export async function findOrderListRow(request: OrderListFindRequest): Promise<{ rowId: string; index: number; matchCount: number | null } | null> {
   const payload = buildOrderListFindPayload(request);
@@ -450,7 +451,7 @@ export async function findOrderListRow(request: OrderListFindRequest): Promise<{
 
   const { data, error } = await (supabase.rpc as any)("find_dam_order_list_row", payload);
   if (error) {
-    if (!isMissingOrderListFindRpc(error)) throw error;
+    if (!isUnavailableOrderListFindRpc(error)) throw error;
     console.warn("OrderList Find RPC is unavailable during deployment; using the temporary bounded fallback.", { code: error.code });
     return findOrderListRowWithLegacyScan(request, payload.p_occurrence);
   }

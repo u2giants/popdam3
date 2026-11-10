@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Under production concurrency that count made the bounded block time out too.
  */
 
-type Recorded = { kind: "rows" | "count"; select: string; head: boolean };
+type Recorded = { kind: "rows" | "count"; select: string; head: boolean; voidFiltered: boolean };
 const recorded: Recorded[] = [];
 const rpcCalls: Array<{ name: string; args: any }> = [];
 const orCalls: string[] = [];
 let lastRows: any[] = [];
+let findError: { code: string; message: string } | null = null;
 
 let rowBehaviour: () => Promise<{ data: any[]; error: unknown }> = async () => ({
   data: [{ order_line_id: "line-1" }],
@@ -29,9 +30,13 @@ let countBehaviour: () => Promise<{ count: number | null; error: unknown }> = as
   error: null,
 });
 
-function builder(kind: "rows" | "count", head: boolean) {
+function builder(record: Recorded) {
   const chain: any = {
-    is: () => chain,
+    is: (column: string, value: unknown) => {
+      if (column === "line_voided_at" && value === null) record.voidFiltered = true;
+      return chain;
+    },
+    eq: () => chain,
     not: () => chain,
     filter: () => chain,
     or: (clause: string) => {
@@ -45,7 +50,7 @@ function builder(kind: "rows" | "count", head: boolean) {
       return result;
     },
     in: async (_column: string, ids: string[]) => ({
-      data: lastRows.filter((row) => ids.includes(row.order_line_id)),
+      data: lastRows.filter((row) => ids.includes(row.order_line_id) && (!record.voidFiltered || row.line_voided_at == null)),
       error: null,
     }),
     then: (resolve: any, reject: any) => countBehaviour().then(resolve, reject),
@@ -57,6 +62,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: async (name: string, args: any) => {
       rpcCalls.push({ name, args });
+      if (name === "find_dam_order_list_row") return { data: [], error: findError };
       return name === "get_dam_order_sales_order_dates"
         ? salesOrderDateBehaviour(args)
         : name === "get_dam_order_vendor_ids" ? vendorIdBehaviour(args) : assortmentQuantityBehaviour(args);
@@ -65,17 +71,19 @@ vi.mock("@/integrations/supabase/client", () => ({
       from: () => ({
         select: (select: string, options?: { count?: string; head?: boolean }) => {
           const head = options?.head === true;
-          recorded.push({ kind: head ? "count" : "rows", select, head });
-          return builder(head ? "count" : "rows", head);
+          const record: Recorded = { kind: head ? "count" : "rows", select, head, voidFiltered: false };
+          recorded.push(record);
+          return builder(record);
         },
       }),
     }),
   },
 }));
 
-const { fetchOrderListBlock, updateOrderListSalesDateErrors } = await import("@/hooks/useOrderList");
+const { fetchOrderListBlock, fetchOrderListCount, fetchOrderListStatusCounts, findOrderListRow, updateOrderListSalesDateErrors } = await import("@/hooks/useOrderList");
 
 beforeEach(() => {
+  findError = null;
   recorded.length = 0;
   rpcCalls.length = 0;
   orCalls.length = 0;
@@ -90,6 +98,39 @@ beforeEach(() => {
 });
 
 describe("OrderList block loading", () => {
+  it("falls back to filtered Find on an older server allowlist", async () => {
+    findError = { code: "22023", message: "Unsupported normalized filter" };
+    countBehaviour = async () => ({ count: 1, error: null });
+    await expect(findOrderListRow({ search: "line-1" })).resolves.toEqual({
+      rowId: "line-1", index: 0, matchCount: 1,
+    });
+    expect(recorded).toHaveLength(4);
+    expect(recorded.every((query) => query.voidFiltered)).toBe(true);
+  });
+
+  it("keeps unrelated Find validation errors visible", async () => {
+    findError = { code: "22023", message: "Invalid normalized filter" };
+    await expect(findOrderListRow({ search: "line-1" })).rejects.toBe(findError);
+    expect(recorded).toHaveLength(0);
+  });
+
+  it("filters retired lines in ranking, hydration, totals and all four status counts", async () => {
+    await fetchOrderListBlock({ startRow: 0, endRow: 100 });
+    await fetchOrderListCount({ startRow: 0, endRow: 100 });
+    await fetchOrderListStatusCounts();
+    expect(recorded).toHaveLength(7);
+    expect(recorded.every((query) => query.voidFiltered)).toBe(true);
+  });
+
+  it("drops a line retired after its ID was ranked", async () => {
+    rowBehaviour = async () => ({ data: [
+      { order_line_id: "line-1", line_voided_at: null },
+      { order_line_id: "retired", line_voided_at: "2026-11-10" },
+    ], error: null });
+    const block = await fetchOrderListBlock({ startRow: 0, endRow: 100 });
+    expect(block.rows.map((row) => row.order_line_id)).toEqual(["line-1"]);
+  });
+
   it("loads only the bounded rows and does not request an exact count", async () => {
     const block = await fetchOrderListBlock({ startRow: 0, endRow: 100 });
 
