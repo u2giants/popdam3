@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "preview": "vite preview",
     "sync:coldlion-prepacks": "node scripts/sync-coldlion-prepacks.mjs",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/search-eval/*.test.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

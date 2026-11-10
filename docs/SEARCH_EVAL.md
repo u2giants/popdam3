@@ -17,7 +17,9 @@ that changes search or tags, above all the full AI tagging run.
 | Nonsense | Nothing returned |
 | Misspelling | Rule below, and at least half as many results as the right spelling |
 | Everything else | A relevant top-10 result; at least half of judged top-10 results are relevant |
-| PopSG guides (not code, nonsense) | A guide named for the search is first. Guides that only contain the character may follow: owner ruling Nov 10, 2026, "Keep all five" |
+| PopSG guides (not code, nonsense) | A guide named for the search is first. Later results do not affect the pass, including containing-only or unrelated guides; their relevance is still reported. Owner ruling Nov 10, 2026, "Keep all five", is scored as order only |
+
+For relevance-scored cases, at least half of any `must_find` judgments must also be returned, including PopSG guides.
 
 Results that are not judged are reported as *unjudged*. Over 30% unjudged prints a warning: tagging
 legitimately changes results, so judge them before comparing scores.

@@ -28,13 +28,13 @@ for (const failSpelling of [false, true]) {
         assert.equal(options.headers.Authorization, `Bearer viewer-${authCalls}`);
         assert.ok(clock < expiresAt - 60_000, "request has a full safety margin");
         if (path === "/rest/v1/admin_config") {
-          result = [{ value: { version: "fake", cases: [{ id: "fake-case", kind: "character", query: "example", dam: {}, sg_guides: {}, sg_files: {} }] } }];
+          result = [{ value: { version: "fake", cases: [{ id: "fake-case", kind: "character", query: "example", dam: {}, sg_guides: { relevant: ["a"], irrelevant: ["x", "y", "z"] }, sg_files: { relevant: ["a"], irrelevant: ["x", "y", "z"] } }] } }];
         } else {
           const body = JSON.parse(options.body);
           clock += 2_000_000;
           if (body.action === "spelling" && failSpelling) return new Response("{}", { status: 401 });
           if (path === "/rest/v1/rpc/expand_dam_search_queries") result = [];
-          else if (path === "/rest/v1/rpc/search_style_guide_library_v2") { guideSearches++; result = { results: [], total: 0 }; }
+          else if (path === "/rest/v1/rpc/search_style_guide_library_v2") { guideSearches++; result = { results: ["a", "x", "y", "z"].map((id) => ({ guide_key: id, style_guide_file_id: id })), total: 4 }; }
           else if (body.action === "spelling") result = {};
           else if (body.action === "popsg-query-embedding") result = { mode: "keyword" };
           else result = { results: [], total_count: 0 };
@@ -51,6 +51,8 @@ for (const failSpelling of [false, true]) {
       assert.equal(report.engines.sg_files.overall.errors, 1);
     } else {
       assert.equal(guideSearches, 2);
+      assert.equal(report.engines.sg_guides.overall.passed, 1, "runner supplies guide engine to order-only scoring");
+      assert.equal(report.engines.sg_files.overall.passed, 0, "file scoring retains relevance share");
       assert.equal(report.engines.sg_guides.overall.errors, 0);
       assert.equal(report.engines.sg_files.overall.errors, 0);
     }

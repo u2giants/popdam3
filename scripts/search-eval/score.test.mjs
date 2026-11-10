@@ -54,10 +54,29 @@ test("a canonical spelling policy requires the actual returned correction", () =
   assert.equal(scoreSearch(testCase, judged, ["a"], { corrected_query: null }).pass, false);
 });
 
-test("PopSG guides pass when a guide named for the search is first, even with containing guides after it", () => {
+test("PopSG guides pass when a guide named for the search is first, even with irrelevant guides after it", () => {
   const judged = { relevant: ["a"], irrelevant: ["x", "y", "z"] };
   const testCase = { id: "1", kind: "character" };
   assert.equal(scoreSearch(testCase, judged, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, true);
   assert.equal(scoreSearch(testCase, judged, ["x", "a", "y", "z"], { engine: "sg_guides" }).pass, false);
   assert.equal(scoreSearch(testCase, judged, ["a", "x", "y", "z"], { engine: "sg_files" }).pass, false);
+});
+
+
+test("PopSG guides still require at least half the must-find hits", () => {
+  const testCase = { id: "required", kind: "character" };
+  const judgments = { relevant: ["a"], must_find: ["b", "c"] };
+  const missing = scoreSearch(testCase, judgments, ["a"], { engine: "sg_guides" });
+  assert.equal(missing.pass, false);
+  assert.equal(summarize([missing]).overall.must_find_recall, 0);
+  assert.equal(scoreSearch(testCase, judgments, ["a", "b"], { engine: "sg_guides" }).pass, true);
+});
+
+test("code and nonsense guide cases retain their existing rules", () => {
+  for (const kind of ["code", "nonsense"]) {
+    assert.equal(scoreSearch({ id: kind, kind }, judged, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, false);
+    assert.equal(scoreSearch({ id: kind, kind }, judged, ["x", "a", "b"], { engine: "sg_guides" }).pass, true);
+  }
+  assert.equal(scoreSearch({ id: "exact", kind: "code", exact: true }, judged, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, true);
+  assert.equal(scoreSearch({ id: "empty", kind: "nonsense", expect_empty: true }, judged, ["a"], { engine: "sg_guides" }).pass, false);
 });

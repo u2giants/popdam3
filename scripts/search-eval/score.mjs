@@ -42,12 +42,12 @@ function passes(testCase, row, judged, engine) {
   if (testCase.kind === "code" && testCase.exact) return row.first_relevant_rank === 1;
   if (judged?.expected_total && row.total < judged.expected_total * 0.5) return false;
   if (row.relevant_top10 === 0) return false;
+  if (row.must_find > 0 && row.must_found / row.must_find < 0.5) return false;
   // Owner ruling 2026-11-10 ("Keep all five"): a guide that merely contains the character
-  // stays listed after the guides named for it. So guides pass on order, not on share.
-  if (engine === "sg_guides") return row.first_relevant_rank === 1;
+  // stays listed after the guides named for it. Later results do not affect the share gate.
+  if (engine === "sg_guides" && !["code", "nonsense"].includes(testCase.kind)) return row.first_relevant_rank === 1;
   const judgedTop = row.relevant_top10 + row.irrelevant_top10;
   if (judgedTop > 0 && row.relevant_top10 / judgedTop < 0.5) return false;
-  if (row.must_find > 0 && row.must_found / row.must_find < 0.5) return false;
   return true;
 }
 
