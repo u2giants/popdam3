@@ -57,3 +57,24 @@ describe("render completion primary thumbnail cache", () => {
     expect(fields.primary_thumbnail_error).toBeNull();
   });
 });
+
+describe("COMP cover rank (owner ruling 2026-11-10)", () => {
+  const mk = (id: string, filename: string, relative_path = `g/${filename}`) => ({
+    ...rendered,
+    id,
+    filename,
+    relative_path,
+    thumbnail_url: "https://example.invalid/t.jpg",
+  });
+  it("COMP beats art and other files", () => {
+    expect(selectPrimaryAsset([mk("a", "x_ART.psd"), mk("c", "x_COMP.jpg")])).toBe("c");
+    expect(selectPrimaryAsset([mk("o", "x.psd"), mk("c", "x_COMP_VIEW.png")])).toBe("c");
+  });
+  it("mockup and 3-4 photos beat COMP", () => {
+    expect(selectPrimaryAsset([mk("c", "x_COMPVIEW.jpg"), mk("m", "x_mockup.jpg")])).toBe("m");
+    expect(selectPrimaryAsset([mk("c", "x-COMP-VIEW.jpg"), mk("p", "x_3-4.jpg", "g/professional photos/x_3-4.jpg")])).toBe("p");
+  });
+  it("words like 'complete' are not COMP", () => {
+    expect(selectPrimaryAsset([mk("a", "x_art.psd"), mk("n", "complete.jpg")])).toBe("a");
+  });
+});

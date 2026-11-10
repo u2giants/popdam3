@@ -1063,6 +1063,10 @@ export function buildAutoMergeSql({ runId, write = false } = {}) {
       join plm.production_order p on p.id=pl.production_order_id
       where ${refreshEligibility})`;
   return `begin isolation level repeatable read;
+-- Planner estimates of ~1 row against ~1,300 make the coldlion_values refresh
+-- and the source checks re-run the staged aggregate per ref under nested
+-- loops (> 3 min on production, 2026-11-10); hash joins finish in ~4 s.
+set local enable_nestloop = off;
 
 create temporary table coldlion_auto_merge (placeholder_line uuid primary key, google_line uuid unique not null) on commit drop;
 
@@ -1096,7 +1100,7 @@ g as (
     and not (coalesce(gl.metadata,'{}'::jsonb) ? 'orderlist_source_cancellation')
     and gp.production_order_number !~ '^COLDLION-SO-'
     and exists (select 1 from plm.production_order_line_source_ref r
-                where r.production_order_line_id = gl.id and r.source_system = 'google_order_list')
+                where r.production_order_line_id = gl.id and r.source_system in ('google_order_list', 'popdam_buy_sheet'))
     -- A Google line linked only to a no-sales-order ColdLion PRODUCTION line
     -- (coldlion:prod:… refs, order-intake-prod-only.mjs) is still waiting for
     -- its sales order and stays mergeable; any sales-order ref closes it.

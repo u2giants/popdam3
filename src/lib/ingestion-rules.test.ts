@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  EXCLUDED_FOLDERS, explainIngestion, IngestionRule, normalizeIngestionRules, validateIngestionRuleValue,
+  EXCLUDED_FOLDERS, explainIngestion, IngestionRule, matchesImageRules, normalizeIngestionRules, validateIngestionRuleValue,
 } from "./ingestion-rules";
 
 const rule = (kind: IngestionRule["kind"], value: string, enabled = true): IngestionRule => ({ id: value, kind, value, enabled });
@@ -61,4 +61,13 @@ describe("ingestion rules", () => {
     expect(validateIngestionRuleValue("folder_exclude", "a/b")).toBeTruthy();
     expect(validateIngestionRuleValue("folder_exclude", "tmp")).toBeNull();
   });
+});
+
+it("imports COMP images automatically (owner ruling 2026-11-10)", () => {
+  for (const n of ["A_COMP.jpg", "A_COMPVIEW.png", "A-COMP-VIEW.jpeg", "A_COMP_VIEW.jpg", "A comp view.jpg"]) {
+    expect(matchesImageRules(n, [])).toBe(true);
+  }
+  for (const n of ["complete.jpg", "component.png", "A_compare.jpg"]) {
+    expect(matchesImageRules(n, [])).toBe(false);
+  }
 });

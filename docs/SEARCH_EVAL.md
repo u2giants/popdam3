@@ -22,6 +22,18 @@ that changes search or tags, above all the full AI tagging run.
 Results that are not judged are reported as *unjudged*. Over 30% unjudged prints a warning: tagging
 legitimately changes results, so judge them before comparing scores.
 
+## PopSG: a known name plus other words (#887)
+
+PopSG keyword search needs every word. When the words contain a known licensor, property or
+character name plus other words, `popsg-query-embedding` returns that name as `fallback` with
+`fallback_kind`:
+
+- `name`: sent to `search_style_guide_library_v2` as `p_fallback_query`. Results matching every
+  word in names, folders or tags stay first; the name's own files and guides follow in the order a
+  search for the name alone gives. Totals count both.
+- `narrowed_name` (a product word is among the other words, or the words are themselves a whole
+  known name) and `spelling`: searched only when the first search returns nothing.
+
 ## Judging new results
 
 Run `scripts/search-eval/run.mjs --raw <private file>`, then `scripts/search-eval/label.py`, which
@@ -73,3 +85,26 @@ results. Local cancellation proof does not establish hosted gateway propagation
 or cancellation of already-started server SQL. Keep policy failures separate
 from spelling acceptance and relevance judgments; all 119 original and 21
 supplemental AFTER cases remain unstarted pending final deployment/readiness.
+
+## PopDAM: a search that names a licensor (#892)
+
+Pictures match what a product looks like, not whose artwork it is, so a licensor plus a product
+form used to be padded with other licensors' look-alike products. When a search (or its corrected
+spelling) contains a licensor's whole name, `dam-search-ai` sends that licensor's id to
+`search_dam_documents` as `p_filters.semanticLicensorIds` (popcre/shared-db#6003): a result matched
+by its picture alone must then belong to that licensor. Keyword matches are never dropped and keep
+their picture score; totals stay exact; an explicit licensor filter is left alone; a failed
+licensor read skips the rule rather than failing the search. A property-level version of the rule
+was tested against the set and rejected (it broke a misspelling case), so only licensors apply.
+
+## Taking a scored run that can be trusted (#892)
+
+Latency in a scored run is easily disturbed. Before accepting a run's p95:
+
+- One run at a time. Two overlapping runs (scored or private) queue behind each other at the
+  text-embed service and inflate each other's p95 by a second or more.
+- Every merge to `main` starts "Deploy Supabase Edge Functions", docs-only merges included, and
+  the format bot may add a second commit. Start a run at least five minutes after the last release
+  finished, and check afterwards that no release started while it ran.
+- p95 is noisy even when undisturbed (same code, same day: 2.1 s to 4.3 s). Judge speed on two
+  clean runs, and time the PopDAM leg alone before blaming a change.

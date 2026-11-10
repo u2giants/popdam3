@@ -52,13 +52,13 @@ create unique index production_order_line_source_ref_primary_uidx on plm.product
 create table dam.production_order_snapshot (id uuid primary key default gen_random_uuid(), production_order_line_id uuid);
 `;
 
-function googleLine(header, sku, qty, row) {
+function googleLine(header, sku, qty, row, source = "google_order_list") {
   return `insert into plm.production_order (production_order_number)
     select '${header}' where not exists (select 1 from plm.production_order where production_order_number='${header}');
   with l as (insert into plm.production_order_line (production_order_id, sku, quantity_ordered)
     select id, '${sku}', ${qty ?? "null"} from plm.production_order where production_order_number='${header}' returning id)
   insert into plm.production_order_line_source_ref (production_order_line_id, source_system, source_id, is_primary)
-  select id, 'google_order_list', 'order:row:${row}', true from l;\n`;
+  select id, '${source}', 'order:row:${row}', true from l;\n`;
 }
 
 function prodLine(po, seq, ref, item, qty, components = [item], so = 0) {
@@ -101,12 +101,18 @@ test("no-sales-order production lines attach to their Google lines", { skip: !co
     googleLine("D9001", "PAIR01", 10, 6) + googleLine("D9001", "PAIR01", 20, 7) +
     prodLine(30001, 1, "D9001", "PAIR01", 20) +
     // A line that has a sales order is not this step's business.
-    googleLine("D9002", "HASSO01", 5, 8) + prodLine(30002, 1, "D9002", "HASSO01", 5, ["HASSO01"], 7128000),
+    googleLine("D9002", "HASSO01", 5, 8) + prodLine(30002, 1, "D9002", "HASSO01", 5, ["HASSO01"], 7128000) +
+    // A customer buy-sheet line (public.import_dam_buy_sheet) is linked like a Google line.
+    googleLine("D9003", "BUYSHEET01", 600, 9, "popdam_buy_sheet") + prodLine(30003, 1, "D9003", "BUYSHEET01", 600) +
+    // Neither Google nor buy sheet: never claimed.
+    googleLine("D9004", "NATIVE01", 5, 10, "popdam_order_list") + prodLine(30004, 1, "D9004", "NATIVE01", 5),
   );
 
   const [claimed, lines] = psql(buildProdOnlyClaimSql({ runId: RUN(), write: true })).split("|");
-  assert.equal(Number(claimed), 5);
-  assert.equal(Number(lines), 4);
+  assert.equal(Number(claimed), 6);
+  assert.equal(Number(lines), 5);
+  assert.equal(refsOf("BUYSHEET01"), "coldlion:prod:30003:line:1:component:1:true");
+  assert.equal(refsOf("NATIVE01"), "");
 
   assert.equal(refsOf("MWB10DYMM01"), "coldlion:prod:24377:line:1:component:1:true");
   assert.equal(refsOf("VDC83DYMM14"),
