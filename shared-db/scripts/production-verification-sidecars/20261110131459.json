@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261110131459",
+  "migration_sha256": "caadb484580ecb4e8d70745acb1964a6154b98916157b86f6b450fb9ece37636",
+  "checks": [
+    {
+      "id": "dflow_pd_variant_key_combination_columns_exist",
+      "kind": "exact_row_count",
+      "relation": "dflow.mg_combination_description",
+      "filters": [
+        {
+          "column": "material",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-material"
+        },
+        {
+          "column": "feature_set",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-feature"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_pd_variant_key_history_columns_exist",
+      "kind": "exact_row_count",
+      "relation": "dflow.mg_combination_description_history",
+      "filters": [
+        {
+          "column": "material",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-material"
+        },
+        {
+          "column": "feature_set",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-feature"
+        }
+      ],
+      "expected_count": 0
+    }
+  ]
+}

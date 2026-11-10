@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "work_issue": 5994,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Let the Core Product Type combination table hold several names per merchandise-group combination: add material and feature_set to mg_combination_description and its history copy and replace the three-column unique key with a five-column NULLS NOT DISTINCT variant key, as a matched pair (sandbox half 20261110131459 in schema dflow, claim #5995; production half 20261110131508 in schema dflow_prod, claim #5996). Work issue popcre/designflow-item-master#150.",
+  "base_sha": "75aabaa9e5b58cd194ccc030c4b4992c178d9ded",
+  "branch": "claude/cpt-multi-name-combination",
+  "worktree": "/home/ahazan/repos/shared-db-cpt-multiname",
+  "dispatcher": "claim-first (claims #5995 and #5996, Claude chat on edge-dev3)",
+  "worker": "claude",
+  "evidence_parent": null,
+  "allowed_paths": [
+    ".agent/work/5994/1/completion.json",
+    ".agent/work/5994/1/contract.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-dispositions/scripts~production_migration_guard.py.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261110131459.json",
+    "scripts/production-verification-sidecars/20261110131508.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261110131459_dflow_product_description_variant_key.sql",
+    "supabase/migrations/20261110131508_dflow_prod_product_description_variant_key.sql",
+    "supabase/tests/dflow_product_description_variant_key_contracts.sql",
+    "supabase/tests/dflow_prod_product_description_variant_key_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/5994/1/completion.json",
+    ".agent/work/5994/1/contract.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-dispositions/scripts~production_migration_guard.py.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261110131459.json",
+    "scripts/production-verification-sidecars/20261110131508.json",
+    "scripts/production_migration_guard.py",
+    "scripts/test_production_migration_guard.py",
+    "supabase/migrations/20261110131459_dflow_product_description_variant_key.sql",
+    "supabase/migrations/20261110131508_dflow_prod_product_description_variant_key.sql",
+    "supabase/tests/dflow_product_description_variant_key_contracts.sql",
+    "supabase/tests/dflow_prod_product_description_variant_key_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "column dflow.mg_combination_description.feature_set",
+    "column dflow.mg_combination_description.material",
+    "column dflow_prod.mg_combination_description.feature_set",
+    "column dflow_prod.mg_combination_description.material",
+    "index dflow.mg_combination_description_variant_key",
+    "index dflow_prod.mg_combination_description_variant_key",
+    "table dflow.mg_combination_description",
+    "table dflow.mg_combination_description_history",
+    "table dflow_prod.mg_combination_description",
+    "table dflow_prod.mg_combination_description_history"
+  ],
+  "prohibited_actions": [
+    "Do not write, copy, change or delete application rows or product names in any database",
+    "Do not write production or dispatch production manually",
+    "Do not change designflow-item-master application code",
+    "Do not apply the sandbox half 20261110131459 to shared preview or shared production"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "Database Contract Tests on isolated ephemeral database",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "python3 -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261110131459",
+    "python3 -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261110131508"
+  ],
+  "assumptions": [
+    "All four product-description tables hold 0 rows on sandbox xupnyeifmpsacrqahwwm and production qsllyeztdwjgirsysgai (read live 2026-11-10 8:20 AM EST), so no data migration is needed; the SQL is also safe with rows present.",
+    "item_product_description needs no new column: combination_fk references the combination row id, which identifies the exact variant.",
+    "Both targets run PostgreSQL 17, so UNIQUE ... NULLS NOT DISTINCT is available."
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed lanes is required",
+    "stop if a product-description table is found non-empty with rows that violate the new key"
+  ]
+}
