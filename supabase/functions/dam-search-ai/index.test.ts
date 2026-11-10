@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   formatRpc: vi.fn(),
   authenticate: vi.fn(),
+  licensors: [] as { id: string; name: string }[],
 }));
 vi.mock("../_shared/http.ts", () => ({
   corsServe: (handler: typeof state.handler) => {
@@ -20,6 +21,9 @@ vi.mock("../_shared/supabase-js.ts", () => ({ createClient: () => ({ rpc: state.
 vi.mock("../_shared/service-client.ts", () => ({
   serviceClient: () => ({
     rpc: (name: string, args: unknown) => ({ abortSignal: (signal: AbortSignal) => state.formatRpc(name, args, signal) }),
+    schema: () => ({
+      from: () => ({ select: () => ({ abortSignal: async () => ({ data: state.licensors, error: null }) }) }),
+    }),
     from: () => ({
       select: () => ({
         eq: () =>
@@ -240,6 +244,17 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", embedFetch());
     expect((await search("ZZZ83MVSP99")).status).toBe(403);
     expect(state.rpc).not.toHaveBeenCalledWith("dam_catalog_code_format_exists", expect.anything());
+  });
+
+  it("scopes picture-only matches to the licensor a search names, and only then (#892)", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.licensors.push({ id: "11111111-1111-4111-8111-111111111111", name: "Zorb Studios" });
+    const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
+    expect((await search("zorb studios toy chest")).status).toBe(200);
+    expect(filtersOf()).toEqual([{ semanticLicensorIds: ["11111111-1111-4111-8111-111111111111"] }]);
+    state.rpc.mockClear();
+    expect((await search("plain toy chest")).status).toBe(200);
+    expect(filtersOf()).toEqual([{}]);
   });
 
   it("rides the query and its product-phrase variants in ONE batched text-embed call", async () => {
