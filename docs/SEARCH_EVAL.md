@@ -85,3 +85,26 @@ results. Local cancellation proof does not establish hosted gateway propagation
 or cancellation of already-started server SQL. Keep policy failures separate
 from spelling acceptance and relevance judgments; all 119 original and 21
 supplemental AFTER cases remain unstarted pending final deployment/readiness.
+
+## PopDAM: a search that names a licensor (#892)
+
+Pictures match what a product looks like, not whose artwork it is, so a licensor plus a product
+form used to be padded with other licensors' look-alike products. When a search (or its corrected
+spelling) contains a licensor's whole name, `dam-search-ai` sends that licensor's id to
+`search_dam_documents` as `p_filters.semanticLicensorIds` (popcre/shared-db#6003): a result matched
+by its picture alone must then belong to that licensor. Keyword matches are never dropped and keep
+their picture score; totals stay exact; an explicit licensor filter is left alone; a failed
+licensor read skips the rule rather than failing the search. A property-level version of the rule
+was tested against the set and rejected (it broke a misspelling case), so only licensors apply.
+
+## Taking a scored run that can be trusted (#892)
+
+Latency in a scored run is easily disturbed. Before accepting a run's p95:
+
+- One run at a time. Two overlapping runs (scored or private) queue behind each other at the
+  text-embed service and inflate each other's p95 by a second or more.
+- Every merge to `main` starts "Deploy Supabase Edge Functions", docs-only merges included, and
+  the format bot may add a second commit. Start a run at least five minutes after the last release
+  finished, and check afterwards that no release started while it ran.
+- p95 is noisy even when undisturbed (same code, same day: 2.1 s to 4.3 s). Judge speed on two
+  clean runs, and time the PopDAM leg alone before blaming a change.
