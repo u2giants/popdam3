@@ -22,6 +22,18 @@ that changes search or tags, above all the full AI tagging run.
 Results that are not judged are reported as *unjudged*. Over 30% unjudged prints a warning: tagging
 legitimately changes results, so judge them before comparing scores.
 
+## PopSG: a known name plus other words (#887)
+
+PopSG keyword search needs every word. When the words contain a known licensor, property or
+character name plus other words, `popsg-query-embedding` returns that name as `fallback` with
+`fallback_kind`:
+
+- `name`: sent to `search_style_guide_library_v2` as `p_fallback_query`. Results matching every
+  word in names, folders or tags stay first; the name's own files and guides follow in the order a
+  search for the name alone gives. Totals count both.
+- `narrowed_name` (a product word is among the other words, or the words are themselves a whole
+  known name) and `spelling`: searched only when the first search returns nothing.
+
 ## Judging new results
 
 Run `scripts/search-eval/run.mjs --raw <private file>`, then `scripts/search-eval/label.py`, which
