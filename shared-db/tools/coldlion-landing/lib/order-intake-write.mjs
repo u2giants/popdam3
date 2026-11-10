@@ -1063,6 +1063,10 @@ export function buildAutoMergeSql({ runId, write = false } = {}) {
       join plm.production_order p on p.id=pl.production_order_id
       where ${refreshEligibility})`;
   return `begin isolation level repeatable read;
+-- Planner estimates of ~1 row against ~1,300 make the coldlion_values refresh
+-- and the source checks re-run the staged aggregate per ref under nested
+-- loops (> 3 min on production, 2026-11-10); hash joins finish in ~4 s.
+set local enable_nestloop = off;
 
 create temporary table coldlion_auto_merge (placeholder_line uuid primary key, google_line uuid unique not null) on commit drop;
 
