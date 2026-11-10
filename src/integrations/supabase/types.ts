@@ -5163,6 +5163,18 @@ export type Database = {
         Returns: string[]
       }
       image_embed_status: { Args: never; Returns: Json }
+      import_dam_buy_sheet: {
+        Args: {
+          p_apply?: boolean
+          p_customer_id: string
+          p_file_name: string
+          p_file_sha256: string
+          p_lines: Json
+          p_order_numbers?: Json
+          p_raw_sheet: Json
+        }
+        Returns: Json
+      }
       infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       is_known_designer_value: { Args: { p_value: string }; Returns: boolean }
       is_plausible_source_file_name: {
