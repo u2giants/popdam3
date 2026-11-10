@@ -10,6 +10,7 @@ import {
   eligibleLinkCandidates,
   normalizeOrderSku,
 } from "@/lib/order-list";
+import type { OrderListFilter } from "@/lib/order-list";
 import type {
   OrderCreatePayload,
   OrderListLinkCandidate,
@@ -226,10 +227,24 @@ export type OrderListFindPayload = {
   p_occurrence: number;
 };
 
+/**
+ * Lines the system retired stay out of the OrderList. When ColdLion replaces an
+ * item on a sales-order line, the intake voids the old component lines; showing
+ * them faded among live lines read as a wrong assortment link (PO 62012008,
+ * 2026-11-10, AAH6208 next to BRG6205). Rows, counts and Find all apply this
+ * same filter so Find positions match the grid.
+ */
+export function orderListFilters(filterModel: Record<string, any> | null | undefined) {
+  return [
+    ...buildOrderListFilters(filterModel),
+    { column: "line_voided_at", operator: "is", value: null } satisfies OrderListFilter,
+  ];
+}
+
 export function buildOrderListFindPayload(request: OrderListFindRequest): OrderListFindPayload {
   return {
     p_search: request.search?.trim() ?? "",
-    p_filters: buildOrderListFilters(request.filterModel as Record<string, any> | null),
+    p_filters: orderListFilters(request.filterModel as Record<string, any> | null),
     p_sort: buildOrderListSort(request.sortModel),
     p_occurrence: Math.max(1, request.occurrence ?? 1),
   };
@@ -244,7 +259,7 @@ function isMissingOrderListFindRpc(error: { code?: string; message?: string } | 
 function applyOrderListShape<T>(query: T, request: OrderListBlockRequest, withSort: boolean): T {
   let q = query as any;
 
-  for (const filter of buildOrderListFilters(request.filterModel as Record<string, any> | null)) {
+  for (const filter of orderListFilters(request.filterModel as Record<string, any> | null)) {
     if (filter.operator === "is") q = q.is(filter.column, null);
     else if (filter.operator === "not.is") q = q.not(filter.column, "is", null);
     else if (filter.operator === "not.ilike") q = q.not(filter.column, "ilike", filter.value);
@@ -454,7 +469,9 @@ export type OrderListStatusCounts = {
 };
 
 async function countWhere(apply: (query: any) => any): Promise<number> {
-  const { count, error } = await apply(orderListTable().select("order_line_id", { count: "exact", head: true }));
+  const { count, error } = await apply(
+    orderListTable().select("order_line_id", { count: "exact", head: true }).is("line_voided_at", null),
+  );
   if (error) throw error;
   return count ?? 0;
 }

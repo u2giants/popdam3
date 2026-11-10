@@ -487,7 +487,11 @@ describe("OrderList database query building", () => {
       sortModel: [{ colId: "order_date", sort: "asc" }],
     })).toEqual({
       p_search: "D0644",
-      p_filters: [{ column: "sku", operator: "ilike", value: "%NCV3%" }],
+      p_filters: [
+        { column: "sku", operator: "ilike", value: "%NCV3%" },
+        // Retired (voided) lines are hidden from the grid, so Find skips them too.
+        { column: "line_voided_at", operator: "is", value: null },
+      ],
       p_sort: [
         { column: "order_date", ascending: true },
         { column: "order_line_id", ascending: true },
