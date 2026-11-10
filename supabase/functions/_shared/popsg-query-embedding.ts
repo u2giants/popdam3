@@ -1,5 +1,5 @@
 import { isProductCodeSearch, type ProductCodeLookup } from "./product-code.ts";
-import { nearestWord, type SpellingResult } from "./search-spelling.ts";
+import { editDistance, type SpellingResult } from "./search-spelling.ts";
 
 /**
  * Decide intentional keyword-only queries separately from embedding failures.
@@ -81,6 +81,29 @@ export function zeroResultFallback(query: string, knownNames: Set<string>, vocab
     }
   }
   if (!vocabulary) return null;
-  const corrected = words.map((word) => nearestWord(word, vocabulary) ?? word).join(" ");
+  const corrected = words.map((word) => nearestKnownWord(word, knownNames, vocabulary) ?? word).join(" ");
   return corrected !== words.join(" ") ? corrected : null;
+}
+
+/**
+ * Nearest other known word. On a tie a word that is a whole name by itself wins
+ * over one that only exists as two name words joined ("spidermen" -> spiderman,
+ * not the joined form of a two-word character name), then alphabetical.
+ */
+function nearestKnownWord(word: string, knownNames: Set<string>, vocabulary: Map<string, number>): string | null {
+  if (word.length < 5 || !/^[a-z]+$/.test(word)) return null;
+  const max = word.length >= 8 ? 2 : 1;
+  let best: string | null = null, bestDistance = max + 1, bestWhole = false;
+  for (const candidate of vocabulary.keys()) {
+    if (candidate === word) continue;
+    const distance = editDistance(word, candidate, max);
+    if (distance > max || distance > bestDistance) continue;
+    const whole = knownNames.has(candidate);
+    if (distance < bestDistance || (whole && !bestWhole) || (whole === bestWhole && candidate < best!)) {
+      best = candidate;
+      bestDistance = distance;
+      bestWhole = whole;
+    }
+  }
+  return best;
 }

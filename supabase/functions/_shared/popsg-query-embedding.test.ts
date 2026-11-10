@@ -69,3 +69,9 @@ it("empty-result fallback prefers the longest known name inside the words, then 
   expect(zeroResultFallback("zzzzqq", names, null)).toBeNull();
   expect(zeroResultFallback("", names, vocabulary)).toBeNull();
 });
+
+it("empty-result fallback prefers a whole name over a joined two-word form on a tie", () => {
+  const names = new Set(["heroman", "hero ben"]);
+  const vocabulary = new Map([["heroben", 1], ["heroman", 1], ["hero", 1]]);
+  expect(zeroResultFallback("heromen", names, vocabulary)).toBe("heroman");
+});
