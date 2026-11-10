@@ -35,9 +35,22 @@ export default defineConfig({
         // suffix so each runner picks up only what it can execute. Before
         // this split neither runner ran them.
         extends: true,
+        // The bridge agent consumes this package as a built tarball; tests
+        // read its source directly so no build step is needed first.
+        resolve: {
+          alias: {
+            "@": path.resolve(__dirname, "./src"),
+            "@popdam/path-filters": path.resolve(__dirname, "packages/path-filters/index.ts"),
+          },
+        },
         test: {
           name: "agents",
           environment: "node",
+          // The agent config refuses to load without a server URL, and any
+          // handler import reaches it. Fixture it here so a test of a pure
+          // helper does not depend on the runner's environment. Never
+          // contacted: tests mock or avoid the API client.
+          env: { POPDAM_SERVER_URL: "https://fixture.supabase.co" },
           include: ["apps/**/src/**/*.vitest.ts"],
         },
       },

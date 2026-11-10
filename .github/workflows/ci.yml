@@ -49,6 +49,13 @@ jobs:
       - name: Test windows-agent
         run: npm test --prefix apps/windows-agent
 
+      # Root Vitest also loads bridge-agent handlers (sibling scan), which
+      # need that agent's locked dependencies and generated common code.
+      - name: Install bridge-agent dependencies
+        run: |
+          npm ci --prefix apps/bridge-agent
+          npm run pretest --prefix apps/bridge-agent
+
       - name: Test
         run: npm run test
 
