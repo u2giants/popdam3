@@ -100,7 +100,9 @@ function nearestKnownWord(word: string, knownNames: Set<string>, vocabulary: Map
     if (distance > max || distance > bestDistance) continue;
     const whole = knownNames.has(candidate);
     if (distance < bestDistance || (whole && !bestWhole) || (whole === bestWhole && candidate < best!)) {
-      best = candidate; bestDistance = distance; bestWhole = whole;
+      best = candidate;
+      bestDistance = distance;
+      bestWhole = whole;
     }
   }
   return best;
