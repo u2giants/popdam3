@@ -23,6 +23,7 @@ PopSG never exposes this page: both the route and the nav item are behind
 | Grid | `src/components/orders/OrderListGrid.tsx` |
 | Row Edit action (the only way into the editor for an existing order) | `src/components/orders/OrderActionsCell.tsx` |
 | Create / edit / void dialog | `src/components/orders/OrderEditorDialog.tsx` |
+| Customer buy-sheet import (preview + apply) | `src/components/orders/BuySheetImportDialog.tsx`, `src/lib/buy-sheet-import.ts` |
 | Link status cell | `src/components/orders/MasterDataLinkCell.tsx` |
 | Manual relink dialog | `src/components/orders/MasterDataLinkDialog.tsx` |
 | Saved views menu | `src/components/orders/OrderListViewsMenu.tsx` |
@@ -127,6 +128,67 @@ Live examples (2026-11-10): D3651 (Google bulk; styles VDC83DYMM14–17) replace
 by ColdLion sales orders 7128093/7128094/7128095 (342/797/336 per style). D3533
 (VDC83DYMM12–13) replaced by 7127982/7127989/7127994. As of 2026-11-10 the
 import does not apply this yet, so both the bulk and distro lines appear.
+
+## Customer buy-sheet import (Burlington HFC, 2026-11-10)
+
+Burlington sends a "PURCHASE ORDER WORKSHEET - DOMESTIC" bulk buy (HFC /
+up-front production) 1–2 months before its official PO. On `/orders`,
+**Import buy sheet** lets any signed-in user upload it instead of hand-typing
+the buy:
+
+1. Choose the customer (canonical customer list, Burlington by default) and
+   the `.xlsx`. The browser reads the sheet (`src/lib/buy-sheet-import.ts`) and
+   shows styles and unit totals per delivery.
+2. **Preview** calls `public.import_dam_buy_sheet(..., p_apply => false)`
+   (shared-db [#6008](https://github.com/popcre/shared-db/issues/6008)) and lists
+   every line as New / Updated / Unchanged / Held, plus styles not linked to
+   Item Master. Nothing is written.
+3. Packs that match no existing order are held until the user types their
+   OrderList order number (D-number); typing an existing number of the same
+   customer adds the lines to that order.
+4. **Import** applies the same call with `p_apply => true` in one transaction
+   and records who, when, the raw sheet (every cell, formulas as text), the
+   parsed lines and the result in `dam.order_buy_sheet_import`.
+
+**Sheet reading.** Item columns are found by content (on the sample the row-11
+headers sit one column off the data): the Complex Pack ID column, and the POP
+style column is the one where every item row is a style code (column H).
+Deliveries are the `DELIVERY #n` blocks of five columns; the ex-factory date is
+the block's "12/20 X FACT" cell (year = the first not long past). The sheet's
+quantity cells are formulas saved without results, so the worksheet's rules
+are re-applied: prepacks carry down a complex pack, units = prepacks × qty in
+each prepack, case pack = the pack's pieces per prepack in that delivery. The
+sample gives 14,400 / 11,400 / 4,800 units for 12/20, 12/30 and 12/10.
+Burlington-only logistics fields (ship from/to, preticket, buy type, …) have no
+OrderList column; they stay in the stored raw sheet.
+
+**Identity and matching (database function).** One line per customer + style +
+delivery date. A line created or claimed earlier is found by its own
+`popdam_buy_sheet` source ref, so a revised sheet updates it and never
+duplicates. Otherwise exactly one active line of that customer, style and start
+ship date (for example the Google line on D3722) is claimed: quantity and case
+pack are set, its Google refs stay. Held instead: several candidates, a line
+whose official PO is already on it from ColdLion, a voided line, or a new pack
+without an order number. Customer PO and status are left as they are (blank /
+the order's status until the official PO). Item links use the exact unique
+style-tracker bridge rule of the OrderList editor; others are reported.
+
+**Official PO later.** The ColdLion intake treats `popdam_buy_sheet` lines like
+Google lines: the no-sales-order production link (D-number + style, shared-db
+PR 6001) and the automatic merge (customer PO + style, one-to-one, owner merge
+ruling 2026-10-22) attach ColdLion to the same row. The Google refresh
+(`scripts/refresh-google-orderlist-rows.py`) never blanks a buy-sheet quantity
+or case pack when the Google cell is empty. Buy-sheet lines are bulk (HFC)
+lines: if Burlington's official POs arrive as per-DC distro orders, the
+"Bulk (HFC) vs distro orders" rule below applies to them, not the one-to-one
+merge.
+
+**First import (sample 10-20-26).** Burlington orders D3722–D3726 and
+D3728–D3730 (D3727 is a Ross order) carried this buy from Google with blank
+quantities; the import updated their lines. Packs 1, 7, 10 and 11 (GFZ/BGX/
+PFX/MBX/XA styles) had no OrderList order and were held for order numbers.
+Fixture: `src/test/fixtures/burlington-buy-sheet-2026-10-20.xlsx`; tests:
+`src/test/buy-sheet-import.test.ts`.
 
 ## ColdLion pack-variant reference
 

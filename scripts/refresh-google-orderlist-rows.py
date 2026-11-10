@@ -76,6 +76,14 @@ def merged_payload(old,desired,metadata,columns,source_id=None):
     if (old and 'order_list_snapshot' in prior and
             prior['order_list_snapshot'] != metadata.get('order_list_snapshot')):
         result['metadata']['original_order_list_snapshot']=prior.get('original_order_list_snapshot',prior['order_list_snapshot'])
+    if (old and 'buy_sheet' in prior and 'quantity_ordered' in columns
+            and normalized(old.get('sku'))==normalized(result.get('sku'))):
+        # A customer buy-sheet import (public.import_dam_buy_sheet) owns the
+        # quantity and case pack of a line Google left blank; a blank Google
+        # cell must not erase them.
+        for field in ('quantity_ordered','case_pack'):
+            if result.get(field) is None and old.get(field) is not None:
+                result[field]=Decimal(str(old[field]))
     if old and 'sku' in columns and normalized(old['sku'])==normalized(result.get('sku')):
         # Preserve an established item link and its decision; the sheet has no
         # authority to turn a confirmed product relationship into a weaker guess.
