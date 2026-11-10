@@ -60,7 +60,11 @@ describe("render completion primary thumbnail cache", () => {
 
 describe("COMP cover rank (owner ruling 2026-11-10)", () => {
   const mk = (id: string, filename: string, relative_path = `g/${filename}`) => ({
-    ...rendered, id, filename, relative_path, thumbnail_url: "https://example.invalid/t.jpg",
+    ...rendered,
+    id,
+    filename,
+    relative_path,
+    thumbnail_url: "https://example.invalid/t.jpg",
   });
   it("COMP beats art and other files", () => {
     expect(selectPrimaryAsset([mk("a", "x_ART.psd"), mk("c", "x_COMP.jpg")])).toBe("c");
