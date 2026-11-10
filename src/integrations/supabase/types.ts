@@ -1082,6 +1082,7 @@ export type Database = {
           asset_id: string | null
           content_sha256: string
           customer: string | null
+          default_visible_member_count: number | null
           default_visible_min_date: string | null
           document_type: string
           embedding: string | null
@@ -1111,6 +1112,7 @@ export type Database = {
           asset_id?: string | null
           content_sha256?: string
           customer?: string | null
+          default_visible_member_count?: number | null
           default_visible_min_date?: string | null
           document_type: string
           embedding?: string | null
@@ -1140,6 +1142,7 @@ export type Database = {
           asset_id?: string | null
           content_sha256?: string
           customer?: string | null
+          default_visible_member_count?: number | null
           default_visible_min_date?: string | null
           document_type?: string
           embedding?: string | null
@@ -4716,6 +4719,15 @@ export type Database = {
           p_style_group_id: string
         }
         Returns: boolean
+      }
+      dam_default_visible_member_count: {
+        Args: {
+          p_asset_id: string
+          p_document_type: string
+          p_min_date: string
+          p_style_group_id: string
+        }
+        Returns: number
       }
       dam_lock_default_visible_owner: {
         Args: { p_document_type: string; p_entity_id: string }
