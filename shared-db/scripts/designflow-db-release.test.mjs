@@ -134,6 +134,14 @@ test('open release PRs into main get their own verify-only status', async () => 
   const drift = await runObserver(d.policy, d.io);
   assert.equal(drift[1].status, 'blocked'); assert.ok(!d.effects.some(x => Array.isArray(x) && x[1] === pr && x[2] === 'success'));
 });
+test('a cherry-picked main tip is verified, not failed', async () => {
+  const f = fixture(); f.policy.release_branches = ['develop', 'main']; f.io.sourceAllowed = async () => false;
+  const result = await runObserver(f.policy, f.io);
+  assert.deepEqual(result.map(r => [r.branch, r.status]), [['develop', 'ready'], ['main', 'ready']]);
+  f.io.productionEvidence = async () => null; f.effects.length = 0;
+  const waiting = await runObserver(f.policy, f.io);
+  assert.equal(waiting[1].status, 'waiting'); assert.equal(f.effects.filter(x => x === 'promote').length, 1);
+});
 
 async function receiptFixture() {
   const f = fixture(), facts = await f.io.sourceFacts();

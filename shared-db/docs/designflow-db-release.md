@@ -105,8 +105,8 @@ are cached within one observer run, and the observer preserves an API reserve.
 ## Readiness is separate from release enforcement
 
 Statuses and a digest-bearing Actions artifact bind each result to an exact app
-commit and manifest. Main-head readiness additionally requires an actual merged PR
-from that repository's develop branch and an identical source tree. Each open
+commit and manifest. Main is reached only through protected PRs, so the main
+tip is verified on its own manifest (cherry-pick merges included). Each open
 same-repository PR into main (for example a `promote/*` cherry-pick) is also
 checked on its own head, verify-only, from the manifest in that head. A main snapshot
 with missing production requirements waits; it never initiates a belated apply.

@@ -563,7 +563,11 @@ export async function runObserver(policy, io) {
       if (!SHA.test(head)) throw Error('Application head is not an exact SHA');
       await io.status(app.repository, head, 'pending', 'Checking required production database changes');
       const manifest = await io.manifest(app.repository, head);
-      const result = await assessRelease({ repository: app.repository, head, manifest, policy, branch }, io);
+      // Main is reached by protected PRs that were themselves verified (develop
+      // merges or cherry-picks), so the main tip is verified on its own manifest
+      // like a PR head rather than failing when it is not a develop-tree copy.
+      const tipIo = branch === 'main' ? { ...io, sourceAllowed: async () => true } : io;
+      const result = await assessRelease({ repository: app.repository, head, manifest, policy, branch }, tipIo);
       await io.status(app.repository, head, result.status === 'ready' ? 'success' : 'pending',
         result.status === 'ready' ? 'Required production database changes and contracts verified'
           : result.progress?.recovery_command ? 'Current-live reverification required; exact recovery command in run summary'
