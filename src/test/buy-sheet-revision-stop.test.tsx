@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 const rpc = vi.fn();
 const chain: any = {
   select: () => chain, in: () => chain, not: () => chain, limit: () => chain,
-  then: (f: (r: unknown) => unknown) => Promise.resolve({ data: [{ sku_normalized: "X1", item_description: "Molded Shadowbox", master_data_licensor: "MARVEL" }] }).then(f),
+  then: (f: (r: unknown) => unknown) => Promise.resolve({ data: [{ sku_normalized: "x1", item_description: "Molded Shadowbox", master_data_licensor: "MARVEL" }] }).then(f),
 };
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (...a: unknown[]) => rpc(...a), schema: () => ({ from: () => chain }) },
