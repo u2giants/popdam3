@@ -23,7 +23,7 @@ it("get-filter-options handler reads only public facet data", () => {
     handler.indexOf("export async function handleGetFilterOptions"),
     handler.indexOf("export async function", handler.indexOf("export async function handleGetFilterOptions") + 10),
   );
-  expect(fn).toContain('from("assets")');
+  expect(fn).toContain('rpc("get_dam_asset_taxonomy_counts")');
   expect(fn).not.toContain("admin_config");
   expect(fn).not.toContain("user_roles");
   expect(fn).not.toContain("auth.users");

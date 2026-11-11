@@ -1333,20 +1333,6 @@ export async function handleDoctor() {
 
 // ── get-filter-options ──────────────────────────────────────────────
 
-/** Run async work over items with at most `limit` in flight, preserving order. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    while (next < items.length) {
-      const index = next++;
-      results[index] = await fn(items[index]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
-}
-
 type FilterOptionCounts = {
   licensors: Array<{ id: string; name: string; asset_count: number }>;
   properties: Array<{ id: string; name: string; licensor_id: string; asset_count: number }>;
@@ -1388,29 +1374,27 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
   const { data: properties, error: propErr } = await propQuery;
   if (propErr) return err(propErr.message, 500);
 
-  // Per-entity counts. PostgREST aggregates are disabled project-wide
-  // (PGRST123 "Use of aggregate functions is not allowed") and a grouped-count
-  // view or RPC belongs to shared-db, so the exact counts still come from the
-  // narrow HEAD reads the audit measured — issued concurrently in bounded
-  // batches instead of ~205 sequential round trips.
-  const [licensorResults, propertyResults] = await Promise.all([
-    mapWithConcurrency(licensors ?? [], 16, async (lic) => {
-      const { count } = await db
-        .from("assets")
-        .select("id", { count: "exact", head: true })
-        .eq("licensor_id", lic.id)
-        .eq("is_deleted", false);
-      return { id: lic.id, name: lic.name, asset_count: count ?? 0 };
-    }),
-    mapWithConcurrency(properties ?? [], 16, async (prop) => {
-      const { count } = await db
-        .from("assets")
-        .select("id", { count: "exact", head: true })
-        .eq("property_id", prop.id)
-        .eq("is_deleted", false);
-      return { id: prop.id, name: prop.name, licensor_id: prop.licensor_id, asset_count: count ?? 0 };
-    }),
-  ]);
+  // One grouped count for every licensor and property (issue #804). The old
+  // per-entity exact HEAD counts (~205 queries per uncached call) cost the
+  // shared database ~2,600 s/day; public.get_dam_asset_taxonomy_counts returns
+  // the same numbers (non-deleted assets per licensor_id / property_id) in one
+  // read.
+  const { data: counts, error: countErr } = await db.rpc("get_dam_asset_taxonomy_counts");
+  if (countErr) return err(countErr.message, 500);
+  const taxonomy = (counts ?? {}) as { licensors?: Record<string, number>; properties?: Record<string, number> };
+  const licensorCounts = taxonomy.licensors ?? {};
+  const propertyCounts = taxonomy.properties ?? {};
+  const licensorResults = (licensors ?? []).map((lic) => ({
+    id: lic.id,
+    name: lic.name,
+    asset_count: Number(licensorCounts[lic.id] ?? 0),
+  }));
+  const propertyResults = (properties ?? []).map((prop) => ({
+    id: prop.id,
+    name: prop.name,
+    licensor_id: prop.licensor_id,
+    asset_count: Number(propertyCounts[prop.id] ?? 0),
+  }));
 
   const value: FilterOptionCounts = {
     licensors: licensorResults.filter((l) => l.asset_count > 0),
