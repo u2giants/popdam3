@@ -55,6 +55,7 @@ Active plans (read STATUS first; do not re-derive completed steps):
 - plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
 - plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
 - plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
+- plan_folder_shortening_snapshot_restore.md — NAS folder shortening under `____New Structure` + admin restore-from-snapshot (issue 963); read STATUS first
 - plan_vector_consolidation.md — ALL vector/semantic search work (DAM + PopSG): one durable embedding pipeline, scorecard, PopSG activation; read STATUS first
 - plan_hybrid_search_rollout.md — HISTORICAL; superseded by plan_vector_consolidation.md (keeps the failure contract)
 - plan_image_similarity_upload_search.md — upload an image, find same artwork (dual vision embeddings, GPU workers); read STATUS first
