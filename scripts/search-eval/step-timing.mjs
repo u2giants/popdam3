@@ -61,7 +61,7 @@ async function sg(query, mode) {
   const q = [...variants].map((v) => v.replace(/["\\]/g, " ").trim()).filter(Boolean).map((v, i) => (i ? `"${v}"` : v)).join(" OR ");
   const vec = Array.isArray(sem?.embedding) && sem.embedding.length === 768 ? `[${sem.embedding.join(",")}]` : null;
   await clock(steps, "library_rpc", () => vp("/rest/v1/rpc/search_style_guide_library_v2", {
-    p_result_mode: mode, p_query: q, p_sort: "relevance", p_limit: 50, p_offset: 0,
+    p_result_mode: mode, p_query: q, p_sort: "relevance", p_limit: 50, p_offset: 0, p_include_facets: false,
     ...(vec ? { p_query_embedding: vec } : {}),
     ...(vec && typeof sem.min_semantic_score === "number" ? { p_min_semantic_score: sem.min_semantic_score } : {}),
   }));
