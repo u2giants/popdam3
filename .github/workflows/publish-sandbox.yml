@@ -20,6 +20,8 @@ on:
       - "vite.config.ts"
       - "Dockerfile.ci"
       - "nginx.conf"
+      - "supabase/functions/dam-search-ai/**"
+      - "supabase/functions/_shared/**"
       - ".github/workflows/publish-sandbox.yml"
 
 concurrency:
@@ -50,6 +52,29 @@ jobs:
           if [ -z "$URL" ] || echo "$URL" | grep -q qsllyeztdwjgirsysgai; then
             echo "SANDBOX_SUPABASE_URL is missing or points at production"; exit 1
           fi
+      # Library search needs the dam-search-ai function on the SAME project the
+      # sandbox pages call. deploy-supabase.yml deploys to production only, so the
+      # sandbox keeps its own copy on the preview project current here (#956).
+      # The preview project holds SANDBOX_ALLOWED_ORIGIN so the function accepts
+      # the sandbox site; production never honors that setting.
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: latest
+      - name: Deploy the search function to the preview project
+        env:
+          URL: ${{ vars.SANDBOX_SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          ref=$(echo "$URL" | sed -E 's#^https://([a-z0-9]+)\.supabase\.co/?$#\1#')
+          if [ -z "$ref" ] || [ "$ref" = "$URL" ] || [ "$ref" = "qsllyeztdwjgirsysgai" ]; then
+            echo "Refusing: sandbox project reference is missing or is production"; exit 1
+          fi
+          supabase secrets set SANDBOX_ALLOWED_ORIGIN=https://dam-sandbox.designflow.app --project-ref "$ref"
+          supabase functions deploy dam-search-ai --project-ref "$ref" --no-verify-jwt --use-api --yes
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "$URL/functions/v1/dam-search-ai" \
+            -H "Origin: https://dam-sandbox.designflow.app" -H "Access-Control-Request-Method: POST")
+          [ "$code" = "200" ] || { echo "Search function not reachable on the preview project: HTTP $code"; exit 1; }
       - name: Build against the preview database
         run: npm run build
         env:

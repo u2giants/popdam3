@@ -211,6 +211,19 @@ build signs in a preview-only admin test account automatically
 (`src/lib/sandbox-auto-login.ts`, variables `SANDBOX_AUTO_LOGIN_EMAIL` /
 `SANDBOX_AUTO_LOGIN_PASSWORD`; never set for production builds). Remove only on
 Albert's word (issue #952): delete that preview user and both variables, then rebuild.
+**Sandbox search service (#956):** Library search on the sandbox uses its own
+copy of the `dam-search-ai` function on the preview project. `publish-sandbox.yml`
+deploys it there on every sandbox publish (and when `supabase/functions/dam-search-ai/**`
+or `_shared/**` change); `deploy-supabase.yml` stays production-only. The preview
+project carries the function setting `SANDBOX_ALLOWED_ORIGIN=https://dam-sandbox.designflow.app`
+so the function accepts the sandbox site (`_shared/sandbox-origin.ts`; ignored on
+production). The preview has search keys but no picture vectors and no
+query-embedding service, so `admin_config.SEARCH_MODE` there is `keyword`: code and
+word search work, picture/semantic matching does not. The test account holds a
+`dam` row in `app.app_access` (needed by `require_dam_access`, e.g. filter counts);
+both rows are preview data and must be re-added if the preview is reset. No other
+function (`admin-api`, `image-similarity`, …) is deployed on the preview, so sandbox
+features that call them fail.
 
 Application changes are merged to `main` through feature branches and pull requests after required checks; production workflows run from the merged source. There is no staging environment or manual staging-to-production promotion step.
 
