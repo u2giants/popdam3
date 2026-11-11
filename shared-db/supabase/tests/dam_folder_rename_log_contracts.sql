@@ -40,8 +40,20 @@ begin
     raise exception 'path_as_of across chained renames (between)';
   end if;
   if dam.path_as_of('t963', 'C/Short/f.ai', '2026-05-15') <> 'C/Short/f.ai' then
-    raise exception 'reverted renames must be ignored';
+    raise exception 'a reverted rename is undone after its revert';
   end if;
+  if dam.path_as_of('t963', 'C/Short/f.ai', '2026-06-01 12:00') <> 'C/Oops/f.ai' then
+    raise exception 'inside a rename-then-revert window the file was at the new path';
+  end if;
+  if dam.path_as_of('t963', 'C/Short/f.ai', null) is not null then
+    raise exception 'path_as_of with no time must return null';
+  end if;
+  begin
+    insert into dam.folder_rename_log (share, old_path, new_path, renamed_at, batch_id, rule)
+    values ('t963', 'N/A/B', 'N/A', '2026-01-01', v_batch, 'test');
+    raise exception 'nested rename must be rejected';
+  exception when check_violation then null;
+  end;
   if dam.path_as_of('t963', 'C/Mixed/f.ai', '2026-01-01') <> 'C/Mixed/f.ai' then
     raise exception 'wildcard characters must not pattern-match';
   end if;
