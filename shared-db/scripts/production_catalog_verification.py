@@ -560,6 +560,11 @@ API_POLICY_EXPRESSIONS = {
     "notification_update_own_read_state": ("profile_id = app.current_profile_id() or app.has_role('administrator')", "profile_id = app.current_profile_id() or app.has_role('administrator')"),
 }
 API_REALTIME_RELATIONS = tuple("""app.comment app.notification app.activity pim.product pim.stage_history pim.product_submission pim.product_sample pim.revision_request pim.customer_order pim.product_assignee crm.opportunity crm.task crm.note crm.email_message dam.asset dam.style_group""".split())
+# Migration 20261111170334 (u2giants/popdam3#804) later removed the members of
+# that set that no application subscribes to. Contracts assert the FINAL state,
+# so the publication assertion covers only the members still published.
+API_REALTIME_TRIMMED_20261111170334 = frozenset("""app.comment app.notification app.activity pim.product pim.stage_history pim.product_submission pim.product_sample pim.revision_request pim.customer_order pim.product_assignee dam.asset dam.style_group""".split())
+API_REALTIME_PUBLISHED_RELATIONS = tuple(name for name in API_REALTIME_RELATIONS if name not in API_REALTIME_TRIMMED_20261111170334)
 def _quoted(values: tuple[str, ...]) -> str:
     return ",".join("'" + value.replace("'", "''") + "'" for value in values)
 def _policy_group_contract(tables: tuple[str, ...], policies: tuple[tuple[str,str], ...]) -> str:
@@ -584,7 +589,7 @@ API_RLS_REALTIME_CONTRACT = " and ".join([
     "not exists (select 1 from unnest(array[%s]::text[]) expected(name) left join pg_class c on c.oid=to_regclass(expected.name) where c.oid is null or not c.relrowsecurity)" % _quoted(API_RLS_RELATIONS),
     *(_policy_group_contract(tables, policies) for tables, policies in API_POLICY_GROUPS),
     _explicit_policy_contract(),
-    "exists (select 1 from pg_publication where pubname='supabase_realtime') and not exists (select 1 from unnest(array[%s]::text[]) expected(name) where not exists (select 1 from pg_publication_tables p where p.pubname='supabase_realtime' and p.schemaname=split_part(expected.name,'.',1) and p.tablename=split_part(expected.name,'.',2)))" % _quoted(API_REALTIME_RELATIONS),
+    "exists (select 1 from pg_publication where pubname='supabase_realtime') and not exists (select 1 from unnest(array[%s]::text[]) expected(name) where not exists (select 1 from pg_publication_tables p where p.pubname='supabase_realtime' and p.schemaname=split_part(expected.name,'.',1) and p.tablename=split_part(expected.name,'.',2)))" % _quoted(API_REALTIME_PUBLISHED_RELATIONS),
 ])
 DFLOW_SEQUENCE_TARGETS = (
     ('dflow."AuditLog_id_seq"','dflow."AuditLog"','id',1000000,610745),('dflow."Factory_id_seq"','dflow."Factory"','id',1000,201),
@@ -5034,6 +5039,38 @@ CATEGORY_STYLE_TRACKER_ROWS_REALTIME_PUBLICATION = """
 """
 CATALOG_CONTRACTS["style_tracker_rows_realtime_publication_v1"] = (
     CATEGORY_STYLE_TRACKER_ROWS_REALTIME_PUBLICATION
+)
+
+
+# Durable catalog outcome of migration 20261111170334 (u2giants/popdam3#804
+# task 1): the supabase_realtime publication no longer carries the 13 tables no
+# application subscribes to, and still carries the six crm tables PopCRM
+# listens to. The migration's statements sit inside a guarded DO block, which
+# the statement lexer cannot read, so this named contract is its positive,
+# hash-bound assertion. The three public tables PopDAM listens to are not
+# asserted: the migration never names them.
+CATEGORY_REALTIME_PUBLICATION_TRIM_UNSUBSCRIBED = """
+  exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+  and not exists (
+    select 1
+      from pg_publication_tables p
+     where p.pubname = 'supabase_realtime'
+       and (p.schemaname || '.' || p.tablename) = any (array[
+         'app.activity','app.comment','app.notification',
+         'crm.licensor_approval_thread','dam.asset','dam.style_group',
+         'pim.customer_order','pim.product','pim.product_assignee',
+         'pim.product_sample','pim.product_submission',
+         'pim.revision_request','pim.stage_history']))
+  and (select count(*)
+         from pg_publication_tables p
+        where p.pubname = 'supabase_realtime'
+          and p.schemaname = 'crm'
+          and p.tablename = any (array[
+            'email_message','task','note','meeting_note',
+            'opportunity','department'])) = 6
+"""
+CATALOG_CONTRACTS["realtime_publication_trim_unsubscribed_v1"] = (
+    CATEGORY_REALTIME_PUBLICATION_TRIM_UNSUBSCRIBED
 )
 
 

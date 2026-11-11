@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261111170334",
+  "migration_sha256": "20b42d8c573a21ead01b2652d9be667dfd774c0576b89dbd7a2350e83a546189",
+  "checks": [
+    {
+      "id": "realtime_publication_trim_unsubscribed",
+      "kind": "catalog_contract",
+      "contract": "realtime_publication_trim_unsubscribed_v1",
+      "expected_count": 1
+    }
+  ]
+}
