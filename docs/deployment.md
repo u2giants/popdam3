@@ -196,6 +196,17 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 There is no staging environment. There is one production environment.
 
+**Sandbox site (owner request 2026-11-11):** https://dam-sandbox.designflow.app
+runs the same code as production against the shared-db **preview** database
+(`publish-sandbox.yml`, every merge to `main`; Coolify app `popdam-sandbox`,
+image `ghcr.io/u2giants/popdam-frontend:sandbox`; DNS A record in Cloudflare).
+It is for trying features safely, not a release step. Build variables:
+`SANDBOX_SUPABASE_URL`, `SANDBOX_SUPABASE_ANON_KEY` (publishable); secret
+`COOLIFY_SANDBOX_APP_UUID`. Seeded 2026-11-11 with a copy of the latest 500
+production OrderList lines (incl. the Burlington buy-sheet lines), their orders
+and items; the preview also holds older rehearsal data. Edits there never reach
+production.
+
 Application changes are merged to `main` through feature branches and pull requests after required checks; production workflows run from the merged source. There is no staging environment or manual staging-to-production promotion step.
 
 Railway auto-deploys on every push to `main` regardless of which files changed (Railway does not support path filters). This means every push to `main` triggers a Railway worker rebuild, even if `apps/worker/` was not touched.

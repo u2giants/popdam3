@@ -1,0 +1,81 @@
+name: Publish Sandbox Site
+
+# Sandbox copy of PopDAM at https://dam-sandbox.designflow.app for testing
+# features safely. Same code as production, built against the shared-db
+# PREVIEW database (never production): VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+# come from repository variables SANDBOX_SUPABASE_URL / SANDBOX_SUPABASE_ANON_KEY
+# (the publishable key; public by design). Pages show the amber
+# "non-production database" banner. Owner request 2026-11-11.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "Dockerfile.ci"
+      - "nginx.conf"
+      - ".github/workflows/publish-sandbox.yml"
+
+concurrency:
+  group: publish-sandbox
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - name: Refuse a production target
+        env:
+          URL: ${{ vars.SANDBOX_SUPABASE_URL }}
+        run: |
+          if [ -z "$URL" ] || echo "$URL" | grep -q qsllyeztdwjgirsysgai; then
+            echo "SANDBOX_SUPABASE_URL is missing or points at production"; exit 1
+          fi
+      - name: Build against the preview database
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SANDBOX_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SANDBOX_SUPABASE_ANON_KEY }}
+          APP_COMMIT: sandbox-${{ github.sha }}
+          APP_COMMIT_FULL: ${{ github.sha }}
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          file: Dockerfile.ci
+          push: true
+          tags: |
+            ghcr.io/u2giants/popdam-frontend:sandbox
+            ghcr.io/u2giants/popdam-frontend:sandbox-${{ github.sha }}
+      - name: Deploy via Coolify
+        env:
+          APP: ${{ secrets.COOLIFY_SANDBOX_APP_UUID }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${APP}&force=false")
+          [ "$code" = "200" ] || { echo "Coolify deploy trigger failed: HTTP $code"; exit 1; }
