@@ -38,6 +38,13 @@ begin
     raise exception '#6086/20261111222527 self-check: schema dflow_prod exists here; this is a production-shaped project and this migration is DesignFlow non-production only'
       using errcode = 'feature_not_supported';
   end if;
+end
+$check$;
+
+-- Kept in its own block: the sandbox lane never conditions a statement that
+-- names the absent dflow_prod schema together with a live schema.
+do $check2$
+begin
   if to_regclass('core."merchGroup"') is null or to_regclass('dflow."merchGroup"') is null
      or to_regclass('core."merchGroupHeaders"') is null or to_regclass('dflow."merchGroupHeaders"') is null
      or to_regclass('dflow.mg_combination_description') is null then
@@ -45,7 +52,7 @@ begin
       using errcode = 'feature_not_supported';
   end if;
 end
-$check$;
+$check2$;
 
 -- 1. Rows -----------------------------------------------------------------
 

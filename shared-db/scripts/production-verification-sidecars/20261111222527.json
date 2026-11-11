@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "migration_version": "20261111222527",
-  "migration_sha256": "99dd4c70fbe257101813f0327a1143f53bbaf5d41c0d3d3e0cd72206d5114170",
+  "migration_sha256": "9e5022046d10fde8cf393673cd65b12f132d4cad59cc218257a8e9e14ae07c6d",
   "checks": [
     {
       "id": "dflow_merch_group_parity_combination_readable",
@@ -20,13 +20,13 @@
   "marker_schema_version": 1,
   "marker_reviews": [
     {
-      "line_start": 174,
-      "line_end": 203,
+      "line_start": 181,
+      "line_end": 210,
       "disposition": "checks",
       "check_ids": [
         "dflow_merch_group_parity_combination_readable"
       ],
-      "reason": "Line 174 copies core table grants onto the dflow merchGroup tables (owner-only ACLs today, so no grant is issued); lines 199-203 repoint the three mg_combination_description keys to dflow.merchGroup inside fixed-name format() calls. The cited check proves the combination relation remains readable after apply; key targets and validation are proven by the read-only gate query recorded on shared-db issue 6086."
+      "reason": "Line 181 copies core table grants onto the dflow merchGroup tables (owner-only ACLs today, so no grant is issued); lines 206-210 repoint the three mg_combination_description keys to dflow.merchGroup inside fixed-name format() calls. The cited check proves the combination relation remains readable after apply; key targets and validation are proven by the read-only gate query recorded on shared-db issue 6086."
     }
   ]
 }
