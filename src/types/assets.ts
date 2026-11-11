@@ -34,7 +34,11 @@ export interface AssetFilters {
   program: string | null;
 }
 
-/** Pipeline stages, as named by the NAS folder tree under "____New Structure". */
+/**
+ * Pipeline stages: canonical stored values, deliberately decoupled from NAS
+ * folder names (e.g. folder "In Dev" is stored as "In Development"). Folder
+ * spellings are mapped in public.infer_path_attrs; see docs/PATH_ATTRIBUTES.md.
+ */
 export const STAGE_OPTIONS = [
   "In Development",
   "Concept Approved Designs",
