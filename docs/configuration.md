@@ -289,4 +289,6 @@ The Coolify Traefik instance has two cert resolvers:
 
 Admin-added filename and folder rules on top of the bridge scanner's built-ins (`packages/agent-common/src/ingestion-rules.ts`; `supabase/functions/_shared/ingestion-rules.ts` is a test-enforced identical copy). The value holds `{ revision, rules, history }` and changes only through the `save-ingestion-rules` admin route, which validates, refuses stale saves, and keeps the last 50 prior rule lists for undo. Heartbeat delivers `scanning.ingestion_rules`; requires bridge agent 1.16.21 or newer. Rules affect future scans only and never delete records. New file extensions are deliberately not configurable.
 
+Built-in style-folder PDF rule (owner ruling 2026-11-11, bridge agent 1.16.26 or newer): under `____New Structure`, any PDF sitting directly in a style's own folder (letters and digits only, 7+ long) is ingested when that folder holds no `.ai` or `.psd` of its own. Filename and folder exclusions still win. Measured 2026-11-11: about 80 PDFs, e.g. the Desperate Signs `DE METAL SIGN` sheets.
+
 Built-in raster keywords are `comp-view`, `compview`, and `mockup` (case-insensitive filename matching for PNG, JPG, JPEG). The mockup built-in requires bridge agent 1.16.22 or newer; Settings and its file tester use the identical shared list.

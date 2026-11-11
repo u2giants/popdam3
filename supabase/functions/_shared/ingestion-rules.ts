@@ -129,6 +129,28 @@ export function matchesPdfRules(filename: string, rules: IngestionRule[]): boole
   return PDF_KEYWORDS.some((k) => lower.includes(k)) || firstMatch(lower, rules, "pdf_include") !== undefined;
 }
 
+/** The only tree where a style folder's lone PDFs are taken (owner ruling 2026-11-11). */
+export const STYLE_FOLDER_PDF_ROOT = "____new structure";
+
+/** Same shape as extractSkuFolder in style-grouping.ts: letters and digits only, both present, 7+ long. */
+export function isStyleFolderName(name: string): boolean {
+  return name.length >= 7 && /^[A-Za-z0-9]+$/.test(name) && /[A-Za-z]/.test(name) && /\d/.test(name);
+}
+
+/**
+ * True when PDFs sitting directly in this folder are taken whatever their name:
+ * the folder is a style's own folder under "____New Structure" and holds no
+ * .ai or .psd file of its own (owner ruling 2026-11-11). Such a style has no
+ * art file, so its PDF is the design. `folderSegments` ends with the folder
+ * itself; `fileNames` are the files directly inside it.
+ */
+export function takesAnyPdfInFolder(folderSegments: string[], fileNames: string[]): boolean {
+  const folder = folderSegments[folderSegments.length - 1];
+  if (!folder || !isStyleFolderName(folder)) return false;
+  if (!folderSegments.some((s) => s.toLowerCase() === STYLE_FOLDER_PDF_ROOT)) return false;
+  return !fileNames.some((n) => !n.startsWith("._") && /\.(ai|psd)$/i.test(n));
+}
+
 /**
  * "COMP" as its own word, optionally followed by "view": COMP, COMPVIEW,
  * COMP-VIEW, COMP_VIEW, COMP VIEW (owner ruling 2026-11-10). Whole-word so
@@ -153,7 +175,8 @@ export interface IngestionVerdict {
 
 /**
  * Name-based verdict for the settings tester. Mirrors the scanner's order.
- * It cannot see the date cutoff or a same-named .pdf beside an .ai file.
+ * It cannot see the date cutoff, a same-named .pdf beside an .ai file, or
+ * which other files share the folder.
  */
 export function explainIngestion(path: string, rules: IngestionRule[]): IngestionVerdict {
   const segments = path.replace(/\\/g, "/").split("/").filter(Boolean);
@@ -174,6 +197,9 @@ export function explainIngestion(path: string, rules: IngestionRule[]): Ingestio
   const excluded = firstMatch(filename.toLowerCase(), rules, "filename_exclude");
   if (excluded) return { ingested: false, reason: `Your rule skips names containing "${excluded.value}".` };
   if (ext === ".pdf" && !matchesPdfRules(filename, rules)) {
+    if (takesAnyPdfInFolder(segments, [])) {
+      return { ingested: true, reason: `Taken only while folder "${segments[segments.length - 1]}" has no .ai or .psd file of its own.` };
+    }
     return { ingested: false, reason: "This PDF's name matches no PDF keyword." };
   }
   if ((RASTER_EXTENSIONS as readonly string[]).includes(ext) && !matchesImageRules(filename, rules)) {
