@@ -101,6 +101,11 @@ begin
   -- A licensor with no picture: falls back to the unscoped anchor.
   s := public.dam_search_semantic_anchor_scoped(e0, null, array['60240000-0000-4000-8000-0000000000ff'::uuid]);
   if s is distinct from g then raise exception '#6024 empty scope % (want unscoped %)', s, g; end if;
+  -- Empty style-group scope must preserve NULL until the unscoped fallback.
+  g := public.dam_search_semantic_anchor(e0, array['style_group']);
+  if g is null or g <= 0 then raise exception '#6024 fixture: positive style-group anchor required'; end if;
+  s := public.dam_search_semantic_anchor_scoped(e0, array['style_group'], array['60240000-0000-4000-8000-0000000000ff'::uuid]);
+  if s is distinct from g then raise exception '#6024 empty style-group scope % (want unscoped %)', s, g; end if;
 
   -- anon cannot execute it.
   if has_function_privilege('anon', 'public.dam_search_semantic_anchor_scoped(extensions.vector,text[],uuid[])', 'execute') then

@@ -73,7 +73,8 @@ begin
     where d.embedding is not null
       and d.embedding_model = 'google/siglip2-base-patch16-naflex'
       and d.document_type = 'style_group'
-      and g.licensor_id = any(v_ids);
+      and g.licensor_id = any(v_ids)
+    having count(*) > 0;
   elsif p_document_types is null
      or exists (select 1 from unnest(p_document_types) t where t is distinct from 'style_group') then
     select greatest(0, 1 - (d.embedding operator(extensions.<=>) p_query_embedding))::real
