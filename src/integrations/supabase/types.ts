@@ -3277,6 +3277,35 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_file_crawl_seen: {
+        Row: {
+          crawl_run_id: string | null
+          last_seen_at: string
+          root_label: string
+          style_guide_file_id: string
+        }
+        Insert: {
+          crawl_run_id?: string | null
+          last_seen_at?: string
+          root_label: string
+          style_guide_file_id: string
+        }
+        Update: {
+          crawl_run_id?: string | null
+          last_seen_at?: string
+          root_label?: string
+          style_guide_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_file_crawl_seen_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: true
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_file_preview_state: {
         Row: {
           has_error: boolean
@@ -4670,6 +4699,10 @@ export type Database = {
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
       count_pdf_rescan_remaining: { Args: never; Returns: number }
+      count_style_guide_crawl_seen: {
+        Args: { p_root_label: string; p_run_id: string }
+        Returns: number
+      }
       create_dam_order: {
         Args: { p_lines?: Json; p_order: Json }
         Returns: string
@@ -5912,6 +5945,12 @@ export type Database = {
           p_style_guide_file_id: string
         }
         Returns: boolean
+      }
+      upsert_style_guide_crawl_files: {
+        Args: { p_rows: Json; p_run_id: string }
+        Returns: {
+          id: string
+        }[]
       }
       upsert_style_tracker_value_resolution: {
         Args: {
