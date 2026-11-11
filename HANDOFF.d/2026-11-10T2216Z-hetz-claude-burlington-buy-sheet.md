@@ -63,23 +63,21 @@ and keep the import correct for later sheets.
    same line (one-to-one). Zero duplicates either way. If neither happens, the
    pairing filter in `order-intake-distro.mjs` / `order-intake-write.mjs` is the
    place to look.
-2. **Open review finding on the distro step:**
-   [shared-db#6019](https://github.com/popcre/shared-db/issues/6019) (on PR
-   6018, owned by the session that wrote it). It holds automatic production
-   promotion for that PR's change set. Not this session's; check its owner has
-   picked it up before relying on item 1.
+2. ~~Review finding shared-db#6019~~ — resolved: fix PR 6020 merged 2026-11-10 6:09 PM EST, issue closed.
 3. **"Held: needs an order number" path is untested live.** The sample matched
    existing orders for every pack, so the screen's order-number boxes (new pack,
    no D-number yet) have only run in local and CI tests. First time a sheet
    contains a pack with no OrderList order, watch the preview: the pack must show
    held until a D-number is typed, then "New".
-4. **A revised sheet that drops a style to 0 sets that line's quantity to 0**
-   (it does not void it). This was a design choice, not a ruling; if Albert wants
-   dropped styles cancelled instead, change `public.import_dam_buy_sheet`.
-5. **Unrelated, pre-existing:** popdam3 `main` CI job `lint-test-build` fails in
-   `apps/bridge-agent/src/sibling-scan.vitest.ts` ("Missing required:
-   POPDAM_SERVER_URL or SUPABASE_URL"), from PR 902. Advisory only; frontend
-   publishing still works. Owner: whoever owns the sibling scan.
+4. ~~Revised sheet sets dropped styles to 0~~ — superseded by owner rule
+   2026-11-10: revisions are stopped, not handled (shared-db PR 6026, popdam3
+   PR 926; live-proven 8:05 PM EST: identical re-upload 54 unchanged, a changed
+   quantity previews as "Revision" on D3734). Build revision handling only when
+   a real revised sheet appears. Process and rule: shared-db
+   `docs/business-rules/erp-orders-and-source-meaning.md` → *Burlington HFC
+   (bulk) buy sheet* (PR 6027). Proposed next: suggest each assortment's Item
+   Description from its styles (rule-based; needs JamieLynn's acceptance).
+5. ~~main CI sibling-scan failure~~ — fixed (main CI green 2026-11-10).
 
 ## 5. What was tried and failed
 
