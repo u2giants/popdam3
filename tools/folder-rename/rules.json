@@ -1,0 +1,102 @@
+{
+  "_readme": "Folder shortening rules for #963. Read by plan.mjs. Folders only; files are never renamed. Every term here is explicit; nothing is guessed by pattern except pattern_rules, each of which names what it matches.",
+  "root": "Decor/Character Licensed/____New Structure",
+  "target_max_path": 200,
+  "never_touch": [
+    "@eaDir",
+    "#recycle",
+    "#snapshot"
+  ],
+  "stage_abbreviations": {
+    "In Development": "In Dev",
+    "Customer Adopted": "Cust Adopted"
+  },
+  "customer_containers": [
+    "In Development/Customer Adopted"
+  ],
+  "finished_bucket": {
+    "folder": "_FINISHED",
+    "suffix": "_finished",
+    "drop_suffix": true,
+    "_note": "Ross_finished under _FINISHED says 'finished' twice; becomes Ross."
+  },
+  "not_customers": [
+    "Licensor Requests"
+  ],
+  "customer_aliases": {
+    "Desperate Signs": "Desperate"
+  },
+  "strip_from_descendants": {
+    "Desperate Signs": [
+      "Shane"
+    ]
+  },
+  "strip_year_under_year_folder": {
+    "enabled": false,
+    "_note": "O2: proposed, off until Albert says yes. Ross/2026/Ross Wall 2026 -> Ross/2026/Wall."
+  },
+  "exact_folder_renames": {
+    "_preliminary files": "_prelim",
+    "preliminary files": "prelim",
+    "Preliminary files": "prelim",
+    "_prelim files": "_prelim",
+    "_preliminary designs": "_prelim designs",
+    "preliminary assets": "prelim assets",
+    "_working files": "_working",
+    "_Working files": "_working",
+    "_freelancer files": "_freelancer",
+    "BGP_HGP - Fabric storage": "BGP_HGP",
+    "other customers_finished": "other customers",
+    "Multiple Customers- Licensed Garden Tools Costing 6-2024": "Garden Tools Costing 6-2024"
+  },
+  "phrase_abbreviations": [
+    [
+      "professional photos",
+      "Pro Photos"
+    ],
+    [
+      "Proffesional Photos",
+      "Pro Photos"
+    ],
+    [
+      "Non-standard sizes",
+      "Non-std sizes"
+    ],
+    [
+      "piece canvas gift set",
+      "pc canvas set"
+    ],
+    [
+      "piece canvas set",
+      "pc canvas set"
+    ],
+    [
+      "Presentation",
+      "Prez"
+    ],
+    [
+      "NEEDS REVISIONS",
+      "REVISE"
+    ],
+    [
+      "Seasonal Bundles",
+      "Bundles"
+    ],
+    [
+      "Polyester gardening gloves and Garden tools",
+      "Garden gloves and tools"
+    ],
+    [
+      "Canvass Mock Up",
+      "Mock Up"
+    ]
+  ],
+  "pattern_rules": [
+    {
+      "id": "licensor_vault_folder",
+      "what": "Unzipped licensor style-guide vault folders like 3040881-nightmare-before-christmas-...-style-guide: keep the vault number and the first three words.",
+      "match": "^(\\d{6,})-([a-z0-9]+-[a-z0-9]+-[a-z0-9]+)-[a-z0-9-]+$",
+      "replace": "$1-$2"
+    }
+  ]
+}
