@@ -121,7 +121,7 @@ All POP apps share one Supabase backend. Keep shared-db work isolated:
 
 ## Multi-model AI usage in code
 
-Model locations, structured-output contract, Exacto routing, endpoint pinning, bake-off rules, and Google/DeepSeek keys are documented in [docs/MODEL_RULES.md](docs/MODEL_RULES.md). Quirks that look like bugs are in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md). Before changing any model reference, read those files — a model is configured in several places (dmin_config.AI_TASK_MODELS, worker handlers, bridge/windows samplers).
+Model locations, structured-output contract, Exacto routing, endpoint pinning, bake-off rules, and Google/DeepSeek keys are documented in [docs/MODEL_RULES.md](MODEL_RULES.md). Quirks that look like bugs are in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md). Before changing any model reference, read those files — a model is configured in several places (dmin_config.AI_TASK_MODELS, worker handlers, bridge/windows samplers).
 
 ## Repository structure
 
@@ -273,7 +273,7 @@ Linux write-worker targets edge1. Canonical spec:
 
 - **MG01–MG03 letters mean different things by era (2026-10-06).** Items created before 2025-05-14 use the old flat per-division lists (MG01 = material, MG02 = product type, MG03 = finish; source: ColdLion exports in Albert's Dropbox `ai/old_merch`, now `_shared/mg-legacy.ts`). Newer items use the hierarchical list where MG02 depends on MG01 and MG03 on both. `parseSku` picks the era from the mirrored ColdLion item `createdTime` (`plm.item.raw`; PopDAM never calls the ColdLion API), falling back to the file date. Never resolve MG02/MG03 with a flat code table.
 
-Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
+Full entries live in [`docs/idiosyncrasies.md`](idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
 - AG Grid license warning is accepted: no purchase; ignore the warning and preserve existing features (owner instruction 2026-10-11)
 - Prose merges run the repo-wide public-boundary gate; reviewed per-word allowlist in `tools/public-boundary-allowlist.txt`, no private IPs in this public repo (2026-10-27)
@@ -365,7 +365,7 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 Application changes use a dedicated feature branch and pull request targeting protected `main`. Never push application changes directly to `main`; pass the required checks (AI review is advice only and never blocks; owner ruling 2026-10-29, popcre/ai-devops#2041) and merge through the normal protected path. `main` remains the release branch. Verify the GitHub remote before pushing.
 
-Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md).
+Full runbooks: [docs/deployment.md](deployment.md), [docs/POPDAM_HELPER.md](POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](INFRASTRUCTURE.md).
 
 | Component | How it ships | Notes |
 |---|---|---|
@@ -387,12 +387,12 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 |--------|------|-------------|
 | 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); Helper Microsoft OAuth + USA SMB/local check-in shipped in `1cc3fd3`; Supabase Auth callback `http://127.0.0.1:47380/auth/callback` allowed on 2026-06-24. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **PopSG production readiness (#107)** | Tracked in `plan_popsg_production_readiness.md` — read its STATUS table. As of October 11, 2026: extraction and v2 app cutover delivered; remaining changed-night acceptance is tracked by #335/#336 and #107. Verify ordinary post-deployment receipts, then final acceptance/docs retirement. |
-| 🟡 open | **Codebase audit backlog (2026-10-21)** | Verified-but-unfixed findings from the full-codebase audit live in [`docs/audit-2026-10-21.md`](docs/audit-2026-10-21.md) and are tracked as issues #468 (security), #469 (correctness), #470 (efficiency), #471 (dead code). Pick from the issue, not a re-audit. `npm run typecheck` is now enforced in CI. |
+| 🟡 open | **Codebase audit backlog (2026-10-21)** | Verified-but-unfixed findings from the full-codebase audit live in [`docs/audit-2026-10-21.md`](audit-2026-10-21.md) and are tracked as issues #468 (security), #469 (correctness), #470 (efficiency), #471 (dead code). Pick from the issue, not a re-audit. `npm run typecheck` is now enforced in CI. |
 | 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
 
 ## Critical incidents
 
-Full entries live in [`docs/incident-log.md`](docs/incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
+Full entries live in [`docs/incident-log.md`](incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
 - 2026-11-10: OrderList showed ColdLion-replaced (voided) assortment lines on PO 62012008 — voided lines now hidden from list, counts and Find (shared-db #6022)
 - Resolved 2026-11-01: DAM picture search cold-load timeouts — compact exact vectors and consistent totals; live exact query verified at 15 groups (#4508, PopDAM #649)
