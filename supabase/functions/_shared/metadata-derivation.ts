@@ -15,6 +15,7 @@ import type { ServiceClient } from "./service-client.ts";
 
 export const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "concept approved designs": "concept_approved",
+  "concept approved": "concept_approved",
   "in development": "in_development",
   // Short folder names planned for the NAS rename (u2giants/popdam3#963).
   "in dev": "in_development",
@@ -87,7 +88,7 @@ export async function deriveMetadataFromPath(
   // Scan from deepest to shallowest for most-specific match
   for (let i = normalizedParts.length - 1; i >= 0; i--) {
     const segment = normalizedParts[i];
-    if (hasNewStructure && segment === "concept approved designs") continue;
+    if (hasNewStructure && (segment === "concept approved designs" || segment === "concept approved")) continue;
     const matched = workflowFolderMap[segment];
     if (matched) {
       workflow_status = matched;
