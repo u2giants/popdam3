@@ -29,8 +29,11 @@
 -- Rollback for step 3 only: repoint the three keys back to core."merchGroup"
 -- the same way. Steps 1-2 need no rollback (the app does not read dflow yet).
 
-set lock_timeout = '5s';
-set statement_timeout = '5min';
+-- One explicit transaction: the sandbox lane's CLI runs statements without an
+-- implicit one, and LOCK TABLE plus the parity gate need all-or-nothing.
+begin;
+set local lock_timeout = '5s';
+set local statement_timeout = '5min';
 
 do $check$
 begin
@@ -211,3 +214,5 @@ begin
   end loop;
 end
 $fk$;
+
+commit;

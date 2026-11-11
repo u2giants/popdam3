@@ -12,6 +12,10 @@
 -- One transaction, ends in ROLLBACK. Every value is invented.
 -- =====================================================================================
 
+-- The migration carries its own begin/commit; strip them so this file stays
+-- one transaction that ends in ROLLBACK.
+\set mig `sed -e '/^begin;$/d' -e '/^commit;$/d' supabase/migrations/20261111222527_dflow_merch_group_nonprod_parity.sql`
+
 begin;
 
 -- The CI stack is production-shaped (dflow_prod present), where the migration
@@ -79,7 +83,7 @@ insert into core."merchGroupHeaders" (id, "mgTypeCode", "mgTypeDesc") overriding
 insert into dflow."merchGroupHeaders" (id, "mgTypeCode", "mgTypeDesc") overriding system value values (910001, '01', 'Old type');
 insert into dflow.mg_combination_description (mg01_id, mg02_id, mg03_id) values (900001, 900002, 900003);
 
-\i supabase/migrations/20261111222527_dflow_merch_group_nonprod_parity.sql
+:mig
 
 do $a$
 declare n bigint; s text; v bigint;
@@ -108,7 +112,7 @@ end
 $a$;
 
 -- Re-run is a no-op.
-\i supabase/migrations/20261111222527_dflow_merch_group_nonprod_parity.sql
+:mig
 
 do $r$
 begin
