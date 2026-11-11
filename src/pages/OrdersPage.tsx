@@ -3,7 +3,7 @@ import { OrderSampleSettings } from "@/components/orders/OrderSampleSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CellValueChangedEvent, IDatasource } from "ag-grid-community";
 import type { AgGridReact } from "ag-grid-react";
-import { Download, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { ChevronDown, Download, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { BuySheetImportDialog } from "@/components/orders/BuySheetImportDialog";
 import { BambooRoseDialog } from "@/components/orders/BambooRoseDialog";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { OrderListSummary } from "@/components/orders/OrderListSummary";
 import { OrderListViewsMenu } from "@/components/orders/OrderListViewsMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { useDamCustomers } from "@/hooks/useDamCustomers";
 import {
@@ -491,15 +492,24 @@ export default function OrdersPage() {
           New order
         </Button>
 
-        <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setBuySheetOpen(true)}>
-          <Upload className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          Import buy sheet
-        </Button>
-
-        <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setBambooRoseOpen(true)}>
-          <Download className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          Bamboo Rose sheet
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" variant="outline" className="h-8">
+              Burlington
+              <ChevronDown className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => setBuySheetOpen(true)}>
+              <Upload className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+              Import buy sheet (HFC)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setBambooRoseOpen(true)}>
+              <Download className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+              Bamboo Rose sheet
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="ml-auto">
           <OrderListSummary counts={counts} />
