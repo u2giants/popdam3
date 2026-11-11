@@ -13,6 +13,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { sandboxOrigin } from "./sandbox-origin.ts";
 
 const CORS_ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type, x-agent-key, " +
   "x-supabase-client-platform, x-supabase-client-platform-version, " +
@@ -34,7 +35,7 @@ const LOCAL_DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 export function isAllowedOrigin(origin: string | null): origin is string {
   if (!origin) return false;
-  return ALLOWED_ORIGINS.has(origin) || LOCAL_DEV_ORIGIN.test(origin);
+  return ALLOWED_ORIGINS.has(origin) || LOCAL_DEV_ORIGIN.test(origin) || origin === sandboxOrigin();
 }
 
 function resolveAllowedOrigin(origin: string | null): string {
