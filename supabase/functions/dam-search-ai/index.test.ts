@@ -136,15 +136,16 @@ describe("DAM search embedding availability", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(state.rpc).not.toHaveBeenCalled();
   });
-  it("keeps pictures for the settled unknown full-code example after a real format hint", async () => {
+  it("searches an unknown full code in a catalog format by words only, never by pictures", async () => {
     state.meaningful = false;
     state.formatRpc.mockResolvedValue({ data: true, error: null });
-    const fetch = embedFetch();
+    const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
     expect((await search("ZZZ83MVSP99")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledWith("dam_catalog_code_format_exists", { p_format: "AAA99AAAA99" }, expect.any(AbortSignal));
-    expect(fetch).toHaveBeenCalledOnce(); // query + variants in one batched call
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "ZZZ83MVSP99", p_query_embedding: null }));
   });
 
   it("keeps known full codes and prefixes keyword-only without probing formats", async () => {
@@ -234,14 +235,14 @@ describe("DAM search embedding availability", () => {
   });
 
   for (const scope of ["asset", "style_group"]) {
-    it(`preserves the exact ${scope} scope while keeping unknown-code pictures`, async () => {
+    it(`preserves the exact ${scope} scope for a words-only unknown code`, async () => {
       state.meaningful = false;
       state.formatRpc.mockResolvedValue({ data: true, error: null });
       vi.stubGlobal("fetch", embedFetch());
       expect((await search("ZZZ83MVSP99", undefined, [scope])).status).toBe(200);
       expect(state.rpc).toHaveBeenCalledWith(
         "search_dam_documents",
-        expect.objectContaining({ p_document_types: [scope], p_query: "ZZZ83MVSP99", p_query_embedding: Array(768).fill(0) }),
+        expect.objectContaining({ p_document_types: [scope], p_query: "ZZZ83MVSP99", p_query_embedding: null }),
       );
     });
   }

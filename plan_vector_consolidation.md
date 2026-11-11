@@ -133,7 +133,7 @@ A Nov 4, 2026 review of every vector effort since August. Findings (plain):
   pgvecto.rs, external vector DB). Rejected in §7.
 - Raising any statement timeout.
 - Treating code-shaped queries not in the catalog as codes. **Owner ruled
-  Nov 3, 2026: "Keep picture guesses."** Closed on #689.
+  Nov 3, 2026: "Keep picture guesses."** Closed on #689. **Reversed by the owner Nov 11, 2026 for complete catalog-format codes (see D5).**
 - Image similarity (upload-to-find). It works; leave it (plan_image_similarity_upload_search.md).
 - AI tagging (#680), ERP enrichment, HTS/customs RAG search (`hts_rag_*`
   migrations are a different product).
@@ -229,7 +229,7 @@ select public.image_embed_status();
 | Move to VectorChord / pgvecto.rs / Timescale vectorsearch / external vector DB | Not installable on hosted Supabase; no measured bottleneck that pgvector 0.8 + HNSW cannot meet at 150k–235k rows. Plan_semantic_search §7. |
 | Raise `statement_timeout` | Hides the problem; viewer ceiling is a product rule. plan_semantic_search §4. |
 | Switch text search back to `gte-small/384` text embeddings | Would mean two models and two columns; #4664 locked one mechanism. Mixing already caused "never mixes gte-small with SigLIP2" guards. Re-opening is a model-change plan, out of scope. |
-| Format-match product codes (regex) to skip the picture leg | Owner ruled Nov 3: keep picture guesses for unknown codes. |
+| Picture guesses for a complete item code that is not in the catalog | Owner reversed the Nov 3 ruling on Nov 11, 2026: SQX26DYMM02 returned 450 groups that "look NOTHING like the item # i typed in". A complete code in a catalog format now matches by words only. |
 | A separate Railway CPU embedder for DAM documents | Railway has no GPU; 150k thumbnails at CPU speed is days per full pass. The GPU poller does 5–26 docs/s. |
 | Bigger claim batches to finish faster | Known to time out (plan_semantic_search step 7: "never jump back to known timeouting batch sizes"). |
 | Nightly one-shot Task Scheduler job as the runner | Already failed twice (password rotation; 72 h limit). Only an always-on, heartbeating, credential-isolated service counts. |
@@ -245,8 +245,10 @@ select public.image_embed_status();
   `dam_image_embed_login` is the durable DAM runner; it must never depend on
   the shared `postgres` password.
 - D4 (Nov 1, #564): failures are shown, never masked as empty results.
-- D5 (Nov 3, #689): exact SKU and SKU-prefix queries skip the picture leg;
-  unknown code-shaped queries keep it.
+- D5 (Nov 3, #689; amended by the owner Nov 11, 2026): exact SKU and
+  SKU-prefix queries skip the picture leg. So does a complete code in a
+  catalog format that is not in the catalog (it returns no matches). Other
+  unfamiliar text keeps its existing behavior.
 - D6 (this plan): **no activation without the scorecard in §9 step 5
   passing**, and no scorecard without a fixed query list checked into the
   repo.

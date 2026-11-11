@@ -63,19 +63,17 @@ Compare identical sets and preserve natural catalog updates as a limitation; do 
 interpret expired authentication or unavailable searches as relevance judgments.
 
 Product-code intent follows the [canonical business rule](https://github.com/popcre/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md#product-code-searches).
-Supplemental policy cases can require an actual returned spelling correction or
-semantic execution with picture guesses. The unknown-code policy check does not
-judge those guesses relevant; keep them explicitly unjudged and outside the
-original 119-case denominator.
+Supplemental policy cases can require an actual returned spelling correction.
 
-The unknown-code picture-guess policy remains open on #680 and #706. The earlier
-unindexed format probe was withheld after its bounded full-miss timeout. The
-replacement indexed service-only reader from shared-db #5699 is verified installed;
-its application consumer is prepared for source review, not yet deployed. It
-normalizes only complete mixed ASCII letter/digit strings of 7–64 characters and
-requires a positive catalog-format response before preserving picture guesses.
-Existing catalog code/prefix identity behavior is unchanged. Unknown short
-partials retain existing behavior and remain an explicit coverage gap.
+**Unknown item codes (owner, November 11, 2026 — reverses November 3):** a
+complete mixed letter/digit code of 7–64 characters whose format exists in the
+catalog but which is not itself in the catalog is searched by words only and
+returns no matches; it never runs the picture leg (live example: SQX26DYMM02
+returned 450 unrelated groups before the change). Score such a case with
+`expect_empty`, not `expect_semantic`. The format check is the indexed
+service-only reader from shared-db #5699. Existing catalog code/prefix
+behavior is unchanged. Unknown short partials retain existing behavior and
+remain an explicit coverage gap.
 
 The consumer bounds its required hint to 1000ms and the remaining original 30s
 request budget, with Request cancellation and a same-budget handler-entry fallback.
