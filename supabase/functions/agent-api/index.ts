@@ -3321,7 +3321,6 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       }
 
       return {
-        crawl_run_id: runId,
         root_label: f.root_label as string,
         relative_path: f.relative_path as string,
         directory_path: f.directory_path as string,
@@ -3334,8 +3333,6 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         normalized_style_guide_folder: (f.normalized_style_guide_folder as string) || null,
         size_bytes: (f.size_bytes as number) || null,
         modified_at: modifiedAt,
-        last_seen_at: new Date().toISOString(),
-        is_active: true,
         // Licensor "With Likeness" / "No Likeness" file naming only; NULL otherwise (#132).
         has_talent_likeness: talentLikenessFromFilename(f.filename as string),
         // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
@@ -3344,10 +3341,12 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       };
     });
 
+    // popdam3#804: the RPC writes a file row only when its content changed (or
+    // it returns active) and records "seen by this run" in a side table, so an
+    // unchanged file costs no row rewrite and no snapshot rebuild. It returns
+    // every crawled row's id; reconcile reads the side table.
     const { data: upsertedRows, error: upsertErr } = await db
-      .from("style_guide_files")
-      .upsert(rows, { onConflict: "root_label,relative_path" })
-      .select("id");
+      .rpc("upsert_style_guide_crawl_files", { p_run_id: runId, p_rows: rows });
     logIndexedWriteResult("public.style_guide_files", "crawl-upsert", rows.length, upsertErr ? 0 : upsertedRows?.length ?? null);
 
     if (upsertErr) {
@@ -3381,17 +3380,13 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     const rootLabels = [...new Set(rootsScanned.map((root) => root.split("/").filter(Boolean).pop() || root))];
     let acceptedFileCount = 0;
     for (const rootLabel of rootLabels) {
-      const { count, error: acceptedCountErr } = await db
-        .from("style_guide_files")
-        .select("id", { count: "exact", head: true })
-        .eq("root_label", rootLabel)
-        .eq("crawl_run_id", runId)
-        .eq("is_active", true);
+      const { data: count, error: acceptedCountErr } = await db
+        .rpc("count_style_guide_crawl_seen", { p_root_label: rootLabel, p_run_id: runId });
       if (acceptedCountErr) {
         console.error("[complete-style-guide-crawl] Could not count accepted files:", acceptedCountErr.message);
         return err(`Could not count accepted crawl files: ${acceptedCountErr.message}`, 500);
       }
-      acceptedFileCount += count ?? 0;
+      acceptedFileCount += Number(count ?? 0);
     }
     const zeroFileCrawl = finalFileCount === 0;
     const effectiveCrawlError = crawlError ||
