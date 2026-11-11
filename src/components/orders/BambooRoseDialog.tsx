@@ -85,7 +85,7 @@ export function BambooRoseDialog({ open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle>Burlington Bamboo Rose sheet</DialogTitle>
           <DialogDescription>
-            Fills Burlington's Bamboo Rose sheet for one HFC. Import the HFC with "Import buy sheet" first. Carton sizes,
+            Fills Burlington's Bamboo Rose sheet for one HFC. Import the HFC with Burlington → "Import buy sheet (HFC)" first. Carton sizes,
             weights, materials, inner packs and pallets stay blank to fill by hand.
           </DialogDescription>
         </DialogHeader>

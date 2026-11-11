@@ -218,7 +218,7 @@ Fixture: `src/test/fixtures/burlington-buy-sheet-2026-10-20.xlsx`; tests:
 
 ### Burlington Bamboo Rose quote sheet (2026-11-10)
 
-After a buy sheet is imported, the "Bamboo Rose sheet" button on `/orders` (`src/components/orders/BambooRoseDialog.tsx`) fills Burlington's Bamboo Rose
+After a buy sheet is imported, the "Burlington → Bamboo Rose sheet" on `/orders` (`src/components/orders/BambooRoseDialog.tsx`) fills Burlington's Bamboo Rose
 quote template (`src/lib/bamboo-rose-sheet.ts`). The user picks the blank
 template downloaded from the portal; the browser writes columns A–AT of its
 first sheet directly in the file's XML (every lookup sheet, dropdown and hidden
