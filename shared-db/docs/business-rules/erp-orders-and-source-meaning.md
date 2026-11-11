@@ -25,6 +25,34 @@ ColdLion sales-order or production-order references are excluded from automatic
 replacement and left for triage, preserving production linkage on a live line.
 Cancelled, source-cancelled, voided and ambiguous candidates are excluded.
 
+## Burlington HFC (bulk) buy sheet: from final sheet to OrderList
+
+**Settled (Albert, 2026-11-10, relaying Adam and the salesmen).**
+
+- Burlington revises its HFC bulk buy sheet many times while the buyer works on
+  it. The salesperson knows when the buyer commits and enters the sheet only
+  then. Once in OrderList it is revised almost never (the salesmen's estimate:
+  99.5% of the time no revision follows).
+- Revised sheets are therefore not handled yet. An import that would change or
+  add to orders an earlier buy-sheet upload filled must be recognised and
+  stopped, and the salesperson told to report it, not to enter the changes by
+  hand. Revision handling is built only when a real revision appears.
+- Process after the sheet is final (Adam):
+  1. The salesperson asks Fabi (sales assistant) for the Item Description of
+     each assortment (one prepack of the sheet's styles per pack and delivery).
+  2. The salesperson gives that description to JamieLynn (ColdLion), who
+     creates the master SKU.
+  3. The salesperson adds the master SKU with Burlington's quantity to OrderList
+     without a PO number. The official PO arrives later (see *Bulk (HFC) orders
+     replaced by distro orders*).
+
+**Proposed (not yet approved):** generate the assortment Item Description
+automatically from the pack's styles — property or licensor names, then the
+shared product type, then size, abbreviated only to fit ColdLion's 100-character
+description limit. Past descriptions follow several inconsistent styles, so the
+test is whether JamieLynn accepts generated descriptions, not an exact match to
+past ones.
+
 ## How a new order enters the system (OrderList intake)
 
 **Future production PO reuse is prohibited (Settled, Albert, 2026-10-13).**
