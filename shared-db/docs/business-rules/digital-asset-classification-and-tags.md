@@ -38,9 +38,14 @@ Search uses canonical names and reviewed aliases. Users must be able to distingu
 
 ### Product-code searches
 
-**Status:** Settled — Albert Hazan, November 3, 2026. The
+**Status:** Settled — Albert Hazan, November 11, 2026, amending his November 3,
+2026 decision. The
 [owner-decision record on PopDAM #689](https://github.com/u2giants/popdam3/issues/689#issuecomment-6621834367)
-says to “Keep picture guesses” for code-looking searches absent from the catalog.
+said to “Keep picture guesses” for code-looking searches absent from the catalog.
+On November 11 a search for an item code that is not in the catalog returned
+450 unrelated products, and the owner rejected them: “those results look
+NOTHING like the item # i typed in”
+([PopDAM #955](https://github.com/u2giants/popdam3/pull/955)).
 
 A real product code, or a catalog-confirmed start of one, uses keyword matches
 without picture guesses. Determine whether it exists from the current catalog,
@@ -48,10 +53,11 @@ not from the shape of the typed text. The
 [completed code and prefix checks](https://github.com/u2giants/popdam3/issues/689#issuecomment-6621791572)
 record that distinction.
 
-A code-looking query that does not match the catalog keeps picture guesses.
-Those guesses do not establish product identity, and arbitrary nonsense must
-not be classified as a product code. Recognition of an unfamiliar query may
-retain picture search; it must never suppress it or create a catalog identity.
+A complete code written in a format the catalog uses, but which is not itself
+in the catalog, is an item number that does not exist: it also uses keyword
+matches without picture guesses, so the search reports no matches. It never
+creates a catalog identity. Arbitrary nonsense must not be classified as a
+product code, and other unfamiliar text keeps its picture search.
 
 ## Unknown or Proposed decisions
 
