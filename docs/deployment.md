@@ -209,8 +209,8 @@ production.
 **No login on the sandbox (owner request 2026-11-11, one day):** the sandbox
 build signs in a preview-only admin test account automatically
 (`src/lib/sandbox-auto-login.ts`, variables `SANDBOX_AUTO_LOGIN_EMAIL` /
-`SANDBOX_AUTO_LOGIN_PASSWORD`; never set for production builds). Remove on
-2026-11-12: delete that preview user and both variables, then rebuild.
+`SANDBOX_AUTO_LOGIN_PASSWORD`; never set for production builds). Remove only on
+Albert's word (issue #952): delete that preview user and both variables, then rebuild.
 
 Application changes are merged to `main` through feature branches and pull requests after required checks; production workflows run from the merged source. There is no staging environment or manual staging-to-production promotion step.
 
