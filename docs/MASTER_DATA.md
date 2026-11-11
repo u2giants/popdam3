@@ -1,3 +1,10 @@
+---
+summary: Master Data style tracker at /styles: the Google-Sheet mirror workflow, matching, and the loading-performance plan pointer; temporary until PLM hosts it.
+kind: living
+status: current
+read-when: changing Master Data or the style tracker
+---
+
 # Master Data Style Tracker
 
 Active loading-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.

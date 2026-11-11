@@ -1,3 +1,10 @@
+---
+summary: DesignFlow PLM becomes the single source of truth for users, permissions and roles (master issue popcre/designflow-backend#250); read STATUS first.
+kind: plan
+status: open
+read-when: changing user, role or permission sources
+---
+
 # Plan: consolidate user/permissions/roles into DesignFlow PLM (single source of truth)
 
 **Tracking:** master issue popcre/designflow-backend#250 (created

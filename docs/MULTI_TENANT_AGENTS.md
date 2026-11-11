@@ -1,3 +1,10 @@
+---
+summary: How bridge and Windows agents serve multiple Supabase backends via TENANTS; PopDAM and PopSG share one project, so single-tenant is the standard install.
+kind: living
+status: current
+read-when: running one agent against several backends
+---
+
 # Multi-Tenant Agents
 
 Both the **Bridge Agent** (Synology Docker) and the **Windows Render Agent** can serve **multiple Supabase backends from a single install** via the `TENANTS` environment variable.

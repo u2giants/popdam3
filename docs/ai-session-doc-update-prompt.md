@@ -1,3 +1,10 @@
+---
+summary: End-of-session prompt telling an AI session which Markdown files to update with durable knowledge from its work.
+kind: ops
+status: current
+read-when: closing a session that changed code or behavior
+---
+
 # AI Session Documentation Update Prompt
 
 Use this at the end of an AI coding session when the session changed code, deployment behavior, data flow, configuration, operational assumptions, or important project knowledge.

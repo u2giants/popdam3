@@ -1,3 +1,10 @@
+---
+summary: Issue #678 plan: fix(ingest): retire stale duplicate records once their path is gone. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-678
+---
+
 # Plan: Review finding: u2giants/popdam3#677 fix(ingest): retire stale duplicate records once their path is gone (u2giants/popdam3#678)
 Issue: https://github.com/u2giants/popdam3/issues/678
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

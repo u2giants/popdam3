@@ -1,3 +1,10 @@
+---
+summary: Local development setup: Node 20 prerequisites, npm scripts, dev server, test and lint, Deno for edge functions.
+kind: living
+status: current
+read-when: setting up or running the app locally
+---
+
 # Local Development
 
 ## Prerequisites

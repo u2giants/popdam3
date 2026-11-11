@@ -1,3 +1,10 @@
+---
+summary: Always-on HTTP service embedding typed search words with the SigLIP2 text tower into 768-number query vectors for picture search.
+kind: living
+status: current
+read-when: changing the text-embed query service
+---
+
 # PopDAM text-embed (SigLIP2 query tower)
 
 Small always-on HTTP service that turns typed search words into 768-number

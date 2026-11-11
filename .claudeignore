@@ -41,3 +41,9 @@ src/integrations/supabase/types.ts
 
 # Electron build temp
 apps/popdam-helper/.webpack/
+
+# Vendored / archive / evidence trees (see AGENTS.md → What to ignore)
+shared-db/
+docs/archive/
+docs/verification/
+verification/

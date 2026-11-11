@@ -1,3 +1,10 @@
+---
+summary: Search performance on Supabase Postgres: query shapes, exact and semantic lanes, totals and cold-load fixes.
+kind: living
+status: current
+read-when: making search faster or diagnosing timeouts
+---
+
 # Search Performance
 
 PopDAM library search is backed by Supabase Postgres, not an external search

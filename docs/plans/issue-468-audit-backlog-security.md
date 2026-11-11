@@ -1,3 +1,10 @@
+---
+summary: Issue #468 plan: Audit backlog: security and authorization. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-468
+---
+
 # Plan: Audit backlog: security and authorization (u2giants/popdam3#468)
 Issue: https://github.com/u2giants/popdam3/issues/468
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

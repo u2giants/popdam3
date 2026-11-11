@@ -1,3 +1,10 @@
+---
+summary: Issue #719 plan: fix: close verified audit backlog findings. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-719
+---
+
 # Plan: Review finding: u2giants/popdam3#713 fix: close verified audit backlog findings (u2giants/popdam3#719)
 Issue: https://github.com/u2giants/popdam3/issues/719
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

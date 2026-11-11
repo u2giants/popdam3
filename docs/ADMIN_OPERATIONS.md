@@ -1,3 +1,10 @@
+---
+summary: Complete reference for every admin-api edge-function route: HTTP POST with an action JSON body, admin JWT or service-role auth, per-route shapes.
+kind: living
+status: current
+read-when: adding, changing or calling an admin operation
+---
+
 # Admin Operations Reference
 
 This document is the complete reference for every route exposed by the `admin-api` Supabase Edge Function.  All routes are called as HTTP POST with a JSON body containing an `action` field, unless noted otherwise.

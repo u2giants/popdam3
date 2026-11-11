@@ -1,3 +1,10 @@
+---
+summary: AI model usage rules: capability-driven structured output, Exacto routing, endpoint pinning, bake-offs and key handling across worker and agents.
+kind: living
+status: current
+read-when: changing any model reference or AI call path
+---
+
 # AI Model Usage Rules
 
 ## Capability-driven structured output

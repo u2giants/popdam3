@@ -1,3 +1,10 @@
+---
+summary: Issue #671 plan: fix(pdf): reject form text in parsed sheet fields. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-671
+---
+
 # Plan: Review finding: u2giants/popdam3#670 fix(pdf): reject form text in parsed sheet fields (u2giants/popdam3#671)
 Issue: https://github.com/u2giants/popdam3/issues/671
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

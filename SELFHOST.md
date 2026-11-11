@@ -1,3 +1,10 @@
+---
+summary: Self-hosted VPS runbook: Coolify and Traefik architecture, app config, the dam/sg.designflow.app domains, manual deploy and repair steps.
+kind: ops
+status: current
+read-when: operating or repairing the VPS deployment
+---
+
 # Frontend Deployment — Self-Hosted VPS
 
 Production deployment for `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG). Both hostnames serve the same Docker image; the app detects hostname at runtime to switch modes.

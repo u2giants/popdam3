@@ -1,3 +1,10 @@
+---
+summary: Plan for #179 item 3a: move the Z: NAS password into Vault and cut over popdam-render; revised after a Muse REJECT, draft for final check.
+kind: plan
+status: open
+read-when: executing password-rotation item 3a of #179
+---
+
 # #179 item 3a: Z: NAS password in Vault and popdam-render cutover
 
 Status: revised after Muse REJECT (empty-value overwrite fixed in agent-api; rollback digests added). Status: draft for final-check. Owner: Claude chat 7623097e-a8da-4712-8cab-fb86b5076289 on hetz.

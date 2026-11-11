@@ -1,3 +1,10 @@
+---
+summary: Item-page product mockup integration: buttons, link params and product auto-matching; pop-mock releases vendor in automatically.
+kind: living
+status: current
+read-when: changing the mockup tool or its auto-match
+---
+
 # Product Mockups tool (item-page integration)
 
 The **Create product mockup** button on an asset's or item's detail panel opens

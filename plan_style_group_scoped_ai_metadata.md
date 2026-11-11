@@ -1,3 +1,10 @@
+---
+summary: Product versus file-level AI metadata ownership (style-group-scoped tags); read STATUS first.
+kind: plan
+status: open
+read-when: changing style-group versus asset tag ownership
+---
+
 # Style-Group-Scoped AI Metadata Implementation Plan
 
 Implementation tracker: [GitHub issue #96](https://github.com/u2giants/popdam3/issues/96)

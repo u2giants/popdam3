@@ -1,3 +1,10 @@
+---
+summary: Critical incident write-ups, newest first; read the matching entry before changing behavior an incident touched.
+kind: living
+status: current
+read-when: debugging a familiar symptom before re-investigating
+---
+
 # Critical incidents
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.

@@ -1,3 +1,10 @@
+---
+summary: Developer onboarding guide: business, architecture, codebase and workflow; the ERP-sync sections retired 2026-09-06 (ColdLion canonical).
+kind: living
+status: current
+read-when: onboarding a new developer or session
+---
+
 # PopDAM — Developer Onboarding Guide
 
 > **Retired 2026-09-06.** The `erp-sync` Edge Function and its DesignFlow feed have been removed; ColdLion `plm.item` is the canonical item master. `erp_items_current` is frozen at the 2026-05-21 sync. The sections below describe historical behaviour.

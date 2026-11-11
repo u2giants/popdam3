@@ -1,3 +1,10 @@
+---
+summary: OrderList exception tools around issue #277: source exceptions own the live proof; the completed Sheets integration must not be replayed.
+kind: ops
+status: current
+read-when: working on OrderList source exceptions
+---
+
 # OrderList exception tools
 
 Issue [#277](https://github.com/u2giants/popdam3/issues/277) owns the source

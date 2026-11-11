@@ -1,3 +1,10 @@
+---
+summary: Saved, scored search test set for PopDAM and PopSG; run it before and after anything that changes search or tags.
+kind: ops
+status: current
+read-when: changing search, tags or the scoring model
+---
+
 # Search test set
 
 A saved, scored definition of good search for PopDAM and PopSG. Run it before and after anything

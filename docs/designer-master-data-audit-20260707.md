@@ -1,3 +1,10 @@
+---
+summary: 2026-07-07 audit comparing 9,491 live Designer cells against core.creative_designer; mismatch list and cleanup basis.
+kind: proof
+status: done
+read-when: checking designer-name cleanup history
+---
+
 # Designer Master Data Audit - 2026-07-07
 
 Source: live production Supabase project `qsllyeztdwjgirsysgai`, `public.style_tracker_rows` as used by `https://dam.designflow.app/styles`.

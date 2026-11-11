@@ -1,3 +1,10 @@
+---
+summary: Cloud infrastructure: the Supabase project and edge-function inventory, pg_cron plus pg_net jobs, Vault secrets, DigitalOcean Spaces store.
+kind: living
+status: current
+read-when: changing edge functions, cron jobs or storage
+---
+
 # Infrastructure Reference
 
 This document covers the cloud infrastructure underlying PopDAM: the Supabase project, all Edge Functions, the scheduled job system (pg_cron + pg_net), secrets management (Vault), and the DigitalOcean Spaces thumbnail store.

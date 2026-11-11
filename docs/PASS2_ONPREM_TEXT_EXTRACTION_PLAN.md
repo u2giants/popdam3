@@ -1,3 +1,10 @@
+---
+summary: Pass 2 operational plan: extract text from the remaining 16-19k eligible tech-pack and licensing PDFs on the Windows agent, then re-run rich-pdf-extract.
+kind: plan
+status: open
+read-when: running or checking on-prem PDF text extraction
+---
+
 # Pass 2 — On-Prem PDF Text Extraction Plan
 
 PopDAM rich tech-pack / licensing-sheet PDF extraction is already shipped to production. Pass 1 processed the small set of eligible PDFs that already had `pdf_text_samples.extracted_text`. Pass 2 is the operational step that extracts text from the remaining ~16k–19k eligible PDFs (tech pack / licensing sheet by filename) that do not yet have `pdf_text_samples` rows, and then re-runs the cloud `rich-pdf-extract` worker op so it picks up the newly extracted text and populates `dam.pdf_rich_extraction`, `style_groups.rich_metadata`, and the Material facet.

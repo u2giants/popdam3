@@ -1,3 +1,10 @@
+---
+summary: Issue #681 plan: Activate stale-record retirement: update NAS bridge agent after Indra rescan. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-681
+---
+
 # Plan: Activate stale-record retirement: update NAS bridge agent after Indra rescan (u2giants/popdam3#681)
 Issue: https://github.com/u2giants/popdam3/issues/681
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

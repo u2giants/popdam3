@@ -1,3 +1,10 @@
+---
+summary: Seafile Pro 13 plus SeaDrive as the WFH transport and cache layer; the Helper supervises SeaDrive, providers are per-machine by region.
+kind: living
+status: current
+read-when: changing Seafile transport, regions or Helper storage providers
+---
+
 # Seafile / SeaDrive Integration
 
 How PopDAM uses Seafile (Pro 13) + the SeaDrive virtual-drive client as the work-from-home transport/cache layer. PopDAM/Supabase remains the checkout/audit/policy plane; the POP DAM Helper supervises SeaDrive (it does **not** embed or fork it).

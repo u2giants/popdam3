@@ -1,3 +1,10 @@
+---
+summary: Issue #698 plan: Tagging: keep scanned junk and people out of tags (#680). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-698
+---
+
 # Plan: Review finding: u2giants/popdam3#697 Tagging: keep scanned junk and people out of tags (#680) (u2giants/popdam3#698)
 Issue: https://github.com/u2giants/popdam3/issues/698
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

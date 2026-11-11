@@ -1,3 +1,10 @@
+---
+summary: Retired 2026-09-06 ERP pipeline history; ColdLion plm.item is the canonical item master. Kept for MG-code era and classification background.
+kind: living
+status: stale
+read-when: researching legacy ERP sync behavior
+---
+
 # ERP Integration — Current State
 
 > **Retired 2026-09-06.** The `erp-sync` Edge Function and its DesignFlow feed have been removed; ColdLion `plm.item` is the canonical item master. `erp_items_current` is frozen at the 2026-05-21 sync. The sections below describe historical behaviour.

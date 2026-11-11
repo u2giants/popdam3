@@ -1,3 +1,10 @@
+---
+summary: Plan for #382: enable Samba catia name mapping on the edgesynology2 mac share so quote-named files render; inventory and match target included.
+kind: plan
+status: open
+read-when: fixing quote-named NAS file rendering
+---
+
 # Plan: enable Samba catia name mapping on edgesynology2 mac share (#382)
 
 ## Why

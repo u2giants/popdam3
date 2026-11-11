@@ -1,3 +1,10 @@
+---
+summary: Canonical short-entry registry of intentional quirks in the fixed Looks/Actually/Why/Do-not-change shape, indexed one line each from AGENTS.md.
+kind: living
+status: current
+read-when: code looks wrong, duplicated or odd and is about to be changed
+---
+
 # Intentional quirks
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Intentional quirks.

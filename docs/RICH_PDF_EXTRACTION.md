@@ -1,3 +1,10 @@
+---
+summary: Rich tech-pack and licensing PDF extraction, shipped 2026-07-15: schema, the DeepSeek direct-API worker op, frontend facets and design history.
+kind: living
+status: current
+read-when: changing rich PDF extraction or its facets
+---
+
 # Rich PDF Extraction
 
 > **Status — SHIPPED to production 2026-07-15** (design spike was 2026-07-09, below).

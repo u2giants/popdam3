@@ -1,14 +1,21 @@
-# AGENTS.md — PopDAM Developer & AI Session Guide
+# AGENTS.md — PopDAM Router
 
-Read this first. Under 5 minutes. Everything else in `docs/` is a deep-dive reference.
+The complete document index is [`docs/INDEX.md`](docs/INDEX.md), generated from
+document headers. Read it (or search it for your topic's keywords) before
+opening or searching any other document; open a document only when its summary
+matches your task. This file routes — it does not contain. The detail behind
+every section below lives in [`docs/agents-reference.md`](docs/agents-reference.md)
+(same section names), and the deep-dive docs under `docs/` it points to.
 
----
+Every new Markdown file opens with the four-key header (`summary`, `kind`,
+`status`, `read-when`); then regenerate the index with
+`ai-doc-health --repo . --fix-index` (tool: popcre/ai-devops, rules:
+`docs/doc-health.md` there). The advisory check is `.github/workflows/doc-health.yml`;
+it never blocks a merge.
 
 ## Session wrap-up convention
 
 When the user says **"wrap up"**, that means: update the relevant Markdown docs with durable knowledge from the session, run required checks, commit/push/merge/deploy according to repo rules, verify 1Password coverage for any secrets encountered, and leave every repo handoff-safe. For shared Supabase/backend changes, update canonical `/worksp/shared-db` docs and complete the shared-db branch → PR → merge workflow. Do not treat "wrap up" as a summary-only request.
-
----
 
 ## Project summary
 
@@ -18,181 +25,71 @@ When the user says **"wrap up"**, that means: update the relevant Markdown docs 
 
 **What matters:** assets get processed quickly, thumbnails appear, ERP codes resolve correctly, and style group assignments stay accurate. The team reviews and approves artwork against licensing deadlines.
 
-**Key moving parts:**
-
-| Component | Location | Platform |
-|-----------|----------|----------|
-| React web app | `src/` | Coolify (Docker, self-hosted VPS) |
-| Supabase edge functions | `supabase/functions/` | Supabase (Deno) |
-| PostgreSQL DB | canonical `/worksp/shared-db/supabase/migrations/` | Supabase (hosted) |
-| Cloud worker (AI tagging, ERP, rebuild) | `apps/worker/` | Railway (Node.js) |
-| Bridge agent (NAS scanner + thumbnailer) | `apps/bridge-agent/` | Synology Docker |
-| Windows render agent (no Illustrator) | `apps/windows-agent/` | Windows PC/VM (manual install) |
-| Image-embed GPU poller (image similarity) | `apps/image-embed-worker/` | Windows GPU PC `edge-dev` (Task Scheduler, manual install) |
-| Desktop helper (checkout/checkin) | `apps/popdam-helper/` | Electron, Mac + Windows |
-
----
+Key moving parts: React web app (`src/`, Coolify), Supabase edge functions (`supabase/functions/`), shared PostgreSQL (canonical `/worksp/shared-db`), cloud worker (`apps/worker/`, Railway), NAS bridge agent (`apps/bridge-agent/`), Windows render agent (`apps/windows-agent/`), image-embed GPU poller (`apps/image-embed-worker/`, edge-dev), desktop Helper (`apps/popdam-helper/`). Full inventory: agents-reference → Container and service inventory.
 
 ## AI tool notes
 
-Claude Code uses .claudeignore. Other tools follow **What to ignore** below. Do not bulk-load every .md file.
+Claude Code uses .claudeignore. Other tools follow **What to ignore** below. Do not bulk-load every .md file — start from `docs/INDEX.md`.
 
 ## Documentation map: what to read for each task
 
-Business logic is companywide and organized by topic, not by application. Start at
-[companywide application and task map](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/application-map.md)
-and load only the topics the task touches. This repo documents DAM implementation; it must
-not maintain a competing copy of a business rule.
+Always start with `AGENTS.md` (this file), then `HANDOFF.md` → the open files in `HANDOFF.d/` when continuing unfinished work. Business logic is companywide, organized by topic at the [companywide application and task map](https://github.com/u2giants/shared-db/blob/main/docs/business-rules/application-map.md); this repo must not keep a competing copy of a business rule.
 
-Always start with:
+| Task / question | Read these docs |
+|---|---|
+| Quick repo orientation | `README.md`, `docs/ONBOARDING.md`, `docs/architecture.md` |
+| Modify app behavior / project-owned code | The relevant folder + its folder-level README; `docs/architecture.md` if system design changes |
+| Configuration, env vars, admin_config keys | `docs/configuration.md`; agents-reference → Credentials and environment |
+| Local setup, dev scripts, test/lint | `docs/development.md` |
+| Deployment, Docker, CI/CD, rollback | `docs/deployment.md`, `SELFHOST.md` |
+| DB schema, migrations, external IDs | `docs/SCHEMA.md`; **Standing rules** below; canonical `/worksp/shared-db/AGENTS.md` |
+| Stage/customer/program (path-derived) | `docs/PATH_ATTRIBUTES.md`, `docs/PATH_UTILS.md` |
+| Bulk operations / Railway worker | `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` |
+| ERP sync / MG codes / classification | `docs/ERP_ENRICHMENT_PLAN.md` (historical), `docs/MODEL_RULES.md`; agents-reference → Task-to-file navigation |
+| OrderList / `/orders` | `docs/ORDER_LIST.md`, `docs/orderlist-exception-tools.md` |
+| Master Data / style tracker | `docs/MASTER_DATA.md` |
+| Helper / checkout-checkin / Seafile | `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` |
+| Image similarity / embeddings | `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` |
+| Search embeddings / semantic search (DAM or PopSG) | `plan_vector_consolidation.md` (STATUS first) |
+| PopSG style-guide mode | `docs/POPSG.md` |
+| Mockup tool | `docs/MOCKUP_TOOL.md`, `plan_mockup_auto_match.md` (STATUS first) |
+| Auth / SSO / login | `docs/AUTHENTICATION.md` |
+| MCP servers / 1Password secrets | `docs/MCP_SERVERS.md`, `docs/1password.md` |
+| Bugs / incidents | `docs/incident-log.md`, `docs/idiosyncrasies.md`, `docs/KNOWN_QUIRKS.md`, open `HANDOFF.d/` files |
+| Changing any AI model reference | `docs/MODEL_RULES.md`, `docs/KNOWN_QUIRKS.md` |
 
-- `AGENTS.md` (this file)
-- `HANDOFF.md` **if it exists** — unfinished/in-progress work; required reading before continuing anything.
+Active plans live at the root as `plan_*.md` — always read each plan's STATUS first; do not re-derive completed steps. One implementation plan per open GitHub issue sits in `docs/plans/issue-<n>-*.md`. The full list with statuses is in `docs/INDEX.md`.
 
-Active plans (read STATUS first; do not re-derive completed steps):
+## Standing rules (never skip)
 
-- plan_hetz_ai_password_rotation_179.md — rotation of the hetz OS-user ai password (#179); production gate; not yet approved
-- plan_master_data_designflow_reference_cutover.md — converge shared Master Data vs DesignFlow Item Details
-- plan_openrouter_batch_restart_recovery.md — Image Tagging batches survive Railway restarts
-- plan_ai_model_interaction_reliability.md — capability-driven model contract (replaces name guessing)
-- plan_folder_shortening_snapshot_restore.md — NAS folder shortening under `____New Structure` + admin restore-from-snapshot (issue 963); read STATUS first
-- plan_vector_consolidation.md — ALL vector/semantic search work (DAM + PopSG): one durable embedding pipeline, scorecard, PopSG activation; read STATUS first
-- plan_hybrid_search_rollout.md — HISTORICAL; superseded by plan_vector_consolidation.md (keeps the failure contract)
-- plan_image_similarity_upload_search.md — upload an image, find same artwork (dual vision embeddings, GPU workers); read STATUS first
-- plan_semantic_search_popdam_popsg.md — HISTORICAL; superseded by plan_vector_consolidation.md
-- docs/SEARCH_EVAL.md — scored search test set; run before and after anything changing search or tags
-- plan_style_group_scoped_ai_metadata.md — product vs file-level AI metadata
-- plan_popsg_production_readiness.md — PopSG library truthfulness and search
-- plan_master_data_orderlist_loading_performance.md — first-paint and OrderList Find performance
-- plan_credential_rotation_20261027.md — CANCELLED by owner ruling 2026-10-27 (on-machine exposure → redact, not rotate); retained as reference for the next real rotation
-- plan_user_permissions_designflow_cutover.md — DesignFlow PLM becomes the single source of truth for users/permissions/roles; CRM/PopPIM/PopDAM settings become frontends; read STATUS first; master issue popcre/designflow-backend#250
-- plan_orderlist_sheets_full_integration.md — completed native Sheets integration; read STATUS for verified delivery and separate held source decisions; its completed session handoff is retired.
-- docs/plans/issue-<n>-*.md — one implementation plan per open GitHub issue (written 2026-11-04; index in HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md); read each plan's STATUS first, do not re-derive
+- **Shared DB Gatekeeper.** All database/schema changes for the shared Supabase project `qsllyeztdwjgirsysgai` are authored in canonical `u2giants/shared-db` (**moved to `popcre/shared-db`**; the old URL redirects, but `gh search` against the old name fails) using a branch + PR + timestamped migration, preview-first, with the AI owning the merge before any dependent app code. That means no app-side DDL, no inline/startup migrations, no Dashboard SQL, no one-off `execute_sql`, and no new files in this repo's `supabase/migrations/`. The only allowed copy of shared DB migrations here is the vendored read-only `shared-db/` mirror. `shared-db-guard.yml` fails PRs that add DDL outside it; the only override is an explicitly approved exception (PR label `db-change-approved` or `[db-change-approved]` in a direct-push commit message). Full rules + startup/shutdown hygiene: agents-reference → Shared DB Gatekeeper.
+- **Task gates.** Repository-local task routing is declared in `.ai-devops/task-gates.json` and verified by `scripts/test-task-gates.sh`; acknowledgement never bypasses a database-route refusal.
+- **Never push directly to protected `main`.** Feature branch + PR; checks and the merge queue decide. Albert does not merge — you do (except DesignFlow or a PR he said he will review first).
+- **Railway worker** auto-deploys from `main` changes matching `/apps/worker/**`; the bridge agent ships only with an `apps/bridge-agent/package.json` version bump and applies updates on request (`AGENT_UPDATE_REQUEST`).
+- Credentials and secrets: 1Password vault `vibe_coding`; the root `.mcp.json` carries no secrets (tokens come from 1Password). Full environment table: agents-reference → Credentials and environment.
+- New quirk → `docs/idiosyncrasies.md` (short) or `docs/KNOWN_QUIRKS.md` (deep dive); new incident → `docs/incident-log.md`; in-flight status → agents-reference → Pending work. Never expand this router with them.
 
-Then load additional docs only when relevant — do **not** ingest every `.md` file:
-
-| Task / question | Read these docs | Usually do not need |
-|---|---|---|
-| Quick repo orientation | `README.md`, `AGENTS.md` | Deep docs under `docs/` unless the task needs them |
-| Modify app behavior / project-owned code | `AGENTS.md`, the relevant folder/area, `docs/architecture.md` if system design is affected | `docs/deployment.md` unless deploy behavior changes |
-| Change configuration, env vars, admin_config keys, or runtime settings | `AGENTS.md`, `docs/configuration.md`, `docs/INFRASTRUCTURE.md`; Coolify for prod runtime env | unrelated architecture docs |
-| Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/deployment.md` unless CI/CD changes |
-| Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/deployment.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
-| Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md` → Shared DB Gatekeeper, canonical `/worksp/shared-db/AGENTS.md`, `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
-| Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
-| Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
-| Work on ERP sync / MG codes / category classification / production PO sync | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
-| Work on OrderList / `/orders` / production orders from the legacy OrderList sheet | `AGENTS.md`, `docs/ORDER_LIST.md`; shared backend contract lives in `shared-db/plan_popdam_order_list.md` | Master Data docs unless the task touches the style tracker |
-| Work on Master Data / style tracker / Google Sheet replica | `AGENTS.md`, `docs/MASTER_DATA.md`; shared backend changes also need `shared-db/docs/app-migration-notes/master-data-style-tracker-20260624.md` | PopSG/ERP docs unless the task touches them |
-| Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
-| Work on image similarity (upload-to-find, embeddings, GPU poller) | `AGENTS.md`, `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` | PopSG search docs (image search is PopDAM-only by plan) |
-| Work on search embeddings / semantic search (DAM or PopSG) | `AGENTS.md`, `plan_vector_consolidation.md` (STATUS first) | older semantic-search plans except as history |
-| Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
-| Work on the item-page product mockup tool (buttons, link params, product auto-matching) | `AGENTS.md`, `docs/MOCKUP_TOOL.md`; auto-matching work → `plan_mockup_auto_match.md` (read its STATUS table first) | pop-mock repo internals (edit there; releases vendor here automatically via pop-mock's sync workflow) |
-| Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
-| Touch MCP servers / `.mcp.json` / MCP tokens / 1Password secrets | `AGENTS.md`, `docs/MCP_SERVERS.md`; VPS proxy ops → `deploy/vps/` | unrelated app docs |
-| Investigate bugs / incidents | `AGENTS.md` → Incidents + Intentional Quirks, `docs/KNOWN_QUIRKS.md`, `HANDOFF.md` if present | unrelated folder docs |
-| Continue unfinished work | `AGENTS.md`, `HANDOFF.md`, the docs named inside `HANDOFF.md` | docs unrelated to the handoff scope |
-| Work in a subfolder with its own README | `AGENTS.md`, that folder-level `README.md`, then only broader docs it links to | other folder-level READMEs and unrelated deep docs |
-| Claude Code session | `CLAUDE.md`, then `AGENTS.md` | other docs unless the task needs them |
-| Documentation-only cleanup | `AGENTS.md`, `README.md`, the affected docs under `docs/` | source files except as needed to verify accuracy |
-
-> **Doc-set note:** `docs/` uses one canonical file per topic. The core four are lowercase: `docs/architecture.md`, `docs/deployment.md`, `docs/configuration.md`, `docs/development.md` (the older UPPERCASE `ARCHITECTURE.md`/`DEPLOYMENT.md` duplicates were merged into these and removed on 2026-06-10). `future_improvements.md` (root, untracked, local) holds storage-transport research notes, not operating docs. (`lucid.md` is **not** in this repo — it lives in `u2giants/seafile`.) Finished or stale root `fix_*`/`plan_*`/`use_*` notes live in `docs/archive/` (history only, not operating guidance); the live plans stay at the root and are linked from this file.
-
-**Shared infrastructure standards:** `u2giants/albert-standards` is the cross-project operating knowledgebase. When a PopDAM change alters non-code infrastructure or operating decisions that apply beyond this repo — VPS/Coolify/Traefik/GHCR/DNS/Railway behavior, Synology NAS operating assumptions, bridge-agent host facts, or incident runbooks — update the relevant standards docs too:
-- `https://github.com/u2giants/albert-standards/tree/main/infrastructure` for VPS/Coolify/Traefik/GHCR/Railway/DNS/server operations.
-- `https://github.com/u2giants/albert-standards/tree/main/synology` for NAS hardware, networking, health, and PopDAM bridge-agent host assumptions.
-
-**Host/server change boundary:** this repo is app-layer. Durable host/OS changes belong in the canonical Ansible repo at `/worksp/ansible` / `https://github.com/u2giants/ansible`, then GitHub Actions applies them. Host changes include packages, users, firewall, SSH/sudo, Docker engine or daemon config, systemd units/timers, cron, `/etc`, `/usr/local/bin` or `/usr/local/sbin`, Cloudflare Tunnel 1, Coolify host glue, and backup/DNS watchdogs. Do not SSH, sudo, or edit the host directly for durable infra changes; make an Ansible PR instead. App code/config owned by PopDAM still changes here and deploys through the normal PopDAM/Coolify pipeline. Break-glass direct host repair must be explicitly called out, then followed by an Ansible PR to capture or reconcile the drift.
-
----
-
-## Shared DB Gatekeeper
-
-Repository-local task routing is declared in `.ai-devops/task-gates.json` and
-verified by `scripts/test-task-gates.sh`. Protected browser, agent, worker,
-deployment, and shared-database paths require their full treatment;
-acknowledgement never bypasses a database-route refusal.
-
-This repo shares Supabase backend project `qsllyeztdwjgirsysgai` with the other
-POP apps. All database/schema changes for that shared backend must be authored
-in the canonical repo [`u2giants/shared-db`](https://github.com/u2giants/shared-db) (**moved to `popcre/shared-db` by 2026-09-18**; the old URL redirects, but `gh search` against the old name fails — use `popcre/shared-db`)
-using a branch + PR + timestamped migration, preview-first, with the AI owning
-the merge before any dependent app code is written.
-
-Never make shared database changes from this app repo. That means no app-side
-DDL, no inline/startup migrations, no Dashboard SQL, no one-off `execute_sql`,
-and no new migration files under this repo's local `supabase/migrations/`
-folder. The only allowed copy of shared DB migrations in this repo is the
-vendored read-only `shared-db/` mirror that syncs from the canonical repo.
-
-The `.github/workflows/shared-db-guard.yml` workflow runs on `push` and
-`pull_request` and fails changes that add database DDL or migrations outside the
-vendored `shared-db/` folder. The only override is an explicitly approved
-exception: add PR label `db-change-approved`, or include `[db-change-approved]`
-in the commit message for direct pushes.
-
-## Shared-backend startup/shutdown hygiene
-
-All POP apps share one Supabase backend. Keep shared-db work isolated:
-
-- Before editing, git status --short here and in canonical /worksp/shared-db if the task touches schema, RLS, RPCs, types, or cross-app contracts.
-- shared-db/ in this repo is a read-only mirror. No new migrations here — they belong in /worksp/shared-db on a named branch + PR.
-- Stop if /worksp/shared-db has untracked migrations or unrelated dirty files from another session.
-- Shutdown: no untracked migration left; unfinished shared-db work gets a durable handoff naming branch, migration, preview/prod status, and the next exact action.
-- Never paper over a credential failure with ad hoc SQL/API calls or embedded tokens. Fix the canonical credential path first; runbook: /worksp/shared-db/AGENTS.md → Supabase CLI and database credential runbook.
-
-## Multi-model AI usage in code
-
-Model locations, structured-output contract, Exacto routing, endpoint pinning, bake-off rules, and Google/DeepSeek keys are documented in [docs/MODEL_RULES.md](docs/MODEL_RULES.md). Quirks that look like bugs are in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md). Before changing any model reference, read those files — a model is configured in several places (dmin_config.AI_TASK_MODELS, worker handlers, bridge/windows samplers).
-
-## Repository structure
+## Repository structure (short)
 
 ```
-popdam3/
-├── src/                        ← React web app (Vite + Tailwind + Shadcn)
-│   ├── components/settings/    ← Admin UI — bulk ops, ERP, diagnostics
-│   ├── components/library/     ← Asset grid, detail panel, filters
-│   ├── pages/popsg/            ← PopSG-only pages (IS_POPSG guards)
-│   ├── lib/app-mode.ts         ← Runtime mode detection (dam vs sg hostname)
-│   └── integrations/supabase/ ← Generated types + Supabase client
-├── supabase/
-│   ├── functions/              ← Edge functions (Deno)
-│   │   ├── admin-api/          ← Admin operations router (~1300 lines)
-│   │   ├── agent-api/          ← Bridge/Windows agent comms (~2800 lines)
-│   │   ├── helper-api/         ← Desktop helper checkout/checkin
-│   │   └── _shared/            ← Shared handlers, types, constants
-│   └── migrations/             ← Historical/inert only; new migrations go in `/worksp/shared-db`
-├── apps/
-│   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
-│   │   └── src/handlers/       ← Per-operation batch handlers
-│   ├── bridge-agent/           ← Synology NAS agent (Docker, TypeScript)
-│   ├── windows-agent/          ← Windows render agent: Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR (TypeScript)
-│   ├── image-embed-worker/     ← GPU embed poller for image similarity (Python; DINOv3+SigLIP2; runs on edge-dev)
-│   └── popdam-helper/          ← Electron desktop app
-├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
-├── packages/agent-common/      ← Source shared by bridge + windows agents (synced into apps/*/src/common at build; edit here)
-├── scripts/                    ← Utility scripts (nas-ssh.sh, etc.)
-├── deploy/synology/            ← Reference docker-compose.yml for NAS
-├── .github/workflows/          ← CI/CD pipelines
-├── docs/                       ← Deep-dive reference docs
-├── CLAUDE.md                   ← Claude Code instructions (read after this)
-├── SELFHOST.md                 ← VPS / Coolify / Traefik ops guide
-└── HANDOFF.md                  ← Unfinished work (delete when done)
+src/                     ← React web app (Vite + Tailwind + Shadcn)
+supabase/functions/      ← Deno edge functions (_shared/ = shared handlers)
+apps/worker/             ← Railway cloud worker (handlers/ per operation)
+apps/bridge-agent/       ← Synology NAS scanner + thumbnailer
+apps/windows-agent/      ← Windows render agent (Inkscape/IM/GS/Poppler/Indra OCR)
+apps/image-embed-worker/ ← GPU embed poller (edge-dev)
+apps/text-embed/         ← SigLIP2 query-tower embedding service
+apps/db-data-admin/      ← Shared Master Data admin frontend (own workflow)
+apps/popdam-helper/      ← Electron desktop helper
+packages/path-filters/, packages/agent-common/  ← shared workspace packages
+scripts/, deploy/, .github/workflows/           ← tooling and CI/CD
+docs/                    ← deep-dive docs + INDEX.md; docs/plans/ = per-issue plans
+shared-db/               ← vendored read-only migration mirror (never edit; canonical repo is authoritative)
+HANDOFF.md → HANDOFF.d/  ← static pointer + one write-once file per session
+plan_*.md                ← active/historical implementation plans (STATUS first)
 ```
 
-**Generated / third-party (do not edit):**
-- `src/integrations/supabase/types.ts` — auto-generated by `deploy-supabase.yml`
-- `dist/` — Vite build output
-- `apps/*/dist/`, `apps/popdam-helper/out/` — app build/package output
-- `node_modules/`, `apps/*/node_modules/`
-- `.lovable/` — Lovable platform memory (ignore)
-
-**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`, `packages/agent-common/src/`.
-**Docs and runbooks:** root `*.md`, `docs/`, `SELFHOST.md`, `HANDOFF.md`.
-**Scripts and deployment metadata:** `scripts/`, `deploy/`, `.github/workflows/`, Dockerfiles, `nginx.conf`.
-
----
+Full tree with per-folder notes: agents-reference → Repository structure.
 
 ## Prime Directive: Custom-Code Boundary
 
@@ -208,104 +105,7 @@ apps/popdam-helper/src/
 packages/path-filters/src/
 ```
 
-**Before touching anything outside these paths, ask why.** The main risk areas:
-- `src/integrations/supabase/client.ts` — re-exports from `external-supabase.ts`; Lovable overwrites this periodically (quirk #2)
-- `src/integrations/supabase/types.ts` — auto-generated; edit will be overwritten on next deploy
-
----
-
-## Core modification inventory
-
-Files outside project-owned areas that were intentionally modified:
-
-| File | Change made | Why necessary | Upgrade risk |
-|------|------------|---------------|--------------|
-| `nginx.conf` | Added `listen [::]:80;` | Coolify health check resolves `localhost` → `::1` on IPv6; nginx only listening on IPv4 caused health check failures and Traefik routing to stop | Low — standard nginx directive |
-
----
-
-## Task-to-file navigation
-
-| Task | Files to touch | Files NOT to touch |
-|------|---------------|-------------------|
-| Add/fix admin UI bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | — |
-| Add/fix edge function route | `supabase/functions/admin-api/index.ts` or `agent-api/index.ts`, `supabase/functions/_shared/admin-handlers/` | `src/integrations/supabase/types.ts` (auto-generated) |
-| DB schema change | Canonical `/worksp/shared-db/supabase/migrations/` via shared-db branch + PR | This repo's `supabase/migrations/`; any existing migration file |
-| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in canonical `/worksp/shared-db/supabase/migrations/` | this repo's `supabase/migrations/` |
-| Fix style group asset_count drift | Canonical `/worksp/shared-db/supabase/migrations/`, `supabase/functions/_shared/` if function code changes | This repo's `supabase/migrations/` |
-| Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `supabase/functions/_shared/mg-lookup.ts` | — |
-| Fix SKU-derived MG01–MG03 names | `supabase/functions/_shared/sku-parser.ts`, `_shared/mg-lookup.ts` (current, hierarchical), `_shared/mg-legacy.ts` (pre-2025-05-14 flat lists) | `src/lib/mg-lookup.ts` is only a re-export |
-| Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, canonical `/worksp/shared-db/supabase/migrations/` for DB changes, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | This repo's `supabase/migrations/`; do not rely on copied browser JWTs as durable auth |
-| Fix bridge agent scan / ingest / move detection | `apps/bridge-agent/src/index.ts`, `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/api-client.ts`, `supabase/functions/agent-api/index.ts`, `docs/WORKER_LOGIC.md`, `docs/API_CONTRACTS.md` | Do not treat `quick_hash` as unique; do not edit generated Supabase types |
-| Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
-| Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
-| Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
-| Change AI classification prompt | `apps/worker/src/handlers/erp.ts` (~line 336) | — |
-| Change stage/customer/program derivation | New canonical shared-db migration editing `infer_path_attrs()` + a re-backfill (batched); `src/types/assets.ts`, `src/hooks/useAssets.ts`, `src/hooks/useStyleGroups.ts`, `src/components/library/FilterSidebar.tsx` | This repo's `supabase/migrations/`; `workflow_status` derivation in `_shared/metadata-derivation.ts` (separate concern) |
-| Fix Seafile check-in receipt verification | `apps/bridge-agent/src/checkin-verifier.ts`, `supabase/functions/agent-api/index.ts` (claim-checkin-verifications / report-checkin-verification), `supabase/functions/helper-api/index.ts` (complete-checkin Seafile branch) | — |
-| Add new pg_cron job | New canonical shared-db migration file using `cron.schedule()` | This repo's `supabase/migrations/`; direct Supabase Dashboard edits |
-
----
-
-## Data model and external identifiers
-
-| Entity / system | Identifier | Where defined | Notes |
-|-----------|-------|-----------|-------|
-| Supabase project ID (prod) | `qsllyeztdwjgirsysgai` | GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`, docs/config | Virginia (us-east-1), name "popdam". ⚠️ **MCP trap:** the old Ohio project `ryltkzzernhwnojzouyb` ("popdam-prod.old") is decommissioned but still ACTIVE, and the default `mcp__supabase__*` tools / `get_project_url` **resolve to it** — returning data frozen at the 2026-06-20 cutover. For live data use `mcp__claude_ai_Supabase__*` with `project_id: qsllyeztdwjgirsysgai`. Don't confuse with SynoMon `qnjimovrsaacneqkggsn`. |
-| Coolify app UUID | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify, GitHub secret `COOLIFY_APP_UUID` | Embedded in Traefik service name and CI secrets |
-| Coolify Traefik service name | `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` | `/data/coolify/proxy/dynamic/popdam-sg.yml` | Referenced by the PopSG file-provider route |
-| Production domains | `dam.designflow.app`, `sg.designflow.app` | Coolify + Traefik | Same frontend container; hostname chooses mode |
-| DigitalOcean Spaces bucket | `popdam` (CDN: `cdn.designflow.app`) | `admin_config.DO_SPACES_*` | Renaming requires migrating stored URLs |
-| Railway worker service | `apps/worker/` project in Railway | Railway dashboard | Auto-deploys from `main` changes matching `/apps/worker/**` |
-| GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | `.github/workflows/publish-frontend.yml` | Published by the frontend workflow as `:latest`, `:sha-<short-sha>`, and `:<short-sha>`; user-scoped package uses `GHCR_PAT` when package Actions access blocks `GITHUB_TOKEN` |
-| GHCR bridge agent image | `ghcr.io/u2giants/popdam-bridge` (`:stable`) | `.github/workflows/publish-bridge-agent.yml` | `:stable` is used by NAS compose + self-update |
-| pg_cron job | `nightly-sg-crawl` | migration files | PopSG crawl |
-| pg_cron job | `nightly-reconcile-sg-asset-counts` | migration files | Repairs cached style-group counts |
-| pg_cron job | `purge-render-queue-old-rows` / `purge-sg-render-queue-old-rows` | migration files | Queue retention |
-| pg_cron job | `purge-asset-path-history-old-rows` | migration files | Path-history retention |
-| Key DB tables/views | `assets`, `style_groups`, `api.plm_item_list`, `style_guide_files`, `admin_config`, `product_category_predictions` | `docs/SCHEMA.md`, migrations | Core PopDAM/PopSG data model |
-| Asset content hint | `assets.quick_hash`, `assets.quick_hash_version` | Bridge Agent / Helper hashing code; `docs/PROJECT_BIBLE.md` §9 | Sampled hash only; never a content-unique key |
-| Path-history table | `asset_path_history` | `agent-api` move-detection branch; migration `20260619131239` adds `(asset_id, detected_at DESC)` index | Records accepted moves; high-churn rows were pruned after v1.16.2 verification |
-| Path-derived columns | `stage`, `customer`, `program` on `assets` and `style_groups` | `docs/PATH_ATTRIBUTES.md` | Not the same as `workflow_status` |
-| Path-attr DB functions | `infer_path_attrs(path)`, `get_path_facets(customer)`; trigger `trg_set_path_attrs` | migrations | Path facet derivation |
-| Path-attr anchor folder | `____New Structure` | NAS path convention | Four leading underscores |
-
----
-
-## Container and service inventory
-
-| Container/service | Purpose | Managed by | App/project ID | Image/source |
-|---|---|---|---|---|
-| `popdam-frontend` | React/Vite static web app for PopDAM + PopSG | Coolify on VPS | Coolify app `qxj8a0j3tpa9lq4q5rs6pezy`; domains `dam.designflow.app`, `sg.designflow.app` | `ghcr.io/u2giants/popdam-frontend:latest` from `.github/workflows/publish-frontend.yml` + `Dockerfile.ci` |
-| `coolify-proxy` | Traefik reverse proxy for Coolify apps | Coolify on VPS | Traefik service `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` routes to frontend | `traefik:v3.6` managed by Coolify |
-| Railway worker | Persistent batch processor for AI tagging, ERP, style groups, SeaDrive mirror | Railway | Railway service for `apps/worker/` (verified project/service/environment identifiers: `docs/INFRASTRUCTURE.md` → Railway Worker) | `apps/worker/Dockerfile`; Railway rebuilds for `main` changes matching `/apps/worker/**` |
-| `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology1` (edgesynology2 copy retired 2026-09-23, #141); compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
-| Windows render agent | Windows render (Inkscape, ImageMagick, Ghostscript, Poppler, Indra OCR — no Illustrator) and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
-| Image-embed GPU poller | Embeds thumbnails for image similarity (DINOv3+SigLIP2 dual vectors; claim/heartbeat/complete queue loop; never embeds — poller only) | Windows Task Scheduler task `PopDAM-ImageEmbedWorker` on `edge-dev` (RTX 3060 Ti; manual install per `apps/image-embed-worker/README.md`) | none (runs from repo source, `requirements.txt` pinned) | `apps/image-embed-worker/`; DB login `dam_image_embed_login` |
-| POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
-| Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
-| PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
-
-**NAS topology (read this before pointing anything at a NAS):** PopDAM/PopSG use
-**two** Synology units — `edgesynology1` and `edgesynology2`, both joined to
-AD `IML.isaacmorris.com` (LAN addresses are deliberately kept out of this
-public repo; see the canonical NAS topology doc linked below). Sync is **one-way**:
-edge2 pulls from edge1, nothing flows back. **Read on edge2** (crawl/scan/scrape —
-offloads edge1) and **write on edge1** (moves/checkouts — a write to edge2 is
-stranded and lost). The file-scraping agents run against edge2 by design; the
-Linux write-worker targets edge1. Canonical spec:
-[`u2giants/synology-monitor` → `docs/NAS_TOPOLOGY.md`](https://github.com/u2giants/synology-monitor/blob/main/docs/NAS_TOPOLOGY.md).
-
-**Railway deploy note:** Railway watches `main` and rebuilds when changes match `/apps/worker/**`, as configured in `apps/worker/railway.toml`. Changes outside that worker directory, including unrelated documentation and shared-db mirror updates, do not trigger the worker. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
-**GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
-
-**Coolify ownership:** Coolify owns runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle for `popdam-frontend`. Changes to runtime configuration (env vars, feature flags) go through Coolify directly — not via GitHub or SSH. Source code, Dockerfiles, and workflow changes must go through GitHub as normal.
-
-**VPS session check:** Some AI sessions run directly on the production VPS (`hetz`, public IP `178.156.180.212`). Before attempting `ssh root@178.156.180.212`, run `hostname -f` and `ip route get 1.1.1.1`; if already on the VPS, inspect local Docker/Coolify state directly. For urgent frontend break-glass deploys, use the Coolify compose file under `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/` and document the manual action afterward (see `docs/deployment.md`).
-
-**CI path triggers:** `publish-frontend.yml` triggers only on application file changes (`src/**`, `Dockerfile`, `Dockerfile.ci`, etc.) — documentation-only changes to `docs/**` and top-level `.md` files do not trigger a frontend build. `deploy-supabase.yml` triggers only on `supabase/functions/**` changes for app-owned deploys; new database migrations belong in canonical `/worksp/shared-db`, not this repo.
-
----
+**Before touching anything outside these paths, ask why.** Known exceptions are listed in agents-reference → Core modification inventory (currently only `nginx.conf` listening on IPv6 for the Coolify health check).
 
 ## What to ignore
 
@@ -319,7 +119,7 @@ apps/*/dist/
 apps/*/out/
 packages/path-filters/dist/
 apps/*/src/common/          (generated copy of packages/agent-common/src)
-apps/popdam-helper/out/
+apps/popdam-helper/out/  and  .webpack/
 .cache/
 coverage/
 .nyc_output/
@@ -327,189 +127,29 @@ coverage/
 package-lock.json
 apps/*/package-lock.json
 .lovable/               # Lovable platform memory
-worksp_symlink.md       # harness bookkeeping
 server                  # untracked symlink into the Coolify deploy dir — not part of the build
 src/integrations/supabase/types.ts
-apps/popdam-helper/.webpack/
+docs/verification/      # dated evidence records (screenshots, run logs)
+verification/           # dated evidence records
+shared-db/              # vendored read-only mirror; canonical /worksp/shared-db is authoritative
+docs/archive/           # history, not operating guidance
 ```
 
-> Note: `app/` and `duplicate-folders.txt` were one-off local artifacts and have been removed from the tree. `apps/popdam-helper/out/` (Electron build output) and an untracked `apps/popdam-helper/package-lock.json` may reappear locally — both are non-source.
+`.claudeignore` and `.cursorignore` mirror this list. Doc-health excludes those trees too (`.doc-health.json`).
 
----
+## Intentional quirks, incidents, pending work
 
-## Intentional quirks
+- Quirks (looks wrong but is intentional): full index and rules at agents-reference → Intentional quirks; entries in `docs/idiosyncrasies.md` (short registry) and `docs/KNOWN_QUIRKS.md` (deep dives). Read the matching entry before changing any of that behaviour.
+- Incidents: `docs/incident-log.md` — read the matching entry before changing behaviour an incident touched. Index: agents-reference → Critical incidents.
+- Pending work and open handoffs: agents-reference → Pending work; `HANDOFF.md` → open files in `HANDOFF.d/` (read newest-first; never edit another session's file).
 
-- **MG01–MG03 letters mean different things by era (2026-10-06).** Items created before 2025-05-14 use the old flat per-division lists (MG01 = material, MG02 = product type, MG03 = finish; source: ColdLion exports in Albert's Dropbox `ai/old_merch`, now `_shared/mg-legacy.ts`). Newer items use the hierarchical list where MG02 depends on MG01 and MG03 on both. `parseSku` picks the era from the mirrored ColdLion item `createdTime` (`plm.item.raw`; PopDAM never calls the ColdLion API), falling back to the file date. Never resolve MG02/MG03 with a flat code table.
+## Deployment (short)
 
-Full entries live in [`docs/idiosyncrasies.md`](docs/idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
+Application changes: feature branch → PR to protected `main` → CI → merge. `main` is the release branch. Frontend: merge → publish-frontend.yml → GHCR → Coolify. Edge functions: merge → deploy-supabase.yml. Railway worker: auto on `/apps/worker/**`. Bridge agent: publish-bridge-agent.yml → `:stable` + version bump, NAS applies on request. Windows agent + Helper: GitHub Releases (Helper installers stay unsigned forever). Rollback: older Coolify deployment by `:<sha>` tag. Full runbook incl. stale-site check and SSH policy: `docs/deployment.md`, `SELFHOST.md`.
 
-- AG Grid license warning is accepted: no purchase; ignore the warning and preserve existing features (owner instruction 2026-10-11)
-- Prose merges run the repo-wide public-boundary gate; reviewed per-word allowlist in `tools/public-boundary-allowlist.txt`, no private IPs in this public repo (2026-10-27)
-- Dual-mode (PopDAM / PopSG) via hostname detection
-- `asset_count` on `style_groups` is a cached field, not computed on read
-- Style-group SKU extraction must skip category folders but accept digit-leading SKUs
-- `.ai` "no PDF compatibility" ≠ empty — these files STILL contain real artwork (corrected 2026-07-03)
-- Style Group IDs change every night (`rebuild-style-groups`) — pin cohorts by SKU (2026-09-23)
-- Muse Spark 1.3 Contributor reports its capacity limit as 404 `model_not_found` — cap and retry, never switch models (2026-09-23)
-- Compat-thumbnail audit = the real fix for `.ai` thumbnails (perceptual-hash, not OCR)
-- Windows agent self-update was silently frozen (WINDOWS_LATEST_BUILD, fixed 2026-07-03)
-- ERP `product_category` cutoff date (2025-05-10)
-- PLM production PO sync has two auth layers, and browser JWTs are not durable
-- Bridge agent defers thumbnails to Windows Render Agent for certain files
-- PDF text backfill runs on the Windows agent, not the bridge agent
-- Style Guide Sources (`sku_files_used`) only come from licensing/tech-pack PDFs; resolution is fuzzy + continuous
-- Master Data style tracker is temporary; companywide business rules own source authority
-- Sibling file scans need a 10-minute lease/expiry
-- `app/` symlink at repo root
-- `bulk-job-runner` edge function is a deployed no-op; its source was removed (#220)
-- PopSG file tagging (`tag-popsg-files`) runs in the Railway worker, not an edge function
-- `verify_jwt = false` on `admin-api` in `supabase/config.toml`
-- Style group rebuild `finalize_stats` calls `reconcile_style_group_stats_batch` in a loop
-- `trg_sync_primary_on_thumbnail` fires on INSERT **and** UPDATE
-- Railway worker deploys for `main` changes matching `/apps/worker/**`
-- `admin_config.OPENROUTER_API_KEY` is the single source of the OpenRouter key
-- A brand-new OpenRouter batch 404s on the first status poll
-- `.mcp.json` carries no secrets — MCP tokens come from 1Password (do NOT re-hardcode)
-- `supabase` MCP server needs its own explicit `env` block, unlike the `http`-type servers
-- `src/integrations/supabase/client.ts` is a one-line re-export
-- Supabase credentials hardcoded in `src/lib/app-mode.ts`
-- Helper storage provider is per-machine/region, not a global flag
-- SeaDrive installer is self-hosted and auto-mirrored by the worker
-- Seafile check-ins park in `verifying` status before completing
-- Agent reported `version` can lie — the admin panel trusts `build_sha`, not the version string
-- `stage` is not `workflow_status` (path-derived attributes)
-- `quick_hash` is NOT content-unique — move detection is guarded (fixed forward 2026-06-20)
-- Library list/facet queries must beat the 8s `authenticated` timeout (2026-06-19)
-- The `dam` schema is NOT exposed to PostgREST — reach `dam.*` via `public` RPCs (2026-07-15)
-- Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
-- Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
-- Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
-
-## Credentials and environment
-
-| Variable | Purpose | Stored where | Required in dev | Required in prod |
-|----------|---------|-------------|----------------|-----------------|
-| `SUPABASE_URL` | Supabase project URL for worker, edge functions, agents, CI notifications | Railway env, Supabase function env, GitHub secrets, agent `.env` | No for frontend (`src/lib/app-mode.ts` is hardcoded); yes for worker/agent dev | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Worker → Supabase service role | Railway env vars | No | Yes (Railway) |
-| `OPENROUTER_API_KEY` | Worker AI calls | `admin_config.OPENROUTER_API_KEY` (primary); Railway env var is a fallback only | No | No — set it in Settings → APIs |
-| `ANTHROPIC_API_KEY` | Worker ERP classification fallback/alternative; listed in `apps/worker/.env.example` | Railway env vars | No | Optional |
-| `GOOGLE_AI_API_KEY` | Direct Gemini Image Tagging batches and agent PDF text extraction | `admin_config` (primary); Railway env fallback; agent passthrough | No | Optional unless either direct-Google path is selected |
-| `WORKER_POLL_INTERVAL_MS` / `AI_BATCH_CONCURRENCY` / `AI_BATCH_SIZE` | Worker tuning knobs | Railway env vars | No | Optional |
-| `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI for edge-function deploys/types | GitHub secret | No | Yes |
-| `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI target project | GitHub secret | No | Yes |
-| `GHCR_PAT` | GHCR push fallback (frontend) + bridge agent CI | GitHub secret | No | Yes |
-| `GHCR_USERNAME` | Optional username for `GHCR_PAT` owner | GitHub secret | No | No |
-| `COOLIFY_TOKEN` | CI → Coolify deploy API | GitHub secret | No | Yes |
-| `COOLIFY_APP_UUID` | CI → Coolify deploy API | GitHub secret | No | Yes |
-| `COOLIFY_URL` | CI → Coolify deploy API | GitHub secret | No | Yes |
-| `GH_TOKEN` | CI → GitHub Releases (Helper) | GitHub secret | No | Yes |
-| `CSC_LINK` / `CSC_KEY_PASSWORD` | Helper macOS Developer ID signing cert | GitHub secrets | No | Only for signed Helper DMGs |
-| `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` | Helper macOS notarization | GitHub secrets | No | Only for notarized Helper DMGs |
-| `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY` | Bridge agent CI → admin_config update | GitHub secret | No | Yes |
-| `DEPLOY_WEBHOOK_KEY` | Windows-agent release workflow → `agent-api/notify-build` | GitHub secret | No | Yes for Windows-agent release notification |
-| `BREVO_API_KEY` | Invite-email delivery from edge functions | Supabase function secret / Vault | No | Yes if invite email is enabled |
-| `DO_SPACES_KEY` / `DO_SPACES_SECRET` / `DO_SPACES_BUCKET` / `DO_SPACES_REGION` / `DO_SPACES_ENDPOINT` | Thumbnail/asset object storage credentials and endpoint | `admin_config` and agent heartbeat; some handlers read `DO_SPACES_*` config rows | No | Yes for thumbnail upload/delete and SeaDrive mirror |
-| `AGENT_KEY` | Bridge agent credential written/persisted after pairing | NAS bridge `.env` or `/data/agent-config.json` | Yes for bridge dev | Yes |
-| `BOOTSTRAP_TOKEN` | Windows agent first-run pairing/install token | Windows agent local config/env during install | No | Yes for new Windows agent installs |
-| `POPDAM_SERVER_URL` / `POPDAM_PAIRING_CODE` | Bridge agent install/pairing values; server URL falls back to `SUPABASE_URL` | NAS bridge `.env` or install bundle | Yes for bridge dev | Yes for new bridge installs |
-| `SUPABASE_ANON_KEY` | Optional agent Realtime watcher and some edge-function anon clients | Agent `.env`, Supabase function env | No | Optional; without it bridge commands wait for heartbeat |
-| `NAS_CONTAINER_MOUNT_ROOT` / `SCAN_ROOTS` | Bridge scan root inside the container | NAS bridge `.env`, heartbeat config | Yes for bridge dev | Yes |
-| `POPDAM_CONTAINER_NAME` / `POPDAM_COMPOSE_PATH` | Bridge self-update target container and optional host compose path | NAS docker compose / bridge `.env` | No | Yes for reliable self-update |
-| `POPDAM_IMAGE_TAG` / `POPDAM_BUILD_SHA` | Build metadata reported by agents | Docker build args/env from image workflows | No | Yes for drift detection |
-| `TENANTS` / `POPDAM_DATA_DIR` / `POPDAM_DATA_FILE` | Multi-tenant bridge supervisor and persisted agent config paths | Bridge `.env` / supervisor child env | No | Optional |
-| `WINDOWS_AGENT_NAS_HOST` / `WINDOWS_AGENT_NAS_SHARE` / `WINDOWS_AGENT_NAS_USER` / `WINDOWS_REPAIR_CODE` | Windows render agent NAS mapping and repair flow | `admin_config`, Windows agent local config | No | Optional, Windows-agent only. As of 2026-10-15 cutover, `WINDOWS_AGENT_NAS_USER` = `popdam-render`; plaintext `WINDOWS_AGENT_NAS_PASS` is deleted — passwords come from Vault RPCs `get/set_render_z_nas_password` and `get/set_sg_nas_password` (service_role-only). |
-| `HELPER_*` keys (`HELPER_DAM_URL`, `HELPER_SEAFILE_LIBRARIES`, etc.) | Helper checkout/check-in provider config | `admin_config`, returned by `helper-api /config` | No | Yes for Helper installs |
-| `COLDLION_API_KEY` / `COLDLION_*` | ColdLion / ERP integration credentials and endpoint config | Supabase Vault and `admin_config` | No | Only for the prepack landing loader script. PopDAM app code never calls the ColdLion API — it reads the shared-db mirror (`coldlion.merch_group_detail`, `plm.item`); see `docs/ADMIN_OPERATIONS.md` → ColdLion Integration |
-| `DAM_IMAGE_EMBED_DB_PASSWORD` | Image-embed GPU poller DB login `dam_image_embed_login.qsllyeztdwjgirsysgai` (tenant suffix mandatory; pooler TLS 5432) | 1Password vault `vibe_coding`, item "dam_image_embed_login DB password (PopDAM image-embed worker, qsllyeztdwjgirsysgai)" — protected file on the poller host, never in repo | No (poller host only) | Yes — poller cannot run without it |
-| `IMAGE_EMBED_ENABLED` / `IMAGE_SIM_*` | Image-similarity switches and tunables: enable flags, floor/bands (0.98/0.94/0.90), DINO weight (0.60), top_k, embedding-model stamp(s) | `admin_config` (managed in Settings; full contract in `plan_image_similarity_upload_search.md`) | No | Yes — production values set 2026-10-26 |
-
-Do not put secret values, PATs, passwords, private keys, or service-role keys in documentation. The frontend's hardcoded Supabase anon key is publishable client config; the service-role key is never bundled.
-
-Dev note: the frontend connects directly to the production Supabase project. No `.env.local` required for `npm run dev`. Deno is installed in this Codex environment at `/root/.deno/bin/deno`; add `/root/.deno/bin` to `PATH` or call that binary directly.
-
----
-
-## Deployment
-
-Application changes use a dedicated feature branch and pull request targeting protected `main`. Never push application changes directly to `main`; pass the required checks (AI review is advice only and never blocks; owner ruling 2026-10-29, popcre/ai-devops#2041) and merge through the normal protected path. `main` remains the release branch. Verify the GitHub remote before pushing.
-
-Full runbooks: [docs/deployment.md](docs/deployment.md), [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md), [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md).
-
-| Component | How it ships | Notes |
-|---|---|---|
-| Frontend | merge PR to main → publish-frontend.yml → GHCR → Coolify | Gate is erify (lint). Green CI ≠ live site if Coolify cannot pull GHCR. |
-| Supabase edge functions | merge PR to main → deploy-supabase.yml | No supabase db push here — shared migrations go through canonical /worksp/shared-db. |
-| Railway worker | main changes matching `/apps/worker/**` auto-deploy | No manual step. |
-| Bridge agent | publish-bridge-agent.yml → :stable | Bump pps/bridge-agent/package.json version in the same commit (without a bump the NAS sees no update). The NAS applies it only on request: admin_config `AGENT_UPDATE_REQUEST` `{action:"apply"}` (the in-app Update button); `force_apply_update` metadata is Windows-only. |
-| Windows render agent | publish-windows-agent.yml → GitHub Release | Inkscape/ImageMagick/Ghostscript/Poppler/Indra OCR — no Illustrator. |
-| Image-embed GPU poller | manual install on `edge-dev` per `apps/image-embed-worker/README.md` (Task Scheduler `PopDAM-ImageEmbedWorker`) | No GHCR/Railway path — runs from repo source. Vector/schema changes go through canonical shared-db only. |
-| POP DAM Helper | publish-popdam-helper.yml → GitHub Release | Installers stay **unsigned forever** (owner decision). Never cache the electron-builder NSIS toolchain. Helper OAuth/SeaDrive rules: docs/POPDAM_HELPER.md + docs/KNOWN_QUIRKS.md. |
-
-Stale-site check: if the live header shows an old commit, inspect the latest Publish Frontend Image run and Coolify deploy logs. Rollback via an older Coolify deployment (:<sha> tags).
-
-## Pending work
-
-Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the pilot, PopSG render/backfill, and style-guide archival readiness items are done or intentionally abandoned. (Helper code signing is **permanently abandoned**, not a pending row — see above and `HANDOFF.md` §5.3.)
-
-| Status | Item | Next action |
-|--------|------|-------------|
-| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); Helper Microsoft OAuth + USA SMB/local check-in shipped in `1cc3fd3`; Supabase Auth callback `http://127.0.0.1:47380/auth/callback` allowed on 2026-06-24. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
-| 🟡 open | **PopSG production readiness (#107)** | Tracked in `plan_popsg_production_readiness.md` — read its STATUS table. As of October 11, 2026: extraction and v2 app cutover delivered; remaining changed-night acceptance is tracked by #335/#336 and #107. Verify ordinary post-deployment receipts, then final acceptance/docs retirement. |
-| 🟡 open | **Codebase audit backlog (2026-10-21)** | Verified-but-unfixed findings from the full-codebase audit live in [`docs/audit-2026-10-21.md`](docs/audit-2026-10-21.md) and are tracked as issues #468 (security), #469 (correctness), #470 (efficiency), #471 (dead code). Pick from the issue, not a re-audit. `npm run typecheck` is now enforced in CI. |
-| 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
-
-## Critical incidents
-
-Full entries live in [`docs/incident-log.md`](docs/incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
-
-- 2026-11-10: OrderList showed ColdLion-replaced (voided) assortment lines on PO 62012008 — voided lines now hidden from list, counts and Find (shared-db #6022)
-- Resolved 2026-11-01: DAM picture search cold-load timeouts — compact exact vectors and consistent totals; live exact query verified at 15 groups (#4508, PopDAM #649)
-- Resolved 2026-10-29: Master Data first load slow + false "could not be loaded" — indexed view rewrite (shared-db #5045) + app retry hardening (#581)
-- Resolved 2026-10-27: OrderList first load hit statement timeout — stale planner stats + whole-view block query; two-step fetch (#560) and table autoanalyze (shared-db #4969)
-- Resolved 2026-10-27: Supabase sb_secret printed into an AI transcript — redacted on-machine per owner ruling; rotation cancelled
-- Resolved 2026-07-01: Microsoft login returned "500: Database error granting user" on first attempt
-- Resolved 2026-06-25: PopDAM Helper (Windows) uninstall failed with "NSIS Error: Error launching installer" — CI cached the NSIS toolchain
-- Resolved 2026-06-22: coolify-proxy lost its Docker socket again → nas-mcp 502 (now self-healing)
-- Resolved 2026-06-21: Bridge "Build mismatch" false alarm — self-update froze `build_sha` (and a wrong-project investigation detour)
-- Resolved 2026-06-18: Frontend CI was green enough to mislead, but production stayed old
-- Resolved 2026-06-10: Bridge agent crash loop (PDF_BACKFILL + missing `ok: true`)
-- Resolved 2026-06-09: Bridge agent ran a stale image while the panel showed "up to date"
-- Resolved 2026-06-07/08: Seafile-aware Helper + SeaDrive self-host + CI gate
-- Resolved 2026-05-31: style_groups.asset_count stale counts
-- Resolved 2026-05-26: Style group rebuild timeout on "Compute counts" stage
-- Resolved 2026-05-15: CI/CD migration to Coolify API
-
-## Deep-Dive References
-
-| Doc | Topic |
-|-----|-------|
-| `CLAUDE.md` | Claude Code-specific workflow instructions |
-| `SELFHOST.md` | VPS / Coolify / Traefik architecture and ops runbook |
-| `docs/architecture.md` | Full system design, components, data flow, API boundaries, networking model |
-| `docs/INFRASTRUCTURE.md` | Supabase project, Railway, Spaces, edge function inventory |
-| `docs/STYLE_GROUPS.md` | Style group rebuild, reconcile, primary selection, tag propagation |
-| `docs/BULK_JOBS.md` | All bulk operations, lane system, conflict map |
-| `docs/SCHEMA.md` | Database schema reference |
-| `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync, MG codes, AI category classification |
-| `docs/MASTER_DATA.md` | Temporary Master Data style tracker app, Google Sheet import, matching workflow, PLM canonical API notes |
-| `docs/AUTHENTICATION.md` | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
-| `docs/KNOWN_QUIRKS.md` | Intentional oddities — read before changing anything |
-| `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts |
-| `docs/deployment.md` | Full deploy pipeline (frontend, Supabase, Railway, agents, Helper), pg_cron jobs, rollback, SSH policy |
-| `docs/development.md` | Local dev setup, running, testing |
-| `docs/configuration.md` | Environment variables, admin config keys |
-| `docs/ONBOARDING.md` | First-run checklist |
-| `docs/PATH_UTILS.md` | Path canonicalization rules (relative_path format, UNC/display conversion) |
-| `docs/PATH_ATTRIBUTES.md` | Path-derived `stage`/`customer`/`program` columns, triggers, facets, and Stage-vs-workflow_status |
-| `docs/POPSG.md` | PopSG mode — schema, crawl flow, render pipeline |
-| `docs/POPDAM_HELPER.md` | Desktop Helper architecture (checkout/check-in, local server, auth) |
-| `docs/SEAFILE_INTEGRATION.md` | Seafile/SeaDrive transport for WFH designers (region model, libraries, SeaDrive client) |
-| `docs/ADMIN_OPERATIONS.md` | Admin UI operations reference |
-| `docs/API_CONTRACTS.md` | Edge function API contracts |
-| `docs/WINDOWS_AGENT_RUNBOOK.md` | Windows render agent operations (incl. unattended install via `popdam-agent.ini`) |
-<!-- ansible-host-policy: managed rollout from u2giants/ansible -->
 ## Host / server changes — do NOT make them here
 
+<!-- ansible-host-policy: managed rollout from u2giants/ansible -->
 The `hetz` server's host/OS layer is managed by **Ansible** in **[`u2giants/ansible`](https://github.com/u2giants/ansible)**.
 To change the server (packages, users, firewall, DNS, Docker *engine* config, system cron,
 systemd units, Cloudflare Tunnel 1, the backup watchdog), **open a PR there** and let CI apply

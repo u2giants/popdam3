@@ -1,3 +1,10 @@
+---
+summary: Issue #633 plan: Classify lock timeouts as transient statement-cap failures (#630). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-633
+---
+
 # Plan: Review finding: u2giants/popdam3#632 Classify lock timeouts as transient statement-cap failures (#630) (u2giants/popdam3#633)
 Issue: https://github.com/u2giants/popdam3/issues/633
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

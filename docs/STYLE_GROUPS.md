@@ -1,3 +1,10 @@
+---
+summary: Style groups: rebuild, reconcile, primary selection and tag propagation; the scoped-AI-metadata plan pointer replaces tag copying.
+kind: living
+status: current
+read-when: changing style-group rebuild or counts
+---
+
 # Style Groups
 
 > **Active implementation plan:** [`../plan_style_group_scoped_ai_metadata.md`](../plan_style_group_scoped_ai_metadata.md) replaces primary-asset tag copying with explicit Style Group versus file ownership. Read its STATUS table first; do not implement or document the planned behavior as live until its evidence-backed rollout steps are complete.

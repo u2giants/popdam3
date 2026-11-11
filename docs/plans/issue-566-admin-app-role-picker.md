@@ -1,3 +1,10 @@
+---
+summary: Issue #566 plan: Admin UI: pick app roles (viewer/designer/licensing/sales) per user. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-566
+---
+
 # Plan: Admin UI: pick app roles (viewer/designer/licensing/sales) per user (u2giants/popdam3#566)
 Issue: https://github.com/u2giants/popdam3/issues/566
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

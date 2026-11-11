@@ -1,3 +1,10 @@
+---
+summary: Issue #663 plan: feat(image-embed-worker): durable search-document embed lane (#646 cure d). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-663
+---
+
 # Plan: Review finding: u2giants/popdam3#662 feat(image-embed-worker): durable search-document embed lane (#646 cure d) (u2giants/popdam3#663)
 Issue: https://github.com/u2giants/popdam3/issues/663
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

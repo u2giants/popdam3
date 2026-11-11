@@ -1,3 +1,10 @@
+---
+summary: #179 items 3c and 3d executed 2026-10-13: plaintext PopSG NAS password removed from admin_config, Vault-backed passwords with live render proof.
+kind: plan
+status: done
+read-when: checking how NAS passwords moved to Vault
+---
+
 # Plan: #179 items 3c and 3d (Oct 13 2026)
 
 ## 3d: remove the plaintext PopSG NAS password from admin_config

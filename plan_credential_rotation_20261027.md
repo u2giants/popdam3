@@ -1,3 +1,10 @@
+---
+summary: Cancelled by owner ruling 2026-10-27 (redact on-machine exposure, never rotate); kept as reference for the next real rotation.
+kind: plan
+status: done
+read-when: planning a future credential rotation
+---
+
 # CANCELLED by owner ruling 2026-10-27 — kept as reference
 
 Albert's ruling (verbatim, from his chat): "if the keys were not published

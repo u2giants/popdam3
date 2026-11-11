@@ -1,3 +1,10 @@
+---
+summary: Mockup auto-match: open the right product with the right images from an item; refreshed 2026-11-06 for pop-mock 7.3; read STATUS first.
+kind: plan
+status: open
+read-when: improving mockup auto-matching
+---
+
 # Implementation Plan — Mockup auto-match: right product, right images, sharper art
 
 **STATUS — 2026-11-06 (refreshed for pop-mock 7.3; see the 2026-11-06 refresh note below)**
@@ -29,7 +36,7 @@ file on popdam3 main", then rebase the popdam3 feature branch. PopDAM-side
 steps 3-9 are unchanged in substance.
 
 A fresh session starts at step 1 and re-reads this whole plan first.
-Handoff entry (discovery + traps): [HANDOFF.d/20261027T1434Z-edge-dev-zcode-mockup-auto-match-plan.md](HANDOFF.d/20261027T1434Z-edge-dev-zcode-mockup-auto-match-plan.md)
+Handoff entry (discovery + traps): retired 2026-11-11 with the workstream complete — preserved in git history (`HANDOFF.d/20261027T1434Z-edge-dev-zcode-mockup-auto-match-plan.md`).
 
 ---
 

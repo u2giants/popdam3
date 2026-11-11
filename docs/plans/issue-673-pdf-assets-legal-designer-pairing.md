@@ -1,3 +1,10 @@
+---
+summary: Issue #673 plan: fix(pdf): keep assets after legal headings and pair designer names. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-673
+---
+
 # Plan: Review finding: u2giants/popdam3#672 fix(pdf): keep assets after legal headings and pair designer names (u2giants/popdam3#673)
 Issue: https://github.com/u2giants/popdam3/issues/673
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

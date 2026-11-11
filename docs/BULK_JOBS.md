@@ -1,3 +1,10 @@
+---
+summary: Bulk operations run by the persistent Railway worker: the lane system, operation loop, conflict map; the bulk-job-runner edge function is a no-op stub.
+kind: living
+status: current
+read-when: adding or fixing a bulk operation
+---
+
 # Bulk Job System
 
 > Active implementation plan: [`../plan_openrouter_batch_restart_recovery.md`](../plan_openrouter_batch_restart_recovery.md). Read its STATUS table before changing asynchronous OpenRouter Image Tagging recovery.

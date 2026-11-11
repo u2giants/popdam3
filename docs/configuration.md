@@ -1,3 +1,10 @@
+---
+summary: Configuration reference: admin_config keys (AI capability overrides, Spaces, image-similarity tunables), env vars and per-app runtime settings.
+kind: living
+status: current
+read-when: adding or changing configuration, env vars or feature flags
+---
+
 # Configuration Reference
 
 ## AI model capability overrides

@@ -1,3 +1,10 @@
+---
+summary: Open tracking note: rotate the 8 exposed admin_config credentials; most are done, the DO Spaces pair is still pending (re-verified 2026-11-04).
+kind: plan
+status: open
+read-when: continuing the admin_config credential rotation
+---
+
 # Handoff: rotate the 8 admin_config credentials that were exposed
 
 **Status (re-verified 2026-11-04):** OpenAI, OpenRouter, Google AI, Anthropic and both NAS

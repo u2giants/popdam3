@@ -1,3 +1,10 @@
+---
+summary: Issue #714 plan: Replace the exposed DigitalOcean Spaces storage key. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-714
+---
+
 # Plan: Replace the exposed DigitalOcean Spaces storage key (u2giants/popdam3#714)
 Issue: https://github.com/u2giants/popdam3/issues/714
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
@@ -35,7 +42,7 @@ PopDAM (dam.designflow.app) and PopSG (sg.designflow.app) are POP Creations' int
 ## 3. What triggered this work
 
 - 2026-07-24: `public.admin_config` had an RLS read policy `USING (true)` for `authenticated`; 8 plaintext secrets were readable by any logged-in user (memory `project_admin_config_secret_exposure`; `fix_admin_config_secret_rotation.md`). Leak fixed same day (shared-db PR #204).
-- 2026-10-07 (#210/#213): the `agent-api` `register` route was unauthenticated and its heartbeat response carries `do_spaces.key`/`secret` (`supabase/functions/agent-api/index.ts:750-754`). Fixed by PR #248; rotation of the remaining secrets tracked on #213 → HANDOFF.d/2026-10-07T2130Z-hetz-claude-issue-213-key-rotation.md §3 item 1.
+- 2026-10-07 (#210/#213): the `agent-api` `register` route was unauthenticated and its heartbeat response carries `do_spaces.key`/`secret` (`supabase/functions/agent-api/index.ts:750-754`). Fixed by PR #248; rotation of the remaining secrets tracked on #213 → root `fix_admin_config_secret_rotation.md` (the #213 handoff was retired 2026-11-11; git history keeps it).
 - 2026-11-04 4:20 PM EST (#714): live key and secret fingerprints equal the July snapshot; `admin_config` rows `DO_SPACES_KEY`/`DO_SPACES_SECRET` last updated 2026-03-11 (re-verified by this plan's author with a read-only query: both rows `updated_at = 2026-03-11 16:16:40-04`). All other exposed values are replaced, revoked or removed. #714 opened to carry just this one.
 
 ## 4. Scope
@@ -131,7 +138,7 @@ Sign in to the admin API as the PopDAM admin tester (1Password `vibe_coding`, ad
 
 ### Step 8 — Cleanup
 - 1Password: remove the old values (keep the dated note).
-- Branch `claude/714-do-spaces-key-rotated` from `main`; delete `fix_admin_config_secret_rotation.md` (all 8 done); fix `docs/INFRASTRUCTURE.md:34` to say the pair is stored in `admin_config` (admin-only read policy since shared-db PR #204) and delivered to agents by heartbeat; update HANDOFF.d/2026-10-07T2130Z… §3 item 1 with a one-line "done YYYY-MM-DD, see #714". Open a PR, wait with `bin/ai-pr-wait <pr>` in the background, merge.
+- Branch `claude/714-do-spaces-key-rotated` from `main`; delete `fix_admin_config_secret_rotation.md` (all 8 done); fix `docs/INFRASTRUCTURE.md:34` to say the pair is stored in `admin_config` (admin-only read policy since shared-db PR #204) and delivered to agents by heartbeat; update root `fix_admin_config_secret_rotation.md` with a one-line "DO Spaces done YYYY-MM-DD, see #714" (the #213 handoff it superseded was retired 2026-11-11). Open a PR, wait with `bin/ai-pr-wait <pr>` in the background, merge.
 - Gate: PR merged; `git ls-files fix_admin_config_secret_rotation.md` on `main` is empty.
 
 ### Step 9 — Close

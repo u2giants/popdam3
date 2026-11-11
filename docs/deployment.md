@@ -1,3 +1,10 @@
+---
+summary: Deploy pipeline for every component (frontend GHCR to Coolify, edge functions, Railway worker, agents, Helper), pg_cron jobs, rollback and SSH policy.
+kind: living
+status: current
+read-when: deploying, rolling back or debugging a release
+---
+
 # Deployment
 
 ## Deployment Path

@@ -1,3 +1,10 @@
+---
+summary: Master Data and OrderList first-paint and Find loading-performance work; read STATUS first.
+kind: plan
+status: open
+read-when: improving Master Data or OrderList load speed
+---
+
 # Master Data and OrderList loading-performance implementation plan
 
 Historical tracking (closed): [PopDAM #121](https://github.com/u2giants/popdam3/issues/121) · completed database lane: [popcre/shared-db #2664](https://github.com/popcre/shared-db/issues/2664); #2665 was a closed duplicate · handoff: `HANDOFF.d/2026-09-10T0209Z-hetz-codex-grid-loading-performance-plan.md` (retired)

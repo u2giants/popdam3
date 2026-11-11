@@ -1,3 +1,10 @@
+---
+summary: Single source of truth for agent and admin API request/response shapes; every endpoint needs Zod validation matching it.
+kind: living
+status: current
+read-when: changing an edge-function API contract
+---
+
 # API Contracts — Agent + Admin
 
 This file is the single source of truth for request/response shapes. All endpoints must have Zod validation that matches this.

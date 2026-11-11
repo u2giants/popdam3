@@ -1,3 +1,10 @@
+---
+summary: Issue #469 plan: Audit backlog — correctness bugs. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-469
+---
+
 # Plan: Audit backlog — correctness bugs (u2giants/popdam3#469)
 Issue: https://github.com/u2giants/popdam3/issues/469
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
