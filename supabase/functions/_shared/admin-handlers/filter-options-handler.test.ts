@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Issue #470: get-filter-options used to run one sequential count query per
- * licensor and per property (~205 per call since PR #820 opened it to every
- * signed-in user). PostgREST aggregates are disabled project-wide (PGRST123),
- * so the exact counts still come from narrow HEAD reads — now issued
- * concurrently and cached briefly per scope, with the response shape unchanged.
+ * Issue #470 / #804: get-filter-options used to run one exact count query per
+ * licensor and per property (~205 per uncached call). It now reads every count
+ * from one grouped RPC, cached briefly per scope, with the response shape
+ * unchanged.
  */
 
 const dbCalls: string[] = [];
@@ -50,16 +49,14 @@ function makeDb() {
       },
     }),
     from: (table: string) => {
-      if (table !== "assets") throw new Error(`unexpected table ${table}`);
-      return {
-        select: (columns: string, opts: { count?: string; head?: boolean } | undefined) => {
-          dbCalls.push(`assets:select(${columns},${opts?.count ?? ""},head=${String(opts?.head)})`);
-          const builder: Record<string, unknown> = {};
-          builder.eq = (_col: string, _value: unknown) => builder;
-          builder.then = (onFulfilled: (v: unknown) => unknown) => Promise.resolve({ data: null, error: null, count: 7 }).then(onFulfilled);
-          return builder;
-        },
-      };
+      throw new Error(`unexpected per-entity read of ${table}`);
+    },
+    rpc: (name: string) => {
+      dbCalls.push(`rpc:${name}`);
+      return Promise.resolve({
+        data: { licensors: { "lic-1": 7 }, properties: { "prop-1": 5, "prop-other": 9 } },
+        error: null,
+      });
     },
   };
 }
@@ -78,13 +75,12 @@ describe("get-filter-options", () => {
     expect(response.value.ok).toBe(true);
     expect(response.value.licensors).toEqual([
       { id: "lic-1", name: "Disney", asset_count: 7 },
-      { id: "lic-2", name: "Marvel", asset_count: 7 },
     ]);
     expect(response.value.properties).toEqual([
-      { id: "prop-1", name: "Mickey", licensor_id: "lic-1", asset_count: 7 },
+      { id: "prop-1", name: "Mickey", licensor_id: "lic-1", asset_count: 5 },
     ]);
-    // Exact HEAD counts, not row bodies.
-    expect(dbCalls.filter((c) => c.startsWith("assets:select(id,exact,head=true)"))).toHaveLength(3);
+    // One grouped count, never one query per entity.
+    expect(dbCalls.filter((c) => c.startsWith("rpc:"))).toEqual(["rpc:get_dam_asset_taxonomy_counts"]);
   });
 
   it("serves a repeat call from the cache without re-reading the database", async () => {
