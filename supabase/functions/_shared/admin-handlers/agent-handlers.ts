@@ -1385,10 +1385,15 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
   const licensorCounts = taxonomy.licensors ?? {};
   const propertyCounts = taxonomy.properties ?? {};
   const licensorResults = (licensors ?? []).map((lic) => ({
-    id: lic.id, name: lic.name, asset_count: Number(licensorCounts[lic.id] ?? 0),
+    id: lic.id,
+    name: lic.name,
+    asset_count: Number(licensorCounts[lic.id] ?? 0),
   }));
   const propertyResults = (properties ?? []).map((prop) => ({
-    id: prop.id, name: prop.name, licensor_id: prop.licensor_id, asset_count: Number(propertyCounts[prop.id] ?? 0),
+    id: prop.id,
+    name: prop.name,
+    licensor_id: prop.licensor_id,
+    asset_count: Number(propertyCounts[prop.id] ?? 0),
   }));
 
   const value: FilterOptionCounts = {
