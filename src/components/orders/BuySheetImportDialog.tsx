@@ -12,7 +12,6 @@ import {
   type BuySheetGrid,
   type BuySheetParse,
 } from "@/lib/buy-sheet-import";
-import { buildBambooRoseRows, fillBambooRoseTemplate, type OrderListFact } from "@/lib/bamboo-rose-sheet";
 
 type ResultLine = {
   sku: string;
@@ -72,8 +71,6 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const customer = customerId || defaultCustomer;
-  const [quote, setQuote] = useState({ buyer: "ANNA BATMAN", vendorEmail: "jsafdieh@popcre.com", packSuffix: "V2" });
-  const [quoteChecks, setQuoteChecks] = useState<string[]>([]);
 
   const reset = () => {
     setFile(null);
@@ -81,41 +78,6 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     setPreview(null);
     setOrderNumbers({});
     setError(null);
-    setQuoteChecks([]);
-  };
-
-  /** Burlington Bamboo Rose quote sheet: fills the portal's blank template from this buy sheet + OrderList. */
-  const makeQuoteSheet = async (template: File | undefined) => {
-    if (!template || !parsed) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const skus = [...new Set(parsed.lines.map((l) => l.sku))];
-      const dates = [...new Set(parsed.lines.map((l) => l.delivery_date))];
-      const api = (supabase as any).schema("api");
-      const label = customerOptions.find((c) => c.id === customer)?.label ?? "Burlington";
-      const { data: facts, error: factError } = await api
-        .from("dam_order_list")
-        .select("sku,start_ship_date,assortment_id,ship_to,vendor_name")
-        .eq("customer_name", label)
-        .in("sku", skus)
-        .in("start_ship_date", dates);
-      if (factError) throw factError;
-      const { rows, checks } = buildBambooRoseRows(parsed, (facts ?? []) as OrderListFact[], quote);
-      const bytes = await fillBambooRoseTemplate(await template.arrayBuffer(), rows);
-      const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `bamboo_rose_${(file?.name ?? "buy_sheet").replace(/\.xlsx$/i, "")}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setQuoteChecks(checks);
-      toast.success(`Bamboo Rose sheet ready: ${rows.length} rows.`);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
-    } finally {
-      setBusy(false);
-    }
   };
 
   const call = async (apply: boolean, numbers = orderNumbers): Promise<ImportResult> => {
@@ -230,37 +192,6 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
             {parsed.itemRowCount} styles, {parsed.lines.filter((l) => l.quantity > 0).length} style-deliveries.{" "}
             {parsed.deliveries.map((d) => `${d.date}: ${(parsed.totalsByDelivery[d.date] ?? 0).toLocaleString()} units`).join(" · ")}
           </p>
-        )}
-
-        {parsed && (
-          <div className="space-y-2 rounded border p-2 text-sm">
-            <p className="font-medium">Burlington Bamboo Rose quote sheet</p>
-            <p className="text-muted-foreground">
-              Uses the lines already imported into OrderList. Choose the blank sheet downloaded from Bamboo Rose; a filled copy
-              downloads. Carton sizes, weights, materials, inner packs and pallets stay blank to fill by hand.
-            </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1">Buyer
-                <Input aria-label="Bamboo Rose buyer" className="h-8 w-44" value={quote.buyer} onChange={(e) => setQuote({ ...quote, buyer: e.target.value })} />
-              </label>
-              <label className="flex flex-col gap-1">Vendor email
-                <Input aria-label="Bamboo Rose vendor email" className="h-8 w-56" value={quote.vendorEmail} onChange={(e) => setQuote({ ...quote, vendorEmail: e.target.value })} />
-              </label>
-              <label className="flex flex-col gap-1">Pack name ending
-                <Input aria-label="Bamboo Rose pack suffix" className="h-8 w-20" value={quote.packSuffix} onChange={(e) => setQuote({ ...quote, packSuffix: e.target.value })} />
-              </label>
-              <label className="flex flex-col gap-1">Bamboo Rose template (.xlsx)
-                <Input aria-label="Bamboo Rose template" type="file" accept=".xlsx" disabled={busy}
-                  onChange={(e) => { void makeQuoteSheet(e.target.files?.[0]); e.target.value = ""; }} />
-              </label>
-            </div>
-            {quoteChecks.length > 0 && (
-              <div className="text-amber-700">
-                <p>Please check:</p>
-                <ul className="list-disc pl-5">{quoteChecks.map((c) => <li key={c}>{c}</li>)}</ul>
-              </div>
-            )}
-          </div>
         )}
 
         {error && <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">{error}</div>}

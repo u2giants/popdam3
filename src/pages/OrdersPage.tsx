@@ -3,8 +3,9 @@ import { OrderSampleSettings } from "@/components/orders/OrderSampleSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CellValueChangedEvent, IDatasource } from "ag-grid-community";
 import type { AgGridReact } from "ag-grid-react";
-import { Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { Download, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { BuySheetImportDialog } from "@/components/orders/BuySheetImportDialog";
+import { BambooRoseDialog } from "@/components/orders/BambooRoseDialog";
 import { toast } from "sonner";
 
 import {
@@ -60,6 +61,7 @@ export default function OrdersPage() {
   // matches the database saw. count null = not known yet (or legacy fallback).
   const [findResult, setFindResult] = useState<{ position: number; count: number | null } | null>(null);
   const findGeneration = useRef(0);
+  const [bambooRoseOpen, setBambooRoseOpen] = useState(false);
   const [buySheetOpen, setBuySheetOpen] = useState(false);
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
@@ -494,6 +496,11 @@ export default function OrdersPage() {
           Import buy sheet
         </Button>
 
+        <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setBambooRoseOpen(true)}>
+          <Download className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          Bamboo Rose sheet
+        </Button>
+
         <div className="ml-auto">
           <OrderListSummary counts={counts} />
         </div>
@@ -535,6 +542,7 @@ export default function OrdersPage() {
 
       </div>
 
+      <BambooRoseDialog open={bambooRoseOpen} onClose={() => setBambooRoseOpen(false)} />
       <BuySheetImportDialog
         open={buySheetOpen}
         onClose={() => setBuySheetOpen(false)}
