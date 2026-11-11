@@ -82,7 +82,7 @@ describe("DAM search embedding availability", () => {
     state.authenticate.mockResolvedValue({ ok: true, via: "user", userId: "viewer" });
     state.formatRpc.mockReset().mockResolvedValue({ data: false, error: null });
     state.rpc.mockReset().mockImplementation(async (name: string) => ({
-      data: name === "dam_search_semantic_anchor" ? 0.5 : [],
+      data: name.startsWith("dam_search_semantic_anchor") ? 0.5 : [],
       error: null,
     }));
   });
@@ -260,9 +260,16 @@ describe("DAM search embedding availability", () => {
     const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
     expect((await search("zorb studios toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{ semanticLicensorIds: ["11111111-1111-4111-8111-111111111111"] }]);
+    // The picture floor is anchored on the same licensor's best picture (popcre/shared-db#6024).
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor_scoped", expect.objectContaining({
+      p_licensor_ids: ["11111111-1111-4111-8111-111111111111"],
+    }));
+    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
     state.rpc.mockClear();
     expect((await search("plain toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{}]);
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.not.objectContaining({ p_licensor_ids: expect.anything() }));
+    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor_scoped", expect.anything());
   });
 
   it("scopes a search that names a licensor by a recorded alias (#897)", async () => {
