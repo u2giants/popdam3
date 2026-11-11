@@ -55,6 +55,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.SANDBOX_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SANDBOX_SUPABASE_ANON_KEY }}
+          VITE_SANDBOX_AUTO_LOGIN_EMAIL: ${{ vars.SANDBOX_AUTO_LOGIN_EMAIL }}
+          VITE_SANDBOX_AUTO_LOGIN_PASSWORD: ${{ vars.SANDBOX_AUTO_LOGIN_PASSWORD }}
           APP_COMMIT: sandbox-${{ github.sha }}
           APP_COMMIT_FULL: ${{ github.sha }}
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
