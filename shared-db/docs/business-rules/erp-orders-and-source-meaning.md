@@ -53,6 +53,10 @@ description limit. Past descriptions follow several inconsistent styles, so the
 test is whether JamieLynn accepts generated descriptions, not an exact match to
 past ones.
 
+PopDAM's buy-sheet preview shows this suggestion per assortment with a Copy
+button (Albert approved building it, 2026-11-10). It is still a suggestion:
+the rule stays Proposed until JamieLynn accepts the format.
+
 ## How a new order enters the system (OrderList intake)
 
 **Future production PO reuse is prohibited (Settled, Albert, 2026-10-13).**
