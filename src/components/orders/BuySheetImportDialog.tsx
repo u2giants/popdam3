@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { loadBuySheetItemInfo } from "@/lib/buy-sheet-item-info";
+import { normalizeOrderSku } from "@/lib/order-list";
 import { suggestAssortmentDescription } from "@/lib/assortment-description";
 import {
   parseBuySheetGrid,
@@ -73,20 +75,27 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const [error, setError] = useState<string | null>(null);
   const [itemInfo, setItemInfo] = useState<Record<string, { itemDescription: string | null; licensor: string | null }>>({});
 
+  const [itemInfoState, setItemInfoState] = useState<"loading" | "ready" | "error">("loading");
+
   // Item Master details for the sheet's styles, for the assortment description suggestion.
   useEffect(() => {
-    const skus = [...new Set((parsed?.lines ?? []).map((l) => l.sku.trim().toUpperCase()))];
-    if (skus.length === 0) { setItemInfo({}); return; }
+    const skus = [...new Set((parsed?.lines ?? []).map((l) => normalizeOrderSku(l.sku)).filter((sku): sku is string => sku !== null))];
+    setItemInfo({});
+    setItemInfoState("loading");
+    if (skus.length === 0) return;
     let cancelled = false;
-    void (supabase as any).schema("api").from("dam_order_list")
-      .select("sku_normalized,item_description,master_data_licensor")
-      .in("sku_normalized", skus).not("item_id", "is", null).limit(2000)
-      .then(({ data }: { data: Array<{ sku_normalized: string; item_description: string | null; master_data_licensor: string | null }> | null }) => {
-        if (cancelled) return;
-        const info: Record<string, { itemDescription: string | null; licensor: string | null }> = {};
-        for (const r of data ?? []) info[r.sku_normalized] ??= { itemDescription: r.item_description, licensor: r.master_data_licensor };
-        setItemInfo(info);
-      });
+    void loadBuySheetItemInfo(skus, (batch, offset, pageSize) =>
+      (supabase as any).schema("api").from("dam_order_list")
+        .select("sku_normalized,item_description,master_data_licensor")
+        .in("sku_normalized", batch).not("item_id", "is", null)
+        .order("order_line_id").range(offset, offset + pageSize - 1),
+    ).then((info) => {
+      if (cancelled) return;
+      setItemInfo(info);
+      setItemInfoState("ready");
+    }).catch(() => {
+      if (!cancelled) setItemInfoState("error");
+    });
     return () => { cancelled = true; };
   }, [parsed]);
 
@@ -99,7 +108,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
       description: suggestAssortmentDescription(lines.map((l) => ({
         sku: l.sku,
         sheetDescription: l.description,
-        ...(itemInfo[l.sku.trim().toUpperCase()] ?? {}),
+        ...(itemInfo[normalizeOrderSku(l.sku) ?? ""] ?? {}),
       }))),
     }));
   }, [parsed, itemInfo]);
@@ -264,7 +273,10 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
               </div>
             )}
 
-            {assortments.length > 0 && (
+            {assortments.length > 0 && itemInfoState !== "ready" && (
+              <p role="status">{itemInfoState === "error" ? "Item Master details unavailable. Description suggestions could not be loaded." : "Loading Item Master details…"}</p>
+            )}
+            {assortments.length > 0 && itemInfoState === "ready" && (
               <div className="space-y-1 rounded border p-2">
                 <p>Suggested Item Description for each assortment (copy it for JamieLynn to create the master SKU):</p>
                 {assortments.map((a) => (
@@ -272,7 +284,14 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
                     <span className="w-40 shrink-0">Ship {a.group.split("|")[0]}, pack {a.group.split("|")[1]}</span>
                     <code className="flex-1 rounded bg-muted px-1" title={a.skus.join(", ")}>{a.description}</code>
                     <Button type="button" size="sm" variant="outline" aria-label={`Copy description for ${a.group}`}
-                      onClick={() => { void navigator.clipboard?.writeText(a.description); toast.success("Description copied"); }}>
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(a.description);
+                          toast.success("Description copied");
+                        } catch {
+                          toast.error("Description could not be copied");
+                        }
+                      }}>
                       Copy
                     </Button>
                   </div>

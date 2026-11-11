@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const rpc = vi.fn();
 const chain: any = {
-  select: () => chain, in: () => chain, not: () => chain, limit: () => chain,
-  then: (f: (r: unknown) => unknown) => Promise.resolve({ data: [{ sku_normalized: "X1", item_description: "Molded Shadowbox", master_data_licensor: "MARVEL" }] }).then(f),
+  select: () => chain, in: () => chain, not: () => chain, order: () => chain, range: () => chain,
+  then: (f: (r: unknown) => unknown) => Promise.resolve({ data: [{ sku_normalized: "ncv3sp1", item_description: "Molded Shadowbox", master_data_licensor: "MARVEL" }] }).then(f),
 };
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (...a: unknown[]) => rpc(...a), schema: () => ({ from: () => chain }) },
@@ -14,7 +14,7 @@ vi.mock("@/lib/buy-sheet-import", () => ({
   sha256Hex: async () => "a".repeat(64),
   parseBuySheetGrid: () => ({
     itemRowCount: 1,
-    lines: [{ sku: "X1", delivery_date: "2026-12-10", quantity: 5, group: "2026-12-10|1", description: "12X15 MOLD" }],
+    lines: [{ sku: "NCV3SP1", delivery_date: "2026-12-10", quantity: 5, group: "2026-12-10|1", description: "12X15 ART" }],
     deliveries: [{ date: "2026-12-10" }],
     totalsByDelivery: { "2026-12-10": 5 },
     headerFields: {},
@@ -28,7 +28,7 @@ describe("buy sheet revision stop (owner rule 2026-11-10)", () => {
     rpc.mockResolvedValue({
       data: {
         applied: false, import_id: null, customer: "Burlington", counts: { revision: 1, new: 1 }, unmatched_styles: [],
-        lines: [{ sku: "X1", delivery_date: "2026-12-10", quantity: 5, group: "2026-12-10|1", outcome: "revision",
+        lines: [{ sku: "NCV3SP1", delivery_date: "2026-12-10", quantity: 5, group: "2026-12-10|1", outcome: "revision",
           reason: "revised", order_number: "D1", previous_quantity: 4, item_match: "matched" }],
       },
       error: null,

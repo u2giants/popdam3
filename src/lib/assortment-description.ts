@@ -1,7 +1,7 @@
 /**
  * Suggested ColdLion Item Description for a buy-sheet assortment (one prepack
  * of a pack's styles). Proposed rule (shared-db business rules → Burlington HFC
- * buy sheet): licensors/properties, then the shared product type, then size;
+ * buy sheet): licensor labels, then the shared product type, then size;
  * abbreviated only to fit ColdLion's 100-character description limit. It is a
  * suggestion for the salesperson to copy; JamieLynn still creates the SKU.
  */
