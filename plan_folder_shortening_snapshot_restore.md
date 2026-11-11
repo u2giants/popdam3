@@ -14,7 +14,7 @@ Phase 0 is done (see baseline file). Next: Phases 1–3 and 4. Nothing has been 
 | Phase 1 — permanent rename record (1.1–1.4) | ⬜ open | — | — |
 | Phase 2 — restore from snapshot (2.1–2.7) | ⬜ open | — | — |
 | Phase 3 — PopDAM understands old and new names (3.1–3.5) | ⬜ open | — | — |
-| Phase 4 — rename rules and full old-to-new list (4.1–4.5) | ⬜ open | — | — |
+| Phase 4 — rename rules and full old-to-new list (4.1–4.5) | 🟡 4.1–4.4 done; 4.5 freeze waits for Albert's answers on #963 | 2026-11-11 | `tools/folder-rename/` (`node --test tools/folder-rename/plan.test.mjs`), `verification/folder-shortening/summary.md`, `old-to-new.csv`, `needs-attention.csv` |
 | Phase 5 — carry out the renames in stages (5.1–5.7) | ⬜ open | — | — |
 | Phase 6 — guard against new long names (6.1–6.2) | ⬜ open | — | — |
 
