@@ -495,8 +495,13 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         } catch {
           return err("Search unavailable", 503);
         }
-        const spelling = productCodeSearch || unknownCatalogFormat ? { corrected: null, meaningful: true } : spellingHelp;
-        const usePictures = !productCodeSearch && spelling.meaningful;
+        // Owner 2026-11-11 (reverses Nov 3): a complete code in a catalog format that is not in the
+        // catalog is an item number that does not exist. Its picture leg returned 450 unrelated
+        // groups for SQX26DYMM02 ("NOTHING like the item # i typed in"); match it by words only,
+        // which finds nothing and says so.
+        const codeSearch = productCodeSearch || unknownCatalogFormat;
+        const spelling = codeSearch ? { corrected: null, meaningful: true } : spellingHelp;
+        const usePictures = !codeSearch && spelling.meaningful;
         // Product-type phrases ("floor covering") also run as catalog nouns
         // ("mat", "rug") so compound queries do not drop real mats.
         // Keyword-only variants skip the picture leg (no embedding).

@@ -1,4 +1,4 @@
-/** Complete catalog format is a picture-search hint, never product identity. */
+/** A complete code in a catalog format is an item number: searched by words only, never pictures. Never product identity. */
 export const CATALOG_CODE_FORMAT_TIMEOUT_MS = 1000;
 
 export function completeCatalogCodeFormat(query: string): string | null {
