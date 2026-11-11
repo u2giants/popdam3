@@ -1,3 +1,10 @@
+---
+summary: Every page, panel and settings tab of the React UI described; the orientation map for frontend work.
+kind: living
+status: current
+read-when: finding where a UI feature lives
+---
+
 # UI Overview
 
 PopDAM is a React + TypeScript single-page application built with Vite, shadcn/ui components, and Tailwind CSS. This document describes every page, panel, and settings tab in the interface.

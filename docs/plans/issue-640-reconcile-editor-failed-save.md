@@ -1,3 +1,10 @@
+---
+summary: Issue #640 plan: OrderList: retain columns and allow reconciliation corrections. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-640
+---
+
 # Plan: Review finding: u2giants/popdam3#639 OrderList: retain columns and allow reconciliation corrections (u2giants/popdam3#640)
 Issue: https://github.com/u2giants/popdam3/issues/640
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

@@ -1,3 +1,10 @@
+---
+summary: Issue #705 plan: feat(settings): show ingestion rules and add reversible extra rules. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-705
+---
+
 # Plan: Review finding: u2giants/popdam3#703 feat(settings): show ingestion rules and add reversible extra rules (u2giants/popdam3#705)
 Issue: https://github.com/u2giants/popdam3/issues/705
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

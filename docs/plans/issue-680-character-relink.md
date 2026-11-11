@@ -1,3 +1,10 @@
+---
+summary: Issue #680 plan: relink existing AI character tags to the licensor master list; read its STATUS section first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-680
+---
+
 # Issue 680: relink existing AI character tags
 
 Owning application issue: https://github.com/u2giants/popdam3/issues/680

@@ -1,3 +1,10 @@
+---
+summary: Issue #707 plan: Small leftovers from closed review findings. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-707
+---
+
 # Plan: Small leftovers from closed review findings (u2giants/popdam3#707)
 Issue: https://github.com/u2giants/popdam3/issues/707
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

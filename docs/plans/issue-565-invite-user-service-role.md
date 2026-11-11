@@ -1,3 +1,10 @@
+---
+summary: Issue #565 plan: admin-api invite-user rejects service-role callers (uuid 'system'). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-565
+---
+
 # Plan: admin-api invite-user rejects service-role callers (uuid 'system') (u2giants/popdam3#565)
 Issue: https://github.com/u2giants/popdam3/issues/565
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

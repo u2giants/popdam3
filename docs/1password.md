@@ -1,3 +1,10 @@
+---
+summary: How to pull secrets from 1Password in this repo: the 1Password MCP server for AI agents and the op CLI for humans, scripts and CI.
+kind: ops
+status: current
+read-when: reading or writing secrets
+---
+
 # Using 1Password in this repo
 
 Two ways to pull secrets from 1Password instead of hardcoding them:

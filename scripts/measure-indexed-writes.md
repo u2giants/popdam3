@@ -1,3 +1,10 @@
+---
+summary: Opt-in, read-only observer measuring indexed-write behavior for issue #169; it never starts crawls and never writes to the database.
+kind: ops
+status: current
+read-when: measuring indexed-write performance
+---
+
 # Indexed-write measurement for app issue #169
 
 This is an opt-in, read-only observer. It never starts a crawl, invokes a bridge refresh, changes database settings, or writes to the database. It records row identifiers and indexed column values only in a private scratch directory outside this repository. Do not attach that directory or its files to an issue or pull request.

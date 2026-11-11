@@ -1,3 +1,10 @@
+---
+summary: OrderList /orders: PopDAM replacement for the legacy Sheet — view, search, filter, edit and create order lines; integration and performance plan pointers.
+kind: living
+status: current
+read-when: changing OrderList or order-line handling
+---
+
 # OrderList (`/orders`)
 
 Active loading/Find-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.

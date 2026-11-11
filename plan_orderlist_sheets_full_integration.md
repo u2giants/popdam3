@@ -1,3 +1,10 @@
+---
+summary: Completed native Sheets integration; STATUS records the verified delivery and separately held source decisions.
+kind: plan
+status: done
+read-when: checking Sheets integration delivery history
+---
+
 # IMPLEMENTATION PLAN — reproduce the native Sheets integration (2026-10-09)
 
 ## STATUS

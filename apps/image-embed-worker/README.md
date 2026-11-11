@@ -1,3 +1,10 @@
+---
+summary: GPU poller install and run guide for image similarity (DINOv3+SigLIP2) and the durable search-document embedding lane; claim/heartbeat queue loop on edge-dev.
+kind: living
+status: current
+read-when: installing, running or changing the image-embed GPU poller
+---
+
 # apps/image-embed-worker — PopDAM image-similarity GPU poller
 
 Pull-based GPU worker for the image-similarity feature (issue #486,

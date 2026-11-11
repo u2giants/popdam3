@@ -1,3 +1,10 @@
+---
+summary: Historical semantic-search plan superseded by plan_vector_consolidation; kept for background only.
+kind: plan
+status: done
+read-when: reading early semantic-search history
+---
+
 > **HISTORICAL (Nov 4, 2026).** Superseded by [plan_vector_consolidation.md](plan_vector_consolidation.md). Do not execute from this file; its handoffs are retired.
 
 # Semantic Search for PopDAM and PopSG — Implementation Plan

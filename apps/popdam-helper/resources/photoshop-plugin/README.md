@@ -1,3 +1,10 @@
+---
+summary: Photoshop plugin that detects closing a checked-out file and offers check-in through the POP DAM Helper; Photoshop-only, Illustrator has no close event.
+kind: living
+status: current
+read-when: changing the Helper Photoshop plugin
+---
+
 # POP DAM Helper — Photoshop plugin
 
 Detects when you **close** a checked-out file in Photoshop and tells the POP DAM

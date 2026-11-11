@@ -1,3 +1,10 @@
+---
+summary: Capability-driven model contract that replaces model-name guessing across tagging, bake-offs and ERP; read STATUS first.
+kind: plan
+status: open
+read-when: changing how AI models are selected or called
+---
+
 # AI Model Interaction Reliability Implementation Plan
 
 Linked handoff: `HANDOFF.d/2026-08-16T0228Z-hetz-codex-ai-model-routing-plan.md` (retired)

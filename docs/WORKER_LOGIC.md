@@ -1,3 +1,10 @@
+---
+summary: Bridge agent behavior contracts on the Synology NAS: scan, ingest, thumbnails, move detection and check-in verification.
+kind: living
+status: current
+read-when: changing bridge-agent scan or ingest behavior
+---
+
 # WORKER LOGIC (Bridge Agent on Synology) — The “Muscle” Contract
 
 ## Reliable AI output

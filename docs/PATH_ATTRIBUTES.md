@@ -1,3 +1,10 @@
+---
+summary: Path-derived stage/customer/program columns on assets and style_groups: derivation rules, triggers and facets; the SQL is authoritative.
+kind: living
+status: current
+read-when: changing path-derived attributes or their filters
+---
+
 # Path-Derived Attributes: stage / customer / program
 
 Three columns — `stage`, `customer`, `program` — on **both** `assets` and `style_groups` are inferred from the NAS folder a file sits in. They power the Stage / Customer / Program filters and make a search like `Ross Wall 2026` surface every file and group in that program.

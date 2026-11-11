@@ -1,3 +1,10 @@
+---
+summary: System design: React/Vite frontend, Supabase project, Deno edge functions, NAS bridge agent, Windows render agent, Railway worker; dual mode by hostname.
+kind: living
+status: current
+read-when: changing system design or understanding data flow
+---
+
 # Architecture
 
 ## Overview

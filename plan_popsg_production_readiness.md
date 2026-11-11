@@ -1,3 +1,10 @@
+---
+summary: PopSG library truthfulness and search readiness (#107); extraction and v2 cutover delivered, acceptance remains; read STATUS first.
+kind: plan
+status: open
+read-when: working PopSG production readiness (#107)
+---
+
 # PopSG Production Readiness and NAS Fidelity Plan
 
 Issue: [u2giants/popdam3 #107](https://github.com/u2giants/popdam3/issues/107)

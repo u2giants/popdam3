@@ -1,3 +1,10 @@
+---
+summary: Upload an image, find the same artwork: dual vision embeddings, the GPU poller, floor/bands/top-k; delivered, activation ongoing; read STATUS first.
+kind: plan
+status: open
+read-when: working on image similarity or its workers
+---
+
 # Implementation plan — Upload an image, find the same artwork in the library
 
 **Plan file:** `plan_image_similarity_upload_search.md`  

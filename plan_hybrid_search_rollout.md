@@ -1,3 +1,10 @@
+---
+summary: Historical hybrid-search rollout, style-number outage closed 2026-11-02; superseded by plan_vector_consolidation, kept for its failure contract.
+kind: plan
+status: done
+read-when: reading the hybrid-search failure history
+---
+
 > **HISTORICAL (Nov 4, 2026).** Vector and semantic work is now governed by [plan_vector_consolidation.md](plan_vector_consolidation.md). The November 1 failure contract below remains in force.
 
 # PopDAM Hybrid Search — Safe Implementation and Rollout Plan

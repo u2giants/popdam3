@@ -1,3 +1,10 @@
+---
+summary: Single source of truth for tables, columns, constraints, indexes and visibility rules (RLS) across the shared Supabase database.
+kind: living
+status: current
+read-when: changing or querying the database schema
+---
+
 # DATABASE SCHEMA (Postgres / Supabase)
 
 This document is the single source of truth for tables, columns, constraints, indexes, and visibility rules.

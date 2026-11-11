@@ -1,3 +1,10 @@
+---
+summary: Issue #722 plan: Tagging: full run pages through files and steps aside for nightly grouping (#680). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-722
+---
+
 # Plan: Review finding: u2giants/popdam3#717 Tagging: full run pages through files and steps aside for nightly grouping (#680) (u2giants/popdam3#722)
 Issue: https://github.com/u2giants/popdam3/issues/722
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

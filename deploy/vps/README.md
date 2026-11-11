@@ -1,3 +1,10 @@
+---
+summary: Host-level scripts for the Coolify VPS, installed manually and versioned here to survive a rebuild; not deployed by CI.
+kind: ops
+status: current
+read-when: using or changing VPS host scripts
+---
+
 # deploy/vps — Hetzner VPS host tooling
 
 Host-level scripts for the VPS that runs the Coolify stack (frontend, MCP servers,

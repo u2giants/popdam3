@@ -1,3 +1,10 @@
+---
+summary: MCP server configuration and token management for AI sessions; the one rule: the root .mcp.json carries no secrets, tokens come from 1Password.
+kind: ops
+status: current
+read-when: configuring or debugging MCP servers
+---
+
 # MCP Servers & Secret Management
 
 How the MCP servers used by AI sessions on this repo are configured and authenticated,

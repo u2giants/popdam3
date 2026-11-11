@@ -1,3 +1,10 @@
+---
+summary: Issue #706 plan: PopSG semantic search: restart indexing and finish acceptance. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-706
+---
+
 # Plan: PopSG semantic search: restart indexing and finish acceptance (u2giants/popdam3#706)
 Issue: https://github.com/u2giants/popdam3/issues/706
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

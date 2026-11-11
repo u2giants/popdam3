@@ -1,3 +1,10 @@
+---
+summary: PopDAM non-negotiables — the highest-authority document; where it conflicts with anything else, this file wins.
+kind: living
+status: current
+read-when: a decision seems to conflict with project rules
+---
+
 # PROJECT_BIBLE.md — PopDAM (Non-Negotiables)
 
 This is the single highest-authority document for PopDAM V2.  

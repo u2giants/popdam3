@@ -1,3 +1,10 @@
+---
+summary: Administrator app for the shared Customer, Vendor, Licensor and Property hubs; independent of the PopDAM app, its schema still changes only through shared-db.
+kind: living
+status: current
+read-when: working on the DB Data Admin frontend
+---
+
 # DB Data Admin frontend
 
 This app moved here from `u2giants/shared-db` on 2026-09-16. It is independent of the PopDAM app: its own folder, dependencies, workflow (`.github/workflows/db-data-admin.yml`) and Coolify applications. Database structure it relies on is still changed only through `u2giants/shared-db`.

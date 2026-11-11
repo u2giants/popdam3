@@ -1,3 +1,10 @@
+---
+summary: All vector and semantic search work for DAM and PopSG: one durable embedding pipeline, scorecard, activation; read STATUS first.
+kind: plan
+status: open
+read-when: any vector, embedding or semantic-search work
+---
+
 # Vector consolidation — one durable pipeline, one search contract, two apps
 
 Created November 4, 2026, 5:05 PM EST on `hetz` by Claude (session

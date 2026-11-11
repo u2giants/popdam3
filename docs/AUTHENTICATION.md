@@ -1,3 +1,10 @@
+---
+summary: Supabase Auth login paths (Microsoft/Azure, Google, email/password, hidden legacy Authentik) all producing the same app JWT.
+kind: living
+status: current
+read-when: changing login, SSO or session handling
+---
+
 # Authentication
 
 PopDAM uses Supabase Auth for session management. Login is available through Microsoft/Azure, Google, and email/password. A legacy Authentik path still exists in code but is hidden from the login page. All paths produce the same kind of Supabase JWT that the rest of the app uses without modification.

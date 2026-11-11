@@ -1,3 +1,10 @@
+---
+summary: Rules that let AI tools assist on this repo without creating production drift.
+kind: living
+status: current
+read-when: an AI session starts work in this repo
+---
+
 # AI Operating Rules
 
 ## Purpose

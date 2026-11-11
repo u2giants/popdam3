@@ -1,3 +1,10 @@
+---
+summary: Issue #680 plan: Full AI tagging run after Indra PDF rescan. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-680
+---
+
 # Plan: Full AI tagging run after Indra PDF rescan (u2giants/popdam3#680)
 Issue: https://github.com/u2giants/popdam3/issues/680
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

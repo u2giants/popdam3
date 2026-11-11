@@ -1,3 +1,10 @@
+---
+summary: Issue #737 plan: Tagging: never save Albert as technical designer (#680). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-737
+---
+
 # Plan: Review finding: u2giants/popdam3#732 Tagging: never save Albert as technical designer (#680) (u2giants/popdam3#737)
 Issue: https://github.com/u2giants/popdam3/issues/737
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

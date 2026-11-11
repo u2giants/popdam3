@@ -1,0 +1,18 @@
+{
+  "roots": ["AGENTS.md", "README.md", "CLAUDE.md", "HANDOFF.md"],
+  "preferred_root": "AGENTS.md",
+  "exclude": [
+    "HANDOFF.d/**",
+    "shared-db/**",
+    "node_modules/**",
+    ".claude/**",
+    ".github/**",
+    ".lovable/**",
+    "docs/archive/**",
+    "**/archive/**",
+    "docs/access-records/**",
+    "docs/verification/**",
+    "verification/**",
+    "migration/export-from-browser.md"
+  ]
+}

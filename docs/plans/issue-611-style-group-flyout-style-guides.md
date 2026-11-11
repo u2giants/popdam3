@@ -1,3 +1,10 @@
+---
+summary: Issue #611 plan: Style-group flyout: show licensor-scrape style guides (shared-db #5092). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-611
+---
+
 # Plan: Review finding: u2giants/popdam3#610 Style-group flyout: show licensor-scrape style guides (shared-db #5092) (u2giants/popdam3#611)
 Issue: https://github.com/u2giants/popdam3/issues/611
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

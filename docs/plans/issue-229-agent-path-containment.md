@@ -1,3 +1,10 @@
+---
+summary: Issue #229 plan: [Agents] Enforce path containment for server-supplied filenames and paths. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-229
+---
+
 # Plan: [Agents] Enforce path containment for server-supplied filenames and paths (u2giants/popdam3#229)
 Issue: https://github.com/u2giants/popdam3/issues/229
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

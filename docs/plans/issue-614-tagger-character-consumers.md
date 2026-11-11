@@ -1,3 +1,10 @@
+---
+summary: Issue #614 plan: Tagger: characters only from licensor-scraped master list. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-614
+---
+
 # Plan: Review finding: u2giants/popdam3#613 Tagger: characters only from licensor-scraped master list (u2giants/popdam3#614)
 Issue: https://github.com/u2giants/popdam3/issues/614
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

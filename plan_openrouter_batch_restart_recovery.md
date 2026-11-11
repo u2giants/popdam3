@@ -1,3 +1,10 @@
+---
+summary: Make OpenRouter Image Tagging batches survive Railway restarts; read STATUS first.
+kind: plan
+status: open
+read-when: fixing batch recovery after restarts
+---
+
 # OpenRouter Batch Restart Recovery Implementation Plan
 
 Linked handoff (retired 2026-10-27, see #143): [HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md](https://github.com/u2giants/popdam3/blob/db60b4be8cabcf8856f930a52677c431220e7f64/HANDOFF.d/2026-10-11T1912Z-hetz-codex-open-issues-coordinator.md)

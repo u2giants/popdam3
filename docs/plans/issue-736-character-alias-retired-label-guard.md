@@ -1,3 +1,10 @@
+---
+summary: Issue #736 plan: Tagging: named characters resolve through licensor aliases (#680). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-736
+---
+
 # Plan: Review finding: u2giants/popdam3#731 Tagging: named characters resolve through licensor aliases (#680) (u2giants/popdam3#736)
 Issue: https://github.com/u2giants/popdam3/issues/736
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

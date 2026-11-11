@@ -1,3 +1,10 @@
+---
+summary: Issue #725 plan: feat(search): scored search test set and spelling help. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-725
+---
+
 # Plan: Review finding: u2giants/popdam3#720 feat(search): scored search test set and spelling help (u2giants/popdam3#725)
 Issue: https://github.com/u2giants/popdam3/issues/725
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

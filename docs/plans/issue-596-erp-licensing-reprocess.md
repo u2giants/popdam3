@@ -1,3 +1,10 @@
+---
+summary: Issue #596 plan: fix(licensing): ERP decides product licensing; resolve codes via taxonomy. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-596
+---
+
 # Plan: Review finding: u2giants/popdam3#595 fix(licensing): ERP decides product licensing; resolve codes via taxonomy (u2giants/popdam3#596)
 Issue: https://github.com/u2giants/popdam3/issues/596
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

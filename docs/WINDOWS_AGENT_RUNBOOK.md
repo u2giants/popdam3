@@ -1,3 +1,10 @@
+---
+summary: Operator runbook for the Windows render agent: uninstall, reinstall, verify and unattended install via popdam-agent.ini.
+kind: ops
+status: current
+read-when: installing or repairing the Windows agent
+---
+
 # PopDAM Windows Agent — Operator Runbook
 
 This guide covers how to uninstall, reinstall, and verify the Windows Render Agent.

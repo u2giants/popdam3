@@ -1,3 +1,10 @@
+---
+summary: Issue #709 plan: Check library filters for non-admin users. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-709
+---
+
 # Plan: Check library filters for non-admin users (u2giants/popdam3#709)
 Issue: https://github.com/u2giants/popdam3/issues/709
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

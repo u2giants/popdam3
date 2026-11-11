@@ -1,3 +1,10 @@
+---
+summary: Root-cause reference for coolify-proxy 502s on healthy containers (Docker socket loss, June 2026): cause, permanent self-healing fix, verification.
+kind: ops
+status: current
+read-when: debugging or preventing coolify-proxy 502 failures
+---
+
 # coolify-proxy Docker-Socket Failure — Root Cause & Permanent Fix
 
 Detailed reference for the recurring failure where a **new or changed container returns

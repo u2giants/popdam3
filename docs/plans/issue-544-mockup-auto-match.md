@@ -1,3 +1,10 @@
+---
+summary: Issue #544 plan: Mockup auto-match — open the right product with the right images from an item. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-544
+---
+
 # Plan: Mockup auto-match — open the right product with the right images from an item (u2giants/popdam3#544)
 Issue: https://github.com/u2giants/popdam3/issues/544
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

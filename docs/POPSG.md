@@ -1,3 +1,10 @@
+---
+summary: PopSG licensor style-guide mode: schema, crawl flow, render pipeline and the readiness plan pointer; keyword search stays baseline until acceptance passes.
+kind: living
+status: current
+read-when: changing PopSG pages, crawl or renders
+---
+
 # PopSG — Licensor Style Guide Library
 
 Semantic-search delivery is planned in [the combined PopDAM/PopSG plan](../plan_semantic_search_popdam_popsg.md); read its STATUS first. Existing keyword search remains the baseline until its live acceptance gates pass.

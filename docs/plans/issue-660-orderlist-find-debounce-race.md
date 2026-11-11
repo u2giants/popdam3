@@ -1,3 +1,10 @@
+---
+summary: Issue #660 plan: Google-Sheets-style Find stepping in OrderList and Master Data (#658). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-660
+---
+
 # Plan: Review finding: u2giants/popdam3#659 Google-Sheets-style Find stepping in OrderList and Master Data (#658) (u2giants/popdam3#660)
 Issue: https://github.com/u2giants/popdam3/issues/660
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

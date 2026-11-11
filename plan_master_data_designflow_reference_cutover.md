@@ -1,3 +1,10 @@
+---
+summary: Converge shared Master Data references with DesignFlow Item Details; read STATUS first.
+kind: plan
+status: open
+read-when: aligning Master Data with DesignFlow references
+---
+
 # Master Data and DesignFlow Shared Reference Cutover Plan
 
 ## STATUS

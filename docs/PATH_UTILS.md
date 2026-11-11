@@ -1,3 +1,10 @@
+---
+summary: Canonical path format stored in the database and the exact conversion and parsing rules shared by the web UI, bridge agent, Windows agent and helper.
+kind: living
+status: current
+read-when: changing path formats or NAS mapping
+---
+
 # PATH + NAS MAPPING RULES (Single Source of Truth)
 
 This document defines the canonical path format stored in the database and the exact conversion/parsing rules used by:

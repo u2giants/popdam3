@@ -1,3 +1,10 @@
+---
+summary: Issue #711 plan: fix(tagging): parallel runs fail over to the saved backup during an outage. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-711
+---
+
 # Plan: Review finding: u2giants/popdam3#710 fix(tagging): parallel runs fail over to the saved backup during an outage (u2giants/popdam3#711)
 Issue: https://github.com/u2giants/popdam3/issues/711
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

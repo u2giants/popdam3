@@ -1,3 +1,10 @@
+---
+summary: #179 NAS user popdam rotation executed 2026-10-21 on owner override; DSM self-service on edge2, edge1 steps and verification.
+kind: plan
+status: done
+read-when: checking the popdam NAS-user rotation record
+---
+
 # #179 — Rotate NAS user `popdam` (edgesynology1 + edgesynology2)
 
 **Executed 2026-10-21 ~11:25 PM EDT** on Albert's override of the reviewer

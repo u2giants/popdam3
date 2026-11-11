@@ -1,3 +1,10 @@
+---
+summary: Issue #723 plan: fix(windows-agent): let the Indra rescan read PDFs up to 1 GB (#680). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-723
+---
+
 # Plan: Review finding: u2giants/popdam3#718 fix(windows-agent): let the Indra rescan read PDFs up to 1 GB (#680) (u2giants/popdam3#723)
 Issue: https://github.com/u2giants/popdam3/issues/723
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

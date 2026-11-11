@@ -1,3 +1,10 @@
+---
+summary: Issue #471 plan: Audit backlog: dead code and duplication. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-471
+---
+
 # Plan: Audit backlog: dead code and duplication (u2giants/popdam3#471)
 Issue: https://github.com/u2giants/popdam3/issues/471
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

@@ -1,3 +1,10 @@
+---
+summary: Issue #107 plan: PopSG complete trustworthy searchable library — open gates 7–10. Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-107
+---
+
 # Plan: PopSG complete trustworthy searchable library — open gates 7–10 (u2giants/popdam3#107)
 Issue: https://github.com/u2giants/popdam3/issues/107
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

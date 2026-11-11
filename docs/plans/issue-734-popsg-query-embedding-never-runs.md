@@ -1,3 +1,10 @@
+---
+summary: Issue #734 plan: PopSG meaning-based search behind a switch; indexing keeps resuming (#706). Read its STATUS first.
+kind: plan
+status: open
+read-when: implementing or planning issue work for issue-734
+---
+
 # Plan: Review finding: u2giants/popdam3#730 PopSG meaning-based search behind a switch; indexing keeps resuming (#706) (u2giants/popdam3#734)
 Issue: https://github.com/u2giants/popdam3/issues/734
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)

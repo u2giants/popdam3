@@ -1,3 +1,10 @@
+---
+summary: Desktop Helper architecture: checkout/check-in workflow, local server and auth, Seafile/SeaDrive transport, OAuth rules and install channels.
+kind: living
+status: current
+read-when: changing the desktop Helper or checkout check-in
+---
+
 # POP DAM Helper
 
 The POP DAM Helper is a Windows/macOS Electron desktop app that gives designers a checkout/check-in workflow for source art files. It bridges the web DAM and the local filesystem without requiring designers to manually browse the NAS or handle file conflicts.

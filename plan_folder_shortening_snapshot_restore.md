@@ -1,3 +1,10 @@
+---
+summary: Shorten NAS folder names and make restore-from-snapshot follow renames (#963); phases 1-4 landed, snapshot restore remains; read STATUS first.
+kind: plan
+status: open
+read-when: continuing NAS folder shortening (#963)
+---
+
 # Plan — Shorten NAS folder names, and restore-from-snapshot that follows renames
 
 Tracking issue: [u2giants/popdam3#963](https://github.com/u2giants/popdam3/issues/963)
