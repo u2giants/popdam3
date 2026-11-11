@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261111114428",
+  "migration_sha256": "ce6e0eda0b951bed4b0c03acf6f81aec642531d5490ddac688f6d0531b084952",
+  "checks": [
+    {
+      "id": "popsg_search_v2_live_files_inline",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_live_files_inline_v1",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 424,
+      "line_end": 424,
+      "disposition": "checks",
+      "check_ids": [
+        "popsg_search_v2_live_files_inline"
+      ],
+      "reason": "This marker covers the dynamic guides-body execution at line 424, unchanged apart from live_files becoming NOT MATERIALIZED in both modes. The catalog check pins the exact installed body, settings and privileges, and the absence of the 17- and 18-argument overloads. The existing contracts in supabase/tests/popsg_search_style_guide_library_v2_contracts.sql (results, totals, paging, facets) run unchanged against the new body."
+    }
+  ]
+}
