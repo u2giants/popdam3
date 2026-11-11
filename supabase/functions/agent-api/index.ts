@@ -74,6 +74,7 @@ import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/sty
 import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
+import { reportResult, RESTORE_REQUEST_KEY, RESTORE_RESULT_KEY, snapshotCommands, VERSIONS_REQUEST_KEY, VERSIONS_RESULT_KEY } from "../_shared/snapshot-requests.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -209,6 +210,8 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "NAS_HOST_PATH",
   "PATH_TEST_REQUEST",
   "DIR_BROWSE_REQUEST",
+  "SNAPSHOT_VERSIONS_REQUEST",
+  "SNAPSHOT_RESTORE_REQUEST",
   "SCAN_REQUEST",
   "SCAN_ALLOWED_SUBFOLDERS",
   "SCAN_MIN_DATE",
@@ -823,6 +826,7 @@ async function handleHeartbeat(
       abort_scan: scanAbort || forceStop,
       test_paths: testPaths,
       browse_dir: browseDir,
+      ...(agentType === "bridge" ? snapshotCommands(configMap) : {}),
       check_update: checkUpdate,
       apply_update: applyUpdate,
       trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
@@ -5007,6 +5011,14 @@ corsServe(async (req: Request) => {
         return await handleReportPathTest(body);
       case "report-dir-browse":
         return await handleReportDirBrowse(body);
+      case "report-snapshot-versions": {
+        const r = await reportResult(serviceClient(), VERSIONS_REQUEST_KEY, VERSIONS_RESULT_KEY, body);
+        return json(r.body, r.status);
+      }
+      case "report-snapshot-restore": {
+        const r = await reportResult(serviceClient(), RESTORE_REQUEST_KEY, RESTORE_RESULT_KEY, body);
+        return json(r.body, r.status);
+      }
       case "check-changed":
         return await handleCheckChanged(body);
       case "save-checkpoint":

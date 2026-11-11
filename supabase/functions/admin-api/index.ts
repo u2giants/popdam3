@@ -87,6 +87,7 @@ import { handleProdOrderStats, handleProdOrderSyncRuns, handleTriggerProdOrderSy
 
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
+import { handleGetSnapshotRestoreResult, handleGetSnapshotVersionsResult, handleRequestSnapshotRestore, handleRequestSnapshotVersions } from "../_shared/admin-handlers/snapshot-handlers.ts";
 
 import {
   handleClearTiffScan,
@@ -2074,6 +2075,15 @@ corsServe(async (req: Request) => {
         return await handleRequestDirBrowse(body, userId);
       case "get-dir-browse-result":
         return await handleGetDirBrowseResult();
+      // Restore from snapshot (popdam3#963) — admin only (not in USER_ACCESSIBLE_ACTIONS)
+      case "request-snapshot-versions":
+        return await handleRequestSnapshotVersions(body, userId);
+      case "get-snapshot-versions-result":
+        return await handleGetSnapshotVersionsResult(body);
+      case "request-snapshot-restore":
+        return await handleRequestSnapshotRestore(body, userId);
+      case "get-snapshot-restore-result":
+        return await handleGetSnapshotRestoreResult(body);
 
       // ── Metadata (from metadata-handlers.ts) ──
       case "reprocess-asset-metadata":

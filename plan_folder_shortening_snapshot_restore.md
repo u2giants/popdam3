@@ -11,8 +11,8 @@ Phase 0 is done (see baseline file). Next: Phases 1–3 and 4. Nothing has been 
 | Step | State | Date | Evidence |
 |---|---|---|---|
 | Phase 0 — measure and verify assumptions (0.1–0.7) | ✅ done (0.3 in-container check deferred to 2.7) | 2026-11-11 | `verification/folder-shortening/path-length-baseline-2026-11-11.md` |
-| Phase 1 — permanent rename record (1.1–1.4) | ⬜ open | — | — |
-| Phase 2 — restore from snapshot (2.1–2.7) | ⬜ open | — | — |
+| Phase 1 — permanent rename record (1.1–1.4) | 🟡 in progress | 2026-11-11 | DB: popcre/shared-db#6078 (issue #6077); docs here |
+| Phase 2 — restore from snapshot (2.1–2.7) | 🟡 in progress (2.3 fallback not built: candidates cover moves + renames) | 2026-11-11 | code in this PR; live proof pending |
 | Phase 3 — PopDAM understands old and new names (3.1–3.5) | ⬜ open | — | — |
 | Phase 4 — rename rules and full old-to-new list (4.1–4.5) | ⬜ open | — | — |
 | Phase 5 — carry out the renames in stages (5.1–5.7) | ⬜ open | — | — |

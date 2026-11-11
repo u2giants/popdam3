@@ -136,6 +136,12 @@ Hard constraints:
 - `old_relative_path text`
 - `new_relative_path text`
 - `detected_at timestamptz DEFAULT now()`
+- Purged after **400 days** by cron `purge-asset-path-history-old-rows` (was 90; lengthened for snapshot restore, #963 — NAS snapshots are kept ~12 months).
+
+### 2.7a `dam.folder_rename_log` (#963, owned by popcre/shared-db)
+- `id bigint identity PK` (also execution order), `share text DEFAULT 'mac'`, `old_path text`, `new_path text` (share-relative POSIX folder paths, no leading/trailing slash), `renamed_at timestamptz`, `batch_id uuid`, `rule text`, `reverted_at timestamptz NULL`
+- `UNIQUE(share, old_path, renamed_at)`; admin-read RLS; written only by the service role. **Never purged** — see `docs/PATH_ATTRIBUTES.md` §8.
+- Functions: `dam.path_as_of(share, path, at)`, `dam.path_candidates(share, asset_id)`, service-role wrapper `public.dam_asset_path_candidates(asset_id)`.
 
 ### 2.8 processing_queue
 - `id uuid PK`

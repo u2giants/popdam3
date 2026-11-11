@@ -52,6 +52,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
 import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
 import CheckoutBar from "@/components/library/CheckoutBar";
+import OlderCopiesSection from "@/components/library/OlderCopiesSection";
 import { useBulkOperationWaiter } from "@/hooks/useBulkOperationWaiter";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
@@ -927,6 +928,14 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
                       ))}
                     </div>
                   </section>
+                </>
+              )}
+
+              {/* ── Older copies (admin only, popdam3#963) ────────── */}
+              {isAdmin && (
+                <>
+                  {!wide && <Separator />}
+                  <OlderCopiesSection assetId={asset.id} relativePath={asset.relative_path} />
                 </>
               )}
 

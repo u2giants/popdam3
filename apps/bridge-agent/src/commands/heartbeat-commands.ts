@@ -35,6 +35,8 @@ export interface BridgeCommandContext {
   runScan: (sessionId?: string) => Promise<void>;
   handlePathTest: (cmd: NonNullable<BridgeCommands["test_paths"]>) => Promise<void>;
   handleDirBrowse: (cmd: { request_id: string; path: string }) => Promise<void>;
+  handleSnapshotVersions: (cmd: NonNullable<BridgeCommands["snapshot_versions"]>) => Promise<void>;
+  handleSnapshotRestore: (cmd: NonNullable<BridgeCommands["snapshot_restore"]>) => Promise<void>;
   handleCheckUpdate: () => Promise<void>;
   handleApplyUpdate: () => unknown;
   runPdfTextSample: (assets: PdfSampleAsset[]) => Promise<unknown>;
@@ -53,6 +55,8 @@ export const BRIDGE_HEARTBEAT_COMMANDS = [
   "force_scan",
   "test_paths",
   "browse_dir",
+  "snapshot_versions",
+  "snapshot_restore",
   "check_update",
   "apply_update",
   "trigger_pdf_text_sample",
@@ -102,6 +106,26 @@ export function createBridgeCommandHandlers(ctx: BridgeCommandContext): CommandH
         if (c.browse_dir) {
           ctx.handleDirBrowse(c.browse_dir as { request_id: string; path: string }).catch((e) =>
             logger.error("Dir browse failed", { error: (e as Error).message })
+          );
+        }
+      },
+    },
+    {
+      name: "snapshot_versions",
+      run: (c) => {
+        if (c.snapshot_versions) {
+          ctx.handleSnapshotVersions(c.snapshot_versions).catch((e) =>
+            logger.error("Snapshot versions failed", { error: (e as Error).message })
+          );
+        }
+      },
+    },
+    {
+      name: "snapshot_restore",
+      run: (c) => {
+        if (c.snapshot_restore) {
+          ctx.handleSnapshotRestore(c.snapshot_restore).catch((e) =>
+            logger.error("Snapshot restore failed", { error: (e as Error).message })
           );
         }
       },

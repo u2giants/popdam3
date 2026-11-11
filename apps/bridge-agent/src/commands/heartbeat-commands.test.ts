@@ -24,6 +24,8 @@ function makeCtx(flagOverrides: Partial<BridgeBusyFlags> = {}) {
     runScan: done("runScan"),
     handlePathTest: done("handlePathTest"),
     handleDirBrowse: done("handleDirBrowse"),
+    handleSnapshotVersions: done("handleSnapshotVersions"),
+    handleSnapshotRestore: done("handleSnapshotRestore"),
     handleCheckUpdate: done("handleCheckUpdate"),
     handleApplyUpdate: () => { calls.push("handleApplyUpdate"); },
     runPdfTextSample: done("runPdfTextSample"),
@@ -43,6 +45,8 @@ const allCommands: BridgeCommands = {
   abort_scan: true,
   test_paths: { request_id: "r", container_mount_root: "/m", scan_roots: [] },
   browse_dir: { request_id: "r", path: "" },
+  snapshot_versions: { request_id: "r", candidates: ["a/b.psd"] },
+  snapshot_restore: { request_id: "r", snapshot: "GMT-04-2026.05.29-18.15.01", source_path: "a/b.psd", destination_dir: "a" },
   check_update: true,
   apply_update: true,
   trigger_pdf_text_sample: true,
@@ -66,7 +70,7 @@ test("every heartbeat command reaches its handler", async () => {
   const { ctx, calls } = makeCtx();
   await dispatchCommands(allCommands, createBridgeCommandHandlers(ctx));
   assert.deepEqual(calls, [
-    "runScan", "handlePathTest", "handleDirBrowse", "handleCheckUpdate", "handleApplyUpdate",
+    "runScan", "handlePathTest", "handleDirBrowse", "handleSnapshotVersions", "handleSnapshotRestore", "handleCheckUpdate", "handleApplyUpdate",
     "runPdfTextSample", "runAiSentinelScan", "runBlankThumbCleanup", "runPdfBackfill",
     "runCompatAudit", "crawlStyleGuides",
     // audit_compat_preview is skipped because the full audit started first (original guard)
