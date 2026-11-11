@@ -16,11 +16,14 @@ import type { ServiceClient } from "./service-client.ts";
 export const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "concept approved designs": "concept_approved",
   "in development": "in_development",
+  // Short folder names planned for the NAS rename (u2giants/popdam3#963).
+  "in dev": "in_development",
   "freelancer art": "freelancer_art",
   "discontinued": "discontinued",
   "product ideas": "product_ideas",
   "in process": "in_process",
   "customer adopted": "customer_adopted",
+  "cust adopted": "customer_adopted",
   "licensor approved": "licensor_approved",
 };
 

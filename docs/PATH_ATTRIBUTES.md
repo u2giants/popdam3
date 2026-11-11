@@ -24,8 +24,8 @@ Let `idx` = position of `____New Structure` in the path segments. If the path ha
 
 | Slot | Rule |
 |---|---|
-| `stage` | the segment **directly after** `____New Structure` (`segs[idx+1]`). Set for **all** files under the anchor. |
-| `customer` / `program` | only when `stage = 'In Development'` **and** `segs[idx+2] = 'Customer Adopted'`. Otherwise NULL. |
+| `stage` | the segment **directly after** `____New Structure` (`segs[idx+1]`). Set for **all** files under the anchor. The short folder `In Dev` is stored as `In Development` (stored values stay canonical; #963). |
+| `customer` / `program` | only when `stage = 'In Development'` **and** `segs[idx+2]` is `Customer Adopted` or `Cust Adopted`. Otherwise NULL. |
 
 Inside the `In Development / Customer Adopted` branch, the segment at `idx+3` decides the layout:
 
@@ -35,6 +35,8 @@ Inside the `In Development / Customer Adopted` branch, the segment at `idx+3` de
 | `_FINISHED` (wrapper bucket) | `segs[idx+4]` with trailing `_finished` stripped (case-insensitive) | `segs[idx+5]` |
 | any other `_`-prefixed bucket (`_NOT APPROVED`, `_REJECTED`, `_No Customer`, `_NOT SUBMITTED`, …) | NULL | NULL |
 | empty | NULL | NULL |
+
+**Year folder** — if the program slot is a year (`^20\d\d$`, e.g. `Ross/2026/Ross Wall 2026/…`), the program is the next folder instead (#963; before 2026-11-11 such files got program `2026`).
 
 **Program guard** — the program slot is nulled if it doesn't look like a real program folder:
 - matches `\.[A-Za-z0-9]+$` → looks like a filename

@@ -79,7 +79,7 @@ const FORM_TEXT_TAGS = new Set([
   "pantone", "pantone reference", "pantone swatches", "pantone colors", "pantone palette", "color swatches",
   "concept stage", "concept approved designs", "placeholder", "text", "title text", "black text", "white text",
   // Folder names and the company's own name, read from the file path or legal line.
-  "character licensed", "new structure", "in development", "customer adopted", "pop creations",
+  "character licensed", "new structure", "in development", "customer adopted", "in dev", "cust adopted", "pop creations",
   "ai file", "psd file", "pdf file",
 ]);
 
