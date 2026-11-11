@@ -74,8 +74,9 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const [itemInfo, setItemInfo] = useState<Record<string, { itemDescription: string | null; licensor: string | null }>>({});
 
   // Item Master details for the sheet's styles, for the assortment description suggestion.
+  // sku_normalized is lower-case in api.dam_order_list.
   useEffect(() => {
-    const skus = [...new Set((parsed?.lines ?? []).map((l) => l.sku.trim().toUpperCase()))];
+    const skus = [...new Set((parsed?.lines ?? []).map((l) => l.sku.trim().toLowerCase()))];
     if (skus.length === 0) { setItemInfo({}); return; }
     let cancelled = false;
     void (supabase as any).schema("api").from("dam_order_list")
@@ -99,7 +100,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
       description: suggestAssortmentDescription(lines.map((l) => ({
         sku: l.sku,
         sheetDescription: l.description,
-        ...(itemInfo[l.sku.trim().toUpperCase()] ?? {}),
+        ...(itemInfo[l.sku.trim().toLowerCase()] ?? {}),
       }))),
     }));
   }, [parsed, itemInfo]);
