@@ -73,12 +73,12 @@ begin
   -- Order numbers (plm.guard_production_po_number already forbids duplicate
   -- numbers): another customer's number is held, a free number creates the order, an existing own number gets the line.
   insert into plm.production_order (production_order_number, company_id, metadata)
-  values ('BSCT-OTHER', null, '{"customer_name":"Someone Else"}');
+  values ('BSCT-OTHER', null, '{"customer_name":"Someone Else"}'), ('BSCT-2', v_customer, '{}');
   v_lines := '[{"sku":"BSCTNEW02","delivery_date":"2026-12-20","quantity":10,"group":"other"},
                {"sku":"BSCTNEW03","delivery_date":"2026-12-20","quantity":10,"group":"free"},
                {"sku":"BSCTNEW04","delivery_date":"2026-12-20","quantity":10,"group":"own"}]';
   v_res := public.import_dam_buy_sheet(v_customer, 'c.xlsx', repeat('b', 64), '{}', v_lines,
-    '{"other":"BSCT-OTHER","free":"BSCT-NEW","own":"BSCT-1"}', true);
+    '{"other":"BSCT-OTHER","free":"BSCT-NEW","own":"BSCT-2"}', true);
   if v_res -> 'counts' <> '{"held": 1, "new": 2}'::jsonb then
     raise exception 'order-number counts wrong: %', v_res -> 'lines';
   end if;
@@ -87,8 +87,34 @@ begin
     raise exception 'order-number hold reasons wrong: %', v_res -> 'lines';
   end if;
   if (select count(*) from plm.production_order where production_order_number = 'BSCT-NEW' and company_id = v_customer) <> 1
-     or not exists (select 1 from plm.production_order_line where production_order_id = v_order and sku = 'BSCTNEW04') then
+     or not exists (select 1 from plm.production_order_line where sku = 'BSCTNEW04'
+                                 and production_order_id = (select id from plm.production_order where production_order_number = 'BSCT-2')) then
     raise exception 'new order / existing own order not used';
+  end if;
+
+  -- Revision of an already-imported sheet (shared-db#6025): a changed quantity
+  -- on a claimed line, or a new style on an order an earlier import filled, is
+  -- 'revision'; apply refuses the whole sheet and writes nothing.
+  v_lines := '[{"sku":"BSCTSTYLE01","delivery_date":"2026-12-10","quantity":650,"group":"g1"},
+               {"sku":"BSCTADDED","delivery_date":"2026-12-10","quantity":5,"group":"g1"},
+               {"sku":"BSCTNEW05","delivery_date":"2026-12-20","quantity":10,"group":"fresh"}]';
+  v_res := public.import_dam_buy_sheet(v_customer, 'c.xlsx', repeat('c', 64), '{}', v_lines,
+    '{"g1":"BSCT-1","fresh":"BSCT-FRESH"}', false);
+  if v_res -> 'counts' <> '{"new": 1, "revision": 2}'::jsonb then
+    raise exception 'revision preview counts wrong: %', v_res -> 'lines';
+  end if;
+  select count(*) into v_before from dam.order_buy_sheet_import;
+  begin
+    perform public.import_dam_buy_sheet(v_customer, 'c.xlsx', repeat('c', 64), '{}', v_lines,
+      '{"g1":"BSCT-1","fresh":"BSCT-FRESH"}', true);
+    raise exception 'revision apply was not refused';
+  exception when sqlstate 'P0001' then
+    if sqlerrm not like '%revised buy sheets are not supported%' then raise; end if;
+  end;
+  if (select quantity_ordered from plm.production_order_line where id = v_line) <> 600
+     or exists (select 1 from plm.production_order where production_order_number = 'BSCT-FRESH')
+     or (select count(*) from dam.order_buy_sheet_import) <> v_before then
+    raise exception 'refused revision wrote something';
   end if;
 
   -- A claimed line whose order is voided afterwards is held, not updated.
