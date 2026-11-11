@@ -303,16 +303,20 @@ begin
     -- Fresh IDs ensure each negative fails for its intended reason, not a duplicate PK.
     begin
       insert into hts_rag.hts_rag_classification_jobs
-      select (jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
-              v_fixture || jsonb_build_object('id', gen_random_uuid()))).*;
+        (id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at)
+      select id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at
+        from jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
+              v_fixture || jsonb_build_object('id', gen_random_uuid()));
       raise exception '% duplicated a determination turn', v_role;
     exception when unique_violation then null;
     end;
     begin
       insert into hts_rag.hts_rag_classification_jobs
-      select (jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
+        (id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at)
+      select id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at
+        from jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
               v_fixture || jsonb_build_object('id', gen_random_uuid(),
-                                             'determination_id', gen_random_uuid()))).*;
+                                             'determination_id', gen_random_uuid()));
       raise exception '% inserted an orphan determination', v_role;
     exception when foreign_key_violation then null;
     end;
@@ -323,8 +327,10 @@ begin
     ] loop
       begin
         insert into hts_rag.hts_rag_classification_jobs
-        select (jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
-                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2) || v_patch)).*;
+          (id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at)
+        select id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at
+          from jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
+                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2) || v_patch);
         raise exception '% accepted invalid job field %', v_role, v_patch;
       exception when check_violation then null;
       end;
@@ -334,8 +340,10 @@ begin
                                     'attempt_count', 'max_attempts', 'created_at', 'updated_at'] loop
       begin
         insert into hts_rag.hts_rag_classification_jobs
-        select (jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
-                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2, v_column, null))).*;
+          (id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at)
+        select id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at
+          from jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
+                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2, v_column, null));
         raise exception '% accepted NULL %', v_role, v_column;
       exception when not_null_violation then null;
       end;
@@ -346,8 +354,10 @@ begin
     ] loop
       begin
         insert into hts_rag.hts_rag_classification_jobs
-        select (jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
-                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2) || v_patch)).*;
+          (id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at)
+        select id, determination_id, session_id, turn_index, kind, status, owner_key, created_by, input, result, error_code, error_message, rfq_id, rfq_item_id, source, source_environment, claimed_at, claimed_by, lease_expires_at, attempt_count, max_attempts, estimated_cost_usd, actual_cost_usd, notified_at, applied_at, applied_by, created_at, updated_at
+          from jsonb_populate_record(null::hts_rag.hts_rag_classification_jobs,
+                v_fixture || jsonb_build_object('id', gen_random_uuid(), 'turn_index', 2) || v_patch);
         raise exception '% forged provenance %', v_role, v_patch;
       exception when insufficient_privilege then null;
       end;
