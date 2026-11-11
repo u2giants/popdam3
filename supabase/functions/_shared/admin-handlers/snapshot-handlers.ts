@@ -1,13 +1,7 @@
 /** Admin-only "Older copies" actions (u2giants/popdam3#963). Logic: ../snapshot-requests.ts. */
 import { json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
-import {
-  getResult,
-  requestSnapshotRestore,
-  requestSnapshotVersions,
-  RESTORE_RESULT_KEY,
-  VERSIONS_RESULT_KEY,
-} from "../snapshot-requests.ts";
+import { getResult, requestSnapshotRestore, requestSnapshotVersions, RESTORE_RESULT_KEY, VERSIONS_RESULT_KEY } from "../snapshot-requests.ts";
 
 const send = (o: { status: number; body: Record<string, unknown> }) => json(o.body, o.status);
 

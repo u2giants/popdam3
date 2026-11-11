@@ -74,7 +74,14 @@ import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/sty
 import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
-import { reportResult, RESTORE_REQUEST_KEY, RESTORE_RESULT_KEY, snapshotCommands, VERSIONS_REQUEST_KEY, VERSIONS_RESULT_KEY } from "../_shared/snapshot-requests.ts";
+import {
+  reportResult,
+  RESTORE_REQUEST_KEY,
+  RESTORE_RESULT_KEY,
+  snapshotCommands,
+  VERSIONS_REQUEST_KEY,
+  VERSIONS_RESULT_KEY,
+} from "../_shared/snapshot-requests.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 

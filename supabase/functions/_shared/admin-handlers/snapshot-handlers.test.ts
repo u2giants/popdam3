@@ -31,10 +31,7 @@ function fakeDb() {
     from: (table: string) => ({
       select: () => ({
         eq: (_c: string, v: string) => ({
-          maybeSingle: async () =>
-            table === "assets"
-              ? { data: assets[v] ?? null }
-              : { data: config.has(v) ? { value: config.get(v) } : null },
+          maybeSingle: async () => table === "assets" ? { data: assets[v] ?? null } : { data: config.has(v) ? { value: config.get(v) } : null },
         }),
       }),
       upsert: async (row: { key: string; value: Record<string, unknown> }) => {
@@ -68,8 +65,11 @@ describe("snapshot restore requests (popdam3#963)", () => {
   it("destination is never taken from the request", async () => {
     const db = fakeDb();
     await requestSnapshotRestore(db, {
-      asset_id: A, snapshot: SNAP, source_path: "Decor/Customer Adopted/Ross/a.psd",
-      destination_dir: "../../etc", destination: "/tmp",
+      asset_id: A,
+      snapshot: SNAP,
+      source_path: "Decor/Customer Adopted/Ross/a.psd",
+      destination_dir: "../../etc",
+      destination: "/tmp",
     }, "u");
     expect(db.config.get(RESTORE_REQUEST_KEY)?.destination_dir).toBe("Decor/Cust Adopted/Ross");
   });

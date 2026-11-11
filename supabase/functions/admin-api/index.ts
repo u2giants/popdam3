@@ -87,7 +87,12 @@ import { handleProdOrderStats, handleProdOrderSyncRuns, handleTriggerProdOrderSy
 
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
-import { handleGetSnapshotRestoreResult, handleGetSnapshotVersionsResult, handleRequestSnapshotRestore, handleRequestSnapshotVersions } from "../_shared/admin-handlers/snapshot-handlers.ts";
+import {
+  handleGetSnapshotRestoreResult,
+  handleGetSnapshotVersionsResult,
+  handleRequestSnapshotRestore,
+  handleRequestSnapshotVersions,
+} from "../_shared/admin-handlers/snapshot-handlers.ts";
 
 import {
   handleClearTiffScan,

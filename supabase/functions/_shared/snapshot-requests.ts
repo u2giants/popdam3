@@ -59,8 +59,12 @@ export async function requestSnapshotVersions(db: Db, body: Record<string, unkno
   const list = await candidates(db, asset.id);
   const requestId = crypto.randomUUID();
   await writeKey(db, VERSIONS_REQUEST_KEY, {
-    request_id: requestId, asset_id: asset.id, candidates: list, status: "pending",
-    requested_by: userId, requested_at: new Date().toISOString(),
+    request_id: requestId,
+    asset_id: asset.id,
+    candidates: list,
+    status: "pending",
+    requested_by: userId,
+    requested_at: new Date().toISOString(),
   }, userId);
   return ok({ request_id: requestId, candidates: list });
 }
@@ -81,9 +85,14 @@ export async function requestSnapshotRestore(db: Db, body: Record<string, unknow
   if (slash <= 0) return fail(400, "File has no folder");
   const requestId = crypto.randomUUID();
   await writeKey(db, RESTORE_REQUEST_KEY, {
-    request_id: requestId, asset_id: asset.id, snapshot, source_path: sourcePath,
-    destination_dir: asset.relative_path.slice(0, slash), status: "pending",
-    requested_by: userId, requested_at: new Date().toISOString(),
+    request_id: requestId,
+    asset_id: asset.id,
+    snapshot,
+    source_path: sourcePath,
+    destination_dir: asset.relative_path.slice(0, slash),
+    status: "pending",
+    requested_by: userId,
+    requested_at: new Date().toISOString(),
   }, userId);
   return ok({ request_id: requestId });
 }
@@ -97,7 +106,10 @@ export async function getResult(db: Db, resultKey: string, body: Record<string, 
 
 /** Agent side: store the result and close the request only when request_id matches. */
 export async function reportResult(
-  db: Db, requestKey: string, resultKey: string, body: Record<string, unknown>,
+  db: Db,
+  requestKey: string,
+  resultKey: string,
+  body: Record<string, unknown>,
 ): Promise<Out> {
   const requestId = body.request_id;
   if (typeof requestId !== "string" || !requestId) return fail(400, "Missing request_id");
@@ -116,13 +128,13 @@ export function snapshotCommands(configMap: Record<string, unknown>) {
   const v = configMap[VERSIONS_REQUEST_KEY] as Record<string, unknown> | undefined;
   const r = configMap[RESTORE_REQUEST_KEY] as Record<string, unknown> | undefined;
   return {
-    snapshot_versions: v?.status === "pending"
-      ? { request_id: String(v.request_id), candidates: (v.candidates as string[]) ?? [] }
-      : null,
+    snapshot_versions: v?.status === "pending" ? { request_id: String(v.request_id), candidates: (v.candidates as string[]) ?? [] } : null,
     snapshot_restore: r?.status === "pending"
       ? {
-        request_id: String(r.request_id), snapshot: String(r.snapshot),
-        source_path: String(r.source_path), destination_dir: String(r.destination_dir),
+        request_id: String(r.request_id),
+        snapshot: String(r.snapshot),
+        source_path: String(r.source_path),
+        destination_dir: String(r.destination_dir),
       }
       : null,
   };
