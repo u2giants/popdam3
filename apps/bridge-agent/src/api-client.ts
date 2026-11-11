@@ -141,6 +141,8 @@ export interface HeartbeatResponse {
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
     browse_dir?: { request_id: string; path: string } | null;
+    snapshot_versions?: { request_id: string; candidates: string[] } | null;
+    snapshot_restore?: { request_id: string; snapshot: string; source_path: string; destination_dir: string } | null;
   };
 }
 
@@ -254,6 +256,14 @@ export async function reportDirBrowse(
   entries: DirEntry[],
 ): Promise<void> {
   await callApi("report-dir-browse", { request_id: requestId, path, entries });
+}
+
+export async function reportSnapshotVersions(requestId: string, result: Record<string, unknown>): Promise<void> {
+  await callApi("report-snapshot-versions", { request_id: requestId, ...result });
+}
+
+export async function reportSnapshotRestore(requestId: string, result: Record<string, unknown>): Promise<void> {
+  await callApi("report-snapshot-restore", { request_id: requestId, ...result });
 }
 
 export interface CheckChangedFile {

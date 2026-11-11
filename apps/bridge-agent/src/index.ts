@@ -38,6 +38,7 @@ import { createBridgeCommandHandlers } from "./commands/heartbeat-commands.js";
 import { runCompatAudit, runCompatAuditPreview } from "./handlers/compat-audit.js";
 import { processSiblingScanRequests } from "./handlers/sibling-scan.js";
 import { handlePathTest, handleDirBrowse } from "./handlers/path-tools.js";
+import { handleSnapshotRestore, handleSnapshotVersions } from "./handlers/snapshot-commands.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -329,6 +330,8 @@ const heartbeatCommandHandlers = createBridgeCommandHandlers({
   runScan: (sessionId) => runScan(sessionId),
   handlePathTest,
   handleDirBrowse,
+  handleSnapshotVersions,
+  handleSnapshotRestore,
   handleCheckUpdate: () => handleCheckUpdate(),
   handleApplyUpdate: () => handleApplyUpdate(),
   runPdfTextSample: (assets) => runPdfTextSample(assets, config.nasContainerMountRoot, {

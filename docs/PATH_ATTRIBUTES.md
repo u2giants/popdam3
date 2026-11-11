@@ -125,3 +125,26 @@ FROM public.assets WHERE is_deleted = false;
 -- spot-check the derivation on any path
 SELECT public.infer_path_attrs('Decor/Character Licensed/____New Structure/In Development/Customer Adopted/Ross/Ross Wall 2026/CAC62DCJK01/CAC62DCJK01.psd');
 ```
+
+---
+
+## 8. Folder rename record and "path as of" (#963)
+
+When NAS folders are renamed (plan `plan_folder_shortening_snapshot_restore.md`), every rename is written to
+`dam.folder_rename_log` (`share`, `old_path`, `new_path`, `renamed_at`, `batch_id`, `rule`, `reverted_at`).
+It is folder-level (thousands of rows, not millions) and is **never purged**: NAS snapshots and backups keep
+old folder names for a year or more, and this log is the only exact way back to them.
+
+- `dam.path_as_of(share, path, at)` — takes a *current* path and undoes every non-reverted rename after `at`,
+  newest first, on whole segments only (`Ross` never matches `Ross Stores`; `_`/`%` are literal). Returns the
+  path as it was at `at`.
+- `dam.path_candidates(share, asset_id)` — every path the asset has had: its current path, every old/new path
+  in `public.asset_path_history`, and each of those passed back through every rename. Exposed to edge
+  functions (service role only) as `public.dam_asset_path_candidates(asset_id)` because `dam` is not in
+  PostgREST's schemas.
+- Per-file move history (`public.asset_path_history`) is now kept 400 days so ordinary designer moves can also
+  be traced back across the snapshot horizon.
+
+The admin-only "Older copies" section in the asset panel uses these candidates to look the file up in
+`/volume1/mac/#snapshot/<snapshot>/<candidate>` through the NAS helper and restore a chosen version beside the
+current file (never over it). The scanner's `#snapshot` exclusion is unchanged.

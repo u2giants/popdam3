@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { pickWindowsNasPassword } from "./windows-nas-password.ts";
+import { snapshotCommands } from "./snapshot-requests.ts";
 
 // Execute the real heartbeat against an in-memory Supabase query interface.
 // No Deno server, secrets, live database, or source-pattern expectations.
@@ -91,8 +92,9 @@ async function run(body: Record<string, unknown>, agentType = "windows-render", 
     "json",
     "err",
     "pickWindowsNasPassword",
+    "snapshotCommands",
     `const LOG_TAIL_LINES=50, COUNTER_HISTORY_LIMIT=60, WINDOWS_OFFLINE_MS=300000, REQUEST_AGE_MS=300000, DEFAULT_BATCH_SIZE=20, ADAPTIVE_IDLE_SECONDS=30, ADAPTIVE_ACTIVE_SECONDS=5; ${compiled}; return handleHeartbeat;`,
-  )(() => db, (b: any, k: string) => b[k] ?? null, (x: any) => x, (x: any) => x, pickWindowsNasPassword);
+  )(() => db, (b: any, k: string) => b[k] ?? null, (x: any) => x, (x: any) => x, pickWindowsNasPassword, snapshotCommands);
   let response;
   for (let i = 0; i < repeats; i++) response = await invoke(body, "fixture-agent", agentType, "fixture");
   return { response, writes };
