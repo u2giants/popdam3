@@ -6,11 +6,11 @@ Written 2026-11-11 (New York time) by Claude on `hetz`, from a brainstorm with A
 
 ## STATUS — read this first
 
-A fresh session starts at **Phase 0, step 0.1**. Nothing in this plan has been built. Nothing on the NAS has been renamed.
+Phase 0 is done (see baseline file). Next: Phases 1–3 and 4. Nothing has been built yet. Nothing on the NAS has been renamed.
 
 | Step | State | Date | Evidence |
 |---|---|---|---|
-| Phase 0 — measure and verify assumptions (0.1–0.7) | ⬜ open | — | — |
+| Phase 0 — measure and verify assumptions (0.1–0.7) | ✅ done (0.3 in-container check deferred to 2.7) | 2026-11-11 | `verification/folder-shortening/path-length-baseline-2026-11-11.md` |
 | Phase 1 — permanent rename record (1.1–1.4) | ⬜ open | — | — |
 | Phase 2 — restore from snapshot (2.1–2.7) | ⬜ open | — | — |
 | Phase 3 — PopDAM understands old and new names (3.1–3.5) | ⬜ open | — | — |
