@@ -39,6 +39,7 @@ describe("PopSG search v2 adapter", () => {
       p_sort: "relevance",
       p_limit: 200,
       p_offset: 1_000,
+      p_include_facets: false,
     });
   });
 
