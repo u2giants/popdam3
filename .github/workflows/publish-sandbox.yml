@@ -70,7 +70,7 @@ jobs:
           if [ -z "$ref" ] || [ "$ref" = "$URL" ] || [ "$ref" = "qsllyeztdwjgirsysgai" ]; then
             echo "Refusing: sandbox project reference is missing or is production"; exit 1
           fi
-          supabase secrets set SANDBOX_ALLOWED_ORIGIN=https://dam-sandbox.designflow.app --project-ref "$ref"
+          supabase secrets set SANDBOX_ALLOWED_ORIGIN=https://dam-sandbox.designflow.app --project-ref "$ref" --yes
           supabase functions deploy dam-search-ai --project-ref "$ref" --no-verify-jwt --use-api --yes
           code=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "$URL/functions/v1/dam-search-ai" \
             -H "Origin: https://dam-sandbox.designflow.app" -H "Access-Control-Request-Method: POST")
