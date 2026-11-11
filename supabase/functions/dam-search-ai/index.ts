@@ -557,18 +557,25 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           let bestSemanticScore: number | null = null;
           let anchorError: unknown = null;
           if (variantEmbedding) {
+            // A search that names a licensor anchors on that licensor's best picture, the same
+            // scope the search applies; otherwise another licensor's closer picture raises the
+            // floor past every picture-only match it keeps (popcre/shared-db#6024).
+            const scope = withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, true);
+            const scopedIds = Array.isArray(scope.semanticLicensorIds) ? scope.semanticLicensorIds : [];
+            const anchorRpc = scopedIds.length ? "dam_search_semantic_anchor_scoped" : "dam_search_semantic_anchor";
             const anchorCall = () =>
-              auth.client.rpc("dam_search_semantic_anchor", {
+              auth.client.rpc(anchorRpc, {
                 p_query_embedding: variantEmbedding,
                 p_document_types: documentTypes,
+                ...(scopedIds.length ? { p_licensor_ids: scopedIds } : {}),
               });
             let anchor = await timer.time("anchor_rpc", anchorCall);
             if (anchor.error) {
-              console.error("dam_search_semantic_anchor failed; retrying once", anchor.error.message);
+              console.error(`${anchorRpc} failed; retrying once`, anchor.error.message);
               anchor = await anchorCall();
             }
             if (anchor.error) anchorError = anchor.error;
-            else if (typeof anchor.data !== "number") anchorError = new Error("dam_search_semantic_anchor returned no score");
+            else if (typeof anchor.data !== "number") anchorError = new Error(`${anchorRpc} returned no score`);
             else bestSemanticScore = anchor.data;
           }
           if (anchorError !== null) return { data: null, error: anchorError };
