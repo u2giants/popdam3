@@ -1,3 +1,10 @@
+---
+summary: "ColdLion licensor/property cutover Phase 1: additive mirror schema, review findings table, active uniqueness and status/resolution matrix (2026-07-24)."
+kind: spec
+status: done
+read-when: working on ColdLion licensor/property mirror and taxonomy review tables
+---
+
 # ColdLion licensor/property cutover — Phase 1 (mirror schema only)
 
 **Date:** 2026-07-24 (revised: active partial unique + status/resolution matrix)

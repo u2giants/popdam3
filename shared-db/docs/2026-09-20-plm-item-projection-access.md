@@ -1,3 +1,10 @@
+---
+summary: "Read-only issue 3329 investigation: api.plm_item_list authenticated access is an intended tested boundary; no permission-tightening migration needed."
+kind: proof
+status: done
+read-when: checking whether item-serving view grants need tightening (issue 3329)
+---
+
 # Item-serving access investigation — issue 3329 (non-orchestrator)
 
 Date: 2026-09-20. READ ONLY. Recommendation for parent decision: verified-not-required for a permission-tightening structural successor. Existing tests explicitly require authenticated projection access and deny direct item-detail access; production matches. This is stronger than merely finding no proven bug. Do not revoke authenticated access or change security_invoker merely because joined bases are restricted.

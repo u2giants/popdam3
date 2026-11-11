@@ -1,3 +1,10 @@
+---
+summary: "Scraped Properties page spec: licensor-grouped Submissions and Creative sections, canonical group keys, Pixar under Disney, DCP Vault grouping (#2905, #3539)."
+kind: spec
+status: current
+read-when: changing Scraped Properties page grouping or the scraped source inventory view
+---
+
 # DB Data Admin Scraped Properties
 
 ## Purpose

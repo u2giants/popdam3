@@ -1,3 +1,10 @@
+---
+summary: "Status of the failed Migration Ledger Drift alarm for issue #2508 on 2026-09-25: migrations merged to main but not applied to production, with counts."
+kind: proof
+status: done
+read-when: investigating the 2026-09-25 migration ledger drift alarm
+---
+
 # Ledger drift status — issue #2508
 
 **Date:** 2026-09-25 (2:22 AM EDT)

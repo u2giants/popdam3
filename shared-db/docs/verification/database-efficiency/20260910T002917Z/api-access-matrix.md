@@ -1,3 +1,10 @@
+---
+summary: "Step 2 Data API access boundary proven by catalog and HTTP probes: exposed schemas and per-object access on production (issue 2326, 2026-09-10)."
+kind: proof
+status: done
+read-when: reviewing which schemas and objects the Data API exposes
+---
+
 # Step 2 — Data API access boundary, proven by catalog and HTTP
 
 **Plan:** `plan_database_efficiency_and_api_security.md`, Step 2

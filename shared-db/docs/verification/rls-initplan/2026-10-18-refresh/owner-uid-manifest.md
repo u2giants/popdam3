@@ -1,3 +1,10 @@
+---
+summary: "Exact manifest for #4428 owner-uid family: 17 baseline policy identities on 7 tables with fingerprints, claim coverage and per-policy before-test specification."
+kind: spec
+status: done
+read-when: "qualifying or testing the #4428 owner-uid RLS policy repair"
+---
+
 # owner-uid: #4428 exact manifest
 
 17 baseline identities on 7 tables. Every expression fingerprint matches the prior baseline. Disposition: eligible for qualification; none already repaired, removed, or silently added. This is not write authority.

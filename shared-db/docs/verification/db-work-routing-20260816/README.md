@@ -1,3 +1,10 @@
+---
+summary: "2026-08-16 repair of work routing: all 97 open db-work issues classified, needs-albert cut from 26 to 14, queue-audit and 71 lane tests passed."
+kind: proof
+status: done
+read-when: checking how db-work issues were reclassified and routed on 2026-08-16
+---
+
 # Work-routing repair verification — 2026-08-16
 
 ## Outcome

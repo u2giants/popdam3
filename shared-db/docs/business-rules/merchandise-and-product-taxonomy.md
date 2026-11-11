@@ -1,3 +1,10 @@
+---
+summary: Settled merchandise-group hierarchy MG01-MG03 and beyond, seven product categories, and what each division (POP, Spruce Licensed, Spruce Generic) produces.
+kind: living
+status: current
+read-when: working with merchandise groups, product types or division-specific taxonomy meaning
+---
+
 # Merchandise groups and product taxonomy
 
 **Status:** Settled

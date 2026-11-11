@@ -1,3 +1,10 @@
+---
+summary: Historical DB Data Admin deployment notes via GHCR and Coolify; the app and its deploy moved to popdam3 on 2026-09-16.
+kind: archive
+status: stale
+read-when: looking up old DB Data Admin deploy details; current procedure is in popdam3
+---
+
 # DB Data Admin deployment
 
 > **Moved 2026-09-16:** the DB Data Admin application, its deploy workflow and its launch-readiness check now live in [`u2giants/popdam3`](https://github.com/u2giants/popdam3) at `apps/db-data-admin`, `.github/workflows/db-data-admin.yml` and `scripts/db-data-admin/` (popdam3 PR #135). This repository no longer builds or deploys it. The text below is historical; the current deployment procedure is maintained in popdam3.

@@ -1,3 +1,10 @@
+---
+summary: Muse design debate on the shared release hold reduction plan (#3779) with October 16 2026 critique findings and dispositions; implementation outcomes open.
+kind: plan
+status: open
+read-when: working on shared release hold reduction design or the Muse critique findings
+---
+
 # Shared release holds — substantive Muse design debate
 
 Scope: proposal/design only. No runtime safeguard changes or database actions.

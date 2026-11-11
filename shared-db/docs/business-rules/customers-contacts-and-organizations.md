@@ -1,3 +1,10 @@
+---
+summary: Business rules for Customer, Potential Customer, Factory/Vendor, Licensor, Contact and email-domain identities, customer lifecycle, ColdLion list meaning.
+kind: living
+status: current
+read-when: changing customer, contact or email-domain linking and identity rules
+---
+
 # Customers, contacts, and organizations
 
 **Status:** Proposed

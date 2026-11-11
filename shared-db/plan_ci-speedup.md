@@ -1,3 +1,10 @@
+---
+summary: "Implementation plan with STATUS table to speed up shared-db CI and the merge lane: author check-in window, auto-rerun lease check, auto-trigger required CI"
+kind: plan
+status: done
+read-when: reviewing CI and merge-lane speedup steps completed October 2026
+---
+
 # Implementation Plan — shared-db CI and merge-lane speedup
 
 ## STATUS

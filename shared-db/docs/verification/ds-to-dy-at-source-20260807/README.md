@@ -1,3 +1,10 @@
+---
+summary: "2026-08-07 investigation and plan to change licensor DS to DY at its source: chain of custody, blast radius, hand-entered public.licensors row."
+kind: proof
+status: done
+read-when: planning or auditing the DS to DY licensor code change at its source
+---
+
 # DS → DY at its source — chain of custody, blast radius, and plan
 
 Date: 2026-08-07

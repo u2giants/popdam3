@@ -1,3 +1,10 @@
+---
+summary: "Contract for public.search_style_tracker_link_candidates used by PopDAM Master Data page: PLM canonical customer, licensor, property candidates."
+kind: spec
+status: current
+read-when: changing Master Data style tracker candidate search or SKU description pickers
+---
+
 # Master Data Style Tracker PLM Candidate Search — 2026-06-25
 
 This note records the shared-db contract used by the temporary Master Data style tracker in `u2giants/popdam3`.

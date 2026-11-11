@@ -1,3 +1,10 @@
+---
+summary: Verification of additive Sample Tracking quantity contract migrations 20260722220200-220700, inventory decisions and unknown legacy quantity state (2026-07-22).
+kind: proof
+status: done
+read-when: auditing the Sample Tracking quantity schema migrations
+---
+
 # Sample Tracking quantity schema verification — 2026-07-22
 
 ## Scope

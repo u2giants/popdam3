@@ -1,3 +1,10 @@
+---
+summary: "Settled rules for Licensors, Properties, Characters, Style Guides and Franchises: source authority (ColdLion vs licensor scrapes), owner rulings 2026-08 to 09."
+kind: living
+status: current
+read-when: deciding which source owns a Licensor or Property name, status or relationship
+---
+
 # Licensing Master Data
 
 **Status:** Settled
@@ -54,7 +61,7 @@ The owner described existing Item links as MG05. In the licensed divisions, the 
 
 **Settled - Albert Hazan, 2026-10-26.** Verbatim: "properties scraped from the submissions sites are 100% canonical. that should also have been well-documented. If these are not in a place you can easily find them, then the place you looked should link to them."
 
-Every Property scraped from a Licensor's submission system is a canonical Property of that Licensor, under its exact submission name. Create it in `core.property` when it is missing. Never rename it to a Creative or art-library spelling; those stay provenance only. Several ColdLion MG06 codes may point to one submission Property. A code is a mapping, not a reason to merge or invent a canonical Property. A ColdLion code with no submission match stays unmapped and preserved, never deleted or guessed. Record: [owner-rulings §6.31](../owner-rulings.md#631-owner-ruling-scraped-submission-properties-are-100-canonical-albert-hazan-2026-10-26).
+Every Property scraped from a Licensor's submission system is a canonical Property of that Licensor, under its exact submission name. Create it in `core.property` when it is missing. Never rename it to a Creative or art-library spelling; those stay provenance only. Several ColdLion MG06 codes may point to one submission Property. A code is a mapping, not a reason to merge or invent a canonical Property. A ColdLion code with no submission match stays unmapped and preserved, never deleted or guessed. Record: [owner-rulings §6.31](../owner-rulings-part-4.md#631-owner-ruling-scraped-submission-properties-are-100-canonical-albert-hazan-2026-10-26).
 
 Where the canonical submission lists and reviewed mappings live (private repository `u2giants/licensor-source-data`; paths only, rows never copied here):
 

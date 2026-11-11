@@ -1,3 +1,10 @@
+---
+summary: "Proposed business rules for HTS tariff classification: authority order, confidence handling, and separating base, remedy and reciprocal duty components."
+kind: living
+status: current
+read-when: changing HTS classification or duty-component handling
+---
+
 # Tariff and HTS classification
 
 **Status:** Proposed

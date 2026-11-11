@@ -1,3 +1,10 @@
+---
+summary: "Workflow-refactor end-to-end acceptance (2026-09-28, #3306, proof issue #3770): latency and time split with insufficient samples preserved; closes nothing."
+kind: proof
+status: done
+read-when: checking measured results of the shared-db workflow refactor
+---
+
 # Workflow-refactor end-to-end acceptance — 2026-09-28T22:40Z
 
 Tracker: [#3306](https://github.com/popcre/shared-db/issues/3306) (non-orchestrator work).

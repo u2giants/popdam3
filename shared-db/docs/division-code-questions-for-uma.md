@@ -1,3 +1,10 @@
+---
+summary: Eight questions to Uma about ColdLion CW001-style versus DesignFlow numeric division codes and 271 contradictory rows; marked answered 2026-08-13.
+kind: archive
+status: done
+read-when: seeing what was asked about division codes before the answers came back
+---
+
 # Division codes: what to ask Uma
 
 > **ANSWERED 2026-08-13.** All eight questions are answered in

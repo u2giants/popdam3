@@ -1,3 +1,10 @@
+---
+summary: "Manifest for #4429: four style_guide tables and policies eligible for RLS initplan repair, with claim requirements; not write authority."
+kind: proof
+status: open
+read-when: "claiming and repairing the app-access RLS policies for #4429"
+---
+
 # app-access: #4429 exact manifest
 
 4 baseline identities on 4 tables. Every expression fingerprint matches the prior baseline. Disposition: eligible for qualification; none already repaired, removed, or silently added. This is not write authority.

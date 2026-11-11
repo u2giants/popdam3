@@ -1,3 +1,10 @@
+---
+summary: Run brief for the db push atomicity experiment (issue 611); already run once on 2026-08-10, rerun only when the pinned Supabase CLI version changes.
+kind: ops
+status: current
+read-when: rerunning the db push atomicity experiment after a Supabase CLI version bump
+---
+
 # Issue #611 run brief — how to actually run the `db push` atomicity experiment
 
 **Written:** 2026-08-10 · **For:** a fresh agent, on a machine with Docker, with **zero prior

@@ -1,3 +1,10 @@
+---
+summary: "Read-only 2026-08-07 investigation of the duplicate Disney licensor identity in production: census, evidence, retracted claim and options; nothing decided."
+kind: proof
+status: done
+read-when: tracing the duplicate Disney licensor identity and the DS licensor code history
+---
+
 # The duplicate Disney licensor identity — census, evidence and options
 
 **Status: READ-ONLY INVESTIGATION. No migration was written. No database write

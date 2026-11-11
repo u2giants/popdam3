@@ -1,3 +1,10 @@
+---
+summary: A2b rerun of the production rehearsal on fixed main (2026-08-09) and debate on partial promotion; dry-run only, nothing written to any database.
+kind: proof
+status: done
+read-when: auditing the second production rehearsal and partial-promotion debate
+---
+
 # A2b — the production rehearsal re-run at the fixed `main`, and the partial-promotion debate
 
 **Plan item:** `plan_orchestrator-workflow-gaps.md` § A2, second attempt.

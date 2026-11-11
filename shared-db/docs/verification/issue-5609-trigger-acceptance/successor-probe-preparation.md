@@ -1,3 +1,10 @@
+---
+summary: "Issue 5609 successor read-only probe preparation: failed original window preserved by hash, exact trigger renderings, provenance; acceptance pending."
+kind: proof
+status: open
+read-when: preparing or reviewing the 5609 successor read-only acceptance probe
+---
+
 # #5609 successor read-only probe preparation — baseline pinned, acceptance pending
 
 Owner: original #5608–#5610 coordinator; issue [#5609](https://github.com/popcre/shared-db/issues/5609). This receipt is preparation, not live acceptance or completed live acceptance.

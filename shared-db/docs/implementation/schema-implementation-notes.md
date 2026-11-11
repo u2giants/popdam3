@@ -1,3 +1,10 @@
+---
+summary: 2026-06-21 notes on first unified Supabase schema migrations (foundation, app_core, domain tables, API/RLS, CRM segments, PLM master-data import), DDL-only.
+kind: archive
+status: stale
+read-when: looking up what the first June 2026 foundation migrations contained
+---
+
 # Schema Implementation Notes
 
 Date: 2026-06-21

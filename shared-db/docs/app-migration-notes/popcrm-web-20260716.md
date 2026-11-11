@@ -1,3 +1,10 @@
+---
+summary: 2026-07-16 fix granting insert/update/delete to authenticated on ten crm.* operational tables after a permission denied error creating a department.
+kind: archive
+status: done
+read-when: understanding crm.* direct-write grants and the 42501 department error
+---
+
 # POP CRM crm.* direct-write grants — 2026-07-16
 
 ## crm.* operational tables were missing DML grants to `authenticated`

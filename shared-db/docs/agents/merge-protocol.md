@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md section 5 moved here: shared-db merge checklist, advisory review, derived-from and no-op declarations, backlog promotion, stale red check on main."
+kind: living
+status: current
+read-when: merging a shared-db PR or promoting a migration backlog to production
+---
+
 # AGENTS.md — §5, §5.0-D, §5.0-E, §5.1, §5.2, §5.2-A, §5.2-B (merge protocol)
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.

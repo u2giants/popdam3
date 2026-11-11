@@ -1,3 +1,10 @@
+---
+summary: Investigation and plan (2026-08-07, no changes) of what it takes to make the ColdLion API the source for the Supabase database, answering Albert's question.
+kind: plan
+status: stale
+read-when: revisiting making ColdLion the Supabase source of truth
+---
+
 # What it would take to make ColdLion the source for our Supabase database
 
 **Date:** 2026-08-07

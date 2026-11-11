@@ -1,3 +1,10 @@
+---
+summary: "2026-06-29 production correction removing ingested email domains from customers: dropped api.customer_list and promote function, deleted directus source refs."
+kind: proof
+status: done
+read-when: checking why ingested domains must never be linked to customers
+---
+
 # Ingested-Domain Customer Disassociation Verification — 2026-06-29
 
 ## What changed

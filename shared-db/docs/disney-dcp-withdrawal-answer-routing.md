@@ -1,3 +1,10 @@
+---
+summary: "Intake instruction for relaying later answers about Disney DCP Vault artwork withdrawal signals; core question already answered 2026-09-25 (issue #3347)."
+kind: ops
+status: current
+read-when: relaying or applying a new answer about Disney DCP Vault withdrawn artwork
+---
+
 # Disney DCP Vault withdrawal: answer routing across chats
 
 This note is a durable intake instruction, not an answer or a vendor ruling.

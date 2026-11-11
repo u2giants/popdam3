@@ -1,3 +1,10 @@
+---
+summary: Issue 2703 structural and private-loader contract for Disney OPA route compliance evidence, sealing, and current-rights read contract.
+kind: spec
+status: current
+read-when: loading or reading OPA route compliance rights evidence for properties
+---
+
 # OPA route compliance: structural and private-loader contract
 
 Issue #2703 adds source-observation rights evidence; it authorizes no licensed-row

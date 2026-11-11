@@ -1,3 +1,10 @@
+---
+summary: "Early #4427 qualification draft marked OPEN (Oct 18, 2026): 44 admin policy predicates on 37 tables, local results, remaining gates; superseded."
+kind: proof
+status: stale
+read-when: "reading the early #4427 qualification history (superseded by acceptance.md)"
+---
+
 # Issue4427 qualification — OPEN
 
 October18,2026 EDT. Claim4443 reserves20261018172640. Prospective generation1 contract was published before implementation. This draft does not authorize preview, promotion, or closure.

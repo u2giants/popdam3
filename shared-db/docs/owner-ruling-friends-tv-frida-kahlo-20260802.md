@@ -1,3 +1,10 @@
+---
+summary: Owner ruling 2026-08-02 on FRIENDS TV (FR) and FRIDA KAHLO (FK) licensors, status durability fix and migrations 20260802170000/171000; half applied.
+kind: archive
+status: stale
+read-when: tracing the FRIENDS TV and FRIDA KAHLO licensor ruling and status durability fix
+---
+
 # Owner ruling, 2026-08-02 — FRIENDS TV (`FR`) and FRIDA KAHLO (`FK`)
 
 **Status:** half applied, half blocked on decisions only Albert can make.

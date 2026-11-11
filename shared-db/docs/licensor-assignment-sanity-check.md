@@ -1,3 +1,10 @@
+---
+summary: Required licensor-plausibility check for scrapes and generated lists, from the 2026-10-15 workbook that put Marvel properties under Disney.
+kind: ops
+status: current
+read-when: capturing a licensor scrape or generating a list grouped by licensor
+---
+
 # Licensor assignment sanity check — required for every scrape and every generated list
 
 **Who must read this:** any AI agent that captures a licensor scrape, lands or reconciles one,

@@ -1,3 +1,10 @@
+---
+summary: Bounded production forward migration 20260727154500 of preview-proven DB Data Admin migrations, cutting the backlog from 18 files to 9; owner-approved.
+kind: proof
+status: done
+read-when: auditing the 2026-07-27 DB Data Admin production forward
+---
+
 # DB Data Admin bounded production forward
 
 Date: 2026-07-27  

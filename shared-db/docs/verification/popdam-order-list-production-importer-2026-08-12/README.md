@@ -1,3 +1,10 @@
+---
+summary: "Issue #852 design of the OrderList production importer gate and row-count finding; no production or preview import was run by this change."
+kind: spec
+status: done
+read-when: changing the OrderList importer production gate
+---
+
 # PopDAM OrderList production importer — gate design and row-count finding
 
 Issue: [#852](https://github.com/u2giants/shared-db/issues/852). Claim: [#856].

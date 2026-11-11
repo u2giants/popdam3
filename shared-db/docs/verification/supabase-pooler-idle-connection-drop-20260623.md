@@ -1,3 +1,10 @@
+---
+summary: Supabase pooler silently drops idle client connections; designflow-tracking sample list stalls 10-26s and 502s; app pool requirements (2026-06-23).
+kind: living
+status: current
+read-when: configuring app database connection pools against the Supabase pooler idle drop
+---
+
 # Supabase pooler drops idle client connections — app connection-pool requirement (2026-06-23)
 
 ## What

@@ -1,3 +1,10 @@
+---
+summary: Business rule that a source file's original modified date must be preserved through scanning, copying, indexing and moves; processing time stays separate.
+kind: living
+status: current
+read-when: handling file dates in asset scanning, copying or import workers
+---
+
 # Digital assets and source-file integrity
 
 **Status:** Proposed

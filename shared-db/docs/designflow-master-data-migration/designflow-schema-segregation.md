@@ -1,3 +1,10 @@
+---
+summary: Cloud SQL designflow 103-table mapping to core/plm/app target schemas, with the dflow runtime SET SCHEMA breakage warning (updated 2026-07-08).
+kind: spec
+status: stale
+read-when: deciding which target schema a DesignFlow table belongs in or moving tables between schemas
+---
+
 # DesignFlow Cloud SQL → Supabase Schema Segregation
 
 **Status:** Analysis complete — ready for landing-schema load and phased `ALTER TABLE ... SET SCHEMA` moves.

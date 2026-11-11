@@ -1,3 +1,10 @@
+---
+summary: "Plan to make throughput guards tell the truth: verification sidecars, catalog-truth command, false-alarm corpus; steps done, SUPERSEDED 2026-10-15 (#4348)"
+kind: plan
+status: stale
+read-when: historical context on catalog-truth and verification sidecar guards
+---
+
 # Implementation plan — make throughput guards tell the truth
 
 > **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired

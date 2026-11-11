@@ -1,3 +1,10 @@
+---
+summary: "2026-07 handoff for the characters and style guides migration: system context, Phase 2 migration state, and how it interacts with ColdLion Phase 6."
+kind: archive
+status: stale
+read-when: reading the original July 2026 characters and style guides handoff
+---
+
 # HANDOFF — characters and style guides, canonical migration
 
 **Written:** 2026-07-26 · **Updated:** 2026-07-28 · **Repo:** `u2giants/shared-db` ·

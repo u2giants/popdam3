@@ -1,3 +1,10 @@
+---
+summary: Issue 5610 interim observation of four unused-index candidates with zero scans, postmaster start identity and false-positive cautions.
+kind: proof
+status: stale
+read-when: auditing early 5610 unused-index observations (window later invalidated by restarts)
+---
+
 # #5610 — ongoing observation, not window-close acceptance
 
 Owner: original Codex coordinator for #5608–#5610. Existing issue: [#5610](https://github.com/popcre/shared-db/issues/5610).

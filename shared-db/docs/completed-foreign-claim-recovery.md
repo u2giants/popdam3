@@ -1,3 +1,10 @@
+---
+summary: "Maintenance capability (issue #4054) to repair completed claim #3733 blocking #2873 by recovering the #3400 foreign claim; evidence and review requirements."
+kind: ops
+status: current
+read-when: "recovering an expired completed foreign migration claim like #3733"
+---
+
 # Completed foreign claim recovery
 
 Owner: shared-db maintenance issue #4054. This capability repairs the completed #3400 claim #3733 blocking #2873. Ordinary owner release is unchanged. A structural claim remains protected after expiry; this route never impersonates its old owner, edits its worktree, grants application acceptance, or runs a migration. Only the compiled #3400 profile is supported. Additional profiles require a reviewed code change; arbitrary SQL, table names and project references are not inputs.

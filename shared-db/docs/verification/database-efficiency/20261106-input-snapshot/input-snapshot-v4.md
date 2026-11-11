@@ -1,3 +1,10 @@
+---
+summary: Issue 5608 production failure of the SKU style-guide catch-up (about 120 s, 703641 keys), read-only diagnosis and minimum v4 input-snapshot change.
+kind: proof
+status: open
+read-when: working on the 5608 v4 input snapshot after the production failure
+---
+
 # #5608 production failure and v4 input snapshot
 
 Recorded November 6, 2026. This is implementation/diagnostic evidence, **not completed production acceptance**. Original issue [#5608](https://github.com/popcre/shared-db/issues/5608) stays open with implementation/live proof unchecked.

@@ -1,3 +1,10 @@
+---
+summary: 2026-06-26 api.crm_update_contact gains p_clear_* flags so CRM can explicitly clear company, department, contact type or scope.
+kind: spec
+status: current
+read-when: editing CRM contact relationship fields through api.crm_update_contact
+---
+
 # POP CRM contact relationship clear RPC — 2026-06-26
 
 ## Explicit clear flags for contact relationships

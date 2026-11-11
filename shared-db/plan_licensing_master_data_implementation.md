@@ -1,3 +1,10 @@
+---
+summary: "Plan for official licensing Master Data in Supabase: write guard, Character ownership, canonical Franchise, Style Guide bridge; plan status OPEN"
+kind: plan
+status: open
+read-when: implementing core licensing master data (franchise, character, style guide bridge)
+---
+
 # Implementation plan: official licensing Master Data in Supabase
 
 **Plan status:** OPEN

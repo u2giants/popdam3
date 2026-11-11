@@ -1,3 +1,10 @@
+---
+summary: "Issue 505 re-verification of the DS to DY plan against live production on 2026-08-29: popdam3 blocker closed, new consumers, facts that held."
+kind: proof
+status: done
+read-when: rechecking the DS to DY plan against live production state
+---
+
 # Re-verification of the DS → DY plan against live production — 2026-08-29
 
 Issue #505. Companion to [`README.md`](README.md) (2026-08-07, merged in PR #483).

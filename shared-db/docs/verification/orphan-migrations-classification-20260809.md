@@ -1,3 +1,10 @@
+---
+summary: "A1 read-only classification of the 33 migration-ledger orphans on production, concluding nothing may be inserted into the ledger (sub-agent #601)."
+kind: proof
+status: done
+read-when: auditing how production ledger orphan migrations were classified
+---
+
 # A1 — Classification of the migration-ledger orphans on production
 
 **Plan item:** `plan_orchestrator-workflow-gaps.md` § A1

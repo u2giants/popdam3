@@ -1,3 +1,10 @@
+---
+summary: "public.assets index audit for #5747 Step 3: 46 indexes, 1,345 MB; no drops now, earliest drop decision 2026-11-18 after stats reset."
+kind: proof
+status: open
+read-when: deciding whether to drop unused public.assets indexes after 2026-11-18
+---
+
 # public.assets index audit (plan Step 3, popcre/shared-db#5747)
 
 Read 2026-11-05 ~6:45 PM EST, production (`qsllyeztdwjgirsysgai`), read-only

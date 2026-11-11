@@ -1,3 +1,10 @@
+---
+summary: "Publication recovery for #4425 adopting the PR #4423 RLS initplan candidate files unmodified under a fresh prospective contract; no database write."
+kind: proof
+status: done
+read-when: "tracing how the RLS initplan candidate from PR #4423 was published under #4425"
+---
+
 # Publication recovery for issue #4425
 
 This publication operation adopts the existing candidate from PR #4423, commit

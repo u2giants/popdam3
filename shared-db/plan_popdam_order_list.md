@@ -1,3 +1,10 @@
+---
+summary: "PopDAM OrderList implementation plan: shared database contract, preview import of legacy OrderList.xlsx, and the live PopDAM /orders page"
+kind: plan
+status: done
+read-when: tracing how the PopDAM OrderList data contract and page were built
+---
+
 # PopDAM OrderList implementation plan
 
 ## STATUS

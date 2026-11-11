@@ -1,3 +1,10 @@
+---
+summary: Decision pass (2026-07-31) listing 33 unmatched ColdLion property codes by licensor, 27 created the day before, for Albert to rule on.
+kind: archive
+status: done
+read-when: reviewing the 2026-07-31 unmatched ColdLion property list
+---
+
 # Which licensor do the unmatched ColdLion properties belong to?
 
 **For Albert — one decision pass. Measured on the preview database (a full copy of live data) on 2026-07-31.**

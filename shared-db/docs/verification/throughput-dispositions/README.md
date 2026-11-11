@@ -1,3 +1,10 @@
+---
+summary: "How throughput guard call-site dispositions work: one JSON catalogue per source file for check-throughput-truth-audit.mjs markers, plus retired identities."
+kind: ops
+status: current
+read-when: adding or reviewing throughput guard call-site dispositions
+---
+
 # Throughput guard call-site dispositions
 
 `scripts/check-throughput-truth-audit.mjs` discovers every line in `scripts/` and

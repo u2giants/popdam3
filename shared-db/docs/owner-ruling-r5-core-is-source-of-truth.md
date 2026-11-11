@@ -1,3 +1,10 @@
+---
+summary: "Draft reconstruction of ruling R5 (core is source of truth) from citations, unconfirmed by owner, issue #734, 2026-08-11."
+kind: archive
+status: open
+read-when: checking whether ruling R5 was ever confirmed before citing it as authority
+---
+
 # Owner ruling "R5" — written down at last, and marked UNCONFIRMED
 
 **Status: DRAFT — RECONSTRUCTED FROM CITATIONS, NOT YET CONFIRMED BY THE OWNER.**

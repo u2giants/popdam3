@@ -1,3 +1,10 @@
+---
+summary: "PopSG file tags foundation: tag dictionary, aliases, provenance-aware file tags and consensus hardening migrations for style_guide_files."
+kind: spec
+status: current
+read-when: changing PopSG file tag storage or the tag inference pipeline
+---
+
 # PopSG file tags foundation — 2026-07-23
 
 ## Purpose

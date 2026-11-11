@@ -1,3 +1,10 @@
+---
+summary: "Plan making reviewer capacity truthful: release dead leases, lease age, capacity report, accurate refusal message, ai-reviewer-issue evidence fix"
+kind: plan
+status: done
+read-when: changing reviewer lease release or capacity reporting
+---
+
 # plan_reviewer_lease_capacity_truth.md
 
 **Making reviewer capacity tell the truth: release dead leases, age them, report them,

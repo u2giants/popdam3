@@ -1,3 +1,10 @@
+---
+summary: Issue 5609 first healthy capture after the second production restart as the new acceptance opening; full acceptance not yet met.
+kind: proof
+status: open
+read-when: tracking 5609 trigger-scoping acceptance after the second restart
+---
+
 # #5609 first healthy opening after the second restart
 
 Owner: original coordinator, [same issue5609](https://github.com/popcre/shared-db/issues/5609). Full acceptance is **not met**. No producer, application row, database object, grant, reset or configuration change is included in this measurement update.

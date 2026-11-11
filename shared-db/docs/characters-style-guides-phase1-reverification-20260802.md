@@ -1,3 +1,10 @@
+---
+summary: Read-only 2026-08-02 production re-verification of the Characters and style-guides Phase 1, with a scope correction and open-blocker register.
+kind: proof
+status: done
+read-when: auditing the 2026-08-02 Characters and style-guides Phase 1 re-verification
+---
+
 # Characters / style guides — Phase 1 re-verification and open-blocker register
 
 **Run date:** 2026-08-02 · **UTC:** 2026-08-02 13:00 · **Server-local (`America/New_York`):**

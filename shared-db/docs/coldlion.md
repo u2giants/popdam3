@@ -1,3 +1,10 @@
+---
+summary: Front-door map to all ColdLion documents, pointing to the open-questions register first; holds no facts of its own, last reviewed 2026-09-03.
+kind: living
+status: current
+read-when: starting any ColdLion task or finding the right ColdLion document
+---
+
 # ColdLion — start here
 
 **This page is a map, not a source.** It holds no facts of its own, so it cannot go stale

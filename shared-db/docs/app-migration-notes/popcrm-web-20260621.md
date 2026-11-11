@@ -1,3 +1,10 @@
+---
+summary: "Session handoff for popcrm-web Supabase migration at preview-complete point: migrations, per-screen tables, RPCs, RLS, realtime; superseded by cutover note."
+kind: archive
+status: stale
+read-when: only for history of the CRM preview-stage migration; see production cutover note
+---
+
 # popcrm-web Supabase Migration — Session Handoff (2026-06-21)
 
 > **Superseded for current status.** This note captures the *preview-complete*

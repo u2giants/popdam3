@@ -1,3 +1,10 @@
+---
+summary: "Live grain proof (2026-09-15) for ColdLion prepackDetail and proddetails feeds, issue #2863; later noted superseded in part from 2026-09-18."
+kind: proof
+status: done
+read-when: checking grain and shape evidence for ColdLion prepackDetail and proddetails landing tables
+---
+
 # ColdLion unit 5b — live grain proof for `/prepackDetail` and `/proddetails`
 
 Measured 2026-09-15 against `http://x5.coldlion.com/EhpApi`. Issue #2863 (split from

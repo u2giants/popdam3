@@ -1,3 +1,10 @@
+---
+summary: "Plan for author-lane abandonment lifecycle and permanent retirement, issue #2301; all steps landed on main 2026-09-15/16 and the plan is complete"
+kind: plan
+status: done
+read-when: reviewing how abandoned migration author lanes are retired
+---
+
 # Plan: author-lane abandonment lifecycle and permanent retirement
 
 Tracked by [issue #2301](https://github.com/u2giants/shared-db/issues/2301). It was registered by the handoff `HANDOFF.d/2026-09-04T1453Z-edge-dev-codex-author-lane-lifecycle-plan.md`, which was retired when the work finished; this file is the durable record in its place.

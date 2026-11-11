@@ -1,3 +1,10 @@
+---
+summary: "Owner rule (Albert, 2026-09-23): create no new direct LOGIN database roles because every role inherits pg_net access via PUBLIC grants."
+kind: living
+status: current
+read-when: creating a database role or granting an integration direct database access
+---
+
 # Rule: no new direct database logins (pg_net exposure)
 
 **Owner decision:** Albert Hazan, 2026-09-23 (chat).

@@ -1,3 +1,10 @@
+---
+summary: "Codex plan-review REJECT of the narrow promotion freezes plan: migration-train callers omitted and strand approved snapshots after prose merges."
+kind: proof
+status: done
+read-when: checking Codex's second supplemental rejection of the narrow freezes plan
+---
+
 # Codex review — plan-review
 
 | field | value |

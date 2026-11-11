@@ -1,3 +1,10 @@
+---
+summary: First-ever CI run of supabase/tests (40 SQL files) and post-batch harness on an empty ephemeral DB; globs replace file lists (issues 695, 731, PR 741).
+kind: proof
+status: done
+read-when: understanding why contract-test and validate workflows use globs
+---
+
 # The first time supabase/tests/ and the post-batch harness ever ran
 
 Date: 2026-08-11. Issues #695 and #731. Branch `ci/731-run-the-test-suites`, PR #741.

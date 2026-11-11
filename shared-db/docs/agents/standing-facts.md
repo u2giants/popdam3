@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md sections 12 and 12.1 moved here: standing safety facts for incoming sessions, including background-task-chip ban, with a 2026-10-15 superseding note."
+kind: living
+status: current
+read-when: onboarding a session needing standing safety facts and collision lessons
+---
+
 # AGENTS.md — §12, §12.1 (standing facts)
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.

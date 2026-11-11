@@ -1,3 +1,10 @@
+---
+summary: "Approval gate for the PopDAM OrderList production import (2026-08-12): immutable source, preview baseline and what is and is not approved."
+kind: proof
+status: done
+read-when: checking what was approved for the OrderList production import
+---
+
 # PopDAM OrderList production approval package
 
 Prepared 2026-08-12. This package contains counts, hashes, object names, and workflow evidence only. It contains no workbook rows, customer data, vendor data, order text, SKU text, credentials, or licensed source content.

@@ -1,3 +1,10 @@
+---
+summary: Verification of migration 20260626171000 adding clear flags to crm update_contact RPC, applied to preview and production, plus ingested-domain checks.
+kind: proof
+status: done
+read-when: auditing the CRM contact relationship clear RPC
+---
+
 # CRM contact clear RPC and ingested-domain checks — 2026-06-26
 
 ## Contact relationship clear RPC

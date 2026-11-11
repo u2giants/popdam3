@@ -1,3 +1,10 @@
+---
+summary: ColdLion replies of 2026-08-26 to four register questions (2.4, 2.8, 2.9, 2.10), verified live, including invoiced and open quantity field population.
+kind: proof
+status: done
+read-when: checking ColdLion's 2026-08-26 answers on quantity fields and related questions
+---
+
 # ColdLion answers — 2026-08-26
 
 **What this is:** ColdLion's replies to the four questions Albert sent (register entries 2.4,

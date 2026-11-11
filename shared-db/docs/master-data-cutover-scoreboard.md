@@ -1,3 +1,10 @@
+---
+summary: Scoreboard of which master-data entities are on direct ColdLion versus DesignFlow PLM API feeds; counts flagged stale as of 2026-09-20 (#2450).
+kind: living
+status: stale
+read-when: checking whether a master-data entity moved to ColdLion; re-verify counts first
+---
+
 # Master-data cutover scoreboard — which entities are on ColdLion, which are still on DesignFlow
 
 **Purpose.** Answer, in one place, the question every AI session keeps re-deriving from

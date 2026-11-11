@@ -1,3 +1,10 @@
+---
+summary: "Sanitized JSON snapshot of the latest 100 workflow runs captured Sept 27, 2026 for audit #3597; superseded by later acceptance evidence."
+kind: archive
+status: stale
+read-when: inspecting raw workflow run data behind the Sept 27 delivery audit
+---
+
 # Workflow run snapshot — September 27, 2026
 
 Owner: [audit #3597](https://github.com/popcre/shared-db/issues/3597), non-orchestrator work. Sanitized read-only GitHub capture; later activity can differ. Superseded with the audit by a later workflow-refactor acceptance report.

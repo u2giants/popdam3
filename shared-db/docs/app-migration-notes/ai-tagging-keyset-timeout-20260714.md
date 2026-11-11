@@ -1,3 +1,10 @@
+---
+summary: 2026-07-14 remediation of PopDAM ai-tag-untagged timeouts via keyset candidate RPC and indexes; database contract promoted, caller merged.
+kind: archive
+status: done
+read-when: adopting or verifying the AI tagging keyset candidate contract
+---
+
 # AI tagging keyset timeout remediation
 
 Date: 2026-07-14

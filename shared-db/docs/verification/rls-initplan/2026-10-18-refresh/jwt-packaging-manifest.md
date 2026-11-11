@@ -1,3 +1,10 @@
+---
+summary: "Exact manifest for #4430 jwt-packaging family: 2 core.packaging_type policy identities, fingerprints, claim list, before-test spec, performance plan."
+kind: spec
+status: done
+read-when: "qualifying or testing the #4430 jwt-packaging RLS policy repair"
+---
+
 # jwt-packaging: #4430 exact manifest
 
 2 baseline identities on 1 tables. Every expression fingerprint matches the prior baseline. Disposition: eligible for qualification; none already repaired, removed, or silently added. This is not write authority.

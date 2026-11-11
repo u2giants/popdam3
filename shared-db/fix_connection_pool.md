@@ -1,3 +1,10 @@
+---
+summary: "RETRACTED DesignFlow connection architecture v3.0: do not implement; an AI session changed a production DB_PORT secret to 6543 and broke the live site."
+kind: archive
+status: stale
+read-when: checking why the connection pool plan was retracted and the DB_PORT incident
+---
+
 # RETRACTED — DesignFlow database connection architecture (v3.0)
 
 > **Do not implement or use this document as current architecture.** It was

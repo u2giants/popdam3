@@ -1,3 +1,10 @@
+---
+summary: DB Data Admin Step 7 verification of read-only RevoGrid Customers and Vendors grids with filters, server/client modes, saved query state and detail panels.
+kind: proof
+status: done
+read-when: reviewing the DB Data Admin Step 7 grid prototype evidence
+---
+
 # DB Data Admin Step 7 verification — 2026-07-22
 
 ## Scope

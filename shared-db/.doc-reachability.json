@@ -1,0 +1,23 @@
+{
+  "roots": [
+    "AGENTS.md",
+    "README.md",
+    "CLAUDE.md",
+    "HANDOFF.md"
+  ],
+  "preferred_root": "AGENTS.md",
+  "exclude": [
+    "HANDOFF.d/**",
+    "docs/archive/**",
+    "**/archive/**",
+    ".claude/**",
+    ".github/**",
+    ".ai/**",
+    "node_modules/**",
+    "COORDINATOR_INTAKE.md",
+    "docs/verification/workflow-refactor-raw-capture-20260928.md",
+    "docs/verification/workflow-refactor-source-inventory-20260928.md",
+    "docs/agents/section-4-anti-collision-rules.md",
+    "docs/production-promotion-app-tolerance-contract.md"
+  ]
+}

@@ -1,3 +1,10 @@
+---
+summary: Plan to complete the Item Description taxonomy and exact merchandise-group matching; all listed 2026-08-17 steps marked complete
+kind: plan
+status: done
+read-when: reviewing the item-description product-type dictionary and exact MG matching
+---
+
 # Implementation plan: complete the Item Description taxonomy and exact MG matching
 
 ## STATUS

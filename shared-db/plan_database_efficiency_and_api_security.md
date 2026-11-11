@@ -1,3 +1,10 @@
+---
+summary: "Evidence-gated plan for database efficiency and Data API exposure: baseline, access matrix, write-amplification traces; steps 3-5 partial or open"
+kind: plan
+status: open
+read-when: working on database efficiency or Data API security findings
+---
+
 # Implementation plan — database efficiency and Data API security
 
 **Repository:** `u2giants/shared-db`

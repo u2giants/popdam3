@@ -1,3 +1,10 @@
+---
+summary: "Phase 4 handoff: guarded link_approved mode linking erp_licensor and erp_property to canonical ids by approved mapping, preview rollback rehearsal."
+kind: archive
+status: done
+read-when: reading the Phase 4 link_approved mode history
+---
+
 # Handoff — ColdLion licensor/property Phase 4
 
 ## 1. What this application is

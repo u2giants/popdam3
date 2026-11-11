@@ -1,3 +1,10 @@
+---
+summary: "Workflow refactor implementation baseline captured 2026-09-20: open issue and PR census, branch protection, latest guarded-merge runs on main 20641bc6bbcd."
+kind: proof
+status: done
+read-when: finding the pre-refactor workflow baseline numbers
+---
+
 # Workflow refactor implementation baseline
 
 Captured 2026-09-20 19:32–19:34 UTC against current GitHub state and main

@@ -1,3 +1,10 @@
+---
+summary: Online pg_repack of public.assets (claim 5742, work 5745, popdam3#804) to fix bloat that made DAM search slow; table-repack/v1 route.
+kind: ops
+status: done
+read-when: understanding or repeating the public.assets repack maintenance
+---
+
 # PopDAM: online repack of public.assets (claim #5742, work #5745, popdam3#804)
 
 **What.** Migration `20261105201736` installs `pg_repack` 1.5.2 (schema `repack`,

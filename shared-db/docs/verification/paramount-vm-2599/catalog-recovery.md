@@ -1,3 +1,10 @@
+---
+summary: "Recovery of applied Paramount VM submission-property verification after migration 20261026150931, under maintenance issue #4878 and business issue #2599."
+kind: proof
+status: done
+read-when: auditing the Paramount VM submission-property catalog recovery
+---
+
 # Applied VM submission-property verification recovery
 
 Technical maintenance issue #4878 owns this catalog-only recovery; original business issue #2599 remains separate. PR #4810 merged migration `20261026150931`, then production [run40406045730](https://github.com/popcre/shared-db/actions/runs/40406045730) applied it and failed only `Post-apply catalog verification`. The source is a data-only DO block whose effects the existing catalog lexer could not infer. The failed result remains failed; do not replay or edit the migration.

@@ -1,3 +1,10 @@
+---
+summary: Step 3 cross-repo call graph of expensive rebuilds and projection churn, production read-only, issue 2326 (also 2213-2215), 2026-09-04.
+kind: proof
+status: done
+read-when: tracing callers of expensive rebuilds and projection triggers
+---
+
 # Step 3 — cross-repository call graph for expensive rebuilds and projection churn
 
 **Plan:** [`plan_database_efficiency_and_api_security.md`](https://github.com/popcre/shared-db/blob/main/plan_database_efficiency_and_api_security.md) Step 3

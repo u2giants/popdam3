@@ -1,3 +1,10 @@
+---
+summary: "Procedure for promoting to production with a migration backlog (formerly AGENTS 5.1): never include-all on full repo, pruned temp checkout, per-file atomicity."
+kind: ops
+status: current
+read-when: promoting migrations to production when other workstreams are pending
+---
+
 # Promoting to production when a backlog exists
 
 > **This was `AGENTS.md` §5.1 until 2026-08-20.** Moved because `AGENTS.md` had reached 229 KB

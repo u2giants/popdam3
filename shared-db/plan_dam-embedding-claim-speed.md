@@ -1,3 +1,10 @@
+---
+summary: "Plan to make the DAM SigLIP2 search-embedding claim fast with a matching partial index, owning issue #5482; all steps open as of 2026-11-02"
+kind: plan
+status: open
+read-when: speeding up the DAM embedding claim query (#5482)
+---
+
 # Plan: make the DAM search-embedding claim fast
 
 Handoff: `HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md` (retired)

@@ -1,3 +1,10 @@
+---
+summary: Summary of the October 7 2026 owner-requested Muse Spark debate on narrowing shared-db promotion freezes (#4039), linking rounds 1-4.
+kind: proof
+status: done
+read-when: reading the Muse debate outcome on narrow promotion freezes (#4039)
+---
+
 # Muse debate: narrowed promotion freezes
 
 Owner-requested supplemental debate, October 7, 2026. Persistent conversation `narrow-freeze-4039-debate`, provider session `118a4be5-506d-434b-948d-fccacbcd9ca2`, Muse Spark 1.3 Contributor. Reviewed initial source `a11a91bb1ee7bfd16cd73b34a1733abb41d1aafa`. This is not an allocator assignment, implementation authorization or replacement for exact-head production review.

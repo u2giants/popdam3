@@ -1,3 +1,10 @@
+---
+summary: "Issue 5610 restart invalidation: new unused-index observation window opened 2026-11-06 8:59 AM EST, eligibility 2026-11-20; later also invalidated."
+kind: proof
+status: stale
+read-when: checking 5610 unused-index window history after the first restart
+---
+
 # Restart invalidation and measured successor observation
 
 Source: [signed existing-issue checkpoint](https://github.com/popcre/shared-db/issues/5610#issuecomment-6686596358). Source/catalog metadata only; no new database read.

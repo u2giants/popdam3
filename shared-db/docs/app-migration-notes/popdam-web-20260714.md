@@ -1,3 +1,10 @@
+---
+summary: "2026-07-14 DAM search synonyms: dam_search_synonyms table, expand_dam_search_queries and spiderman normalization, promoted to production."
+kind: archive
+status: done
+read-when: editing DAM search synonym vocabulary or query expansion
+---
+
 # PopDAM DAM Search Synonyms - 2026-07-14
 
 ## Status

@@ -1,3 +1,10 @@
+---
+summary: "Housekeeping review of HANDOFF.d notes on 2026-11-08: retired five closed-issue notes, corrected resume prompts for #2421, #5608, #5747."
+kind: archive
+status: done
+read-when: checking which handoff notes were retired on 2026-11-08 and why
+---
+
 # Handoff review — 2026-11-08
 
 Housekeeping review of all `HANDOFF.d/` notes. Each note was checked against

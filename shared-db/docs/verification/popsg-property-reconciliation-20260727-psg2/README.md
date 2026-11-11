@@ -1,3 +1,10 @@
+---
+summary: PopSG PSG-2 deterministic proposals for all 372 inventory rows; draft marked incomplete, stopped at Albert's exact-hash gate.
+kind: proof
+status: open
+read-when: continuing PopSG property reconciliation phase PSG-2 proposals
+---
+
 # PopSG Property reconciliation PSG-2 proposal evidence
 
 **Phase:** PSG-2 deterministic proposals only

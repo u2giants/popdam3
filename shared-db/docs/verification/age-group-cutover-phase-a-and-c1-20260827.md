@@ -1,3 +1,10 @@
+---
+summary: "age_group Cloud SQL cutover: Phase A gates passed and step C1 deployed to sandbox on 2026-08-27; Phase D not started or approved; read-only production reads."
+kind: proof
+status: open
+read-when: resuming the age_group cutover after Phase A and C1
+---
+
 # `age_group` cutover — Phase A gates and step C1, executed 2026-08-27
 
 **Date:** 2026-08-27

@@ -1,3 +1,10 @@
+---
+summary: "Read-only authenticated EXPLAIN ANALYZE plans for #4426 RLS initplan baseline on 2026-10-18; large JSON output, no repair claimed."
+kind: proof
+status: done
+read-when: checking actual query plans for RLS initplan policies
+---
+
 # Actual authenticated query plans
 
 Read-only baseline evidence for #4426. October 18, 2026 EDT. No repair or live acceptance is claimed.

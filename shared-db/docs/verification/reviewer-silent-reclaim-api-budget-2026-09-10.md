@@ -1,3 +1,10 @@
+---
+summary: "Issue #2697 derivation of the API-request ceiling for reclaiming silent reviewers, with 2026-09-11 re-measurement (28 and 30 requests)."
+kind: proof
+status: done
+read-when: changing the silent-reviewer reclaim request limit
+---
+
 # Reviewer silent-reclaim API-budget derivation — 2026-09-10
 
 Issue: #2697. Scope: repository coordination only; no database, migration, preview, production, or application data change. Companion to `reviewer-assignment-api-budget-2026-08-28.md`, which derives the ceiling for assignment and replacement; this document derives the ceiling for `--reclaim-silent-reviewer`, which that document never measured.

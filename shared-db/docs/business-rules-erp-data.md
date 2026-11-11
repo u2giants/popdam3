@@ -1,3 +1,10 @@
+---
+summary: Owner-stated business meaning of ColdLion ERP fields and codes, e.g. production PO numbers ending COS meaning contractual and DAVID samples (2026-08-17).
+kind: living
+status: current
+read-when: interpreting ColdLion order or production fields and what they mean for reporting
+---
+
 # Business rules for reading ERP data
 
 **What this is:** the *business meaning* behind ColdLion ERP fields and codes — the things no

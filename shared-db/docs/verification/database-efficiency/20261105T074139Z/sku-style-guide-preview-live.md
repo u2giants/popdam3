@@ -1,3 +1,10 @@
+---
+summary: "Issue 5608 governed preview acceptance of forward resolver: 8.1 s rebuild, 3.2 s unchanged run, zero EXCEPT ALL differences, producer and run references."
+kind: proof
+status: done
+read-when: checking 5608 preview acceptance numbers and producer provenance
+---
+
 # #5608: governed preview acceptance and production reference
 
 The installed forward resolver passed real shared-preview execution: full rebuild

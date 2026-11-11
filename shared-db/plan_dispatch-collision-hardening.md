@@ -1,3 +1,10 @@
+---
+summary: "Plan to harden the dispatch-time collision check: remove the verdict, disable --allocate-version, structured operations; Phase A done, Phase B open"
+kind: plan
+status: open
+read-when: hardening dispatch-time migration collision detection
+---
+
 # Implementation plan — harden the dispatch-time collision check
 
 **File:** `plan_dispatch-collision-hardening.md` · **Repo:** `u2giants/shared-db` · **Created:** 2026-08-06

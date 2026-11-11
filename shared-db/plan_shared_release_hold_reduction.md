@@ -1,3 +1,10 @@
+---
+summary: "Proposal for shorter, narrower shared database release holds (tracker #3779); not activated policy, all implementation rows open"
+kind: plan
+status: open
+read-when: considering shorter shared release holds (#3779)
+---
+
 # Shorter, narrower shared database release holds
 
 ## STATUS — read first

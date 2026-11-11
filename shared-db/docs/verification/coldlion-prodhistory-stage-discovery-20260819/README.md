@@ -1,3 +1,10 @@
+---
+summary: Verified finding that the ColdLion prodHistory endpoint returns only ISS lines unless stageCode is given, changing what a complete history load is.
+kind: proof
+status: current
+read-when: loading ColdLion prodHistory data or reading its stageCode behavior
+---
+
 # VERIFIED — `prodHistory` returns only ISS lines unless `stageCode` is given
 
 **Date:** 2026-08-19 · **Machine:** al8960ofc · **Agent:** claude (Opus 5)

@@ -1,3 +1,10 @@
+---
+summary: ColdLion licensor and property master-data cutover plan; 2026-07-26 decision drops the 14-day wait in favor of the accelerated plan; PopSG boundary.
+kind: plan
+status: open
+read-when: planning or auditing the ColdLion licensor and property cutover
+---
+
 # ColdLion licensor/property master-data cutover
 
 > **Decision update — 2026-07-26:** Albert decided not to wait for 14 elapsed days of

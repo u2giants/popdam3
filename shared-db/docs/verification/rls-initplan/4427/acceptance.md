@@ -1,3 +1,10 @@
+---
+summary: "#4427 acceptance: verdict ACCEPTED for public-admin RLS initplan work, with migration, advisor, production app and native50 evidence (PR #4971)."
+kind: proof
+status: done
+read-when: "confirming the #4427 public-admin RLS initplan acceptance verdict and evidence"
+---
+
 # #4427 acceptance
 
 ## Verdict: ACCEPTED

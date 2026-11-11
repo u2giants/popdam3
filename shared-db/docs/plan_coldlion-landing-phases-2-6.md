@@ -1,3 +1,10 @@
+---
+summary: "ColdLion raw landing layer plan, phases 2-6 (issue #1184): merch groups, items, order and production history tables; superseded 2026-09-02 for execution."
+kind: archive
+status: stale
+read-when: checking the 2026-08-19 ColdLion landing owner decisions and measurements
+---
+
 # Implementation plan — ColdLion raw landing layer, phases 2 to 6
 
 > **SUPERSEDED FOR EXECUTION 2026-09-02.** Preserve this file as the historical owner-decision

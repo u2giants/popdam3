@@ -1,3 +1,10 @@
+---
+summary: "Instructions for the DesignFlow Cloud SQL administrator to run a read-only schema capture script, for issue #696 migration estimation."
+kind: ops
+status: current
+read-when: capturing the DesignFlow production Cloud SQL schema for migration comparison
+---
+
 # Capturing the DesignFlow production schema from Cloud SQL
 
 **Who this is for:** whoever administers the DesignFlow **production Cloud SQL**

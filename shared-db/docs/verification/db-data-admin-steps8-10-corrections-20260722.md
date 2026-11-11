@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Steps 8-10 corrective pass: alias/source-reference merge preview, receipt, candidate search, tree reachability; migration 20260722210000."
+kind: proof
+status: done
+read-when: auditing the corrections made to DB Data Admin Steps 8 to 10
+---
+
 # DB Data Admin Steps 8–10 corrections — 2026-07-22
 
 This is the verification record for the corrective pass over the already-delivered Steps 8, 9,

@@ -1,3 +1,10 @@
+---
+summary: "Live acceptance of #401 Step 10 five-outcome trial (#3029, 2026-09-16): ledger entered-to-live_verified timings of five structural outcomes against targets."
+kind: proof
+status: done
+read-when: scoring the Step 10 five-outcome throughput trial
+---
+
 # Live acceptance evidence — #401 Step 10: five-outcome trial (shared-db#3029)
 
 Collected 2026-09-16 against `u2giants/shared-db` main. Method: read real GitHub

@@ -1,3 +1,10 @@
+---
+summary: Field mapping from ColdLion item data to the Supabase item mirror (erp_items_current, api.plm_item_list), written 2026-07-15 with customer/vendor import notes.
+kind: spec
+status: stale
+read-when: reading the early ColdLion item mirror mapping; superseded by later landing design
+---
+
 # Coldlion ERP → Supabase item mirror — field mapping
 
 Companion to [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md). Maps the

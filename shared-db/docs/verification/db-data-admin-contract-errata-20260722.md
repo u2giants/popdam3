@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 6 contract errata: deterministic PLM row choice, protected alias-detail path, Customer channel filter; migration 20260722163000 on preview."
+kind: proof
+status: done
+read-when: auditing DB Data Admin Step 6 read-contract errata
+---
+
 # DB Data Admin Step 6 contract errata verification
 
 Date: 2026-07-22

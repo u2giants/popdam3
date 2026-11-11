@@ -1,3 +1,10 @@
+---
+summary: "Step 3 closeout (2026-09-10): five of seven requirements met for rebuild and projection churn in partial scope; open items listed; no database access."
+kind: proof
+status: done
+read-when: checking what Step 3 rebuild-churn evidence is still unproven
+---
+
 # Step 3 closeout — rebuild and projection churn
 
 **Plan / issue:** `plan_database_efficiency_and_api_security.md` Step 3 / #2326

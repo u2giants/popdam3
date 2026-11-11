@@ -1,3 +1,10 @@
+---
+summary: "Decision (2026-09-02, issue #562) that core.character rows come only from per-licensor normalized portal capture tables via the core_character_id contract."
+kind: spec
+status: current
+read-when: populating core.character or choosing its backfill source
+---
+
 # `core.character` — the named backfill source decision
 
 **Issue:** #562, first outstanding item · **Written:** 2026-09-02 ·

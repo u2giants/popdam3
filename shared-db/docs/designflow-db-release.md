@@ -1,3 +1,10 @@
+---
+summary: "DesignFlow database release readiness (#4655): six app release manifests, production-ready gate, Oct 27 2026 update with merged PRs and Cloud Build proof."
+kind: living
+status: open
+read-when: "checking DesignFlow app database release gating, manifests and #4655 delivery state"
+---
+
 # DesignFlow database release readiness
 
 Work issue: #4655. Application outcome: popcre/designflow-backend#232.

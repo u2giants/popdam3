@@ -1,3 +1,10 @@
+---
+summary: Read-only collision proof that all 46 public-admin policy names and tables map to the canonical ALTER POLICY object extractor, with synthetic placeholders.
+kind: proof
+status: done
+read-when: "checking claim-object collisions for the #4427 public-admin policy family"
+---
+
 # Read-only full-family collision proof
 
 All 46 exact public-admin policy names and tables were fed to the canonical ALTER POLICY object extractor using synthetic expression placeholders. No parser input was executed against a database or authored as a migration. This proves all required table/policy identities and compares them with the fresh open claims. No objects are claimed or changed.

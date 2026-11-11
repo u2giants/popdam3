@@ -1,3 +1,10 @@
+---
+summary: "UPC storage and exposure contract for DesignFlow item identity: legacy view plus dflow_prod item_detail_upc read contract (issue #4659), delivery pending."
+kind: spec
+status: open
+read-when: changing DesignFlow item UPC reads or the item_detail_upc view
+---
+
 # UPC storage and exposure — the shared-database contract
 
 **Migration:** `supabase/migrations/20260803150000_itemdetail_coldlion_item_identity_and_upc_contract.sql`

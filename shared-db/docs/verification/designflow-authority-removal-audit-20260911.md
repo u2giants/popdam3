@@ -1,3 +1,10 @@
+---
+summary: "Issue 2602 read-only audit that DesignFlow no longer decides licensing authority: plm.import_master_data retired, plm-sync path, queries and positive controls."
+kind: proof
+status: done
+read-when: confirming DesignFlow was removed from licensing authority decisions
+---
+
 # Issue #2602 — DesignFlow removed from licensing authority decisions (audit, 2026-09-11)
 
 Plan step 4.2 of `plan_licensing_master_data_implementation.md`. Read-only audit;

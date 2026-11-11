@@ -1,3 +1,10 @@
+---
+summary: "Plan to reduce work that must pass through the orchestrator without reducing safety; SUPERSEDED 2026-10-15 (issue #4348) when the role was retired"
+kind: plan
+status: stale
+read-when: historical context on orchestrator load reduction and self-service additive lane
+---
+
 # Implementation plan — reduce what MUST pass through the orchestrator, without reducing safety
 
 > **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired

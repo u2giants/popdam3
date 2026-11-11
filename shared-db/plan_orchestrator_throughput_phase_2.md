@@ -1,3 +1,10 @@
+---
+summary: Plan for orchestrator throughput Phase 2, eliminating cross-issue invalidation with evidence bundles; steps done, SUPERSEDED 2026-10-15 (#4348)
+kind: plan
+status: stale
+read-when: "historical context on evidence bundles and invalidation classes (issue #1738)"
+---
+
 # Implementation plan — orchestrator throughput Phase 2: eliminate cross-issue invalidation
 
 > **SUPERSEDED 2026-10-15 (issue #4348).** The orchestrator role is retired

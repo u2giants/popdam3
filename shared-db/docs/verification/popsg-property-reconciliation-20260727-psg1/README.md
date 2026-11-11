@@ -1,3 +1,10 @@
+---
+summary: "PopSG PSG-1 evidence 2026-07-27: 216,417 active file occurrences in a 2x2 matrix and a 372-row normalized property inventory."
+kind: proof
+status: done
+read-when: auditing PopSG property reconciliation phase PSG-1
+---
+
 # PopSG Property reconciliation PSG-1 evidence
 
 **Phase:** PSG-1 only  

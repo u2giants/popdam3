@@ -1,3 +1,10 @@
+---
+summary: "Step 11 tranche 1: plm.import_master_data stops overwriting curated core.customer.status on re-pull; preview rehearsal, production unchanged."
+kind: proof
+status: done
+read-when: understanding why PLM import preserves curated customer status
+---
+
 # Step 11 tranche 1 — PLM import preserves curated customer status
 
 Date: 2026-07-23  

@@ -1,3 +1,10 @@
+---
+summary: "Plain-English decision brief for Albert on hard-blocked migrations (2026-08-02): install versus data-changing types, read-only evidence, owner unblocks."
+kind: archive
+status: stale
+read-when: reviewing why migrations were hard-blocked in August 2026 and the decision options
+---
+
 # The blocked migrations — a decision brief for Albert
 
 **Date:** 2026-08-02

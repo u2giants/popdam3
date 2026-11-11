@@ -1,3 +1,10 @@
+---
+summary: "Short design picture of shared-db as the schema and contract layer: consumer apps, schemas (app, core, api, crm, pim, dam, plm, ingest) and ownership."
+kind: living
+status: current
+read-when: orienting on which schema owns what and how apps consume the shared database
+---
+
 # Architecture
 
 This repository is the **schema and contract** layer of one shared Supabase

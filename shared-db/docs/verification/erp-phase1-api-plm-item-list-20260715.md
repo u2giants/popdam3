@@ -1,3 +1,10 @@
+---
+summary: "ERP Phase 1 evidence: api.plm_item_list security_invoker view over erp_items_current and repointed style_tracker bridge view; PR 70."
+kind: proof
+status: done
+read-when: auditing the api.plm_item_list ERP serving view rollout
+---
+
 # Verification — ERP Phase 1: `api.plm_item_list` serving view (2026-07-15)
 
 Durable evidence for Phase 1 of [`../../fix_schema_for_api.md`](https://github.com/popcre/shared-db/blob/main/fix_schema_for_api.md).

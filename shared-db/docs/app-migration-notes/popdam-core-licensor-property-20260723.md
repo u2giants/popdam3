@@ -1,3 +1,10 @@
+---
+summary: PopDAM cutover of licensor/property foreign keys to core.licensor/core.property; production attempt on 2026-07-23 rolled back and caused 503s.
+kind: spec
+status: open
+read-when: retrying the PopDAM canonical licensor/property cutover safely
+---
+
 # PopDAM canonical licensor/property cutover — 2026-07-23
 
 PopDAM formerly kept separate `public.licensors` and `public.properties` tables.

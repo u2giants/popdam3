@@ -1,3 +1,10 @@
+---
+summary: Issue 2988 registered historical restoration of version 20260916033914 after preview evidence lacked the new verification sidecar; validator output.
+kind: proof
+status: done
+read-when: understanding the 20260916033914 production producer-provenance restoration
+---
+
 # Issue 2988: exact historical-restoration producer provenance
 
 Production apply of version `20260916033914` correctly stopped before writes

@@ -1,3 +1,10 @@
+---
+summary: "Requirement from Albert's 2026-08-06 ruling: ingest everything and give a Licensor/Property triage page in DB Data Admin; sequencing section is critical."
+kind: spec
+status: stale
+read-when: building or auditing the Licensor/Property triage page and feed-drop ruling
+---
+
 # Requirement — ingest everything, then triage it: the Licensor/Property triage page
 
 **Date:** 2026-08-06

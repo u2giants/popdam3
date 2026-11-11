@@ -1,3 +1,10 @@
+---
+summary: Decision record (2026-08-13) rejecting a docs-versus-issues consistency checker after review by three models; explains why, so it is not re-proposed.
+kind: archive
+status: done
+read-when: before proposing a CI check that reconciles plans, handoffs and issues
+---
+
 # A cross-artifact consistency checker was proposed, reviewed by three models, and REJECTED
 
 **Date:** 2026-08-13

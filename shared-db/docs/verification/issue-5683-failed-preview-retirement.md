@@ -1,3 +1,10 @@
+---
+summary: Issue 5683 retirement of failed preview version 20261105142616 in the native classifier after atomic rollback, with SQL hash preserved.
+kind: proof
+status: done
+read-when: understanding why migration 20261105142616 was retired after its preview failure
+---
+
 # Issue5683: immutable failed preview retirement
 
 Source5686 merged as c266d0145cec1618dbd26b2f3b4a9f1a840e4ea2. Native preview42060060160 refused the full source-witness guard and atomically rolled back. Actual bounded reads confirmed version20261105142616 absent from both ledgers. No production promotion followed.

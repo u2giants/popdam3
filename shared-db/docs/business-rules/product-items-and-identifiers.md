@@ -1,3 +1,10 @@
+---
+summary: Business rules for Products, Items, SKUs, style numbers, controlled descriptions, and prepacks (a manifest, not an Item; Albert 2026-09-06).
+kind: living
+status: current
+read-when: handling item identity, style numbers, SKUs, prepacks or identifiers across systems
+---
+
 # Products, items, SKUs, and identifiers
 
 **Status:** Proposed

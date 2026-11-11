@@ -1,3 +1,10 @@
+---
+summary: 2026-07-03 get_ai_sentinel_stats re-homed into shared-db with exact sentinel phrase match, plus thumbnail findings for .ai files.
+kind: archive
+status: done
+read-when: understanding the .ai sentinel stats function change
+---
+
 # PopDAM (DAM) — `.ai` sentinel stats + thumbnail findings (2026-07-03)
 
 ## What changed

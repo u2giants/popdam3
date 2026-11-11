@@ -1,3 +1,10 @@
+---
+summary: "Re-count (zero) of orphaned psql processes for #550 backlog B12; no WSL wrapper exists in the repo; diagnostic recipe."
+kind: archive
+status: done
+read-when: "diagnosing orphaned psql processes or reading the #550 outcome"
+---
+
 # Orphaned `psql` processes — what was actually wrong, and how to diagnose it (#550, backlog B12)
 
 **Re-counted live on `al8960ofc`, 2026-08-11.** Issue #550 recorded a count discrepancy — one

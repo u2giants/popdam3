@@ -1,3 +1,10 @@
+---
+summary: "Operation of the shared-db GitHub merge queue (#2530): one-at-a-time ruleset, immutable reviewed head, migration ordering, 90-minute timeout, rollback steps."
+kind: ops
+status: current
+read-when: operating or rolling back the main merge queue
+---
+
 # Shared-db merge queue operation
 
 Issue [#2530](https://github.com/popcre/shared-db/issues/2530) Phase C replaces first-come-first-served

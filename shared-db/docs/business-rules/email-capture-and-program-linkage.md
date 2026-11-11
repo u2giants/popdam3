@@ -1,3 +1,10 @@
+---
+summary: "Settled rules (Albert, 2026-08-25) on which emails are captured: interim external-participant rule, and program linkage that will override it."
+kind: living
+status: current
+read-when: changing which emails the capture pipeline stores
+---
+
 # Email capture and program linkage
 
 **Status:** Settled

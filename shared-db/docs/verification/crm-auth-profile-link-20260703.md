@@ -1,3 +1,10 @@
+---
+summary: Verification of the CRM auth profile email link fix for Microsoft SSO failing with Database error saving new user (2026-07-03).
+kind: proof
+status: done
+read-when: debugging CRM Microsoft SSO sign-up profile linking
+---
+
 # CRM Auth Profile Email Link Verification — 2026-07-03
 
 ## Context

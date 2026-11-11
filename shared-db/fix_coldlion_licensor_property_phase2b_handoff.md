@@ -1,3 +1,10 @@
+---
+summary: "Phase 2B handoff: two preview mirror_only snapshots (560 rows, run 7fa7925a), idempotency and canonical immutability proof, consumer audit."
+kind: archive
+status: done
+read-when: reading the Phase 2B preview mirror proof history
+---
+
 # Handoff — ColdLion licensor/property Phase 2B
 
 ## 1. What this application is

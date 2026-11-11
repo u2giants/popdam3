@@ -1,3 +1,10 @@
+---
+summary: "Coldlion to DesignFlow to Supabase merch-group taxonomy: schema history, workbook evidence and mappings; business authority moved to rules 2026-08-18."
+kind: archive
+status: stale
+read-when: looking up merch-group schema history and detailed mappings behind taxonomy rules
+---
+
 # Merch groups: the Coldlion → DesignFlow → Supabase taxonomy
 
 > **Business authority moved 2026-08-18:** The companywide rule is

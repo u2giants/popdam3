@@ -1,3 +1,10 @@
+---
+summary: "Phase 6 handoff (in progress): accelerated-cutover planning update, Step 7A preview parallel-run lane, recurring production lane kept separate."
+kind: plan
+status: open
+read-when: continuing ColdLion licensor property Phase 6 parallel run or cutover
+---
+
 # Handoff — ColdLion licensor/property Phase 6 (IN PROGRESS)
 
 > **Planning update — 2026-07-26:** Albert rejected the 14-day elapsed-time wait. ColdLion is the

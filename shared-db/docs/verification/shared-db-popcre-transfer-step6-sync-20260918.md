@@ -1,3 +1,10 @@
+---
+summary: "Note for #2530 step 6: guarded-merge bot pushes skip sync.yml, so this non-bot merge triggers consumer sync after the popcre transfer (PRs #3254, #3256)."
+kind: proof
+status: done
+read-when: understanding why guarded-lane merges reach consumers only on the next non-bot push
+---
+
 # #2530 Step 6 — consumer sync after the popcre transfer (2026-09-18)
 
 - Identity PR #3254 merged as `2f204a481270808eef752a6dc0f716c6b9f81159`; fixture PR #3256

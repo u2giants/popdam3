@@ -1,3 +1,10 @@
+---
+summary: "Issue #5426 note: retired contract refs moved to refs/db-evidence/contracts, same commit SHAs; coordinator CLI is the surviving migration tool."
+kind: living
+status: current
+read-when: locating historical contract storage after author-lane retirement
+---
+
 # Historical contract storage after author-lane retirement
 
 Owner: shared-db issue #5426. This completes the repository-maintenance follow-up

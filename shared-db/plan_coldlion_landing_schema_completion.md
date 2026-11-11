@@ -1,3 +1,10 @@
+---
+summary: "Plan to complete and correct the ColdLion landing schema, tracker #2081; sales history redesign and loading still open"
+kind: plan
+status: open
+read-when: redesigning ColdLion landing tables or sales history loading (#2081)
+---
+
 # Implementation plan — complete and correct the ColdLion landing schema
 
 **Written:** 2026-09-02 · **Tracker:** GitHub issue #2081 · **Repository:** `u2giants/shared-db`

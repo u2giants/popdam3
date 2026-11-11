@@ -1,3 +1,10 @@
+---
+summary: "public.assets immediately after the governed production repack (#5747): total 3,496 MB to 532 MB, heap 196 MB, measured read-only 2026-11-05."
+kind: proof
+status: done
+read-when: confirming the result of the assets table repack
+---
+
 # public.assets after repack (popcre/shared-db#5747 Step 4 / Step 7, immediate reading)
 
 Captured read-only on production `qsllyeztdwjgirsysgai`, 9:52-9:56 PM EST 2026-11-05, minutes after

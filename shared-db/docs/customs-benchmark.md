@@ -1,3 +1,10 @@
+---
+summary: "Private historical customs benchmark (issue #5447): plm.customs_benchmark tables plus private object-storage artifacts for DesignFlow HTS evaluation."
+kind: spec
+status: current
+read-when: using or extending the customs benchmark dataset and its object-storage artifacts
+---
+
 # Private historical customs benchmark
 
 Owner: DesignFlow HTS evaluation; shared-db issue #5447, application issue

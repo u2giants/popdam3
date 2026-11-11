@@ -1,3 +1,10 @@
+---
+summary: "Plan making Paramount/NBCU curated decisions (resolution_status, core_property_id) survive every sync; tests still pending PR #1018 checks"
+kind: plan
+status: open
+read-when: protecting curated Paramount/NBCU property decisions from sync overwrite
+---
+
 # Implementation plan — Paramount/NBCU curated decisions must survive every sync
 
 **Written:** 2026-08-14 · **Machine:** al8960ofc · **Agent:** claude (Opus 5)

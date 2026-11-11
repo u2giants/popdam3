@@ -1,3 +1,10 @@
+---
+summary: "Issue 3327 investigation: authenticated styles audit projection deliberately exposes actor attribution after PR 326; no schema change recommended."
+kind: proof
+status: done
+read-when: questioning audit-projection actor attribution access or security_invoker change
+---
+
 # Styles audit attribution access investigation
 
 Investigation date: 2026-09-20. Resolves the provisional concern in [issue 3327](https://github.com/popcre/shared-db/issues/3327) (non-orchestrator investigation), originating from [issue 2662](https://github.com/popcre/shared-db/issues/2662) (bounded structural work).

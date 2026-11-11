@@ -1,3 +1,10 @@
+---
+summary: New RPC dam_search_semantic_anchors (#5703) returning scores for one or two 768-dimension vectors; grants, errors and verification.
+kind: spec
+status: current
+read-when: calling or changing the batched DAM semantic anchors RPC
+---
+
 # PopDAM bounded semantic anchors (#5703)
 
 The new `public.dam_search_semantic_anchors(first vector, second vector default null, document_types text[] default null)` returns ordered `(query_index integer, score real)` rows for one or two inputs. First is required; both dimensions must be 768. Invalid dimensions/NULL first raise 22023. Malformed pgvector literals retain pgvector errors. NULL second requests one row. Empty scopes/model mismatch/empty eligible corpus retain NULL scores, which required semantic callers must reject rather than substitute keyword results.

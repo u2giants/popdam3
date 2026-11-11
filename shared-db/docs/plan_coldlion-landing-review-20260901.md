@@ -1,3 +1,10 @@
+---
+summary: "2026-09-01 fresh review of the ColdLion landing plan: six defects incl. wrong orderHistory line key, checked on 1,823 live rows."
+kind: proof
+status: done
+read-when: auditing why the orderHistory key and step-4 sales history design changed
+---
+
 # Fresh review of `plan_coldlion-landing-phases-2-6.md` — 2026-09-01
 
 **Verdict: the plan is still directionally right and steps 1, 2, 3 and 6 are safe to build as

@@ -1,3 +1,10 @@
+---
+summary: Spec for DesignFlow tracking and frontend repos to match the shared-db Sample Tracking contract and completion-semantics migration 20260723230000.
+kind: spec
+status: current
+read-when: fixing DesignFlow Sample Tracking consumers to match the shared database contract
+---
+
 # DesignFlow Sample Tracking — consumer fix SPEC (2026-07-23)
 
 **Status:** SPEC only. No DesignFlow repository is modified from `shared-db`.

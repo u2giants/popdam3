@@ -1,3 +1,10 @@
+---
+summary: "Audit of shared-db workflow bottlenecks (2026-09-20): 124 open issues, guarded-merge success rate, branch protection, refactor-coordination advice."
+kind: proof
+status: done
+read-when: reviewing why shared-db delivery was slow before the workflow refactor
+---
+
 # Shared-db workflow bottleneck audit — 20 September 2026
 
 ## Recommendation

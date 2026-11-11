@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin implementation inventory dated 2026-07-21: repo baseline, stack, grid, objects, owners, consumers, release blockers and customer/vendor counts."
+kind: living
+status: current
+read-when: checking what DB Data Admin objects, stack and release blockers exist
+---
+
 # DB Data Admin implementation inventory
 
 Date: 2026-07-21

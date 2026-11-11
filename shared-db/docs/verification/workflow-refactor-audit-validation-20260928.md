@@ -1,3 +1,10 @@
+---
+summary: Repeatable validation script and result for the Sept 27 2026 delivery audit snapshot, provenance, graph and plan reconciliation (#3597).
+kind: proof
+status: done
+read-when: re-running validation of the workflow-refactor delivery audit evidence
+---
+
 # Delivery-audit evidence validation — September 27, 2026
 
 Owner: [#3597](https://github.com/popcre/shared-db/issues/3597), non-orchestrator work. This repeatable validation checks the archived values with limited redactions and protects the audit's captured counts, route classes, owner markers, issue-to-PR provenance, dependency graph, check totals, cohort calculations, superseded heads and stage claims. It is superseded with the audit by a later workflow-refactor acceptance report; it makes no live database or production claim.

@@ -1,3 +1,10 @@
+---
+summary: "Plan to unblock Windows installation of the ai-devops toolkit: update.sh path normalization, lock fallback, launcher path check, MSYS install authorization"
+kind: plan
+status: done
+read-when: reviewing the Windows install gate fixes for ai-devops
+---
+
 # Implementation Plan: Unblock Windows installation of ai-devops toolkit
 
 ## STATUS

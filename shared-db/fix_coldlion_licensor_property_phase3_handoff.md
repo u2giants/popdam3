@@ -1,3 +1,10 @@
+---
+summary: "Phase 3 handoff for ColdLion licensor and property: approved-mapping input with Phase 2B immutability baseline carried forward, no canonical mutation."
+kind: archive
+status: done
+read-when: reading the Phase 3 ColdLion mapping input history
+---
+
 # Handoff — ColdLion licensor/property Phase 3
 
 ## 1. What this application is

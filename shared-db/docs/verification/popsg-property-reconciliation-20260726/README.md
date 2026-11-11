@@ -1,3 +1,10 @@
+---
+summary: PopSG PSG-0 evidence from 2026-07-26 for property reconciliation across shared-db and PopDAM, per the plan entry gate.
+kind: proof
+status: done
+read-when: auditing PopSG property reconciliation phase PSG-0
+---
+
 # PopSG Property reconciliation PSG-0 evidence
 
 **Phase:** PSG-0 only  

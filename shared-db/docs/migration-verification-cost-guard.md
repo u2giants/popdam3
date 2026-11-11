@@ -1,3 +1,10 @@
+---
+summary: Rule that check-sql refuses migrations whose verification DO block reads api.source_capture_inventory or plm objects, including search_path forms.
+kind: spec
+status: current
+read-when: writing migration verification blocks that might be refused by the cost guard
+---
+
 # Migration verification cost guard
 
 Migration verification runs inside the apply transaction. It must establish an

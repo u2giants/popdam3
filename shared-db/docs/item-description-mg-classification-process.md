@@ -1,3 +1,10 @@
+---
+summary: Permanent rule for interpreting item descriptions and proposing new merchandise-group hierarchy items for pre-May 14 2025 items, tied to taxonomy repair plans.
+kind: ops
+status: current
+read-when: classifying item descriptions into merchandise-group hierarchy for historical items
+---
+
 # Item-description merchandise-group classification
 
 ## Permanent rule

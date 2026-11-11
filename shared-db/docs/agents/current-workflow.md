@@ -1,3 +1,10 @@
+---
+summary: "Current shared-db route map with policy matrix, route selection, concurrency, production promotion and recovery after claim lifecycle retirement (#5409, #5426)."
+kind: living
+status: current
+read-when: choosing the correct shared-db release route; checking current workflow policy
+---
+
 # Current shared-db workflow
 
 This is the current route map. Historical incident reports explain decisions;

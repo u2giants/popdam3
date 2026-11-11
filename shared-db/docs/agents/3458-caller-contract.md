@@ -1,3 +1,10 @@
+---
+summary: Caller contract for the stepwise public.refresh_style_guide_matviews overload (issue 3458) avoiding statement timeouts in popdam3 crawl completion.
+kind: spec
+status: current
+read-when: wiring popdam3 complete-style-guide-crawl to refresh_style_guide_matviews steps
+---
+
 # New caller contract — `public.refresh_style_guide_matviews` (issue #3458)
 
 For popdam3 `supabase/functions/agent-api/index.ts` (`complete-style-guide-crawl`).

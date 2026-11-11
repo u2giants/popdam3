@@ -1,3 +1,10 @@
+---
+summary: Issue 2336 pin registering exact preview-applied bytes of migration 20261013130102 (PR 4206 unmerged), hashes and 67 object keys; no production authority.
+kind: proof
+status: done
+read-when: reviewing the frozen pre-merge migration pin for 20261013130102
+---
+
 # Issue #2336: exact pre-merge historical migration pin
 
 This change registers the exact SQL body already applied to preview for migration

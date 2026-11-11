@@ -1,3 +1,10 @@
+---
+summary: "Disposable postgres:15 test for #853 showing a BEGIN/COMMIT migration with a rejected ledger row is not silently recorded, using pinned Supabase CLI 2.105.0."
+kind: proof
+status: done
+read-when: auditing migration ledger safety for explicit-transaction migrations
+---
+
 # Issue #853 explicit-transaction ledger safety proof
 
 Date: 2026-08-16. Environment: disposable `postgres:15` container on hetz.

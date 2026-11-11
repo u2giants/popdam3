@@ -1,3 +1,10 @@
+---
+summary: "2026-08-02 design for the production migration promotion lane: out-of-order ledger fix and a new 42P01 dependency blocker in the 14 promotable migrations."
+kind: archive
+status: done
+read-when: understanding why the production promotion lane could not produce a plan in August 2026
+---
+
 # Production migration promotion lane — design (2026-08-02)
 
 **Status:** DESIGN ONLY. Nothing here was implemented. No workflow, guard script,

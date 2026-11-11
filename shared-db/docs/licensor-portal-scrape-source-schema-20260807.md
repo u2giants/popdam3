@@ -1,3 +1,10 @@
+---
+summary: "Database contract for licensor portal scrape landing tables (NBCU, Disney, Paramount, Warner Starlabs): schema in git, data out of git, importer rules."
+kind: spec
+status: current
+read-when: designing or loading licensor portal scrape landing tables
+---
+
 # Licensor portal scrape — source schema and database contract
 
 **Status:** authoritative for the Warner Bros. STARLABS extract. Written 2026-08-10 for

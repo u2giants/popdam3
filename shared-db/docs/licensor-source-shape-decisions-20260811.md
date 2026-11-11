@@ -1,3 +1,10 @@
+---
+summary: Decision record reconciling NBCU, Disney and Paramount scrape-shape answers with enforced schema; NO versus NOT KNOWN rule and follow-up questions.
+kind: archive
+status: done
+read-when: reviewing the 2026-08-11 licensor source-shape decisions and open questions
+---
+
 # Licensor source-shape answers vs. what the database enforces
 
 **Date:** 2026-08-11

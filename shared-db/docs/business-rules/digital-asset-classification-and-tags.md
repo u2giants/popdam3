@@ -1,3 +1,10 @@
+---
+summary: "Proposed rules for digital-asset tags and classification: authority order, provenance, canonical tags, safety rules, and a settled product-code subsection."
+kind: living
+status: current
+read-when: building or changing asset tagging and classification behavior
+---
+
 # Digital-asset classification, tags, and source evidence
 
 **Status:** Proposed

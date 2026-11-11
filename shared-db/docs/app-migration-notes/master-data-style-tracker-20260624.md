@@ -1,3 +1,10 @@
+---
+summary: OrderList workflow fallback (#5393) and get_dam_order_vendor_ids reader contract for source Vendor IDs with exact ColdLion bridge precedence.
+kind: spec
+status: current
+read-when: changing OrderList workflow fallback or order vendor ID reader behavior
+---
+
 
 OrderList workflow fallback (#5393) preserves the canonical order item and exact
 item-bridge precedence. Only absent exact candidates may use one exact normalized

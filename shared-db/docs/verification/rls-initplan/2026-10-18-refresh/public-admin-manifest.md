@@ -1,3 +1,10 @@
+---
+summary: "Exact manifest for #4427 public-admin family: 46 baseline policy identities on 39 tables, table coverage, claim requirements and before-test specification."
+kind: spec
+status: done
+read-when: "qualifying or testing the #4427 public-admin RLS policy repair"
+---
+
 # public-admin: #4427 exact manifest
 
 46 baseline identities on 39 tables. Every expression fingerprint matches the prior baseline. Disposition: eligible for qualification; none already repaired, removed, or silently added. This is not write authority.

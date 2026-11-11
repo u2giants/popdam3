@@ -1,3 +1,10 @@
+---
+summary: Plan to wire ERP items to canonical taxonomy with real foreign keys after ColdLion GET /items recovered; division-code facts status updated 2026-08-17.
+kind: plan
+status: open
+read-when: wiring ColdLion items to canonical taxonomy or item taxonomy phase 2
+---
+
 # fix_item_taxonomy_wiring.md — Wire ERP items to the canonical taxonomy (with real FKs)
 
 **Repo:** `u2giants/shared-db` (shared Supabase `qsllyeztdwjgirsysgai`).

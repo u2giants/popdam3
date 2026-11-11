@@ -1,3 +1,10 @@
+---
+summary: "#4428 acceptance: ACCEPTED close-out re-proof 2026-11-05 of migration 20261023122936 wrapping auth.uid() in 17 owner policies on 7 tables, with live re-proof."
+kind: proof
+status: done
+read-when: "confirming the #4428 owner-uid RLS initplan acceptance evidence"
+---
+
 # #4428 acceptance
 
 ## Verdict: ACCEPTED (close-out re-proof, 2026-11-05)

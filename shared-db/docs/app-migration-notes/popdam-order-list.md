@@ -1,3 +1,10 @@
+---
+summary: PopDAM OrderList source profile and 48-column destination map to plm.production_order, with locked business decisions and 2026-08-12 re-profile (#727).
+kind: spec
+status: current
+read-when: importing or reconciling Google OrderList rows with ColdLion production orders
+---
+
 # PopDAM OrderList source profile and 48-column contract
 
 ## Purpose

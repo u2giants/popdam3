@@ -1,3 +1,10 @@
+---
+summary: 2026-06-20 list of source gaps, duplicate business objects and risky tables to resolve before writing unified Supabase migration SQL.
+kind: archive
+status: stale
+read-when: tracing early 2026-06 unified schema gap analysis
+---
+
 # Unified Supabase Migration Gaps
 
 Date: 2026-06-20

@@ -1,3 +1,10 @@
+---
+summary: "Workflow guide for app rewrite sessions using the shared Supabase preview branch: ownership, targets, baseline, working pattern, shared preview conflicts."
+kind: ops
+status: stale
+read-when: reading original CRM/PM rewrite era shared preview branch workflow
+---
+
 # Shared Supabase Branch Workflow For App Rewrite Sessions
 
 Use this guide for AI sessions rewriting POP app frontends from Directus to Supabase.

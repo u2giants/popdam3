@@ -1,3 +1,10 @@
+---
+summary: "Sanitized read-only Phase 0 reconciliation for licensing master data tracker #1090 (2026-09-04), incl. production migration ledger counts and pending versions."
+kind: proof
+status: stale
+read-when: auditing licensing master data Phase 0 baseline and its ledger measurement
+---
+
 # Licensing Master Data Phase 0 reconciliation — 2026-09-04
 
 ## Scope and identity

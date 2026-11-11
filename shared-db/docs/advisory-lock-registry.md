@@ -1,3 +1,10 @@
+---
+summary: Registry of PostgreSQL advisory-lock keys in the shared database, rules for literal keys, derived per-row keys, and the ColdLion promotion lane.
+kind: living
+status: current
+read-when: adding or choosing an advisory lock key; debugging unexplained lock blocking
+---
+
 # Advisory-lock registry (shared Supabase database)
 
 PostgreSQL advisory locks are **global to the database and keyed only by a number**.

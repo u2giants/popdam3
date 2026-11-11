@@ -1,3 +1,10 @@
+---
+summary: "Round 2 of division-code answers from Uma plus itemHeader reference check: 78 percent of items in division 2 (CW001), EP001 retired, 178 of 363 rows safe."
+kind: archive
+status: done
+read-when: reviewing round-2 division-code answers and which unclean rows are safe to touch
+---
+
 # Division codes, round 2: Uma's second answers + the itemHeader reference check
 
 **Date:** 2026-08-17

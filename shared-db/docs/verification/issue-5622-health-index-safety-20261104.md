@@ -1,3 +1,10 @@
+---
+summary: "Issue 5622 search-health index safety: preview fixture sizes for DAM and PopSG corpora, transaction timeout proof; runtime acceptance not yet done."
+kind: proof
+status: open
+read-when: working on 5622 search health index safety and the alarm drill
+---
+
 # Search health index safety — issue #5622
 
 Owner: Codex V-A child of the PopDAM search/tagging coordinator.

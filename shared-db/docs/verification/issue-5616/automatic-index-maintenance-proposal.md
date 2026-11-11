@@ -1,3 +1,10 @@
+---
+summary: "Issue 5616 controlled concurrent PopSG HNSW index maintenance capability: drills pass, operation policy empty, nothing enabled in preview or production."
+kind: plan
+status: open
+read-when: working on 5616 automatic concurrent index maintenance for the PopSG HNSW
+---
+
 # Issue 5616: controlled concurrent SG index maintenance
 
 STATUS: implementation and disposable PostgreSQL drills pass. The operation policy is empty. No preview or production operation is enabled or applied.

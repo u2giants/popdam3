@@ -1,3 +1,10 @@
+---
+summary: Runbook for Supabase CLI and database credentials, silent Windows runner traps and governed-review tooling gotchas relocated from AGENTS.md (#1331).
+kind: ops
+status: current
+read-when: fixing Supabase CLI login or credential problems and hosted-Supabase gotchas
+---
+
 # shared-db runbooks — credentials, CLI, and hosted-Supabase gotchas
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212): §9, §10.1, §10.2, §10.3 and §11

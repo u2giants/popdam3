@@ -1,3 +1,10 @@
+---
+summary: Verification of the read-only DesignFlow PLM master-data API shape (licensors, properties, customers) used by the sync tool and the 2026-06-24 import migration.
+kind: proof
+status: done
+read-when: changing the PLM master-data sync or checking API response shapes
+---
+
 # PLM Master Data API Shape
 
 Date: 2026-06-24

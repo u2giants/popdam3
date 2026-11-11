@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 9 UI verification of the Customer/Vendor merge dialog: fresh preview, per-app conflict choices, audit reason, irreversible confirmation."
+kind: proof
+status: done
+read-when: reviewing the DB Data Admin Step 9 merge dialog evidence
+---
+
 # DB Data Admin Step 9 UI verification — 2026-07-22
 
 The Customer and Vendor detail panels now open a protected merge workflow. The selected

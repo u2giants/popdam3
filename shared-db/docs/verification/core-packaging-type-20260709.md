@@ -1,3 +1,10 @@
+---
+summary: Verification of migration 20260709144500 adding core.packaging_type, a shared packaging-type lookup table for DAM and cross-app pickers.
+kind: proof
+status: done
+read-when: using or auditing the core.packaging_type lookup table
+---
+
 # Core Packaging Type Verification — 2026-07-09
 
 ## What changed

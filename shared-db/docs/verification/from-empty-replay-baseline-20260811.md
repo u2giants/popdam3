@@ -1,3 +1,10 @@
+---
+summary: "Issue 754 from-empty replay lane made real: failing migrations cut from 66 of 429 to 10, quarantined contract tests 26 to 11, CI bootstrap design."
+kind: proof
+status: done
+read-when: working on the from-empty migration replay and CI bootstrap baseline
+---
+
 # Making the from-empty contract lane real — measured, 2026-08-11
 
 **Issue #754. PR #759. Green run: 31500417400.**

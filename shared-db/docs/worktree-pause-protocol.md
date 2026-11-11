@@ -1,3 +1,10 @@
+---
+summary: "Convention (issue #549, 2026-08-11): an agent that pauses unfinished leaves a marker so cleanup agents do not delete its worktree."
+kind: ops
+status: current
+read-when: pausing an agent mid-task or cleaning up worktrees
+---
+
 # A paused agent must be distinguishable from a finished one (#549, backlog B11)
 
 **Status:** live convention. Adopted 2026-08-11 to close issue #549.

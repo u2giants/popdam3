@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 8 UI verification: Customer/Vendor single-record edit form, required audit reason, stale-conflict states, audit history display."
+kind: proof
+status: done
+read-when: reviewing the DB Data Admin Step 8 edit UI evidence
+---
+
 # DB Data Admin Step 8 UI verification — 2026-07-22
 
 The development UI adds protected Customer/Vendor single-record editing and immutable audit

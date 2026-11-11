@@ -1,3 +1,10 @@
+---
+summary: Step 7 bounded production change package for ColdLion licensor/property, prepared not executed, needing Albert's named Step 8 approval.
+kind: plan
+status: open
+read-when: preparing or reviewing the Step 7 ColdLion production change
+---
+
 # ColdLion Licensor/Property — Step 7 bounded production change package
 
 **Date:** 2026-07-28

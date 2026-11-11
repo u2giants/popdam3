@@ -1,3 +1,10 @@
+---
+summary: "Plan for a recurring ColdLion vendors to core.factory sync: Phase A guarded importer done 2026-07-22, Phase B scheduled function and alerting not built."
+kind: plan
+status: open
+read-when: building the scheduled ColdLion vendor sync Phase B
+---
+
 # fix_vendor_sync.md — Plan for a RECURRING Coldlion vendor → `core.factory` sync
 
 **Written:** 2026-07-22 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`

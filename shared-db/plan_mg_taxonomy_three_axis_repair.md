@@ -1,3 +1,10 @@
+---
+summary: Plan to match merchandise groups on three taxonomy axes (form, subtype/material, embellishment); steps 0-5 complete 2026-08-27 with 37 tests
+kind: plan
+status: done
+read-when: reviewing the three-axis merchandise-group matcher and its safeguards
+---
+
 # Implementation plan: match merchandise groups on the three axes the taxonomy actually uses
 
 ## STATUS

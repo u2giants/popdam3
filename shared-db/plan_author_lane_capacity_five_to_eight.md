@@ -1,3 +1,10 @@
+---
+summary: "Plan raising the migration-author lane cap from 5 to 8 (PR #1791, 2026-08-28) and aligning documentation; status APPLIED"
+kind: plan
+status: done
+read-when: checking why the author lane cap is eight
+---
+
 # Plan — raise the migration-author lane cap from five to eight
 
 **Status: APPLIED.** The cap moved 5 → 8 in commit `c33e68b9` (PR #1791,

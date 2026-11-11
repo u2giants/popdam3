@@ -1,3 +1,10 @@
+---
+summary: Issue 5683 authoring packet inserting Chase under licensor PP and Cheer Bear under CB with source references; guards and isolated evidence, not yet released.
+kind: proof
+status: open
+read-when: reviewing the 5683 publisher-backed missing character curation packet
+---
+
 # Publisher-backed missing characters — issue 5683
 
 Application need: [PopDAM #680](https://github.com/u2giants/popdam3/issues/680). Governed canonical claim: [shared-db #5683](https://github.com/popcre/shared-db/issues/5683).

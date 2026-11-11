@@ -1,3 +1,10 @@
+---
+summary: "Record of the 2026-06-21 production cutover of POP CRM from Directus to shared Supabase: schema promotion, Microsoft SSO, identity trigger, grants."
+kind: archive
+status: done
+read-when: auditing how the CRM production cutover was done
+---
+
 # popcrm-web — Production Cutover (2026-06-21)
 
 This records the **production** cutover of POP CRM (`u2giants/popcrm-web`) from

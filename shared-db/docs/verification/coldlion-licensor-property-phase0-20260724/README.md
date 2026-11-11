@@ -1,3 +1,10 @@
+---
+summary: "ColdLion licensor/property Phase 0 baseline completion (2026-07-24): live ColdLion API and preview database measurements, no production queries."
+kind: proof
+status: done
+read-when: reviewing the Phase 0 ColdLion licensor/property baseline
+---
+
 # ColdLion licensor/property Phase 0 baseline completion
 
 **Measured:** 2026-07-24  

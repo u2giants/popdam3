@@ -1,3 +1,10 @@
+---
+summary: Draft popcrm-web architecture section distinguishing ingested domain, potential customer and customer data; not yet applied to the app repo.
+kind: plan
+status: open
+read-when: updating popcrm-web architecture docs on customer vs company vs ingested domain
+---
+
 <!--
 DRAFT to insert into popcrm-web `docs/architecture.md`, immediately after the
 "## Data loading" section (before "## Key modules"). popcrm-web is an app repo,

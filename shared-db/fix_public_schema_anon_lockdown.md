@@ -1,3 +1,10 @@
+---
+summary: "Handoff for the public schema anonymous-access lockdown (2026-07-30): security work complete and live on production, with rejected approaches recorded."
+kind: archive
+status: done
+read-when: reviewing how the public schema anon lockdown was done and what was rejected
+---
+
 # FIX — `public` schema anonymous-access lockdown (shared-db)
 
 **Written:** 2026-07-30. **Status of the security work itself: COMPLETE and live on production.**

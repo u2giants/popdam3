@@ -1,3 +1,10 @@
+---
+summary: "ColdLion recurring-promotion rehearsal on preview: 18/18 cases pass for plm.promote_coldlion_source_owned, with migration lineage and body md5 (2026-07-31)."
+kind: proof
+status: done
+read-when: auditing the 2026-07-31 ColdLion promotion function rehearsal
+---
+
 # ColdLion recurring-promotion rehearsal — 18/18 PASS on preview
 
 **Run date/time:** 2026-07-31, 16:37:22 America/New_York = 2026-07-31 20:37:22 UTC.

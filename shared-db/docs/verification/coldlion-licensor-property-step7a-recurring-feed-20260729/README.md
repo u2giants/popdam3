@@ -1,3 +1,10 @@
+---
+summary: Step 7A preview verification of the real recurring production ColdLion licensor/property feed, with plain-English change summary (2026-07-29).
+kind: proof
+status: done
+read-when: reviewing the Step 7A recurring ColdLion feed
+---
+
 # Step 7A verification — the real recurring production ColdLion Licensor/Property feed
 
 **Date:** 2026-07-29

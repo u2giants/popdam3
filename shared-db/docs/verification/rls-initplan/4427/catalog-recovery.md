@@ -1,3 +1,10 @@
+---
+summary: "Recovery of applied admin-policy catalog verification (#4867/#4427): migration 20261021190604, verifier contract, protected deliveries PR #4871."
+kind: proof
+status: done
+read-when: "understanding the #4867 catalog verification recovery for the admin RLS migration"
+---
+
 # Applied admin-policy catalog verification recovery
 
 Issue #4867 owns this verifier defect; structural outcome and consumer acceptance stay on #4427.

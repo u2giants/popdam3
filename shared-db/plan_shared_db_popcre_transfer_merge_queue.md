@@ -1,3 +1,10 @@
+---
+summary: "Plan to transfer shared-db from u2giants to popcre and activate a GitHub merge queue (issue #2530); transfer executed 2026-09-18"
+kind: plan
+status: done
+read-when: tracing the 2026-09-18 repository transfer and merge queue activation
+---
+
 # Implementation plan — transfer `shared-db` to `popcre` and activate a safe GitHub merge queue
 
 Tracking issue: [#2530](https://github.com/u2giants/shared-db/issues/2530)

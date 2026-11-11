@@ -1,3 +1,10 @@
+---
+summary: "Read-only triage of PR #426 intake block (licensor-property-taxonomy) on 2026-08-03 with production target proof and health-state facts."
+kind: archive
+status: done
+read-when: "auditing the 2026-08-03 triage of intake PR #426"
+---
+
 # Triage of PR #426 (intake block) — 2026-08-03
 
 **PR:** https://github.com/u2giants/shared-db/pull/426

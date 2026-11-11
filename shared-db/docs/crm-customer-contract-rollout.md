@@ -1,3 +1,10 @@
+---
+summary: "2026-06-28 rollout of customer-named CRM contracts replacing account-named ones (PRs #19, #20, #21) and the drop-legacy sequence."
+kind: plan
+status: stale
+read-when: tracing the CRM account-to-customer contract rename and legacy object removal
+---
+
 # CRM Customer Contract Rollout
 
 Date: 2026-06-28

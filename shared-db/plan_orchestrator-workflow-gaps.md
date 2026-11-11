@@ -1,3 +1,10 @@
+---
+summary: Plan for three orchestrator workflow gaps (prod migration lane, one-orchestrator guard, ruling propagation); never started, role later retired
+kind: plan
+status: stale
+read-when: historical only; orchestrator role retired so these gaps are not being worked
+---
+
 # Implementation plan — three gaps in the orchestrator workflow
 
 **File:** `plan_orchestrator-workflow-gaps.md` · **Repo:** `u2giants/shared-db` · **Created:** 2026-08-07

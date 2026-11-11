@@ -1,3 +1,10 @@
+---
+summary: "Proposed RFQ pricing, margin and royalty rules: three pricing questions, deductions, cost basis by Incoterm (FOB, mDDP, POE, WHSE)."
+kind: living
+status: current
+read-when: changing RFQ price, margin or royalty calculations
+---
+
 # RFQ pricing, margin, and royalty rules
 
 **Status:** Proposed

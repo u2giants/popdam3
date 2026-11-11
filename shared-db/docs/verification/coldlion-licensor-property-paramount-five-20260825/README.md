@@ -1,3 +1,10 @@
+---
+summary: Widens the frozen ColdLion Phase 4 mapping for five Paramount Property codes (AM1, AM2, MGM, WND, EP) to 552 mappings, issue 539, v2 schema.
+kind: proof
+status: done
+read-when: checking the Paramount five approved ColdLion mapping additions
+---
+
 # ColdLion approved mapping gate — Paramount five
 
 This artifact widens the frozen Phase 4 mapping only for the five exact Property codes Albert

@@ -1,3 +1,10 @@
+---
+summary: Record of moving the retired PM Directus archive into shared Supabase and verifying ClickUp parity, 2026-06-30.
+kind: proof
+status: done
+read-when: auditing the PM Directus archive migration
+---
+
 # PM Directus Archive Migration — 2026-06-30
 
 Purpose: finish moving retired PM Directus archive data into the shared Supabase

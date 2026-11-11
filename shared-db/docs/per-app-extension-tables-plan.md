@@ -1,3 +1,10 @@
+---
+summary: Implementation guide for per-app extension tables (crm.customer_ext etc.) keyed to core rows, with litmus test; decided 2026-07-17 by owner and Kimi K3.
+kind: plan
+status: current
+read-when: adding app-specific attributes to a shared core entity via an extension table
+---
+
 # Per-app extension tables — implementation plan
 
 Status: **decision made 2026-07-17 (owner + Kimi K3 review); this document is the implementation guide.**

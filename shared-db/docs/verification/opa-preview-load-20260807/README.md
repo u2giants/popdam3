@@ -1,3 +1,10 @@
+---
+summary: "Evidence of the first real --apply of the Disney OPA extract into preview on 2026-08-07 (issue #581, claim #589); data load only, production untouched."
+kind: proof
+status: done
+read-when: auditing the 2026-08-07 OPA preview load
+---
+
 # Disney OPA extract — FIRST REAL `--apply` INTO PREVIEW
 
 **Date (UTC):** 2026-08-07

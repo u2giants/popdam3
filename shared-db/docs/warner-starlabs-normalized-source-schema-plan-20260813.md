@@ -1,3 +1,10 @@
+---
+summary: "Warner STARLABS normalized source schema plan (issue #925): additive migrations in production, legacy retirement on preview under issue #958; structure only."
+kind: plan
+status: open
+read-when: working on Warner STARLABS normalized tables or legacy retirement
+---
+
 # Warner STARLABS normalized source schema plan
 
 Status date: 2026-08-14

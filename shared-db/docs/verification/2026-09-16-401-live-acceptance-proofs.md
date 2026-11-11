@@ -1,3 +1,10 @@
+---
+summary: "Live acceptance verdicts for #401 steps 1,2,2A,3,4,6,7 (issue 3027): refusal and re-reservation proven, automatic promotion and lease holds not proven."
+kind: proof
+status: done
+read-when: checking what automatic production promotion and admission steps were live-proven
+---
+
 # #401 live acceptance proofs — Steps 1, 2, 2A, 3, 4, 6, 7 (issue #3027)
 
 Collected 2026-09-16 from live GitHub records only (workflow runs, commits, issue

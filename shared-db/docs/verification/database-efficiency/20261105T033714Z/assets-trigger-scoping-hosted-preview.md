@@ -1,3 +1,10 @@
+---
+summary: Issue 5609 hosted preview proof for assets trigger scoping (PR 5618, migration 20261105033827); production lock timeout failure and remaining acceptance.
+kind: proof
+status: open
+read-when: finishing production acceptance of the assets trigger scoping migration
+---
+
 # Issue #5609 hosted preview proof and remaining acceptance
 
 Recorded November 4, 2026, 11:43 PM EST. Source PR #5618 merged at `2326913af8f8089e4647c7f46c080edbd3a96ad0`; immutable migration `20261105033827`. Production application and the required 24-hour production interval are **not proved by this document**.

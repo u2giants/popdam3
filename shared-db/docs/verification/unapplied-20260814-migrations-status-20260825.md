@@ -1,3 +1,10 @@
+---
+summary: "Status of the six 2026-08-14 migrations on 2026-08-25 (issues #949, #958, #1418, #1450, #1459): Paramount promotion done, Warner resolved per ruling #1517."
+kind: archive
+status: done
+read-when: tracing how the 2026-08-14 Paramount and Warner migrations were resolved
+---
+
 # The six 2026-08-14 migrations — where they actually stand on 2026-08-25
 
 **Date:** 2026-08-25 · **Scope:** investigation only. **Nothing was applied, promoted or pushed.**

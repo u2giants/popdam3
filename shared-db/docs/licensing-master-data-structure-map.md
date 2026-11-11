@@ -1,3 +1,10 @@
+---
+summary: One-page front door to licensor, property, character and style-guide structure with live production layer counts as of 2026-10-22.
+kind: living
+status: current
+read-when: finding where licensing master data structure lives before querying or changing it
+---
+
 # Licensing and property master data — one-page structure map
 
 **Status:** current front door for the licensor / property / character / style-guide

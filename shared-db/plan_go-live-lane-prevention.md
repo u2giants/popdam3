@@ -1,3 +1,10 @@
+---
+summary: "Plan with three go-live lane prevention changes: promotion freeze window, failure refunds, loud stall alerts; PRs #5838 and #5911 landed 2026-11-06"
+kind: plan
+status: done
+read-when: reviewing go-live lane freeze, fault classification and stall alerting changes
+---
+
 # Plan: three prevention changes for the go-live lane
 
 Freeze the merge window across the whole go-live · classify infrastructure failures so they stop burning a change's attempts · make every stall loud within the hour.

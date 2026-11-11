@@ -1,3 +1,10 @@
+---
+summary: "Investigation (#4039, Oct 7 2026) of narrower shared-db promotion freezes: partial relief for ordinary prose only, code and schema merges stay blocked."
+kind: archive
+status: done
+read-when: understanding why only ordinary-prose merges were proposed for relief during promotion freezes
+---
+
 # Investigation: narrower shared-db promotion freezes
 
 Recorded October 7, 2026, 11:39 AM EDT. Source baseline: `fee69a25ffd9b39c2b3accfde680dfbac3aa54f5`, freshly fetched and accepted by `scripts/check-worktree-freshness.mjs`. Tracking: [#4039](https://github.com/popcre/shared-db/issues/4039). Owner: Codex chat `01a11700-4dab-7443-8e0a-7146957b2cd9` on edge-dev3. Investigation only: no production write, safeguard implementation, settings mutation, claim transfer or freeze release.

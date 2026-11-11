@@ -1,3 +1,10 @@
+---
+summary: EXPLAIN plans and count comparison for CRM overview contracts on preview, with post-correction bounds (500 emails, 12 volume rows).
+kind: proof
+status: done
+read-when: checking CRM overview query plans and counts
+---
+
 # EXPLAIN + count-comparison evidence — CRM overview contracts (Phase 7A)
 
 The first capture below records the baseline plans. After the exact-parity

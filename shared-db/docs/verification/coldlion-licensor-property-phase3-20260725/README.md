@@ -1,3 +1,10 @@
+---
+summary: "ColdLion Phase 3 read-only reconciliation: row-level ruling ledger, owners, parent-edge evidence, frozen hashed Phase 4 mapping input (preview)."
+kind: proof
+status: done
+read-when: tracing ColdLion licensor/property row rulings and mapping decisions
+---
+
 # ColdLion Licensor/Property Phase 3 — reconciliation and decisions
 
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only · **Date:** 2026-07-25 (UTC evidence `2026-07-26T02:06:51Z`)

@@ -1,3 +1,10 @@
+---
+summary: "Issue 3986 evidence retiring CI audit backfill workflows: production counts (3811 keys, 17431 rows), manual jobs kept in ColdLion Landing Sync."
+kind: proof
+status: done
+read-when: auditing retirement of the CI audit backfill workflows
+---
+
 # CI audit backfill retirement evidence — issue #3986
 
 Parent #3536. Albert authorized completion of the overall plan through subagents, with the coordinating session retaining merge decisions.

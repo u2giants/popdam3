@@ -1,3 +1,10 @@
+---
+summary: "Documentation-only note on Oracle app macro-understanding layer added on its own Supabase project: tables, settings, workers, risks."
+kind: archive
+status: done
+read-when: understanding the 2026-07-02 Oracle macro-understanding backend change
+---
+
 # Oracle Macro Understanding Backend Note — 2026-07-02
 
 Status: documentation-only note for a backend change implemented in the Oracle app repo, not in this shared-db migration package.

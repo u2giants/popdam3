@@ -1,3 +1,10 @@
+---
+summary: Lists the source files (full item master CSV, MerchGroup rework workbook) for item-description and merchandise-group analysis, published with owner consent.
+kind: proof
+status: done
+read-when: locating source data for item merchandise-group analysis
+---
+
 # Item merchandise-group analysis sources
 
 These are the source files used for historical item-description and merchandise-group analysis:

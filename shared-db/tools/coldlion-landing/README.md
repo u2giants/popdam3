@@ -1,3 +1,10 @@
+---
+summary: "README for ColdLion landing loaders: master/item snapshot sync, production details feed, windowed history sync with completeness proof and refusal rules"
+kind: ops
+status: current
+read-when: running or changing the ColdLion ERP landing loaders
+---
+
 # ColdLion landing loaders
 
 Fills the existing ColdLion master, item, sales-history, production-history and

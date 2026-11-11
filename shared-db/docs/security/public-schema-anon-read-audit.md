@@ -1,3 +1,10 @@
+---
+summary: 2026-07-29 audit of anon-readable public tables and views (style_groups, style tracker rows) fixed by migration 20260729210000.
+kind: proof
+status: done
+read-when: auditing public schema anon read exposure or the 20260729210000 fix
+---
+
 # `public` schema anon-READ audit — RLS and GRANT layer
 
 **Date:** 2026-07-29

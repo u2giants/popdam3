@@ -1,3 +1,10 @@
+---
+summary: 2026-07-01 audit for replacing free-text designer/artist values with core lookup tables (creative, technical, freelance designer, artist) and per-app gaps.
+kind: archive
+status: stale
+read-when: tracing the origin of the core person-role lookup tables or designer/artist app gaps
+---
+
 # Designer / Artist Lookup Gap Audit — 2026-07-01
 
 This note records the first pass for replacing free-text designer/artist values

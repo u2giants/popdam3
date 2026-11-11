@@ -1,3 +1,10 @@
+---
+summary: 2026-08-04 plan-only rehearsal moving DesignFlow age_group from Cloud SQL to Supabase, with phases, blockers and the finding that screens do not read it.
+kind: plan
+status: stale
+read-when: reviewing the early age_group rehearsal move plan and its blockers
+---
+
 # Plan — move `age_group` from Cloud SQL to Supabase (the rehearsal move)
 
 **Date:** 2026-08-04

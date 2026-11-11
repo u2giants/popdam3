@@ -1,3 +1,10 @@
+---
+summary: Verbatim read-only queries and tool calls behind the 2026-09-04 database efficiency baseline, issue 2326.
+kind: proof
+status: done
+read-when: reproducing the 2026-09-04 efficiency baseline queries
+---
+
 # Verbatim queries and tool calls used for this baseline
 
 All reads were issued through the `supabase` MCP server against project ref

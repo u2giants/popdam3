@@ -1,3 +1,10 @@
+---
+summary: "Read-only fresh production catalog for #4426 (Oct 18, 2026): target RLS policy expressions, overlapping policies, grants, RLS flags, auth helpers."
+kind: proof
+status: done
+read-when: "auditing the RLS initplan #4426 baseline policy and helper catalog"
+---
+
 # Fresh production catalog for #4426
 
 Read-only snapshot from verified production API qsllyeztdwjgirsysgai.supabase.co, October 18, 2026 EDT. No row data fetched. All targeted policy expressions, overlapping policies, grants, RLS flags and helper identities follow. Snapshot is evidence, not custody or write authorization.

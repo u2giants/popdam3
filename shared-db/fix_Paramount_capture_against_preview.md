@@ -1,3 +1,10 @@
+---
+summary: "Paramount capture against preview (issues #949, #1418): unsafe migrations retired, JSON-null repair 20260824135515, preview capture passed."
+kind: archive
+status: done
+read-when: auditing the Paramount preview capture and JSON-null repair history
+---
+
 # Fix Paramount capture against preview
 
 ## Status

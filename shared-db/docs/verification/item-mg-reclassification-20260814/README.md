@@ -1,3 +1,10 @@
+---
+summary: Historical item product taxonomy and merchandise-group (MG01-MG03) review of 19,302 item rows, with the final 2026-08-27 match counts and workbook description.
+kind: proof
+status: done
+read-when: reviewing how historical items were mapped to MG01/MG02/MG03 proposals
+---
+
 # Historical item product taxonomy and MG review
 
 > **Permanent process:** Read [`../../item-description-mg-classification-process.md`](../../item-description-mg-classification-process.md) before running or changing this analysis. The approved method separates physical form, family-specific subtype/material, and embellishment; validates evidence independently at every depth; then matches from three axes to two to one.

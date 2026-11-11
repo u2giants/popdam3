@@ -1,3 +1,10 @@
+---
+summary: "Evidence note for the batched isolated RLS fixture run (Database Contract Tests 40231840088) on #4427, with artifact and fixture hashes; not a production proof."
+kind: proof
+status: done
+read-when: "auditing the 2026-10-25 batched RLS fixture run for #4427"
+---
+
 # Batched isolated RLS fixture evidence
 
 Native [Database Contract Tests40231840088](https://github.com/popcre/shared-db/actions/runs/40231840088) succeeded on actual source `feca7cdb0f1fcb0dc4601a2383a9adcfd1508a12`. Artifact12613812802 has digest `sha256:304c204ffe6205c714c9ba85b8485aa75c6885ac8e54ecaffda0a648cdfaf035`. The compressed record retains its actual2124 distinct sanitized access outcomes and198 complete raw DML plans. Every original/candidate access outcome matches; all nine size/command cells retain one warmup and ten measured pairs. All264 candidate InitPlans execute once; no measured regression flag is set.

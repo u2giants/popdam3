@@ -1,3 +1,10 @@
+---
+summary: "2026-07-15 import of ColdLion ERP customers and vendors into canonical hubs: active-only promotion, app-owned status, field mapping, load results."
+kind: living
+status: current
+read-when: changing ColdLion customer/vendor import or inactivating imported accounts
+---
+
 # Coldlion ERP customers + vendors → canonical hubs (2026-07-15)
 
 > **Customer codes are scrubbed (2026-09-02, issue #2103).** Every ColdLion customer/vendor master

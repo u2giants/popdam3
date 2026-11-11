@@ -1,3 +1,10 @@
+---
+summary: Archived 2026-10-31 review service recovery policy (allocator, redraw, replacement, uncapped spend), superseded by advisory-review rulings.
+kind: archive
+status: stale
+read-when: only for history of the retired governed review recovery machinery (#4297)
+---
+
 # Review service recovery policy (ARCHIVED)
 
 > **Archived 2026-10-31.** Superseded by the 2026-10-29 owner rulings (review is advisory, never required; popcre/ai-devops#2041). The allocator, redraw and replacement machinery described here no longer gates anything. Kept for history only.

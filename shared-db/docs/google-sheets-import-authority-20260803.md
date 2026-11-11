@@ -1,3 +1,10 @@
+---
+summary: Scope-only analysis of where Google Sheets imports still overwrite curated Master Data, enforcing Albert's 2026-08-03 ruling; nothing implemented.
+kind: plan
+status: open
+read-when: stopping Google Sheets imports from overwriting curated Master Data (AGENTS 6.4 ruling)
+---
+
 # Master Data import authority — where curated data is still overwritten (2026-08-03)
 
 **Status: SCOPE ONLY. Nothing here is implemented, and no migration is authored by this

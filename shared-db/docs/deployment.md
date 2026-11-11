@@ -1,3 +1,10 @@
+---
+summary: "What release means in shared-db: merge to main, consumer tree sync, preview-then-production migration apply, trigger table; no containers or SSH."
+kind: ops
+status: current
+read-when: asking how shared-db changes ship to consumers and production
+---
+
 # Deployment
 
 This repository does not deploy an application. It **ships rules, migrations,

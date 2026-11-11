@@ -1,3 +1,10 @@
+---
+summary: Plan only (2026-08-06) to move Licensors and Properties off Cloud SQL to Supabase, revised after Grok review with phased dual-write and rollback story.
+kind: plan
+status: stale
+read-when: reading the original licensor and property Cloud SQL cutover phasing and risks
+---
+
 # Plan — move Licensors and Properties off Cloud SQL onto the shared Supabase database
 
 **Date:** 2026-08-06

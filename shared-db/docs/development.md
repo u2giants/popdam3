@@ -1,3 +1,10 @@
+---
+summary: "How to work in shared-db: prerequisites, mandatory worktree rule, task-gate classes, local checks and delivery-check scripts; no package.json or server."
+kind: ops
+status: current
+read-when: setting up a worktree or choosing local checks before opening a shared-db PR
+---
+
 # Development
 
 How to work in this repository on a machine with git, Node.js, and (optionally)
@@ -218,3 +225,35 @@ NODE_ENV=production SCHEMA=dflow_prod npm test -- --runInBand
 
 Do not invoke these app commands in the shared-db repository. Its own Node and
 SQL tool tests remain those documented above.
+
+## Documentation health (advisory)
+
+Every Markdown document outside the exclusions in `.doc-health.json` opens with a four-key header
+(`summary` of at most 160 characters, `kind`, `status`, `read-when`). `docs/INDEX.md` is generated
+from those headers; never edit it by hand.
+
+```bash
+ai-doc-health --repo .              # list faults; exit 0 is clean
+ai-doc-health --repo . --fix-index  # rebuild docs/INDEX.md (stage new files first; it reads tracked files only)
+```
+
+The tool lives in `popcre/ai-devops` (`bin/ai-doc-health`, rules in its `docs/doc-health.md`). If the
+launcher is not on `PATH`, run `python3 <ai-devops checkout>/bin/ai-doc-health --repo .`.
+
+- A new document needs its header, then `--fix-index`, in the same change.
+- Size budgets: `AGENTS.md` 30 KB; any document whose kind is not plan, proof or archive 60 KB. Split a
+  document that outgrows it into `-part-N` files beside it and keep the original path as the entry
+  (as `docs/owner-rulings.md` does) so existing citations still resolve.
+- `.github/workflows/doc-health.yml` comments on pull requests and keeps one rolling
+  `Documentation health` issue. It is advisory and must never become a required check
+  (owner ruling 2026-10-30).
+- `handoff-old` is a review prompt, not a deletion order: apply the successor rule in
+  `docs/agents/worktrees-and-handoffs.md` before retiring any `HANDOFF.d/` file. Files named in the
+  compact `YYYYMMDDTHHMMSSZ` form are reported as "no date in name"; that is a tool limitation, not a
+  fault in the file.
+- Two oversized documents are deliberately excluded and must stay unsplit and header-free, because
+  `scripts/test_production_migration_guard.py` parses their exact text:
+  `docs/agents/section-4-anti-collision-rules.md` and
+  `docs/production-promotion-app-tolerance-contract.md`. `COORDINATOR_INTAKE.md` is excluded for the
+  same reason (`scripts/check-intake-pointer.mjs`). Two multi-megabyte generated captures under
+  `docs/verification/` are excluded as generated output.

@@ -1,3 +1,10 @@
+---
+summary: "Plan for the deterministic product-type reader (issue #3024): module move, gold set, 100% rule accuracy done; owner acceptance and population steps open"
+kind: plan
+status: open
+read-when: continuing product-type reader acceptance and plm.item population (#3024)
+---
+
 # Implementation plan — product-type reader (issue #3024)
 
 Handoff for this plan: `HANDOFF.d/2026-09-16T1200Z-edge-dev-claude-product-type-reader-plan.md`

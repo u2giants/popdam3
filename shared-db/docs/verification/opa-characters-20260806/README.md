@@ -1,3 +1,10 @@
+---
+summary: Pointer and analysis note for the Disney OPA property-to-character extract of 2026-08-06; the confidential CSV was removed after the repo had been public.
+kind: archive
+status: stale
+read-when: understanding why the Disney OPA extract data was removed from the repo
+---
+
 # Disney OPA property→character extract — 2026-08-06
 
 > ## ⛔ The data is NOT in this repository. This document is a pointer.

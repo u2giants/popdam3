@@ -1,3 +1,10 @@
+---
+summary: "Why the 271 merchGroup division-conflict fix was not applied: counts by block and 169 duplicate rows it would create, sent to Uma 2026-08-17."
+kind: archive
+status: done
+read-when: reviewing why the 271 merchGroup division conflicts were not fixed on 2026-08-17
+---
+
 # The 271 merchGroup division conflicts: why we did not apply the fix yet
 
 **Date:** 2026-08-17. **Audience:** Uma, with Albert reviewing.

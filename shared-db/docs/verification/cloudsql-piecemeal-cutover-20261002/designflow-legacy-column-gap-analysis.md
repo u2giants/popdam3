@@ -1,3 +1,10 @@
+---
+summary: "DesignFlow legacy column gap analysis (2026-10-23, three passes): checks every app-used column has a canonical home across 18 normalized targets."
+kind: proof
+status: current
+read-when: finding which DesignFlow legacy columns lack a canonical home
+---
+
 # DesignFlow legacy column gap analysis (2026-10-23, three passes)
 
 Purpose: before DesignFlow moves from the legacy CloudSQL-shaped tables to the

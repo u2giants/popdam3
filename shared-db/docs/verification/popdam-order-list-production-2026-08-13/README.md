@@ -1,3 +1,10 @@
+---
+summary: "Production import reconciliation of the PopDAM OrderList workbook (2026-08-13): completed write, row shapes, orders and Master Data match counts."
+kind: proof
+status: done
+read-when: auditing the PopDAM OrderList production import
+---
+
 # PopDAM OrderList production import reconciliation
 
 - Generated: 2026-08-13T03:40:58Z

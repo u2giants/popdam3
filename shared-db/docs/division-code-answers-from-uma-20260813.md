@@ -1,3 +1,10 @@
+---
+summary: Uma's answers Q1-Q8 on ColdLion vs DesignFlow division codes, with 2026-08-17 warnings that the Block A and B row fixes are wrong and 169 duplicates result.
+kind: archive
+status: stale
+read-when: auditing the 2026-08-13 division-code answers and why their 271-row fix was not applied
+---
+
 # Division codes: Uma's answers (2026-08-13)
 
 **Answered by:** Uma (developer), with owner rulings from Albert Hazan.

@@ -1,3 +1,10 @@
+---
+summary: "Addendum (2026-09-18) re-scoring Step 10 targets 1, 2 and 11 from live outcomes, follow-ups #3149 and #3148 for #3029."
+kind: proof
+status: done
+read-when: re-checking throughput targets 1, 2 and 11 after the first trial
+---
+
 # Live acceptance addendum — #401 Step 10, targets 1, 2 and 11 (shared-db#3029)
 
 Addendum to `2026-09-16-live-acceptance-step10-five-outcome-trial.md`. That

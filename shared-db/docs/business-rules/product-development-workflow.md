@@ -1,3 +1,10 @@
+---
+summary: "Proposed business model for product development: projects, products, designs, submissions, samples, POs, and required properties of a workflow rule."
+kind: living
+status: current
+read-when: defining or changing product-development stage and status transitions
+---
+
 # Product-development workflow business rules
 
 **Status:** Proposed

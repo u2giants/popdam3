@@ -1,3 +1,10 @@
+---
+summary: 2026-07-27 correction granting authenticated CRUD on pim.saved_view with owner/shared rules after production smoke returned HTTP 403.
+kind: spec
+status: done
+read-when: debugging Poppim saved view create, rename or delete permission errors
+---
+
 # Poppim saved-view CRUD correction — 2026-07-27
 
 ## Trigger

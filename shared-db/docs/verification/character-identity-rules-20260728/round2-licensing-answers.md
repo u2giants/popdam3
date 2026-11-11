@@ -1,3 +1,10 @@
+---
+summary: "Round-2 licensing answers evidence record (issue 562): questionnaire sent 2026-07-31, returned 2026-08-04; licensing question stream closed, no round 4."
+kind: archive
+status: done
+read-when: looking up what the round-2 licensing answers said
+---
+
 # Round-2 licensing answers — evidence record
 
 **Companion to `round2-licensing-answers.csv`. Issue #562, second outstanding item.**

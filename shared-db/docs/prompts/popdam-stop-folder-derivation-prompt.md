@@ -1,3 +1,10 @@
+---
+summary: 2026-08-09 prompt asking popdam3 to stop deriving licensor and property from folder names, with six measured facts (99.7% new-structure assets).
+kind: archive
+status: done
+read-when: reviewing why PopDAM folder-derived licensor logic was removed
+---
+
 *2026-08-09 · Originated from shared-db orchestrator session 8b3f21c4*
 
 # POPDAM: STOP DERIVING LICENSOR AND PROPERTY FROM FOLDER NAMES AND DIRECTORY TREES

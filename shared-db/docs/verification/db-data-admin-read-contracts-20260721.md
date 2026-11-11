@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 6 per-app serving views and administrator read RPCs: authorization model, list parameters, PLM single-writer decision; preview verified."
+kind: proof
+status: done
+read-when: reviewing the DB Data Admin read contracts and authorization matrix
+---
+
 # DB Data Admin Step 6 — per-app serving and administrator read contracts
 
 Date: 2026-07-21

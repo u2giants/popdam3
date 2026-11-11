@@ -1,3 +1,10 @@
+---
+summary: "Re-derivation for issue #2611 of whether prepack exclusion exists, whether erp_items_current marks heads, and the authoritative head test."
+kind: proof
+status: done
+read-when: implementing or checking the prepack exclusion rule
+---
+
 # Prepack exclusion: re-derivation before implementing issue #2611
 
 **Date:** 2026-09-11. **Target:** production, project ref `qsllyeztdwjgirsysgai`,

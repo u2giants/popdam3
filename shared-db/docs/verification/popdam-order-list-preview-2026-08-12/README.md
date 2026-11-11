@@ -1,3 +1,10 @@
+---
+summary: "Preview import reconciliation of the PopDAM OrderList workbook (2026-08-12): row shapes, orders, headers and Master Data match status counts."
+kind: proof
+status: done
+read-when: auditing the PopDAM OrderList preview import
+---
+
 # PopDAM OrderList preview import reconciliation
 
 - Generated: 2026-08-12T15:00:21Z

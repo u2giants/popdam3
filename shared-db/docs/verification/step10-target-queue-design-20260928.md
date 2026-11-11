@@ -1,3 +1,10 @@
+---
+summary: Step 10 (#3781) design for preview/production target queues with intact interlocks, pure decision module and fake-lock tests; no shared workflow files touched.
+kind: spec
+status: open
+read-when: wiring the Step 10 preview/production target queues
+---
+
 # Step 10 design — preview/production target queues with intact interlocks
 
 Issue: [#3781](https://github.com/popcre/shared-db/issues/3781) (non-orchestrator work)

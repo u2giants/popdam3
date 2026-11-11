@@ -1,3 +1,10 @@
+---
+summary: "Fresh auth_rls_initplan advisor findings and transitive helper functions for #4426, read-only baseline of 2026-10-18; no repair claimed."
+kind: proof
+status: done
+read-when: looking up RLS initplan advisor identities and helper functions
+---
+
 # Fresh advisor identities and transitive helper
 
 Read-only baseline evidence for #4426. October 18, 2026 EDT. No repair or live acceptance is claimed.

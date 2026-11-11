@@ -1,3 +1,10 @@
+---
+summary: SUPERSEDED 2026-07-21 brief for a visual admin page (apps/db-data-admin, data.designflow.app), not started; replaced by DB_Data_Admin.md.
+kind: archive
+status: stale
+read-when: tracing the original visual admin page brief before DB Data Admin
+---
+
 > **⚠️ SUPERSEDED 2026-07-21 — read [`DB_Data_Admin.md`](DB_Data_Admin.md) instead.**
 > The approved direction is a **standalone** admin application, **DB Data Admin**, owned in
 > this repo (`apps/db-data-admin/`) and served at `https://data.designflow.app`, built on

@@ -1,3 +1,10 @@
+---
+summary: "Plan hardening provider-neutral multi-agent database coordination: read/write claims, work contracts, coordination events, exclusive leases; steps 1-6 done"
+kind: plan
+status: done
+read-when: reviewing how claims, work contracts and exclusive leases were hardened
+---
+
 # Implementation plan — provider-neutral multi-agent database coordination hardening
 
 **Repository:** `u2giants/shared-db`

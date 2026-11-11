@@ -1,3 +1,10 @@
+---
+summary: "B8 Product Size/Depth apply runbook, post-apply checks and #614-#617 reconciliation written 2026-08-11; B8 could not be applied by that session."
+kind: ops
+status: stale
+read-when: applying or auditing the B8 Product Size/Depth production batch
+---
+
 # B8 (Product Size / Product Depth) — apply runbook, post-apply checks, and the #614–#617 reconciliation
 
 Written 2026-08-11 by the recovery session for issue #597, after a previous agent was

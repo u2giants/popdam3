@@ -1,3 +1,10 @@
+---
+summary: Analysis (2026-08-03) recommending the age_group table as the easiest first table to move from Cloud SQL to Supabase; nothing was moved.
+kind: archive
+status: done
+read-when: reviewing why age_group was picked as the first Cloud SQL table to migrate
+---
+
 # First table to move from Cloud SQL to Supabase — recommendation
 
 **Date:** 2026-08-03

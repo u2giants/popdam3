@@ -1,3 +1,10 @@
+---
+summary: Plan to replace COORDINATOR_INTAKE.md with public GitHub Issues (owner decision 2026-08-07), reviewed by GLM over three rounds
+kind: plan
+status: done
+read-when: understanding why the coordinator queue moved to GitHub Issues
+---
+
 # Implementation plan — replace `COORDINATOR_INTAKE.md` with GitHub Issues
 
 **File:** `plan_coordinator-queue-to-github-issues.md` · **Repo:** `u2giants/shared-db` · **Created:** 2026-08-07

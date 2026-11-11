@@ -1,3 +1,10 @@
+---
+summary: "Decision (issue #2124, 2026-09-04): core.style_guide_character rows are derived edges projected via plm.source_resolution, never copies; no load authorized."
+kind: spec
+status: current
+read-when: populating core.style_guide_character or deciding its source contract
+---
+
 # `core.style_guide_character` — the appearance-axis source decision
 
 **Issue:** #2124, routed out of #562 · **Written:** 2026-09-04 ·

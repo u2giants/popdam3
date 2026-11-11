@@ -1,3 +1,10 @@
+---
+summary: "Issue 3328 read-only investigation: style tracker bridge/RFQ authenticated projection is intentional, not a defect; no restricting migration."
+kind: proof
+status: done
+read-when: questioning style tracker bridge or RFQ permission contract (issue 3328)
+---
+
 # Issue 3328 bridge access contract investigation
 
 Date: 2026-09-20. Read-only, non-orchestrator investigation. No source edits, commits, GitHub messages, credentials fetched, impersonation, or database writes.

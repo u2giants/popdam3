@@ -1,3 +1,10 @@
+---
+summary: ColdLion's 2026-08-28 answer on issue 3 (documentation, divisions endpoint, merch groups) with each claim re-tested live.
+kind: proof
+status: done
+read-when: checking ColdLion's issue 3 documentation answer and the live test results
+---
+
 # ColdLion issue 3 — their answer, and what we measured against it
 
 **Date: 2026-08-28.** ColdLion (JamieLynn) answered the documentation half of issue 3. Every claim

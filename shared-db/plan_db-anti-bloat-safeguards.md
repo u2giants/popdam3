@@ -1,3 +1,10 @@
+---
+summary: Plan for database anti-bloat safeguards and ColdLion change-history rotation (#5758); flap stop, rotation, queue-state moves landed, rest in progress
+kind: plan
+status: open
+read-when: continuing anti-bloat work on ColdLion writers and wide-row queue state (#5758)
+---
+
 # Plan: database anti-bloat safeguards and ColdLion change-history rotation (popcre/shared-db#5758)
 
 Handoff for this plan: [HANDOFF.d/20261108T1305Z-edge-dev3-claude-close-nested-5758-anti-bloat.md](HANDOFF.d/20261108T1305Z-edge-dev3-claude-close-nested-5758-anti-bloat.md) (earlier handoffs retired 2026-11-08; see [docs/handoff-review-2026-11-08.md](docs/handoff-review-2026-11-08.md)).

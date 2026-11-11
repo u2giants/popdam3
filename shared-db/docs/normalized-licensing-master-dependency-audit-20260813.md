@@ -1,3 +1,10 @@
+---
+summary: "Issue #912 plan and Phase 1 dependency audit for the normalized licensing master, with STATUS table; phases 3-10 not started."
+kind: plan
+status: open
+read-when: continuing the normalized licensing master work (#912) or its dependency audit
+---
+
 # Normalized licensing master: implementation plan and Phase 1 dependency audit
 
 **Workstream:** fix licensor tables · **Issue:** #912 · **Mode:** read-only audit

@@ -1,3 +1,10 @@
+---
+summary: A2 rebuilt production migration apply set and first dry-run rehearsal of the bounded lane (2026-08-09), with counts and retired versions; no DB written.
+kind: proof
+status: stale
+read-when: auditing the 2026-08-09 production apply set and rehearsal
+---
+
 # A2 — The rebuilt production apply set, and the first rehearsal of the bounded lane
 
 **Plan item:** `plan_orchestrator-workflow-gaps.md` § A2 (rebuilt; the original 11-only allowlist was wrong)

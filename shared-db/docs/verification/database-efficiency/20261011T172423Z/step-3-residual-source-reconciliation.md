@@ -1,3 +1,10 @@
+---
+summary: Step 3 residual repository-source reconciliation of migration history and function bodies, no database access (issue 2326, 2026-10-11).
+kind: proof
+status: done
+read-when: reconciling Step 3 residual items against migration source
+---
+
 # Step 3 residual — repository-source reconciliation (no database access)
 
 **Plan / issue:** `plan_database_efficiency_and_api_security.md` Step 3 residual / #2326

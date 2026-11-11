@@ -1,3 +1,10 @@
+---
+summary: "First comparison of licensor source extracts against core.property and core.licensor (issue #640), 2026-09-03, superseded for identity 2026-10-26."
+kind: archive
+status: stale
+read-when: auditing the first licensor source reconciliation run (#640)
+---
+
 # Licensor source extracts reconciled against `core.property` / `core.licensor`
 
 Issue: [#640](https://github.com/u2giants/shared-db/issues/640) — first run of the comparison.

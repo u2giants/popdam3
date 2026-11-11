@@ -1,3 +1,10 @@
+---
+summary: Rules for production milestone dates anchored to Ship Date or Due Date, item versus PO level dates, and who maintains the five stage lists.
+kind: living
+status: current
+read-when: building production tracking dates, milestones or stage lists
+---
+
 # Production milestones and needed dates
 
 **Status:** Proposed

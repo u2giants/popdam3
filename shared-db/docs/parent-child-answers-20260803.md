@@ -1,3 +1,10 @@
+---
+summary: "Four verified answers on licensor to property parent-child, correcting the 2026-08-02 design: no screen exists to assign properties to licensors."
+kind: archive
+status: done
+read-when: reviewing verified answers on licensor-property parent assignment from 2026-08-03
+---
+
 # Four answers on licensor → property parent-child
 
 **Status:** ANSWERS ONLY. Read-only investigation. No migration authored, no database written, no app repo changed.

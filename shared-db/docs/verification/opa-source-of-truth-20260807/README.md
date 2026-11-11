@@ -1,3 +1,10 @@
+---
+summary: "Read-only revised design making OPA the source of truth for property-to-character data; supersedes the merged DESIGN.md from PR #476."
+kind: archive
+status: stale
+read-when: reading the revised OPA source-of-truth design and its disagreements with DESIGN.md
+---
+
 # OPA as source of truth — revised design (supersedes the merged DESIGN.md)
 
 **Status: READ-ONLY DESIGN REVISION. No migration was written. No database write

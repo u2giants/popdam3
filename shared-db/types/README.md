@@ -1,3 +1,10 @@
+---
+summary: Explains the generated database.types.ts contract, how consumer apps import it via the shared-db sync, and the Row/Insert/Update shapes
+kind: living
+status: current
+read-when: consuming or regenerating the shared database TypeScript types
+---
+
 # The typed database contract
 
 `database.types.ts` is the **canonical, generated** TypeScript description of the

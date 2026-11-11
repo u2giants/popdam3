@@ -1,3 +1,10 @@
+---
+summary: "Issue 5758 Step 0 read-only production survey: large tables, top writers, coldlion.change_log size and nightly rows driven by description flapping."
+kind: proof
+status: done
+read-when: needing the 5758 anti-bloat baseline sizes before measuring change_log reductions
+---
+
 # #5758 Step 0 baseline — read-only production survey
 
 Read 2026-11-05 6:18 PM EST (2026-11-05T23:18:57Z) through the pooler

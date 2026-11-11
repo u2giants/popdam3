@@ -1,3 +1,10 @@
+---
+summary: "PopSG PSG-3 evidence: UI and fixture shell built locally for Batch 01 (51 rows, 44,331 files); full PSG-3 gate remains open."
+kind: proof
+status: open
+read-when: continuing PopSG property reconciliation phase PSG-3 UI
+---
+
 # PopSG Property reconciliation PSG-3 evidence
 
 **Phase:** PSG-3 only

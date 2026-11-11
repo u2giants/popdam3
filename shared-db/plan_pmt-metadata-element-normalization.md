@@ -1,3 +1,10 @@
+---
+summary: "Plan to normalize repeated metadata-element headings in plm.pmt_asset_metadata_value into a new element table with FK; steps 0-5 complete (PR #1006)"
+kind: plan
+status: done
+read-when: reviewing the Paramount metadata element normalization migrations
+---
+
 # Implementation plan — normalize the repeated metadata-element headings in `plm.pmt_asset_metadata_value`
 
 **Written:** 2026-08-14 · **Machine:** al8960ofc · **Agent:** claude (Opus 5)

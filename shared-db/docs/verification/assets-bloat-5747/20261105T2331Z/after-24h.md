@@ -1,3 +1,10 @@
+---
+summary: "public.assets size reading about 58 h after the 2026-11-05 repack (#5747 Step 7): 938 MB total, indexes regrown to 658 MB, rows 184,383."
+kind: proof
+status: done
+read-when: reviewing assets table regrowth after the 5747 repack
+---
+
 # public.assets 24-hour reading (popcre/shared-db#5747 Step 7)
 
 Captured read-only on production `qsllyeztdwjgirsysgai` at 7:51 AM EST 2026-11-08 (about 58 h after the

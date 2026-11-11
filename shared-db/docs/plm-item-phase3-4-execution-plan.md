@@ -1,3 +1,10 @@
+---
+summary: "PLM item migration Phase 3-4 execution proposal (issue #853, 2026-08-12): finds Phase 2 already shipped, moves item data and repoints a foreign key."
+kind: plan
+status: open
+read-when: planning the PLM item master Phase 3 or 4 data move
+---
+
 # PLM item migration — Phase 3 & Phase 4 execution plan
 
 **Repo:** `u2giants/shared-db` · **Issue:** #853 (claim #857) · **Status:** PLAN ONLY — NOTHING HERE HAS BEEN EXECUTED

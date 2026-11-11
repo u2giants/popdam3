@@ -1,3 +1,10 @@
+---
+summary: "DesignFlow legacy to canonical column crosswalk (2026-10-23): table-level verdicts, design rules and recorded decision for 923 legacy columns across 21 tables."
+kind: proof
+status: current
+read-when: mapping DesignFlow legacy columns to canonical tables
+---
+
 # DesignFlow legacy → canonical crosswalk (2026-10-23)
 
 Follows `designflow-legacy-column-gap-analysis.md` (steps 1 and 2 of its

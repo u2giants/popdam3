@@ -1,3 +1,10 @@
+---
+summary: "Guarded Merge hold baseline (2026-10-20, #3779): Actions step timings before and after splitting prepare and merge jobs under one scheduling group."
+kind: proof
+status: done
+read-when: measuring guarded merge lease and scheduling-group hold time
+---
+
 # Guarded merge hold baseline — October 20, 2026
 
 Issue [#3779](https://github.com/popcre/shared-db/issues/3779), plan

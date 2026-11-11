@@ -1,3 +1,10 @@
+---
+summary: Read-only 2026-08-07 comparison of DesignFlow vs Master Data for packaging, size, designer, factory and depth, with Phase 2 exceptions.
+kind: proof
+status: done
+read-when: reviewing DesignFlow vs core master data reference differences before cutover
+---
+
 # Master Data and DesignFlow read-only comparison
 
 Captured: 2026-08-07T22:38:30.987Z

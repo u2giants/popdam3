@@ -15,6 +15,10 @@ import uuid
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / 'supabase/migrations/20261105165947_style_cron_timeout_retry_loops.sql'
+# popdam3#804 task 4 replaced the library snapshot gate (signature only, no 6-hour
+# maximum staleness) and moved the prewarm job to every 15 minutes. Replayed on top so
+# the gate assertions below describe the function at head.
+SNAPSHOT_GATE = ROOT / 'supabase/migrations/20261111162335_popsg_prewarm_interval_snapshot_signature_only.sql'
 WRAPPER = ROOT / 'supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql'
 ACK = "SELECT value->'style-group-counts-reconcile' FROM admin_config WHERE key='BULK_OPERATIONS'"
 REFRESHES = "SELECT count(*) FROM calls WHERE step IS NULL"
@@ -25,8 +29,10 @@ CREATE SCHEMA cron;
 CREATE TABLE cron.job(jobid bigint PRIMARY KEY, jobname text, schedule text, command text,
   active boolean DEFAULT true, username text DEFAULT 'postgres', database text DEFAULT current_database());
 CREATE TABLE cron.job_run_details(jobid bigint, status text, start_time timestamptz, end_time timestamptz);
-CREATE FUNCTION cron.alter_job(job_id bigint, command text) RETURNS void LANGUAGE sql AS
-  $$ UPDATE cron.job SET command = alter_job.command WHERE jobid = job_id $$;
+CREATE FUNCTION cron.alter_job(job_id bigint, command text DEFAULT NULL, schedule text DEFAULT NULL)
+  RETURNS void LANGUAGE sql AS
+  $$ UPDATE cron.job SET command = coalesce(alter_job.command, cron.job.command),
+                         schedule = coalesce(alter_job.schedule, cron.job.schedule) WHERE jobid = job_id $$;
 INSERT INTO cron.job(jobid,jobname,schedule,command) VALUES
   (9,'refresh-style-guide-matviews','7 * * * *','SELECT public.refresh_style_guide_matviews();'),
   (12,'refresh-style-guide-library-default-snapshot','*/15 * * * *','select public.refresh_style_guide_library_default_snapshot()'),
@@ -87,6 +93,7 @@ class Contracts(unittest.TestCase):
                 'p_search_batch_size int DEFAULT 5000) RETURNS TABLE(refreshed_at timestamptz, '
                 'search_documents_synced int) LANGUAGE plpgsql SECURITY DEFINER AS $w$' + wrapper + '$w$')
         cls.sql(MIGRATION.read_text())
+        cls.sql(SNAPSHOT_GATE.read_text())
 
     @classmethod
     def sql(cls, text, check=True):
@@ -216,6 +223,8 @@ class Contracts(unittest.TestCase):
         self.assertIn("statement_timeout = '10min'", rows['refresh-style-guide-matviews'])
         self.assertIn("statement_timeout = '10min'", rows['refresh-style-guide-library-default-snapshot'])
         self.assertEqual(rows['prewarm-style-guide-search'], 'select public.prewarm_style_guide_search()')
+        self.assertEqual(self.sql("SELECT schedule FROM cron.job WHERE jobname='prewarm-style-guide-search'"),
+                         '4-59/15 * * * *')
 
     def library_refreshed_at(self):
         return self.sql("SELECT value->'library-default-snapshot'->>'refreshed_at' FROM admin_config "
@@ -251,11 +260,17 @@ class Contracts(unittest.TestCase):
         self.sql('SELECT refresh_style_guide_library_default_snapshot()')
         fourth = self.library_refreshed_at()
         self.assertNotEqual(fourth, third)
-        # Maximum staleness refreshes even with no change.
+        # Age alone never refreshes: the change signature decides (20261111162335).
         self.sql("""UPDATE admin_config SET value = jsonb_set(value,'{library-default-snapshot,refreshed_at}',
-          to_jsonb(now() - interval '7 hours')) WHERE key='STYLE_GUIDE_REFRESH_STATE'""")
+          to_jsonb(now() - interval '3 days')) WHERE key='STYLE_GUIDE_REFRESH_STATE'""")
+        aged = self.library_refreshed_at()
         self.sql('SELECT refresh_style_guide_library_default_snapshot()')
-        self.assertNotEqual(self.library_refreshed_at(), fourth)
+        self.assertEqual(self.library_refreshed_at(), aged, 'unchanged source skips at any age')
+        # ...and a real counted change still refreshes an aged snapshot at once.
+        self.sql("INSERT INTO style_guide_files(name) VALUES ('y'); SELECT pg_stat_force_next_flush()")
+        time.sleep(.2)
+        self.sql('SELECT refresh_style_guide_library_default_snapshot()')
+        self.assertNotEqual(self.library_refreshed_at(), aged)
 
     def test_matview_job_gate_keeps_search_sync_and_crawl_proof(self):
         self.sql("DELETE FROM admin_config; TRUNCATE calls; DELETE FROM style_guide_crawl_runs")

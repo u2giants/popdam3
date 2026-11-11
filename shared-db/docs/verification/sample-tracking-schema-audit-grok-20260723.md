@@ -1,3 +1,10 @@
+---
+summary: Grok read-only audit of Sample Tracking schema (2026-07-23) vs plan definition-of-done, migrations 20260722221000-221700 and tests, verdict per bullet.
+kind: proof
+status: done
+read-when: reviewing Sample Tracking schema against its definition of done
+---
+
 # Sample Tracking schema audit (Grok, 2026-07-23)
 
 > **Provenance:** Independent read-only audit by **Grok (grok-4.5, Grok CLI)**, run 2026-07-23 with file-read/grep only (no edits, no shell, no DB). Its schema claims were independently re-verified against live production (`qsllyeztdwjgirsysgai`) by the calling engineer; the highest-impact findings (movement CHECK vocab, in-transit line requirement, closeout watermark NOT NULL, owner FK target, and the two completion-logic view defects) were confirmed true. Findings are Grok's wording, filed verbatim for the record.

@@ -1,3 +1,10 @@
+---
+summary: "Settled sample custody rules (Albert, 2026-08-13): Sample, Group, Box, Inventory, Flow, Path, Shipment, check-in, five location types and four flows."
+kind: living
+status: current
+read-when: building sample tracking, custody, shipment or check-in features
+---
+
 # Samples, inventory, shipping, and custody
 
 **Status:** Settled

@@ -1,3 +1,10 @@
+---
+summary: "Issue #1767 verification of reviewer assignment GitHub API request budget (25-request limit, mutex release), with later 2026-09-11 notes."
+kind: proof
+status: done
+read-when: changing reviewer assignment request budgets
+---
+
 # Reviewer assignment API-budget verification — 2026-08-28
 
 Issue: #1767. Scope: repository coordination only; no database, preview, production, or application data changes.

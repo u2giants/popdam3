@@ -1,3 +1,10 @@
+---
+summary: Issue 640 read-only evidence reconciling 510 Universe B property rows to licensor primary keys before core.properties_and_characters is dropped (1684).
+kind: proof
+status: done
+read-when: needing the licensor-key mapping preserved before dropping properties_and_characters
+---
+
 # Issue #640 — Universe B licensor reconciliation evidence (2026-08-29)
 
 **Status:** read-only verification. No database write was made, proposed, or authorized by this

@@ -1,3 +1,10 @@
+---
+summary: "Plan for issue #770: production service credentials via pre-computed SCRAM verifiers; Amendment B live run 2026-10-12 passed for four service roles."
+kind: plan
+status: done
+read-when: "auditing the #770 production credential rotation via SCRAM verifiers"
+---
+
 # Plan: #770 production service credentials via pre-computed SCRAM verifiers
 
 Issue: [popcre/shared-db#770](https://github.com/popcre/shared-db/issues/770). Owner instruction

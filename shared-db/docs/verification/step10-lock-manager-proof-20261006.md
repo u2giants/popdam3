@@ -1,3 +1,10 @@
+---
+summary: Step 10 (#3781) policy-level proof of lock-manager compatibility matrix and production freshness; not live queue proof, issue still open.
+kind: proof
+status: open
+read-when: "working on #3781 step 10 lock manager wiring and live queue proof"
+---
+
 # Step 10 lock-manager proof — compatibility matrix and unified production freshness
 
 Date: 2026-10-06

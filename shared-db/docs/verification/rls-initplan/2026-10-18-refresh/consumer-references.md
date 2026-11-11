@@ -1,3 +1,10 @@
+---
+summary: "Baseline list of local application source references to tables in the RLS initplan families for #4426, Oct 18, 2026; no repair or live acceptance claimed."
+kind: proof
+status: done
+read-when: finding which app code consumes tables touched by the RLS initplan repairs
+---
+
 # Current local consumer source references
 
 Read-only baseline evidence for #4426. October 18, 2026 EDT. No repair or live acceptance is claimed.

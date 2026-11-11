@@ -1,3 +1,10 @@
+---
+summary: Verification of migration 20260626170000 repairing leftover core.company references after the rename to core.customer (global_search, PLM functions).
+kind: proof
+status: done
+read-when: auditing the core.company to core.customer rename cleanup
+---
+
 # core.customer Leftover Repair Verification — 2026-06-26
 
 ## What Changed

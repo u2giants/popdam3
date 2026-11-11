@@ -1,3 +1,10 @@
+---
+summary: Issue 5609 production application of migration 20261105033827, installed trigger definitions, post-apply baseline and timed acceptance counters.
+kind: proof
+status: open
+read-when: checking 5609 production trigger-scoping acceptance and its interim counters
+---
+
 # Issue #5609 actual production application and timed acceptance
 
 Automatic production run [41974228042](https://github.com/popcre/shared-db/actions/runs/41974228042) successfully committed immutable migration `20261105033827` on the CBA source. Its subsequent catalog-verification step failed because the existing migration lexer recognizes no trigger objects. At initial capture this was **applied SQL with unfinished verifier recovery**, not a migration failure to replay. That recovery is now verified by successful run 41979854831 after PR #5642; the original failed run remains unchanged. Do not reapply, rerun, edit the applied migration, or fabricate a green original deployment result.

@@ -1,3 +1,10 @@
+---
+summary: Historical style guide, character and royalty rate investigation (2026-07-23 live measurements) superseded by business-rules/licensing-master-data.md.
+kind: archive
+status: stale
+read-when: tracing historical reasoning on style guides, characters and royalties
+---
+
 # Style guides, characters, and royalty rates
 
 > **Business authority moved 2026-08-18.** The companywide licensing rule is

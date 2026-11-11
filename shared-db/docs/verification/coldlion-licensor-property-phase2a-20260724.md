@@ -1,3 +1,10 @@
+---
+summary: "Verification of ColdLion licensor/property Phase 2A on preview: mirror-only importer migrations, guard corrections and sync tool; no operational pull."
+kind: proof
+status: done
+read-when: reviewing the Phase 2A ColdLion mirror importer
+---
+
 # Verification — ColdLion licensor/property Phase 2A
 
 **Date:** 2026-07-24  

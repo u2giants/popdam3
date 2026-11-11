@@ -1,3 +1,10 @@
+---
+summary: Map from each application (DAM, CRM, PIM, DesignFlow frontend, backend, Item Master) and task to the business-rule topics it should read.
+kind: living
+status: current
+read-when: finding which business-rule topics apply to an application or feature
+---
+
 # Business-rules application and task map
 
 Use this map to find the business topics relevant to the work. It deliberately

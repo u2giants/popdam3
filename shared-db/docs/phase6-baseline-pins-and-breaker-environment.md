@@ -1,3 +1,10 @@
+---
+summary: Phase 6 fix-forward migrations 20260804120000/120100 moving taxonomy baseline pins into a table and fixing breaker environment after licensor status hash drift.
+kind: archive
+status: done
+read-when: understanding the taxonomy baseline pin table and breaker environment fix of 2026-08-04
+---
+
 # Phase 6 baseline pins + breaker environment (2026-08-04)
 
 Two fix-forward migrations. Neither edits an applied migration.

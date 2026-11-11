@@ -1,3 +1,10 @@
+---
+summary: Settled rule (Albert, 2026-10-02) on where POP responsibility ends per sales-order term (FOB China, POE NJ/LA, Warehouse) and PO versus sales-order terms.
+kind: living
+status: current
+read-when: computing ship dates or delivery responsibility from shipping terms
+---
+
 # Shipping terms and delivery responsibility
 
 **Status:** Settled

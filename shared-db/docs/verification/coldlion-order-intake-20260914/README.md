@@ -1,3 +1,10 @@
+---
+summary: "ColdLion order intake F1 sample-week live proof (2026-09-08 to 09-14): placeholder-order counts on intake side vs sheet side, no customer data."
+kind: proof
+status: done
+read-when: checking ColdLion order intake sample-week reconciliation
+---
+
 # ColdLion order intake — F1 sample-week live proof
 
 **Sample week:** 2026-09-08 .. 2026-09-14 (Mon–Sun)

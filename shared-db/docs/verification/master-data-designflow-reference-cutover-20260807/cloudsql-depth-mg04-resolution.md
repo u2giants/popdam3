@@ -1,3 +1,10 @@
+---
+summary: Read-only 2026-08-07 DesignFlow Cloud SQL Depth snapshot (121 rows) and MG04 Size direct-feed proof from ColdLion, used to seed product depth/size.
+kind: proof
+status: done
+read-when: checking the authoritative Depth lookup and MG04 size source snapshot
+---
+
 # Cloud SQL Depth snapshot and MG04 gap resolution
 
 Captured read-only on 2026-08-07 at 23:12 UTC through Cloud SQL Auth Proxy using the dedicated `albert_read_only` database account and the read-only `sa-supabase-planning-proxy` service account. Credentials came from 1Password vault `vibe_coding`; no value was printed or written to this repository.

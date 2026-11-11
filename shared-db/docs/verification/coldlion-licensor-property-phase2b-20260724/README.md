@@ -1,3 +1,10 @@
+---
+summary: "ColdLion licensor/property Phase 2B preview verification: two successful full mirror_only snapshots, no schedule, production untouched (2026-07-24)."
+kind: proof
+status: done
+read-when: reviewing the Phase 2B ColdLion snapshot runs
+---
+
 # ColdLion Licensor/Property Phase 2B preview verification
 
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only

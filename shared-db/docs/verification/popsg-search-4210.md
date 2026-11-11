@@ -1,3 +1,10 @@
+---
+summary: "Evidence for the PopSG search repair (issue 4210): synthetic equality checks on 224 results, bounded query timings and index usage on PostgreSQL 15."
+kind: proof
+status: done
+read-when: auditing PopSG search repair performance and equality results
+---
+
 # PopSG matching search repair evidence — issue 4210
 
 Owner: Codex chat 01a12c68-44b8-7bb3-b1d4-98cb375b6859 on hetz.

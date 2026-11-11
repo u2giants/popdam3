@@ -1,3 +1,10 @@
+---
+summary: Completed historical plan for moving the shared backend from a Directus-owned Postgres to Supabase; legacy source retired and domain reassigned.
+kind: archive
+status: done
+read-when: reading history of the Directus to Supabase migration preparation
+---
+
 # Historical Supabase Migration Preparation
 
 > **Completed historical record.** The migration source described below is

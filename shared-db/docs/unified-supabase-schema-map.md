@@ -1,3 +1,10 @@
+---
+summary: 2026-06-20 first-pass schema map consolidating DAM, CRM, PM and PLM sources into target schemas, with source repo commit baselines; planning only.
+kind: archive
+status: stale
+read-when: looking up the original June 2026 unified schema mapping
+---
+
 # Unified Supabase Schema Map
 
 Date: 2026-06-20

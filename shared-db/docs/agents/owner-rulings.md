@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md sections 0 to 0.4 moved here: gatekeeper rule and dated owner rulings (advisory review, read-only inspection, structure versus data)."
+kind: living
+status: current
+read-when: looking up an owner ruling or the shared-db gatekeeper rule for consumer repos
+---
+
 # AGENTS.md — §0, §0.0-A, §0.0-B, §0.1 to §0.4 (gatekeeper rule and owner rulings)
 
 
@@ -249,7 +256,7 @@ and then the canonical infrastructure runbook it links.
 ## 0.1-A OWNER RULING — moved
 
 > **0.1-A OWNER RULING — shared-db MAY read production Cloud SQL; it still may not change anything (Albert Hazan, 2026-08-10)**
-> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings.md#01-a-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
+> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings-part-3.md#01-a-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
 
 ## 0.2 `data.designflow.app` means DB Data Admin — never the retired system
 

@@ -1,3 +1,10 @@
+---
+summary: "Step 13 accepted disposition (2026-09-28, #3306): retain two independent reviewers, review count not shown dispensable; no change activated."
+kind: proof
+status: done
+read-when: confirming the final reviewer-count decision for the workflow refactor
+---
+
 # Workflow review-tier decision — 2026-09-28T20:55Z
 
 Decision: **RETAIN TWO independent reviewers.** Review count was **not** shown

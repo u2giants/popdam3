@@ -1,3 +1,10 @@
+---
+summary: "2026-08-11 analysis (issue #734) reconciling ruling R5 (core is source of truth) with SUPABASE-MIGRATION.md; recommends platform move first; owner decides."
+kind: archive
+status: done
+read-when: revisiting R5 versus the Supabase platform migration ordering
+---
+
 # Reconciling "R5" against `SUPABASE-MIGRATION.md`, now that the divergence is measured
 
 **Date:** 2026-08-11 · **Issue:** [#734](https://github.com/u2giants/shared-db/issues/734)

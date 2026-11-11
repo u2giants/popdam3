@@ -1,3 +1,10 @@
+---
+summary: "Inventory of reviewer-assignment mutators and causal baseline of lease holds (issue #4414, plan PR #4419), with phase model and trace schema."
+kind: proof
+status: open
+read-when: reducing reviewer-assignment hold time
+---
+
 # Reviewer-assignment holds — mutator inventory and causal baseline
 
 **Issue:** [#4414](https://github.com/popcre/shared-db/issues/4414)  

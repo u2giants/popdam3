@@ -1,3 +1,10 @@
+---
+summary: "Read-only production check (2026-07-26): public.characters.property_id cannot be promoted wholesale into core.character.property_id."
+kind: proof
+status: done
+read-when: deciding how to load character property links into core.character
+---
+
 # Characters → canonical property reconciliation
 
 **Run date:** 2026-07-26

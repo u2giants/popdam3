@@ -1,3 +1,10 @@
+---
+summary: "Workflow-refactor measurement coverage (2026-09-20): status INSUFFICIENT_SAMPLE, baseline outcomes, sources and what acceptance still needs."
+kind: proof
+status: done
+read-when: checking whether workflow refactor measurement samples were sufficient
+---
+
 # Workflow-refactor measurement coverage — 2026-09-20
 
 Status: **INSUFFICIENT_SAMPLE**. Instrumentation is available; programme functional

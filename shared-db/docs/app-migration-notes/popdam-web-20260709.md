@@ -1,3 +1,10 @@
+---
+summary: "2026-07-09 PopDAM indexed full-text search: GIN indexes, search_assets_full_text and search_style_groups_full_text RPCs and migrations."
+kind: archive
+status: done
+read-when: understanding original PopDAM full-text search indexes and RPCs
+---
+
 # PopDAM Notes — 2026-07-09
 
 ## Indexed Library Full-Text Search

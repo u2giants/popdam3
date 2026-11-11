@@ -1,3 +1,10 @@
+---
+summary: "Codex plan-review REJECT of the narrow promotion freezes plan: duplicates snapshot primitive and omits recovery callers requiring current-main equality."
+kind: proof
+status: done
+read-when: checking Codex's first supplemental rejection of the narrow freezes plan
+---
+
 # Codex review — plan-review
 
 | field | value |

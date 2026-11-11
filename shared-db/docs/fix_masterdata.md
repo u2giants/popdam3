@@ -1,3 +1,10 @@
+---
+summary: "Guidance to the PopDAM Master Data session: core.company is gone, use core.customer, and three uncommitted candidate-search migrations were halted."
+kind: archive
+status: stale
+read-when: understanding why core.company was removed and the halted PopDAM candidate-search migrations
+---
+
 # fix_masterdata.md — guidance for the PopDAM Master Data session
 
 **To the AI session working on the PopDAM "Master Data" page / the

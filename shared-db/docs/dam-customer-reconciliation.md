@@ -1,3 +1,10 @@
+---
+summary: "2026-07-22 reconciliation of DAM free-text customer names to the core.customer hub: 187 names, 92% matched, unmatched tail dispositions."
+kind: archive
+status: done
+read-when: reviewing how DAM free-text customers were matched to hub customers
+---
+
 # DAM customer free-text → hub reconciliation (2026-07-22)
 
 > **Customer identifiers are scrubbed (2026-09-02, issue #2103).** ERP legal names and addresses

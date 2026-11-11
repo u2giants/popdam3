@@ -1,3 +1,10 @@
+---
+summary: Preview apply evidence for the CRM overview parity correction migration 20260812211000, GitHub run 31641099199, baseline left unchanged.
+kind: proof
+status: done
+read-when: confirming the CRM overview correction was applied to preview
+---
+
 # Preview apply evidence — CRM overview contracts (Phase 7A)
 
 The already-applied baseline remains byte-for-byte unchanged. Exact-parity

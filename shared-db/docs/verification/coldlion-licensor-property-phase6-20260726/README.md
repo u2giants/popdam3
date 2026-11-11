@@ -1,3 +1,10 @@
+---
+summary: "ColdLion licensor/property Phase 6 parallel-run evidence on preview: observation schedule, parser fix PR 233, accelerated readiness gates; marked in progress."
+kind: proof
+status: open
+read-when: checking Phase 6 parallel-run and readiness evidence
+---
+
 # ColdLion Licensor/Property Phase 6 — parallel-run evidence (IN PROGRESS)
 
 **Date:** 2026-07-26

@@ -1,3 +1,10 @@
+---
+summary: "Hop table for the #2758 low-risk ephemeral route from guarded merge to production apply (issue 3199 Phase C1), concluding no code change."
+kind: proof
+status: done
+read-when: auditing who performs each step of the low-risk ephemeral migration route
+---
+
 # The #2758 ephemeral route hop table — merge to production (issue #3199 Phase C1)
 
 **Purpose.** Every hop between "the guarded merge completed" and "production apply finished" on

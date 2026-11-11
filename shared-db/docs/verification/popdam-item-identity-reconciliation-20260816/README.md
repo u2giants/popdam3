@@ -1,3 +1,10 @@
+---
+summary: Counts-only reconciliation of PopDAM item identity against ColdLion items using SHA-256 set fingerprints, 2026-08-16; no row values recorded.
+kind: proof
+status: done
+read-when: re-running or auditing PopDAM vs ColdLion item identity reconciliation
+---
+
 # PopDAM item identity reconciliation, counts-only
 
 ## Target and privacy

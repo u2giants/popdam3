@@ -1,3 +1,10 @@
+---
+summary: "Issue 5609 diagnosis of two refused production runs: PostgreSQL lock-mode proof that trigger DROP/REPLACE waits behind readers, writers and maintenance."
+kind: proof
+status: done
+read-when: diagnosing the 5609 assets trigger migration lock-timeout refusals
+---
+
 # Issue #5609 production lock diagnosis
 
 The first two automatic production attempts (`41966565466` and `41971024212`) refused at the first trigger drop after the intended five-second lock timeout. The migration remained absent. No production writer or maintenance worker was canceled, no timeout raised, no merged migration changed, and no manual production apply performed.

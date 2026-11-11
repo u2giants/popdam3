@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md sections 4 to 4.3 moved here: the five anti-collision rules, author lease, check-in, preview rehearsal, per-app extension tables."
+kind: living
+status: current
+read-when: claiming a lane, authoring a migration, or rehearsing on preview safely
+---
+
 # AGENTS.md — §4, §4.1 to §4.3 (the five anti-collision rules, operative summary)
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.
@@ -224,7 +231,7 @@ Full implementation guide (DDL template, per-app sections, rollout order):
 ## 4.2 OWNER RULING — moved
 
 > **4.2 OWNER RULING — prove which database you are connected to before any destructive statement (Albert Hazan, 2026-08-02)**
-> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings.md#42-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
+> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings-part-3.md#42-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
 >
 > **The operative rule, in full, so nobody has to click through to be safe.** Before any statement
 > that writes, changes or removes data, schema or privileges — `INSERT`, `UPDATE`, `DELETE`,
@@ -243,7 +250,7 @@ Full implementation guide (DDL template, per-app sections, rollout order):
 ## 4.3 OWNER RULING — moved
 
 > **4.3 OWNER RULING — issues, handovers and plans point at the LIVE reading, never at a number (Albert Hazan, 2026-08-11)**
-> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings.md#43-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
+> Full ruling: [`docs/owner-rulings.md`](../../docs/owner-rulings-part-3.md#43-owner-ruling). Moved 2026-08-20 (issue #1331); text unchanged.
 >
 > In one line: **never paste a measured count into a document.** Name the query, the view, or the
 > dashboard that produces it, so the reader gets today's number instead of the day-you-wrote-it

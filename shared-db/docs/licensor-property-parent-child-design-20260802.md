@@ -1,3 +1,10 @@
+---
+summary: "Design discovery: Licensor to Property parent-child already live as core.property licensor FK (256 properties, 26 licensors); missing piece is a curation path."
+kind: archive
+status: done
+read-when: tracing the 2026-08-02 design of licensor-property parent-child curation
+---
+
 # Licensor → Property parent-child logic: where it lives, what is missing, and the correct home
 
 **Status:** DESIGN AND DISCOVERY ONLY. No migration authored, no database written, no app repo changed.

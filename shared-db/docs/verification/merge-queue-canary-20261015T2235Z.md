@@ -1,3 +1,10 @@
+---
+summary: "Docs-only canary pull request for issue #2530 step 9 that exercises GitHub's native merge queue after the authorized-head gate fix in #4363."
+kind: proof
+status: done
+read-when: "confirming the merge queue canary result for issue #2530"
+---
+
 # Merge-queue canary — 2026-10-15
 
 Docs-only canary for issue #2530 Step 9. This pure-prose pull request

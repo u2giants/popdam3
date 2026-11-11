@@ -1,3 +1,10 @@
+---
+summary: 2026-07-15 plan for pulling ColdLion ERP data directly into Supabase (Option B) and wiring items to core taxonomy; partly superseded by taxonomy architecture.
+kind: plan
+status: stale
+read-when: reading the original Option B direct-sync plan; check newer taxonomy docs first
+---
+
 # Coldlion direct sync (Option B) + taxonomy wiring & de-duplication plan
 
 Date: 2026-07-15

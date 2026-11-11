@@ -1,3 +1,10 @@
+---
+summary: "Throughput guard truth audit (2026-08-28): detector scanned 558 migrations, 75 files with markers, hash-bound baseline, corpus tests and Python 3.12/3.13 proof."
+kind: proof
+status: done
+read-when: auditing the throughput truth guard detector baseline
+---
+
 # Throughput guard truth audit — 2026-08-28
 
 The version-1 detector scanned 558 migration files and found 75 historical files with surviving markers. Its baseline is SHA-256-bound to the exact detector source, so uncommitted or later detector changes invalidate the artifact. Twelve of the thirteen deliberately enforced historical versions contain markers; the other 63 historical matches are inventoried but remain outside this prospective-plus-seed rollout until changed. Exact paths, counts, and the enforced set are recorded in `throughput-guard-truth-baseline-20260828.json`.

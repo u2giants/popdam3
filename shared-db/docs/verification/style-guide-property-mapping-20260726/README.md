@@ -1,3 +1,10 @@
+---
+summary: "Style guide to property mapping review sheet (2026-07-26): generator, inputs and output, 335 guides with 153 uncertain rows for licensing review."
+kind: proof
+status: done
+read-when: regenerating or auditing the style guide property mapping review sheet
+---
+
 # Style guide → property mapping review sheet
 
 **Captured:** 2026-07-26 · **Source of truth for the model:**

@@ -1,3 +1,10 @@
+---
+summary: "Evidence for the orchestrator routing contract (issue #1605, PRs #1606 and #1612): complete and live on main, with demonstration."
+kind: proof
+status: done
+read-when: checking how a session finds the orchestrator under the routing contract
+---
+
 # Verification — orchestrator routing contract (issue #1605), 2026-08-26
 
 **Status: complete and live on `main`.** This records the evidence, because the

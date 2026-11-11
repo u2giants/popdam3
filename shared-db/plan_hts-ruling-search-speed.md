@@ -1,3 +1,10 @@
+---
+summary: "Plan to make the HTS customs-ruling search fast, owning issue #5483; every step open as of 2026-11-02 STATUS"
+kind: plan
+status: open
+read-when: speeding up CBP/HTS ruling search queries (#5483)
+---
+
 # Plan: make the HTS customs-ruling search fast
 
 Handoff: `HANDOFF.d/20261102T1915Z-edge-dev3-claude-db-resource-plans.md` (retired)

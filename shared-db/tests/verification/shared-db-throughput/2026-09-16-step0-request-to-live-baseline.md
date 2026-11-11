@@ -1,3 +1,10 @@
+---
+summary: "Step 0 request-to-live baseline and target 11 score (#3128, #3029, 2026-09-16) using ledger entered-to-live_verified proxy and candidates #2579, #2496."
+kind: proof
+status: done
+read-when: reading the request-to-live baseline for throughput target 11
+---
+
 # Step 0 request-to-live baseline and target 11 score (shared-db#3128, #3029)
 
 Collected 2026-09-16 from live `gh` data against `u2giants/shared-db` main at

@@ -1,3 +1,10 @@
+---
+summary: "CRM Overview/Sidebar server-side contracts Phase 7A: migrations replacing client-side counting, parity-corrected, preview reproof required."
+kind: spec
+status: open
+read-when: changing CRM overview and sidebar server contracts
+---
+
 # CRM Overview / Sidebar server-side contracts — Phase 7A
 
 **Status:** PARITY-CORRECTED / PREVIEW REPROOF REQUIRED. Earlier preview results

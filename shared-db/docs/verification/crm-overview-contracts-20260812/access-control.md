@@ -1,3 +1,10 @@
+---
+summary: "Runtime access-control evidence for CRM overview contracts: security definer functions gated by app.has_app_access crm, 42501 for non-CRM callers."
+kind: proof
+status: done
+read-when: checking authorization of CRM overview functions
+---
+
 # Runtime access-control evidence — CRM overview contracts (Phase 7A)
 
 After the correction applied in run `31641099199`, a CRM-authorized caller was

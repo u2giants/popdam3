@@ -1,3 +1,10 @@
+---
+summary: Method and verified answer (2026-09-06/07) for counting items missing a Licensor, with the earlier wrong counts and why they were wrong.
+kind: living
+status: current
+read-when: answering how many items lack a Licensor or re-running that measurement
+---
+
 # Measuring the "missing Licensor" population
 
 **Status:** Settled

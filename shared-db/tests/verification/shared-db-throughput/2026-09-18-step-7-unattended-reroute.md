@@ -1,3 +1,10 @@
+---
+summary: "Step 7 live proof (#3242, PR #3286): unattended watcher reroutes an unstarted reviewer after the 10-minute start SLO while the other slot stays intact."
+kind: proof
+status: done
+read-when: auditing proof that unattended reviewer reroute works
+---
+
 # Step 7 live proof: unattended reviewer start reroute (issue #3242)
 
 Programme popcre/ai-devops#401, Step 7. Non-orchestrator work (no database structure change).

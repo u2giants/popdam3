@@ -1,3 +1,10 @@
+---
+summary: "Poppim audit remediation contracts: api.pm_pipeline_page server-side filtering, atomic DML, view pref fix; preview verified, production gated."
+kind: spec
+status: open
+read-when: changing Poppim pipeline paging or atomic stage and metadata write contracts
+---
+
 # Poppim audit remediation database contracts
 
 Date: 2026-07-27

@@ -1,3 +1,10 @@
+---
+summary: "Audit of legacy SHA-release call sites in manage-migration-author-lanes (plan step 8a, #3779): unserialized release path and the first landing's fix."
+kind: proof
+status: done
+read-when: tracing the lane lease release-by-sha bug and its fix
+---
+
 # Legacy SHA-release call-site audit (plan step 8a, first landing)
 
 Issue [#3779](https://github.com/popcre/shared-db/issues/3779),

@@ -1,3 +1,10 @@
+---
+summary: Contract popsg-property-observation-v1 for normalizing PopSG tag text (NFKC, ASCII, lowercase) used in PSG-0 property observation.
+kind: spec
+status: current
+read-when: changing how PopSG property tag text is normalized
+---
+
 # PopSG Property observation normalization contract v1
 
 **Contract ID:** `popsg-property-observation-v1`

@@ -1,3 +1,10 @@
+---
+summary: "Issue 5608 local rehearsal of SKU-to-style-guide link keys: persisted keys, BEFORE triggers, disjoint view arms, disposable workload, recovery proof."
+kind: proof
+status: done
+read-when: reviewing the original 5608 SKU style-guide link-key local rehearsal
+---
+
 # #5608 local rehearsal — November 4, 2026, 10:54 PM EST
 
 Owner: the #5608 implementation session. These synthetic fixtures are retained as regression evidence for the nightly resolver; they add no shared runner or scheduled service. No licensed rows or credentials were used. They require a fresh disposable PostgreSQL 17 cluster and an explicit `app.sku_sg_disposable=yes` setting before any fixture DDL.

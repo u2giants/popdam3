@@ -1,3 +1,10 @@
+---
+summary: 2026-08-18 audit of Markdown across shared-db, PopDAM, PopCRM, PopPIM and DesignFlow repos, classifying business-rule content migrated into the library.
+kind: proof
+status: done
+read-when: checking where business-rule content was moved from during the 2026-08-18 migration
+---
+
 # Business-rule content migration inventory
 
 **Audit date:** 2026-08-18  

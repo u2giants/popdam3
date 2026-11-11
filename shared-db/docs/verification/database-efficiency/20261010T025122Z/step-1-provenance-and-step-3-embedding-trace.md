@@ -1,3 +1,10 @@
+---
+summary: Step 1 function provenance of five named functions and Step 3 embedding lease/error trace, repository-only evidence (issue 2326, 2026-10-10).
+kind: proof
+status: done
+read-when: tracing provenance of the five efficiency-plan functions and embedding leases
+---
+
 # Step 1 function-provenance closeout and Step 3 embedding lease/error trace
 
 **Plan / issue:** `plan_database_efficiency_and_api_security.md` Steps 1 and 3 / #2326

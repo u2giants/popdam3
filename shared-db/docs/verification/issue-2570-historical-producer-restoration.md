@@ -1,3 +1,10 @@
+---
+summary: Issue 2570 registered historical restoration of version 20260907131728 so production accepts an older preview producer under exact run, commit, digest checks.
+kind: proof
+status: done
+read-when: understanding the 20260907131728 production producer-provenance restoration
+---
+
 # Issue 2570: exact historical-restoration producer provenance
 
 Production apply run 34216634560 correctly stopped before writes when original

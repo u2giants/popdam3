@@ -1,3 +1,10 @@
+---
+summary: Draft reply for Albert to send to ColdLion on 2026-08-28, with numbered issues 1-7 status and new points 8 onward.
+kind: archive
+status: done
+read-when: reviewing the 2026-08-28 reply drafted to ColdLion
+---
+
 # Draft reply to ColdLion — 2026-08-28
 
 **For Albert to send to JamieLynn.** AI sessions never send ColdLion mail. Copy the block below

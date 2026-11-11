@@ -1,3 +1,10 @@
+---
+summary: "Issue 5609 isolated synthetic PostgreSQL 17.6 rehearsal: original vs scoped triggers on a no-op asset re-scan, duration and WAL bytes, tuple identity by ctid."
+kind: proof
+status: done
+read-when: reviewing the 5609 trigger-scoping rehearsal results and WAL savings
+---
+
 # Issue #5609 isolated rehearsal
 
 Synthetic PostgreSQL 17.6 database in a dedicated container, isolated from production, preview, and the existing local stack. Seed: schema-only read from the existing local stack, with the exact image-embedding migration's feature objects installed. The cron scheduler at that dependency's end cannot be installed in a database other than `postgres`; cron scheduling is unrelated to these scoped trigger tests. No shared database was changed.

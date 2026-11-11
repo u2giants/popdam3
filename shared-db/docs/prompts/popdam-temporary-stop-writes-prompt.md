@@ -1,3 +1,10 @@
+---
+summary: 2026-08-09 TEMPORARY prompt to stop PopDAM writing licensor and property text columns from SKU and folder parsing, so DB repairs are not reverted.
+kind: archive
+status: done
+read-when: reviewing the temporary PopDAM licensor write stop
+---
+
 *2026-08-09 · Originated from shared-db orchestrator session 8b3f21c4 · Status: **TEMPORARY***
 
 # TEMPORARY FIX — STOP POPDAM WRITING INCORRECT LICENSOR AND PROPERTY DATA

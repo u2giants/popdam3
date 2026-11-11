@@ -1,3 +1,10 @@
+---
+summary: "Phase 2A handoff: guarded ColdLion lane mirroring licensor and property identities into plm.erp_licensor and plm.erp_property without canonical writes."
+kind: archive
+status: done
+read-when: reading the Phase 2A ColdLion mirror importer history
+---
+
 # Handoff — ColdLion licensor/property Phase 2A
 
 ## 1. What this application is

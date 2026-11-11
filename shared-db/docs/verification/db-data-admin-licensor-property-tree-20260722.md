@@ -1,3 +1,10 @@
+---
+summary: DB Data Admin Step 10 database verification of read-only licensor-to-property tree RPC and corrective cursor-uuid migration 20260722203100; preview only.
+kind: proof
+status: done
+read-when: auditing the DB Data Admin licensor property tree RPC
+---
+
 # DB Data Admin Step 10 database verification — 2026-07-22
 
 Status: applied and verified on preview only. Production is unchanged.

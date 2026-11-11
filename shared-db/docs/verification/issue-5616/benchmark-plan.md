@@ -1,3 +1,10 @@
+---
+summary: "Issue 5616 candidate to rebuild the identical 662 MB PopSG HNSW index: read-only findings, proposed scope needing separate claim, synthetic benchmark."
+kind: plan
+status: open
+read-when: evaluating the 5616 PopSG HNSW rebuild benchmark and scope
+---
+
 # Issue 5616: identical PopSG HNSW rebuild candidate
 
 Owner: the coordinator of PopDAM issue 663 owns the decision and shared-db issue 5616 intake. This document and its synthetic benchmark authorize no database action. No object claim is adopted. The benchmark is maintained here only for issue 5616; consolidate into the existing benchmark tooling or retire it after the repair decision.

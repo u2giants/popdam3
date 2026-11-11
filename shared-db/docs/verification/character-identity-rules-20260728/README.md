@@ -1,3 +1,10 @@
+---
+summary: Character identity resolution rules proposal on preview with owner answers 2026-07-29, MU/MV correction, cross-licensor validation (4 defects).
+kind: proof
+status: current
+read-when: changing character identity or style-guide licensing resolution rules
+---
+
 # Character identity resolution rules — proposal and evidence
 
 **Captured:** 2026-07-28 · **Updated:** 2026-07-29 with the owner's answers ·

@@ -1,3 +1,10 @@
+---
+summary: "Live production promotion ordering constraints (issue #547, backlog B5): 20260729120000 lockdown must not precede ClickUp migrations; out-of-order ledger."
+kind: ops
+status: current
+read-when: ordering migrations for a production promotion
+---
+
 # Production promotion — the ordering constraints that are still live (#547, backlog B5)
 
 **Verified read-only against production `qsllyeztdwjgirsysgai` on 2026-08-11.** No write of any

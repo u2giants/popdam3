@@ -1,3 +1,10 @@
+---
+summary: "Plan for review recovery (#4297, 2026-10-14): failure accounting, either-slot assignment, guarded release; delivery and live acceptance still open at dispatch"
+kind: plan
+status: done
+read-when: auditing the October 2026 reviewer failure accounting recovery
+---
+
 # IMPLEMENTATION PLAN — review recovery (#4297, October 14, 2026 EDT)
 
 

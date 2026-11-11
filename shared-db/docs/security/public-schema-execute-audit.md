@@ -1,3 +1,10 @@
+---
+summary: 2026-07-29 audit finding 88 of 99 public SECURITY DEFINER functions anon-executable, fixed by migration 20260729120000; production promotion section.
+kind: proof
+status: done
+read-when: auditing public function EXECUTE grants or the 20260729120000 lockdown
+---
+
 # `public` schema EXECUTE audit — anon-reachable SECURITY DEFINER functions
 
 **Date:** 2026-07-29

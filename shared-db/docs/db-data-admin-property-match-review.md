@@ -1,3 +1,10 @@
+---
+summary: "Property Matches queue in DB Data Admin: Licensing reviewer decides Marvel vs Disney OPA Property per DCP Vault property (K2557 ruling), live 2026-09-02."
+kind: living
+status: current
+read-when: working on the DCP Vault to OPA Property match review screen or its pending rows
+---
+
 # DB Data Admin — Property match review queue
 
 ## What it is

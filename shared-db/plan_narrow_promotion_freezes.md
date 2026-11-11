@@ -1,3 +1,10 @@
+---
+summary: "Evidence-first proposal for narrower promotion freezes (issue #4039); proposal only, steps open and not authorized"
+kind: plan
+status: open
+read-when: considering narrowing production promotion freeze windows (#4039)
+---
+
 # Evidence-first implementation proposal: narrower promotion freezes
 
 **Proposal only; no safeguard or production implementation authorization.** [Issue #4039](https://github.com/popcre/shared-db/issues/4039). Read [report](docs/investigations/narrow-promotion-freezes.md) and [Muse debate ledger](docs/investigations/narrow-promotion-freezes-muse-debate.md). Initial baseline fee69a25ffd9b39c2b3accfde680dfbac3aa54f5; upstream refreshed to d241515e9454b663d8f2d49258820e089f15863a, October 7, 2026. Runtime safeguards unchanged by that upstream movement.

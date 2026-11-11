@@ -1,3 +1,10 @@
+---
+summary: Phase A plan for migrating DesignFlow merchGroup MG01-MG10 and customers into shared Supabase, with division semantics and import rules (2026-07-01).
+kind: plan
+status: stale
+read-when: reading original MG01-MG10 and customers migration analysis before the later cutover work
+---
+
 # DesignFlow → Supabase Master Data Migration
 
 **Status:** **Phase A complete** — analysis & planning only; **no schema or data changes have been made.** Ready for Phase B (preview DDL).

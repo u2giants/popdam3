@@ -1,3 +1,10 @@
+---
+summary: "Read-only SQL snippet (issue #2437) showing the window a pg_stat counter covers; run it before quoting idx_scan or n_live_tup readings."
+kind: ops
+status: current
+read-when: quoting pg_stat usage counters or deciding an index is unused
+---
+
 # pg_stat observation window (issue #2437)
 
 Run this query alongside **any** `pg_stat_*` reading before quoting it. A usage counter

@@ -1,3 +1,10 @@
+---
+summary: "Step 11 consumer audit (2026-07-23) for DB Data Admin: shared-db in-flight check and read-only inspection of consumers before the PLM customer status change."
+kind: proof
+status: done
+read-when: auditing consumers before the DB Data Admin step 11 status preservation
+---
+
 # Step 11 consumer audit — 2026-07-23
 
 Evidence for DB Data Admin Step 11 sub-step 1 (serialized §9 audit + in-flight

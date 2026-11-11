@@ -1,3 +1,10 @@
+---
+summary: "Issue 5609 verification-only recovery contract: hash-bound catalog check of ten public.assets trigger identities after run 41974228042 applied the migration."
+kind: proof
+status: done
+read-when: understanding how the 5609 catalog verification was recovered without reapplying SQL
+---
+
 # #5609 verification-only recovery contract
 
 Owner: the #5609 release coordinator retains production and release custody.

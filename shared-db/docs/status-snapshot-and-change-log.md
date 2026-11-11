@@ -1,3 +1,10 @@
+---
+summary: TEMPORARY temp_status_watch snapshot and change log of 256 licensor and property active/inactive statuses (2026-08-03), preview only, scheduled for deletion.
+kind: ops
+status: open
+read-when: using or tearing down the temp_status_watch licensor status log
+---
+
 # TEMPORARY — status snapshot and change log for licensors and properties
 
 > **This whole thing is scheduled for deletion.** Read "When this gets deleted" below

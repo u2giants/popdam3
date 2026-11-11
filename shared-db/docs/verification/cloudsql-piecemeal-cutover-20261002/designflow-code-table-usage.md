@@ -1,3 +1,10 @@
+---
+summary: Read-only scan (2026-10-02) of six DesignFlow service repos showing which Cloud SQL designflow tables and schema maps each service uses; no sync exists.
+kind: proof
+status: done
+read-when: planning piecemeal DesignFlow cutover from Cloud SQL to Supabase
+---
+
 # DesignFlow services vs Cloud SQL schema `designflow`: read-only code scan
 
 Scanned 2026-10-02 from shallow clones of branch `develop` of popcre/designflow-{backend,bff,item-master,tracking,data-syncing,frontend}, kept in this folder. No secret values are recorded here. Evidence paths are relative to this folder. Tests, docs and e2e code were excluded.

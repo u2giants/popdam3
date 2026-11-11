@@ -1,3 +1,10 @@
+---
+summary: Audit of six 2026-08-14 migrations never applied anywhere (2026-08-23), GLM-reviewed; outcome box says all resolved by 2026-08-26.
+kind: archive
+status: done
+read-when: reading what the six unapplied 2026-08-14 migrations contain
+---
+
 # The six 2026-08-14 migrations that were never applied anywhere — audit
 
 **Date:** 2026-08-23 · **Scope:** investigation only. **Nothing was applied, promoted or pushed.**

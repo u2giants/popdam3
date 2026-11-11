@@ -1,3 +1,10 @@
+---
+summary: Build note for the OPA property-to-character migrations applied and verified in preview, listing where the build departs from the revised design.
+kind: proof
+status: done
+read-when: reviewing how the OPA source-of-truth migrations were built and verified
+---
+
 # OPA property→character — BUILD NOTE
 
 **Status: BUILT, APPLIED TO PREVIEW (`rjyboqwcdzcocqgmsyel`) and VERIFIED. All FIVE migrations applied; both contract test files pass unmodified. Two review rounds closed — sections 8.9 and 8.10. No open defects.**

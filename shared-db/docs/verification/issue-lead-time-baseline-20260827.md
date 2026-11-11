@@ -1,3 +1,10 @@
+---
+summary: Baseline of closed-issue lead times for u2giants/shared-db with the gh command, backing the numeric target in the orchestrator throughput guard plan.
+kind: proof
+status: done
+read-when: re-deriving the issue lead-time target in the throughput guard plan
+---
+
 # Issue lead-time baseline — `u2giants/shared-db`, 2026-08-27
 
 The artifact behind the success target in

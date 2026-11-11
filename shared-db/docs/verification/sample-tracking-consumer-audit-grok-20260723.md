@@ -1,3 +1,10 @@
+---
+summary: "Grok read-only consumer gap analysis of Sample Tracking (2026-07-23): designflow-tracking hybrid state, legacy vs post_sample_movement model, gaps."
+kind: proof
+status: done
+read-when: reviewing consumer code gaps against the Sample Tracking quantity schema
+---
+
 # Sample Tracking consumer gap analysis (Grok, 2026-07-23)
 
 > **Provenance:** Independent read-only audit by **Grok (grok-4.5, Grok CLI)**, run 2026-07-23 with file-read/grep only (no edits, no shell, no DB). Its schema claims were independently re-verified against live production (`qsllyeztdwjgirsysgai`) by the calling engineer; the highest-impact findings (movement CHECK vocab, in-transit line requirement, closeout watermark NOT NULL, owner FK target, and the two completion-logic view defects) were confirmed true. Findings are Grok's wording, filed verbatim for the record.

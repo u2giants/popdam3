@@ -1,3 +1,10 @@
+---
+summary: "Contract for step 3 of the coordinator queue migration to GitHub issues: new labels (db-work, needs-albert) and migrated issue shape, 2026-08-07."
+kind: spec
+status: stale
+read-when: understanding the issue labels and shape used when the coordinator queue moved to issues
+---
+
 # Step 3 — the labels and the shape of a migrated issue
 
 **Companion to** [`plan_coordinator-queue-to-github-issues.md`](../plan_coordinator-queue-to-github-issues.md) step 3.

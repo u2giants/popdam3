@@ -1,3 +1,10 @@
+---
+summary: Accelerated ColdLion Licensor/Property cutover plan (2026-07-26, updated 07-29); next is Step 7A recurring production feed and monitoring lane
+kind: plan
+status: open
+read-when: continuing the ColdLion Licensor/Property recurring feed cutover at Step 7A
+---
+
 # Implementation plan — accelerated ColdLion Licensor/Property cutover
 
 **Written:** 2026-07-26  

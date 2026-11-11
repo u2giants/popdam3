@@ -1,3 +1,10 @@
+---
+summary: "Issue 5758 Step 5 index audit snapshot 1 (2026-11-06): idx_scan and size per index; snapshot 2 due on or after 2026-11-20 to find drop candidates."
+kind: proof
+status: open
+read-when: taking 5758 index-usage snapshot 2 or choosing index drop candidates
+---
+
 # Step 5 index audit — usage snapshot 1 (#5758)
 
 Taken 2026-11-06 10:28 AM EST (15:28 UTC) on production, read-only `SELECT` via Supabase MCP.

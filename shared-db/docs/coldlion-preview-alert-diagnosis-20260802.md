@@ -1,3 +1,10 @@
+---
+summary: "Read-only 2026-08-02 diagnosis of the red ColdLion preview alert monitor: residue from a fixed ENOBUFS tooling fault (PR #367), nothing changed."
+kind: proof
+status: done
+read-when: auditing why the ColdLion preview alert monitor stayed red in August 2026
+---
+
 # ColdLion preview alert monitor — read-only diagnosis (2026-08-02)
 
 **Status:** diagnosis only. **Nothing was fixed, silenced, acknowledged, reset or cleared.**

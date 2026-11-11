@@ -1,3 +1,10 @@
+---
+summary: Owner-approved links between Creative and Submissions properties with identical normalized labels across licensors (Marvel, NBCUniversal), 2026-09-16.
+kind: proof
+status: done
+read-when: auditing the 2026-09-16 obvious Creative-to-Submissions property links
+---
+
 # Obvious Creative to Submissions property links - 2026-09-16
 
 Owner ruling (Albert Hazan, chat 2026-09-16): "can you link the obvious ones? for all the licensors."

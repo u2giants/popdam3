@@ -1,3 +1,10 @@
+---
+summary: "Draft for Albert's review: re-mapping merch groups on 343 API-created ColdLion SKUs missing MG01-MG03, 42 test rows; nothing loaded."
+kind: archive
+status: open
+read-when: deciding merch-group values for WebAPI-created ColdLion SKUs
+---
+
 # API-created SKUs — merch-group re-map DRAFT (2026-08-28)
 
 **Status: DRAFT FOR ALBERT'S REVIEW. Nothing has been loaded, and nothing may be loaded from it

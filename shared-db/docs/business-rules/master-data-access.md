@@ -1,3 +1,10 @@
+---
+summary: Settled rule that every signed-in POP user may add and update rows in the Master Data Styles grid; scope limits and legacy workbook replacement.
+kind: living
+status: current
+read-when: changing permissions on the Master Data Styles grid
+---
+
 # Master Data access
 
 **Status:** Settled

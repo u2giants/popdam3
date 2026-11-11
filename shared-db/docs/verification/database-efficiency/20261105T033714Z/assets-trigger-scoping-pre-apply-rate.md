@@ -1,3 +1,10 @@
+---
+summary: Issue 5609 read-only pre-change measurement of assets and dam_search_documents update, dead-tuple and HOT counters before the trigger-scoping migration.
+kind: proof
+status: done
+read-when: comparing document-write rates before the 5609 trigger-scoping apply
+---
+
 # Issue #5609 pre-application document-write rate
 
 This is a read-only **pre-change** measurement, not production application or live acceptance. At November 5, 2026, 12:01:25 AM EST the migration was explicitly confirmed absent in the same snapshot as the counters below. The first endpoint is the recorded November 4, 2026, 10:37:14 PM EST baseline in `assets-trigger-scoping-baseline.md`.

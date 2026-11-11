@@ -1,3 +1,10 @@
+---
+summary: Pointer to the private licensor-source-data repo where licensed spreadsheets and evidence moved; rules against adding raw extracts here; 2026-10-23 additions.
+kind: living
+status: current
+read-when: deciding where licensed source data or evidence files may be stored
+---
+
 # Private data artifacts
 
 Licensed and internal spreadsheets, data snapshots, source-derived evidence, and

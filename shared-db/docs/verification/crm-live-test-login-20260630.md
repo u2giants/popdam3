@@ -1,3 +1,10 @@
+---
+summary: Record that a dedicated Supabase Auth test user exists for Codex browser checks of the live CRM, credentials kept in 1Password, 2026-06-30.
+kind: ops
+status: current
+read-when: running browser checks against the live CRM with the test login
+---
+
 # CRM live test login — 2026-06-30
 
 ## Codex browser verification account

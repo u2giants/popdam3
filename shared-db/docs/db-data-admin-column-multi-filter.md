@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin column-header Multi Filter (text plus set filter) shipped 2026-07-23: behavior, portalled popovers and design decisions."
+kind: archive
+status: done
+read-when: understanding the DB Data Admin grid column filter design
+---
+
 # DB Data Admin — column-header Multi Filter (Text + Set)
 
 **Status:** shipped 2026-07-23 · **Lives in:** `apps/db-data-admin/src/`

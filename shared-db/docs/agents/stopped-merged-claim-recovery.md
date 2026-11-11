@@ -1,3 +1,10 @@
+---
+summary: "Exact-case operator recovery lane for stopped merged claim 4158 (work issue 2421, PR 4161): required sequence, ownership and retirement."
+kind: ops
+status: open
+read-when: recovering the stopped merged claim 4158 custody
+---
+
 # Registered stopped-merged claim recovery
 
 This is a separately reviewed, exact-case operator succession lane for claim

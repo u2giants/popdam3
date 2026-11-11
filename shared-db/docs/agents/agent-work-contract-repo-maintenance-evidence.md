@@ -1,3 +1,10 @@
+---
+summary: "Settled 2026-09-17 ruling (issue 2830): how repo-maintenance work satisfies the Agent work contract check via a published contract ref evidence pair."
+kind: ops
+status: current
+read-when: satisfying the Agent work contract check for repo-maintenance PRs
+---
+
 # The repo-maintenance evidence path for the Agent work contract
 
 **Status:** settled, 2026-09-17. Resolves [#2830](https://github.com/u2giants/shared-db/issues/2830).

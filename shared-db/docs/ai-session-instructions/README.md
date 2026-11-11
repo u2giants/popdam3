@@ -1,3 +1,10 @@
+---
+summary: Index for AI session instructions on the shared Supabase preview branch and production promotion, noting CRM and PM/PIM cutovers are complete.
+kind: living
+status: stale
+read-when: entry point to older shared Supabase branch instructions; preview ref in it may be outdated
+---
+
 # AI Session Instructions
 
 Use these instructions for work against the shared Supabase preview branch and

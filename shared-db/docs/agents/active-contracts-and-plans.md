@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md section moved here: historical MG classification pointer plus active contracts and implementation plans index with STATUS rows."
+kind: living
+status: current
+read-when: finding which contracts and plans are active; citations of AGENTS.md active plans
+---
+
 # AGENTS.md — Historical classification pointer and active contracts and implementation plans
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.

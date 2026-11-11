@@ -1,3 +1,10 @@
+---
+summary: Historical note on adding GridViewState.column_group_state in DesignFlow PLM; superseded workflow, new schema changes go through shared-db.
+kind: archive
+status: stale
+read-when: only for history of DesignFlow app-owned column additions; do not use as a template
+---
+
 # DesignFlow PLM — GridViewState.column_group_state — 2026-07-02
 
 ## Historical app-owned additive column (superseded workflow)

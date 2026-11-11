@@ -1,3 +1,10 @@
+---
+summary: "Round-3 licensing answers evidence record (issue 526 item a): eight answers returned 2026-08-06 as dated machine-readable record; read by nothing."
+kind: archive
+status: done
+read-when: looking up the round-3 licensing answers
+---
+
 # Round-3 licensing answers — evidence record
 
 **Companion to `round3-licensing-answers.csv`. Issue #526 item (a).**

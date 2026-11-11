@@ -1,3 +1,10 @@
+---
+summary: "Plan to drop provably unused large indexes on the shared database, issue #5610; 14-day observation window restarted 2026-11-06, later steps open"
+kind: plan
+status: open
+read-when: dropping unused indexes after the observation window (#5610)
+---
+
 # Plan: drop provably unused large indexes on the shared database
 Historical assessment handoff (write-once; current state is this plan and #5610): [HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md)
 Owning issue: popcre/shared-db#5610. Related: #2427 (large-index findings), #1966 (high-churn tables), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) Step 7 ("dated index observation" — this plan executes that step for the largest candidates; tick it there when done), [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (#5482, house style).

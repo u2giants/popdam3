@@ -1,3 +1,10 @@
+---
+summary: "README for the deterministic product-type reader: read_product_type output fields, legacy ruleset fork, private gold-set evaluation commands"
+kind: ops
+status: current
+read-when: using or evaluating the product-type reader package
+---
+
 # Product-type reader
 
 `read_product_type(description)` reads physical product wording deterministically.

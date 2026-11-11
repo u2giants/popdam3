@@ -1,3 +1,10 @@
+---
+summary: Issue 2863 registered historical restoration of version 20260916001944 after production refused a mismatched manage-migration-author-lanes producer.
+kind: proof
+status: done
+read-when: understanding the 20260916001944 production producer-provenance restoration
+---
+
 # Issue 2863: exact historical-restoration producer provenance
 
 Production apply of version `20260916001944` correctly stopped before writes

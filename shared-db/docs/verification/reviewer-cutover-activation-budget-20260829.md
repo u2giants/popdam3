@@ -1,3 +1,10 @@
+---
+summary: "Issue #1798 (PR #1799) request budget and sequencing for reviewer cutover activation, with real production request prices from githubIo."
+kind: proof
+status: done
+read-when: planning reviewer cutover activation request costs
+---
+
 # Reviewer cutover activation - request budget and sequencing
 
 Issue: #1798. PR: #1799. Scope: repository coordination only; no database,

@@ -1,3 +1,10 @@
+---
+summary: "Incident record: production DB_PORT secret changed from 5432 to 6543 broke DesignFlow on Cloud SQL; root cause, controls, open IAM gate (2026-07-20)."
+kind: proof
+status: done
+read-when: reviewing the 2026-07-17 DesignFlow production database port incident and its controls
+---
+
 # DesignFlow production database port incident — 2026-07-17
 
 Status updated 2026-07-20: production is healthy and pinned to Cloud SQL port

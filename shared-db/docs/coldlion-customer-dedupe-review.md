@@ -1,3 +1,10 @@
+---
+summary: "ColdLion customer dedupe and status model review: schema and reversible bulk done 2026-07-17; per-row merges and deletes pending (customer codes scrubbed)."
+kind: plan
+status: open
+read-when: finishing ColdLion customer merges, deletes and status model decisions
+---
+
 # Coldlion customer dedupe + status model — review & PENDING decisions
 
 > **Customer codes are scrubbed (2026-09-02, issue #2103).** Every ColdLion customer/vendor master

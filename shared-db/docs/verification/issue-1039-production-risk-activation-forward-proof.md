@@ -1,3 +1,10 @@
+---
+summary: "Issue 1039 forward proof before production-risk activation: PR merge pins, matching skill file hashes in three copies, synthetic decision tests."
+kind: proof
+status: done
+read-when: checking the production-risk policy activation evidence
+---
+
 # Issue #1039 production-risk activation forward proof
 
 Date: 2026-08-14

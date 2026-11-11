@@ -1,3 +1,10 @@
+---
+summary: "Plan to shrink public.assets bloat and keep it small (issue #5747): baseline, pg_repack, search under 3 s; 7-day reading due Nov 12 2026."
+kind: plan
+status: open
+read-when: working on public.assets bloat, repack or search latency follow-up
+---
+
 # Plan: permanently shrink `public.assets` and keep it small (popcre/shared-db#5747)
 
 Owning issue: [popcre/shared-db#5747](https://github.com/popcre/shared-db/issues/5747). Parent need: [u2giants/popdam3#804](https://github.com/u2giants/popdam3/issues/804) cause 6 (search latency).

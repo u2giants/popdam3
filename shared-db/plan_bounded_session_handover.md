@@ -1,3 +1,10 @@
+---
+summary: "Plan to eliminate multi-hour shared-db handovers, issue #2596; step 1 whole-path document qualification landed by PR #2607, later milestones need new issue"
+kind: plan
+status: done
+read-when: "tracing the bounded session handover work and what #2607 delivered"
+---
+
 # Eliminate multi-hour shared-db handovers
 
 Tracking: [#2596](https://github.com/u2giants/shared-db/issues/2596). Work type: repository maintenance, outside the schema orchestrator. Planning authority only; no implementation, database write, settings change, or repository transfer is authorized by this document.

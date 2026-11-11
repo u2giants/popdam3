@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md sections 8 to 11 moved here: project references, exposed schemas, Supabase CLI credential runbook, further reading and traps."
+kind: ops
+status: current
+read-when: finding project refs policy, credential login flow or Supabase CLI traps
+---
+
 # AGENTS.md — §8, §8.1, §9, §10, §10.1-10.3/§11 (project references, credentials runbook, further reading, traps)
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.

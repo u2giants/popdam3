@@ -1,3 +1,10 @@
+---
+summary: "Vision for one shared Supabase database powering DAM, CRM, PM/PIM and PLM: why one database, architecture and migration reasoning."
+kind: living
+status: current
+read-when: understanding why and how the shared database is structured across the four apps
+---
+
 # Shared Database Vision
 
 > **Business authority moved 2026-08-18:** Companywide definitions of Customers,

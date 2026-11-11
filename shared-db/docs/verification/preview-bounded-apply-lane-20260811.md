@@ -1,3 +1,10 @@
+---
+summary: Offline verification (2026-08-11) of a bounded apply lane for preview, modelled against four missing migrations; workflow file only, no database touched.
+kind: proof
+status: done
+read-when: auditing the bounded preview apply lane workflow change
+---
+
 # Preview bounded apply lane — build and static proof (2026-08-11)
 
 Issue #739. Author: sub-agent of orchestrator session d152a272.

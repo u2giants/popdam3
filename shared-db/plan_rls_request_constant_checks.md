@@ -1,3 +1,10 @@
+---
+summary: RLS permission-check performance repair across 39 tables and 72 policies; all sub-phases accepted and closed as of 2026-11-05 (#4427)
+kind: plan
+status: done
+read-when: auditing the RLS initplan performance repair and its acceptance evidence
+---
+
 # RLS permission-check performance repair
 
 ## STATUS — read first

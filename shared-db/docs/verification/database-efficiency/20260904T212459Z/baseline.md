@@ -1,3 +1,10 @@
+---
+summary: "Database efficiency baseline Step 1 for issue 2326: read-only production catalog and statistics, captured twice on 2026-09-04."
+kind: proof
+status: done
+read-when: comparing database efficiency against the 2026-09-04 baseline
+---
+
 # Database efficiency baseline — 2026-09-04T21:24:59Z
 
 Step 1 of `plan_database_efficiency_and_api_security.md`, for issue #2326 (executing #2209).

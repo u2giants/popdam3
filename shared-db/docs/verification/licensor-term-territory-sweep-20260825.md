@@ -1,3 +1,10 @@
+---
+summary: "Issue #1242 sweep of migrations for licence term and territory fields; removes plm.nbcu_right and its finalize_nbcu_capture count, portal data intact."
+kind: proof
+status: done
+read-when: auditing removal of licence term/territory structures from the schema
+---
+
 # Licensor term and territory structural sweep — issue #1242
 
 ## Result

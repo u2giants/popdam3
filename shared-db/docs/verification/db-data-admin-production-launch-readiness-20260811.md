@@ -1,3 +1,10 @@
+---
+summary: "Read-only 2026-08-11 readiness check (issue 729) for data.designflow.app: no admin grant exists so everyone is locked out; access control and DNS findings."
+kind: proof
+status: done
+read-when: reviewing why DB Data Admin production launch was blocked on 2026-08-11
+---
+
 # DB Data Admin — production launch readiness for data.designflow.app (issue #729)
 
 **Run date:** 2026-08-11 (America/New_York).

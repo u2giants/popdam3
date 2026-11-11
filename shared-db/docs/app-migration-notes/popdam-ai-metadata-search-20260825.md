@@ -1,3 +1,10 @@
+---
+summary: "PopDAM scoped AI metadata and deterministic search: batched forward migration and recovery B reconciliation and activation, completing #1427."
+kind: spec
+status: done
+read-when: reviewing PopDAM AI tag metadata normalization and search recovery migrations
+---
+
 # PopDAM Scoped AI Metadata + Deterministic Search — 2026-08-25
 
 Canonical prerequisite-A migration:

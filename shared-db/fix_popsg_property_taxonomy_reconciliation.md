@@ -1,3 +1,10 @@
+---
+summary: Unified bounded plan (PSG-0 to PSG-7) reconciling PopSG folder-derived Property values to canonical core Properties; plan only, no changes made.
+kind: plan
+status: open
+read-when: reconciling PopSG folder-derived properties with canonical Properties
+---
+
 # PopSG Property taxonomy reconciliation — unified bounded plan
 
 **Status:** PLAN ONLY — no schema, data, application, or production changes are

@@ -1,3 +1,10 @@
+---
+summary: 2026-07-08 rebuild_style_groups_batch replaced so DAM style-group SKU extraction matches the strict app-side regex rule.
+kind: archive
+status: done
+read-when: understanding DAM style-group SKU folder extraction rules
+---
+
 # PopDAM (DAM) — style-group SKU extractor drift (2026-07-08)
 
 ## What changed

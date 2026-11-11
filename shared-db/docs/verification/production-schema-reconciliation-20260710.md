@@ -1,3 +1,10 @@
+---
+summary: Audit of 2026-07-10 capturing production-only schema drift into canonical migrations and repairing the preview branch to match production.
+kind: proof
+status: done
+read-when: auditing production schema drift reconciliation of July 2026
+---
+
 # Production schema reconciliation audit - 2026-07-10
 
 ## Scope

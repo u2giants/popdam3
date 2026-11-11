@@ -1,3 +1,10 @@
+---
+summary: "Triage of the 2026-07-27 production migration backlog: 9 files, 3 safe no-ops promoted, 6 ColdLion files held; same-day update."
+kind: archive
+status: done
+read-when: reviewing the July 27 2026 migration backlog triage
+---
+
 # Production migration backlog triage — 2026-07-27
 
 **Database:** production `qsllyeztdwjgirsysgai` (PopDAM / PopSG, Virginia)

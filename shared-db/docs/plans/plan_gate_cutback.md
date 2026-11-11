@@ -1,3 +1,10 @@
+---
+summary: "Plan (2026-09-28) to cut back shared-db merge gates and fix stuck checks: measure API spend, ETag snapshot, quota re-runs, smaller required set."
+kind: plan
+status: open
+read-when: reducing merge-gate cost or choosing the required-check set
+---
+
 # Plan: cut back shared-db merge gates and fix the stuck checks permanently
 
 Handoff backlink: `HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md` (retired)

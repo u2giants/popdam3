@@ -1,3 +1,10 @@
+---
+summary: PSG-4 owner decision package for Batch 01 exact existing matches (51 rows, 44,331 files), pending Albert's explicit approval.
+kind: proof
+status: open
+read-when: deciding whether to approve PopSG Batch 01 property matches
+---
+
 # PSG-4 owner decision package: Batch 01 exact existing
 
 **Status:** PENDING ALBERT'S EXPLICIT PSG-4 APPROVAL

@@ -1,3 +1,10 @@
+---
+summary: "Phase 1 handoff for neutral Licensor/Property architecture and ColdLion cutover: repo context, core.licensor and core.property parent edge."
+kind: archive
+status: done
+read-when: reading the Phase 1 history of the ColdLion licensor property cutover
+---
+
 # Handoff — neutral Licensor/Property architecture and ColdLion cutover
 
 ## 1. What this application and repository are

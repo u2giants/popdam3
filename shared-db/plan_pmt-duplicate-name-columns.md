@@ -1,3 +1,10 @@
+---
+summary: Plan to remove the two duplicated property-name columns in the Paramount landing schema; migrations authored, step 1 blocked, column drop deferred
+kind: plan
+status: open
+read-when: finishing removal of duplicate Paramount property-name columns
+---
+
 # Implementation plan — remove the two duplicated property-name columns in the Paramount landing schema
 
 **Written:** 2026-08-14 · **Machine:** al8960ofc · **Agent:** claude (Opus 5)

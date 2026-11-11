@@ -1,3 +1,10 @@
+---
+summary: "Plan for bounded reviewer leases and GitHub API budget: quota-aware context, one lease ref per reviewer, transactional assignment; steps 0-5 done"
+kind: plan
+status: done
+read-when: changing reviewer lease assignment or GitHub API quota handling
+---
+
 # Implementation plan — bounded reviewer leases and GitHub API budget
 
 **Repository:** `u2giants/shared-db`

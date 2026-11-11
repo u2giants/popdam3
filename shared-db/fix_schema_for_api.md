@@ -1,3 +1,10 @@
+---
+summary: Migration plan for ColdLion ERP API-pull tables (raw, silver, canonical layers); Phase 1 live 2026-07-15, phases 2-5 pending, partly superseded by ruling 6.3.
+kind: plan
+status: open
+read-when: reading the ColdLion API-pull schema layering and phase plan
+---
+
 # Migration Plan — Fix the schema for Coldlion ERP API-pull tables
 
 **Repo:** `u2giants/shared-db` · **DB:** Supabase `qsllyeztdwjgirsysgai`

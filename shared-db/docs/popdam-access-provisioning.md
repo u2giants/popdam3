@@ -1,3 +1,10 @@
+---
+summary: "PopDAM access provisioning: the three permission axes (user_roles, app_access, app-schema roles) and why 18 of 35 users saw an empty Styles page."
+kind: ops
+status: current
+read-when: granting, revoking or debugging PopDAM user access
+---
+
 # PopDAM access provisioning — the three axes, and the trap
 
 **Read this before granting, revoking, or debugging access to PopDAM

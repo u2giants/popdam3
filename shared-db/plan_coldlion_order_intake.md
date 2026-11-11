@@ -1,3 +1,10 @@
+---
+summary: "Plan for automatic ColdLion order intake replacing manual OrderList rows: staging, routing-code map, quarantine, poller; audited by Qwen and Grok"
+kind: plan
+status: open
+read-when: building or auditing ColdLion automatic order intake phases
+---
+
 # Plan — ColdLion automatic order intake (replacing Adam's manual OrderList rows)
 
 **Created:** 2026-09-17 (ZCode session that ran the live ColdLion investigation).

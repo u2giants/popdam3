@@ -1,3 +1,10 @@
+---
+summary: 2026-06-20 cross-domain relationship map (mermaid) for the unified Supabase project linking core, pim, crm, dam and plm objects.
+kind: archive
+status: stale
+read-when: looking up early cross-schema relationship design from June 2026
+---
+
 # Unified Supabase Relationship Map
 
 Date: 2026-06-20

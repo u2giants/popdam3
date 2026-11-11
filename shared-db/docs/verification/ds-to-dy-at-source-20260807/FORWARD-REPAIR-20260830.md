@@ -1,3 +1,10 @@
+---
+summary: Preview refusal of migration 20260830195655 for DS licensor rows and forward repair with successor 20260830204711; production untouched.
+kind: proof
+status: done
+read-when: understanding why the DS to DY migration was refused and replaced
+---
+
 # Preview refusal and forward repair — 2026-08-30
 
 Migration `20260830195655` refused and rolled back transactionally in preview run `33333416016`. Production was untouched.

@@ -1,3 +1,10 @@
+---
+summary: Issue 5610 opening snapshot of the unused-index observation window (2026-11-04); earliest close review 2026-11-18, two candidates kept.
+kind: proof
+status: open
+read-when: closing the unused-index observation window on or after 2026-11-18
+---
+
 # Issue #5610 — opening index observation
 
 Observed: November 4, 2026, 10:35 PM EST (America/New_York).

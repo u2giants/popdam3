@@ -1,3 +1,10 @@
+---
+summary: "Plan and STATUS for re-scoping public.assets update triggers to stop no-op rework; migration 20261105033827 landed, WAL target unmet, issue #5609"
+kind: plan
+status: open
+read-when: "continuing issue #5609 assets trigger write-amplification acceptance"
+---
+
 # Plan: stop `public.assets` updates from re-running work nothing asked for
 
 Historical planning handoff (write-once record, not current execution state): [original assessment handoff](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md).

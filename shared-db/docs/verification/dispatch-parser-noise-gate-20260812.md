@@ -1,3 +1,10 @@
+---
+summary: "Issue 563 step 3a historical noise gate for the broadened DDL collision parser: pre-registered 20 percent rule, replay results, decision evidence for D12."
+kind: proof
+status: done
+read-when: checking the evidence that the broadened collision parser is not too noisy
+---
+
 # Step 3a — historical noise gate for the broadened collision parser
 
 **Date:** 2026-08-12

@@ -1,3 +1,10 @@
+---
+summary: "Design of the opt-in synthetic physical-cluster qualification for #4427 (owner #4890): native container backup, restore, actual-table plans, refusals."
+kind: spec
+status: current
+read-when: "changing or running the #4427 actual-table physical qualification helper"
+---
+
 # #4427 actual-table qualification — current physical design
 
 Owner: technical maintenance #4890; all business, production and live-proof acceptance remains on #4427. This source is an **opt-in synthetic qualification**, not a production executor. The current physical design supersedes the older logical-restore proposals; their authentic failures and published source remain retained below. The actual a735 local result is retained below; no full native374 result is claimed.

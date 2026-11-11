@@ -1,3 +1,10 @@
+---
+summary: 2026-07-15 PopDAM two-level metadata (sku_human_description, item_description, content_type) and rich PDF extraction; promoted to production.
+kind: archive
+status: done
+read-when: understanding DAM two-level asset metadata and PDF extraction
+---
+
 # PopDAM Two-Level Metadata + Rich PDF Extraction — 2026-07-15
 
 ## Status

@@ -1,3 +1,10 @@
+---
+summary: "Explains the pre-adoption baseline SQL letting a from-empty CI replay build schema no migration creates (issue #754); never applied to live DBs"
+kind: living
+status: current
+read-when: debugging from-empty migration replay or ephemeral CI database failures
+---
+
 # `supabase/ci-bootstrap/` — what a from-empty replay needs that the migrations do not supply
 
 **Nothing in this directory is a migration. Nothing in it is ever applied to preview or

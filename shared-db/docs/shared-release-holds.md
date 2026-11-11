@@ -1,3 +1,10 @@
+---
+summary: "Short proposal pointer for shared release hold reduction (issue #3779): plan steps, merge-stage baseline, step 3 implemented, steps 2 and 4-10 open."
+kind: plan
+status: open
+read-when: working on shared release hold or merge-lane hold reduction
+---
+
 # Shared release hold reduction proposal
 
 The [implementation plan](../plan_shared_release_hold_reduction.md) covers later

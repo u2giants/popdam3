@@ -1,3 +1,10 @@
+---
+summary: "Verification of ColdLion licensor/property Phase 1: additive mirror/review schema and scalar NOT NULL parent FK, applied to preview and production 2026-07-24."
+kind: proof
+status: done
+read-when: auditing the Phase 1 ColdLion mirror schema migration
+---
+
 # Verification — ColdLion licensor/property Phase 1 schema (revised)
 
 **Date:** 2026-07-24

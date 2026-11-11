@@ -1,3 +1,10 @@
+---
+summary: "Pointer stub: the Disney OPA property-to-character design document was removed from this repo on 2026-08-07 and moved to a private repository."
+kind: archive
+status: stale
+read-when: looking for where the removed Disney OPA design document went
+---
+
 # Design analysis — moved out of this repository, 2026-08-07
 
 > ## ⛔ The design document is NOT in this repository. This file is a pointer.

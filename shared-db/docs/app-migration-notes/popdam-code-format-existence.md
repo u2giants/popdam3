@@ -1,3 +1,10 @@
+---
+summary: "Reader dam_catalog_code_format_exists (#5696): service-role-only positive evidence that a code-looking search token matches a catalog code format."
+kind: spec
+status: current
+read-when: changing DAM product-code search intent handling
+---
+
 # PopDAM complete code-format existence (#5696)
 
 The settled [product-code search rule](../business-rules/digital-asset-classification-and-tags.md#product-code-searches)

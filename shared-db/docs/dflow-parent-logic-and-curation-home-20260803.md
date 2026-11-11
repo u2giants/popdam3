@@ -1,3 +1,10 @@
+---
+summary: Investigation of where DesignFlow writes the Licensor to Property parent (updateMerchGroup) and design for moving curation into DB Data Admin, 2026-08-03.
+kind: archive
+status: done
+read-when: tracing how DesignFlow sets merchGroup parent_id or the origin of parent curation design
+---
+
 # Where DesignFlow sets the Licensor → Property parent, and moving curation into DB Data Admin
 
 **Status:** READ-ONLY investigation and design. No migration authored, no database written, no dflow repo touched.

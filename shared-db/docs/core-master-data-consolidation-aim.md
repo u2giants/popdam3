@@ -1,3 +1,10 @@
+---
+summary: "Licensing Master Data architecture: source matrix and implementation contract for Licensor, Property, Character, Style Guide, Asset metadata and Franchise."
+kind: spec
+status: current
+read-when: implementing or checking the detailed licensing master-data architecture
+---
+
 # Licensing Master Data architecture
 
 > **Business authority moved 2026-08-18:** The companywide rule is

@@ -1,3 +1,10 @@
+---
+summary: "Adopted Uma plan (owner-approved 2026-10-13) to move DesignFlow production from Cloud SQL to Supabase: phases 0-5, parent #4248, dflow_prod, core.* later."
+kind: plan
+status: open
+read-when: "planning or checking DesignFlow production Cloud SQL to Supabase cutover phases (#4248, #770)"
+---
+
 # DesignFlow production: Cloud SQL → Supabase (adopted plan)
 
 **Status:** ADOPTED by the owner on 2026-10-13. Author: Uma (plan dated 2 October 2026), reproduced below unchanged after the owner decisions.

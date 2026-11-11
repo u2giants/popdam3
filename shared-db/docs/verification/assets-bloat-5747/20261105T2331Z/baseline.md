@@ -1,3 +1,10 @@
+---
+summary: "public.assets baseline before repack (#5747 Step 0): 3,496 MB total, 1,345 MB indexes, 125 MB TOAST, counts of indexes, constraints, triggers, ACLs."
+kind: proof
+status: done
+read-when: comparing assets table size and structure before the repack
+---
+
 # public.assets baseline before repack (popcre/shared-db#5747 Step 0)
 
 Captured read-only on production `qsllyeztdwjgirsysgai`, 6:31-6:35 PM EST 2026-11-05, via Supabase `execute_sql` (SELECT only).

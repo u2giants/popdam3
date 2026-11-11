@@ -1,3 +1,10 @@
+---
+summary: Reconciliation of core.factory to the corrected ColdLion /vendors table (510 to 93 rows) executed 2026-07-22, plus erp_vendor mirror refresh to 97.
+kind: archive
+status: done
+read-when: auditing the 2026-07-22 vendor reconcile of core.factory
+---
+
 # fix_vendor_reconcile.md — Reconcile `core.factory` to the corrected Coldlion `/vendors` table
 
 **Written:** 2026-07-22 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`

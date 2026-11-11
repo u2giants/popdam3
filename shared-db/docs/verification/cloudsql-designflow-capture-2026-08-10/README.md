@@ -1,3 +1,10 @@
+---
+summary: First live schema capture of DesignFlow production Cloud SQL (2026-08-10) and its divergence from Supabase dflow schema, replacing inference with measurement.
+kind: proof
+status: done
+read-when: comparing the Cloud SQL DesignFlow schema with Supabase dflow
+---
+
 # DesignFlow production Cloud SQL — first schema capture, and divergence vs Supabase `dflow`
 
 **Date:** 2026-08-10 · **Captured at:** 2026-08-10 23:29:49 UTC · **Branch:** `docs/cloudsql-designflow-capture`

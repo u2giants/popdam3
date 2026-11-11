@@ -1,3 +1,10 @@
+---
+summary: "Runbook for the safe DAM core licensor/property cutover Stage 0: residual-scoped DML backfill tool, ownership split with migrations, mapping contract"
+kind: ops
+status: current
+read-when: running or reviewing the DAM legacy-to-core licensor/property backfill
+---
+
 # Safe DAM core licensor/property cutover (Stage 0)
 
 This runbook completes the **already-in-flight** PopDAM cutover from legacy

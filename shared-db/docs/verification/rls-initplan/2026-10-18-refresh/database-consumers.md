@@ -1,3 +1,10 @@
+---
+summary: Indirect database consumers (functions, views) of RLS initplan target tables from the Oct 18, 2026 catalog; bodies not invoked, fingerprints bound.
+kind: proof
+status: done
+read-when: assessing indirect database dependents of RLS initplan target tables
+---
+
 # Indirect database consumers
 
 Fresh production catalog references, October 18, 2026 EDT. Function bodies were not invoked. Text references alone do not prove an active application call. Fingerprints bind these catalog definitions.

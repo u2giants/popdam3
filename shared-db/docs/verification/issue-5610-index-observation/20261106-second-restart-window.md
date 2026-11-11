@@ -1,3 +1,10 @@
+---
+summary: "Issue 5610 second restart: new observation opened 2026-11-06 11:25 AM EST, earliest eligibility 2026-11-20, exact catalog output and query; acceptance pending."
+kind: proof
+status: open
+read-when: deciding when unused-index removal in 5610 becomes eligible
+---
+
 # #5610 second restart: new measured observation, acceptance pending
 
 The owning coordinator retains [#5610](https://github.com/popcre/shared-db/issues/5610). A fresh target-proved, bounded read-only catalog collection observed another production restart. This record contains catalog metadata only; no business rows or licensed values were read/exported. No index/statistics/configuration/database write was performed.

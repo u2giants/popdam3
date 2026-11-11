@@ -1,3 +1,10 @@
+---
+summary: "Why supabase --version does not prove the pin (issue #688): v2.105.0 ships supabase and supabase-go binaries; verify by SHA-256 checksum."
+kind: ops
+status: current
+read-when: verifying the pinned Supabase CLI binary before a migration or promotion
+---
+
 # The Supabase CLI pin — why `supabase --version` does not establish it (#688)
 
 **Status:** live. This is the durable record issue #688 asked for.

@@ -1,3 +1,10 @@
+---
+summary: Unsent draft note to ColdLion about prodHistory/orderHistory endpoints; blocking questions answered 2026-08-19, one small question remains.
+kind: archive
+status: open
+read-when: sending or following up on ColdLion prodHistory/orderHistory questions
+---
+
 # DRAFT — note to ColdLion re: prodHistory / orderHistory
 
 **Status:** draft for Albert's review. Not sent. Send from Albert, not from an AI session.

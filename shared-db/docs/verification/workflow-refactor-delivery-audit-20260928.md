@@ -1,3 +1,10 @@
+---
+summary: "Shared database delivery audit 2026-09-27/28 (#3597): every open issue and PR with owner, stage, blocker, plus closed samples; superseded by acceptance."
+kind: archive
+status: done
+read-when: looking up the state of a specific issue or PR as of Sept 27-28, 2026
+---
+
 # Shared database delivery audit — 2026-09-27/28
 
 Read-only capture taken September 27, 2026, between 11:13 PM and 11:14 PM EDT, of GitHub issues, pull requests and 100 latest workflow runs, with a supplemental PR-comment read at 12:23 AM EDT on September 28. The queries were bounded in time but not atomic. Times are New York local time (EDT). The [redacted query capture](workflow-refactor-raw-capture-20260928.md) and [sanitized source inventory](workflow-refactor-source-inventory-20260928.md) retains all captured issue and PR identifiers, open-issue metadata and hashes, exact open-PR heads, check names/results/run links, and selected closed/merged details; public issue and PR bodies and captured open-issue comments are retained. The inventories below are observations, not proof of database application or application acceptance. Owner: [audit #3597](https://github.com/popcre/shared-db/issues/3597), non-orchestrator work. This report supplies current-state evidence for the existing plan and is superseded by its later acceptance report; it creates no second program tracker.

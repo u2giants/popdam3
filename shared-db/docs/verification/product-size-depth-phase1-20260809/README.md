@@ -1,3 +1,10 @@
+---
+summary: "Issue #597 Phase 1 preview-only evidence for Product Size and Product Depth, captured 2026-08-09; production apply not done by that session."
+kind: proof
+status: done
+read-when: auditing Product Size/Depth Phase 1 preview results
+---
+
 # Issue #597 Phase 1 — preview evidence (Product Size / Product Depth)
 
 **Environment: PREVIEW `rjyboqwcdzcocqgmsyel` ONLY. Nothing in this change set has been

@@ -1,3 +1,10 @@
+---
+summary: How to run preview performance fixtures in one always-rolled-back transaction with the rehearsal runner, its connection and SQL guards and production refusal.
+kind: ops
+status: current
+read-when: running a performance rehearsal on the preview database
+---
+
 # Preview performance rehearsals
 
 Performance fixtures must run inside one transaction that is always rolled back. This preserves immutable ledgers such as `dflow.sample_movement`, leaves planner statistics and application rows unchanged, and removes the old need to rebuild the shared preview branch merely to clear test data.

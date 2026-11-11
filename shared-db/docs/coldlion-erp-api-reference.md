@@ -1,3 +1,10 @@
+---
+summary: "Reference for the ColdLion ERP API: base URL, 19 endpoints re-verified 2026-07-23, auth, paging rules and the merch-group division matrix."
+kind: living
+status: current
+read-when: calling or loading from the ColdLion API and checking endpoint behavior
+---
+
 # Coldlion ERP (Edge Home) API — Reference & Sync Map
 
 > ### 🧭 ColdLion front door

@@ -1,3 +1,10 @@
+---
+summary: "Group-by-group Cloud SQL to Supabase DesignFlow cutover plan, SUPERSEDED 2026-10-06 by the owner choosing Uma's all-at-once plan (issue #770)"
+kind: plan
+status: stale
+read-when: only for the table-grouping reference of the Cloud SQL move; not to execute
+---
+
 # Plan — move DesignFlow PLM production off Cloud SQL onto Supabase, group by group
 
 > **SUPERSEDED (Albert Hazan, 2026-10-06, from his chat, verbatim: "yes, go with Uma's approach.").**

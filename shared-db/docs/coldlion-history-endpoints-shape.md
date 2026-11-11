@@ -1,3 +1,10 @@
+---
+summary: "Verified shape of ColdLion orderHistory and prodHistory feeds: 7-day window cap, prodLineSeq added 2026-08-17, row identity and census."
+kind: living
+status: current
+read-when: loading or interpreting ColdLion orderHistory and prodHistory data
+---
+
 # ColdLion `prodHistory` / `orderHistory` — data shape
 
 **Purpose:** what these two endpoints actually return, verified against live calls, so the

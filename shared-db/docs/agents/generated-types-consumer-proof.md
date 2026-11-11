@@ -1,3 +1,10 @@
+---
+summary: "How the Generate database types workflow produces proof for application-return outcomes using work_issue and consumer commit SHA (#4892, #4855)."
+kind: ops
+status: current
+read-when: running generated-types proof for a consumer-application structural issue
+---
+
 # Generated-types proof for application-return outcomes
 
 Owner: shared-db maintenance; tracked by #4892. This repairs the generated-types

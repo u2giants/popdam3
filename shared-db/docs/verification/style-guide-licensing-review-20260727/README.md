@@ -1,3 +1,10 @@
+---
+summary: "Licensing team review results (2026-07-27): style guide and character counts for existing MG06 code, never designed, multiple; MULTIPLE reconciliation."
+kind: proof
+status: done
+read-when: using licensing answers on style guide MG06 codes and MULTIPLE characters
+---
+
 # Licensing review results and MULTIPLE reconciliation
 
 **Captured:** 2026-07-27

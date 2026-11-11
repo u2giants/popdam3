@@ -1,3 +1,10 @@
+---
+summary: Issue 3601 read-only measurements of ColdLion replay proof access paths on non-production databases, 2026-10-09; no changes made.
+kind: proof
+status: done
+read-when: assessing ColdLion replay-proof query access paths and index needs
+---
+
 # Issue #3601 — ColdLion replay proof access-path measurements (read-only)
 
 **Measured:** 2026-10-09, 11:04 AM EDT (America/New_York) — machine edge-dev,

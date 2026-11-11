@@ -1,3 +1,10 @@
+---
+summary: "Plan to shorten reviewer-assignment holds, tracker #4414; all seven steps implemented and merged, issue closed 2026-10-19"
+kind: plan
+status: done
+read-when: reviewing how reviewer-assignment holds were shortened
+---
+
 # Brief, safe reviewer-assignment holds
 
 ## STATUS — read first

@@ -1,3 +1,10 @@
+---
+summary: DAM search_dam_documents change (#5730) deduplicating identical parsed FTS queries; source prepared, production and viewer proof still open.
+kind: spec
+status: open
+read-when: verifying or promoting the DAM identical FTS query dedup migration
+---
+
 # DAM identical parsed FTS query dedup (#5730)
 
 Source preparation; production and ordinary-viewer proof remain open. Application acceptance remains on PopDAM #725/#680/#706.

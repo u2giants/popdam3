@@ -1,3 +1,10 @@
+---
+summary: "Owner ruling 2026-08-13: core.properties_and_characters is a mixed table (500 properties, 9,622 character rows), never a property count."
+kind: living
+status: current
+read-when: counting properties or characters from properties_and_characters
+---
+
 # `core.properties_and_characters` is NOT a property list
 
 **Owner ruling, 2026-08-13.** Recorded so this is never confused again.

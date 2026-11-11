@@ -1,3 +1,10 @@
+---
+summary: "Issue 1015 forward-test evidence of the dynamic migration-author queue: serial same-object queue, lane limits, review cursor, retired risk booleans."
+kind: proof
+status: done
+read-when: verifying the dynamic migration queue builder behavior
+---
+
 # Issue #1015 forward-test evidence
 
 Date: 2026-08-14

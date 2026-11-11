@@ -1,3 +1,10 @@
+---
+summary: "Issue 3282 licensing-PDF backfill evidence: catalog-before snapshot, local disposable-PG proof on 100000 rows; preview timing still needed."
+kind: proof
+status: open
+read-when: checking the 3282 licensing PDF backfill proof and remaining preview rehearsal
+---
+
 # PDF backfill repair evidence (3282)
 
 `catalog-before.json` is a catalog-only production read captured 2026-09-20 through the proved `supabase_read_only_user` identity at the recorded project URL. It contains no application rows or secrets; all three routine bodies were inspected before publication.

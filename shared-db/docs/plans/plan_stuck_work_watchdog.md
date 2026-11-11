@@ -1,3 +1,10 @@
+---
+summary: "Plan (2026-09-28) for a stuck-PR watchdog: detector every 15 minutes, auto re-run of infra failures, fixer dispatch, plain-English alert to Albert."
+kind: plan
+status: open
+read-when: building the stuck-PR watchdog or reasoning about stuck-work alarms
+---
+
 # Plan: stuck-work watchdog, and whether GitHub fits a many-agent workflow
 
 Handoff backlink: `HANDOFF.d/2026-09-28T2000Z-edge-dev3-claude-gate-cutback-watchdog-plans.md` (retired)

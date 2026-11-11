@@ -1,3 +1,10 @@
+---
+summary: "Design for repairing PopSG broad Guides search (issue #4210), implemented via migrations 20261022032116 and 20261022043547 with measured results."
+kind: spec
+status: done
+read-when: changing or auditing the PopSG Guides search repair
+---
+
 # PopSG broad Guides search repair design — issue #4210
 
 Status: implemented by 20261022032116 (retired, unpromoted) and 20261022043547; see popsg-search-4210.md for measured results.

@@ -1,3 +1,10 @@
+---
+summary: "Entry page for the companywide business-rules library: topic organization, rule statuses (Settled, Proposed, Historical, Unknown) and what belongs here."
+kind: living
+status: current
+read-when: learning how business rules are organized and what status labels mean
+---
+
 # POP Creations business rules
 
 This directory is the companywide home for business logic: how POP Creations

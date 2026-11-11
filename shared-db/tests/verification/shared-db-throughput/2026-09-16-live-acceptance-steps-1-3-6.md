@@ -1,3 +1,10 @@
+---
+summary: "Live acceptance for #3027 Steps 1, 3, 6 (ai-devops#401): automatic promotion refusal path and other quoted run evidence, harvested 2026-09-16."
+kind: proof
+status: done
+read-when: auditing live proof of throughput Steps 1, 3 and 6
+---
+
 # Live acceptance evidence — #3027 Steps 1, 3, 6 (popcre/ai-devops#401)
 
 Harvested 2026-09-16 from real runs and outcome records produced by other

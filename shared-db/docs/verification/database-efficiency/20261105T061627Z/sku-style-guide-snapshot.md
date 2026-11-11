@@ -1,3 +1,10 @@
+---
+summary: Issue 5608 real-preview failure of catch-up at the 120-second limit and forward repair migration 20261105061627 with rollback rehearsals.
+kind: proof
+status: done
+read-when: understanding why 5608 needed the forward snapshot repair migration
+---
+
 # #5608: real-preview snapshot forward repair
 
 Owner: Codex child `sku_job`; coordination/delivery owner: original coordinator.

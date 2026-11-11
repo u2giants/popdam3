@@ -1,3 +1,10 @@
+---
+summary: "ColdLion Phase 4 guarded link_approved on preview: 542 approved mappings linked to 271 canonical UUIDs, hash-pinned, result PASS (2026-07-25/26)."
+kind: proof
+status: done
+read-when: verifying the Phase 4 ColdLion approved canonical linking
+---
+
 # ColdLion Licensor/Property Phase 4 — approved canonical linking
 
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only · **Date:** 2026-07-25/26

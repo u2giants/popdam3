@@ -1,3 +1,10 @@
+---
+summary: "Characters and style guides canonical migration plan: phases 0-2 complete (preview only), phase 3 backfill blocked on licensing round 3 answers."
+kind: plan
+status: open
+read-when: resuming the core.character and core.style_guide backfill work
+---
+
 # Characters and style guides — canonical migration plan
 
 **Status (2026-07-31): PHASES 0–2 COMPLETE. Phase 3 is BLOCKED on a second licensing round.**

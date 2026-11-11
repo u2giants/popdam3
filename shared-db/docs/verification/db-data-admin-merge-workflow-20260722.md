@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 9 database verification: protected Customer/Vendor merge preview with SHA-256 token and execute RPC behind merge_execute flag; preview only."
+kind: proof
+status: done
+read-when: auditing the DB Data Admin merge preview and execute contract
+---
+
 # DB Data Admin Step 9 database verification — 2026-07-22
 
 Status: applied and verified on preview only. Production is unchanged and the

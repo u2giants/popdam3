@@ -1,3 +1,10 @@
+---
+summary: Verification of migration 20260622043000 exposing CRM-owned contact segments (Cust, Dept, Triage) so popcrm-web loads contacts lazily.
+kind: proof
+status: done
+read-when: auditing CRM contact segment contracts
+---
+
 # CRM Contact Segments Verification
 
 Date: 2026-06-22

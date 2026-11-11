@@ -1,3 +1,10 @@
+---
+summary: Verification of the Supabase preview branch shared-db-schema-rehearsal built 2026-06-21 from the parent project, with field values.
+kind: proof
+status: stale
+read-when: checking history of the first preview branch build
+---
+
 # Preview Branch Build Verification
 
 Date: 2026-06-21

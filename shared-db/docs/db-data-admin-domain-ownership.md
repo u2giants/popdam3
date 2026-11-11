@@ -1,3 +1,10 @@
+---
+summary: Permanent rule that data.designflow.app belongs only to DB Data Admin, with owner table and retired-legacy boundary for every AI session.
+kind: living
+status: current
+read-when: deciding what data.designflow.app is or who owns its hostname, DNS and deploy
+---
+
 # `data.designflow.app` domain ownership
 
 ## Current and permanent meaning

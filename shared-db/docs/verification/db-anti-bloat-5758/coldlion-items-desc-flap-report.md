@@ -1,3 +1,10 @@
+---
+summary: "Vendor report for ColdLion: the /items endpoint intermittently omits merchGroup descriptions, two runs compared with evidence items (issue 5758 Step 1v)."
+kind: archive
+status: done
+read-when: citing the ColdLion description-flap evidence sent to the vendor
+---
+
 # ColdLion `/items` merchandise-group description flap — vendor report (#5758 Step 1v)
 
 Prepared 2026-11-05 for ColdLion support. Albert Hazan (POP Creations) sends this;

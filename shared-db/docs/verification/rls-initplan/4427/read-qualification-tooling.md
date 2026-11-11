@@ -1,3 +1,10 @@
+---
+summary: "Authenticated RLS read qualification tooling (#4874): bounded read-only plan workloads on profiles, admin_config, assets, style groups, report limits."
+kind: spec
+status: current
+read-when: using or changing the authenticated RLS read-plan qualification script
+---
+
 # Authenticated RLS read qualification tooling
 
 Tooling owner: Codex coordinator `01a17a03-63b6-7081-ab54-29fa144bf678`, issue #4874. Business acceptance remains on #4427. This is newly authored shared-db maintenance source, not publication or reclassification of private historical proposals/evidence.

@@ -1,3 +1,10 @@
+---
+summary: "Read-only inventory of Sample Tracking (2026-07-22): seven sample tables in dflow and plm on production and preview, memberships, rolled-back rehearsal."
+kind: proof
+status: done
+read-when: checking the pre-change Sample Tracking table and data inventory
+---
+
 # Sample Tracking — read-only catalog & data inventory (2026-07-22)
 
 Satisfies gates 1–3 of `fix_sample_tracking_schema.md` §14 (establish clean state,

@@ -1,3 +1,10 @@
+---
+summary: "Plan to deliver application work without artificial blocker chains (tracker #3306): evidence conflicts, audit dispositions; steps mixed partial and complete"
+kind: plan
+status: open
+read-when: continuing the shared-db workflow refactor steps still partial
+---
+
 # Shared-db workflow refactor: deliver application work without artificial blocker chains
 
 ## STATUS — read first

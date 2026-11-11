@@ -1,3 +1,10 @@
+---
+summary: Issue 5609 pre-change baseline of query ids, calls and execution times for assets trigger scoping, 2026-11-04.
+kind: proof
+status: open
+read-when: comparing assets trigger scoping results against the pre-change baseline
+---
+
 # Issue #5609 pre-change baseline
 
 Exact query IDs and updated pre-change cumulative counters, November 4, 2026,

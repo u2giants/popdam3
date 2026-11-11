@@ -1,3 +1,10 @@
+---
+summary: "Plan to make the nightly SKU to style-guide link job finish within the 120 s cap, issue #5608; persisted keys and batched resolver delivered, v4 snapshot live"
+kind: plan
+status: open
+read-when: finishing the nightly SKU style-guide link job fix (#5608)
+---
+
 # Plan: make the nightly SKU -> style guide link job finish
 
 Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); historical preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).

@@ -1,3 +1,10 @@
+---
+summary: "Grain-by-grain design of the ColdLion raw landing schema (2026-08-18); historical draft, phases 2-6 implemented via issue #1184."
+kind: plan
+status: stale
+read-when: reading original raw landing design rationale; later owner decisions supersede it
+---
+
 # Coldlion raw landing layer — grain-by-grain design (DRAFT for the orchestrator)
 
 > ### 🧭 ColdLion front door

@@ -1,3 +1,10 @@
+---
+summary: Historical note on the retired orchestrator role (admission test, sections 11b-11d); only the shape-change test and safety rules still bind.
+kind: archive
+status: stale
+read-when: understanding the retired orchestrator role history; do not follow its dispatch rules
+---
+
 # AGENTS.md — historical retirement note: §0.0-C admission test, §11b to §11d (retired orchestrator role)
 
 > **Historical / reference only.** The orchestrator role was retired by owner ruling

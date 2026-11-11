@@ -1,3 +1,10 @@
+---
+summary: Consensus ledger of the orchestrator throughput Phase 2 plan (#1738) with objections and dispositions from external reviewers; debate in progress at writing.
+kind: proof
+status: stale
+read-when: tracing why orchestrator throughput Phase 2 design decisions were made
+---
+
 # Orchestrator throughput Phase 2 — consensus ledger
 
 **Plan:** [`../../plan_orchestrator_throughput_phase_2.md`](https://github.com/popcre/shared-db/blob/main/plan_orchestrator_throughput_phase_2.md)

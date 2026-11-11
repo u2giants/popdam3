@@ -1,3 +1,10 @@
+---
+summary: "Live grain proof (2026-09-02) for ColdLion inventory and prodtracking feeds, issue #2175, with field counts and snapshot behavior."
+kind: proof
+status: done
+read-when: checking grain and shape evidence for ColdLion inventory and prodtracking landing tables
+---
+
 # ColdLion unit 5a — live grain proof for `/inventory` and `/prodtracking`
 
 Measured 2026-09-02 against `http://x5.coldlion.com/EhpApi`. Issue #2175, tracker #2081,

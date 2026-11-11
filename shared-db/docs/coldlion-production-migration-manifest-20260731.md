@@ -1,3 +1,10 @@
+---
+summary: Re-derived 2026-07-31 manifest showing 18 migrations, not 4, in the true production ColdLion Licensor/Property promotion set.
+kind: proof
+status: done
+read-when: auditing which migrations made up the ColdLion Licensor/Property production cutover
+---
+
 # ColdLion Licensor/Property — TRUE production migration manifest (2026-07-31)
 
 **Status:** re-derived from the live production ledger. Supersedes the migration

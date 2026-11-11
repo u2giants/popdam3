@@ -1,3 +1,10 @@
+---
+summary: "Issue 611 result for Supabase CLI 2.105.0: db push is atomic per migration file with its ledger row, but the batch is not one transaction."
+kind: proof
+status: done
+read-when: deciding how failed multi-file production db push runs leave state
+---
+
 # Issue #611 — is `supabase db push` atomic? **RUN. SETTLED for CLI 2.105.0.**
 
 **Date of run:** 2026-08-10 · **Machine:** the **hetz** VPS (Linux, Docker) ·

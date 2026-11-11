@@ -1,3 +1,10 @@
+---
+summary: "DAM customer hub bounded production forward (2026-07-27): verify two live DAM migrations, fix Rooms-to-Go matching, leave ColdLion taxonomy alone."
+kind: proof
+status: done
+read-when: auditing the DAM customer hub production forward
+---
+
 # DAM customer hub bounded production forward
 
 Date: 2026-07-27

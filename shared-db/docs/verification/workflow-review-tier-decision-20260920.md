@@ -1,3 +1,10 @@
+---
+summary: "Decision (2026-09-20): retain two independent reviewers per PR 3318 steps 13-14; no reviewer-count change activated."
+kind: archive
+status: stale
+read-when: tracing the history of the reviewer-count decision
+---
+
 # Workflow review-tier decision — 2026-09-20
 
 Decision: **retain two independent reviewers**. This records the conservative

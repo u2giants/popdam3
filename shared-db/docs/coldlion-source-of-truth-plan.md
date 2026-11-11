@@ -1,3 +1,10 @@
+---
+summary: Historical 2026-07-31 research plan for making ColdLion the source of truth for core master tables; cutover done, superseded by the licensing plan.
+kind: plan
+status: stale
+read-when: understanding the 2026-07-31 reasoning behind the ColdLion source-of-truth cutover
+---
+
 # Making ColdLion the source of truth for the `core.*` master tables
 
 > **STATUS — historical plan, not an execution guide (updated 2026-08-25)**

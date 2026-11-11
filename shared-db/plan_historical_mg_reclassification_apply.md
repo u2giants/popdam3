@@ -1,3 +1,10 @@
+---
+summary: Plan for guarded historical MG01-MG03 production reclassification of itemHeader rows via manifest digest; steps 1-5 still open, needs owner authorization
+kind: plan
+status: open
+read-when: applying the historical item merchandise-group reclassification to production
+---
+
 # Implementation plan: guarded historical MG01-MG03 production reclassification
 
 ## STATUS

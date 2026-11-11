@@ -1,3 +1,10 @@
+---
+summary: "AGENTS.md section 2.1 moved here: worktree-only rule, retiring worktrees after squash merges, HANDOFF.d contract, host/server boundary."
+kind: living
+status: current
+read-when: creating or retiring a worktree, or writing a HANDOFF.d file
+---
+
 # AGENTS.md — §2.1-W worktree-only rule, §2.1-H HANDOFF.d contract, §2.1 host/server boundary
 
 > Moved verbatim from `AGENTS.md` by issue #3481 so that file stays a short router. Section numbers and headings are unchanged; a citation of "AGENTS.md §X" resolves here. Relative link targets were re-pointed from this folder; no rule text changed.

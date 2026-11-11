@@ -1,3 +1,10 @@
+---
+summary: "DesignFlow sample tracking shared-database plan: quantity movements, ownership, closeouts, read models; applied to preview and production 2026-07-22 and 07-23."
+kind: plan
+status: done
+read-when: understanding the sample tracking schema, movements and completion semantics
+---
+
 # DesignFlow Sample Tracking — Shared Database Implementation Plan
 
 **Status:** APPLIED to preview **and production**. The full schema (restore +

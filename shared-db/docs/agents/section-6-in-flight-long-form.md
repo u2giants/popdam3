@@ -1,3 +1,10 @@
+---
+summary: "Full text of AGENTS.md section 6 in-flight narrative: ERP mirror relocation, ColdLion cutover scoreboard and prodHistory/orderHistory traps (2026-07-15)."
+kind: archive
+status: stale
+read-when: reading the historical ERP mirror relocation and ColdLion cutover narrative
+---
+
 # AGENTS.md §6 — what is in flight, full text
 
 Relocated from `AGENTS.md` on 2026-08-20 (issue #1331, PR #1212): the in-flight narrative that

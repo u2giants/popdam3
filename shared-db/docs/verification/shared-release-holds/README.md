@@ -1,3 +1,10 @@
+---
+summary: "Index of the shared release holds evidence folder for #3779 and plan_shared_release_hold_reduction, listing the baseline and call-site audit files."
+kind: proof
+status: current
+read-when: finding evidence files for the shared release hold reduction plan
+---
+
 # Shared release holds — verification evidence
 
 Evidence folder for [#3779](https://github.com/popcre/shared-db/issues/3779) and

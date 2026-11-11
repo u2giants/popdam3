@@ -1,3 +1,10 @@
+---
+summary: "README for the manifest builder and guarded executor for historical item MG reclassification (issue #1984); not yet run against any live database"
+kind: ops
+status: open
+read-when: using the historical item merchandise-group reclassification tooling
+---
+
 # Historical item merch-group reclassification tooling
 
 Implements steps 1 and 2 of section 9 of `plan_historical_mg_reclassification_apply.md`:

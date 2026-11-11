@@ -1,3 +1,10 @@
+---
+summary: Step 7A fix closing the Step 5.6 cross-check blind spot in plm.promote_coldlion_source_owned; proven offline only, not yet applied to preview.
+kind: proof
+status: open
+read-when: changing the ColdLion promotion Step 5.6 cross-check
+---
+
 # ColdLion Step 7A — closing the Step 5.6 cross-check blind spot (2026-07-31)
 
 **Status: authored and proven OFFLINE. NOT yet applied to preview, NOT rehearsed against a

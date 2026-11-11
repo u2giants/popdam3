@@ -1,3 +1,10 @@
+---
+summary: "Landing table and loader contract for ColdLion itemImages metadata (issue #2179): fourteen fields kept, grain key pkey, no image bytes."
+kind: spec
+status: current
+read-when: writing or changing the ColdLion itemImages metadata loader
+---
+
 # ColdLion `/itemImages` metadata — landing table and loader contract (issue #2179)
 
 **Owner decision (2026-09-28, Albert Hazan, chat):** "keep" — ingest all fourteen

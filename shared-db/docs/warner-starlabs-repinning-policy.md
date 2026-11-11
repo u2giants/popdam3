@@ -1,3 +1,10 @@
+---
+summary: "RETIRED policy for re-pinning first-generation Warner STARLABS loader baseline counts; superseded by eleven normalized files (issue #958)."
+kind: archive
+status: stale
+read-when: understanding the old Warner STARLABS loader baseline count wall
+---
+
 # Re-pinning the Warner STARLABS baseline counts
 
 **Status: RETIRED for new loads by issue #958.** The eight first-generation loaders and

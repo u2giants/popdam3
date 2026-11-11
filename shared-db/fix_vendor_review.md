@@ -1,3 +1,10 @@
+---
+summary: "Vendor (core.factory) review, dedup and status curation: 4 not-a-factory purges, 6 directus reassignments, 9 merges; production complete 2026-07-21."
+kind: archive
+status: done
+read-when: auditing the 2026-07 vendor dedup and curation on core.factory
+---
+
 # fix_vendor_review — Vendor (core.factory) review, dedup & status curation
 
 **Written:** 2026-07-17 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`

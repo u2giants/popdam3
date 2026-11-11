@@ -1,3 +1,10 @@
+---
+summary: "Refresh and test specification for #4426: 69 policy identities on 49 tables reconciled to live catalog, role-enforced baseline timings, per-family manifests."
+kind: spec
+status: done
+read-when: "reviewing the #4426 RLS initplan inventory reconciliation and test design"
+---
+
 # Refresh and test specification for #4426
 
 October 18, 2026 EDT. Verified production API: https://qsllyeztdwjgirsysgai.supabase.co . Snapshot source main: 977eec03bf3504646efb738b6e523793e2066333. Original candidate: 61517ebd5d682bdc5844bfd90d33e23ba2f9876d. No database mutation, migration reservation, structural claim or stage lease occurred.

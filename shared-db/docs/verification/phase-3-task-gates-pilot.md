@@ -1,3 +1,10 @@
+---
+summary: "Phase 3 pilot of task gates in shared-db: routing measurement, no-loss ledger of AGENTS.md headings, policy and trigger evidence, rollback rehearsal."
+kind: proof
+status: done
+read-when: reviewing the task-gate pilot and the AGENTS.md no-loss ledger
+---
+
 # Phase 3 task-gate pilot — `u2giants/shared-db`
 
 ## Scope and routing measurement

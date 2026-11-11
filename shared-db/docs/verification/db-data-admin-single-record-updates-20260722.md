@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 8 database verification: admin-only Customer/Vendor update RPCs with whitelist, updated_at tokens, audit ledger; write gate off."
+kind: proof
+status: done
+read-when: auditing DB Data Admin single-record update RPCs
+---
+
 # DB Data Admin Step 8 database verification — 2026-07-22
 
 Status: applied and verified on preview only. Production is unchanged and the

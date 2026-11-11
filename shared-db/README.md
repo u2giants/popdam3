@@ -68,6 +68,7 @@ the rule even before reading app-specific docs.
 ## Current Documents
 
 - [Cross-app coordination playbook](AGENTS.md) - **read first.** Operating guide and documentation router: project summary, task→doc map, structure, credentials *names*, deployment, quirks, owner rulings, and the merge protocol.
+- [Document index](docs/INDEX.md) - generated one-line summary of every document; search it before opening anything else. Never hand-edit it.
 - [Architecture](docs/architecture.md) - shared Supabase design: schemas, ownership, data flow, migration model, contracts.
 - [Development](docs/development.md) - worktrees, offline tests, authoring a migration, Windows traps.
 - [Configuration](docs/configuration.md) - env vars and config files (names only; secrets stay in 1Password).

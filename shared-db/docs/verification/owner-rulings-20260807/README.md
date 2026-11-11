@@ -1,3 +1,10 @@
+---
+summary: Owner rulings by Albert Hazan on 2026-08-07, with rulings 2 and 4 superseded on 2026-08-09; ruling 1 on per-licensor landing tables stands.
+kind: archive
+status: stale
+read-when: checking what the 2026-08-07 owner rulings said and which were superseded
+---
+
 # Owner rulings — Albert Hazan, 2026-08-07
 
 > ## ⚠️ UPDATED 2026-08-09 — rulings 2 and 4 are SUPERSEDED. Do not act on them.

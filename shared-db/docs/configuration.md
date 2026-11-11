@@ -1,3 +1,10 @@
+---
+summary: Names and locations of environment variables and secrets (1Password items, project refs, GitHub variables) for shared-db; no secret values.
+kind: living
+status: current
+read-when: finding where a shared-db setting or secret is configured
+---
+
 # Configuration
 
 Names and locations only. **Never commit secret values.** Canonical secrets

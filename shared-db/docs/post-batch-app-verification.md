@@ -1,3 +1,10 @@
+---
+summary: "Runnable post-batch application verification script (issue #711, ruling D7): how to run it after each production batch and what it cannot check."
+kind: ops
+status: current
+read-when: verifying DesignFlow, CRM and DAM apps after a production migration batch
+---
+
 # Post-batch application verification — the runnable half of §7
 
 **Issue:** [#711](https://github.com/u2giants/shared-db/issues/711) — owner ruling **D7**.

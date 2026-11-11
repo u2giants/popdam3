@@ -1,3 +1,10 @@
+---
+summary: "DB Data Admin Step 10 UI verification: read-only Licensor to Property tree screen, relationship authority, anomaly display, local lint/test/build evidence."
+kind: proof
+status: done
+read-when: reviewing the DB Data Admin licensor property tree UI evidence
+---
+
 # DB Data Admin Step 10 UI verification — 2026-07-22
 
 Step 10 adds the fully read-only Licensor → Property tree. It is the taxonomy

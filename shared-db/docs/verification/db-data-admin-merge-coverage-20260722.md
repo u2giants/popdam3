@@ -1,3 +1,10 @@
+---
+summary: DB Data Admin Step 5 merge engine coverage of all 42 foreign keys to core.customer and core.factory, extension-row conflict rules; preview only.
+kind: proof
+status: done
+read-when: checking which relationships the Customer/Vendor merge engines cover
+---
+
 # DB Data Admin merge-engine and FK-coverage verification — 2026-07-22
 
 ## Scope

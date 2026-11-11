@@ -1,3 +1,10 @@
+---
+summary: "Batched runtime evidence 2026-10-26 (run 40430518093, PR #4863): 2124 access outcomes pairwise equal, 198 perf samples, no regression; not production."
+kind: proof
+status: done
+read-when: "auditing the 2026-10-26 batched RLS runtime run for #4427"
+---
+
 # Batched runtime evidence 2026-10-26 (run 40430518093, attempt 2)
 
 Captured from the Database Contract Tests run of PR #4863 head 96e0e2c6e — the source carrying the

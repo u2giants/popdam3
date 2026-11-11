@@ -1,3 +1,10 @@
+---
+summary: "Issue 3614 evidence that four read-only observer files for #2870 were restored byte-identical to a commit, with SHA-256 table and refs/db-contracts generations."
+kind: proof
+status: done
+read-when: auditing the 2870 observer restoration and its hash pins
+---
+
 # Issue #3614: read-only observer restoration evidence
 
 The four restored files are byte-identical to shared-db commit

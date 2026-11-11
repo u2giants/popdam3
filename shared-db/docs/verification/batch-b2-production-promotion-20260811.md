@@ -1,3 +1,10 @@
+---
+summary: "Batch B2 production promotion evidence (issues 730, 710, claim 740): applied and verified 2026-08-11, ledger 373 to 376, three apps pass post-batch harness."
+kind: proof
+status: done
+read-when: auditing the 2026-08-11 production batch B2 apply
+---
+
 # Batch B2 production promotion — evidence (2026-08-11)
 
 Issues: #730, #710. Claim: #740. Target: **production `qsllyeztdwjgirsysgai`** (confirmed live via

@@ -1,3 +1,10 @@
+---
+summary: "Re-measured 2026-07-24 production baseline for the ColdLion licensor/property cutover, replacing the older 20/256 planning figures after PR #198."
+kind: proof
+status: done
+read-when: checking the licensor/property cutover starting counts before Phase 0
+---
+
 # Licensor / property cutover — re-measured baseline (2026-07-24)
 
 > **Residual Phase 0 evidence completed later the same day.** The full per-division

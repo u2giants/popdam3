@@ -1,3 +1,10 @@
+---
+summary: "Live acceptance for #3027 process Steps 2, 2A, 4, 7 (ai-devops#401) with PROVEN/NOT PROVEN verdicts quoting live records, 2026-09-16."
+kind: proof
+status: done
+read-when: auditing live proof of throughput Steps 2, 2A, 4 and 7
+---
+
 # Live acceptance evidence — popcre/ai-devops#401 Steps 2, 2A, 4, 7
 
 - Issue: u2giants/shared-db#3027 (process half: Steps 2, 2A, 4, 7). Steps 1/3/6 are recorded separately.
