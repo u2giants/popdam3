@@ -133,7 +133,7 @@ const sgSearch = (query, mode) => timed(async () => {
   // Same as the live page: a known name inside the words is listed after the all-word matches.
   const after = semantic.fallback && semantic.fallbackAfterMatches ? await popsgQuery(semantic.fallback) : null;
   const search = (p_query, p_fallback_query = null) => viewerPost("/rest/v1/rpc/search_style_guide_library_v2", {
-    p_result_mode: mode, p_query, p_sort: "relevance", p_limit: 50, p_offset: 0,
+    p_result_mode: mode, p_query, p_sort: "relevance", p_limit: 50, p_offset: 0, p_include_facets: false,
     ...(p_fallback_query ? { p_fallback_query } : {}),
     ...(semantic.embedding ? { p_query_embedding: semantic.embedding } : {}),
     ...(semantic.embedding && semantic.floor != null ? { p_min_semantic_score: semantic.floor } : {}),

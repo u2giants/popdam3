@@ -5685,6 +5685,7 @@ export type Database = {
         Args: {
           p_extensions?: string[]
           p_fallback_query?: string
+          p_include_facets?: boolean
           p_licensors?: string[]
           p_limit?: number
           p_min_semantic_score?: number

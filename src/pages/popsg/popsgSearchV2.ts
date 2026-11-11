@@ -215,6 +215,8 @@ export function buildPopSGV2Args(request: PopSGSearchRequest) {
       ? request.minSemanticScore
       : undefined,
     p_fallback_query: (request.filters.query && request.fallbackQuery) || undefined,
+    // The page never shows facet totals; skipping them saves ~1/3 of broad searches (#804).
+    p_include_facets: false,
   };
 }
 
