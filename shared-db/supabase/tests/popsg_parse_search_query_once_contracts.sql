@@ -1,7 +1,7 @@
 begin;
 -- Read-only post-apply search contract. Performance proof remains on #4210.
 select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)')
-  and md5(prosrc) = '2ad029bcd9441c547f09d4c6425acd9c' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+  and md5(prosrc) = '1f46e5aea20131b84b615f1a68caed3a' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
   and prorettype = 'jsonb'::regtype
   and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB'])
   and to_regtype('public.app_name') is not null
@@ -57,7 +57,7 @@ do $contract$
 declare b text; passed boolean;
 begin
  select exists (select 1 from pg_proc where oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)')
-  and md5(prosrc) = '2ad029bcd9441c547f09d4c6425acd9c' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
+  and md5(prosrc) = '1f46e5aea20131b84b615f1a68caed3a' and proowner = 'postgres'::regrole and prosecdef and provolatile = 's'
   and prorettype = 'jsonb'::regtype
   and (select coalesce(array_agg(setting order by setting), '{}') from unnest(coalesce(proconfig, '{}'::text[])) setting) = array['search_path=pg_catalog, auth','statement_timeout=30s','work_mem=64MB'])
   and to_regtype('public.app_name') is not null

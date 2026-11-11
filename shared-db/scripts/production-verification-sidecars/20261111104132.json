@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261111104132",
+  "migration_sha256": "377c833958d6f8d030eae448c47f51c57063dbae348ca951d04281a64d36c3cc",
+  "checks": [
+    {
+      "id": "popsg_search_v2_optional_facets_fast_path",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_optional_facets_v2",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 420,
+      "line_end": 420,
+      "disposition": "checks",
+      "check_ids": [
+        "popsg_search_v2_optional_facets_fast_path"
+      ],
+      "reason": "This marker covers the dynamic guides-body execution at line 420, unchanged from 20261111094736. The migration replaces the 19-argument body in place so the unfiltered default-browse fast path also returns facets as {} when p_include_facets is false. The catalog check pins the exact installed body, settings and privileges, and the absence of the 17- and 18-argument overloads. Contract 15 in supabase/tests/popsg_search_style_guide_library_v2_contracts.sql asserts the behavior on both the query path and the default-browse path."
+    }
+  ]
+}

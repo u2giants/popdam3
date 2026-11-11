@@ -22,7 +22,7 @@ begin
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
   end if;
-  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)'))) <> '2ad029bcd9441c547f09d4c6425acd9c' then
+  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)'))) <> '1f46e5aea20131b84b615f1a68caed3a' then
     raise exception 'contract 1: v2 search body is not the reviewed semantic stage-2 body';
   end if;
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is not null then
@@ -30,6 +30,9 @@ begin
   end if;
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is not null then
     raise exception 'contract 1: the 17-argument overload must be dropped';
+  end if;
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)') is not null then
+    raise exception 'contract 1: the 18-argument overload must be dropped';
   end if;
   if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)', 'execute') then
     raise exception 'contract 1: anon can execute v2 search';
@@ -444,6 +447,13 @@ begin
        or public.search_style_guide_library_v2(p_result_mode => v_mode, p_query => 'zz887name')->'facets'
           = '{}'::jsonb then
       raise exception 'contract 15: % p_include_facets must drop only the facets', v_mode;
+    end if;
+    -- the unfiltered default browse (snapshot fast path) honors it too (#6039)
+    if (public.search_style_guide_library_v2(p_result_mode => v_mode, p_include_facets => false) - 'facets')
+       is distinct from (public.search_style_guide_library_v2(p_result_mode => v_mode) - 'facets')
+       or public.search_style_guide_library_v2(p_result_mode => v_mode, p_include_facets => false)->'facets'
+          is distinct from '{}'::jsonb then
+      raise exception 'contract 15: % default browse must honor p_include_facets', v_mode;
     end if;
   end loop;
 
