@@ -175,14 +175,23 @@ OrderList column; they stay in the stored raw sheet.
 
 **Identity and matching (database function).** One line per customer + style +
 delivery date. A line created or claimed earlier is found by its own
-`popdam_buy_sheet` source ref, so a revised sheet updates it and never
-duplicates. Otherwise exactly one active line of that customer, style and start
+`popdam_buy_sheet` source ref, so a re-upload never duplicates. Otherwise exactly one active line of that customer, style and start
 ship date (for example the Google line on D3722) is claimed: quantity and case
 pack are set, its Google refs stay. Held instead: several candidates, a line
 whose official PO is already on it from ColdLion, a voided line, or a new pack
 without an order number. Customer PO and status are left as they are (blank /
 the order's status until the official PO). Item links use the exact unique
 style-tracker bridge rule of the OrderList editor; others are reported.
+
+**Revised sheets are stopped (owner rule 2026-11-10).** Burlington's sheet is
+entered only after the buyer commits and is almost never revised afterwards, so
+revisions are not handled. A line that would change or add to an order an
+earlier buy-sheet upload filled shows as "Revision"; the screen shows a stop
+message, Import stays disabled, and the database refuses the whole sheet
+(shared-db PR 6026). An identical re-upload shows "Unchanged". Business rule and
+the Fabi → JamieLynn → master SKU process: shared-db
+`docs/business-rules/erp-orders-and-source-meaning.md` → *Burlington HFC (bulk)
+buy sheet*.
 
 **Official PO later.** The ColdLion intake treats `popdam_buy_sheet` lines like
 Google lines: the no-sales-order production link (D-number + style, shared-db
