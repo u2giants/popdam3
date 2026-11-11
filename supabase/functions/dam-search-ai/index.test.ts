@@ -261,9 +261,12 @@ describe("DAM search embedding availability", () => {
     expect((await search("zorb studios toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{ semanticLicensorIds: ["11111111-1111-4111-8111-111111111111"] }]);
     // The picture floor is anchored on the same licensor's best picture (popcre/shared-db#6024).
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor_scoped", expect.objectContaining({
-      p_licensor_ids: ["11111111-1111-4111-8111-111111111111"],
-    }));
+    expect(state.rpc).toHaveBeenCalledWith(
+      "dam_search_semantic_anchor_scoped",
+      expect.objectContaining({
+        p_licensor_ids: ["11111111-1111-4111-8111-111111111111"],
+      }),
+    );
     expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
     state.rpc.mockClear();
     expect((await search("plain toy chest")).status).toBe(200);
