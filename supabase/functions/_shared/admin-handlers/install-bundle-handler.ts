@@ -11,7 +11,7 @@ export async function handleGenerateInstallBundle(
   body: Record<string, unknown>,
   userId: string,
 ) {
-  const JSZip = await import("https://esm.sh/jszip@3.10.1");
+  const { default: JSZip } = await import("npm:jszip@3.10.1");
 
   const agentType = requireString(body, "agent_type");
   if (!["bridge", "windows-render"].includes(agentType)) {

@@ -14,7 +14,7 @@
  */
 
 import { createClient } from "../_shared/supabase-js.ts";
-import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5";
+import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.10.0";
 import { corsServe, err, json } from "../_shared/http.ts";
 
 const AUTHENTIK_ISSUER = "https://auth.designflow.app/application/o/popdam/";
