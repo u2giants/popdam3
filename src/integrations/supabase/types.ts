@@ -4742,6 +4742,14 @@ export type Database = {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
       }
+      dam_search_semantic_anchor_scoped: {
+        Args: {
+          p_document_types?: string[]
+          p_licensor_ids?: string[]
+          p_query_embedding: string
+        }
+        Returns: number
+      }
       dam_search_semantic_anchors: {
         Args: {
           p_document_types?: string[]
