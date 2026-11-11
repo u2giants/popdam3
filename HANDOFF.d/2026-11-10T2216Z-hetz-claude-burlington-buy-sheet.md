@@ -75,8 +75,19 @@ and keep the import correct for later sheets.
    quantity previews as "Revision" on D3734). Build revision handling only when
    a real revised sheet appears. Process and rule: shared-db
    `docs/business-rules/erp-orders-and-source-meaning.md` → *Burlington HFC
-   (bulk) buy sheet* (PR 6027). Proposed next: suggest each assortment's Item
-   Description from its styles (rule-based; needs JamieLynn's acceptance).
+   (bulk) buy sheet* (PR 6027). Assortment Item Description suggestion is
+   built and live (popdam3 PR 938; lower-case SKU lookup fix PR 950): the
+   preview shows a suggested description per assortment with a Copy button.
+   Still waiting on JamieLynn to accept the wording format; change only
+   `src/lib/assortment-description.ts` if she asks for a different format.
+6. **Sandbox test site — remove no-login only on Albert's word.**
+   https://dam-sandbox.designflow.app (preview database, copy of the latest 500
+   OrderList lines) opens with no login since 2026-11-11 for Albert's one-day
+   test. Albert said: "don't set automatic removal. i will come to you when i'm
+   ready to remove". When he says so, run
+   `~/.local/share/popdam-sandbox/expire-sandbox-login.sh` on hetz and close
+   issue [#952](https://github.com/u2giants/popdam3/issues/952). Details:
+   docs/deployment.md → Sandbox site.
 5. ~~main CI sibling-scan failure~~ — fixed (main CI green 2026-11-10).
 
 ## 5. What was tried and failed
@@ -115,5 +126,5 @@ Live test login: 1Password `vibe_coding` administrator tester item (see memory
 
 ## 9. Retention
 
-Delete this file when item 1 is proven on live Burlington data and items 2–4
-are resolved or ruled on.
+Delete this file when item 1 is proven on live Burlington data, items 2–5
+are resolved or ruled on, and item 6 (sandbox no-login) is removed.
