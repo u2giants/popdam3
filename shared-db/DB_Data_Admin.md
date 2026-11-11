@@ -9,7 +9,7 @@ read-when: any DB Data Admin (data.designflow.app) work; migrations cite this fi
 
 Status: **approved direction; implementation not started**  
 Decision date: **2026-07-21**  
-Owner and code repository: **`u2giants/shared-db`**
+Owner and code repository: **`popcre/shared-db`**
 
 Frontend location: **`apps/db-data-admin/` in `u2giants/popdam3`** (moved from this repository on 2026-09-16, popdam3 PR #135)
 
