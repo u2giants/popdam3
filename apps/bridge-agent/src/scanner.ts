@@ -18,7 +18,7 @@ import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/pat
 
 import {
   isFilenameExcludedByRules, isFolderExcludedByRules, matchesImageRules, matchesPdfRules,
-  normalizeIngestionRules, RASTER_EXTENSIONS as RASTER_LIST, SUPPORTED_EXTENSIONS as SUPPORTED_LIST,
+  normalizeIngestionRules, RASTER_EXTENSIONS as RASTER_LIST, SUPPORTED_EXTENSIONS as SUPPORTED_LIST, takesAnyPdfInFolder,
   type IngestionRule,
 } from "./common/ingestion-rules.js";
 
@@ -161,6 +161,12 @@ async function* scanDirectory(
       .map((e) => e.name.toLowerCase().replace(/\.[^.]+$/, "")),
   );
 
+  // A style's own folder with no .ai/.psd: its PDFs are the design, whatever their name.
+  const anyPdfTaken = takesAnyPdfInFolder(
+    dirPath.split(/[\\/]/).filter(Boolean),
+    entries.filter((e) => e.isFile()).map((e) => e.name),
+  );
+
   for (const entry of entries) {
     if (callbacks?.shouldAbort?.()) return;
 
@@ -229,8 +235,9 @@ async function* scanDirectory(
       continue;
     }
 
-    // PDF keyword filter: only accept PDFs matching specific document types
-    if (ext === ".pdf" && !isPdfCandidate(entry.name)) {
+    // PDF keyword filter: only accept PDFs matching specific document types,
+    // or any PDF in a style folder that has no art file.
+    if (ext === ".pdf" && !anyPdfTaken && !isPdfCandidate(entry.name)) {
       counters.rejected_wrong_type++;
       continue;
     }

@@ -146,6 +146,9 @@ export default function IngestionRulesTab() {
           <BuiltIn title="Always ingested"><Chips items={[".psd", ".ai"]} /></BuiltIn>
           <BuiltIn title="PDFs: only if the name contains any of these"><Chips items={PDF_KEYWORDS} /></BuiltIn>
           <BuiltIn title="PNG, JPG, JPEG: only if the name contains any of these"><Chips items={IMAGE_KEYWORDS} /></BuiltIn>
+          <BuiltIn title="PDFs in a style folder with no art file">
+            Under "____New Structure", any PDF sitting directly in a style's own folder is ingested when that folder has no .ai or .psd file.
+          </BuiltIn>
           <BuiltIn title="AI files with a matching PDF">
             An .ai file is skipped when a PDF with the same name is in the same folder.
           </BuiltIn>
@@ -247,7 +250,7 @@ export default function IngestionRulesTab() {
               <span>{verdict.ingested ? "Would be ingested." : "Would be skipped."} {verdict.reason}</span>
             </p>
           )}
-          <p className="text-xs text-muted-foreground">Checks the name and folders only, not the date cutoff or a matching PDF.</p>
+          <p className="text-xs text-muted-foreground">Checks the name and folders only, not the date cutoff, a matching PDF, or the other files in the folder.</p>
         </CardContent>
       </Card>
 

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  EXCLUDED_FOLDERS, explainIngestion, IngestionRule, matchesImageRules, normalizeIngestionRules, validateIngestionRuleValue,
+  EXCLUDED_FOLDERS, explainIngestion, IngestionRule, matchesImageRules, normalizeIngestionRules, takesAnyPdfInFolder, validateIngestionRuleValue,
 } from "./ingestion-rules";
 
 const rule = (kind: IngestionRule["kind"], value: string, enabled = true): IngestionRule => ({ id: value, kind, value, enabled });
@@ -46,6 +46,20 @@ describe("ingestion rules", () => {
     expect(explainIngestion("a/draft-art.psd", [rule("filename_exclude", "draft")]).ingested).toBe(false);
     expect(explainIngestion("Temp/art.psd", [rule("folder_exclude", "temp")]).ingested).toBe(false);
     expect(explainIngestion("Temporary/art.psd", [rule("folder_exclude", "temp")]).ingested).toBe(true);
+  });
+
+  it("takes any PDF in a New Structure style folder that has no art file", () => {
+    const folder = ["Decor", "Character Licensed", "____New Structure", "In Development", "SQX26DYMM03"];
+    expect(takesAnyPdfInFolder(folder, ["SQX26DYMM03 DE METAL SIGN.pdf", "SQX26DYMM03.jpg", "Thumbs.db"])).toBe(true);
+    expect(takesAnyPdfInFolder(folder, ["a.pdf", "art.PSD"])).toBe(false);
+    expect(takesAnyPdfInFolder(folder, ["a.pdf", "art.ai"])).toBe(false);
+    expect(takesAnyPdfInFolder(folder, ["a.pdf", "._art.ai"])).toBe(true);
+    expect(takesAnyPdfInFolder([...folder, "PPS Photos"], ["audit.pdf"])).toBe(false);
+    expect(takesAnyPdfInFolder(["Decor", "Old", "SQX26DYMM03"], ["a.pdf"])).toBe(false);
+    expect(takesAnyPdfInFolder(["Decor", "____New Structure", "WALL ART"], ["a.pdf"])).toBe(false);
+    expect(explainIngestion("Decor/____New Structure/SQX26DYMM03/DE METAL SIGN.pdf", []).ingested).toBe(true);
+    expect(explainIngestion("Decor/____New Structure/SQX26DYMM03/PPS Photos/audit.pdf", []).ingested).toBe(false);
+    expect(explainIngestion("Decor/____New Structure/SQX26DYMM03/draft.pdf", [rule("filename_exclude", "draft")]).ingested).toBe(false);
   });
 
   it("lets an exclusion beat an inclusion", () => {
