@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261111094736",
+  "migration_sha256": "0a377bb3b394c3a0a84af6d3c142bcd2748074360187a519061cc77ddc25bf0f",
+  "checks": [
+    {
+      "id": "popsg_search_v2_optional_facets",
+      "kind": "catalog_contract",
+      "contract": "popsg_search_v2_optional_facets_v1",
+      "expected_count": 1
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 426,
+      "line_end": 426,
+      "disposition": "checks",
+      "check_ids": [
+        "popsg_search_v2_optional_facets"
+      ],
+      "reason": "This marker covers the dynamic guides-body execution at line 426. The migration replaces the 18-argument function with a 19-argument one ending in p_include_facets; false returns facets as an empty object in files-mode and guides-mode without computing them. The catalog check pins the exact installed body, settings and privileges and the absence of the old signature, not result behavior. Contract 15 in supabase/tests/popsg_search_style_guide_library_v2_contracts.sql separately asserts that only the facets change, in both modes, when CI runs the SQL contracts."
+    }
+  ]
+}

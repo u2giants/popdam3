@@ -19,10 +19,10 @@ declare
   v_result jsonb;
   v_mode text;
 begin
-  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)') is null then
+  if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)') is null then
     raise exception 'contract 1: v2 search RPC is missing';
   end if;
-  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)'))) <> 'a4387673de2ace2e455412894ccf93ce' then
+  if md5((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)'))) <> '2ad029bcd9441c547f09d4c6425acd9c' then
     raise exception 'contract 1: v2 search body is not the reviewed semantic stage-2 body';
   end if;
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer)') is not null then
@@ -31,10 +31,10 @@ begin
   if to_regprocedure('public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real)') is not null then
     raise exception 'contract 1: the 17-argument overload must be dropped';
   end if;
-  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)', 'execute') then
+  if has_function_privilege('anon', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)', 'execute') then
     raise exception 'contract 1: anon can execute v2 search';
   end if;
-  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)', 'execute') then
+  if not has_function_privilege('authenticated', 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)', 'execute') then
     raise exception 'contract 1: authenticated lost execute on v2 search';
   end if;
 
@@ -260,7 +260,7 @@ begin
     raise exception 'contract 10: default files total is not exact';
   end if;
   if not exists (select 1 from pg_proc p
-                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text)'::regprocedure
+                  where p.oid = 'public.search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamptz,timestamptz,text,integer,integer,extensions.vector(768),real,text,boolean)'::regprocedure
                     and (select array_agg(setting order by setting) from unnest(p.proconfig) setting)
                         = array['search_path=pg_catalog, auth', 'statement_timeout=30s', 'work_mem=64MB']::text[]) then
     raise exception 'contract 10: function settings changed beyond search_path, statement_timeout and work_mem';
@@ -433,6 +433,17 @@ begin
     if public.search_style_guide_library_v2(p_result_mode => v_mode, p_fallback_query => 'zz887name')
        is distinct from public.search_style_guide_library_v2(p_result_mode => v_mode) then
       raise exception 'contract 14: % fallback without a query changed the browse', v_mode;
+    end if;
+    -- contract 15 (popdam3#804): p_include_facets => false drops only the facets
+    if (public.search_style_guide_library_v2(p_result_mode => v_mode, p_query => 'zz887name',
+          p_sort => 'relevance', p_limit => 200, p_include_facets => false) - 'facets')
+       is distinct from (public.search_style_guide_library_v2(p_result_mode => v_mode, p_query => 'zz887name',
+          p_sort => 'relevance', p_limit => 200) - 'facets')
+       or public.search_style_guide_library_v2(p_result_mode => v_mode, p_query => 'zz887name',
+          p_include_facets => false)->'facets' is distinct from '{}'::jsonb
+       or public.search_style_guide_library_v2(p_result_mode => v_mode, p_query => 'zz887name')->'facets'
+          = '{}'::jsonb then
+      raise exception 'contract 15: % p_include_facets must drop only the facets', v_mode;
     end if;
   end loop;
 
