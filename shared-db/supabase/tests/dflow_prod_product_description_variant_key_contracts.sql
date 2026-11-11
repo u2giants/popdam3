@@ -99,6 +99,24 @@ begin
 end
 $fixture$;
 
+-- Since 20261111183827 (#5994) the combination keys reference
+-- dflow_prod."merchGroup" wherever that migration has been applied (the CI
+-- replay applies it before this file runs). The same three fixture groups are
+-- therefore mirrored there under the same ids, so this file holds on either
+-- parent. OVERRIDING SYSTEM VALUE covers the GENERATED ALWAYS identity key of
+-- the real table and is a no-op on the plain-integer fixture.
+create table if not exists dflow_prod."merchGroup" (
+  mg_id integer primary key,
+  mg_code character varying
+);
+insert into dflow_prod."merchGroup" (mg_id, mg_code)
+overriding system value
+values
+  (current_setting('zz.ct.g1')::int, 'ZZ-CT-MG01'),
+  (current_setting('zz.ct.g2')::int, 'ZZ-CT-MG02'),
+  (current_setting('zz.ct.g3')::int, 'ZZ-CT-MG03')
+on conflict (mg_id) do nothing;
+
 \i supabase/migrations/20261108135128_dflow_prod_product_description_reissue.sql
 \i supabase/migrations/20261110131508_dflow_prod_product_description_variant_key.sql
 
