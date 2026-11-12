@@ -275,6 +275,7 @@ Linux write-worker targets edge1. Canonical spec:
 
 Full entries live in [`docs/idiosyncrasies.md`](idiosyncrasies.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
+- `filename_exclude` ingestion rules never gate `.ai`/`.psd` files (2026-11-12)
 - AG Grid license warning is accepted: no purchase; ignore the warning and preserve existing features (owner instruction 2026-10-11)
 - Prose merges run the repo-wide public-boundary gate; reviewed per-word allowlist in `tools/public-boundary-allowlist.txt`, no private IPs in this public repo (2026-10-27)
 - Dual-mode (PopDAM / PopSG) via hostname detection

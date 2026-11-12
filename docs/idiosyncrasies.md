@@ -301,6 +301,16 @@ October 11 live origin comparison disproved treating every such 404 as a capacit
 **Why:** This repo is public; the boundary keeps credentials, Albert's network topology, and live infrastructure identifiers out of it. The lane was jammed repo-wide from 2026-10 until the #526 closeout remediation (PR #548, popcre/shared-db#4919) cleared it on 2026-10-27.
 **Do not change because:** Re-adding an IP or project ref to a doc re-fails the gate for every prose PR until another allowlist/redaction pass lands. Write hostnames or vault pointers instead of addresses; never edit another session's `HANDOFF.d/` file to remove one — retire the file per the ai-devops #2009 precedent with its unique facts migrated.
 
+## `filename_exclude` rules never gate `.ai`/`.psd` files (2026-11-12)
+
+**Looks like:** A "skip names containing" rule in Settings → Storage → Ingestion Rules should keep any matching file out of the library.
+
+**Actually:** Filename exclusions apply only to PDF and raster candidates — `isPdfCandidate` and the image keyword rules in `packages/agent-common/src/ingestion-rules.ts`, applied by the bridge scanner. `.psd` and `.ai` files are always candidates regardless of name. Verified 2026-11-12: 12 `.ai` "UPC sticker" files (ingested March–June 2026) stayed live after the `upc sticker` exclusion was added.
+
+**Why:** Exclusions were built to tune the keyword-gated types (paperwork PDFs, stray images); art files are the library's core content and were never name-filtered.
+
+**Do not change because:** Quietly applying name exclusions to `.ai`/`.psd` could hide real artwork behind a typo'd or over-broad admin rule. Extending coverage is an explicit decision with the affected file list reviewed first.
+
 ## DC and Harry Potter belong to Warner Bros
 
 Owner ruling, Albert Hazan, 2026-11-01: "DC and Harry Potter were not left out. they used to (Wrongly) be listed as their own licensors. that was wrong, they are properties under Warner Bros, which is how it is now."

@@ -299,3 +299,5 @@ Admin-added filename and folder rules on top of the bridge scanner's built-ins (
 Built-in style-folder PDF rule (owner ruling 2026-11-11, bridge agent 1.16.26 or newer): under `____New Structure`, any PDF sitting directly in a style's own folder (letters and digits only, 7+ long) is ingested when that folder holds no `.ai` or `.psd` of its own. Filename and folder exclusions still win. Measured 2026-11-11: about 80 PDFs, e.g. the Desperate Signs `DE METAL SIGN` sheets.
 
 Built-in raster keywords are `comp-view`, `compview`, and `mockup` (case-insensitive filename matching for PNG, JPG, JPEG). The mockup built-in requires bridge agent 1.16.22 or newer; Settings and its file tester use the identical shared list.
+
+Filename rules apply to PDF and raster candidates only; `.psd` and `.ai` files are always candidates regardless of their names (see `docs/idiosyncrasies.md`).
