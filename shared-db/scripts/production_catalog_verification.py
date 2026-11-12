@@ -5074,6 +5074,26 @@ CATALOG_CONTRACTS["realtime_publication_trim_unsubscribed_v1"] = (
 )
 
 
+# Durable catalog outcome of migration 20261111233202 (u2giants/popdam3#804
+# task 2): every table an application subscribes to with postgres_changes is
+# in the supabase_realtime publication. The migration's statements sit inside
+# a guarded DO block, which the statement lexer cannot read, so this named
+# contract is its positive, hash-bound assertion.
+CATEGORY_REALTIME_PUBLICATION_ADD_SUBSCRIBED = """
+  exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+  and (select count(*)
+         from pg_publication_tables p
+        where p.pubname = 'supabase_realtime'
+          and (p.schemaname || '.' || p.tablename) = any (array[
+            'public.render_queue','crm.ingested_domain','core.contact',
+            'core.contact_company','public.admin_config',
+            'public.agent_registrations'])) = 6
+"""
+CATALOG_CONTRACTS["realtime_publication_add_subscribed_v1"] = (
+    CATEGORY_REALTIME_PUBLICATION_ADD_SUBSCRIBED
+)
+
+
 # Issue #2449. One ledger records creative-to-submission property mapping.
 #
 # The migration's two dynamic executions re-derive api.db_data_admin_scraped_properties
