@@ -6,11 +6,14 @@ Albert's sheet and the handoff do different jobs. The sheet moves **individual s
 them) from one Property value to a better one, with a reason per style. The handoff asks for a
 **list of Property values** (which to inactivate, add, or rename) for Jamielynn. So the sheet
 **overlaps** the handoff but does **not supersede** it: it has no inactivate rows, no rename
-rows, and no "is this value active" column. It does create work for the handoff: every new
-value the sheet points to must exist in ColdLion first. Two spots **conflict**: it moves one
-style onto RUGRATS (owner said Rugrats is not active), and it uses a "Mickey Mouse Family"
-value (MMF) as the display name, while the handoff says the display name stays short
-(MICKEY MOUSE) and the licensor-site path is stored separately.
+rows, and no "is this value active" column. Live ColdLion (2026-11-12) shows every value the
+sheet points to already exists; five are inactive and need turning back on.
+
+Owner rulings (2026-11-12): the 217 moves from MM "Standard Characters" to MMF "Mickey Mouse
+Family" are **approved** — Mickey Mouse Family is the parent value and MICKEY MOUSE (Minnie,
+Pluto, etc.) live under it ("there's no Mickey Mouse Family vs. MICKEY MOUSE. one lives under
+the other."). RUGRATS **stays inactive**; older styles may still carry it, so moving
+VSZ48VMNK01 onto it is fine.
 
 What remains of the handoff: the corrected per-value xlsx for Jamielynn (now also covering the
 "add" values Albert's sheet needs), then plan step 1 onward (step 6 included). Nothing was sent
@@ -35,10 +38,10 @@ to Jamielynn.
 ## Handoff spot-checks
 
 - **BACK TO THE FUTURE** — not in the sheet. No conflict; handoff bug 1 still stands.
-- **RUGRATS** — CONFLICT: style VSZ48VMNK01 moves NK "NICKTOONS GROUP" → RG "RUGRATS".
-  Owner said Rugrats is not active. Either RG must be (re)activated or this style needs another value.
-- **Mickey / Minnie** — CONFLICT on naming: 217 styles MM "Standard Characters" → MMF
-  "Mickey Mouse Family". Handoff rule: short display name, licensor path in a separate column.
+- **RUGRATS** — style VSZ48VMNK01 moves NK → RG "RUGRATS". RG stays inactive (owner);
+  older styles may carry it. Flagged, no action on the value.
+- **Mickey / Minnie** — 217 styles MM "Standard Characters" → MMF "Mickey Mouse Family",
+  approved: MMF is the parent value, MICKEY MOUSE sits under it.
   5 CP styles and 1 LS style go *to* MM "Standard Characters", so MM stays in use.
   No Minnie rows.
 - **Cars 3** — no Cars 3 rows; 4 styles CR "CREATURE" → CAR "Cars".
@@ -55,5 +58,7 @@ to Jamielynn.
 ## Conclusion
 
 Overlap, not supersede. Rebuild the handoff's per-value xlsx using Albert's sheet as an input
-(its new codes become "add" or "already exists" rows), resolve the RUGRATS and MMF naming
-conflicts with the owner, then continue with the plan.
+(its new codes become "add" or "already exists" rows), settle the RUGRATS and MMF
+points per the owner rulings above, then continue with the plan.
+
+Corrected xlsx (not sent to Jamielynn): `~/Dropbox/ai/MG06 changes for Jamielynn - corrected - 2026-11-12.xlsx`.
