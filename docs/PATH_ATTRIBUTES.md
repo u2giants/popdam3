@@ -31,7 +31,7 @@ Let `idx` = position of `____New Structure` in the path segments. If the path ha
 
 | Slot | Rule |
 |---|---|
-| `stage` | the segment **directly after** `____New Structure` (`segs[idx+1]`). Set for **all** files under the anchor. Short folders `In Dev` and `Concept Approved` are stored as `In Development` and `Concept Approved Designs` (stored values stay canonical; #963). |
+| `stage` | the segment **directly after** `____New Structure` (`segs[idx+1]`). Set for **all** files under the anchor. Short folders `In Dev` and `Concept Approved` / `Concept_Approved` are stored as `In Development` and `Concept Approved Designs` (stored values stay canonical; #963). |
 | `customer` / `program` | only when `stage = 'In Development'` **and** `segs[idx+2]` is `Customer Adopted` or `Cust Adopted`. Otherwise NULL. |
 
 Inside the `In Development / Customer Adopted` branch, the segment at `idx+3` decides the layout:
