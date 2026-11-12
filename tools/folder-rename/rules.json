@@ -9,7 +9,8 @@
   ],
   "stage_abbreviations": {
     "In Development": "In Dev",
-    "Customer Adopted": "Cust Adopted"
+    "Customer Adopted": "Cust Adopted",
+    "Concept Approved Designs": "Concept_Approved"
   },
   "customer_containers": [
     "In Development/Customer Adopted"
@@ -32,8 +33,8 @@
     ]
   },
   "strip_year_under_year_folder": {
-    "enabled": false,
-    "_note": "O2: proposed, off until Albert says yes. Ross/2026/Ross Wall 2026 -> Ross/2026/Wall."
+    "enabled": true,
+    "_note": "O2: Albert said yes on #963, 2026-11-11 (\"Drop the repeated year\")."
   },
   "exact_folder_renames": {
     "_preliminary files": "_prelim",

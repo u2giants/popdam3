@@ -22,12 +22,13 @@ test("customer alias and stripping the customer name from descendants", () => {
   const res = plan([`${CA}/Desperate Signs`, `${CA}/Desperate Signs/Shane Desperate Signs SS24`, `${CA}/Ross`, `${CA}/Ross/2026`, `${CA}/Ross/2026/Ross Wall 2026`]);
   assert.equal(newOf(res, `${CA}/Desperate Signs`), `${R}/In Dev/Cust Adopted/Desperate`);
   assert.equal(newOf(res, `${CA}/Desperate Signs/Shane Desperate Signs SS24`), `${R}/In Dev/Cust Adopted/Desperate/SS24`);
-  assert.equal(newOf(res, `${CA}/Ross/2026/Ross Wall 2026`), `${R}/In Dev/Cust Adopted/Ross/2026/Wall 2026`);
+  assert.equal(newOf(res, `${CA}/Ross/2026/Ross Wall 2026`), `${R}/In Dev/Cust Adopted/Ross/2026/Wall`);
 });
 
 test("repeated year is stripped only when the rule is on", () => {
   const dirs = [`${CA}/Ross`, `${CA}/Ross/2026`, `${CA}/Ross/2026/Ross Wall 2026`];
-  assert.equal(rules.strip_year_under_year_folder.enabled, false);
+  assert.equal(rules.strip_year_under_year_folder.enabled, true);
+  assert.equal(newOf(plan(dirs, { stripYear: false }), dirs[2]), `${R}/In Dev/Cust Adopted/Ross/2026/Wall 2026`);
   assert.equal(newOf(plan(dirs, { stripYear: true }), dirs[2]), `${R}/In Dev/Cust Adopted/Ross/2026/Wall`);
 });
 
@@ -89,10 +90,17 @@ test("deterministic and idempotent", () => {
   assert.deepEqual(plan([...dirs].reverse()).renames, a.renames);
   const all = [R, `${R}/In Development`, CA, ...dirs].map((d) => a.map.get(d) ?? d);
   assert.equal(planRenames(all, rules).renames.length, 0);
-  assert.equal(planRenames(all, rules, { stripYear: true }).renames.length > 0, true);
+  assert.equal(planRenames(all, rules, { stripYear: false }).renames.length, 0);
 });
 
 test("files follow their folder; file names never change", () => {
   const a = plan([`${CA}/Ross`]);
   assert.equal(mapFile(`${CA}/Ross/My File.psd`, a.map), `${R}/In Dev/Cust Adopted/Ross/My File.psd`);
+});
+
+test("customer alias ignores case and punctuation in _FINISHED", () => {
+  const r2 = { ...rules, customer_aliases: { HomeGoods: "HGoods" } };
+  const res = planRenames([R, `${R}/In Development`, CA, `${CA}/_FINISHED`, `${CA}/_FINISHED/Homegoods_finished`, `${CA}/HomeGoods`], r2);
+  assert.equal(res.map.get(`${CA}/_FINISHED/Homegoods_finished`), `${R}/In Dev/Cust Adopted/_FINISHED/HGoods`);
+  assert.equal(res.map.get(`${CA}/HomeGoods`), `${R}/In Dev/Cust Adopted/HGoods`);
 });

@@ -112,17 +112,25 @@ function sameStage(seg, canonical, rules) {
   return rules.stage_abbreviations[canonical] === seg;
 }
 
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Short name for a customer folder, ignoring case and punctuation (Ollie's = Ollies). */
+export function aliasFor(name, rules) {
+  for (const [k, v] of Object.entries(rules.customer_aliases)) if (norm(k) === norm(name)) return v;
+  return undefined;
+}
+
 /** Map either the long folder name or its alias back to the canonical key. */
 function canonicalCustomer(seg, rules) {
   for (const [k, v] of Object.entries(rules.customer_aliases)) {
-    if (seg.toLowerCase() === k.toLowerCase() || seg.toLowerCase() === v.toLowerCase()) return k;
+    if (norm(seg) === norm(k) || norm(seg) === norm(v)) return k;
   }
   return seg;
 }
 
 function stripTermsFor(customer, rules) {
   const terms = new Set([customer]);
-  if (rules.customer_aliases[customer]) terms.add(rules.customer_aliases[customer]);
+  if (aliasFor(customer, rules)) terms.add(aliasFor(customer, rules));
   for (const t of rules.strip_from_descendants[customer] ?? []) terms.add(t);
   return [...terms];
 }
@@ -161,7 +169,7 @@ export function proposeName(name, relParents, rules, opts = {}) {
 
   // 2. Customer short names.
   if (isCustomerFolder === "customer") {
-    const alias = rules.customer_aliases[name];
+    const alias = aliasFor(name, rules);
     if (alias) applied.push("customer_alias");
     return { name: alias ?? name, applied };
   }
@@ -169,7 +177,7 @@ export function proposeName(name, relParents, rules, opts = {}) {
     const fb = rules.finished_bucket;
     const m = name.match(new RegExp(`^(.*?)(${escapeRe(fb.suffix)})?$`, "i"));
     let n = m[1];
-    const alias = rules.customer_aliases[n];
+    const alias = aliasFor(n, rules);
     if (alias) {
       n = alias;
       applied.push("customer_alias");
