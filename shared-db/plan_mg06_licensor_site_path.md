@@ -13,6 +13,8 @@ Handoff: [HANDOFF.d/20261111T2210Z-edge-dev3-claude-mg06-site-path-and-merchgrou
 | 4 | SQL contract tests | ⬜ open | — |
 | 5 | Land through shared-db pipeline (preview → production) | ⬜ open | — |
 | 6 | Populate with the values found 2026-11-11 | ⬜ open | — |
+| 7 | Capture Range/Packaging/Line Sheet property lists | ✅ done 2026-11-12 | docs/opa-product-lines-minnie-styleguide.md |
+| 8 | Add brand (Disney/Lucas) to site path; Style Guide stays optional, chosen from design file | ⬜ open | same doc §c |
 
 **Fresh session starts at step 0 (check it is done), then step 1.**
 
@@ -161,8 +163,8 @@ owner's Chrome session on edge-dev3; never enter credentials.
 Done: steps 1–6 merged, CI green, production promoted, count query shows full coverage,
 STATUS updated with evidence, handoff updated.
 Risks: OPA renames a property → path stale (mitigate: nightly compare with
-`plm.opa_property`, follow-up). Minnie path "Minnie & Me" is an art program choice taken
-from history; licensing may prefer another — open question for the owner.
+`plm.opa_property`, follow-up). Minnie path "Minnie & Me" confirmed 2026-11-12: 406/406 past
+OPA Minnie picks (docs/opa-product-lines-minnie-styleguide.md).
 
 ### Self-audit (2026-11-11)
 1. Fresh session could execute without asking? Yes — goal §1, objects §5, steps §9.
