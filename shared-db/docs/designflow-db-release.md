@@ -56,6 +56,25 @@ Database changes must update the canonical migration, this policy and
 the consuming application's manifest together. Agent/app workflow guidance must
 retain that requirement; automatic promotion does not capture ad-hoc sandbox SQL.
 
+## Automated contract sync (#6092)
+
+When an application's contract digest on `develop` differs from the reviewed
+central `contract_manifest_sha256`, the `contract-sync` job in
+`designflow-db-release.yml` runs `scripts/designflow-contract-sync.mjs`:
+
+1. Fetches the app's `.release/database.json` from `develop`.
+2. Computes the contract digest (`manifestDigest` with empty requirements).
+3. Verifies the new contract against the live production database using
+   `productionCatalogQuery`/`verifyCatalogProof`.
+4. If verified: opens a PR updating `config/designflow-db-releases.json` and
+   merges it (`gh pr merge --squash --admin`).
+5. If verification fails: opens a labeled, routed issue (`db-work`,
+   `non-orchestrator`) describing the mismatch.
+
+The sync is idempotent: it skips apps that already have an open contract-update
+PR or mismatch issue. This replaces the manual process that previously left
+contract-sync issues unrouted for hours (incident 2026-11-11, issues #6069, #6073).
+
 Before accepting a requirement, the observer proves its PR is merged into canonical
 main, links exclusively to its work issue, declares exactly its authored migration
 set, and has the same migration bytes at its author head and current main. Changed,
