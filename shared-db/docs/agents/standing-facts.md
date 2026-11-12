@@ -135,15 +135,17 @@ have already happened in this repo, more than once.
     **The mechanism (owner instruction 2026-10-02, "assign someone to pause merges during
     production runs"; [owner rulings §6.26](../owner-rulings.md)):** before drawing the risk
     assessment, run `node scripts/manage-migration-coordination.mjs --acquire-promotion-freeze
-    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-60>`. Every `--acquire-merge`
-    and repository-maintenance (documents-only) authorization then refuses until the freeze is
-    released (`--release-promotion-freeze --owner <text>`), the production run's cleanup releases
-    it, or its TTL expires. Pick a TTL that outlives the whole window (review round plus
-    production run); there is no renewal. Preview and production are never blocked by it. It is
-    checked when a merge lane is acquired, so set it before the window: it does not revoke a
-    merge lane or merge-queue group that is already running. The production cleanup releases
-    only a freeze recorded for its own source PR; a freeze filed under another PR waits for its
-    owner or its TTL.
+    --issue <n> --pr <source-pr> --owner <text> --ttl-minutes <1-60>`. The freeze is checked at
+    merge time by `--check-promotion-freeze` in the Merge Queue Gate and — because that gate is
+    advisory (lean required checks, 2026-10-30) — also on the required `SQL migration guards`
+    check (#5937), so a live freeze refuses non-tolerant merge-queue groups outright.
+    Freeze-tolerant merges (production-inert paths, appended migrations/tests) merge through;
+    a freeze recorded for its own source PR can be replaced by the same PR, and another PR's
+    freeze is never touched. Merges resume automatically when the production run's cleanup
+    releases the freeze or its TTL expires. Pick a TTL that outlives the whole window (review
+    round plus production run); there is no renewal. Preview and production are never blocked
+    by it. The production cleanup releases only a freeze recorded for its own source PR; a
+    freeze filed under another PR waits for its owner or its TTL.
 
 15. **The structural-lane rules are scoped to STRUCTURE (owner ruling §0.0-B, 2026-08-13).**
     Rules 1 and 2 above (claim-first structural work, concurrent migration authors on exact object claims) govern changes to the

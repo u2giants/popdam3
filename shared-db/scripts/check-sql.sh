@@ -707,6 +707,39 @@ fi
 node "$source_dir/scripts/check-expected-count-patterns.mjs" "$migration_dir" "$added_versions_file"
 node "$source_dir/scripts/check-migration-verify-cost.mjs" "$migration_dir" "$added_versions_file"
 
+# --- Guard C: promote-by deadline headers must be well formed (#5937) -------
+# A migration may declare `-- promote-by: <UTC timestamp>` and the automatic
+# promotion selector then orders eligible candidates by earliest deadline. The
+# selector warns and ignores a malformed header so it can never block a
+# promotion at runtime; THIS guard refuses the malformed header at PR time, so
+# a mistyped deadline can never silently lose its priority.
+promote_by_bad=""
+while IFS= read -r name; do
+  [[ "$name" == *.sql ]] || continue
+  file="$migration_dir/$name"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    header_lc="${line,,}"
+    [[ "$header_lc" =~ ^--[[:space:]]*promote-by: ]] || continue
+    value="${line#*:}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    if ! [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?(Z|[+-][0-9]{2}:?[0-9]{2})$ ]]; then
+      promote_by_bad+="  $name: $line"$'\n'
+    fi
+  done < "$file"
+done < "$migration_names_file"
+
+if [[ -n "$promote_by_bad" ]]; then
+  echo "ERROR: malformed promote-by deadline header(s) detected:" >&2
+  echo "$promote_by_bad" >&2
+  echo "A deadline must be a UTC ISO timestamp with a timezone, e.g." >&2
+  echo "  -- promote-by: 2026-11-07T03:00:00Z" >&2
+  echo "(issue #5937: the automatic promotion selector orders eligible" >&2
+  echo "candidates by earliest deadline; a malformed header is ignored and" >&2
+  echo "the migration silently loses its priority)." >&2
+  exit 1
+fi
+
 rm -f "$added_versions_file" "$migration_names_file"
 
 if [[ "$guard_b2_failed" -ne 0 ]]; then

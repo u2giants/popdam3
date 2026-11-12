@@ -454,3 +454,25 @@ test('the qualification job acquires the promotion merge freeze before qualify-r
   assert.ok(release > 0)
   assert.match(text.slice(release, text.indexOf('\n      - name:', release + 10)), /if: always\(\) && inputs\.source_pr != ''/)
 })
+
+// #5937 behavior 2 / review finding #5958 Finding 1. The freeze check in
+// merge-queue-gate.yml is advisory — that gate is not a required context (lean
+// required checks, 2026-10-30), so a refusal there never stopped a group from
+// landing. The refusal must also land on a REQUIRED context: the
+// `SQL migration guards` job of shared-supabase-migrations.yml.
+test('the required SQL migration guards job refuses queue merges while a promotion freeze is live', () => {
+  const text = readWorkflow('shared-supabase-migrations.yml')
+  const job = jobBlockByName(text, 'SQL migration guards')
+  assert.ok(job, 'no job emits SQL migration guards')
+  const step = stepBlock(job, 'Refuse queue merges while a promotion merge freeze is live')
+  assert.ok(step, 'the required-context freeze refusal step is missing from SQL migration guards')
+  assert.match(step, /^ {8}if: github\.event_name == 'merge_group'$/m)
+  assert.ok(step.includes('merge-queue-contract.mjs --resolve-queue-pr'), 'the step does not resolve the queued PR through the contract')
+  assert.ok(step.includes('--check-promotion-freeze --pr'), 'the step does not run the freeze check')
+  assert.ok(job.includes('pull-requests: read'), 'the job needs pull-requests: read to read the queued PR file list')
+  assert.ok(!/continue-on-error/.test(step), 'the freeze refusal must fail loudly')
+  // The advisory gate copy stays: the gate still checks the freeze for its own
+  // early message, and the required job is what actually blocks the group.
+  const gate = readWorkflow('merge-queue-gate.yml')
+  assert.ok(gate.includes('--check-promotion-freeze'), 'the merge queue gate dropped its freeze check')
+})

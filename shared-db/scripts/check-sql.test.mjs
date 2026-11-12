@@ -86,6 +86,40 @@ test('passes when every migration version is unique', () => {
   )
 })
 
+// #5937 behavior 1: a `-- promote-by: <UTC timestamp>` header declares the
+// migration's promotion deadline; the SQL guards validate it so a mistyped
+// deadline can never silently lose its priority in the selector.
+test('Guard C passes on a well-formed promote-by header', () => {
+  withFixture(['20260801120000_urgent.sql'], (dir) => {
+    writeFileSync(path.join(dir, '20260801120000_urgent.sql'),
+      '-- promote-by: 2026-11-07T03:00:00Z\nselect 1;\n')
+    const { status, stderr } = runGuards(dir, { mainNewest: '20260801100000' })
+    assert.equal(status, 0, `expected a pass. stderr:\n${stderr}`)
+  })
+})
+
+test('Guard C fails on a malformed promote-by header and names the file', () => {
+  withFixture(['20260801120000_urgent.sql'], (dir) => {
+    writeFileSync(path.join(dir, '20260801120000_urgent.sql'),
+      '-- promote-by: tonight\nselect 1;\n')
+    const { status, stderr } = runGuards(dir, { mainNewest: '20260801100000' })
+    assert.notEqual(status, 0)
+    assert.match(stderr, /malformed promote-by deadline header/)
+    assert.match(stderr, /20260801120000_urgent\.sql/)
+    assert.match(stderr, /2026-11-07T03:00:00Z/)
+  })
+})
+
+test('Guard C rejects a timezone-less promote-by header', () => {
+  withFixture(['20260801120000_urgent.sql'], (dir) => {
+    writeFileSync(path.join(dir, '20260801120000_urgent.sql'),
+      '-- promote-by: 2026-11-07T03:00:00\nselect 1;\n')
+    const { status, stderr } = runGuards(dir, { mainNewest: '20260801100000' })
+    assert.notEqual(status, 0)
+    assert.match(stderr, /malformed promote-by deadline header/)
+  })
+})
+
 test('Guard A fails and names BOTH colliding files', () => {
   withFixture(
     [
