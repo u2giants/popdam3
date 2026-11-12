@@ -53,6 +53,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import sys
 
 INFRA_MARKER = "CI INFRASTRUCTURE:"
@@ -74,6 +75,12 @@ COORDINATION_REFUSALS = (
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
+# GitHub publishes check-run annotations with a lag of seconds behind the
+# emitting step (run 43303160414: marker fetched ~1s after the step failed and
+# read a pre-publication list). Retry briefly before concluding; the marker
+# must not hold the job hostage — bounded to ~29 seconds total.
+ANNOTATION_PUBLICATION_DELAYS = (2, 4, 8, 15)
+
 
 def classify_failure(text: str) -> bool:
     """True only for a refund-eligible infrastructure or coordination failure.
@@ -89,7 +96,7 @@ def classify_failure(text: str) -> bool:
     return any(marker in clean for marker in COORDINATION_REFUSALS)
 
 
-def classify_run_job(job_name: str, gh: callable = None) -> bool:
+def classify_run_job(job_name: str, gh: callable = None, sleep: callable = None) -> bool:
     """Classify this run attempt's named job from its own marker annotations.
 
     The marker step passes its own job's display name; the job is resolved from
@@ -98,34 +105,69 @@ def classify_run_job(job_name: str, gh: callable = None) -> bool:
     the selector reads markers per attempt separately). The failure text is the
     job's check-run annotations (the trust-model amendment in the module
     docstring: logs are not readable while the job runs).
+
+    GitHub publishes check-run annotations with a lag of seconds behind the
+    emitting step; a fetch immediately after the failure can see a pre-
+    publication empty list (run 43303160414). When the annotation fetch returns
+    nothing usable (empty list or the check run is not yet present), retry with
+    bounded backoff (ANNOTATION_PUBLICATION_DELAYS, ~29 s max) before concluding.
+    After the bound, unreadable/ambiguous evidence is still a change fault — a
+    refund is never inferred.
     """
     gh = gh or subprocess.run
+    sleep = sleep or time.sleep
     repo = os.environ["GITHUB_REPOSITORY"]
     run_id = os.environ["GITHUB_RUN_ID"]
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
-    listing = json.loads(gh(
-        ["gh", "api", f"repos/{repo}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"],
-        check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
-    jobs = [job for page in listing for job in page.get("jobs", [])] if isinstance(listing, list) else listing.get("jobs", [])
-    matching = [job for job in jobs if job.get("name") == job_name]
+
+    def _fetch_listing():
+        raw = json.loads(gh(
+            ["gh", "api", f"repos/{repo}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"],
+            check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
+        return ([job for page in raw for job in page.get("jobs", [])]
+                if isinstance(raw, list) else raw.get("jobs", []))
+
+    # Resolve the job once — the marker runs inside it, so it is in the listing.
+    matching = [job for job in _fetch_listing() if job.get("name") == job_name]
     if len(matching) != 1:
         print(f"::warning::refund-eligible-fault: could not resolve exactly one job named {job_name!r}; "
               "treating this failure as a change fault")
         return False
-    check_run_url = (matching[0].get("check_run_url") or "").strip()
-    if not check_run_url:
-        print("::warning::refund-eligible-fault: the resolved job carries no check run; "
-              "treating this failure as a change fault")
-        return False
-    annotations = json.loads(gh(
-        ["gh", "api", f"{check_run_url}/annotations", "--paginate"],
-        check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
-    if isinstance(annotations, dict):
-        annotations = annotations.get("annotations", [])
-    text = "\n".join(
-        f"{annotation.get('title') or ''}\n{annotation.get('message') or ''}"
-        for annotation in annotations)
-    return classify_failure(text)
+
+    # Bounded retry for GitHub's annotation-publication lag.  The `::error::`
+    # workflow-command annotations lag behind the emitting step while generic
+    # GitHub annotations (e.g. "Process completed with exit code …") appear
+    # immediately — so an early fetch can see a non-empty list that still lacks
+    # the taxonomy marker (run 43305244649).  Retry whenever classification
+    # cannot yet find an infrastructure/coordination marker.
+    for i in range(len(ANNOTATION_PUBLICATION_DELAYS) + 1):
+        if i:
+            sleep(ANNOTATION_PUBLICATION_DELAYS[i - 1])
+            # Re-fetch the listing in case the check run appeared late.
+            matching = [job for job in _fetch_listing() if job.get("name") == job_name]
+            if len(matching) != 1:
+                break
+        check_run_url = (matching[0].get("check_run_url") or "").strip()
+        if not check_run_url:
+            continue  # check run not yet present; retry
+        annotations = json.loads(gh(
+            ["gh", "api", f"{check_run_url}/annotations", "--paginate"],
+            check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
+        if isinstance(annotations, dict):
+            annotations = annotations.get("annotations", [])
+        text = "\n".join(
+            f"{annotation.get('title') or ''}\n{annotation.get('message') or ''}"
+            for annotation in annotations)
+        print(f"::warning::refund-eligible-fault: attempt {i}: {len(annotations)} annotations, "
+              f"snippet={text[:120]!r}")
+        if classify_failure(text):
+            return True
+        # No taxonomy marker yet — publication lag; retry within the bound.
+
+    # After the bound: evidence never produced a marker.  Fail-safe: change fault.
+    print("::warning::refund-eligible-fault: no infrastructure/coordination marker after bounded retry; "
+          "treating this failure as a change fault")
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1438,7 +1438,7 @@ class ClassifyRunJobGlue(unittest.TestCase):
                 mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
                                              "GITHUB_RUN_ATTEMPT": "1"}), \
                 contextlib.redirect_stdout(io.StringIO()) as out:
-            verdict = classifier.classify_run_job("preview")
+            verdict = classifier.classify_run_job("preview", sleep=lambda _: None)
         return verdict, calls, out.getvalue()
 
     @staticmethod
@@ -1531,7 +1531,64 @@ class ClassifyRunJobGlue(unittest.TestCase):
         with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
                 mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "43094471144",
                                              "GITHUB_RUN_ATTEMPT": "1"}):
-            self.assertFalse(classifier.classify_run_job("Production apply (automatic evidence gates)"))
+            self.assertFalse(classifier.classify_run_job("Production apply (automatic evidence gates)",
+                                                         sleep=lambda _: None))
+
+    def test_annotation_publication_lag_is_tolerated_by_bounded_retry(self):
+        # GitHub publishes check-run annotations with a lag of seconds behind
+        # the emitting step (run 43303160414: marker fetched ~1s after the step
+        # failed and read a pre-publication list -> 'change fault'). The retry
+        # must pick up the annotations once they land.
+        marker = self.ann("REFUSED: post-merge preview rehearsal requires the exact current main SHA "
+                          "(asked for aaa, main is bbb)")
+        ann_call_count = 0
+
+        def fake(cmd, **kw):
+            nonlocal ann_call_count
+            joined = " ".join(cmd)
+            if "/annotations" in joined:
+                ann_call_count += 1
+                payload = marker if ann_call_count >= 3 else []
+                class R:
+                    stdout = json.dumps(payload)
+                return R()
+            class R:
+                stdout = json.dumps(self.LISTING)
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            verdict = classifier.classify_run_job("preview", sleep=lambda _: None)
+        self.assertTrue(verdict, "lag-tolerant retry must reach the published annotations")
+        self.assertGreaterEqual(ann_call_count, 3, "the retry must re-fetch until annotations land")
+
+    def test_annotations_never_published_fall_safely_to_change_fault_after_the_bound(self):
+        # After the bounded retry, unreadable/ambiguous evidence STILL never
+        # refunds — an empty annotation list that never fills is a change fault.
+        ann_call_count = 0
+
+        def fake(cmd, **kw):
+            nonlocal ann_call_count
+            joined = " ".join(cmd)
+            if "/annotations" in joined:
+                ann_call_count += 1
+                class R:
+                    stdout = json.dumps([])
+                return R()
+            class R:
+                stdout = json.dumps(self.LISTING)
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            verdict = classifier.classify_run_job("preview", sleep=lambda _: None)
+        self.assertFalse(verdict, "evidence that never appears must fail-safe to change fault")
+        expected_attempts = 1 + len(classifier.ANNOTATION_PUBLICATION_DELAYS)
+        self.assertEqual(ann_call_count, expected_attempts,
+                         f"bounded retry must stop after {expected_attempts} annotation fetches")
+        self.assertIn("change fault", out.getvalue())
 
 
 class ClassifiedRefundBudget(unittest.TestCase):
