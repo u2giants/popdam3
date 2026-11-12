@@ -75,8 +75,8 @@ runs whenever the readiness observer runs, including when the observer refuses
    uses.
 5. If both pass: opens a contract-update PR cut from fresh `origin/main` (one
    digest per PR; two apps changing at once cannot corrupt each other) and
-   merges it when green — GitHub auto-merge first, a bounded wait on reported
-   checks otherwise. Nothing unproven is ever merged.
+   enqueues it on the repository merge queue, which merges it when its checks
+   are green. Nothing unproven is ever merged.
 6. If either refuses: opens a labeled, routed issue (`db-work`,
    `non-orchestrator`, `db-work-scope` route block) describing the refusal.
    A verification failure that is not a proven mismatch (production catalog

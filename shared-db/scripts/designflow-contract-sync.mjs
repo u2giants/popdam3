@@ -197,18 +197,14 @@ function createContractPR(repository, newDigest) {
   }
 }
 
-// Merge only when green. GitHub auto-merge is the primary path; if the API
-// refuses it, wait (bounded by the job timeout) for reported checks and merge
-// once they pass. A check failure leaves the PR open and never merges.
+// Merge only when green. This repository merges through its merge queue: a
+// plain `gh pr merge` enqueues the pull request and the queue lands it once its
+// merge-group checks are green. Strategy flags (--squash) and --admin are
+// refused while the queue is enabled, and a refused enqueue throws — the PR
+// then stays open and is resumed on a later run, never merged unproven.
 function mergeWhenGreen(prNumber) {
-  try {
-    command(['pr', 'merge', String(prNumber), '--repo', CANONICAL, '--auto', '--squash', '--delete-branch']);
-    return 'auto-merge queued; merges when required checks are green';
-  } catch {
-    command(['pr', 'checks', String(prNumber), '--repo', CANONICAL, '--watch', '--fail-fast', '--interval', '15']);
-    command(['pr', 'merge', String(prNumber), '--repo', CANONICAL, '--squash', '--admin', '--delete-branch']);
-    return 'merged after reported checks were green';
-  }
+  command(['pr', 'merge', String(prNumber), '--repo', CANONICAL]);
+  return 'queued to the merge queue; merges when its checks are green';
 }
 
 // If a previous run left an open contract-update PR, finish it when green
