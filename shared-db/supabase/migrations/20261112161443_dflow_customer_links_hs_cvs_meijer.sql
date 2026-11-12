@@ -37,7 +37,7 @@ begin
     select count(*), min(id::text)::uuid into v_n, v_cust from core.customer where name = r.cust_name;
     if v_n <> 1 then raise exception '#6142: customer % matched % rows', r.cust_name, v_n; end if;
 
-    select count(*), min(to_jsonb(d)::text)::jsonb into v_n, v_raw from dflow_prod.customers d
+    select count(*), min((to_jsonb(d) - 'customers_passw')::text)::jsonb into v_n, v_raw from dflow_prod.customers d
      where d.customers_id = r.src_id and d.customers_code = r.src_code and d.customers_name = r.src_name;
     if v_n <> 1 then raise exception '#6142: DesignFlow customer % (%) matched % rows', r.src_id, r.src_code, v_n; end if;
 
