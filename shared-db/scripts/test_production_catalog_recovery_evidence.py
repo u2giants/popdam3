@@ -58,6 +58,21 @@ class RecoveryEvidenceTests(unittest.TestCase):
         rows = jobs(); rows["jobs"][0]["conclusion"] = "skipped"
         with self.assertRaises(ValueError): validate_jobs(rows)
 
+    def test_trailing_refund_classifier_failure_is_tolerated(self):
+        rows = jobs(); rows["jobs"][-1]["steps"].append({"name": "refund-eligible-fault", "conclusion": "failure"})
+        validate_jobs(rows)
+        self.assertEqual(self.build(job_rows=rows)["migration_hashes"], {VERSION: self.digest})
+
+    def test_refund_classifier_alone_or_with_other_failures_refused(self):
+        rows = jobs(); rows["jobs"][-1]["steps"][-1]["conclusion"] = "success"
+        rows["jobs"][-1]["steps"].append({"name": "refund-eligible-fault", "conclusion": "failure"})
+        with self.assertRaises(ValueError): validate_jobs(rows)
+        rows = jobs(); rows["jobs"][-1]["steps"].insert(0, {"name": "refund-eligible-fault", "conclusion": "failure"})
+        with self.assertRaises(ValueError): validate_jobs(rows)
+        rows = jobs()
+        rows["jobs"][-1]["steps"] += [{"name": "refund-eligible-fault", "conclusion": "failure"}, {"name": "other", "conclusion": "failure"}]
+        with self.assertRaises(ValueError): validate_jobs(rows)
+
     def test_abnormal_extra_step_refused(self):
         for conclusion in ("cancelled", "timed_out", "neutral", None):
             rows = jobs(); rows["jobs"][-1]["steps"].append({"name": "unexpected", "conclusion": conclusion})

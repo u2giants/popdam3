@@ -27,7 +27,11 @@ def validate_jobs(jobs):
     if any(s.get("conclusion") not in ("success", "skipped", "failure") for s in steps):
         raise ValueError("original apply contains an incomplete or abnormal step")
     failures = [s.get("name") for s in steps if s.get("conclusion") == "failure"]
-    if failures != ["Post-apply catalog verification"]:
+    # The `refund-eligible-fault` classifier runs only `if: failure()` and
+    # concludes failure whenever the earlier failure is a change fault, so it
+    # always accompanies a real verification failure. It is a trailing
+    # classification step, never apply work, so tolerate exactly it, after.
+    if failures not in (["Post-apply catalog verification"], ["Post-apply catalog verification", "refund-eligible-fault"]):
         raise ValueError("original failure is not exclusively catalog verification")
     for name in ("Build bounded checkout", "Fresh dry-run, then apply", "Capture production migration record (after)", "Save apply evidence", "Release the exclusive production lane with ownership proof"):
         matching = [s for s in steps if s.get("name") == name]
