@@ -60,20 +60,34 @@ retain that requirement; automatic promotion does not capture ad-hoc sandbox SQL
 
 When an application's contract digest on `develop` differs from the reviewed
 central `contract_manifest_sha256`, the `contract-sync` job in
-`designflow-db-release.yml` runs `scripts/designflow-contract-sync.mjs`:
+`designflow-db-release.yml` runs `scripts/designflow-contract-sync.mjs`. The job
+runs whenever the readiness observer runs, including when the observer refuses
+(a contract mismatch is the state the sync exists to route):
 
 1. Fetches the app's `.release/database.json` from `develop`.
 2. Computes the contract digest (`manifestDigest` with empty requirements).
-3. Verifies the new contract against the live production database using
-   `productionCatalogQuery`/`verifyCatalogProof`.
-4. If verified: opens a PR updating `config/designflow-db-releases.json` and
-   merges it (`gh pr merge --squash --admin`).
-5. If verification fails: opens a labeled, routed issue (`db-work`,
-   `non-orchestrator`) describing the mismatch.
+3. Accepts the contract only if the central policy allow-lists still hold —
+   the same `releasePolicy` check the readiness observer enforces (schemas,
+   runtime roles, required baseline sources). A contract that would half-update
+   the reviewed policy is refused before any pull request.
+4. Verifies the accepted contract against the live production database with the
+   same `productionCatalogQuery`/`verifyCatalogProof` machinery the observer
+   uses.
+5. If both pass: opens a contract-update PR cut from fresh `origin/main` (one
+   digest per PR; two apps changing at once cannot corrupt each other) and
+   merges it when green — GitHub auto-merge first, a bounded wait on reported
+   checks otherwise. Nothing unproven is ever merged.
+6. If either refuses: opens a labeled, routed issue (`db-work`,
+   `non-orchestrator`, `db-work-scope` route block) describing the refusal.
+   A verification failure that is not a proven mismatch (production catalog
+   unreachable, manifest fetch failure) is routed under a distinct
+   `Contract sync could not verify` title so it is never reported as a wrong
+   contract.
 
 The sync is idempotent: it skips apps that already have an open contract-update
-PR or mismatch issue. This replaces the manual process that previously left
-contract-sync issues unrouted for hours (incident 2026-11-11, issues #6069, #6073).
+PR or issue, and resumes an open PR when its checks turn green. This replaces
+the manual process that previously left contract-sync issues unrouted for hours
+(incident 2026-11-11, issues #6069, #6073).
 
 Before accepting a requirement, the observer proves its PR is merged into canonical
 main, links exclusively to its work issue, declares exactly its authored migration
