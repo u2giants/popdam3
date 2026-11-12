@@ -371,6 +371,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             HARD_BLOCKED,
             {
+                "20261111230502",
                 "20261111192349",
                 "20261106205842",
                 "20261106092127",
