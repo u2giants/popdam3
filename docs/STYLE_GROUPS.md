@@ -61,16 +61,24 @@ Each style group has one designated primary asset (`primary_asset_id`). The prim
 
 Primary asset selection uses `primary_sort_tier`, a computed column maintained by the `trg_compute_primary_sort_tier` database trigger. The tier is assigned automatically whenever an asset is inserted or updated:
 
+Cover order (owner ruling 2026-11-10): **3-4 view first, then mockup, then COMP**, then art, tech pack, generic artwork, packaging. "Has thumbnail" means a thumbnail exists without a thumbnail error. Matching is on the lowercase filename.
+
 | Tier | Condition |
 |------|-----------|
-| 1 | Has thumbnail AND filename matches a "front view" pattern (e.g. `_FT`, `_Front`) |
-| 2 | Has thumbnail AND filename matches a design/main pattern |
-| 3 | Has thumbnail AND is a PSD file |
-| 4 | Has thumbnail AND is an AI file |
-| 5 | Has thumbnail (any file type) |
-| 6 | No thumbnail, PSD file |
-| 7 | No thumbnail, AI file |
-| 8 | All others |
+| 1 | Filename (without extension) contains `3-4` (thumbnail not required) |
+| 2 | Has thumbnail AND filename contains `mockup` / `mock up` |
+| 3 | Has thumbnail AND filename has a standalone `comp` (or `comp view`, `comp-view`, `comp_view`) |
+| 4 | Has thumbnail AND filename contains `art` |
+| 5 | Has thumbnail AND filename contains `tech pack` / `techpack` / `tech_pack` |
+| 6 | Has thumbnail, none of the above or packaging, and not a PDF |
+| 7 | Has thumbnail AND filename contains `packaging` |
+| 8 | Has thumbnail, none of the above or packaging (PDFs) |
+| 9 | No thumbnail, mockup |
+| 10 | No thumbnail, COMP |
+| 11 | No thumbnail, art |
+| 12 | No thumbnail, tech pack |
+| 13 | No thumbnail, none of the above or packaging |
+| 14 | All others (no-thumbnail packaging) |
 
 Within the same tier, the asset that was AI-tagged earliest (`ai_tagged_at ASC`) is preferred. This means a newly-tagged asset in Tier 1 won't displace a previously-established primary — ties are broken by who was tagged first.
 
