@@ -81,6 +81,24 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 # must not hold the job hostage — bounded to ~29 seconds total.
 ANNOTATION_PUBLICATION_DELAYS = (2, 4, 8, 15)
 
+# Same-job evidence sink: taxonomy-marker printers append their text to a
+# well-known file so the classifier can read it synchronously, with no
+# annotation-publication lag.  Override path via REFUND_FAULT_EVIDENCE (for
+# tests); default is $RUNNER_TEMP/refund-fault-evidence.log; skip silently
+# when neither is available.
+SINK_ENV = "REFUND_FAULT_EVIDENCE"
+SINK_FILENAME = "refund-fault-evidence.log"
+
+
+def _sink_path() -> "str | None":
+    override = os.environ.get(SINK_ENV)
+    if override:
+        return override
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    if runner_temp:
+        return os.path.join(runner_temp, SINK_FILENAME)
+    return None
+
 
 def classify_failure(text: str) -> bool:
     """True only for a refund-eligible infrastructure or coordination failure.
@@ -126,6 +144,18 @@ def classify_run_job(job_name: str, gh: callable = None, sleep: callable = None)
             check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
         return ([job for page in raw for job in page.get("jobs", [])]
                 if isinstance(raw, list) else raw.get("jobs", []))
+
+    # Same-job evidence sink (synchronous, authoritative).  Every taxonomy-
+    # marker printer appends its text here; reading it first avoids the
+    # annotation-publication race entirely.
+    sink = _sink_path()
+    if sink:
+        try:
+            with open(sink, encoding="utf-8", errors="replace") as fh:
+                if classify_failure(fh.read()):
+                    return True
+        except OSError:
+            pass  # unreadable sink falls through to annotations
 
     # Resolve the job once — the marker runs inside it, so it is in the listing.
     matching = [job for job in _fetch_listing() if job.get("name") == job_name]

@@ -2812,7 +2812,13 @@ class ApplyLaneTests(unittest.TestCase):
                 self.assertEqual(
                     commands[-1], "exit 1", "the step must end by failing the job"
                 )
-                annotation = commands[-2]
+                # The annotation is the ::error:: line; a sink-append line may
+                # follow it (same-job evidence sink).  Find it by content, not
+                # position.
+                annotation = next(
+                    (c for c in reversed(commands) if "::error::CI INFRASTRUCTURE:" in c),
+                    "",
+                )
                 self.assertIn("::error::CI INFRASTRUCTURE:", annotation)
                 self.assertIn("PostgreSQL client unavailable", annotation)
                 self.assertIn("NO MIGRATION WAS APPLIED", annotation)

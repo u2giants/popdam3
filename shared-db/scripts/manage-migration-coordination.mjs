@@ -18,7 +18,7 @@ import { runGitHubCommand as sharedRunGitHubCommand, isTransientGitHubTransport,
 import { createTreeReader } from './lib/github-tree.mjs'
 import { reviewCallerEnvironment } from './lib/reviewer-caller-env.mjs'
 import { createHash, randomUUID } from 'node:crypto'
-import { constants as fsConstants, closeSync, existsSync, fstatSync, openSync, readFileSync, renameSync, writeFileSync, lstatSync, realpathSync, readdirSync } from 'node:fs'
+import { constants as fsConstants, appendFileSync, closeSync, existsSync, fstatSync, openSync, readFileSync, renameSync, writeFileSync, lstatSync, realpathSync, readdirSync } from 'node:fs'
 import { readZipEntries } from './lib/zip-entries.mjs'
 import { acceptedApplyArtifactNames, compareAncestry } from './lib/production-apply-artifact-name.mjs'
 import path from 'node:path'
@@ -2620,7 +2620,14 @@ export function main(argv, now = new Date(), io = githubIo) {
       return malformed.length||reopened.length ? 2 : 0
     }
     throw new LaneError('choose --admit-issue, --audit, --queue-audit, --abandonment-audit, --outcome-status, --repair-outcome-history, --complete-outcome, --return-issue, --cleanup-stale, or an exclusive-lane command')
-  } catch (error) { console.error(`::error::REFUSED: ${error.message}`); return 2 }
+  } catch (error) {
+    console.error(`::error::REFUSED: ${error.message}`)
+    try {
+      const sink = process.env.REFUND_FAULT_EVIDENCE || (process.env.RUNNER_TEMP ? `${process.env.RUNNER_TEMP}/refund-fault-evidence.log` : null)
+      if (sink) appendFileSync(sink, `REFUSED: ${error.message}\n`)
+    } catch { /* sink write must never fail the printer */ }
+    return 2
+  }
 }
 
 // ISSUE #2491 -- preview apply evidence never matched an already-applied version.

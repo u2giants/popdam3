@@ -51,6 +51,14 @@
 // permissive direction is worse than the bare `test` it replaces.
 
 import { execFileSync } from 'node:child_process'
+import { appendFileSync } from 'node:fs'
+
+function writeRefundSink(text) {
+  try {
+    const sink = process.env.REFUND_FAULT_EVIDENCE || (process.env.RUNNER_TEMP ? `${process.env.RUNNER_TEMP}/refund-fault-evidence.log` : null)
+    if (sink) appendFileSync(sink, text + '\n')
+  } catch { /* sink write must never fail the printer */ }
+}
 import { diffDigest, verifiedEvidencePaths } from './lib/pr-content-equivalence.mjs'
 
 // Prose only. Deliberately short, deliberately not directory-based -- see above.
@@ -435,6 +443,7 @@ function main() {
       // "::error::" renders the refusal as a check-run annotation, the only
       // failure text a still-running job can read (refund_fault_classification).
       console.error(`::error::${verdict.reason}`)
+      writeRefundSink(verdict.reason)
       console.error('This branch must be updated from origin/main before it can merge.')
       process.exit(1)
     }
@@ -453,6 +462,7 @@ function main() {
   if (!verdict.ok) {
     // Same annotation channel as the --contains refusal above.
     console.error(`::error::${verdict.reason}`)
+    writeRefundSink(verdict.reason)
     if (contains) {
       console.error(
         'This branch must be updated from origin/main before it can merge.',

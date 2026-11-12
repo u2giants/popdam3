@@ -1591,6 +1591,87 @@ class ClassifyRunJobGlue(unittest.TestCase):
         self.assertIn("change fault", out.getvalue())
 
 
+class EvidenceSinkTests(unittest.TestCase):
+    """The same-job evidence sink (``$RUNNER_TEMP/refund-fault-evidence.log``,
+    override ``REFUND_FAULT_EVIDENCE``) is the synchronous evidence source that
+    beats GitHub's annotation-publication lag.  Taxonomy-marker printers append
+    their text there; the classifier reads it first and only falls back to
+    annotations when the sink has no taxonomy marker."""
+
+    def _classify_with_sink(self, sink_text, annotations=None):
+        """Run --classify-run-job with a sink file and (empty) annotations."""
+        if annotations is None:
+            annotations = []
+        import tempfile as _tf
+        with _tf.NamedTemporaryFile("w", suffix=".log", delete=False, encoding="utf-8") as fh:
+            fh.write(sink_text or "")
+            sink_path = fh.name
+        try:
+            listing = {"jobs": [{"id": 11, "name": "preview",
+                                 "check_run_url": "https://api.github.com/repos/o/r/check-runs/11"}]}
+
+            def fake(cmd, **kw):
+                joined = " ".join(cmd)
+                if "/annotations" in joined:
+                    class R:
+                        stdout = json.dumps(annotations)
+                    return R()
+                class R:
+                    stdout = json.dumps(listing)
+                return R()
+            with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                    mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                                 "GITHUB_RUN_ATTEMPT": "1",
+                                                 "REFUND_FAULT_EVIDENCE": sink_path}), \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                verdict = classifier.classify_run_job("preview", sleep=lambda _: None)
+            return verdict, out.getvalue()
+        finally:
+            os.unlink(sink_path)
+
+    def test_sink_with_infra_marker_refunds_even_with_empty_annotations(self):
+        sink_text = ("CI INFRASTRUCTURE: PostgreSQL client unavailable after 3 attempts "
+                     "(apt mirror stall on the hosted runner -- NOT a fault in the change under review); "
+                     "NO MIGRATION WAS APPLIED\n")
+        verdict, printed = self._classify_with_sink(sink_text)
+        self.assertTrue(verdict, "sink must deliver the taxonomy marker synchronously")
+        self.assertNotIn("attempt", printed, "sink hit must skip the annotation retry entirely")
+
+    def test_sink_with_coordination_wording_refunds(self):
+        verdict, _ = self._classify_with_sink(
+            "REFUSED: post-merge preview rehearsal requires the exact current main SHA (asked for a, main is b)\n")
+        self.assertTrue(verdict)
+
+    def test_empty_sink_and_empty_annotations_is_change_fault(self):
+        verdict, printed = self._classify_with_sink("")
+        self.assertFalse(verdict)
+        self.assertIn("change fault", printed)
+
+    def test_sink_read_failure_falls_through_to_annotations(self):
+        """A printer that failed to write leaves no usable sink; the classifier
+        must fall through to the annotation channel without crashing."""
+        listing = {"jobs": [{"id": 11, "name": "preview",
+                             "check_run_url": "https://api.github.com/repos/o/r/check-runs/11"}]}
+        marker = [{"annotation_level": "failure",
+                   "message": "REFUSED: production lane requires the exact current main SHA"}]
+
+        def fake(cmd, **kw):
+            joined = " ".join(cmd)
+            if "/annotations" in joined:
+                class R:
+                    stdout = json.dumps(marker)
+                return R()
+            class R:
+                stdout = json.dumps(listing)
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1",
+                                             "REFUND_FAULT_EVIDENCE": "/nonexistent/sink.log"}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            verdict = classifier.classify_run_job("preview", sleep=lambda _: None)
+        self.assertTrue(verdict, "annotation fallback must still work when the sink is unreadable")
+
 class ClassifiedRefundBudget(unittest.TestCase):
     """Plan §9 2.2/2.3: classified failures (marker OR pure staleness) draw from
     one refund budget per change since merge; the classified failure that finds
