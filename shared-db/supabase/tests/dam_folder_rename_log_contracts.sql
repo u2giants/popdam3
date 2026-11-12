@@ -54,6 +54,18 @@ begin
     raise exception 'nested rename must be rejected';
   exception when check_violation then null;
   end;
+  begin
+    insert into dam.folder_rename_log (share, old_path, new_path, renamed_at, batch_id, rule)
+    values ('t963', 'N/A', 'N/A/B/C', '2026-01-01', v_batch, 'test');
+    raise exception 'rename into own subtree must be rejected';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into dam.folder_rename_log (share, old_path, new_path, renamed_at, reverted_at, batch_id, rule)
+    values ('t963', 'R/x', 'R/y', '2026-02-01', '2026-01-01', v_batch, 'test');
+    raise exception 'revert before rename must be rejected';
+  exception when check_violation then null;
+  end;
   if dam.path_as_of('t963', 'C/Mixed/f.ai', '2026-01-01') <> 'C/Mixed/f.ai' then
     raise exception 'wildcard characters must not pattern-match';
   end if;
@@ -74,6 +86,18 @@ begin
   select count(*) into v_n from public.dam_asset_path_candidates(v_asset);
   if v_n <> 4 then
     raise exception 'public wrapper must return the same candidates';
+  end if;
+
+  -- reverted rename: the file sat under new_path during the window; both
+  -- directions must be candidates (asset now back under old_path)
+  insert into dam.folder_rename_log (share, old_path, new_path, renamed_at, reverted_at, batch_id, rule)
+  values ('mac', 'Z963b/Ross Wall 2026', 'Z963b/Wall', '2026-06-01', '2026-06-05', v_batch, 'test');
+  insert into public.assets (id, relative_path, filename, file_type, quick_hash, modified_at)
+  values (gen_random_uuid(), 'Z963b/Ross Wall 2026/g.psd', 'g.psd', 'psd', 'qh963b', now())
+  returning id into v_asset;
+  select array_agg(p order by p) into v_c from dam.path_candidates('mac', v_asset) p;
+  if v_c is distinct from array['Z963b/Ross Wall 2026/g.psd', 'Z963b/Wall/g.psd'] then
+    raise exception 'path_candidates must include the reverted-rename window path: %', v_c;
   end if;
 
   -- grants
