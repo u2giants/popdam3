@@ -4740,6 +4740,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      dam_asset_path_candidates: {
+        Args: { p_asset_id: string }
+        Returns: string[]
+      }
       dam_catalog_code_format_exists: {
         Args: { p_format: string }
         Returns: boolean
