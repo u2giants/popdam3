@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { manifestDigest, validateManifest } from './lib/designflow-db-release.mjs';
 import { releasePolicy } from './designflow-db-release.mjs';
 import {
-  buildPolicyUpdate, classifyVerificationError, runSync, syncApp,
+  buildPolicyUpdate, verifiedPolicyUpdate, mergeWhenGreen, classifyVerificationError, runSync, syncApp,
 } from './designflow-contract-sync.mjs';
 
 const baseManifest = {
@@ -322,12 +322,89 @@ test('an in-sync application is left alone', async () => {
 test('an existing open contract-update PR is resumed instead of duplicated', async () => {
   const merged = [];
   const { calls, io } = stubs({
-    findOpenPR: () => ({ number: 6109 }),
-    mergeWhenGreen: (pr) => { merged.push(pr); return 'auto-merge queued'; },
+    findOpenPR: () => ({ number: 6109, head: { sha: 'verified-head' } }),
+    readPRPolicy: () => basePolicy(manifestDigest(baseManifest)),
+    mergeWhenGreen: (pr, head) => {
+      assert.equal(head, 'verified-head');
+      merged.push(pr); return 'auto-merge queued';
+    },
   });
   const result = await syncApp(basePolicy().repositories[0], basePolicy(), io);
   assert.equal(result.status, 'pr-resumed');
   assert.equal(result.pr, 6109);
   assert.deepEqual(merged, [6109]);
+  assert.equal(calls.reads.length, 1);
+  assert.equal(calls.prs.length, 0);
+});
+
+
+test('stale open PR is never resumed or duplicated', async () => {
+  const { calls, io } = stubs({
+    findOpenPR: () => ({ number: 6109, head: { sha: 'old-head' } }),
+    readPRPolicy: () => basePolicy('a'.repeat(64)),
+  });
+  const result = await syncApp(basePolicy().repositories[0], basePolicy(), io);
+  assert.equal(result.status, 'pr-open');
+  assert.match(result.reason, /digest differs/);
+  assert.equal(calls.merges.length, 0);
+  assert.equal(calls.prs.length, 0);
+});
+
+test('matching open PR cannot resume when production proof now fails', async () => {
+  const { calls, io } = stubs({
+    findOpenPR: () => ({ number: 6109, head: { sha: 'verified-head' } }),
+    readPRPolicy: () => basePolicy(manifestDigest(baseManifest)),
+    readProduction: async () => [{ production_catalog_proof: {
+      ...goodProof, failures: [{ schema: 'dflow_prod', relation: 'users', reason: 'missing_relation' }],
+    } }],
+  });
+  const result = await syncApp(basePolicy().repositories[0], basePolicy(), io);
+  assert.equal(result.status, 'issue-created');
+  assert.equal(calls.merges.length, 0);
+});
+
+test('fresh policy restrictions are enforced before preparing the commit', () => {
+  const fresh = basePolicy();
+  fresh.repositories[0].schemas = [];
+  assert.throws(() => verifiedPolicyUpdate(fresh, baseManifest.repository,
+    manifestDigest(baseManifest), baseManifest), /Schema is outside/);
+  const updated = verifiedPolicyUpdate(basePolicy(), baseManifest.repository,
+    manifestDigest(baseManifest), baseManifest);
+  assert.equal(updated.repositories[0].contract_manifest_sha256, manifestDigest(baseManifest));
+});
+
+test('fallback preserves branch protection, pins the proven head and allows long checks', () => {
+  const calls = [];
+  mergeWhenGreen(6109, 'verified-head', (args, options) => {
+    calls.push({ args, options });
+    if (args.includes('--auto')) throw Error('auto merge unavailable');
+  });
+  assert.equal(calls.length, 3);
+  assert.equal(calls[1].options.timeout, 600_000);
+  for (const call of [calls[0], calls[2]]) {
+    assert.ok(!call.args.includes('--admin'));
+    assert.deepEqual(call.args.slice(-2), ['--match-head-commit', 'verified-head']);
+  }
+});
+
+test('fallback never merges when checks fail', () => {
+  const calls = [];
+  assert.throws(() => mergeWhenGreen(6109, undefined, args => {
+    calls.push(args);
+    throw Error('refused');
+  }), /refused/);
+  assert.equal(calls.length, 2);
+});
+
+
+test('matching open PR is refused when its policy disallows the contract', async () => {
+  const prPolicy = basePolicy(manifestDigest(baseManifest));
+  prPolicy.repositories[0].schemas = [];
+  const { calls, io } = stubs({
+    findOpenPR: () => ({ number: 6109, head: { sha: 'verified-head' } }),
+    readPRPolicy: () => prPolicy,
+  });
+  await assert.rejects(syncApp(basePolicy().repositories[0], basePolicy(), io), /Schema is outside/);
+  assert.equal(calls.merges.length, 0);
   assert.equal(calls.prs.length, 0);
 });

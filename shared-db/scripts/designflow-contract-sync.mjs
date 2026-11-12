@@ -12,7 +12,7 @@
 //   4. If either refuses: opens a labeled, routed issue instead. Nothing that
 //      failed verification is ever merged.
 //
-// Idempotent: skips apps that already have an open contract-update PR or issue.
+// Idempotent: re-verifies matching open contract-update PRs; skips open issues.
 // Fail-safe: a failure for one application never stops the others; the loop
 // never merges on an unproven contract.
 
@@ -89,6 +89,17 @@ export function buildPolicyUpdate(policy, repository, newDigest) {
   return updated;
 }
 
+// Validate the exact fresh policy that will be committed, not the job snapshot.
+export function verifiedPolicyUpdate(policy, repository, newDigest, manifest) {
+  const updated = buildPolicyUpdate(policy, repository, newDigest);
+  releasePolicy(manifest, updated);
+  return updated;
+}
+
+function readPRPolicy(pr) {
+  return JSON.parse(manifestTree.readFileAtRef(CANONICAL, POLICY_PATH, pr.head.sha));
+}
+
 // A refusal we can prove (catalog proof failures, policy allow-list refusal)
 // is a mismatch. Anything else means verification could not run, which must
 // never be reported as a contract mismatch (issue #6110 finding 4).
@@ -162,7 +173,7 @@ export function invalidManifestBody(repository, expectedDigest, reason) {
 // worktree, and its config edit is computed from the bytes checked out there.
 // Two mismatches in one run therefore cannot corrupt each other (issue #6110
 // finding 1): each PR touches exactly one digest line of the current policy.
-function createContractPR(repository, newDigest) {
+function createContractPR(repository, newDigest, manifest) {
   const appName = repository.replace('popcre/designflow-', '');
   const branch = `contract-sync/${appName}-${newDigest.slice(0, 8)}`;
   execFileSync('git', ['fetch', 'origin', 'main'], { stdio: 'pipe' });
@@ -171,7 +182,7 @@ function createContractPR(repository, newDigest) {
     execFileSync('git', ['worktree', 'add', '--detach', worktree, 'origin/main'], { stdio: 'pipe' });
     execFileSync('git', ['checkout', '-b', branch], { cwd: worktree, stdio: 'pipe' });
     const policy = JSON.parse(readFileSync(join(worktree, POLICY_PATH), 'utf8'));
-    const updated = buildPolicyUpdate(policy, repository, newDigest);
+    const updated = verifiedPolicyUpdate(policy, repository, newDigest, manifest);
     writeFileSync(join(worktree, POLICY_PATH), JSON.stringify(updated, null, 2) + '\n');
     execFileSync('git', ['config', 'user.name', 'github-actions[bot]'], { cwd: worktree });
     execFileSync('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com'], { cwd: worktree });
@@ -202,17 +213,25 @@ function createContractPR(repository, newDigest) {
 // merge-group checks are green. Strategy flags (--squash) and --admin are
 // refused while the queue is enabled, and a refused enqueue throws — the PR
 // then stays open and is resumed on a later run, never merged unproven.
-function mergeWhenGreen(prNumber) {
-  command(['pr', 'merge', String(prNumber), '--repo', CANONICAL]);
-  return 'queued to the merge queue; merges when its checks are green';
+export function mergeWhenGreen(prNumber, headSha, run = command) {
+  const headArgs = headSha ? ['--match-head-commit', headSha] : [];
+  try {
+    run(['pr', 'merge', String(prNumber), '--repo', CANONICAL, '--auto', ...headArgs]);
+    return 'auto-merge queued; merges when required checks are green';
+  } catch {
+    run(['pr', 'checks', String(prNumber), '--repo', CANONICAL, '--watch', '--fail-fast', '--interval', '15'],
+      { timeout: 10 * 60_000 });
+    run(['pr', 'merge', String(prNumber), '--repo', CANONICAL, ...headArgs]);
+    return 'merged after reported checks were green';
+  }
 }
 
 // If a previous run left an open contract-update PR, finish it when green
 // instead of stalling forever behind the idempotency skip.
-function resumeOpenPR(prNumber, fx = {}) {
+function resumeOpenPR(prNumber, fx = {}, headSha) {
   const merge = fx.mergeWhenGreen ?? mergeWhenGreen;
   try {
-    return { status: 'pr-resumed', pr: prNumber, merge: merge(prNumber) };
+    return { status: 'pr-resumed', pr: prNumber, merge: merge(prNumber, headSha) };
   } catch (error) {
     return { status: 'pr-open', pr: prNumber, reason: `not merged yet: ${error.message}` };
   }
@@ -223,11 +242,12 @@ export async function syncApp(app, policy, io = {}) {
     fetchManifest: io.fetchManifest ?? fetchManifest,
     readProduction: io.readProduction ?? readProduction,
     findOpenPR: io.findOpenPR ?? findOpenPR,
+    readPRPolicy: io.readPRPolicy ?? readPRPolicy,
     findOpenIssue: io.findOpenIssue ?? findOpenIssue,
     openIssue: io.openIssue ?? openIssue,
     createContractPR: io.createContractPR ?? createContractPR,
     mergeWhenGreen: io.mergeWhenGreen ?? mergeWhenGreen,
-    resumeOpenPR: io.resumeOpenPR ?? (pr => resumeOpenPR(pr, fx)),
+    resumeOpenPR: io.resumeOpenPR ?? ((pr, head) => resumeOpenPR(pr, fx, head)),
   };
 
   let manifest;
@@ -255,11 +275,19 @@ export async function syncApp(app, policy, io = {}) {
   console.log(`Contract mismatch: ${app.repository} expected=${app.contract_manifest_sha256} actual=${digest}`);
 
   const existingPR = fx.findOpenPR(app.repository);
-  if (existingPR) return fx.resumeOpenPR(existingPR.number);
+  if (existingPR) {
+    const prPolicy = fx.readPRPolicy(existingPR);
+    const prApp = prPolicy.repositories.find(row => row.repository === app.repository);
+    if (prApp?.contract_manifest_sha256 !== digest) {
+      return { repository: app.repository, status: 'pr-open', pr: existingPR.number,
+        reason: 'Open PR digest differs from the current develop contract' };
+    }
+    releasePolicy(manifest, prPolicy);
+  }
 
   const existingIssue = fx.findOpenIssue(`Contract sync: ${app.repository} develop ${digest.slice(0, 12)}`)
     ?? fx.findOpenIssue(`Contract sync could not verify: ${app.repository} develop ${digest.slice(0, 12)}`);
-  if (existingIssue) {
+  if (existingIssue && !existingPR) {
     return { repository: app.repository, status: 'skipped', reason: `Issue #${existingIssue.number} already open` };
   }
 
@@ -305,7 +333,9 @@ export async function syncApp(app, policy, io = {}) {
       reason, issue: number ?? undefined };
   }
 
-  const prNumber = fx.createContractPR(app.repository, digest);
+  if (existingPR) return fx.resumeOpenPR(existingPR.number, existingPR.head.sha);
+
+  const prNumber = fx.createContractPR(app.repository, digest, manifest);
   const merge = fx.mergeWhenGreen(prNumber);
   return { repository: app.repository, status: 'pr-merged', pr: prNumber, digest, merge };
 }
