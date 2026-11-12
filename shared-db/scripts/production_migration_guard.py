@@ -225,6 +225,12 @@ HARD_BLOCKED = {
     # it. 20260905024139 carries byte-identical executable SQL (git blob
     # adc49fb5a103a70e03d9a98afc5be4b6518ac92a). Never apply this original.
     "20260903200951",
+    # #4705/#6074: 20261111230455 (license_agreement reissue, PR #6075) was parked after
+    # three attempts failed on its retired sibling 20261111230502; 20261112011634 (PR #6103)
+    # was held by review finding #6104. Both applied nowhere in production. Reissued as
+    # 20261112025353 and 20261112025359 (strict on production). Never apply either.
+    "20261111230455",
+    "20261112011634",
     # #6074 original nickname/mapping data migration (PR #6075). Its preview rehearsal
     # failed closed on preview-only data drift (run 43132585328) and rolled back, so it
     # is applied nowhere. Reissued all-or-nothing as 20261112011634. Never apply it.
@@ -395,6 +401,8 @@ RETIRED_VERSION_REASONS = {
     "20260814170749": "stranded without qualifying preview evidence after the preview project replacement; reissued with identical executable SQL as 20260825201330 under issue 1517, applied to production 2026-08-25 (PR 1541, run 32901820150)",
     "20260819011639": "unpromotable producer provenance; replaced byte-for-byte by 20260820142402, applied to production 2026-08-20 (issue 1171)",
     "20260819151536": "production verification times out and rolls the migration back; replaced by 20260820004338, applied to production 2026-08-20 (issue 1280)",
+    "20261111230455": "parked after 3 failed attempts caused by retired sibling 20261111230502 in PR 6075; never applied to production; reissued as 20261112025353 (issue 4705)",
+    "20261112011634": "held by review finding 6104 (data drift downgraded to a warning); never applied to production; reissued strict-on-production as 20261112025359 (issue 6074)",
     "20261111230502": "never applied: preview rehearsal failed closed on preview data drift (run 43132585328); reissued all-or-nothing as 20261112011634 (issue 6074)",
     "20261111192349": "unpromotable: PR 6066 exact-head checks never ran (GitHub Actions outage 2026-11-11, gate run 43114723101); preview holds it; reissued idempotently as 20261111230455 (issue 6074)",
     "20260824181600": "unpromotable producer provenance; replaced byte-for-byte by 20260825192610, applied to production 2026-08-25 (issue 1532, run 32892984889)",
