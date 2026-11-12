@@ -478,10 +478,21 @@ class WorkflowRunsWindow(unittest.TestCase):
 
 
 class AppliedDespiteCatalogCheck(unittest.TestCase):
-    def test_only_catalog_failure_counts_as_applied(self):
-        self.assertTrue(m.applied_despite_catalog_check(APPLIED))
-        self.assertFalse(m.applied_despite_catalog_check(NOT_APPLIED))
-        self.assertFalse(m.applied_despite_catalog_check([]))
+    def test_apply_step_success_counts_as_applied(self):
+        self.assertTrue(m.applied_in_attempt(APPLIED))
+        self.assertFalse(m.applied_in_attempt(NOT_APPLIED))
+        self.assertFalse(m.applied_in_attempt([]))
+
+    def test_later_post_apply_failure_still_counts_as_applied(self):
+        # #6119: run 43094471144 applied 20261111183827 and then failed only
+        # `Save apply evidence` (GitHub artifact-upload outage) with a clean
+        # catalog check. The versions are in production; the selector must not
+        # report the live change "not live" and exhaust its attempts.
+        jobs = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"},
+                           {"name": m.CATALOG_STEP, "conclusion": "success"},
+                           {"name": "Save apply evidence", "conclusion": "failure"},
+                           {"name": "refund-eligible-fault", "conclusion": "failure"}]}]
+        self.assertTrue(m.applied_in_attempt(jobs))
 
     def test_decide_moves_past_an_applied_pr(self):
         first = {"number": 5104, "merged_at": "2026-10-31T00:00:00Z", "versions": ["20261030153101"]}
@@ -1522,7 +1533,7 @@ class ClassifiedRefundBudget(unittest.TestCase):
         self.assertEqual(action, "idle")
         with contextlib.redirect_stdout(io.StringIO()) as out:
             m.decide([self.pr], [run], lambda n: [], applied=lambda r: True, refunded=lambda r: True)
-        self.assertIn("applied; only its post-apply catalog check failed", out.getvalue())
+        self.assertIn("applied; a later post-apply step failed", out.getvalue())
 
 
 class AdversarialRunIdentity(unittest.TestCase):

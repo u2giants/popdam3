@@ -206,23 +206,30 @@ def workflow_runs(repo: str) -> list[dict[str, Any]]:
     return [run for page in pages for run in page.get("workflow_runs", [])]
 
 
-# A production apply whose atomic apply step succeeded but whose only failed
-# step is the post-apply catalog check has written its versions (observed
-# 2026-10-31: PR #5104, a pure-data load the catalog lexer cannot read). The
-# signature is judged PER ATTEMPT and ANY attempt suffices: a re-run must not
-# erase the attempt that wrote the versions (2026-11-03: run 41545991868
-# attempt 1 applied 20261102202014 and failed only its catalog check; a re-run
-# replaced the step signature and the selector retried an already-applied PR
-# into ENGINEER ACTION REQUIRED).
+# A production apply whose atomic apply step succeeded has written its
+# versions to the ledger; whatever fails afterwards cannot un-write them.
+# The post-apply catalog check verifies what was written — when it alone
+# fails the versions are still there (observed 2026-10-31: PR #5104, a
+# pure-data load the catalog lexer cannot read) — and the same holds for any
+# later evidence step (observed 2026-11-11: run 43094471144 applied
+# 20261111183827 with a clean catalog check, then failed only `Save apply
+# evidence` on the GitHub artifact-upload outage, and the selector reported
+# the live version "not live" and exhausted its attempts, refiring the
+# stuck-change alarm (#6119)). The signature is judged PER ATTEMPT and ANY
+# attempt suffices: a re-run must not erase the attempt that wrote the
+# versions (2026-11-03: run 41545991868 attempt 1 applied 20261102202014 and
+# failed only its catalog check; a re-run replaced the step signature and the
+# selector retried an already-applied PR into ENGINEER ACTION REQUIRED).
 APPLY_STEP = "Fresh dry-run, then apply"
 CATALOG_STEP = "Post-apply catalog verification"
 
 
-def applied_despite_catalog_check(jobs: list[dict[str, Any]]) -> bool:
+def applied_in_attempt(jobs: list[dict[str, Any]]) -> bool:
+    """True when this attempt's apply step succeeded — the versions are in
+    production however the rest of the run ended (the catalog check, the
+    evidence upload, the refund classifier)."""
     steps = [s for j in jobs for s in j.get("steps") or []]
-    failed = {s.get("name") for s in steps if s.get("conclusion") == "failure"}
-    applied = any(s.get("name") == APPLY_STEP and s.get("conclusion") == "success" for s in steps)
-    return applied and failed == {CATALOG_STEP}
+    return any(s.get("name") == APPLY_STEP and s.get("conclusion") == "success" for s in steps)
 
 
 def run_jobs(repo: str, run_id: int, attempt: int | None = None) -> list[dict[str, Any]]:
@@ -237,7 +244,7 @@ def attempt_jobs(repo: str, run: dict[str, Any]) -> list[list[dict[str, Any]]]:
 
 
 def applied_in_any_attempt(repo: str, run: dict[str, Any]) -> bool:
-    return any(applied_despite_catalog_check(jobs) for jobs in attempt_jobs(repo, run))
+    return any(applied_in_attempt(jobs) for jobs in attempt_jobs(repo, run))
 
 
 def preview_job_succeeded_in_any_attempt(repo: str, run: dict[str, Any]) -> bool:
@@ -420,7 +427,7 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             print(f"skip: PR #{pr['number']} has a successful production apply")
             continue
         if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
-            print(f"skip: PR #{pr['number']} applied; only its post-apply catalog check failed")
+            print(f"skip: PR #{pr['number']} applied; a later post-apply step failed")
             continue
         wanted = set(pr["versions"])
         in_production: set[str] = set()
