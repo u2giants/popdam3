@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -80,8 +81,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def gh(*args: str) -> Any:
-    out = subprocess.run(["gh", "api", *args], check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout
-    return json.loads(out) if out.strip() else None
+    # Read-only GitHub API calls. One transient API error used to abort the whole
+    # selector and stall the promotion queue (2026-11-12, runs 43313401779 and
+    # 43315145424), so retry a bounded number of times before failing closed.
+    for attempt in range(3):
+        try:
+            out = subprocess.run(["gh", "api", *args], check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout
+            return json.loads(out) if out.strip() else None
+        except subprocess.CalledProcessError:
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
 
 
 def registered_orphan_versions() -> set[str]:
