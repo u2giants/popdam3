@@ -18,7 +18,7 @@ begin
     ('Other/Ross/Wall/f.psd', null, null, null),
     -- short names
     (b||'In Dev/Cust Adopted/Ross/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall'),
-    (b||'In Dev/Cust Adopted/Ross/2026/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall'),
+    (b||'In Dev/Cust Adopted/Ross/2026/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall 2026'),
     (b||'In Dev/Customer Adopted/Ross/Wall/f.psd', 'In Development', 'Ross', 'Wall'),
     (b||'In Development/Cust Adopted/Ross/Wall/f.psd', 'In Development', 'Ross', 'Wall'),
     (b||'In Dev/Cust Adopted/_FINISHED/Ross_finished/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall'),
@@ -29,7 +29,8 @@ begin
     (b||'In Development/Customer Adopted/Ross/2026/PQE8QMVAV01/f.psd', 'In Development', 'Ross', null),
     (b||'In Development/Customer Adopted/Ross/2026/f.psd', 'In Development', 'Ross', null),
     (b||'In Development/Customer Adopted/Ross/2026', 'In Development', 'Ross', null),
-    (b||'In Development/Customer Adopted/_FINISHED/Ross_finished/2025/Wall/f.psd', 'In Development', 'Ross', 'Wall')
+    (b||'In Development/Customer Adopted/_FINISHED/Ross_finished/2025/Wall/f.psd', 'In Development', 'Ross', 'Wall 2025'),
+    (b||'In Development/Customer Adopted/Dollar General/2027/Dollar General Harvest Coir/SKU/f.psd', 'In Development', 'Dollar General', 'Dollar General Harvest Coir 2027')
   ) v(p, st, cu, pr) loop
     got := public.infer_path_attrs(c.p);
     if got->>'stage' is distinct from c.st or got->>'customer' is distinct from c.cu
