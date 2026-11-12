@@ -257,6 +257,21 @@ A wrong description is worse than none.
 - Items created before 2025-05-01 receive their combination's *published* description
   later, under the same verification; their wording is not used to regenerate anything.
 - A combination of one or two items is published only if every item in it passes.
+- Where it shows: on each item's detail screen and as a column (with filter) in the Item
+  Library, beside MG01 "Product Type", never replacing it. A blank shows as needing review.
+  A person's override always wins over the generated name, until that person (or another
+  staff member) reverts it to automatic.
+
+**Settled — later owner rulings by Albert Hazan:**
+
+- 2026-11-09 10:03 PM EST: hold every name until the whole set passes the bar (met
+  2026-11-11; names written in sandbox 2026-11-11 and production 2026-11-12).
+- 2026-11-09 11:16 PM EST: the 95% bar counts only items whose own description states the
+  material and product needed to name them; the rest get no name and stay for review.
+- 2026-11-12 2:14 PM EST: "it should be done at the time an item is created going forward
+  for all new items created" — every new item is named at creation, not by a later batch.
+  Until that is built, a new item gets a name only when its combination already has a
+  published one.
 
 The 2025-05-01 boundary above is the product-description population boundary. It is a
 different date and purpose from the May 14, 2025 item-learning boundary in this topic.
