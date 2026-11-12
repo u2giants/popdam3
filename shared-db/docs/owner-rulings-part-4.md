@@ -114,3 +114,15 @@ The decision is the 2026-08-31 ruling in [licensing-master-data.md, "OPA cannot 
 - An OPA Property no clause names stays unplaced (no studio guess from OPA branch, names or source labels) until a clause, direct OPA Star Wars scope, or a separate owner ruling places it.
 - Names stay exactly as the submissions site writes them (§6.31).
 - Applied by issue #2541 (13 Properties, including Standard Characters).
+
+### 6.37 OWNER RULING — core.property is ColdLion's Property list, filled daily from the landing (Albert Hazan, 2026-11-12)
+
+Verbatim Albert, 2026-11-12 4:07 PM EST:
+
+> "yes. all 3 should be filled from coldlion via the established path: coldlion to landing table, landing table to the table used by the apps."
+
+Verbatim Albert, 2026-11-12 4:16 PM EST:
+
+> "the long-term property list is settled and it's what's in coldlion right now + a few changes i will ask Jamielynn to make tomorrow"
+
+**Effect.** `core.property` takes ColdLion MG06 codes, names and active/inactive status from `coldlion.merch_group_detail` every day (`plm.sync_core_property_from_coldlion`, migration `20261112232209`, issue #6194). Rows not in ColdLion are untouched and nothing is deleted. Where it conflicts with 6.31 on a ColdLion-coded row's name, ColdLion's name wins; the earlier name stays in the row's metadata.
