@@ -178,7 +178,11 @@ credential traps are in [`docs/agents/runbooks-credentials-cli-and-gotchas.md`](
 
 There is no application deploy from this repo. What "shipping" means here:
 
-1. **Branch + PR + guarded merge** into `main` (see [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md)).
+1. **Branch + PR + merge through the `main` merge queue** into `main` — plain
+   `gh pr merge` enqueues the PR and the queue lands it when green. Never
+   `--admin` or `--squash`: the queue refuses them ("Changes must be made
+   through the merge queue"). This supersedes the older prose-merge teaching
+   `gh pr merge --squash --admin` (see [`docs/agents/merge-protocol.md`](docs/agents/merge-protocol.md) §5).
 2. **`sync.yml` mirrors the entire tree** into each consumer repo's `shared-db/` folder on push to `main`.
 3. **Database shape** is applied via the Supabase migration lane: preview rehearsal first, then the bounded production apply workflow (`shared-supabase-migrations.yml` / production apply evidence), never by hand-editing production.
 4. **Rollback** of schema is a new forward migration; rollback of a bad `main` commit is revert + merge. There is no SSH deploy path and no container tag.

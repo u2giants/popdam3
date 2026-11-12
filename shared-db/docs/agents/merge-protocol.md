@@ -37,6 +37,17 @@ production command, manual workflow dispatch, other repository, or bypass.
 Docs-only PRs (no schema change) need just items 1 and "it reads correctly" —
 merge them promptly.
 
+**How to merge (added 2026-11-12; supersedes the older rulebook line teaching
+that prose-only PRs merge via `gh pr merge --squash --admin`).** Every pull
+request here merges through GitHub's merge queue: plain `gh pr merge <pr>`
+enqueues it and the queue lands it once its merge-group checks are green.
+`--admin` is refused ("Changes must be made through the merge queue"), and the
+queue owns the merge strategy ("merge strategy for main is set by the merge
+queue"), so `--squash` and friends are not the merge path either. Both
+refusals were hit live on 2026-11-12 by sessions following the older teaching;
+PRs #6112, #6116 and #6122 then merged through the queue. There is no
+prose-only admin fast path: a documents-only pull request takes the same queue.
+
 ### Review is advisory (owner 2026-10-29)
 
 **Owner ruling (Albert Hazan, 2026-10-29): review is advisory and never a merge
