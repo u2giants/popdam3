@@ -31,9 +31,9 @@ licensor since January 2025. Could you confirm or correct each item?
 6. **For your information — Rugrats (RG).** Decided: Rugrats stays inactive. Existing styles keep
    it; no new styles can use it.
 7. **For your information — Mickey Mouse Family.** Mickey Mouse Family is now the parent value;
-   MICKEY MOUSE and the other family characters sit under it. 203 styles move from
+   MICKEY MOUSE and the other family characters sit under it. 208 styles move from
    "Standard Characters" to Mickey Mouse Family. Styles showing Mickey with other characters
-   (Minnie, Pluto, Goofy…) stay on "Standard Characters", as Disney's site requires (9 styles). 5 more name no character yet and will be sorted the same way.
+   (Minnie, Pluto, Goofy…) stay on "Standard Characters", as Disney's site requires (9 styles).
 
 All other values you marked "inactivate – contract expired" (Paw Patrol group, JoJo Siwa,
 Dora, Blaze, Shimmer & Shine, Space Jam, Frida Kahlo, Peanuts 75th, etc.) have no styles since
