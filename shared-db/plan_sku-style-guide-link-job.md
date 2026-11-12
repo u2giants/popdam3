@@ -1,7 +1,7 @@
 ---
-summary: "Plan to make the nightly SKU to style-guide link job finish within the 120 s cap, issue #5608; persisted keys and batched resolver delivered, v4 snapshot live"
+summary: "Plan for the nightly SKU to style-guide link job (#5608): delivered and live-proven with four tagged nightly successes under 60 s"
 kind: plan
-status: open
+status: done
 read-when: finishing the nightly SKU style-guide link job fix (#5608)
 ---
 
@@ -10,7 +10,7 @@ read-when: finishing the nightly SKU style-guide link job fix (#5608)
 Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); historical preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
 Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
 
-## STATUS (2026-11-08 03:10 PM EST)
+## STATUS (2026-11-11 10:30 PM EST)
 
 | Step | State | Evidence |
 |---|---|---|
@@ -20,10 +20,10 @@ Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled b
 | 3 Contracts and recovery | merged; all three required checks passed | Whole8050-SKU calls, original nine-column/eight-portal parity, post-DML cancellation, input concurrency/security and24 actual proof-SQL cases |
 | 4 Governed preview + exact output | v4 complete | Run42268869549 preview SUCCESS; full6.911497s/unchanged2.244536s; exact nine-column differences0/0 on334 rows |
 | 5 v4 unified input snapshot | production delivered | Version 20261106171924 auto-applied 2026-11-07 at 4:09 PM EST (automatic run 42414494992, PR #5898) after the #5899 hold expired 12:45:30 PM EST; production `schema_migrations` read 2026-11-08 2:45 PM EST confirms the version — never re-apply. Night 1 full run 26.087 s is the first production runtime proof; catchup job absent as designed |
-| 6 Three final-source nightly successes | 1 of 3 nights | Night 1 (2026-11-08 UTC date, started 2026-11-07 11:30 PM EST) succeeded 26.087 s with the exact `/* shared-db:20261106171924 */` tag; job row active/postgres/`30 4 * * *`; 7,272 v4 progress rows; `max(last_seen_at)` matches that run. Nights 2–3 due 2026-11-09 and 2026-11-10 UTC (11:30 PM EST on 11-08 and 11-09). `.github/live-proofs/5608.sql` still returns passed=false until all three exist |
+| 6 Three final-source nightly successes | complete (4 of 3) | Nights 2–4 (UTC dates 2026-11-09/10/11; started 11:30 PM EST on 11-08/09/10) succeeded 20.313 s / 27.516 s / 23.048 s with the exact `/* shared-db:20261106171924 */` tag, giving four consecutive tagged successes with night 1 (26.087 s). Committed probe `.github/live-proofs/5608.sql` returned `passed = true`; durable artifact from [Shared DB Live Proof run 43147565616](https://github.com/popcre/shared-db/actions/runs/43147565616) (`shared-db-live-proof-5608-131c015a0f0adf33408e1a96d3fcde07ebd9b7a1`, ID 13911503678, digest `sha256:c0a6dbde0470a06440139d442f632f8bf497885e1380263049bba27b966dbd4b`) records `result: passed` on production at 2026-11-12T03:20:50Z. Full record: [live-proof note](docs/verification/database-efficiency/20261112-5608-live-proof/sku-style-guide-live-proof.md) |
 
-- [ ] Implementation complete: v4 preview rehearsal passed; automatic production delivery and actual production full/catchup/output proof remain required.
-- [ ] live proof: three genuine consecutive source-tagged nights and freshness remain required on #5608.
+- [x] Implementation complete: persisted keys, batched v4 snapshot resolver, catch-up and tagged nightly job delivered to production through the normal automatic path (PR #5898 / run 42414494992).
+- [x] live proof: three genuine consecutive source-tagged nights under 60 s (four observed) and freshness proven by the committed probe and its durable workflow artifact.
 
 Checked 2026-11-08 2:45 PM EST: the hold-deadline check is done — normal automatic production had already delivered `20261106171924` (run 42414494992, 2026-11-07 4:09 PM EST), so no recovery replay was needed or run. The "production held / hold still binds" prose below is historical.
 
