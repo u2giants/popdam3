@@ -43,7 +43,7 @@ Inside the `In Development / Customer Adopted` branch, the segment at `idx+3` de
 | any other `_`-prefixed bucket (`_NOT APPROVED`, `_REJECTED`, `_No Customer`, `_NOT SUBMITTED`, …) | NULL | NULL |
 | empty | NULL | NULL |
 
-**Year folder** — if the program slot is a year (`^20\d\d$`, e.g. `Ross/2026/Ross Wall 2026/…`), the program is the next folder instead (#963; before 2026-11-11 such files got program `2026`).
+**Year folder** — if the program slot is a year (`^20\d\d$`, e.g. `Ross/2026/Ross Wall 2026/…`), the program is the next folder instead, with the year appended when that folder name does not already contain it (`Dollar General/2027/Dollar General Harvest Coir` → `Dollar General Harvest Coir 2027`), so searching "customer + year" still finds every file (#963; before 2026-11-11 such files got program `2026`).
 
 **Program guard** — the program slot is nulled if it doesn't look like a real program folder:
 - matches `\.[A-Za-z0-9]+$` → looks like a filename

@@ -13,14 +13,14 @@ Written 2026-11-11 (New York time) by Claude on `hetz`, from a brainstorm with A
 
 ## STATUS — read this first
 
-Phases 0–2 are done (restore from snapshot is live, admin only). Next: Phases 3 and 4. Nothing on the NAS has been renamed.
+Phases 0–3 are done (restore from snapshot is live, admin only; PopDAM reads both old and short folder names). Next: Phase 4. Nothing on the NAS has been renamed.
 
 | Step | State | Date | Evidence |
 |---|---|---|---|
 | Phase 0 — measure and verify assumptions (0.1–0.7) | ✅ done (0.3 in-container check deferred to 2.7) | 2026-11-11 | `verification/folder-shortening/path-length-baseline-2026-11-11.md` |
 | Phase 1 — permanent rename record (1.1–1.4) | ✅ done | 2026-11-11 | popcre/shared-db#6078 (prod apply ~6:55 PM EST) + fixes #6097/#6102 (prod apply ~7:30 PM EST); purge now 400 days (~8k rows/month → ~100k rows, ~85 MB); docs `docs/PATH_ATTRIBUTES.md` §8, `docs/SCHEMA.md` 2.7a; types regenerate via the deploy-supabase job |
 | Phase 2 — restore from snapshot (2.1–2.7) | ✅ done except scan-ingest check (2.3 fallback not built: candidates cover moves + renames) | 2026-11-11 | PR #971 (`baa75e2`); live proof `verification/folder-shortening/snapshot-restore-live-proof-2026-11-11.md` (0.3 in-container check also proven) |
-| Phase 3 — PopDAM understands old and new names (3.1–3.5) | ⬜ open | — | — |
+| Phase 4 — rename rules and full old-to-new list (4.1–4.5) | 🟡 4.1–4.4 done; 4.5 freeze waits for Albert's answers on #963 | 2026-11-11 | `tools/folder-rename/` (`node --test tools/folder-rename/plan.test.mjs`), `verification/folder-shortening/summary.md`, `old-to-new.csv`, `needs-attention.csv` |
 | Phase 4 — rename rules and full old-to-new list (4.1–4.5) | 🟡 4.1–4.4 done; year rule on and Concept_Approved applied; 4.5 freeze waits for Albert's customer short names (`customer-short-names.csv`) | 2026-11-11 | `tools/folder-rename/` (`node --test tools/folder-rename/plan.test.mjs`), `verification/folder-shortening/summary.md`, `old-to-new.csv`, `needs-attention.csv` |
 | Phase 5 — carry out the renames in stages (5.1–5.7) | ⬜ open | — | — |
 | Phase 6 — guard against new long names (6.1–6.2) | ⬜ open | — | — |
