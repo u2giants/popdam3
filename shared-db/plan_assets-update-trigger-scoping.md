@@ -7,7 +7,7 @@ read-when: "continuing issue #5609 assets trigger write-amplification acceptance
 
 # Plan: stop `public.assets` updates from re-running work nothing asked for
 
-Historical planning handoff (write-once record, not current execution state): [original assessment handoff](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md).
+Historical planning handoff (write-once record, not current execution state): (handoff retired 2026-11-12; see docs/handoff-review-2026-11-08.md).
 Current state: [owning issue #5609](https://github.com/popcre/shared-db/issues/5609), the STATUS below, and [production/recovery evidence](docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md). The remaining acceptance is not complete.
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 

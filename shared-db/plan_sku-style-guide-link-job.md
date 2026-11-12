@@ -7,7 +7,7 @@ read-when: finishing the nightly SKU style-guide link job fix (#5608)
 
 # Plan: make the nightly SKU -> style guide link job finish
 
-Historical assessment handoff (write-once, 2026-11-04): [original assessment](HANDOFF.d/20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); historical preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
+Historical assessment handoff (write-once, 2026-11-04): (handoff retired 2026-11-12; see docs/handoff-review-2026-11-08.md). Its “None is started” statement records that earlier assessment only. Current custody and remaining work: [#5608](https://github.com/popcre/shared-db/issues/5608); historical preview evidence: [post-apply record](docs/verification/database-efficiency/20261105T074139Z/sku-style-guide-preview-live.md).
 Owning issue: #5608. Related history: #5141 (closed; the same 120 s cap rolled back this migration's inline backfill). Sibling plans: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md).
 
 ## STATUS (2026-11-11 10:30 PM EST)

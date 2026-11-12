@@ -1,6 +1,15 @@
+---
+summary: Plan to store each MG06 Property's exact licensor-site path in core.property_site_path for AI-filled licensor submissions.
+kind: plan
+status: open
+read-when: executing the MG06 licensor-site path store (issues 2541/6150)
+---
+
 # Plan: store each MG06 Property's licensor-site path (for AI-filled licensor submissions)
 
-Handoff: [HANDOFF.d/20261111T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md](HANDOFF.d/20261111T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md)
+Handoff: [HANDOFF.d/2026-11-11T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md](HANDOFF.d/2026-11-11T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md)
+
+Supporting docs: [Albert's MG06 sheet vs the handoff](docs/mg06-sheet-vs-handoff-2026-11-12.md) | [Ilona confirmation email draft](docs/mg06-ilona-confirmation-email-draft-2026-11-12.md) | [OPA product lines and Minnie findings](docs/opa-product-lines-minnie-styleguide.md)
 
 ## STATUS (read first — do not re-plan)
 

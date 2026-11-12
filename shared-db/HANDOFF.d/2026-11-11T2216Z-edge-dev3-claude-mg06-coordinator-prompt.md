@@ -1,3 +1,9 @@
+---
+issue: 2541
+status: OPEN
+owner: mimo/6084-doc-health
+---
+
 # Coordinator prompt — MG06 / AI licensor submissions (2026-11-11, 5:16 PM EST)
 
 Paste the block below into a new session in `popcre/shared-db`.
@@ -7,7 +13,7 @@ Paste the block below into a new session in `popcre/shared-db`.
 You are the coordinator for POP Creations' "AI fills licensor submission forms" groundwork.
 Read `AGENTS.md`, then these two files (on PR popcre/shared-db#6091 until merged):
 `plan_mg06_licensor_site_path.md` and
-`HANDOFF.d/20261111T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md`.
+`HANDOFF.d/2026-11-11T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md`.
 Background in one paragraph: our item field MG06 (ColdLion merch group 06) is the licensed
 Property. The AI must pick the matching option on each licensor's submission website
 (Disney OPA first). MG06 keeps short display names. A backend record stores the exact site

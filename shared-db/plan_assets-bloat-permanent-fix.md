@@ -8,7 +8,7 @@ read-when: working on public.assets bloat, repack or search latency follow-up
 # Plan: permanently shrink `public.assets` and keep it small (popcre/shared-db#5747)
 
 Owning issue: [popcre/shared-db#5747](https://github.com/popcre/shared-db/issues/5747). Parent need: [u2giants/popdam3#804](https://github.com/u2giants/popdam3/issues/804) cause 6 (search latency).
-Handoff for this plan: [HANDOFF.d/20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md](HANDOFF.d/20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md).
+Handoff for this plan: [HANDOFF.d/2026-11-05T1950Z-edge-dev3-claude-assets-bloat-plan.md](HANDOFF.d/2026-11-05T1950Z-edge-dev3-claude-assets-bloat-plan.md).
 Related plans (read their STATUS, do not redo): [plan_assets-update-trigger-scoping.md](plan_assets-update-trigger-scoping.md) (#5609, trigger fan-out on `assets` updates — delivered, 24 h live proof pending), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (#2196 fillfactor work owns `dam_search_documents` only).
 
 ## STATUS (updated 2026-11-07 9:20 PM EST — Steps 0, 1, 4 done; Step 5 done: broad search under 3 s; Step 7 24 h reading done 7:58 AM EST Nov 8, 7-day reading due 9:47 PM EST Nov 12)

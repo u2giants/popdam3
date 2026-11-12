@@ -34,9 +34,9 @@ Each needs a new session. Resume prompts below.
 
 ### #2326 — database efficiency and API security program (3 notes)
 
-- `2026-09-10T0450Z-edge-dev-claude-five-oldest-issues.md`
+- `2026-09-10T0450Z-edge-dev-claude-five-oldest-issues.md (retired 2026-11-12)`
 - `2026-10-11T1705Z-edge-dev-mimo-nine-issues-clearance.md`
-- `2026-10-11T1749Z-edge-dev-mimo-batch-remaining-clearance.md`
+- `2026-10-11T1749Z-edge-dev-mimo-batch-remaining-clearance.md (retired 2026-11-12)`
 
 **Resume prompt:**
 > In popcre/shared-db (own worktree from origin/main), pick up the open work
@@ -114,7 +114,7 @@ Each needs a new session. Resume prompts below.
 
 ### #5608 — Supabase assessment follow-up plans (1 note)
 
-- `20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md`
+- `20261105T0203Z-edge-dev3-claude-supabase-assessment-plans.md (retired 2026-11-12)`
 
 **Resume prompt (corrected 2026-11-08 3:10 PM EST — "none is started" was stale):**
 > In popcre/shared-db (own worktree from origin/main), continue issue #5608.
@@ -130,7 +130,7 @@ Each needs a new session. Resume prompts below.
 
 ### #5747 — assets bloat permanent fix (1 note)
 
-- `20261105T1950Z-edge-dev3-claude-assets-bloat-plan.md`
+- `2026-11-05T1950Z-edge-dev3-claude-assets-bloat-plan.md`
 
 **Resume prompt (corrected 2026-11-08 — "no step has been executed" was stale):**
 > In popcre/shared-db (own worktree from origin/main), handle the #5747

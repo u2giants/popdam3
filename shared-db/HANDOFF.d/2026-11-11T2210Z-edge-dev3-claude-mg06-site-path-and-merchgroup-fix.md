@@ -1,3 +1,9 @@
+---
+issue: 6150
+status: OPEN
+owner: mimo/6084-doc-health
+---
+
 # Handoff — MG06 merch-group fix + site-path store (2026-11-11, 5:10 PM EST)
 
 Plan for the site-path store: [plan_mg06_licensor_site_path.md](../plan_mg06_licensor_site_path.md)

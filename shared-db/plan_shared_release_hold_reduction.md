@@ -440,7 +440,7 @@ under `docs/verification/shared-release-holds/`; raw logs remain private.
 held time independently; every evidence gap is named. No resource is acquired.
 
 **2. Implement the locked receipt contract in §8.1 A–C.** Extend existing release
-artifacts consumed by `production_business_risk_gate.py`,
+artifacts consumed by `production_business_risk_gate.py` (activation forward proof: [docs/verification/issue-1039-production-risk-activation-forward-proof.md](docs/verification/issue-1039-production-risk-activation-forward-proof.md)),
 `production_apply_review_evidence.py`,
 `check-main-tip-freshness.mjs` and lane admission; create a single bounded helper
 `scripts/lib/release-hold-evidence.mjs` only if no shared helper already owns it.

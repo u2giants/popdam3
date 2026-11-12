@@ -1,3 +1,10 @@
+---
+summary: OPA product-line property lists, Minnie program findings, and Style Guide field behavior from live Disney OPA checks.
+kind: ops
+status: current
+read-when: filling Disney OPA licensor submission forms or building the MG06 site-path store
+---
+
 # OPA product lines, Minnie program, Style Guide field — findings 2026-11-12
 
 Supports `plan_mg06_licensor_site_path.md`.

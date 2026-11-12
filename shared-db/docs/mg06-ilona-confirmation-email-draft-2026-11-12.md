@@ -1,3 +1,10 @@
+---
+summary: Draft email to Ilona listing MG06 property decisions to confirm with style-count evidence since Jan 2025.
+kind: ops
+status: open
+read-when: sending or revising the Ilona MG06 property-decision confirmation email
+---
+
 # DRAFT — not sent. Email to Ilona (Licensing), 2026-11-12
 
 **Subject:** A few MG06 property decisions to confirm

@@ -1,3 +1,10 @@
+---
+summary: Compares Albert's 2026-11-12 MG06 style-move sheet with the MG06 fix handoff; records owner rulings.
+kind: ops
+status: current
+read-when: reconciling Albert's MG06 sheet with the MG06 property-cleanup handoff
+---
+
 # Albert's MG06 sheet (2026-11-12) vs the MG06 fix handoff
 
 ## Plain-English summary
@@ -24,7 +31,7 @@ to Jamielynn.
 - Albert's sheet: `~/Dropbox/ai/coldlion-mg06-changes-2026-11-12.xlsx`, one tab
   "ColdLion MG06 changes", columns Style, Licensor, MG05, Current MG06 code, Current property,
   New MG06 code, New property name, Why. 584 style rows.
-- Handoff: `HANDOFF.d/20261111T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md`.
+- Handoff: `HANDOFF.d/2026-11-11T2210Z-edge-dev3-claude-mg06-site-path-and-merchgroup-fix.md`.
 
 ## Value-by-value comparison
 
