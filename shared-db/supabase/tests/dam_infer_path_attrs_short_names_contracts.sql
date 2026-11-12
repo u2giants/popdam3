@@ -23,6 +23,7 @@ begin
     (b||'In Development/Cust Adopted/Ross/Wall/f.psd', 'In Development', 'Ross', 'Wall'),
     (b||'In Dev/Cust Adopted/_FINISHED/Ross_finished/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall'),
     (b||'Concept Approved/Ross/Wall/f.psd', 'Concept Approved Designs', null, null),
+    (b||'Concept_Approved/Ross/Wall/f.psd', 'Concept Approved Designs', null, null),
     (b||'In Dev/Cust Adopted/_FINISHED/Ross/Wall/SKU/f.psd', 'In Development', 'Ross', 'Wall'),
     -- year folders
     (b||'In Development/Customer Adopted/Ross/2026/Ross Wall 2026/PQE8QMVAV01/f.psd', 'In Development', 'Ross', 'Ross Wall 2026'),
