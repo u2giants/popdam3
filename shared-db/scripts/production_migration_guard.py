@@ -528,6 +528,23 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6086",
         "note": "Claim #6087, work issue popcre/designflow-item-master#205 Phase 1. Brings dflow.\"merchGroup\" and dflow.\"merchGroupHeaders\" level with their core copies and repoints the three dflow.mg_combination_description merchandise-group keys to dflow.\"merchGroup\" on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists; production keeps dflow_prod.\"merchGroup\" and has no counterpart. This is target scope, not retirement.",
     },
+    "20261112163600": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6136",
+        "note": (
+            "Issue #6136 (designflow-backend #401), claim text: 'the sandbox apply only'. "
+            "Reissue of sandbox UPC catch-up 20261112150000 as derived-from: none so the "
+            "guarded sandbox route can apply it: the original's base 20260803150000 is absent "
+            "from the sandbox ledger and the sandbox workflow does not expose a derivation "
+            "override (sandbox dry-run run 43247505616 refused the original). Adds the "
+            "dflow.\"itemDetail\" identity/sync columns, the partial identity index and the "
+            "dflow.item_detail_upc view on the DesignFlow sandbox only. Shared preview and "
+            "production already carry the 20260803150000 / 20261112150000 contract; every "
+            "statement is a no-op there. Review finding #6139 flagged the absent registration "
+            "of the sibling catch-up as a scope leak. This is target scope, not retirement."
+        ),
+    },
     "20260909121403": {
         "target": "designflow-nonprod",
         "project": (
