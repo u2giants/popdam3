@@ -1,8 +1,16 @@
 # Phase 2 live proof — restore from snapshot (#963, step 2.7)
 
-Date: 2026-11-11, about 6:50 PM EST (America/New_York). Site: https://dam.designflow.app, frontend build `829da81`,
+Date: 2026-11-11 (America/New_York); exact restore time is not established by the retained evidence. Site: https://dam.designflow.app, frontend build `829da81`,
 bridge helper build `baa75e2` (PR #971), database objects from popcre/shared-db#6078 (production apply run
-43122565603 → production apply succeeded 2026-11-11 ~6:55 PM EST).
+43122565603; previously reported production-apply completion: about 6:55 PM EST).
+
+Timing correction: the earlier “about 6:50 PM EST” test estimate is withdrawn because it conflicts
+with the reported apply-completion estimate. Successful “Find older copies” requires
+`public.dam_asset_path_candidates` to have been available already: `snapshot-requests.ts` calls it
+and throws on error, with no fallback. That dependency establishes availability before the
+successful search, but the retained evidence does not establish the function-apply timestamp,
+the run start time, or the restore timestamp. Their exact chronology remains unverified;
+neither approximate time should be used as timestamped proof of deployment ordering.
 
 Signed in as the PopDAM administrator tester (1Password `vibe_coding`, administrator tester item).
 

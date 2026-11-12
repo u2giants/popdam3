@@ -358,6 +358,6 @@ pg_cron runs inside Supabase; all jobs are defined in migration files. Current a
 | `nightly-reconcile-sg-asset-counts` | `45 3 * * *` | Calls `refresh_style_group_counts_batch` over all `style_groups` (asset-count drift catch) |
 | `purge-render-queue-old-rows` | `0 3 * * *` | Deletes completed/failed `render_queue` rows older than 30 days |
 | `purge-sg-render-queue-old-rows` | `15 3 * * *` | Same for `style_guide_render_queue` |
-| `purge-asset-path-history-old-rows` | `30 3 * * *` | Deletes `asset_path_history` rows older than 90 days |
+| `purge-asset-path-history-old-rows` | `30 3 * * *` | Deletes `asset_path_history` rows older than 400 days |
 
 The `invoke-bulk-job-runner` cron was removed in migration `20260322000000` — do not re-add it (the `bulk-job-runner` edge function is a deployed no-op; all batch work runs in the Railway worker).

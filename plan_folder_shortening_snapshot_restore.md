@@ -1,5 +1,5 @@
 ---
-summary: Shorten NAS folder names and make restore-from-snapshot follow renames (#963); phases 1-4 landed, snapshot restore remains; read STATUS first.
+summary: NAS folder shortening (#963): phases 0–2 delivered, snapshot restore live; later phases remain. Read STATUS first.
 kind: plan
 status: open
 read-when: continuing NAS folder shortening (#963)
@@ -116,7 +116,7 @@ The practical pain: designers (on **Windows**, confirmed by Albert) complained t
 
 ## 5. Current state of the code and the drive
 
-Nothing for this plan is built. All references below are to `main` at commit `288478ba` plus the 2026-11-11 fast-forward.
+Historical baseline before Phase 1: nothing for this plan had been built. References in this section are to `main` at commit `288478ba` plus the 2026-11-11 fast-forward; see STATUS for subsequent delivery.
 
 **How PopDAM reads folder names today**
 
@@ -134,7 +134,7 @@ Nothing for this plan is built. All references below are to `main` at commit `28
 - On ingest, `agent-api` looks for an existing asset with the same `quick_hash` **and** filename at a different path, and only treats it as a move if there is **exactly one** candidate: `supabase/functions/agent-api/index.ts:1119-1131`. It then updates `relative_path` and writes a history row (`:1173-1177`).
 - `quick_hash` is a *sampled* hash (first 64 KB + last 64 KB + size) — distinct files can collide, and identical copies are common (`index.ts:1099-1117`).
 - History table as the app uses it: `public.asset_path_history (id, asset_id, old_relative_path, new_relative_path, detected_at)` — `supabase/migrations/20260220125350_1b4ac457-e648-499a-a8e7-a6f6e01eb542.sql:123-129`. Other writers: stale-asset retirement (`index.ts:1398`) and the explicit `move-asset` action (`handleMoveAsset`, `index.ts:1464`, insert at `:1508`).
-- **History is deleted after 90 days** by cron job `purge-asset-path-history-old-rows` (`supabase/migrations/20260506110948_queue_and_history_retention_crons.sql:24-33`). The table once reached ~4.7M rows (`supabase/migrations/20260619131239_…sql:1`).
+- **Before Phase 1, history was deleted after 90 days** by cron job `purge-asset-path-history-old-rows` (`supabase/migrations/20260506110948_queue_and_history_retention_crons.sql:24-33`). Phase 1 extended retention to **400 days** (`shared-db/supabase/migrations/20261111205556_dam_folder_rename_log.sql`). The table once reached ~4.7M rows (`supabase/migrations/20260619131239_…sql:1`).
 - The shared-db mirror also shows a differently shaped `dam.asset_path_history (old_path, new_path, changed_at, source_system, metadata)` at `shared-db/supabase/migrations/20260621151024_domain_tables.sql:289-297`. **Which object is live, and whether `public.asset_path_history` is now a view over it, is unverified — step 0.2.**
 - The only reader in the UI: `src/components/library/AssetDetailPanel.tsx:240-253` (last 10 moves).
 
