@@ -66,6 +66,21 @@ class SandboxDependencies(unittest.TestCase):
             with self.assertRaises(GuardError):
                 preflight_batch(migrations, ["20260102000000"], set(), self.read())
 
+    def test_6155_pre_ledger_core_relation_is_rescued_only_when_live(self):
+        # #6107 sandbox dry-run 43249834351: core.licensor exists on the sandbox but
+        # its creator predates the sandbox ledger. Live proof rescues it; absence still refuses.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            creator, change = root / "base.sql", root / "change.sql"
+            creator.write_text("CREATE TABLE core.licensor(id uuid primary key);")
+            change.write_text("ALTER TABLE core.licensor ADD COLUMN IF NOT EXISTS nickname text;")
+            migrations = {"20260101000000": creator, "20260102000000": change}
+            preflight_batch(migrations, ["20260102000000"], set(),
+                            self.read(rows=[{"name": "core.licensor"}, {"name": "plm.x"}]))
+            with self.assertRaises(GuardError):
+                preflight_batch(migrations, ["20260102000000"], set(),
+                                self.read(rows=[{"name": "core.customer"}]))
+
 
 if __name__ == "__main__":
     unittest.main()

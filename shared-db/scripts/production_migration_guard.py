@@ -2793,7 +2793,7 @@ def read_sandbox_dependencies(ledger_name, project_ref, token, query=None, fetch
     statement = """
             SELECT n.nspname || '.' || c.relname AS name
             FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-            WHERE n.nspname='dflow' AND c.relkind IN ('r','p','v','m','f')
+            WHERE n.nspname IN ('dflow','core','plm') AND c.relkind IN ('r','p','v','m','f')
             ORDER BY 1
         """
     rows = query(project_ref, token, statement) if query else read_api(
@@ -2803,7 +2803,7 @@ def read_sandbox_dependencies(ledger_name, project_ref, token, query=None, fetch
     names = []
     for row in rows:
         name = row.get("name") if isinstance(row, dict) else None
-        if not isinstance(name, str) or not re.fullmatch(r"dflow\.[A-Za-z_][A-Za-z_0-9]*", name):
+        if not isinstance(name, str) or not re.fullmatch(r"(?:dflow|core|plm)\.[A-Za-z_][A-Za-z_0-9]*", name):
             raise GuardError("sandbox dependency catalog contains an invalid relation")
         names.append(name)
     if len(names) != len(set(names)):
