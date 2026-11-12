@@ -522,6 +522,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#5994",
         "note": "Claim #5995. Core Product Type variant key, sandbox half: adds material and feature_set to dflow.mg_combination_description (+_history) and replaces its three-column unique key with mg_combination_description_variant_key on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is version 20261110131508 (same issue), which the shared preview and production lanes promote normally. This is target scope, not retirement.",
     },
+    "20261112205825": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#5994",
+        "note": "Claim #6199, work issue popcre/designflow-item-master#150. Repoints dflow.item_product_description_item_fk_fkey to plm.\"itemHeader\" (the item table the sandbox site uses) after deleting machine rows whose item is absent there, on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists; production keeps dflow_prod.\"itemHeader\" and has no counterpart. This is target scope, not retirement.",
+    },
     "20261111222527": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",

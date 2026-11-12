@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261112205825",
+  "migration_sha256": "c309c5e71ed4b1bd57ebf18d36954fc685d87482414f50b1687695ede792471c",
+  "checks": [
+    {
+      "id": "dflow_item_product_description_readable",
+      "kind": "exact_row_count",
+      "relation": "dflow.item_product_description",
+      "filters": [
+        {
+          "column": "run_id",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-run"
+        }
+      ],
+      "expected_count": 0
+    }
+  ],
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 75,
+      "line_end": 82,
+      "disposition": "checks",
+      "check_ids": [
+        "dflow_item_product_description_readable"
+      ],
+      "reason": "Lines 75-82 repoint dflow.item_product_description_item_fk_fkey to plm.itemHeader through fixed-name format() calls (add NOT VALID, validate, drop old, rename). The cited check proves the relation remains readable after apply; the key target and validation are proven by the read-only catalog query recorded on shared-db issue 5994."
+    }
+  ]
+}
