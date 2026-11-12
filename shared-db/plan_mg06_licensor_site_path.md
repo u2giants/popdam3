@@ -53,7 +53,10 @@ standalone, Mickey with other characters". Investigation showed Disney OPA's rea
 - OPA **"Minnie"** holds Minnie & Me, Totally Minnie, Totally Minnie With Friends.
 - OPA **"Standard Characters"** = Mickey with Donald, Goofy etc. (Donald Duck Family is
   not on our Home contract list.)
-So MG06 "MICKEY MOUSE" must map to path `Mickey Mouse Family > Mickey Mouse`.
+So MG06 "MICKEY MOUSE" (Mickey alone) must map to path `Mickey Mouse Family > Mickey Mouse`.
+- Owner ruling 2026-11-12: Mickey plus anyone else (Minnie, Pluto, Goofy, …) is
+  submitted as **"Standard Characters"**, never under any character inside
+  "Mickey Mouse Family" — even though Minnie and Pluto are listed there.
 
 ### 4. Scope
 In: one table + one read function + tests + loading the path rows.
