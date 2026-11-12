@@ -38,10 +38,16 @@ to Jamielynn.
 ## Handoff spot-checks
 
 - **BACK TO THE FUTURE** — not in the sheet. No conflict; handoff bug 1 still stands.
-- **RUGRATS** — style VSZ48VMNK01 moves NK → RG "RUGRATS". RG stays inactive (owner);
-  older styles may carry it. Flagged, no action on the value.
-- **Mickey / Minnie** — 217 styles MM "Standard Characters" → MMF "Mickey Mouse Family",
-  approved: MMF is the parent value, MICKEY MOUSE sits under it.
+- **RUGRATS** — decided: RG stays inactive. Older styles can keep an inactive property;
+  new ones can't use it. Style VSZ48VMNK01 (NK → RG) may move.
+- **Mickey / Minnie** — Albert's sheet moves 217 styles MM "Standard Characters" → MMF
+  "Mickey Mouse Family" (MMF is the parent value; the single character sits under it).
+  Owner rule: Mickey with anyone else (Minnie, Pluto, Goofy) stays Standard Characters.
+  Rechecked all 217 against their Disney submissions: 202 move as Mickey Mouse, 1 as Minnie
+  Mouse (MBZ6XDYMM15), 9 stay on Standard Characters (HSR3MDYMM01, SQX26DYMM05, MQE48DYMM02,
+  MTP57DYMM04, SQZ26DYMM01, MBZ80DYMM03, FG04DDYMM02, MTP70DYMM01, GFZ21DYMM02), and 5 name no
+  character in the submission and need a look (VSZ14DYMM01, VSZ14DYMM03, RPZ14DYMM01,
+  MBC80DYMM01, 3FZ93DYMM02).
   5 CP styles and 1 LS style go *to* MM "Standard Characters", so MM stays in use.
   No Minnie rows.
 - **Cars 3** — no Cars 3 rows; 4 styles CR "CREATURE" → CAR "Cars".
