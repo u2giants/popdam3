@@ -53,6 +53,7 @@ read-when: a citation says AGENTS.md §6.x or owner-rulings.md and you need to f
 | [6.25](owner-rulings-part-3.md#625-owner-ruling--ai-sessions-launch-the-merged-preview-run-that-starts-automatic-promotion-albert-hazan-2026-10-02) | OWNER RULING — AI sessions launch the merged-preview run that starts automatic promotion (Albert Hazan, 2026-10-02) |
 | [6.26](owner-rulings-part-3.md#626-owner-ruling--one-reviewer-may-be-used-twice-and-merges-pause-during-production-runs-albert-hazan-2026-10-02) | OWNER RULING — one reviewer may be used twice, and merges pause during production runs (Albert Hazan, 2026-10-02) |
 | [6.33](owner-rulings-part-4.md#633-owner-ruling--user-administration-lives-in-designflow-plm-albert-hazan-2026-10-28) | OWNER RULING — user administration lives in DesignFlow PLM (Albert Hazan, 2026-10-28) |
+| [6.36](owner-rulings-part-4.md#636-owner-ruling--the-signed-contract-places-opa-properties-under-disney-marvel-or-star-wars-do-not-re-ask-albert-hazan-2026-08-31-reaffirmed-2026-11-12) | OWNER RULING — the signed contract places OPA Properties under Disney, Marvel or Star Wars; do not re-ask (Albert Hazan, 2026-08-31, reaffirmed 2026-11-12) |
 
 ---
 

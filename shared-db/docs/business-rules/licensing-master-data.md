@@ -130,7 +130,7 @@ No refresh hard-deletes licensing Master Data.
 
 ### OPA cannot separate Marvel from Disney
 
-**Status: Settled. Authority: Albert Hazan, 2026-08-31.**
+**Status: Settled. Authority: Albert Hazan, 2026-08-31. Reaffirmed 2026-11-12 — do NOT ask Albert again whether the contract may place OPA Properties ([owner-rulings §6.36](../owner-rulings-part-4.md#636-owner-ruling--the-signed-contract-places-opa-properties-under-disney-marvel-or-star-wars-do-not-re-ask-albert-hazan-2026-08-31-reaffirmed-2026-11-12)).**
 
 - When Disney moved Marvel product submissions out of ASGARD into OPA, Marvel was merged into the Disney creation branch rather than given its own branch. Lucasfilm / Star Wars did keep its own branch.
 - This is confirmed in the captured OPA data, not assumed. Every captured OPA Property carries exactly one branch, and only two branch values exist: `disney` (1,445 Properties) and `lucasfilm` (74). Marvel Properties such as Avengers, Black Panther, and Deadpool Classic sit under `disney` and are identical to non-Marvel Disney Properties on every other captured axis (region, line of business, product type, template, workflow). No hidden backend separator exists behind the OPA front end.

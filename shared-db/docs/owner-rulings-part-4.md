@@ -100,3 +100,17 @@ Verbatim from Albert, relayed to the takeover session (2026-11-02):
 **Effect.** A claim with no activity for 10 days does not need its old owner. A successor session first checks for unpublished work, then records the takeover on the claim, quoting this ruling, and releases it. Applied to claim #4723, which held up #5436 and #5079.
 
 **Case notes (#5436).** Items absent from the ColdLion feed are not reached by the import, so a licensor move needs a live count of items left on the old licensor, and a direct fix for the remainder. A data-only migration can end its production run red at post-apply catalog verification although the rows changed: judge it by a live read of the rows and the ledger.
+
+### 6.36 OWNER RULING — the signed contract places OPA Properties under Disney, Marvel or Star Wars; do not re-ask (Albert Hazan, 2026-08-31, reaffirmed 2026-11-12)
+
+**Do not ask Albert this again.** On 2026-11-12, 4:07 PM EST, asked whether the signed Disney contract may decide which studio an OPA Property belongs to, Albert answered:
+
+> "No, we decided this already. read the documentation to find out where and then record it in a more conspicuous place"
+
+The decision is the 2026-08-31 ruling in [licensing-master-data.md, "OPA cannot separate Marvel from Disney"](business-rules/licensing-master-data.md#opa-cannot-separate-marvel-from-disney): the signed contract schedule (K2557) decides Disney versus Marvel, because OPA files Marvel under its `disney` branch. The 2026-09-05 ruling in the same file adds that OPA presence alone proves rights, but not studio.
+
+**Effect.**
+- An OPA Property named by an exact franchise-title clause of the contract is placed under that clause's studio. Character mentions inside another clause do not count.
+- An OPA Property no clause names stays unplaced (no studio guess from OPA branch, names or source labels) until a clause, direct OPA Star Wars scope, or a separate owner ruling places it.
+- Names stay exactly as the submissions site writes them (§6.31).
+- Applied by issue #2541 (13 Properties, including Standard Characters).
