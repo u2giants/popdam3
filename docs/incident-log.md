@@ -19,6 +19,18 @@ Fix: the OrderList now hides voided lines everywhere — rows, row counts, statu
 
 Rule: anything the system retires must leave the working list, not just be styled differently. Voided-order rows (a person's decision, with Restore) still show struck through; only voided lines are hidden.
 
+## Resolved 2026-11-09: Nightly style-group rebuild monitor failed — worker silently stopped recording terminal outcomes
+
+The "Monitor Nightly Style Group Rebuild" workflow failed from 2026-11-05 with "No terminal worker outcome was recorded in the last 27 hours" (runs 42075115379, 42256119738, 42388031692). The rebuild itself never stopped: `admin_config.BULK_OPERATIONS` showed `rebuild-style-groups` completing nightly, but `bulk_operation_runs` — the append-only worker-outcome table the monitor reads — had no terminal row after the 2026-11-04 1:00 AM EST run.
+
+Root cause: PR #713's user-Stop guard made `persistOpState`'s `onlyIfRunning` applied-check compare the RPC-echoed status to a hardcoded `"running"`. A terminal save persists `completed`/`failed`, so an applied terminal write read back as refused and `recordStyleGroupTerminalOutcome` was silently skipped — success and failure rows (and the failure alert webhook) alike. The first nightly run after #713 merged (2026-11-04 5:12 PM EST) was the first missing row.
+
+Fix: PR #866 (7b933a21, merged 2026-11-08 8:57 AM EST) compares the returned status to the status being persisted; a concurrent user Stop leaves a different status and still reads as refused, so the #469/#821 protection is unchanged (worker suite 535/535). Deployed to Railway the same morning; the live `WORKER_HEARTBEAT` sha matched 7b933a21.
+
+Rule: an applied-check must compare the RPC echo to what this write persisted, never to a fixed expected value; and a green cron/enqueue never proves the worker succeeded — only its own terminal row in `bulk_operation_runs` does. That table exists precisely because cron measures the enqueue, not the rebuild (shared-db #2439).
+
+Live proof: the first post-fix rebuild (run_id 4a19ee71, 2026-11-09 1:29–1:53 AM EST) landed its terminal row with `succeeded=true` — verified read-only, as were the 2026-11-10 and 2026-11-11 rows. The monitor passed its 2026-11-09 dispatch run 42651677874 and every scheduled run since (42688021173, 42862124924, 43066757847). Issue #863 closed 2026-11-09 11:09 AM EST via PR #880, which also retired its handoff. The 2026-11-05–07 outcome gap is unbackfillable (those run_ids were overwritten by later runs) and accepted on the issue.
+
 ## Resolved 2026-11-01: DAM picture search times out under cold database load
 
 The exact query `spiderman coir` intermittently fails in `dam-search-ai`, causing the app to fall back to broader word matching. The earlier planning-cost repair (shared-db #5075) is live; this is a separate execution-I/O regression as style-group picture coverage grows.
