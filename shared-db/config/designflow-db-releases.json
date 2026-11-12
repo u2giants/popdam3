@@ -25,7 +25,7 @@
           "source_pr": 4636
         }
       ],
-      "contract_manifest_sha256": "11b0af322f43bae64554e4ed1532af7e478dc518e4e1ef2c19564911a15e317a",
+      "contract_manifest_sha256": "35caf5796fc26048116e3ed4d1f73da28847cf83bb777f631748d99dc03c5422",
       "main_protection": {
         "branch": "main",
         "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
