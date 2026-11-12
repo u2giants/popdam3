@@ -24,5 +24,7 @@ describe("deriveMetadataFromPath short folder names (#963)", () => {
   it("Concept Approved is skipped under ____New Structure like the long name", async () => {
     expect((await deriveMetadataFromPath(base + "Concept Approved/Ross/f.psd", db)).workflow_status).toBe("other");
     expect((await deriveMetadataFromPath("Decor/Concept Approved/f.psd", db)).workflow_status).toBe("concept_approved");
+    expect((await deriveMetadataFromPath(base + "Concept_Approved/Ross/f.psd", db)).workflow_status).toBe("other");
+    expect((await deriveMetadataFromPath("Decor/Concept_Approved/f.psd", db)).workflow_status).toBe("concept_approved");
   });
 });
