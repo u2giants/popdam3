@@ -1405,26 +1405,71 @@ class RefundEligibleMarkerStep(unittest.TestCase):
 
 class ClassifyRunJobGlue(unittest.TestCase):
     """The marker step resolves its own job by display name and classifies that
-    job's failed-step logs — nothing else in the run."""
+    job's check-run annotations (its `::error::` marker text) — the failure
+    evidence GitHub exposes while the job still runs. The job's logs are not
+    readable in-job (`gh run view --log-failed` exits 1 with "still in
+    progress"), so the new path must separate the three fault classes without
+    them, and a hostile or late log can never buy a refund."""
 
-    def test_the_named_job_alone_is_read_and_classified(self):
+    LISTING = {"jobs": [{"id": 11, "name": "preview",
+                         "check_run_url": "https://api.github.com/repos/o/r/check-runs/11"},
+                        {"id": 12, "name": "other",
+                         "check_run_url": "https://api.github.com/repos/o/r/check-runs/12"}]}
+
+    def classify(self, annotations, listing=None):
+        """Run --classify-run-job against a gh stub that reproduces the live
+        in-job condition: `gh run view --log-failed` exits 1 the way the real
+        job does, while the jobs listing and the annotations answer."""
         calls = []
-        refusal_log = "REFUSED: post-merge preview rehearsal requires the exact current main SHA\n"
 
         def fake(cmd, **kw):
-            calls.append(cmd)
+            calls.append(list(cmd))
+            joined = " ".join(cmd)
+            if "--log-failed" in joined:
+                raise classifier.subprocess.CalledProcessError(1, cmd)
+            if "/annotations" in joined:
+                class R:
+                    stdout = json.dumps(annotations)
+                return R()
             class R:
-                if "jobs" in cmd[-1]:
-                    stdout = json.dumps({"jobs": [{"id": 11, "name": "preview"},
-                                                  {"id": 12, "name": "other"}]})
-                else:
-                    stdout = refusal_log
+                stdout = json.dumps(listing if listing is not None else self.LISTING)
             return R()
         with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
                 mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
-                                             "GITHUB_RUN_ATTEMPT": "1"}):
-            self.assertTrue(classifier.classify_run_job("preview"))
-        self.assertTrue(any("--job" in cmd and "11" in cmd for cmd in calls))
+                                             "GITHUB_RUN_ATTEMPT": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            verdict = classifier.classify_run_job("preview")
+        return verdict, calls, out.getvalue()
+
+    @staticmethod
+    def ann(message):
+        return [{"annotation_level": "failure", "message": message}]
+
+    def test_the_in_job_path_separates_infra_coordination_and_change_fault(self):
+        infra = self.ann("CI INFRASTRUCTURE: PostgreSQL client unavailable after 3 attempts "
+                         "(apt mirror stall on the hosted runner -- NOT a fault in the change under review); "
+                         "NO MIGRATION WAS APPLIED")
+        coordination = self.ann("REFUSED: post-merge preview rehearsal requires the exact current main SHA "
+                                "(asked for aaa, main is bbb)")
+        for annotations, eligible in ((infra, True), (coordination, True),
+                                      (self.ann("CI INFRASTRUCTURE: PostgreSQL client unavailable; "
+                                                "something else happened"), False),
+                                      (self.ann('ERROR:  syntax error at or near "select"'), False),
+                                      (self.ann("REFUSED: merged_preview_source_pr is a post-merge APPLY; "
+                                                "the historical inputs are a no-write recovery. Name one."), False),
+                                      ([], False)):
+            with self.subTest(annotations=annotations):
+                verdict, calls, _ = self.classify(annotations)
+                self.assertEqual(verdict, eligible)
+                self.assertFalse(any("--log-failed" in " ".join(cmd) for cmd in calls),
+                                 "the in-job path must never depend on the job's logs")
+
+    def test_the_named_job_alone_is_read_and_classified(self):
+        verdict, calls, _ = self.classify(
+            self.ann("REFUSED: production lane requires the exact current main SHA"))
+        self.assertTrue(verdict)
+        self.assertTrue(any("check-runs/11/annotations" in " ".join(cmd) for cmd in calls))
+        self.assertFalse(any("check-runs/12/annotations" in " ".join(cmd) for cmd in calls))
 
     def test_an_unresolvable_job_name_never_refunds(self):
         def fake(cmd, **kw):
@@ -1437,6 +1482,56 @@ class ClassifyRunJobGlue(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertFalse(classifier.classify_run_job("preview"))
         self.assertIn("change fault", out.getvalue())
+
+    def test_unreadable_annotation_evidence_is_never_a_refund(self):
+        def fake(cmd, **kw):
+            joined = " ".join(cmd)
+            if "/annotations" in joined:
+                raise classifier.subprocess.CalledProcessError(1, cmd)
+            class R:
+                stdout = json.dumps(self.LISTING)
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "5",
+                                             "GITHUB_RUN_ATTEMPT": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(classifier.main(["--classify-run-job", "preview"]), 1)
+        self.assertIn("change fault", out.getvalue())
+
+    def test_a_job_without_a_check_run_never_refunds(self):
+        listing = {"jobs": [{"id": 11, "name": "preview"}]}
+        verdict, _, printed = self.classify([], listing=listing)
+        self.assertFalse(verdict)
+        self.assertIn("change fault", printed)
+
+    def test_a_recorded_listing_shaped_like_run_43094471144_is_a_change_fault(self):
+        # Real production run 43094471144 (2026-11-12): apply step success,
+        # only `Save apply evidence` failed (GitHub CreateArtifact outage),
+        # marker failed on unreadable logs. The exact taxonomy calls that a
+        # change fault (no infrastructure/coordination marker) — and PR #6148's
+        # applied_in_attempt keeps the run from burning attempts anyway: the
+        # machinery reads it as "not a change fault" against the budget.
+        listing = {"jobs": [{"id": 21, "name": "Production apply (automatic evidence gates)",
+                             "check_run_url": "https://api.github.com/repos/o/r/check-runs/21",
+                             "steps": [{"name": "Fresh dry-run, then apply", "conclusion": "success"},
+                                       {"name": "Post-apply catalog verification", "conclusion": "success"},
+                                       {"name": "Save apply evidence", "conclusion": "failure"},
+                                       {"name": "refund-eligible-fault", "conclusion": "failure"}]}]}
+        annotations = [{"annotation_level": "failure",
+                        "message": "Failed to CreateArtifact: Failed to make request after 5 attempts: "
+                                   "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"}]
+
+        def fake(cmd, **kw):
+            joined = " ".join(cmd)
+            if "--log-failed" in joined:
+                raise classifier.subprocess.CalledProcessError(1, cmd)
+            class R:
+                stdout = json.dumps(annotations if "/annotations" in joined else listing)
+            return R()
+        with mock.patch.object(classifier.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "43094471144",
+                                             "GITHUB_RUN_ATTEMPT": "1"}):
+            self.assertFalse(classifier.classify_run_job("Production apply (automatic evidence gates)"))
 
 
 class ClassifiedRefundBudget(unittest.TestCase):

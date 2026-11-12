@@ -4657,7 +4657,7 @@ test('--abandonment-audit reports a refusal as unverifiable (3), not as an expir
     assert.equal(main(['--abandonment-audit'],new Date('2026-09-16T00:00:00Z'),unreadable),3,'an unreadable snapshot means the instrument could not read')
     assert.equal(main([],new Date('2026-09-16T00:00:00Z'),githubIo),2,'every other refusal keeps the generic exit code')
   }finally{console.error=originalError}
-  assert.equal(errors.filter((line)=>line.startsWith('REFUSED: ')).length,3,'the refusal message is still printed in full; only its exit code moves')
+  assert.equal(errors.filter((line)=>line.includes('REFUSED: ')).length,3,'the refusal message is still printed in full (as a rendered annotation for the fault classifier); only its exit code moves')
   assert.ok(errors.some((line)=>line.includes('must identify exactly one work issue')),'the operator must still be told what could not be read')
 })
 

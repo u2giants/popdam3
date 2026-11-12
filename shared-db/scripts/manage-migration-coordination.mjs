@@ -2620,7 +2620,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       return malformed.length||reopened.length ? 2 : 0
     }
     throw new LaneError('choose --admit-issue, --audit, --queue-audit, --abandonment-audit, --outcome-status, --repair-outcome-history, --complete-outcome, --return-issue, --cleanup-stale, or an exclusive-lane command')
-  } catch (error) { console.error(`REFUSED: ${error.message}`); return 2 }
+  } catch (error) { console.error(`::error::REFUSED: ${error.message}`); return 2 }
 }
 
 // ISSUE #2491 -- preview apply evidence never matched an already-applied version.

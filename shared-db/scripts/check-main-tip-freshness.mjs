@@ -432,7 +432,9 @@ function main() {
     }
     const verdict = classifyBranchFreshness({ headSha, tipSha })
     if (!verdict.ok) {
-      console.error(verdict.reason)
+      // "::error::" renders the refusal as a check-run annotation, the only
+      // failure text a still-running job can read (refund_fault_classification).
+      console.error(`::error::${verdict.reason}`)
       console.error('This branch must be updated from origin/main before it can merge.')
       process.exit(1)
     }
@@ -449,7 +451,8 @@ function main() {
 
   const verdict = classifyMainTip({ mainSha, tipSha, production })
   if (!verdict.ok) {
-    console.error(verdict.reason)
+    // Same annotation channel as the --contains refusal above.
+    console.error(`::error::${verdict.reason}`)
     if (contains) {
       console.error(
         'This branch must be updated from origin/main before it can merge.',
