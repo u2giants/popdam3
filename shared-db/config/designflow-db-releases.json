@@ -212,7 +212,7 @@
       "roles": [],
       "schemas": [],
       "required_sources": [],
-      "contract_manifest_sha256": "c9c19a5806cd7eed07af8d3b9b33d79bc13bd3821f647b806d2d924bf9853713",
+      "contract_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "main_protection": {
         "branch": "main",
         "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
