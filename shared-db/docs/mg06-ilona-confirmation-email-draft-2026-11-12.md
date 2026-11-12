@@ -21,12 +21,12 @@ licensor since January 2025. Could you confirm or correct each item?
 5. **Disney CP "Classic Properties".** You picked "Classic Characters". 47 styles since
    Jan 2025, spread over many properties. *Our proposal:* split it into specific properties
    (Winnie the Pooh Classic, Aristocats, Bambi, etc.) instead of one catch-all.
-6. **Rugrats (RG)** — *on hold, pending Albert's decision.* You marked "inactivate – contract
-   expired", but a recent style is being moved onto it. No action needed from you yet.
-7. **Mickey Mouse (MM, "Standard Characters" on the Disney site) vs. "Mickey Mouse Family"** —
-   *on hold, pending Albert's decision* on how the name appears in MG06. 216 styles use MM
-   since Jan 2025 (71 submitted as "Standard Characters", 97 as "Mickey Mouse Family").
-   No action needed from you yet.
+6. **For your information — Rugrats (RG).** Decided: Rugrats stays inactive. Existing styles keep
+   it; no new styles can use it.
+7. **For your information — Mickey Mouse Family.** Mickey Mouse Family is now the parent value;
+   MICKEY MOUSE and the other family characters sit under it. 203 styles move from
+   "Standard Characters" to Mickey Mouse Family. Styles showing Mickey with other characters
+   (Minnie, Pluto, Goofy…) stay on "Standard Characters", as Disney's site requires (9 styles). 5 more name no character yet and will be sorted the same way.
 
 All other values you marked "inactivate – contract expired" (Paw Patrol group, JoJo Siwa,
 Dora, Blaze, Shimmer & Shine, Space Jam, Frida Kahlo, Peanuts 75th, etc.) have no styles since
