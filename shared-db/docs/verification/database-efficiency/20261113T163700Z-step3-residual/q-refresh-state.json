@@ -1,0 +1,17 @@
+[
+  {
+    "key": "STYLE_GUIDE_REFRESH_STATE",
+    "value": {
+      "matviews": {
+        "signature": "24c5f8a88368a468f0365eb6fb822a97",
+        "refreshed_at": "2026-11-13T07:07:00.041071-05:00"
+      },
+      "library-default-snapshot": {
+        "refreshed_at": "2026-11-13T00:30:00.030334-05:00",
+        "primary_signature": "d6bb27d55cb7fe734350fa544318c944",
+        "documents_signature": "8e62a78de17f769170363d62101b27d4"
+      }
+    },
+    "updated_at": "2026-11-13 07:07:00.041071-05"
+  }
+]

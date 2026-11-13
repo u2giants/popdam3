@@ -1,0 +1,34 @@
+[
+  {
+    "QUERY PLAN": [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 0.42,
+          "Total Cost": 33.24,
+          "Plan Rows": 200,
+          "Plan Width": 16,
+          "Plans": [
+            {
+              "Node Type": "Index Only Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Scan Direction": "Forward",
+              "Index Name": "idx_assets_clear_style_cursor",
+              "Relation Name": "assets",
+              "Alias": "a",
+              "Startup Cost": 0.42,
+              "Total Cost": 17549.32,
+              "Plan Rows": 106920,
+              "Plan Width": 16,
+              "Index Cond": "(id > '00000000-0000-0000-0000-000000000000'::uuid)"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

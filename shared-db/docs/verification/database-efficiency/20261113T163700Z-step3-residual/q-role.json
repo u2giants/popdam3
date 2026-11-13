@@ -1,0 +1,7 @@
+[
+  {
+    "current_user": "supabase_read_only_user",
+    "session_user": "supabase_read_only_user",
+    "is_superuser": false
+  }
+]

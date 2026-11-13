@@ -1,0 +1,72 @@
+[
+  {
+    "extname": "citext",
+    "extversion": "1.6",
+    "schema": "extensions"
+  },
+  {
+    "extname": "hypopg",
+    "extversion": "1.4.1",
+    "schema": "extensions"
+  },
+  {
+    "extname": "index_advisor",
+    "extversion": "0.2.1",
+    "schema": "extensions"
+  },
+  {
+    "extname": "pg_cron",
+    "extversion": "1.6.4",
+    "schema": "pg_catalog"
+  },
+  {
+    "extname": "pg_net",
+    "extversion": "0.20.4",
+    "schema": "extensions"
+  },
+  {
+    "extname": "pg_prewarm",
+    "extversion": "1.2",
+    "schema": "extensions"
+  },
+  {
+    "extname": "pg_repack",
+    "extversion": "1.5.2",
+    "schema": "public"
+  },
+  {
+    "extname": "pg_stat_statements",
+    "extversion": "1.11",
+    "schema": "extensions"
+  },
+  {
+    "extname": "pg_trgm",
+    "extversion": "1.6",
+    "schema": "extensions"
+  },
+  {
+    "extname": "pgcrypto",
+    "extversion": "1.3",
+    "schema": "extensions"
+  },
+  {
+    "extname": "plpgsql",
+    "extversion": "1.0",
+    "schema": "pg_catalog"
+  },
+  {
+    "extname": "supabase_vault",
+    "extversion": "0.3.1",
+    "schema": "vault"
+  },
+  {
+    "extname": "uuid-ossp",
+    "extversion": "1.1",
+    "schema": "extensions"
+  },
+  {
+    "extname": "vector",
+    "extversion": "0.8.2",
+    "schema": "extensions"
+  }
+]

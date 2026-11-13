@@ -1,0 +1,114 @@
+[
+  {
+    "column_name": "id",
+    "data_type": "uuid"
+  },
+  {
+    "column_name": "status",
+    "data_type": "text"
+  },
+  {
+    "column_name": "agent_id",
+    "data_type": "text"
+  },
+  {
+    "column_name": "roots_scanned",
+    "data_type": "ARRAY"
+  },
+  {
+    "column_name": "files_found",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "error_message",
+    "data_type": "text"
+  },
+  {
+    "column_name": "started_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "completed_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "inaccessible_roots",
+    "data_type": "ARRAY"
+  },
+  {
+    "column_name": "lifecycle_state",
+    "data_type": "text"
+  },
+  {
+    "column_name": "ingest_completed_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "reconcile_started_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "reconcile_completed_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "refresh_started_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "refresh_completed_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "column_name": "accepted_for_reconcile",
+    "data_type": "boolean"
+  },
+  {
+    "column_name": "files_upserted",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "files_deactivated",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "files_reactivated",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "reconcile_batches",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "stale_candidates_at_start",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "stale_remaining",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "active_before_reconcile",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "guard_state",
+    "data_type": "text"
+  },
+  {
+    "column_name": "guard_reason",
+    "data_type": "text"
+  },
+  {
+    "column_name": "attention_reason",
+    "data_type": "text"
+  },
+  {
+    "column_name": "search_documents_synced",
+    "data_type": "integer"
+  }
+]

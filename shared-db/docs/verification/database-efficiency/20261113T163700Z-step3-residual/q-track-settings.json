@@ -1,0 +1,32 @@
+[
+  {
+    "name": "pg_stat_statements.max",
+    "setting": "5000",
+    "unit": null,
+    "source": "default"
+  },
+  {
+    "name": "pg_stat_statements.track",
+    "setting": "top",
+    "unit": null,
+    "source": "default"
+  },
+  {
+    "name": "server_version_num",
+    "setting": "170011",
+    "unit": null,
+    "source": "default"
+  },
+  {
+    "name": "track_counts",
+    "setting": "on",
+    "unit": null,
+    "source": "default"
+  },
+  {
+    "name": "track_io_timing",
+    "setting": "off",
+    "unit": null,
+    "source": "default"
+  }
+]

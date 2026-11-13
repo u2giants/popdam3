@@ -1,0 +1,9 @@
+[
+  {
+    "db": "postgres",
+    "pg": "PostgreSQL 17.11 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "utc_now": "2026-11-13 16:37:11.140973",
+    "db_stats_reset": null,
+    "pgss_info": "[{\"stats_reset\":\"2026-11-06 11:20:19.263334-05\"}]"
+  }
+]

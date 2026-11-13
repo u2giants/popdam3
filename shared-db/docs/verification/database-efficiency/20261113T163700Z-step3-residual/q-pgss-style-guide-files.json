@@ -1,0 +1,12 @@
+[
+  {
+    "queryid": "3112391013334280655",
+    "query_normalized": "explain (format json)\n    refresh materialized view concurrently public.style_guide_file_groups\n\n-- source: POST /v1/projects/:ref/database/query\n-- user: pat:8463633\n-- date: 2026-11-13T16:41:54.496Z",
+    "calls": 1,
+    "rows": 0,
+    "mean_exec_time": 0.02186,
+    "total_exec_time": 0.02186,
+    "wal_records": 0,
+    "wal_bytes": "0"
+  }
+]

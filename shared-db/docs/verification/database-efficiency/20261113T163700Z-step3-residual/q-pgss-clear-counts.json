@@ -1,0 +1,67 @@
+[
+  {
+    "queryid": "693367342154916556",
+    "role": "service_role",
+    "query_normalized": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_last_asset_id\", \"p_batch_size\", \"p_changed_since\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_last_asset_id\" uuid, \"p_batch_size\" integer, \"p_changed_since\" timestamp with time zone) LIMIT $4) pgrst_body , LATERAL \"public\".\"rebuild_style_groups_batch\"(\"p_last_asset_id\" := pgrst_body.\"p_last_asset_id\", \"p_batch_size\" := pgrst_body.\"p_batch_size\", \"p_changed_since\" := pgrst_body.\"p_changed_since\") pgrst_call) SELECT $5::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $6) AS body, nullif(current_setting($7, $8), $9) AS response_headers, nullif(current_setting($10, $11), $12) AS response_status, $13 AS response_inserted FROM (SELECT \"record\".* FROM \"pgrst_source\" AS \"record\"   LIMIT $2 OFFSET $3) _postgrest_t",
+    "calls": 4438,
+    "rows": 4438,
+    "total_exec_time": 5254973.219952,
+    "mean_exec_time": 1184.08589904281,
+    "max_exec_time": 18581.701849,
+    "wal_records": 8546775,
+    "wal_fpi": 1039832,
+    "wal_bytes": "6313780256"
+  },
+  {
+    "queryid": "4823001052977070422",
+    "role": "postgres",
+    "query_normalized": "select public.refresh_style_guide_matviews_job()",
+    "calls": 168,
+    "rows": 168,
+    "total_exec_time": 645574.431546,
+    "mean_exec_time": 3842.70494967857,
+    "max_exec_time": 29229.014374,
+    "wal_records": 193455,
+    "wal_fpi": 31685,
+    "wal_bytes": "104660450"
+  },
+  {
+    "queryid": "7327558641138002573",
+    "role": "postgres",
+    "query_normalized": "select public.queue_nightly_rebuild_style_groups()",
+    "calls": 1010,
+    "rows": 1010,
+    "total_exec_time": 159319.352298,
+    "mean_exec_time": 157.741932968317,
+    "max_exec_time": 21231.211764,
+    "wal_records": 15108,
+    "wal_fpi": 537,
+    "wal_bytes": "12276517"
+  },
+  {
+    "queryid": "-6903331260665435137",
+    "role": "service_role",
+    "query_normalized": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_run_id\", \"p_search_batch_size\", \"p_step\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_run_id\" uuid, \"p_search_batch_size\" integer, \"p_step\" text) LIMIT $4) pgrst_body , LATERAL \"public\".\"refresh_style_guide_matviews\"(\"p_run_id\" := pgrst_body.\"p_run_id\", \"p_search_batch_size\" := pgrst_body.\"p_search_batch_size\", \"p_step\" := pgrst_body.\"p_step\") pgrst_call) SELECT $5::bigint AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, coalesce(json_agg(_postgrest_t), $6) AS body, nullif(current_setting($7, $8), $9) AS response_headers, nullif(current_setting($10, $11), $12) AS response_status, $13 AS response_inserted FROM (SELECT \"record\".* FROM \"pgrst_source\" AS \"record\"   LIMIT $2 OFFSET $3) _postgrest_t",
+    "calls": 6,
+    "rows": 6,
+    "total_exec_time": 74.321422,
+    "mean_exec_time": 12.3869036666667,
+    "max_exec_time": 19.430897,
+    "wal_records": 12,
+    "wal_fpi": 0,
+    "wal_bytes": "3528"
+  },
+  {
+    "queryid": "-3434215673745965289",
+    "role": "service_role",
+    "query_normalized": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_group_ids\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_group_ids\" uuid[]) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"refresh_style_group_counts_serialized\"(\"p_group_ids\" := pgrst_body.\"p_group_ids\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"refresh_style_group_counts_serialized\".* FROM \"pgrst_source\" AS \"refresh_style_group_counts_serialized\"   LIMIT $2 OFFSET $3) _postgrest_t",
+    "calls": 1,
+    "rows": 1,
+    "total_exec_time": 2.368366,
+    "mean_exec_time": 2.368366,
+    "max_exec_time": 2.368366,
+    "wal_records": 0,
+    "wal_fpi": 0,
+    "wal_bytes": "0"
+  }
+]

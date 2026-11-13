@@ -1,0 +1,10 @@
+{
+  "q0-identity": "rows:1",
+  "q-track-settings": "rows:5",
+  "q-extensions": "rows:14",
+  "q-pgss-targeted": "rows:120",
+  "q-pgss-top80": "rows:80",
+  "q-clear-volume": "rows:1",
+  "q-function-definitions": "rows:7",
+  "q-assets-churn": "HTTP 400: {\"message\":\"Failed to run sql query: ERROR:  42703: column \\\"nspname\\\" does not exist\\nLINE 2: select nspname||'.'||relname as relation, n_tup_ins, n_tup_upd, n_tup_del, n_tup_hot_upd,\\n               ^\\nHINT:  Perhaps you meant to reference the column \\\"pg_stat_user_tables.relname\\\".\\n\"}"
+}
