@@ -15,13 +15,13 @@ Handoff registering this plan: [../HANDOFF.d/2026-11-13T1840Z-edge-dev3-claude-p
 | Step | State | Evidence |
 |---|---|---|
 | 0. Check that none of the new fields already exists | ✅ done 2026-11-13 | §6 below; re-run the queries in §6 read-only to reproduce |
-| 1. Migration: add the fields to `core.property`, move `metadata.submission_canonical` into them | ⬜ open | |
-| 2. Fill the licensor-name field from the scrape link automatically | ⬜ open | |
-| 3. Read-only view combining Coldlion property rows with the four names | ⬜ open | |
-| 4. DesignFlow shows the nickname; item descriptions use the short name | ⬜ open | |
+| 1. Migration: add the fields to `core.property`, move `metadata.submission_canonical` into them | 🟡 PR #6280 (migration 20261113183820) | 29 links moved (21 disney_opa, 8 paramount_trackerplus); MM relinked 372→361 per owner-rulings §6.38; old key auto-moved, unmovable shapes rejected |
+| 2. Fill the licensor-name field from the scrape link automatically | 🟡 PR #6280 | row trigger + statement triggers on plm.opa_property / plm.pmt_trackerplus_submission_property; byte-exact test |
+| 3. Read-only view combining Coldlion property rows with the four names | 🟡 PR #6280 | api.property_names; granted to designflow_prod_backend_grants |
+| 4. DesignFlow shows the nickname; item descriptions use the short name | 🟡 on sandbox-albert | designflow-backend#416, designflow-frontend#585, designflow-item-master#238 (to develop, not self-merged) |
 | 5. Live proof | ⬜ open | |
 
-A fresh session starts at **Step 1**.
+A fresh session continues at the first row not ✅.
 
 ---
 

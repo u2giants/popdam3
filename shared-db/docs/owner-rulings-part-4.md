@@ -126,3 +126,16 @@ Verbatim Albert, 2026-11-12 4:16 PM EST:
 > "the long-term property list is settled and it's what's in coldlion right now + a few changes i will ask Jamielynn to make tomorrow"
 
 **Effect.** `core.property` takes ColdLion MG06 codes, names and active/inactive status from `coldlion.merch_group_detail` every day (`plm.sync_core_property_from_coldlion`, migration `20261112232209`, issue #6194). Rows not in ColdLion are untouched and nothing is deleted. Where it conflicts with 6.31 on a ColdLion-coded row's name, ColdLion's name wins; the earlier name stays in the row's metadata.
+
+### 6.38 OWNER RULING — Mickey Mouse, Minnie & Me and Standard Characters are separate properties; X-Men is X-Men Classic (Albert Hazan, 2026-11-13)
+
+Verbatim Albert, 2026-11-13 2:19 PM EST, answering whether Disney OPA "Mickey Mouse" (372) and "Standard Characters" (361), and "X-Men" (640) and "X-Men Classic" (1107), are the same properties:
+
+> "1) X-Men is the same property as X-Men Classic.
+> 2) we went over this extensively, document it conspicuously: if a design has only mickey in it, it goes under 'Mickey Mouse' which sits under 'Mickey Mouse Family'. if a design has only Minnie in it, it goes under 'Minnie & Me' which sits under 'Mickey Mouse Family'. If a design has Mickey + anyone else in it, it goes under 'Standard Characters'"
+
+**Effect.**
+- **Mickey only → "Mickey Mouse"; Minnie only → "Minnie & Me"; Mickey plus anyone else → "Standard Characters".** Mickey Mouse and Minnie & Me sit under "Mickey Mouse Family". These are three separate properties; never merge them or link one to another's OPA property.
+- POP's `core.property` MM "Standard Characters" (nickname "Mickey Group") links to OPA 361, not OPA 372 (corrected in migration `20261113183820`, shared-db#6269).
+- X-Men (OPA 640) and X-Men Classic are one property: POP's XM row keeps its OPA link.
+- Do not re-ask. Applies to the #2541 placement repair on shared-db#6209.

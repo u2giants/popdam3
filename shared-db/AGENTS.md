@@ -295,6 +295,7 @@ and [`docs/agents/owner-rulings.md`](docs/agents/owner-rulings.md). They bind ex
 - **Albert is not a technical reviewer (2026-09-30).** Production risk classes are accepted by the
   automatic promotion workflow, never by Albert ([`owner-rulings.md` §6.23](docs/owner-rulings.md)).
 - **The signed contract places OPA Properties under Disney, Marvel or Star Wars — never re-ask Albert (2026-08-31, reaffirmed 2026-11-12)** ([`owner-rulings.md` §6.36](docs/owner-rulings.md)).
+- **Mickey only → "Mickey Mouse"; Minnie only → "Minnie & Me" (both under "Mickey Mouse Family"); Mickey plus anyone else → "Standard Characters". X-Men is the same property as X-Men Classic (2026-11-13) — never re-ask** ([`owner-rulings.md` §6.38](docs/owner-rulings.md)).
 - **One independent review is enough (2026-10-14)** ([`owner-rulings.md` §6.27](docs/owner-rulings.md)).
 - **§0.0-D — there is no orchestrator; structural work is claim-first (2026-10-02).** A session needing
   a SHAPE change claims the exact objects on the existing issue and does the change itself. Declare

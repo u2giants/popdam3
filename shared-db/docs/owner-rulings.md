@@ -55,6 +55,7 @@ read-when: a citation says AGENTS.md §6.x or owner-rulings.md and you need to f
 | [6.33](owner-rulings-part-4.md#633-owner-ruling--user-administration-lives-in-designflow-plm-albert-hazan-2026-10-28) | OWNER RULING — user administration lives in DesignFlow PLM (Albert Hazan, 2026-10-28) |
 | [6.36](owner-rulings-part-4.md#636-owner-ruling--the-signed-contract-places-opa-properties-under-disney-marvel-or-star-wars-do-not-re-ask-albert-hazan-2026-08-31-reaffirmed-2026-11-12) | OWNER RULING — the signed contract places OPA Properties under Disney, Marvel or Star Wars; do not re-ask (Albert Hazan, 2026-08-31, reaffirmed 2026-11-12) |
 | [6.37](owner-rulings-part-4.md#637-owner-ruling--coreproperty-is-coldlions-property-list-filled-daily-from-the-landing-albert-hazan-2026-11-12) | OWNER RULING — core.property is ColdLion's Property list, filled daily from the landing (Albert Hazan, 2026-11-12) |
+| [6.38](owner-rulings-part-4.md#638-owner-ruling--mickey-mouse-minnie--me-and-standard-characters-are-separate-properties-x-men-is-x-men-classic-albert-hazan-2026-11-13) | OWNER RULING — Mickey only → Mickey Mouse; Minnie only → Minnie & Me; Mickey + anyone → Standard Characters; X-Men is X-Men Classic (Albert Hazan, 2026-11-13) |
 
 ---
 
