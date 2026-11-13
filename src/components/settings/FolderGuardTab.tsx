@@ -1,6 +1,8 @@
 /** Folder name guard (u2giants/popdam3#963, plan Phase 6). Read-only list; no renaming here. */
 import { useQuery } from "@tanstack/react-query";
-import { useAdminApi } from "@/hooks/useAdminApi";
+import { supabase } from "@/integrations/supabase/client";
+import { folderGuard } from "../../../supabase/functions/_shared/folder-rules/guard.mjs";
+import rules from "../../../supabase/functions/_shared/folder-rules/rules.json";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,11 +20,38 @@ interface Report {
 const ROOT = "Decor/Character Licensed/____New Structure/";
 const short = (p: string) => (p.startsWith(ROOT) ? p.slice(ROOT.length) : p);
 
+// Reads every live file path under the design tree (16 parallel id ranges) and
+// checks it in the browser with the same rule engine as the rename planner.
+async function loadReport(): Promise<Report> {
+  const PAGE = 1000;
+  const hex = "0123456789abcdef";
+  const like = `${rules.root.replace(/_/g, "\\_")}/%`;
+  const paths: string[] = [];
+  await Promise.all(
+    Array.from({ length: 16 }, async (_, i) => {
+      const hi = i < 15 ? `${hex[i + 1]}0000000-0000-0000-0000-000000000000` : null;
+      let after = `${hex[i]}0000000-0000-0000-0000-000000000000`;
+      let first = true;
+      for (;;) {
+        let qb = supabase.from("assets").select("id, relative_path").eq("is_deleted", false).like("relative_path", like);
+        qb = first ? qb.gte("id", after) : qb.gt("id", after);
+        if (hi) qb = qb.lt("id", hi);
+        const { data, error } = await qb.order("id").limit(PAGE);
+        if (error) throw new Error(error.message);
+        for (const r of data ?? []) paths.push(r.relative_path);
+        if (!data || data.length < PAGE) return;
+        after = data[data.length - 1].id;
+        first = false;
+      }
+    }),
+  );
+  return { generated_at: new Date().toISOString(), ...folderGuard(paths, rules, { limit: 200 }) } as Report;
+}
+
 export default function FolderGuardTab() {
-  const { call } = useAdminApi();
   const q = useQuery({
     queryKey: ["folder-guard-report"],
-    queryFn: () => call("folder-guard-report", { limit: 200 }) as Promise<Report>,
+    queryFn: loadReport,
     staleTime: 5 * 60_000,
   });
   const r = q.data;
