@@ -109,3 +109,10 @@ test("owner-chosen customer alias may be shorter than 3 characters", async () =>
   const { aliasFor } = await import("./plan.mjs");
   assert.equal(aliasFor("Variety Wholesalers", { customer_aliases: { "Variety Wholesalers": "VW" } }), "VW");
 });
+
+test("full customer names inside folder names become the short name", async () => {
+  const { replaceCustomerNames } = await import("../../supabase/functions/_shared/folder-rules/core.mjs");
+  assert.equal(replaceCustomerNames("Box Lunch_WICKED_FH24", rules), "BoxLunch_WICKED_FH24");
+  assert.equal(replaceCustomerNames("and Hobby Lobby_SEGA", rules), "and Hobby_Lobby_SEGA");
+  assert.equal(replaceCustomerNames("Box Lunch 2026", rules), "BoxLunch 2026");
+});
