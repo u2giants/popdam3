@@ -5,6 +5,10 @@
  * filenames) must stay inside the configured root. Rejects empty paths, NUL
  * bytes, absolute paths (POSIX, drive-letter, UNC), and any ".." segment, then
  * re-checks the resolved result against the resolved root.
+ *
+ * Server-supplied *filenames* (single segments, not relative paths) must go
+ * through assertSafeFilename / resolveUnderRootFilename, which additionally
+ * reject any path separator (basename-only).
  */
 import path from "node:path";
 
@@ -61,4 +65,22 @@ export function resolveUnderRoot(root: string, rel: string, pathApi: PathApi = p
     throw new PathContainmentError(`Unsafe path: resolves outside root (${rel})`);
   }
   return full;
+}
+
+/**
+ * Throws unless `name` is a bare filename (a single path segment, basename
+ * only). For server-supplied filenames that will be joined under a directory;
+ * relative paths with subdirectories go through resolveUnderRoot instead.
+ */
+export function assertSafeFilename(name: string): void {
+  assertSafeRelativePath(name);
+  if (name === "." || name === ".." || /[\\/]/.test(name)) {
+    throw new PathContainmentError(`Unsafe filename: path separator not allowed (${name})`);
+  }
+}
+
+/** Resolves a server-supplied bare filename under `root`; throws if unsafe. */
+export function resolveUnderRootFilename(root: string, filename: string, pathApi: PathApi = path): string {
+  assertSafeFilename(filename);
+  return resolveUnderRoot(root, filename, pathApi);
 }
