@@ -93,6 +93,7 @@ import {
   handleRequestSnapshotRestore,
   handleRequestSnapshotVersions,
 } from "../_shared/admin-handlers/snapshot-handlers.ts";
+import { handleFolderGuardReport } from "../_shared/admin-handlers/folder-guard-handlers.ts";
 
 import {
   handleClearTiffScan,
@@ -2081,6 +2082,9 @@ corsServe(async (req: Request) => {
       case "get-dir-browse-result":
         return await handleGetDirBrowseResult();
       // Restore from snapshot (popdam3#963) — admin only (not in USER_ACCESSIBLE_ACTIONS)
+      // Folder guard (popdam3#963 Phase 6) — admin only, read-only
+      case "folder-guard-report":
+        return await handleFolderGuardReport(body);
       case "request-snapshot-versions":
         return await handleRequestSnapshotVersions(body, userId);
       case "get-snapshot-versions-result":

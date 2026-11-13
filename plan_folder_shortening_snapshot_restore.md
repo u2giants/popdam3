@@ -23,7 +23,7 @@ Phases 0–3 are done (restore from snapshot is live, admin only; PopDAM reads b
 | Phase 3 — PopDAM understands old and new names (3.1–3.5) | ✅ done | 2026-11-11 | popcre/shared-db#6079, #6105, #6106 (prod apply verified); PRs #967, #972, #981, #982; live proof 2026-11-11 11:05 PM EST (reads `In Dev`, `Cust Adopted`, `Concept_Approved`, year folders) |
 | Phase 4 — rename rules and full old-to-new list (4.1–4.5) | ✅ frozen: Albert's 21 customer short names (`customer-short-names_from_albert.csv`) in `rules.json`; owner-chosen names may be under 3 characters (VW); re-listed edgesynology2 2026-11-13: 4,126 renames, 43,985→6,104 over-limit, 7 needs-attention | 2026-11-13 | `tools/folder-rename/` (`node --test tools/folder-rename/plan.test.mjs`), `verification/folder-shortening/summary.md`, `old-to-new.csv`, `needs-attention.csv` |
 | Phase 5 — carry out the renames in stages (5.1–5.7) | ⬜ open | — | — |
-| Phase 6 — guard against new long names (6.1–6.2) | ⬜ open | — | — |
+| Phase 6 — guard against new long names (6.1–6.2) | ✅ built: live on-demand check (Settings → File Health → Folder Names), not nightly; same rule engine as the planner | 2026-11-13 | `supabase/functions/_shared/folder-rules/` (`node --test tools/folder-rename/`), admin-api `folder-guard-report`, `src/components/settings/FolderGuardTab.tsx` |
 
 Rule for this table: a row marked done cites something a reader can open (file path, commit SHA, CI run id, or exact command). Whoever executes a step updates this table in the same pull request.
 

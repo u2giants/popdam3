@@ -10,6 +10,7 @@ import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgen
 import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import InstallBundleTab from "@/components/settings/InstallBundleTab";
+import FolderGuardTab from "@/components/settings/FolderGuardTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
 import FileHygieneTab from "@/components/settings/FileHygieneTab";
@@ -189,6 +190,7 @@ export default function SettingsPage() {
               { id: "style-guide", label: "Style Guide Crawl" },
               { id: "tiff", label: "TIFF Compression" },
               { id: "files", label: "File Quality" },
+              { id: "folder-names", label: "Folder Names" },
             ]}
             active={fileHealthSubTab}
             onChange={setFileHealthSubTab}
@@ -196,6 +198,7 @@ export default function SettingsPage() {
           {fileHealthSubTab === "style-guide" && <StyleGuideCrawlTab />}
           {fileHealthSubTab === "tiff" && <TiffHygieneTab />}
           {fileHealthSubTab === "files" && <FileHygieneTab />}
+          {fileHealthSubTab === "folder-names" && <FolderGuardTab />}
         </TabsContent>
 
         {/* ── Maintenance ── */}
