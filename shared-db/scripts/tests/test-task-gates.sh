@@ -52,7 +52,16 @@ assert_blocked(){
 
 assert_blocked 'migration scope escalation refuses deployment'
 assert_blocked 'acknowledgement cannot bypass protected migration' --acknowledge 'fixture acknowledgement'
-assert_blocked 'owner request cannot bypass protected migration' --owner-request 'fixture owner request'
+# The retired owner-request option must not restore an authorization path.
+set +e
+retired_output="$(cd "$fixture" && ai-task-gates check --before deploy --owner-request 'fixture owner request' 2>&1)"
+retired_rc=$?
+set -e
+if [ "$retired_rc" -eq 1 ] && [[ "$retired_output" == *'unknown option for check: --owner-request'* ]]; then
+  pass 'retired owner request remains an unknown option'
+else
+  fail "retired owner request unexpectedly admitted (exit $retired_rc: $retired_output)"
+fi
 
 (
   cd "$fixture"
