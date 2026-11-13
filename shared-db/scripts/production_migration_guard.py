@@ -80,6 +80,9 @@ HARD_BLOCKED = {
     # #5932 stranded-recovery: stranded-already-on-preview; reissued as
     # 20261113160920 with byte-identical executable SQL.
     "20261101125528",
+    # #2541: failed its production post-condition three times (ColdLion feed
+    # renamed two coded rows); superseded by 20261113203533.
+    "20261112225250",
     # #5932 stranded-recovery class B: derived-from retired base 20260814223552;
     # intervening changes (20260825010603, 20260825031841) modify the function
     # between the retired base and superseding base 20260825124200, so the
@@ -380,6 +383,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261112225250": "#2541: failed production post-condition 527/528 three times (runs 43360874152, 43362398485) because the #6206 ColdLion feed renamed coded rows it would rename back. Superseded by 20261113203533, which never renames a ColdLion-coded row. Never apply this original.",
     "20261030125352": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5129, preview run 41163382391 at d04252b3 vs merge b4fa655a; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261031031837 which carries byte-identical SQL body below the derivation line (issue #5128 claim #5209). Never apply this original; the live replacement owns the objects.",
     "20261030190639": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5165, preview run 41253550001 at 59e5b45d vs merge ac2ad11d; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261101000005 which carries same objects idempotent with a longer statement timeout (issue #5163 claim #5174). Never apply this original; the live replacement owns the objects.",
     "20261101065326": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): stranded-already-on-preview (historical-recovery needed; applied version never re-applies so no qualifying ledger delta can exist). Superseded by applied batched successor 20261101182210 which carries the combined end state of this version + 20261101074415 (issue #5315 claim #5317). Never apply this original; the live replacement owns compute_primary_sort_tier / trg_compute_primary_sort_tier.",
