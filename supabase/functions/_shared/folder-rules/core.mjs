@@ -90,6 +90,11 @@ function contextFor(relSegs, rules) {
   return ctx;
 }
 
+/** Years standing alone in a name (not part of a date like 12.18.2023 or 2023-01). */
+export function standaloneYears(seg) {
+  return [...seg.matchAll(/(?<![\d.\-\/,])((?:19|20)\d\d)(?![\d.\-\/,])/g)].map((m) => m[1]);
+}
+
 /** Customer named by a `_FINISHED` child, with or without the suffix. */
 function finishedCustomer(seg, rules) {
   const m = seg.match(new RegExp(`^(.*?)(${escapeRe(rules.finished_bucket.suffix)})?$`, "i"));
@@ -212,9 +217,17 @@ export function proposeName(name, relParents, rules, opts = {}) {
   }
 
   // 5. Repeated year under a year folder (O2, owner yes/no).
-  if (stripYear && ctx.yearParent && !bucket && !sku) {
+  // Owner 2026-11-13: any year already shown by a higher folder is dropped, also when
+  // glued to a season code (FH2026 -> FH). Years inside dates (12.18.2023) are kept.
+  if (stripYear && !bucket && !sku) {
     const before = n;
-    n = stripTerms(n, [ctx.yearParent]);
+    const years = new Set(relParents.flatMap(standaloneYears));
+    if (ctx.yearParent) years.add(ctx.yearParent);
+    if (years.size) {
+      n = stripTerms(n, [...years].filter((y) => standaloneYears(n).includes(y)));
+      n = n.replace(/(?<![A-Za-z])(FH|FW|SS|SP|HO)((?:19|20)\d\d)(?![\d.\-\/,])/gi, (m, code, y) => (years.has(y) ? code : m));
+      if (n !== before) n = tidy(n);
+    }
     if (n !== before) applied.push("strip_year");
   }
 
