@@ -1,0 +1,123 @@
+{
+  "_readme": "Folder shortening rules for #963. Read by plan.mjs. Folders only; files are never renamed. Every term here is explicit; nothing is guessed by pattern except pattern_rules, each of which names what it matches.",
+  "root": "Decor/Character Licensed/____New Structure",
+  "target_max_path": 200,
+  "never_touch": [
+    "@eaDir",
+    "#recycle",
+    "#snapshot"
+  ],
+  "stage_abbreviations": {
+    "In Development": "In Dev",
+    "Customer Adopted": "Cust Adopted",
+    "Concept Approved Designs": "Concept_Approved"
+  },
+  "customer_containers": [
+    "In Development/Customer Adopted"
+  ],
+  "finished_bucket": {
+    "folder": "_FINISHED",
+    "suffix": "_finished",
+    "drop_suffix": true,
+    "_note": "Ross_finished under _FINISHED says 'finished' twice; becomes Ross."
+  },
+  "not_customers": [
+    "Licensor Requests"
+  ],
+  "customer_aliases": {
+    "Desperate Signs": "Desperate",
+    "4 Seasons": "4SGM",
+    "Aldi's": "Aldi",
+    "At Home": "AtHome",
+    "B&N": "B-N",
+    "Box Lunch": "BoxLunch",
+    "Dollar General": "Dollar_General",
+    "Dollar Tree": "Dollar_Tree",
+    "Family Dollar": "Family_Dollar",
+    "Five Below": "Five_Below",
+    "Forman Mills": "Forman",
+    "Hobby Lobby": "Hobby_Lobby",
+    "Hot Topic": "HotTopic",
+    "Kohl's": "Kohls",
+    "Rooms To Go": "RoomsToGo",
+    "Sams Club": "Sams_Club",
+    "Shoppers World": "ShoppersWorld",
+    "Sobel Westex": "Sobel",
+    "Spencer's": "Spencer",
+    "Spirit Halloween Christmas": "Spirit",
+    "Variety Wholesalers": "VW"
+  },
+  "strip_from_descendants": {
+    "Desperate Signs": [
+      "Shane"
+    ]
+  },
+  "strip_year_under_year_folder": {
+    "enabled": true,
+    "_note": "O2: Albert said yes on #963, 2026-11-11 (\"Drop the repeated year\")."
+  },
+  "exact_folder_renames": {
+    "_preliminary files": "_prelim",
+    "preliminary files": "prelim",
+    "Preliminary files": "prelim",
+    "_prelim files": "_prelim",
+    "_preliminary designs": "_prelim designs",
+    "preliminary assets": "prelim assets",
+    "_working files": "_working",
+    "_Working files": "_working",
+    "_freelancer files": "_freelancer",
+    "BGP_HGP - Fabric storage": "BGP_HGP",
+    "other customers_finished": "other customers",
+    "Multiple Customers- Licensed Garden Tools Costing 6-2024": "Garden Tools Costing 6-2024"
+  },
+  "phrase_abbreviations": [
+    [
+      "professional photos",
+      "Pro Photos"
+    ],
+    [
+      "Proffesional Photos",
+      "Pro Photos"
+    ],
+    [
+      "Non-standard sizes",
+      "Non-std sizes"
+    ],
+    [
+      "piece canvas gift set",
+      "pc canvas set"
+    ],
+    [
+      "piece canvas set",
+      "pc canvas set"
+    ],
+    [
+      "Presentation",
+      "Prez"
+    ],
+    [
+      "NEEDS REVISIONS",
+      "REVISE"
+    ],
+    [
+      "Seasonal Bundles",
+      "Bundles"
+    ],
+    [
+      "Polyester gardening gloves and Garden tools",
+      "Garden gloves and tools"
+    ],
+    [
+      "Canvass Mock Up",
+      "Mock Up"
+    ]
+  ],
+  "pattern_rules": [
+    {
+      "id": "licensor_vault_folder",
+      "what": "Unzipped licensor style-guide vault folders like 3040881-nightmare-before-christmas-...-style-guide: keep the vault number and the first three words.",
+      "match": "^(\\d{6,})-([a-z0-9]+-[a-z0-9]+-[a-z0-9]+)-[a-z0-9-]+$",
+      "replace": "$1-$2"
+    }
+  ]
+}
