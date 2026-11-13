@@ -251,7 +251,11 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
       // names exactly what was missing.
       const mainSha = io.mainSha?.()
       if (!mainSha) throw new LaneError('post-merge preview rehearsal cannot read the current main tip; GitHub state is unreadable')
-      if (metadata.headSha !== mainSha) throw new LaneError(`post-merge preview rehearsal requires the exact current main SHA (asked for ${metadata.headSha}, main is ${mainSha})`)
+      // #6258: main moves between dispatch and run. Accept the same verified
+      // prefix the production lane accepts (production-inert paths or migrations
+      // appended strictly after the dispatched ledger); ancestry below is then
+      // proven against the dispatched commit itself, which main contains.
+      if (metadata.headSha !== mainSha && !(io.productionPrefixOk ?? productionPrefixOk)(metadata.headSha, mainSha)) throw new LaneError(`post-merge preview rehearsal requires the exact current main SHA or a verified prefix of it (asked for ${metadata.headSha}, main is ${mainSha})`)
       // The version set is validated FIRST and identically for both forms: one
       // source PR, or a version-to-PR map for a batch AGENTS.md 6.5 requires to
       // move as a single bounded event. The map does not weaken anything -- the
@@ -270,7 +274,7 @@ export function acquireExclusive(kind, metadata, io = githubIo) {
         try { pr = io.getPr?.(number) } catch (error) { throw new LaneError(`post-merge preview rehearsal cannot read pull request #${number} (${error.message})`) }
         if (!pr) throw new LaneError(`post-merge preview rehearsal cannot read pull request #${number}`)
         if (pr.merged !== true || !pr.merge_commit_sha) throw new LaneError(`post-merge preview rehearsal requires an already-merged source PR; #${number} is not merged`)
-        assertMergeCommitInMainHistory(pr.merge_commit_sha, mainSha, io)
+        assertMergeCommitInMainHistory(pr.merge_commit_sha, metadata.headSha, io)
         return pr
       }
       const readAdded = (number) => {

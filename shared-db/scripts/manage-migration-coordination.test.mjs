@@ -1714,6 +1714,17 @@ test('post-merge preview rehearsal compares merge commit as BASE and main tip as
   assert.deepEqual(io.compareUrls, ['compare/merge-sha...main'])
 })
 
+test('post-merge preview rehearsal accepts a verified prefix of main and proves ancestry at it (#6258)', () => {
+  const io = rehearsalIo()
+  io.mainSha = () => 'newer-tip'
+  io.productionPrefixOk = (head, tip) => head === REHEARSAL.headSha && tip === 'newer-tip'
+  const lock = acquireExclusive('preview-rehearsal', REHEARSAL, io)
+  releaseOwnedRef(EXCLUSIVE_REFS.preview, lock.ownerSha, io)
+  assert.deepEqual(io.compareUrls, [`compare/merge-sha...${REHEARSAL.headSha}`])
+  io.productionPrefixOk = () => false
+  assert.throws(() => acquireExclusive('preview-rehearsal', REHEARSAL, io), /exact current main SHA or a verified prefix/)
+})
+
 test('post-merge preview rehearsal fails closed on every missing authorisation', () => {
   const cases = [
     ['not merged', { getPr: () => ({ merged: false }) }, REHEARSAL, /is not merged/],
