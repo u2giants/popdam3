@@ -23,14 +23,19 @@ begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '2min';
 
-do $check$
-declare
-  n bigint;
+do $target$
 begin
   if to_regnamespace('dflow_prod') is not null then
     raise exception '#6252/20261113192216 self-check: schema dflow_prod exists here; this migration is DesignFlow non-production only (production half is 20261113192227)'
       using errcode = 'feature_not_supported';
   end if;
+end
+$target$;
+
+do $check$
+declare
+  n bigint;
+begin
   if to_regclass('dflow."merchGroup"') is null then
     raise exception '#6252/20261113192216 self-check: dflow."merchGroup" is missing';
   end if;
