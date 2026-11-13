@@ -96,11 +96,13 @@ export function isExcludedDirectory(dirname: string): boolean {
 
 /**
  * Check if a relative path contains any excluded directory.
+ * Directory rules apply to folder segments only: the last segment is a
+ * file name (e.g. a file named "TEMP" is not an excluded directory).
  */
 export function isExcludedRelativePath(relativePath: string): boolean {
   const parts = relativePath.split("/");
 
-  for (const part of parts) {
+  for (const part of parts.slice(0, -1)) {
     if (isExcludedDirectory(part)) {
       return true;
     }

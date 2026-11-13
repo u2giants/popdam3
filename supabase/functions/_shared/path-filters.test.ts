@@ -134,6 +134,12 @@ describe("isExcludedRelativePath", () => {
     expect(isExcludedRelativePath("Decor/Projects/.git/config")).toBe(true);
     expect(isExcludedRelativePath("Decor/.svn/backup")).toBe(true);
   });
+
+  it("should not apply directory rules to the filename segment", () => {
+    expect(isExcludedRelativePath("Decor/art.psd")).toBe(false);
+    expect(isExcludedRelativePath("Decor/TEMP")).toBe(false);
+    expect(isExcludedRelativePath("Decor/NODE_MODULES")).toBe(false);
+  });
 });
 
 describe("shouldSkipFile", () => {
