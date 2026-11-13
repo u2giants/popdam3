@@ -302,6 +302,9 @@ COORDINATION_STEPS = {
     "Re-prove current main and the merged source PR",
     "Acquire the exclusive production lane and freeze merges",
     "Verify exact main commit while holding the production lane",
+    # production-dry-run and production-apply-review re-prove the tip under
+    # this shorter name before any credential or psql step (#6237).
+    "Verify exact main commit",
 }
 # Runtime wording of a staleness refusal. None of these phrases appears in the
 # workflow's echoed shell source (tests enforce it), so a match is the refusal
@@ -325,7 +328,11 @@ def stale_main_refusal_only(repo: str, run: dict[str, Any]) -> bool:
     try:
         for jobs in attempt_jobs(repo, run):
             for job in jobs:
-                bad = [s for s in job.get("steps") or [] if s.get("conclusion") == "failure"]
+                # The `if: failure()` fault marker only reacts to the real
+                # failure; its own red conclusion (change fault or annotation
+                # lag) must not hide a staleness refusal (#6237).
+                bad = [s for s in job.get("steps") or []
+                       if s.get("conclusion") == "failure" and s.get("name") != REFUND_STEP]
                 if bad:
                     refused_jobs.append(job)
                     failed.update(s.get("name") for s in bad)

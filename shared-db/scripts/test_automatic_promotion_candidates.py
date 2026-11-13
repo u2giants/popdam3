@@ -193,6 +193,24 @@ class StaleMainRefusalDetector(unittest.TestCase):
         self.assertTrue(self.detect(
             {1: self.jobs(("Re-prove current main and the merged source PR", "failure"))}, wrapped))
 
+    def test_production_review_tip_refusal_with_stale_wording_is_stale(self):
+        # #6237: production-apply-review/dry-run name the step without the suffix.
+        self.assertTrue(self.detect(
+            {1: self.jobs(("Verify exact main commit", "failure"))}, self.STALE_LOG))
+
+    def test_failed_fault_marker_does_not_hide_a_staleness_refusal(self):
+        # #6237: the `if: failure()` marker step may itself conclude failure.
+        self.assertTrue(self.detect({1: self.jobs(
+            ("Prove the post-merge rehearsal source", "failure"),
+            (m.REFUND_STEP, "failure"))}, self.STALE_LOG))
+
+    def test_failed_fault_marker_alone_still_counts(self):
+        self.assertFalse(self.detect({1: self.jobs((m.REFUND_STEP, "failure"))}, self.STALE_LOG))
+
+    def test_failed_fault_marker_with_apply_failure_still_counts(self):
+        self.assertFalse(self.detect({1: self.jobs(
+            ("Bounded apply", "failure"), (m.REFUND_STEP, "failure"))}, self.STALE_LOG))
+
     def test_no_failed_steps_still_counts(self):
         self.assertFalse(self.detect({1: self.jobs(("Set up job", "success"))}, self.STALE_LOG))
 
