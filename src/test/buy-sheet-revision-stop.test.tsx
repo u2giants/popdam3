@@ -41,4 +41,21 @@ describe("buy sheet revision stop (owner rule 2026-11-10)", () => {
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
     expect(await screen.findByText('Marvel Molded Shadowbox 12x15"')).toBeInTheDocument();
   });
+
+  it("says why Import is unavailable before Preview and when every pack is held", async () => {
+    rpc.mockResolvedValue({
+      data: {
+        applied: false, import_id: null, customer: "Burlington", counts: { held: 1 }, unmatched_styles: [],
+        lines: [{ sku: "X1", delivery_date: "2026-12-10", quantity: 5, group: "2026-12-10|1", outcome: "held",
+          reason: "no order number", order_number: null, previous_quantity: null, item_match: "matched" }],
+      },
+      error: null,
+    });
+    render(<BuySheetImportDialog open onClose={() => {}} onApplied={() => {}} customerOptions={[{ id: "c1", label: "Burlington" }]} />);
+    fireEvent.change(screen.getByLabelText("Buy sheet file"), { target: { files: [{ name: "s.xlsx", arrayBuffer: async () => new ArrayBuffer(1) }] } });
+    expect(await screen.findByText(/Press Preview first/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(await screen.findByText(/every pack is held/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+  });
 });

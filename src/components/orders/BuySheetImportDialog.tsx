@@ -187,6 +187,18 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
 
   const counts = preview?.counts ?? {};
   const isRevision = (counts.revision ?? 0) > 0;
+  const importBlockedReason = busy ? null
+    : !file ? "Choose the HFC buy sheet file first."
+    : !parsed ? "This file could not be read as a buy sheet (see the message above)."
+    : !customer ? "Choose the customer first."
+    : !preview ? "Press Preview first. Import unlocks once the preview shows what will change."
+    : preview.applied ? "This sheet is imported."
+    : isRevision ? "Import is stopped because this sheet revises one already imported (see the red note above)."
+    : (counts.new ?? 0) + (counts.updated ?? 0) === 0
+      ? (counts.held ?? 0) > 0
+        ? "Nothing to import yet: every pack is held because it has no OrderList order. Type each pack's order number (D-number) in the boxes above."
+        : "Nothing to import: every line on this sheet is already in OrderList with the same quantities."
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) { reset(); onClose(); } }}>
@@ -306,11 +318,14 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
           </div>
         )}
 
+        {importBlockedReason && (
+          <p role="status" className="text-sm text-amber-700">Why Import is not available: {importBlockedReason}</p>
+        )}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }}>Close</Button>
           <Button
             type="button"
-            disabled={!preview || preview.applied || busy || isRevision || ((counts.new ?? 0) + (counts.updated ?? 0) === 0)}
+            disabled={busy || importBlockedReason !== null}
             onClick={() => void apply()}
           >
             Import
