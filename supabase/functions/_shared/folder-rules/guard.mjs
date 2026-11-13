@@ -3,7 +3,7 @@
 // (a) folders whose name breaks the rules, with the suggested name, and
 // (b) folders holding files whose path is over the target length.
 // Never renames anything; renames go through the Phase 5 executor.
-import { planRenames, mapFile } from "./core.mjs";
+import { mapFile, planRenames } from "./core.mjs";
 
 export function folderGuard(files, rules, { limit = 200 } = {}) {
   const max = rules.target_max_path;

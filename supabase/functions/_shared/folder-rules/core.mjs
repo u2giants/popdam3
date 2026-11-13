@@ -151,8 +151,9 @@ export function proposeName(name, relParents, rules, opts = {}) {
         segs.length === cont.length + 2 &&
         cont.every((c, i) => sameStage(segs[i], c, rules)) &&
         segs[cont.length] === rules.finished_bucket.folder
-      )
+      ) {
         return "finished";
+      }
     }
     return null;
   })();
