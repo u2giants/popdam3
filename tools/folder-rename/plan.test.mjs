@@ -116,3 +116,12 @@ test("full customer names inside folder names become the short name", async () =
   assert.equal(replaceCustomerNames("and Hobby Lobby_SEGA", rules), "and Hobby_Lobby_SEGA");
   assert.equal(replaceCustomerNames("Box Lunch 2026", rules), "BoxLunch 2026");
 });
+
+test("year shown by any higher folder is dropped; dates kept", async () => {
+  const { proposeName } = await import("../../supabase/functions/_shared/folder-rules/core.mjs");
+  const base = ["In Development", "Customer Adopted", "Burlington", "2026"];
+  assert.equal(proposeName("Spruce Storage FH2026", base, rules).name, "Spruce Storage FH");
+  assert.equal(proposeName("Photos 12.18.2026", base, rules).name, "Photos 12.18.2026");
+  const deep = ["In Development", "Customer Adopted", "Walmart", "Hard Storage 2025", "_working"];
+  assert.equal(proposeName("Seasonal Storage 2025", deep, rules).name, "Seasonal Storage");
+});

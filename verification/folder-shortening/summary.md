@@ -4,12 +4,12 @@ Inputs: 58,785 folders, 378,215 files (listing from edgesynology2, read-only). T
 
 ## Totals
 
-- Folders to rename: 4,152
+- Folders to rename: 4,157
 - Files over 200 before: 43,985
-- Files over 200 after (year rule on): 6,102
+- Files over 200 after (year rule on): 6,097
 - Files over 200 after if the year rule were off: 6,325 (folders renamed: 4,135)
 - Files over 240 before / after: 3,049 / 449
-- Needs attention: 2
+- Needs attention: 3
 
 ## Renames by rule
 
@@ -21,11 +21,11 @@ Inputs: 58,785 folders, 378,215 files (listing from edgesynology2, read-only). T
 - phrase_abbreviation: 3,144
 - stage_abbreviation: 3
 - strip_customer: 539
-- strip_year: 86
+- strip_year: 99
 
 ## Needs attention by kind
 
-- fragment_under_3: 1
+- fragment_under_3: 2
 - would_be_empty: 1
 
 ## Where the remaining files over 200 live (top 25 folders, 4 levels below the root)
