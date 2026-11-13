@@ -2192,14 +2192,43 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const db = serviceClient();
   const relativePaths = files.map((f: Record<string, unknown>) => f.relative_path as string);
 
-  // Fetch existing assets by relative_path in one query (include thumbnail info for retry logic)
-  const { data: existingAssets, error } = await db
-    .from("assets")
-    .select("relative_path, filename, modified_at, file_size, quick_hash, thumbnail_url, thumbnail_error")
-    .in("relative_path", relativePaths)
-    .eq("is_deleted", false);
+  // Fetch existing assets by relative_path. The IN list travels in the request
+  // URL, so long NAS paths overflow the gateway limit (400/414) when hundreds
+  // are sent at once; that error made the bridge treat every file as changed.
+  // Split the lookup into URL-sized groups.
+  const LOOKUP_URL_BUDGET = 8000;
+  const lookupGroups: string[][] = [];
+  let group: string[] = [];
+  let groupLen = 0;
+  for (const rp of relativePaths) {
+    const len = encodeURIComponent(`"${rp}",`).length;
+    if (group.length > 0 && groupLen + len > LOOKUP_URL_BUDGET) {
+      lookupGroups.push(group);
+      group = [];
+      groupLen = 0;
+    }
+    group.push(rp);
+    groupLen += len;
+  }
+  if (group.length > 0) lookupGroups.push(group);
 
-  if (error) return err(error.message, 500);
+  const existingAssets: Array<Record<string, any>> = [];
+  const LOOKUP_CONCURRENCY = 6;
+  for (let gi = 0; gi < lookupGroups.length; gi += LOOKUP_CONCURRENCY) {
+    const results = await Promise.all(
+      lookupGroups.slice(gi, gi + LOOKUP_CONCURRENCY).map((paths) =>
+        db
+          .from("assets")
+          .select("relative_path, filename, modified_at, file_size, quick_hash, thumbnail_url, thumbnail_error")
+          .in("relative_path", paths)
+          .eq("is_deleted", false)
+      ),
+    );
+    for (const { data, error } of results) {
+      if (error) return err(error.message || "asset lookup failed", 500);
+      existingAssets.push(...(data || []));
+    }
+  }
 
   // Build lookup map
   const existingMap = new Map<string, {
@@ -2210,7 +2239,7 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     thumbnail_url: string | null;
     thumbnail_error: string | null;
   }>();
-  for (const asset of existingAssets || []) {
+  for (const asset of existingAssets) {
     existingMap.set(asset.relative_path, {
       modified_at: asset.modified_at,
       filename: asset.filename,
