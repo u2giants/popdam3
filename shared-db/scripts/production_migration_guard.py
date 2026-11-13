@@ -67,6 +67,16 @@ MIGRATION_LINE_RE = re.compile(r"^\s*(?:[•*\-]\s*)?(\d{14})_[^\s]+\.sql\s*$")
 # ever turns out NOT to be applied, that changes the count in AGENTS.md 6.8 and
 # this set must be revisited before anything is promoted.
 HARD_BLOCKED = {
+    # #5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113):
+    # superseded by later applied reissues; retire permanently per ruling
+    # condition 1.5 (function-body regression trap). The executable SQL is
+    # owned by the named live replacement; never apply these originals.
+    "20261030125352",
+    "20261030190639",
+    "20261101065326",
+    "20261101161640",
+    "20261102155541",
+    "20261101074415",
     # #5950: parked 20261106214905 (PR #5913) declared derived-from:
     # 20261015132149, a retired stamp held by no preview or production ledger,
     # so the issue #1608 base-absent derivation gate blocked its preview
@@ -356,6 +366,12 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261030125352": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5129, preview run 41163382391 at d04252b3 vs merge b4fa655a; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261031031837 which carries byte-identical SQL body below the derivation line (issue #5128 claim #5209). Never apply this original; the live replacement owns the objects.",
+    "20261030190639": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5165, preview run 41253550001 at 59e5b45d vs merge ac2ad11d; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261101000005 which carries same objects idempotent with a longer statement timeout (issue #5163 claim #5174). Never apply this original; the live replacement owns the objects.",
+    "20261101065326": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): stranded-already-on-preview (historical-recovery needed; applied version never re-applies so no qualifying ledger delta can exist). Superseded by applied batched successor 20261101182210 which carries the combined end state of this version + 20261101074415 (issue #5315 claim #5317). Never apply this original; the live replacement owns compute_primary_sort_tier / trg_compute_primary_sort_tier.",
+    "20261101161640": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): stranded-already-on-preview (run 41332949470; atomic-allowlist entry merged separately from authoring PR #5366 so producer-file pin cannot hold). Superseded by applied batched successor 20261101182210 which carries the identical batched body with its own atomic-allowlist entry inside the authoring PR (issue #5315 claim #5317). Never apply this original; the live replacement owns the objects.",
+    "20261102155541": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): superseded by applied 20261102181554 which re-derives the CURRENT body of hts_rag_search_rulings_pass (the #5305 chain ending at 20261101143319) with the trgram pass narrowed for the chapter-scoped benchmark (issue #5283 claim #5432). Never apply this original; the live replacement owns hts_rag_search_rulings_pass.",
+    "20261101074415": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113, class C): base-absent dependent of stranded 20261101065326; its embed-reset end state is superseded by applied batched successor 20261101182210 which carries the complete style_group embed-queue reset predicate (issue #5315 claim #5317). Never apply this original; the live replacement owns the objects.",
     "20261106205842": "#5758: one-shot coldlion.change_log rotation for the 2026-11-06 10:00 PM EST slot (PR #5929, re-issued from #5885's 20261106152843 after that stamp was parked by main-staleness refusals). The queue lost every tip race and the slot closed before either stamp reached production. The body schedules nothing after 02:55 UTC 2026-11-07, so a production apply would be inert; the weekly job 20261106021547 (applied by PR #5807, live in production) runs the same rotation on its own schedule. Preview holds this version from run 42298839910, so the file stays to keep source truth aligned with that ledger. Never apply.",
     "20261021152741": "#4540 drain disposition (2026-11-06): superseded by the applied re-land. The work (#4529) was re-landed reviewed as 20261021190510 (commit 630623a4e, popdam_search_exact_relevance_paging_reland.sql), which production applied; this original drops and recreates search_assets_full_text, search_style_groups_full_text and search_dam_document_counts with the pre-re-land bodies, so promoting it would roll those live functions back. The historical lane also cannot prove it: its only preview evidence is pull_request rehearsal run 39628737449 (wrong event per the production gate, run 42307695050) and the migration is high-risk (destructive drops), so the ephemeral route cannot substitute. Never apply; the applied 20261021190510 owns the change.",
     "20261015132149": "#4540 drain disposition (2026-11-06): stamp re-reserved AFTER its PR #4221 merged (commit 8717fc09f renamed 20261013144638_pm_jev_activity_triage_contract_a.sql), so no merged pull request adds this stamp and the post-merge rehearsal proof can never accept it; the historical lane cannot name an original apply run because it was never applied to preview. Retire this stamp; reissued byte-identical (body cmp-identical) under issue #3298 (PR #5913; the queue ejected the initial 20261106190000 stamp as backdated and the file was renamed 20261106214905, SQL unchanged), which the normal automatic lane carries. Never apply this stamp.",

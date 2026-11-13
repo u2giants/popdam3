@@ -434,6 +434,12 @@ class GuardTests(unittest.TestCase):
                 "20260929040458",
                 "20261006221530",
                 "20261018191107",
+                "20261030125352",
+                "20261030190639",
+                "20261101065326",
+                "20261101161640",
+                "20261102155541",
+                "20261101074415",
             },
         )
 
@@ -4702,6 +4708,60 @@ class StageCatalogStrandedOriginalTests(unittest.TestCase):
 
     def test_forward_remains_eligible(self):
         self.assertEqual(parse_allowlist("20261020125826"), ["20261020125826"])
+
+
+class StrandedRecovery5932RetirementTests(unittest.TestCase):
+    """Pinned guard tests for the #5932 stranded-recovery retirements.
+
+    Muse ruling stranded-recovery-ruling-20261113 (comment on #5932):
+    supersession condition 1.5 — if a later merged migration already owns
+    the object body, retire the original permanently naming the owning
+    live version; never reissue.
+    """
+
+    SUPERSEDED = {
+        "20261030125352": "20261031031837",
+        "20261030190639": "20261101000005",
+        "20261101065326": "20261101182210",
+        "20261101161640": "20261101182210",
+        "20261102155541": "20261102181554",
+        "20261101074415": "20261101182210",
+    }
+
+    def test_all_six_are_hard_blocked(self):
+        for version in self.SUPERSEDED:
+            with self.subTest(version=version):
+                self.assertIn(version, HARD_BLOCKED)
+
+    def test_all_six_are_retired_with_reason_naming_owning_live_version(self):
+        for version, owning in self.SUPERSEDED.items():
+            with self.subTest(version=version):
+                self.assertIn(version, production_migration_guard.RETIRED_VERSION_REASONS)
+                reason = production_migration_guard.RETIRED_VERSION_REASONS[version]
+                self.assertIn(owning, reason, f"reason must name owning live version {owning}")
+                self.assertIn("5932", reason)
+                self.assertIn("stranded-recovery-ruling-20261113", reason)
+
+    def test_none_of_the_six_can_enter_an_allowlist(self):
+        for version in self.SUPERSEDED:
+            with self.subTest(version=version):
+                for remote in (set(), {version}):
+                    with self.assertRaisesRegex(GuardError, "general production lane blocks"):
+                        parse_allowlist(version, remote=remote)
+
+    def test_owning_live_versions_remain_eligible(self):
+        for version, owning in self.SUPERSEDED.items():
+            with self.subTest(version=version, owning=owning):
+                self.assertNotIn(owning, HARD_BLOCKED)
+                self.assertEqual(parse_allowlist(owning), [owning])
+
+    def test_classify_pending_reports_retired(self):
+        for version in self.SUPERSEDED:
+            with self.subTest(version=version):
+                for ledger in (set(), {version}):
+                    self.assertEqual(
+                        classify_pending_version(version, ledger, REPO)["kind"], "retired"
+                    )
 
 
 if __name__ == "__main__":
