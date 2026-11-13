@@ -1,10 +1,3 @@
----
-summary: Forward proof that reviewed policy code, canonical and installed instructions agree before the #1039 production-risk gate activation.
-kind: proof
-status: done
-read-when: verifying production business-risk gate activation evidence or diagnosing gate behavior
----
-
 # Issue #1039 production-risk activation forward proof
 
 Date: 2026-08-14
