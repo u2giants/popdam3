@@ -307,3 +307,65 @@ test("4190 passes only with both new schedules active and run since the change",
   assert.throws(() => evaluateCadence4190([ok[0], { ...ok[1], succeeded_runs: 0 }]), ProofFailure);
   assert.throws(() => evaluateCadence4190([ok[0]]), ProofFailure);
 });
+
+import { evaluateWatermark2421 } from "./shared-db-live-proof.mjs";
+
+const goodInstalled2421 = () => ({
+  recovery_rpc_two_arg: true, recovery_rpc_two_arg_md5: "65c89b152f1d4aa49f3877043a16bd6b",
+  watermark_rpc_three_arg: true, watermark_rpc_three_arg_md5: "9222e39f7953290f2050123aa07811b6",
+  batch_clear_retained: true, key_for_sku_retained: true, stamp_functions: true,
+  queue_function: true, queue_watermark_advance_guard: true, queue_weekly_full_pass: true,
+  change_clocks: true, change_triggers: true, change_indexes: true,
+});
+
+const goodState2421 = () => ({
+  watermark_machinery_present: true,
+  installed: goodInstalled2421(),
+  watermark_state: {
+    pending_run_id: "run-pending", pending_cutoff: "2026-11-13T06:00:00Z", pending_mode: "incremental",
+    last_successful_run_id: "run-done", last_successful_cutoff: "2026-11-12T06:00:00Z",
+    last_full_cutoff: "2026-11-10T06:00:00Z",
+  },
+  rebuild_op_state: {
+    status: "completed", run_id: "run-done",
+    params: { watermark_protocol: 1, changed_since: "2026-11-11T06:00:00Z", changed_cutoff: "2026-11-12T06:00:00Z", rebuild_mode: "incremental" },
+  },
+});
+
+test("2421 accepts the installed watermark machinery with paired watermark state and a protocol run", () => {
+  const summary = evaluateWatermark2421(goodState2421());
+  assert.equal(summary.recovery_rpc_two_arg_md5, "65c89b152f1d4aa49f3877043a16bd6b");
+  assert.ok(summary.watermark_keys.includes("last_successful_cutoff"));
+});
+
+test("2421 rejects a failed installed check and names the observed digest", () => {
+  const broken = goodState2421();
+  broken.installed = { ...broken.installed, recovery_rpc_two_arg: false, recovery_rpc_two_arg_md5: "deadbeef" };
+  assert.throws(() => evaluateWatermark2421(broken), /recovery_rpc_two_arg.*deadbeef/);
+});
+
+test("2421 rejects an absent watermark, half-recorded pairs, future cutoffs and a non-protocol run", () => {
+  const noWatermark = goodState2421();
+  noWatermark.watermark_state = null;
+  assert.throws(() => evaluateWatermark2421(noWatermark), ProofFailure);
+
+  const halfPair = goodState2421();
+  halfPair.watermark_state = { ...halfPair.watermark_state, last_successful_cutoff: undefined };
+  assert.throws(() => evaluateWatermark2421(halfPair), ProofFailure);
+
+  const future = goodState2421();
+  future.watermark_state = { ...future.watermark_state, pending_cutoff: "2999-01-01T00:00:00Z" };
+  assert.throws(() => evaluateWatermark2421(future), ProofFailure);
+
+  const badMode = goodState2421();
+  badMode.watermark_state = { ...badMode.watermark_state, pending_mode: "half" };
+  assert.throws(() => evaluateWatermark2421(badMode), ProofFailure);
+
+  const offProtocol = goodState2421();
+  offProtocol.rebuild_op_state = { status: "completed", params: { watermark_protocol: 2, changed_cutoff: "2026-11-12T06:00:00Z", rebuild_mode: "full" } };
+  assert.throws(() => evaluateWatermark2421(offProtocol), ProofFailure);
+
+  const missingParams = goodState2421();
+  missingParams.rebuild_op_state = { status: "queued", params: { watermark_protocol: 1, changed_cutoff: "not-a-time", rebuild_mode: "incremental" } };
+  assert.throws(() => evaluateWatermark2421(missingParams), ProofFailure);
+});
