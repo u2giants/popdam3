@@ -1164,7 +1164,7 @@ async function proveStyleGroupWatermark() {
   const probe = await managementQuery(await proofSql("shared-db-live-proof-2421.sql"));
   if (probe.status >= 400) fail(`2421 probe returned HTTP ${probe.status}`);
   const state = probe.json?.[0]?.proof;
-  if (state?.migration_applied !== true) throw new NotYetApplied("production migration 20261012012727 is not installed");
+  if (state?.watermark_machinery_present !== true) throw new NotYetApplied("the style-group watermark machinery (the watermark overload of rebuild_style_groups_batch and its change clocks) is not installed on production");
   const machinery = evaluateWatermark2421(state);
   const { json: rows, elapsedMs: driftMs } = await call("/rest/v1/rpc/reconcile_style_group_drift", {
     method: "POST",

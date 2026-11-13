@@ -319,7 +319,7 @@ const goodInstalled2421 = () => ({
 });
 
 const goodState2421 = () => ({
-  migration_applied: true,
+  watermark_machinery_present: true,
   installed: goodInstalled2421(),
   watermark_state: {
     pending_run_id: "run-pending", pending_cutoff: "2026-11-13T06:00:00Z", pending_mode: "incremental",

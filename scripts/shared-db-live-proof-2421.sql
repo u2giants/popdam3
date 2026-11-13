@@ -71,8 +71,9 @@ WITH fn3 AS (
   WHERE key = 'BULK_OPERATIONS'
 )
 SELECT jsonb_build_object(
-  'migration_applied', EXISTS(
-    SELECT FROM supabase_migrations.schema_migrations WHERE version = '20261012012727'),
+  'watermark_machinery_present', EXISTS(
+    SELECT FROM fn3)
+  AND (SELECT n = 2 FROM clocks),
   'installed', jsonb_build_object(
     'recovery_rpc_two_arg', EXISTS(
       SELECT FROM fn2 WHERE body_md5 = '65c89b152f1d4aa49f3877043a16bd6b'),
