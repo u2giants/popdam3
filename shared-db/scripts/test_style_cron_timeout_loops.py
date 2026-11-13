@@ -20,6 +20,7 @@ MIGRATION = ROOT / 'supabase/migrations/20261105165947_style_cron_timeout_retry_
 # the gate assertions below describe the function at head.
 SNAPSHOT_GATE = ROOT / 'supabase/migrations/20261111162335_popsg_prewarm_interval_snapshot_signature_only.sql'
 WRAPPER = ROOT / 'supabase/migrations/20261027012301_popsg_semantic_search_foundation.sql'
+PREWARM_CADENCE = ROOT / 'supabase/migrations/20261113043850_popsg_prewarm_every_10_minutes.sql'
 ACK = "SELECT value->'style-group-counts-reconcile' FROM admin_config WHERE key='BULK_OPERATIONS'"
 REFRESHES = "SELECT count(*) FROM calls WHERE step IS NULL"
 
@@ -94,6 +95,7 @@ class Contracts(unittest.TestCase):
                 'search_documents_synced int) LANGUAGE plpgsql SECURITY DEFINER AS $w$' + wrapper + '$w$')
         cls.sql(MIGRATION.read_text())
         cls.sql(SNAPSHOT_GATE.read_text())
+        cls.sql(PREWARM_CADENCE.read_text())
 
     @classmethod
     def sql(cls, text, check=True):
@@ -224,7 +226,7 @@ class Contracts(unittest.TestCase):
         self.assertIn("statement_timeout = '10min'", rows['refresh-style-guide-library-default-snapshot'])
         self.assertEqual(rows['prewarm-style-guide-search'], 'select public.prewarm_style_guide_search()')
         self.assertEqual(self.sql("SELECT schedule FROM cron.job WHERE jobname='prewarm-style-guide-search'"),
-                         '4-59/15 * * * *')
+                         '4-59/10 * * * *')
 
     def library_refreshed_at(self):
         return self.sql("SELECT value->'library-default-snapshot'->>'refreshed_at' FROM admin_config "
