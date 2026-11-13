@@ -4,16 +4,17 @@ Inputs: 58,785 folders, 378,215 files (listing from edgesynology2, read-only). T
 
 ## Totals
 
-- Folders to rename: 4,126
+- Folders to rename: 4,152
 - Files over 200 before: 43,985
-- Files over 200 after (year rule on): 6,104
-- Files over 200 after if the year rule were off: 6,327 (folders renamed: 4,114)
+- Files over 200 after (year rule on): 6,102
+- Files over 200 after if the year rule were off: 6,325 (folders renamed: 4,135)
 - Files over 240 before / after: 3,049 / 449
-- Needs attention: 7
+- Needs attention: 2
 
 ## Renames by rule
 
 - customer_alias: 31
+- customer_alias_in_name: 29
 - drop_finished_suffix: 33
 - exact_folder_rename: 372
 - pattern:licensor_vault_folder: 6
@@ -24,8 +25,8 @@ Inputs: 58,785 folders, 378,215 files (listing from edgesynology2, read-only). T
 
 ## Needs attention by kind
 
-- fragment_under_3: 2
-- would_be_empty: 5
+- fragment_under_3: 1
+- would_be_empty: 1
 
 ## Where the remaining files over 200 live (top 25 folders, 4 levels below the root)
 
@@ -44,7 +45,7 @@ Inputs: 58,785 folders, 378,215 files (listing from edgesynology2, read-only). T
 - 80 — `Decor/Character Licensed/____New Structure/In Dev/Cust Adopted/Dollar_General/2027`
 - 78 — `Decor/Character Licensed/____New Structure/In Dev/Cust Adopted/Burlington/2026`
 - 69 — `Decor/Character Licensed/____New Structure/In Dev/Cust Adopted/Hobby_Lobby/2026`
-- 67 — `Decor/Character Licensed/____New Structure/In Dev/Cust Adopted/_FINISHED/HotTopic`
+- 65 — `Decor/Character Licensed/____New Structure/In Dev/Cust Adopted/_FINISHED/HotTopic`
 - 64 — `Decor/Character Licensed/____New Structure/Concept_Approved/DESKTOP/MDS_Phone_tablet holder/MDSH7_MDSH9_Phone stand`
 - 56 — `Decor/Character Licensed/____New Structure/Concept_Approved/WALL ART/MFH_Framed high gloss_MDF print with spot varnish/16x20`
 - 56 — `Decor/Character Licensed/____New Structure/Concept_Approved/WALL ART/MFQ_Framed MDF with glitter_Framed high gloss w glitter/12x16`

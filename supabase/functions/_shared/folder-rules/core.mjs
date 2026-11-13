@@ -110,6 +110,16 @@ export function aliasFor(name, rules) {
   return undefined;
 }
 
+/** Replace every customer's full name inside a folder name with its short name (owner: one spelling everywhere). */
+export function replaceCustomerNames(n, rules) {
+  const entries = Object.entries(rules.customer_aliases).sort((a, b) => b[0].length - a[0].length);
+  for (const [k, v] of entries) {
+    const pat = k.split(/[^A-Za-z0-9]+/).filter(Boolean).map(escapeRe).join("[^A-Za-z0-9]*");
+    n = n.replace(new RegExp(`(?<![A-Za-z0-9])${pat}(?![A-Za-z0-9])`, "gi"), v);
+  }
+  return n;
+}
+
 /** Map either the long folder name or its alias back to the canonical key. */
 function canonicalCustomer(seg, rules) {
   for (const [k, v] of Object.entries(rules.customer_aliases)) {
@@ -194,6 +204,13 @@ export function proposeName(name, relParents, rules, opts = {}) {
     if (n !== before) applied.push("strip_customer");
   }
 
+  // 4b. Any customer's full name left inside the name becomes its short name (SKU folders too).
+  {
+    const before = n;
+    n = replaceCustomerNames(n, rules);
+    if (n !== before) applied.push("customer_alias_in_name");
+  }
+
   // 5. Repeated year under a year folder (O2, owner yes/no).
   if (stripYear && ctx.yearParent && !bucket && !sku) {
     const before = n;
@@ -262,7 +279,11 @@ export function planRenames(dirs, rules, opts = {}) {
         attention.push({ kind: "trailing_dot_or_space", old_path: p.d, proposed: p.name, note: "illegal on Windows" });
       }
       if (p.applied.length === 0) continue;
-      if (p.name.replace(/^_/, "").trim() === "") {
+      const oldName = p.d.slice(p.d.lastIndexOf("/") + 1);
+      if (p.name.replace(/^_/, "").trim().length < 3 && !(p.applied.length === 1 && p.applied[0] === "customer_alias") && replaceCustomerNames(oldName, rules) !== oldName) {
+        p.name = replaceCustomerNames(oldName, rules);
+        p.applied = ["customer_alias_in_name"];
+      } else if (p.name.replace(/^_/, "").trim() === "") {
         attention.push({ kind: "would_be_empty", old_path: p.d, proposed: "", note: "kept old name" });
         p.name = p.d.slice(p.d.lastIndexOf("/") + 1);
         p.applied = [];
