@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261113043850",
+  "migration_sha256": "e09398fde54680e0e953083fb848847e305b392d77685d3915c1f0292d8455f4",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 9,
+      "line_end": 12,
+      "disposition": "checks",
+      "reason": "The single statement reschedules the existing pg_cron job prewarm-style-guide-search through cron.alter_job. The cited contract reads the live cron.job row by its unique name and asserts the new schedule, so the change is verified against the catalog rather than inferred from the statement.",
+      "check_ids": [
+        "prewarm_style_guide_search_schedule"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "prewarm_style_guide_search_schedule",
+      "kind": "exact_row_count",
+      "relation": "cron.job",
+      "filters": [
+        {
+          "column": "jobname",
+          "type": "text",
+          "equals": "prewarm-style-guide-search"
+        },
+        {
+          "column": "schedule",
+          "type": "text",
+          "equals": "4-59/10 * * * *"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
