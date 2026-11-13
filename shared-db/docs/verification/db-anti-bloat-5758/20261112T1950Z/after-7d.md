@@ -1,5 +1,5 @@
 ---
-summary: "Issue 5758 Step 8 seven-day after-measurement: ColdLion flapping collapsed, rotation due to start weekly thinning 2026-11-15, hts_rag zero-churn guards live-proven, new bloat/attribution findings routed to the weekly check."
+summary: "Issue 5758 Step 8 seven-day after-measurement: ColdLion flapping collapsed, hts_rag guards live-proven, bloat findings routed to weekly check."
 kind: proof
 status: done
 read-when: comparing post-fix production state against the 2026-11-05 baseline before closing #5758 Step 8

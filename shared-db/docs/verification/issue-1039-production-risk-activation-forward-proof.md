@@ -1,3 +1,9 @@
+---
+summary: "Issue 1039 production-risk activation forward proof: reviewed policy code and synthetic decision behavior agree before activation merge."
+kind: proof
+status: done
+read-when: verifying production-risk activation policy consistency before merging the activation PR for #1039
+---
 # Issue #1039 production-risk activation forward proof
 
 Date: 2026-08-14

@@ -1,3 +1,8 @@
+---
+issue: 6150
+status: OPEN
+owner: edge-dev3-claude/mg06-site-path-step6
+---
 # Handoff: MG06 licensor-site path — preview proof + step 6 (populate)
 
 ## 1. Goal

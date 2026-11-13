@@ -1,3 +1,8 @@
+---
+issue: 6150
+status: OPEN
+owner: edge-dev3-claude/mg06-coordination
+---
 # Note for the session working on Mickey / Minnie / Mickey & Friends properties (2026-11-12, 12:30 PM EST)
 
 What the MG06 work is doing, so you do not collide with it:
