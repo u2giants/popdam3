@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261113143309",
+  "migration_sha256": "60af8b96d236a80377e2448fb7e20c8211a339ad36920ca7a7f989470b10f0d0",
+  "checks": [
+    {
+      "id": "core_customer_dilution_column",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "customer"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "dilution"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "core_customer_logistic_load_column",
+      "kind": "exact_row_count",
+      "relation": "information_schema.columns",
+      "filters": [
+        {
+          "column": "table_schema",
+          "type": "text",
+          "equals": "core"
+        },
+        {
+          "column": "table_name",
+          "type": "text",
+          "equals": "customer"
+        },
+        {
+          "column": "column_name",
+          "type": "text",
+          "equals": "logistic_load"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
