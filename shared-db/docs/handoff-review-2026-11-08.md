@@ -15,6 +15,13 @@ working tree; git history preserves their text.
 > below were stale at publication (triage found later facts). Each carries a
 > corrected resume prompt; the #2421 note is retired since publication.
 
+> **2026-11-13 9:50 AM EST supersession:** the #2421 and #5608 resume prompts
+> below are CONSUMED — both issues are closed (#5608 on 2026-11-11; #2421 with
+> outcome `live_verified` on 2026-11-13). The #5747 prompt's Step 7 is also done
+> (2026-11-12); its remaining checkpoints are MiMo scheduled tasks (health check
+> 2026-11-16 6:00 AM EST, index re-check 2026-11-18). The #2326 prompt below is
+> current and its gate is cleared (#1941 closed 2026-11-13 on the owner's word).
+
 ## Retired (5 notes — issue closed, outcome verified)
 
 | File | Issue | Proof |
