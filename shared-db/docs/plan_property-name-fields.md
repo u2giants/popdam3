@@ -95,8 +95,8 @@ Other tables:
 | Field | Exists today? | Decision |
 |---|---|---|
 | 1 Coldlion name | `core.property.name` (synced) | keep, no change |
-| 2 Licensor-submission name | the **link** is in `core.property.metadata.submission_canonical` (29 rows); the **text** is in each scrape table | promote the link to real columns; copy the text from the linked scrape row automatically (never typed) |
-| 3 Nickname | `core.property.nickname`, unused | **reuse**, add nothing |
+| 2 Licensor-submission name | the **link** is in `core.property.metadata.submission_canonical` (29 rows); the **text** is in each scrape table | promote the link to real columns, delete the old key, and block future writes to it (Step 1); copy the text from the linked scrape row automatically (never typed) |
+| 3 Nickname | `core.property.nickname`, unused, already on the main table, no code reads or writes it | **reuse**; nothing to move or repoint |
 | 4 Short name | nowhere | **add** `core.property.short_name` |
 
 Net result: two real additions (the short name, plus the licensor link and name as columns), one reuse, and nothing duplicated.
@@ -135,6 +135,8 @@ Net result: two real additions (the short name, plus the licensor link and name 
 - Then drop the `submission_canonical` key from `metadata`.
 - Update the `nickname` comment to "User-facing name shown in POP apps."
 - Done when the 21 `disney_opa` links appear in the new columns and `metadata ? 'submission_canonical'` returns 0 rows.
+- **Repoint every user of the old location in the same step.** Checked 2026-11-13: no live database function, view or app code *reads* `submission_canonical` (query `pg_proc.prosrc` and `pg_views.definition` for it; `git grep` in shared-db and the popcre designflow repos). It is only *written*, by migrations `20261026150931_curated_vm_trackerplus_submission_properties.sql`, `20261112173641_curated_opa_submission_properties.sql`, `20261112225250_opa_contract_studio_placement.sql` and `20261113041225_opa_contract_studio_placement_fix_forward.sql`. Past migrations are not edited, but the back-fill picks up what they wrote. Open work on issue #6209 (handoff `HANDOFF.d/2026-11-13T1455Z-edge-dev-mimo-opa-fix-forward-repair.md`) still writes the old key: comment on #6209 so its next migration writes the new columns instead. Add a check to `property_licensing_write_guard`, or a new constraint, that rejects any new `metadata ? 'submission_canonical'`, so nothing can write the old place again.
+- Re-run the grep and the `pg_proc`/`pg_views` query right before merging. Any new reader found must be switched to the columns in this PR.
 
 **Step 2: automatic licensor name**
 - Write a function `core.refresh_property_submission_name()` and call it from the scrape load functions (for example `plm.sync_opa_property_character` and the OPA load).
