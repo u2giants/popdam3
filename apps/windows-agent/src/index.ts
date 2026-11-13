@@ -27,7 +27,7 @@ import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
 import { createNasMountGuard, ensureNasMapped } from "./nas-mapper";
 import { nasReadyForClaim, sgReadyForClaim } from "./claim-gate";
-import { resetSkipWarnings, shouldSkipPath } from "@popdam/path-filters";
+import { resetSkipWarnings, shouldSkipFolder, shouldSkipPath } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -1362,7 +1362,7 @@ function startHygieneScanChecker() {
           if (cancelled) return;
           const fullPath = path.join(dir, entry.name);
           if (entry.isDirectory()) {
-            if (shouldSkipPath(entry.name, () => {})) continue;
+            if (shouldSkipFolder(entry.name)) continue;
             await walkDir(fullPath);
           } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".ai")) {
             const relativePath = fullPath.slice(scanRoot.length).replace(/\\/g, "/").replace(/^\//, "");
