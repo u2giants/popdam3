@@ -31,4 +31,4 @@ size 2,863,180 (May 29 → Sep 25), 2,438,951 (Sep 30 → Oct 27), 2,481,942 (Oc
 
 The restore was written beside the current file, never over it; modified time preserved.
 
-4. Next scan ingests the restored copy as its own asset: see the STATUS row / #963 comment for the result.
+4. Next scan ingests the restored copy as its own asset: ✅ 2026-11-13 3:49 AM EST, new asset `100fc69a-60fc-43ff-b115-3baa83192556`, no path-history link; original `30738be2` unchanged at its path.
