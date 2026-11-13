@@ -1,7 +1,6 @@
 /** Admin-only folder guard (u2giants/popdam3#963, plan Phase 6). Read-only: lists, never renames. */
 import { json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
-// @ts-ignore pure JS module shared with tools/folder-rename
 import { folderGuard } from "../folder-rules/guard.mjs";
 import rules from "../folder-rules/rules.json" with { type: "json" };
 
