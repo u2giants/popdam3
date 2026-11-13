@@ -9,7 +9,7 @@ read-when: reviewing go-live lane freeze, fault classification and stall alertin
 
 Freeze the merge window across the whole go-live · classify infrastructure failures so they stop burning a change's attempts · make every stall loud within the hour.
 
-Session handoff (read together with this plan): [`HANDOFF.d/20261105T2302Z-edge-dev-mimo-go-live-prevention-plan.md`](HANDOFF.d/20261105T2302Z-edge-dev-mimo-go-live-prevention-plan.md). Tracking issue (carries `- [ ] live proof`): [#5782](https://github.com/popcre/shared-db/issues/5782).
+Session handoff: retired with the closeout in fa2798316 (was `HANDOFF.d/20261105T2302Z-edge-dev-mimo-go-live-prevention-plan.md`, deleted). Tracking issue (carries `- [ ] live proof`): [#5782](https://github.com/popcre/shared-db/issues/5782).
 
 ## STATUS
 
