@@ -10,7 +10,7 @@ import { constants, createReadStream } from "node:fs";
 import { copyFile, lstat, readdir, stat, statfs, unlink, utimes } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { assertSafeRelativePath, resolveUnderRoot } from "../common/path-containment.js";
+import { assertSafeRelativePath, resolveUnderRoot, resolveUnderRootFilename } from "../common/path-containment.js";
 
 export const SNAPSHOT_NAME_RE = /^GMT[+-]\d{2}-\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}$/;
 export const SNAPSHOT_DIR = "#snapshot";
@@ -157,7 +157,7 @@ export async function restoreFromSnapshot(
   const filename = path.posix.basename(req.source_path);
   for (let n = 1; n < 1000; n++) {
     const name = restoredName(filename, req.snapshot, n);
-    const dest = path.join(destDir, name);
+    const dest = resolveUnderRootFilename(destDir, name);
     try {
       await copyFile(src, dest, constants.COPYFILE_EXCL);
     } catch (e) {
