@@ -1028,3 +1028,6 @@ ullspecifiedofflinec
 withoutunrelatedpatc
 xactoriginalreviewed
 xistingmanualoptinpr
+
+# abcdefghijabcdefghij: synthetic sentinel project-ref token used by vendored shared-db test fixtures (test_preview_ledger_orphan_reconcile.py) and mirrored allowlist; repeated letter blocks, not a live identifier.
+abcdefghijabcdefghij
