@@ -1,0 +1,98 @@
+{
+  "captured_at_utc": "2026-11-13T18:05:12.844Z",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "read_only": true,
+  "results": {
+    "stats_reset": {
+      "sql": "select stats_reset from extensions.pg_stat_statements_info",
+      "rows": [
+        {
+          "stats_reset": "2026-11-06 11:20:19.263334-05"
+        }
+      ]
+    },
+    "pgss_functions": {
+      "sql": "select left(query, 140) as query_head,\n           calls,\n           round(mean_exec_time::numeric, 1) as mean_ms,\n           round(total_exec_time::numeric, 0) as total_ms,\n           rows,\n           round((coalesce(wal_bytes, 0) / 1024.0 / 1024.0)::numeric, 2) as wal_mb\n    from extensions.pg_stat_statements\n    where query ilike '%refresh_style_guide_matviews%'\n       or query ilike '%refresh_style_group_counts%'\n       or query ilike '%clear_style_group_batch%'\n       or query ilike '%rebuild_style_groups_batch%'\n    order by calls desc\n    limit 40",
+      "rows": [
+        {
+          "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_last_asset_id\", \"p_batch_size\", ",
+          "calls": 4438,
+          "mean_ms": "1184.1",
+          "total_ms": "5254973",
+          "rows": 4438,
+          "wal_mb": "6021.29"
+        },
+        {
+          "query_head": "select public.refresh_style_guide_matviews_job()",
+          "calls": 169,
+          "mean_ms": "3820.2",
+          "total_ms": "645615",
+          "rows": 169,
+          "wal_mb": "99.82"
+        },
+        {
+          "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_run_id\", \"p_search_batch_size\", ",
+          "calls": 6,
+          "mean_ms": "12.4",
+          "total_ms": "74",
+          "rows": 6,
+          "wal_mb": "0.00"
+        },
+        {
+          "query_head": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_group_ids\" FROM json_to",
+          "calls": 1,
+          "mean_ms": "2.4",
+          "total_ms": "2",
+          "rows": 1,
+          "wal_mb": "0.00"
+        }
+      ]
+    },
+    "cron_jobs": {
+      "sql": "select jobid, schedule, jobname, active from cron.job where jobid in (9, 12) order by jobid",
+      "rows": [
+        {
+          "jobid": 9,
+          "schedule": "7 * * * *",
+          "jobname": "refresh-style-guide-matviews",
+          "active": true
+        },
+        {
+          "jobid": 12,
+          "schedule": "*/15 * * * *",
+          "jobname": "refresh-style-guide-library-default-snapshot",
+          "active": true
+        }
+      ]
+    },
+    "cron_runs_7d": {
+      "sql": "select jobid,\n           count(*) as runs,\n           count(*) filter (where status = 'succeeded') as ok,\n           count(*) filter (where status <> 'succeeded') as not_ok,\n           round(avg(extract(epoch from (end_time - start_time)))::numeric, 2) as avg_s,\n           round(max(extract(epoch from (end_time - start_time)))::numeric, 2) as max_s\n    from cron.job_run_details\n    where jobid in (9, 12) and start_time > now() - interval '7 days'\n    group by jobid\n    order by jobid",
+      "rows": [
+        {
+          "jobid": 9,
+          "runs": 168,
+          "ok": 168,
+          "not_ok": 0,
+          "avg_s": "3.75",
+          "max_s": "29.25"
+        },
+        {
+          "jobid": 12,
+          "runs": 672,
+          "ok": 672,
+          "not_ok": 0,
+          "avg_s": "5.96",
+          "max_s": "132.54"
+        }
+      ]
+    },
+    "backlog": {
+      "sql": "select count(*) as search_sync_queue_rows from style_guide_search_sync_queue",
+      "rows": [
+        {
+          "search_sync_queue_rows": 0
+        }
+      ]
+    }
+  }
+}
