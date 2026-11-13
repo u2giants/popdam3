@@ -139,3 +139,15 @@ Verbatim Albert, 2026-11-13 2:19 PM EST, answering whether Disney OPA "Mickey Mo
 - POP's `core.property` MM "Standard Characters" (nickname "Mickey Group") links to OPA 361, not OPA 372 (corrected in migration `20261113183820`, shared-db#6269).
 - X-Men (OPA 640) and X-Men Classic are one property: POP's XM row keeps its OPA link.
 - Do not re-ask. Applies to the #2541 placement repair on shared-db#6209.
+
+### 6.39 OWNER RULING — No ColdLion Property values are inactivated now; Ilona and Laura decide later (Albert Hazan, 2026-11-13)
+
+Verbatim Albert, 2026-11-13 4:01 PM EST, after a draft sheet for Jamielynn proposed turning off ColdLion MG06 (Property) values:
+
+> "we're not going to inactivate any properties right now. we'll leave that to Ilona and Laura, and maybe revisit in 3 months. document that."
+
+**Effect.**
+- No AI session proposes, lists or performs inactivation of ColdLion Property (MG06) values. Do not put a "turn off" / "Inactivate" list for properties in any sheet for Jamielynn or anyone else.
+- Whether a property should be turned off is Ilona's and Laura's (Licensing) call. Revisit no earlier than about 2027-02-13, and only if Albert or Licensing raises it.
+- A property's use is judged by its items in ColdLion, never by licensor-submission counts (a new license such as STEAL A BRAINROT can have items but no submissions yet).
+- Style moves between existing properties are unaffected.
