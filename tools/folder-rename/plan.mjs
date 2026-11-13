@@ -275,7 +275,7 @@ export function planRenames(dirs, rules, opts = {}) {
         attention.push({ kind: "would_be_empty", old_path: p.d, proposed: "", note: "kept old name" });
         p.name = p.d.slice(p.d.lastIndexOf("/") + 1);
         p.applied = [];
-      } else if (p.name.replace(/^_/, "").length < 3) {
+      } else if (p.name.replace(/^_/, "").length < 3 && !(p.applied.length === 1 && p.applied[0] === "customer_alias")) {
         attention.push({ kind: "fragment_under_3", old_path: p.d, proposed: p.name, note: "kept old name" });
         p.name = p.d.slice(p.d.lastIndexOf("/") + 1);
         p.applied = [];
