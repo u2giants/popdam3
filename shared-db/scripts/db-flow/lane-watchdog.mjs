@@ -27,10 +27,17 @@
 // It never merges, never pushes, never creates, updates or deletes a ref,
 // never touches the database. Structurally: every GitHub read goes through
 // scripts/lib/github-transport.mjs (the one shared transport, #2342), and
-// the ONLY write is the single workflow-dispatch POST
+// the only writes are (a) the single workflow-dispatch POST
 // (POST /repos/:repo/actions/workflows/:wf/dispatches) issued through the
-// same transport, which runs a mutation exactly once and never replays it.
-// It cannot push a commit or move a ref because it never asks GitHub to.
+// same transport, which runs a mutation exactly once and never replays it,
+// and (b) `--sweep-ghosts`: cancelling and deleting wedged run records —
+// runs the listing shows as queued for over 30 minutes that never created a
+// job. Those ghost records are unaddressable by GET/DELETE (404) or refuse
+// cancellation, hold per-ref concurrency groups with `cancel-in-progress:
+// false`, and block every later run of their workflow on their ref (the
+// 2026-11-11 20:22Z batch). The sweep reaps only that signature and never
+// touches a run that is progressing. It cannot push a commit or move a ref
+// because it never asks GitHub to.
 //
 // EXIT CODES: 0 ran (findings or none); 1 a dispatch attempt failed; 2 the
 // state could not be read (an instrument that could not read must never be
@@ -156,6 +163,50 @@ export function planDispatches({
 }
 
 // ---------------------------------------------------------------------------
+// Ghost-run sweep (`--sweep-ghosts`). Pure decision logic, unit-tested offline:
+// a run is a ghost when the listing shows it queued, it is older than the age
+// floor (default 30 minutes), and it never created a job. Healthy work never
+// matches: a run that is progressing is not queued, and a young queued run is
+// still within the dispatch grace.
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_GHOST_MIN_AGE_MS = 30 * 60 * 1000
+
+/**
+ * The reap plan. `runs` are `GET /actions/runs?status=queued` entries
+ * ({id, status, created_at, name, head_branch, html_url}); `jobsCount` when
+ * the caller probed the run's jobs endpoint is honoured — a run that did
+ * create jobs is not a ghost however old. Returns { reap, notes }.
+ */
+export function planGhostActions(runs, nowMs = Date.now(), minAgeMs = DEFAULT_GHOST_MIN_AGE_MS) {
+  const reap = []
+  const notes = []
+  for (const run of runs ?? []) {
+    const id = Number(run?.id)
+    const createdMs = Date.parse(String(run?.created_at ?? ''))
+    if (!Number.isSafeInteger(id) || id <= 0 || !Number.isFinite(createdMs)) {
+      notes.push({ action: 'skip-unreadable-run', reason: `run entry without a usable id/created_at: ${JSON.stringify(run?.id ?? null)}` })
+      continue
+    }
+    if (run.status !== 'queued') continue
+    if (run.jobsCount !== undefined && run.jobsCount > 0) continue
+    const ageMs = nowMs - createdMs
+    if (ageMs < minAgeMs) {
+      notes.push({ id, action: 'skip-young-run', reason: `queued ${Math.round(ageMs / 60000)}m (< ${Math.round(minAgeMs / 60000)}m floor); still within dispatch grace` })
+      continue
+    }
+    reap.push({
+      id,
+      workflow: String(run?.name ?? 'unknown workflow'),
+      head_branch: String(run?.head_branch ?? ''),
+      age_minutes: Math.round(ageMs / 60000),
+      reason: `queued ${Math.round(ageMs / 60000)}m with no job ever created (ghost record)`,
+    })
+  }
+  return { reap, notes }
+}
+
+// ---------------------------------------------------------------------------
 // Live pass. Every read goes through the shared transport; the dispatch POST
 // is the only write and is issued exactly once by the transport's
 // mutation policy (a mutating call never retries).
@@ -177,6 +228,16 @@ function transportIo({ log = console.log } = {}) {
         `repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
         '-f', `ref=${ref}`,
       ])
+    },
+    cancelRun(repo, runId) {
+      if (!REPO_SLUG.test(repo)) throw new Error(`refusing unsafe repo slug: ${repo}`)
+      if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error(`refusing unsafe run id: ${runId}`)
+      runGitHubCommand(['api', '-X', 'POST', `repos/${repo}/actions/runs/${runId}/cancel`])
+    },
+    deleteRun(repo, runId) {
+      if (!REPO_SLUG.test(repo)) throw new Error(`refusing unsafe repo slug: ${repo}`)
+      if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error(`refusing unsafe run id: ${runId}`)
+      runGitHubCommand(['api', '-X', 'DELETE', `repos/${repo}/actions/runs/${runId}`])
     },
     log,
   }
@@ -256,6 +317,59 @@ export function runWatchdog({
   return { dispatches: plan.dispatches, notes, failures }
 }
 
+/**
+ * Reap ghost run records (see planGhostActions). Each ghost is cancelled,
+ * then deleted; the queued listing is read once more to see what actually
+ * survived. Ghosts that remain are returned in `remaining` — the caller
+ * should go red on them, because an unremovable ghost keeps holding its
+ * concurrency group and only GitHub support can purge it.
+ */
+export function runGhostSweep({
+  repo,
+  io = transportIo(),
+  nowMs = Date.now(),
+  minAgeMs = DEFAULT_GHOST_MIN_AGE_MS,
+  dryRun = false,
+} = {}) {
+  if (!REPO_SLUG.test(String(repo ?? ''))) throw new Error('--repo owner/name (or GITHUB_REPOSITORY) is required')
+  const log = io.log ?? console.log
+  const readQueued = () => {
+    const answer = io.readJson(['api', `repos/${repo}/actions/runs?status=queued&per_page=100`])
+    if (!Array.isArray(answer?.workflow_runs)) throw new Error('queued run listing did not return workflow_runs; refusing rather than judge a partial read')
+    return answer.workflow_runs
+  }
+  const { reap, notes } = planGhostActions(readQueued(), nowMs, minAgeMs)
+  for (const note of notes) log(`ghost sweep: ${note.action}${note.id ? ` run ${note.id}` : ''}: ${note.reason}`)
+  if (!reap.length) {
+    log('ghost sweep: no wedged queued runs.')
+    return { reap: [], remaining: [], notes }
+  }
+  const remaining = []
+  for (const ghost of reap) {
+    if (dryRun) {
+      log(`ghost sweep: DRY-RUN would cancel+delete run ${ghost.id} (${ghost.workflow} on ${ghost.head_branch}) — ${ghost.reason}`)
+      continue
+    }
+    try {
+      io.cancelRun(repo, ghost.id)
+    } catch (error) {
+      log(`ghost sweep: run ${ghost.id} cancel refused (${error?.message ?? error}); trying delete`)
+    }
+    try {
+      io.deleteRun(repo, ghost.id)
+      log(`ghost sweep: reaped run ${ghost.id} (${ghost.workflow} on ${ghost.head_branch}) — ${ghost.reason}`)
+    } catch (error) {
+      log(`ghost sweep: run ${ghost.id} DELETE refused (${error?.message ?? error})`)
+    }
+  }
+  if (!dryRun) {
+    const survivors = new Set(readQueued().map((run) => Number(run?.id)))
+    for (const ghost of reap) if (survivors.has(ghost.id)) remaining.push(ghost)
+    for (const ghost of remaining) log(`ghost sweep: UNREAPABLE run ${ghost.id} (${ghost.workflow} on ${ghost.head_branch}) still queued; a GitHub support purge is the only route left`)
+  }
+  return { reap, remaining, notes }
+}
+
 // Same pagination contract as the aggregate reader (fetchCheckRuns in
 // runner-lanes.mjs): every page, filter=all, refusal on a partial read.
 function readCheckRunsForHead(io, repo, sha) {
@@ -265,6 +379,18 @@ function readCheckRunsForHead(io, repo, sha) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2)
   try {
+    if (argv.includes('--sweep-ghosts')) {
+      const minAgeMinutes = Number(argValue(argv, '--min-age-minutes') ?? 30)
+      const result = runGhostSweep({
+        repo: argValue(argv, '--repo') ?? process.env.GITHUB_REPOSITORY,
+        minAgeMs: Math.max(0, minAgeMinutes) * 60000,
+        dryRun: argv.includes('--dry-run'),
+      })
+      // Red on unreaped ghosts: they hold concurrency groups and silence is
+      // what made the 2026-11-11 batch invisible for a day.
+      if (result.remaining.length) process.exit(1)
+      process.exit(0)
+    }
     const minAgeMinutes = Number(argValue(argv, '--min-age-minutes') ?? 5)
     const result = runWatchdog({
       repo: argValue(argv, '--repo') ?? process.env.GITHUB_REPOSITORY,

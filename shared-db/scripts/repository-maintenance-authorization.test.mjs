@@ -96,6 +96,27 @@ test('a reused commit revokes only an earlier lightweight success',()=>{
   assert.equal(unreadable.statuses[0].state,'failure')
 })
 
+test('a transient status-history blip is retried and reports not applicable, never red',()=>{
+  const executable=[{filename:'scripts/change.mjs',status:'modified',patch:'@@ -1 +1 @@\n-a\n+b'}]
+  const flaky=fakeIo({files:executable})
+  let failures=1
+  flaky.getCommitStatus=()=>{if(failures>0){failures-=1;throw new Error('transient transport blip')}return null}
+  const result=authorizeRepositoryMaintenanceStatus(options,flaky)
+  assert.equal(result.notApplicable,true)
+  assert.deepEqual(flaky.statuses.map((row)=>[row.context,row.state]),[[MERGE_ADVISORY_CONTEXT,'success']])
+  assert.match(flaky.statuses[0].description,/^Not applicable/)
+})
+
+test('an unreadable change set routes to guarded checks as not applicable, never red',()=>{
+  const io=fakeIo()
+  io.comparePullRequestFiles=()=>{throw new Error('comparison reached the 300-file ceiling')}
+  const result=authorizeRepositoryMaintenanceStatus(options,io)
+  assert.equal(result.documentsOnly,false)
+  assert.equal(result.notApplicable,true)
+  assert.deepEqual(io.statuses.map((row)=>[row.context,row.state]),[[MERGE_ADVISORY_CONTEXT,'success']])
+  assert.match(io.statuses[0].description,/guarded code checks required/)
+})
+
 test('an untrusted or moved base repository and branch cannot authorize',()=>{
   for(const untrustedBase of [
     {sha:base,ref:'release/shared-db',repo:{full_name:THIS_REPO}},

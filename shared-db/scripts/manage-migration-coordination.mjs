@@ -2121,7 +2121,10 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
     if(pr?.base?.ref!=='main'||pr?.base?.repo?.full_name!==REPO)throw new LaneError('repository-maintenance authorization requires the protected main base in this repository')
     if(!/^[0-9a-f]{40}$/.test(baseSha))throw new LaneError('repository-maintenance authorization base SHA is unreadable')
     let files
-    try{files=io.comparePullRequestFiles(baseSha,headSha)}catch(error){throw new LaneError(`repository-maintenance authorization cannot read the exact base-to-head comparison (${error.message})`)}
+    // An unreadable change set cannot prove documents-only, so it routes to the
+    // guarded code checks like any other code change: not applicable, never red
+    // ("red means a revoked grant" — see the catch block).
+    try{files=io.comparePullRequestFiles(baseSha,headSha)}catch(error){throw Object.assign(new LaneError(`repository-maintenance authorization cannot read the exact base-to-head comparison (${error.message})`),{notApplicable:true})}
     const verdict=classifyLightweightMergePullRequestFiles(files)
     if(!verdict.documentsOnly)throw Object.assign(new LaneError(`repository-maintenance authorization refused: ${verdict.reason}`),{notApplicable:true})
     const finalPr=io.getPr(prNumber)
@@ -2136,10 +2139,17 @@ export function authorizeRepositoryMaintenanceStatus(options, io = githubIo) {
     if(io.readRef(MUTEX_REF)===ownerSha){
       let replacesLightweightSuccess=false,statusHistoryUnreadable=false
       if(!options.revokeRequiredStatus){
-        try{
-          const existing=io.getCommitStatus?.(headSha,context)??null
-          replacesLightweightSuccess=existing?.state==='success'&&existing?.description===description
-        }catch{statusHistoryUnreadable=true}
+        // One retry: a single transient transport blip must not be read as
+        // "a grant exists and must be revoked" (that manufactured the false
+        // red on ordinary code PRs). A persistent failure still fails closed.
+        for(let attempt=0;attempt<2;attempt+=1){
+          try{
+            const existing=io.getCommitStatus?.(headSha,context)??null
+            replacesLightweightSuccess=existing?.state==='success'&&existing?.description===description
+            statusHistoryUnreadable=false
+            break
+          }catch{statusHistoryUnreadable=true}
+        }
       }
       // #3505: the advisory MUST use a context name distinct from any real grant
       // context so a green advisory can never satisfy or stand in for one. The

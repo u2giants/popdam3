@@ -3,18 +3,25 @@
   "source": "scripts/db-flow/lane-watchdog.mjs",
   "sites": [
     {
-      "site": "scripts/db-flow/lane-watchdog.mjs:222",
+      "site": "scripts/db-flow/lane-watchdog.mjs:283",
       "semantic_key": "scripts/db-flow/lane-watchdog.mjs:13a27ed9fcf7b19bc1ead155e5a5d9c6fa358e71b76e31b8a976df100b592cf2:context-db2a233a511c58f7a0e82e22efe452ab7f3d12d906ceb289703ca8de486ac167",
       "line_sha256": "13a27ed9fcf7b19bc1ead155e5a5d9c6fa358e71b76e31b8a976df100b592cf2",
       "disposition": "excluded",
       "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
     },
     {
-      "site": "scripts/db-flow/lane-watchdog.mjs:95",
+      "site": "scripts/db-flow/lane-watchdog.mjs:102",
       "semantic_key": "scripts/db-flow/lane-watchdog.mjs:65dcc597dfa0c266f02192ce264e2ade45eccf1c5aca5657c00954e08f61231f:context-a98034dff5af62313ef1b1178f433a7b284a8ab73439866844f619ea66bdccbe",
       "line_sha256": "65dcc597dfa0c266f02192ce264e2ade45eccf1c5aca5657c00954e08f61231f",
       "disposition": "excluded",
       "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
+    },
+    {
+      "site": "scripts/db-flow/lane-watchdog.mjs:34",
+      "semantic_key": "scripts/db-flow/lane-watchdog.mjs:c090b5a7fad76f6e116c76d55fce3cf46ff394c663c78a31af839bc43b3c7d85:context-9b2882de980e9c6aada7469c8bf4d202c976271bc381ef9b5220be1dd20d75d8",
+      "line_sha256": "c090b5a7fad76f6e116c76d55fce3cf46ff394c663c78a31af839bc43b3c7d85",
+      "disposition": "excluded",
+      "reason": "Ghost-run sweep diagnostics: \"never created\" names the observed ghost signature (listing shows queued with zero jobs ever created) from the 2026-11-11 batch; the sweep only cancels and deletes such wedged run records."
     },
     {
       "site": "scripts/db-flow/lane-watchdog.mjs:10",
@@ -22,6 +29,13 @@
       "line_sha256": "c105dd29d67b12262ed76c97fe7ffb500c3f9cd897b4d68d580df71520542228",
       "disposition": "excluded",
       "reason": "Watchdog log/diagnostic lines (missing lane run contexts); read-only observation plus a bounded workflow dispatch, no database or merge semantics."
+    },
+    {
+      "site": "scripts/db-flow/lane-watchdog.mjs:168",
+      "semantic_key": "scripts/db-flow/lane-watchdog.mjs:c763ead9646db95a536acc0a2d1841b32a2b4b1aeeb858359870fe50721b0343:context-424728f88881cdd59a1a499a4b1429f6876577abd4b6253032c45c8810cf526a",
+      "line_sha256": "c763ead9646db95a536acc0a2d1841b32a2b4b1aeeb858359870fe50721b0343",
+      "disposition": "excluded",
+      "reason": "Ghost-run sweep diagnostics: \"never created\" names the observed ghost signature (listing shows queued with zero jobs ever created) from the 2026-11-11 batch; the sweep only cancels and deletes such wedged run records."
     }
   ]
 }
