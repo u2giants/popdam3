@@ -14,6 +14,7 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { assessDriftRow } from "./observe-style-group-drift.mjs";
 
 const EXPECTED_URL = "https://qsllyeztdwjgirsysgai.supabase.co";
 const ENVIRONMENT = "production qsllyeztdwjgirsysgai";
@@ -26,6 +27,7 @@ const proofDir = process.env.PROOF_DIR || "proof";
 
 // Verbatim from each issue's scope block (2911/2934 from the owner's request).
 const ASSERTIONS = {
+  2421: "Scheduled style-group rebuilds process only database-recorded changed or ungrouped assets, advance their watermark only after matching successful completion, retain the existing two-argument recovery RPC and weekly full convergence pass, and produce a full weekly production observation with zero assignment and tag drift.",
   2792: "A natural service-role call to public.reconcile_stale_sg_files_batch at representative production volume completes under the normal statement timeout without SQLSTATE 57014.",
   2860: "A natural service-role Files-mode call to public.search_style_guide_library_v2 with no query, p_limit=1, offset 0 and modified_desc sort completes under the normal statement timeout without SQLSTATE 57014.",
   2911: "From the application's production service-role connection, read-only: public.style_guide_files has column has_talent_likeness, nullable, with no default, and the application's read of public.style_guide_files still succeeds.",
@@ -1086,7 +1088,103 @@ async function proveImageEmbed() {
   };
 }
 
-const PROVERS = { 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed, 4858: proveCasePacks4858, 4855: proveAssortmentQuantities4855 };
+// ── 2421: style-group change watermark ──────────────────────────────────────
+// Read-only: the Management API probe reports the installed watermark machinery
+// and the live BULK_OPERATIONS watermark/operation objects; then the natural
+// service-role observation call reports a full-population assignment and tag
+// drift measurement. No rebuild is enqueued and no row is written.
+export const FULL_POPULATION_SAMPLE = 2147483647;
+
+// Pure: every installed clause of the 2421 live assertion, plus the pairing
+// invariants a healthy watermark object must satisfy at any instant.
+export function evaluateWatermark2421(proof) {
+  const installed = proof?.installed;
+  if (!installed || typeof installed !== "object") fail("2421 probe returned no installed state");
+  for (const [check, key] of [
+    ["recovery_rpc_two_arg", "recovery_rpc_two_arg_md5"],
+    ["watermark_rpc_three_arg", "watermark_rpc_three_arg_md5"],
+    ["batch_clear_retained", null],
+    ["key_for_sku_retained", null],
+    ["stamp_functions", null],
+    ["queue_function", null],
+    ["queue_watermark_advance_guard", null],
+    ["queue_weekly_full_pass", null],
+    ["change_clocks", null],
+    ["change_triggers", null],
+    ["change_indexes", null],
+  ]) {
+    if (installed[check] !== true) {
+      const observed = key ? ` (observed ${JSON.stringify(installed[key] ?? null)})` : "";
+      fail(`2421 installed check failed: ${check}${observed}`);
+    }
+  }
+  const watermark = proof.watermark_state;
+  if (!watermark || typeof watermark !== "object" || Array.isArray(watermark)) {
+    fail("2421 watermark state is absent from BULK_OPERATIONS; the enqueue path has never recorded a run");
+  }
+  const pairs = [["pending_run_id", "pending_cutoff"], ["last_successful_run_id", "last_successful_cutoff"]];
+  for (const [idKey, cutoffKey] of pairs) {
+    const hasId = typeof watermark[idKey] === "string" && watermark[idKey].length > 0;
+    const hasCutoff = typeof watermark[cutoffKey] === "string" && watermark[cutoffKey].length > 0;
+    if (hasId !== hasCutoff) fail(`2421 watermark ${idKey}/${cutoffKey} are not recorded together`);
+    if (hasCutoff) {
+      const at = Date.parse(watermark[cutoffKey]);
+      if (!Number.isFinite(at)) fail(`2421 watermark ${cutoffKey} is not a timestamp`);
+      if (at > Date.now() + 60_000) fail(`2421 watermark ${cutoffKey} is in the future`);
+    }
+  }
+  if (watermark.pending_mode !== undefined && !["full", "incremental"].includes(watermark.pending_mode)) {
+    fail(`2421 watermark pending_mode is ${JSON.stringify(watermark.pending_mode)}`);
+  }
+  if (typeof watermark.last_full_cutoff === "string" && watermark.last_full_cutoff.length) {
+    if (!Number.isFinite(Date.parse(watermark.last_full_cutoff))) fail("2421 watermark last_full_cutoff is not a timestamp");
+  }
+  const op = proof.rebuild_op_state;
+  if (op && typeof op === "object" && !Array.isArray(op) && op.params && typeof op.params === "object") {
+    const protocol = op.params.watermark_protocol;
+    if (protocol !== undefined && Number(protocol) !== 1) fail(`2421 rebuild params watermark_protocol is ${JSON.stringify(protocol)}`);
+    if (Number(protocol) === 1) {
+      if (!("changed_since" in op.params)) fail("2421 protocol run params lack changed_since");
+      const cutoff = Date.parse(op.params.changed_cutoff);
+      if (!Number.isFinite(cutoff)) fail("2421 protocol run params lack a parsable changed_cutoff");
+      if (!["full", "incremental"].includes(op.params.rebuild_mode)) {
+        fail(`2421 protocol run params rebuild_mode is ${JSON.stringify(op.params.rebuild_mode)}`);
+      }
+    }
+  }
+  return {
+    recovery_rpc_two_arg_md5: installed.recovery_rpc_two_arg_md5,
+    watermark_rpc_three_arg_md5: installed.watermark_rpc_three_arg_md5,
+    watermark_keys: Object.keys(watermark).sort(),
+  };
+}
+
+async function proveStyleGroupWatermark() {
+  const started = Date.now();
+  const probe = await managementQuery(await proofSql("shared-db-live-proof-2421.sql"));
+  if (probe.status >= 400) fail(`2421 probe returned HTTP ${probe.status}`);
+  const state = probe.json?.[0]?.proof;
+  if (state?.migration_applied !== true) throw new NotYetApplied("production migration 20261012012727 is not installed");
+  const machinery = evaluateWatermark2421(state);
+  const { json: rows, elapsedMs: driftMs } = await call("/rest/v1/rpc/reconcile_style_group_drift", {
+    method: "POST",
+    body: { p_effective_tag_sample: FULL_POPULATION_SAMPLE },
+  });
+  const drift = assessDriftRow(rows);
+  if (drift.failures.length) fail(`2421 drift observation is not clean: ${drift.failures.join("; ")}`);
+  return {
+    call: "installed watermark machinery and BULK_OPERATIONS watermark state (Management API read-only) plus a full-population reconcile_style_group_drift observation (service role)",
+    elapsed_ms: Date.now() - started,
+    machinery,
+    watermark_state: state.watermark_state,
+    rebuild_op_state: state.rebuild_op_state,
+    drift: { ...drift, failures: undefined },
+    drift_observations_ms: driftMs,
+    not_proven: "the nightly enqueue timing and the deployed worker's batch writes are not exercised here (this proof triggers no rebuild); the pinned installed bodies, the live watermark protocol state and the issue's dated 2026-10-13 through 2026-10-18 native-run and clean-week observations carry those clauses",
+  };
+}
+
+const PROVERS = { 2421: proveStyleGroupWatermark, 2792: proveReconcile, 2802: proveLikeness, 2860: proveSearch, 2911: proveColumn, 2934: proveDrop, 3418: proveLeaseReset, "3418-retry": proveLeaseRetry, 3457: proveSearchFloor, 4037: proveSignupGrant, 4064: proveCounters, 4190: proveCadence, 4257: proveNoReuse, 4268: proveSoDates, 4692: proveImageEmbed, 4858: proveCasePacks4858, 4855: proveAssortmentQuantities4855 };
 
 async function main() {
   if (url !== EXPECTED_URL) fail("SUPABASE_URL is not the production project");
