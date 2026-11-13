@@ -105,8 +105,11 @@ begin
      and conname in ('mg_combination_description_mg01_id_fkey','mg_combination_description_mg02_id_fkey','mg_combination_description_mg03_id_fkey')
      and confrelid = 'dflow."merchGroup"'::regclass and convalidated;
   if n <> 3 then raise exception 'contract D failed: % of 3 keys on dflow."merchGroup"', n; end if;
-  if not exists (select 1 from pg_constraint where conrelid = 'core.mg_category_merch_group'::regclass
-                 and contype = 'f' and confrelid = 'core."merchGroup"'::regclass) then
+  -- #6252: dropping dflow_prod above cascades away a link already repointed to
+  -- dflow_prod by 20261113192227, so E checks only that THIS migration did not
+  -- move the link onto dflow."merchGroup" (that is 20261113192216's job).
+  if exists (select 1 from pg_constraint where conrelid = 'core.mg_category_merch_group'::regclass
+             and contype = 'f' and confrelid = 'dflow."merchGroup"'::regclass) then
     raise exception 'contract E failed: taxonomy link was moved'; end if;
 end
 $a$;

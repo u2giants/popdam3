@@ -20,6 +20,7 @@ declare
   v_null_date_item integer;
   v_count integer;
   v_code text;
+  v_fk_target text;
 begin
   if to_regprocedure('api.resolve_item_mg_category(integer)') is null then
     raise exception 'FAIL api.resolve_item_mg_category(integer) is missing';
@@ -42,6 +43,21 @@ begin
     mg_code, mg_desc, "mgTypeCode", "companyCode_fk", "divisionCode_fk", is_active
   ) values ('ZZ1662I', 'Issue 1662 inactive fixture', '01', 'EDGEHOME', 'CW001', false)
   returning mg_id into v_inactive_mg;
+
+  -- #6252: the category link's key may reference the app schema's copy
+  -- (dflow / dflow_prod "merchGroup") instead of core; mirror the fixtures there.
+  select confrelid::regclass::text into v_fk_target
+  from pg_constraint
+  where conname = 'mg_category_merch_group_merch_group_mg_id_fkey'
+    and conrelid = 'core.mg_category_merch_group'::regclass;
+  if v_fk_target is not null and v_fk_target <> 'core."merchGroup"' then
+    execute format(
+      'insert into %s (mg_id, mg_code, mg_desc, "mgTypeCode", "companyCode_fk", "divisionCode_fk", is_active)
+       overriding system value
+       select mg_id, mg_code, mg_desc, "mgTypeCode", "companyCode_fk", "divisionCode_fk", is_active
+       from core."merchGroup" where mg_id in ($1, $2, $3)', v_fk_target)
+      using v_cw_mg, v_sp_mg, v_inactive_mg;
+  end if;
 
   insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
   values (v_wall_id, v_cw_mg), (v_clock_id, v_sp_mg), (v_wall_id, v_inactive_mg);

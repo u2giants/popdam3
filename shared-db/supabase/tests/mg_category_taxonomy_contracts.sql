@@ -141,11 +141,16 @@ begin
   from pg_constraint
   where conrelid = 'core.mg_category_merch_group'::regclass
     and contype = 'f'
-    and confrelid = 'core."merchGroup"'::regclass;
+    -- #6252: core."merchGroup" until the app-schema repoint, then the app copy.
+    and confrelid in (to_regclass('core."merchGroup"'), to_regclass('dflow."merchGroup"'),
+                      to_regclass('dflow_prod."merchGroup"'))
+    and conkey = array[(select attnum from pg_attribute
+                        where attrelid = 'core.mg_category_merch_group'::regclass
+                          and attname = 'merch_group_mg_id')]::int2[];
   if v_n = 1 then
-    v_pass := v_pass + 1; raise notice 'PASS foreign key to core."merchGroup"(mg_id) exists';
+    v_pass := v_pass + 1; raise notice 'PASS foreign key to a "merchGroup"(mg_id) exists';
   else
-    v_fail := v_fail + 1; raise notice 'FAIL no foreign key from mg_category_merch_group to core."merchGroup"';
+    v_fail := v_fail + 1; raise notice 'FAIL no foreign key from mg_category_merch_group to a "merchGroup" table';
   end if;
 
   -- RLS must be on, and anon/public must have nothing.
@@ -607,6 +612,7 @@ declare
   v_cat_clock uuid;
   v_fixture_mg constant integer := -987654322;
   v_leftover integer;
+  v_fk_target text;
 begin
   select id into v_cat_wall  from core.mg_category where code = 'WALL';
   select id into v_cat_clock from core.mg_category where code = 'CLOCK';
@@ -621,6 +627,20 @@ begin
       (mg_id, mg_code, mg_desc, "mgTypeCode", is_active, "divisionCode_fk")
     overriding system value
     values (v_fixture_mg, 'ZZ', 'issue 1163 throwaway fixture', '01', true, 'ZZ999');
+
+    -- #6252: the link's key may reference the app schema's "merchGroup" copy;
+    -- put the same throwaway row there too (unwound with the rest).
+    select confrelid::regclass::text into v_fk_target
+    from pg_constraint
+    where conname = 'mg_category_merch_group_merch_group_mg_id_fkey'
+      and conrelid = 'core.mg_category_merch_group'::regclass;
+    if v_fk_target is not null and v_fk_target <> 'core."merchGroup"' then
+      execute format(
+        'insert into %s (mg_id, mg_code, mg_desc, "mgTypeCode", is_active, "divisionCode_fk")
+         overriding system value
+         values ($1, ''ZZ'', ''issue 1163 throwaway fixture'', ''01'', true, ''ZZ999'')',
+        v_fk_target) using v_fixture_mg;
+    end if;
 
     insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
     values (v_cat_wall, v_fixture_mg);
