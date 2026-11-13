@@ -70,7 +70,7 @@ import {
   shouldRetrySgRefreshTimeout,
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
-import { assignStyleGroup, unassignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
+import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS, unassignStyleGroup } from "../_shared/style-group-assignment.ts";
 import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
