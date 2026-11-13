@@ -43,7 +43,7 @@ const SG_INGESTABLE_EXTENSIONS = new Set([
 ]);
 
 import { changedFields } from "../_shared/changed-fields.js";
-import { parseSku } from "../_shared/sku-parser.ts";
+import { type ParsedSku, parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, primaryAssetCacheFields, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
 import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
@@ -70,7 +70,7 @@ import {
   shouldRetrySgRefreshTimeout,
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
-import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS } from "../_shared/style-group-assignment.ts";
+import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS, unassignStyleGroup } from "../_shared/style-group-assignment.ts";
 import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
@@ -901,6 +901,40 @@ async function handleHeartbeat(
 
 // ── Style group assignment helper ────────────────────────────────────
 
+function buildSkuFields(
+  parsed: ParsedSku | null,
+  licensing: LicensingResolution,
+): Record<string, unknown> {
+  const skuFields: Record<string, unknown> = parsed
+    ? {
+      sku: parsed.sku,
+      mg01_code: parsed.mg01_code,
+      mg01_name: parsed.mg01_name,
+      mg02_code: parsed.mg02_code,
+      mg02_name: parsed.mg02_name,
+      mg03_code: parsed.mg03_code,
+      mg03_name: parsed.mg03_name,
+      size_code: parsed.size_code,
+      size_name: parsed.size_name,
+      sku_sequence: parsed.sku_sequence,
+      division_code: parsed.division_code,
+      division_name: parsed.division_name,
+      // NOTE: is_licensed is intentionally EXCLUDED here.
+      // Path-derived is_licensed (from folder structure) is the authoritative source.
+    }
+    : {};
+  // Licensing fields come from the authoritative ColdLion item mirror, never
+  // from filename character positions or folders. Explicit nulls clear stale
+  // guesses when the source has no answer.
+  skuFields.licensor_id = licensing.licensor_id;
+  skuFields.property_id = licensing.property_id;
+  skuFields.licensor_code = licensing.licensor_code;
+  skuFields.licensor_name = licensing.licensor_name;
+  skuFields.property_code = licensing.property_code;
+  skuFields.property_name = licensing.property_name;
+  return skuFields;
+}
+
 async function assignToStyleGroup(
   relativePath: string,
   assetId: string,
@@ -908,11 +942,17 @@ async function assignToStyleGroup(
   derived: Pick<DerivedMetadata, "is_licensed">,
   licensing: LicensingResolution,
   db: ReturnType<typeof serviceClient>,
-  existing?: { styleGroupId: string | null; group: Record<string, unknown> | null },
+  existing?: { styleGroupId: string | null; group?: Record<string, unknown> | null },
 ): Promise<void> {
   try {
     const sku = extractSkuFolder(relativePath);
-    if (!sku) return;
+    if (!sku) {
+      // A path that yields no SKU must not keep a style group: the stale group
+      // resolves the wrong licensor for the asset in the DAM libraries
+      // (reconciler direction 1b) until the nightly rebuild would clear it.
+      if (existing?.styleGroupId) await unassignStyleGroup(db, assetId);
+      return;
+    }
 
     // Derive folder_path as the path up to and including the SKU folder
     const parts = relativePath.split("/");
@@ -1059,37 +1099,11 @@ async function handleIngest(
 
   // SKU parsing from filename
   const parsed = await parseSku(filename, { fileDate: fileCreatedAt || modifiedAt });
-  const skuFields: Record<string, unknown> = parsed
-    ? {
-      sku: parsed.sku,
-      mg01_code: parsed.mg01_code,
-      mg01_name: parsed.mg01_name,
-      mg02_code: parsed.mg02_code,
-      mg02_name: parsed.mg02_name,
-      mg03_code: parsed.mg03_code,
-      mg03_name: parsed.mg03_name,
-      size_code: parsed.size_code,
-      size_name: parsed.size_name,
-      sku_sequence: parsed.sku_sequence,
-      division_code: parsed.division_code,
-      division_name: parsed.division_name,
-      // NOTE: is_licensed is intentionally EXCLUDED here.
-      // Path-derived is_licensed (from folder structure) is the authoritative source.
-    }
-    : {};
 
-  // Licensing fields come from the authoritative ColdLion item mirror, never
-  // from filename character positions or folders. Explicit nulls clear stale
-  // guesses when the source has no answer.
   const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed);
   // ERP outranks the folder on whether the product is licensed.
   if (licensing.is_licensed != null) derived.is_licensed = licensing.is_licensed;
-  skuFields.licensor_id = licensing.licensor_id;
-  skuFields.property_id = licensing.property_id;
-  skuFields.licensor_code = licensing.licensor_code;
-  skuFields.licensor_name = licensing.licensor_name;
-  skuFields.property_code = licensing.property_code;
-  skuFields.property_name = licensing.property_name;
+  const skuFields = buildSkuFields(parsed, licensing);
 
   // assets<->style_groups has two FKs (assets.style_group_id and
   // style_groups.primary_asset_id), so the embed must name one or PostgREST
@@ -1187,7 +1201,9 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    await assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, licensing, db);
+    await assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, licensing, db, {
+      styleGroupId: (existingByHash.style_group_id as string | null) ?? null,
+    });
 
     return json({
       ok: true,
@@ -1484,7 +1500,7 @@ async function handleMoveAsset(body: Record<string, unknown>) {
 
   const { data: asset, error: fetchError } = await db
     .from("assets")
-    .select("relative_path, filename")
+    .select("relative_path, filename, style_group_id")
     .eq("id", assetId)
     .single();
 
@@ -1520,6 +1536,13 @@ async function handleMoveAsset(body: Record<string, unknown>) {
     asset_id: assetId,
     old_relative_path: asset.relative_path,
     new_relative_path: newRelativePath,
+  });
+
+  // A move changes the path-to-SKU derivation: reconcile the style group to
+  // the new path (assign, or clear when the path yields no SKU), the same way
+  // move detection does during ingestion.
+  await assignToStyleGroup(newRelativePath, assetId, buildSkuFields(parsed, licensing), derived, licensing, db, {
+    styleGroupId: (asset.style_group_id as string | null) ?? null,
   });
 
   return json({ ok: true, asset_id: assetId, licensing });

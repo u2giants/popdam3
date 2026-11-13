@@ -57,6 +57,23 @@ export function changedStyleGroupFields(
   );
 }
 
+/**
+ * Complementary half of assignment: an asset whose path yields no SKU must not
+ * keep a style group. A stale group keeps resolving the wrong licensor for the
+ * asset through style_groups in the DAM libraries (reconciler direction 1b).
+ * The `IS NOT NULL` guard keeps already-ungrouped assets from being rewritten.
+ */
+export async function unassignStyleGroup(
+  db: StyleGroupAssignmentDb,
+  assetId: string,
+): Promise<void> {
+  const cleared = await db.from("assets")
+    .update({ style_group_id: null })
+    .eq("id", assetId)
+    .not("style_group_id", "is", null);
+  if (cleared.error) throw new Error(`asset style group clear failed: ${cleared.error.message}`);
+}
+
 export async function assignStyleGroup(
   db: StyleGroupAssignmentDb,
   { assetId, sku, groupFields, existingGroup, currentStyleGroupId, onAssetUpdate }: StyleGroupAssignment,
