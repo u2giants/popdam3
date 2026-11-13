@@ -1,0 +1,7 @@
+{
+  "label": "q4-timed-search",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 0.223,
+  "body": "[{\"seconds\":\"0.020401\",\"refreshed_at\":\"2026-11-13 13:02:45.382271-05\",\"search_documents_synced\":0}]"
+}

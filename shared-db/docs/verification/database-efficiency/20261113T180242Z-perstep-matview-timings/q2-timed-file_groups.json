@@ -1,0 +1,7 @@
+{
+  "label": "q2-timed-file_groups",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 2.393,
+  "body": "[{\"seconds\":\"2.251000\",\"refreshed_at\":\"2026-11-13 13:02:42.495246-05\",\"search_documents_synced\":0}]"
+}

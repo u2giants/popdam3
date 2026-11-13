@@ -1,0 +1,7 @@
+{
+  "label": "q3-timed-folders",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 0.445,
+  "body": "[{\"seconds\":\"0.324598\",\"refreshed_at\":\"2026-11-13 13:02:44.867803-05\",\"search_documents_synced\":0}]"
+}
