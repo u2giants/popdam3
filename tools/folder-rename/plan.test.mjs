@@ -104,3 +104,8 @@ test("customer alias ignores case and punctuation in _FINISHED", () => {
   assert.equal(res.map.get(`${CA}/_FINISHED/Homegoods_finished`), `${R}/In Dev/Cust Adopted/_FINISHED/HGoods`);
   assert.equal(res.map.get(`${CA}/HomeGoods`), `${R}/In Dev/Cust Adopted/HGoods`);
 });
+
+test("owner-chosen customer alias may be shorter than 3 characters", async () => {
+  const { aliasFor } = await import("./plan.mjs");
+  assert.equal(aliasFor("Variety Wholesalers", { customer_aliases: { "Variety Wholesalers": "VW" } }), "VW");
+});

@@ -25,7 +25,27 @@
     "Licensor Requests"
   ],
   "customer_aliases": {
-    "Desperate Signs": "Desperate"
+    "Desperate Signs": "Desperate",
+    "4 Seasons": "4SGM",
+    "Aldi's": "Aldi",
+    "At Home": "AtHome",
+    "B&N": "B-N",
+    "Box Lunch": "BoxLunch",
+    "Dollar General": "Dollar_General",
+    "Dollar Tree": "Dollar_Tree",
+    "Family Dollar": "Family_Dollar",
+    "Five Below": "Five_Below",
+    "Forman Mills": "Forman",
+    "Hobby Lobby": "Hobby_Lobby",
+    "Hot Topic": "HotTopic",
+    "Kohl's": "Kohls",
+    "Rooms To Go": "RoomsToGo",
+    "Sams Club": "Sams_Club",
+    "Shoppers World": "ShoppersWorld",
+    "Sobel Westex": "Sobel",
+    "Spencer's": "Spencer",
+    "Spirit Halloween Christmas": "Spirit",
+    "Variety Wholesalers": "VW"
   },
   "strip_from_descendants": {
     "Desperate Signs": [
