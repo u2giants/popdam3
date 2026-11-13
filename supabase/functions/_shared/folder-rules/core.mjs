@@ -293,7 +293,10 @@ export function planRenames(dirs, rules, opts = {}) {
       }
       if (p.applied.length === 0) continue;
       const oldName = p.d.slice(p.d.lastIndexOf("/") + 1);
-      if (p.name.replace(/^_/, "").trim().length < 3 && !(p.applied.length === 1 && p.applied[0] === "customer_alias") && replaceCustomerNames(oldName, rules) !== oldName) {
+      if (
+        p.name.replace(/^_/, "").trim().length < 3 && !(p.applied.length === 1 && p.applied[0] === "customer_alias") &&
+        replaceCustomerNames(oldName, rules) !== oldName
+      ) {
         p.name = replaceCustomerNames(oldName, rules);
         p.applied = ["customer_alias_in_name"];
       } else if (p.name.replace(/^_/, "").trim() === "") {
