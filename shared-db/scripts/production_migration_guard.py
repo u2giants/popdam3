@@ -528,6 +528,18 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#5994",
         "note": "Claim #6199, work issue popcre/designflow-item-master#150. Repoints dflow.item_product_description_item_fk_fkey to plm.\"itemHeader\" (the item table the sandbox site uses) after deleting machine rows whose item is absent there, on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists; production keeps dflow_prod.\"itemHeader\" and has no counterpart. This is target scope, not retirement.",
     },
+    "20261113040717": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6224",
+        "note": "Work issue popcre/designflow-item-master#205 step 2.2. Catch-up copy of rows changed in core.\"merchGroup\" / \"merchGroupHeaders\" since 20261111222527 into the dflow copies, immediately before the non-production services switch to dflow. The migration's own self-check refuses to run where dflow_prod exists; production has no counterpart. This is target scope, not retirement.",
+    },
+    "20261113040728": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6225",
+        "note": "Work issue popcre/designflow-item-master#205 step 2.2. Renames the stale non-production core.\"merchGroup\" / \"merchGroupHeaders\" to *_retired_20261112 after the services switched to dflow; refuses unless both copies are identical and wherever dflow_prod exists. Production is untouched. This is target scope, not retirement.",
+    },
     "20261111222527": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
