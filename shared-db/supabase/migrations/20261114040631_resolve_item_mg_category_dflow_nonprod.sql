@@ -33,6 +33,11 @@ begin
     raise exception '#6305/20261114040631 self-check: schema dflow_prod exists here; this migration is DesignFlow non-production only (production half is 20261114040632)'
       using errcode = 'feature_not_supported';
   end if;
+end
+$target$;
+
+do $check$
+begin
   if to_regclass('dflow."merchGroup"') is null or to_regclass('dflow."itemHeader"') is null then
     raise exception '#6305/20261114040631 self-check: dflow."merchGroup" or dflow."itemHeader" is missing';
   end if;
@@ -40,7 +45,7 @@ begin
     raise exception '#6305/20261114040631 self-check: api.resolve_item_mg_category(integer) is missing';
   end if;
 end
-$target$;
+$check$;
 
 create or replace function api.resolve_item_mg_category(p_item_id integer)
 returns table (
