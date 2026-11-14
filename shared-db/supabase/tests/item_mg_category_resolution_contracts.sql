@@ -21,6 +21,9 @@ declare
   v_count integer;
   v_code text;
   v_fk_target text;
+  v_fn_def text;
+  v_item_table text := 'dflow."itemHeader"';
+  v_mg_table text := 'core."merchGroup"';
 begin
   if to_regprocedure('api.resolve_item_mg_category(integer)') is null then
     raise exception 'FAIL api.resolve_item_mg_category(integer) is missing';
@@ -59,43 +62,80 @@ begin
       using v_cw_mg, v_sp_mg, v_inactive_mg;
   end if;
 
+  -- #6305: the function itself may read the app schema's copies
+  -- (dflow / dflow_prod "itemHeader" and "merchGroup"); seed the fixtures
+  -- wherever the deployed body reads them.
+  v_fn_def := pg_get_functiondef('api.resolve_item_mg_category(integer)'::regprocedure);
+  if position('dflow_prod."merchGroup"' in v_fn_def) > 0 then
+    v_mg_table := 'dflow_prod."merchGroup"';
+  elsif position('dflow."merchGroup"' in v_fn_def) > 0 then
+    v_mg_table := 'dflow."merchGroup"';
+  end if;
+  if position('dflow_prod."itemHeader"' in v_fn_def) > 0 then
+    v_item_table := 'dflow_prod."itemHeader"';
+  end if;
+  if position('core."merchGroup"' in v_fn_def) > 0 and v_mg_table <> 'core."merchGroup"' then
+    raise exception 'FAIL function body names both core."merchGroup" and %', v_mg_table;
+  end if;
+  if v_mg_table <> 'core."merchGroup"' and v_mg_table is distinct from v_fk_target then
+    execute format(
+      'insert into %s (mg_id, mg_code, mg_desc, "mgTypeCode", "companyCode_fk", "divisionCode_fk", is_active)
+       overriding system value
+       select mg_id, mg_code, mg_desc, "mgTypeCode", "companyCode_fk", "divisionCode_fk", is_active
+       from core."merchGroup" where mg_id in ($1, $2, $3)', v_mg_table)
+      using v_cw_mg, v_sp_mg, v_inactive_mg;
+  end if;
+
   insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
   values (v_wall_id, v_cw_mg), (v_clock_id, v_sp_mg), (v_wall_id, v_inactive_mg);
 
-  insert into dflow."itemHeader" (
-    created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03
-  ) values ('2025-05-13 23:59:59', 'CW001', v_cw_mg, 'MG02-A', 'MG03-A')
-  returning item_id_pk into v_old_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_old_item
+    using '2025-05-13 23:59:59'::timestamp, 'CW001'::varchar, v_cw_mg::integer, 'MG02-A'::varchar, 'MG03-A'::varchar;
 
-  insert into dflow."itemHeader" (
-    created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03
-  ) values ('2025-05-14 00:00:00', 'CW001', v_cw_mg, 'MG02-A', 'MG03-A')
-  returning item_id_pk into v_boundary_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_boundary_item
+    using '2025-05-14 00:00:00'::timestamp, 'CW001'::varchar, v_cw_mg::integer, 'MG02-A'::varchar, 'MG03-A'::varchar;
 
-  insert into dflow."itemHeader" (
-    created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03
-  ) values ('2025-05-14 12:00:00', 'CW001', v_cw_mg, 'MG02-CHANGED', 'MG03-CHANGED')
-  returning item_id_pk into v_other_depth_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_other_depth_item
+    using '2025-05-14 12:00:00'::timestamp, 'CW001'::varchar, v_cw_mg::integer, 'MG02-CHANGED'::varchar, 'MG03-CHANGED'::varchar;
 
-  insert into dflow."itemHeader" (created_time_date, div_code, udf_merchgroup01_id)
-  values ('2025-05-14 12:00:00', 'SP001', v_sp_mg)
-  returning item_id_pk into v_other_division_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_other_division_item
+    using '2025-05-14 12:00:00'::timestamp, 'SP001'::varchar, v_sp_mg::integer, null::varchar, null::varchar;
 
-  insert into dflow."itemHeader" (created_time_date, div_code, udf_merchgroup01_id)
-  values ('2025-05-14 12:00:00', 'CW001', null)
-  returning item_id_pk into v_missing_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_missing_item
+    using '2025-05-14 12:00:00'::timestamp, 'CW001'::varchar, null::integer, null::varchar, null::varchar;
 
-  insert into dflow."itemHeader" (created_time_date, div_code, udf_merchgroup01_id)
-  values ('2025-05-14 12:00:00', 'SP001', v_cw_mg)
-  returning item_id_pk into v_unresolved_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_unresolved_item
+    using '2025-05-14 12:00:00'::timestamp, 'SP001'::varchar, v_cw_mg::integer, null::varchar, null::varchar;
 
-  insert into dflow."itemHeader" (created_time_date, div_code, udf_merchgroup01_id)
-  values ('2025-05-14 12:00:00', 'CW001', v_inactive_mg)
-  returning item_id_pk into v_inactive_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_inactive_item
+    using '2025-05-14 12:00:00'::timestamp, 'CW001'::varchar, v_inactive_mg::integer, null::varchar, null::varchar;
 
-  insert into dflow."itemHeader" (created_time_date, div_code, udf_merchgroup01_id)
-  values (null, 'CW001', v_cw_mg)
-  returning item_id_pk into v_null_date_item;
+  execute format(
+    'insert into %s (created_time_date, div_code, udf_merchgroup01_id, udf_merchgroup02, udf_merchgroup03)
+     values ($1, $2, $3, $4, $5) returning item_id_pk', v_item_table)
+    into v_null_date_item
+    using null::timestamp, 'CW001'::varchar, v_cw_mg::integer, null::varchar, null::varchar;
 
   select count(*) into v_count from api.resolve_item_mg_category(v_old_item);
   if v_count <> 0 then

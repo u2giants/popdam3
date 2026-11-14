@@ -604,6 +604,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6225",
         "note": "Work issue popcre/designflow-item-master#205 step 2.2. Renames the stale non-production core.\"merchGroup\" / \"merchGroupHeaders\" to *_retired_20261112 after the services switched to dflow; refuses unless both copies are identical and wherever dflow_prod exists. Production is untouched. This is target scope, not retirement.",
     },
+    "20261114040631": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6305",
+        "note": "Work issue popcre/designflow-item-master#205 step 3.1 (a). Repoints api.resolve_item_mg_category from the renamed core.\"merchGroup\" to dflow.\"merchGroup\" on the DesignFlow non-production project only (the deployed body fails there with 42P01 since 20261113040728); refuses wherever dflow_prod exists. The production half is version 20261114040632, which the shared preview and production lanes promote normally. This is target scope, not retirement.",
+    },
     "20261113192216": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
