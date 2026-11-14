@@ -83,6 +83,9 @@ HARD_BLOCKED = {
     # #2541: failed its production post-condition three times (ColdLion feed
     # renamed two coded rows); superseded by 20261113203533.
     "20261112225250",
+    # #2541: PR #6227 fix-forward would rename ColdLion-curated rows back to OPA
+    # labels; superseded by 20261113203533.
+    "20261113041225",
     # #5932 stranded-recovery class B: derived-from retired base 20260814223552;
     # intervening changes (20260825010603, 20260825031841) modify the function
     # between the retired base and superseding base 20260825124200, so the
@@ -391,6 +394,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261113041225": "#2541: PR #6227 fix-forward renames ColdLion-coded rows (MM Standard Characters, X-Men Classic) back to OPA labels, against owner rulings 6.3/6.36 (ColdLion MG06 names are curated); failed promotion 3x. Superseded by 20261113203533, which links coded rows without renaming. Never apply this original.",
     "20261112225250": "#2541: failed production post-condition 527/528 three times (runs 43360874152, 43362398485) because the #6206 ColdLion feed renamed coded rows it would rename back. Superseded by 20261113203533, which never renames a ColdLion-coded row. Never apply this original.",
     "20261030125352": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5129, preview run 41163382391 at d04252b3 vs merge b4fa655a; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261031031837 which carries byte-identical SQL body below the derivation line (issue #5128 claim #5209). Never apply this original; the live replacement owns the objects.",
     "20261030190639": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5165, preview run 41253550001 at 59e5b45d vs merge ac2ad11d; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261101000005 which carries same objects idempotent with a longer statement timeout (issue #5163 claim #5174). Never apply this original; the live replacement owns the objects.",
