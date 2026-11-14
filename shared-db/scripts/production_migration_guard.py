@@ -388,6 +388,12 @@ HARD_BLOCKED = {
     # the guard retirement entry above, so the producer pin refuses the evidence.
     # Superseded by reissue 20261113203604; never apply this original.
     "20261113175425",
+    # #6301: 20261113203604 applied to preview and its live dependent guard then
+    # refused the production cascade on 101 pg_toast internal storage tables
+    # (false positive - TOAST travels with its parent). Rolled back, not applied
+    # to production. Superseded by reissue 20261113232232 with the TOAST-aware
+    # guard; never apply this original.
+    "20261113203604",
 }
 
 # One authority for versions that must never be applied. The post-batch
@@ -470,6 +476,7 @@ RETIRED_VERSION_REASONS = {
     "20261018191107": "production apply run 39425038130 rolled back at its own #2873 post-check because designflow_prod_backend_runtime is a member of designflow_prod_tracking_grants in production; preview-only; forward reissue 20261020125826 under issue 4464 claim 4467 grants designflow_prod_tracking_runtime directly",
     "20261113150753": "#6265 stranded-already-on-preview: merged-stranded (PR #6240, preview run 43460704905 at 86e23cccc vs merge b9cefb28; the production gate refuses evidence because the preview producer pin of scripts/production_migration_guard.py differs from the merge commit - review finding #6268 class). Superseded by reissue 20261113175425 (PR #6267) with identical idempotent SQL body (drop schema if exists dflow_prod_old cascade). Never apply this original; the reissue owns the objects.",
     "20261113175425": "#6286 stranded-already-on-preview: PR-head preview apply run 43490519560 dispatched with github.sha de2a55cc (pre-merge main) while merge commit 7fa0f145 carries the 20261113150753 retirement entry in this guard file, so the producer pin refuses the evidence (same class as review finding #6268). Superseded by reissue 20261113203604 (post-merge preview apply) with identical idempotent SQL body. Never apply this original; the reissue owns the objects.",
+    "20261113203604": "#6301: applied to preview (run 43522145729) but its live dependent guard refused the production cascade (run 43525587047) on 101 pg_toast.pg_toast_* internal storage tables - false positives; TOAST lives in pg_toast and travels with its parent under DROP CASCADE. Production rolled back cleanly, version not recorded there. Superseded by reissue 20261113232232 whose guard excludes pg_toast/pg_temp namespaces. Never apply this original; the reissue owns the objects.",
     "20261106174810": "merged-stranded: PR5910 merged without a PR-owned evidence pair, so the DesignFlow release observer refuses its issue binding; never applied to DesignFlow production; retain source, never apply this version; claim5909 reissued as claim5943 to forward replacement 20261108135128 under issue5026",
     "20261106214905": "merged-stranded on the issue #1608 derivation gate: declared derived-from: 20261015132149, a retired stamp held by no preview or production ledger, so the base-absent gate blocked its preview applies (runs 42309935289, 42311124480) and automatic promotion parked it after three attempts; retain source, never apply this version; reissued with the same executable SQL as 20261108195205 under issue 5950 claim 5971",
 }
