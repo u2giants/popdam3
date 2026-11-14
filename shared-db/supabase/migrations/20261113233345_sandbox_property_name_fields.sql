@@ -16,7 +16,6 @@ alter table core.property
 comment on column core.property.nickname is 'User-facing name shown in POP apps.';
 comment on column core.property.short_name is 'Shortened property name used in item descriptions (POP-maintained).';
 
-create schema if not exists api;
 
 create or replace view api.property_names with (security_invoker = false, security_barrier = true) as
 select p.id,
