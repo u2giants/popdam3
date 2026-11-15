@@ -91,6 +91,28 @@
 -- -------------------------------------------------------------------------------------
 -- A + B + C + E
 -- -------------------------------------------------------------------------------------
+begin;
+-- #6345 (designflow-item-master#205 step 3.2): migration 20261115085448 renames
+-- core."merchGroup" / "merchGroupHeaders" to *_retired_<date>. This test still
+-- exercises the pre-retirement shape, so it renames the retired copies back
+-- inside its own transaction (rolled back at the end). No-op before retirement.
+do $zz6345$
+declare
+  r text;
+begin
+  if to_regclass('core."merchGroup"') is null then
+    select c.relname into r from pg_class c where c.relnamespace = 'core'::regnamespace
+      and c.relkind = 'r' and c.relname ~ '^merchGroup_retired_[0-9]{8}$' order by c.relname desc limit 1;
+    if r is not null then execute format('alter table core.%I rename to "merchGroup"', r); end if;
+  end if;
+  if to_regclass('core."merchGroupHeaders"') is null then
+    select c.relname into r from pg_class c where c.relnamespace = 'core'::regnamespace
+      and c.relkind = 'r' and c.relname ~ '^merchGroupHeaders_retired_[0-9]{8}$' order by c.relname desc limit 1;
+    if r is not null then execute format('alter table core.%I rename to "merchGroupHeaders"', r); end if;
+  end if;
+end
+$zz6345$;
+
 do $$
 declare
   v_pass integer := 0;
@@ -758,3 +780,5 @@ begin
   end if;
 end;
 $$;
+
+rollback;

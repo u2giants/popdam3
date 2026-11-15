@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261115085448",
+  "migration_sha256": "f612d39c3091148ecab54370824be320f06cded455ae3f43f5de4070937ca97c",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 69,
+      "line_end": 70,
+      "disposition": "checks",
+      "reason": "The two dynamic statements only rename core.\"merchGroup\" and core.\"merchGroupHeaders\" to *_retired_<apply date, America/New_York>; the identifier is built with format(%I) from a fixed prefix and to_char(now()), no external input. The catalog contract proves both originals are gone and both retired copies exist.",
+      "check_ids": [
+        "core_merch_group_prod_retired"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "core_merch_group_prod_retired",
+      "kind": "catalog_contract",
+      "contract": "core_merch_group_prod_retired_v1",
+      "expected_count": 1
+    }
+  ]
+}
