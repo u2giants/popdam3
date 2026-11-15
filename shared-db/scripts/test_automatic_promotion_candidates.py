@@ -160,6 +160,13 @@ class StaleMainRefusalDetector(unittest.TestCase):
                 mock.patch.object(m.subprocess, "run", side_effect=fake_log):
             return m.stale_main_refusal_only("o/r", run or self.RUN)
 
+    def test_freeze_already_held_by_another_pr_is_refunded(self):
+        # #6258: PR #6245 parked after three refusals of this shape.
+        self.assertTrue(self.detect(
+            {1: self.jobs(("Acquire the promotion merge freeze for this source PR", "failure"))},
+            '##[error]REFUSED: a promotion merge freeze is already set; promotion merge freeze held by '
+            '"automatic-production-qualification" for PR #6257 until 2026-11-13T20:30:33.204Z\n'))
+
     def test_tip_proof_refusal_with_stale_wording_is_stale(self):
         self.assertTrue(self.detect(
             {1: self.jobs(("Re-prove current main and the merged source PR", "failure"))}, self.STALE_LOG))

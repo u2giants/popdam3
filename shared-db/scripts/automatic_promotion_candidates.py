@@ -305,6 +305,9 @@ COORDINATION_STEPS = {
     # production-dry-run and production-apply-review re-prove the tip under
     # this shorter name before any credential or psql step (#6237).
     "Verify exact main commit",
+    # Another PR's qualification already holds the promotion freeze (#6258:
+    # PR #6245 parked on three such refusals); retrying later is the cure.
+    "Acquire the promotion merge freeze for this source PR",
 }
 # Runtime wording of a staleness refusal. None of these phrases appears in the
 # workflow's echoed shell source (tests enforce it), so a match is the refusal
@@ -315,6 +318,7 @@ STALE_MAIN_RE = re.compile(
     r"|has advanced past the dispatched commit"
     r"|does not contain the dispatched commit"
     r"|requires the exact current main SHA"
+    r"|a promotion merge freeze is already set"
     r"|##\[error\]ENGINEER ACTION REQUIRED: main moved after preview")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
