@@ -1,5 +1,5 @@
 ---
-summary: "Step 3 residual runtime measurements (2026-11-13): WAL/duration per operation, cleared_count volume, write-side plan boundary re-verified under supabase_read_only_user; per-step split remains unknown"
+summary: "Step 3 residual runtime measurements 2026-11-13: WAL/duration per operation, cleared_count volume, write-side plan boundary re-verified (42501)"
 kind: proof
 status: done
 read-when: checking what Step 3 rebuild-churn evidence is still unproven or re-measuring runtime cost
