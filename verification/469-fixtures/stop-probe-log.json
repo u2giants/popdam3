@@ -1,0 +1,162 @@
+{
+  "probe": "user-stop-mid-batch",
+  "issue": "u2giants/popdam3#469",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "op_key": "ai-tag-single-d7bb23e1-e259-49a1-a447-825166c1aad6",
+  "asset_id": "d7bb23e1-e259-49a1-a447-825166c1aad6",
+  "asset": "paulfrank_toytest_mockup1.png (toytest-named fixture-class row)",
+  "batch_side_effect": {
+    "ai_tagged_at": "2026-11-15T17:26:40.978-05:00",
+    "note": "the single-asset batch completed its apply 14 s AFTER the user Stop (stop at 17:26:26.099) — the stop landed mid-batch; the worker terminal write was then refused by the onlyIfRunning guard"
+  },
+  "final_state": {
+    "status": "interrupted",
+    "interruption_reason_code": "user_stop",
+    "error": "Stopped by user",
+    "updated_at": "2026-11-15T22:26:26.099Z",
+    "next_auto_resume_at": null,
+    "held_checks": "12 observations over 120 s + 1 later check at 17:29:08 EST; updated_at frozen at the stop write on every one"
+  },
+  "timeline": [
+    {
+      "tag": "asset-precheck",
+      "t": "2026-11-15T22:26:20.153Z",
+      "rows": [
+        {
+          "id": "d7bb23e1-e259-49a1-a447-825166c1aad6",
+          "filename": "paulfrank_toytest_mockup1.png",
+          "file_size": 1094415,
+          "has_thumb": true,
+          "is_deleted": false,
+          "ai_tagged_at": null
+        }
+      ]
+    },
+    {
+      "tag": "op-start",
+      "t": "2026-11-15T22:26:20.706Z",
+      "http": 200,
+      "ok": true
+    },
+    {
+      "tag": "pre-stop",
+      "t": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "user-stop",
+      "t": "2026-11-15T22:26:26.485Z",
+      "http": 200,
+      "ok": true,
+      "stop_written_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-1",
+      "t": "2026-11-15T22:26:36.901Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-2",
+      "t": "2026-11-15T22:26:47.328Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-3",
+      "t": "2026-11-15T22:26:57.747Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-4",
+      "t": "2026-11-15T22:27:08.133Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-5",
+      "t": "2026-11-15T22:27:18.497Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-6",
+      "t": "2026-11-15T22:27:28.780Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-7",
+      "t": "2026-11-15T22:27:39.079Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-8",
+      "t": "2026-11-15T22:27:49.386Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-9",
+      "t": "2026-11-15T22:27:59.955Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-10",
+      "t": "2026-11-15T22:28:10.239Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-11",
+      "t": "2026-11-15T22:28:20.518Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    },
+    {
+      "tag": "observe-12",
+      "t": "2026-11-15T22:28:30.815Z",
+      "status": "interrupted",
+      "interruption_reason_code": "user_stop",
+      "error": "Stopped by user",
+      "next_auto_resume_at": null,
+      "updated_at": "2026-11-15T22:26:26.099Z"
+    }
+  ]
+}

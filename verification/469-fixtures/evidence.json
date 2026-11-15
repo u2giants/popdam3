@@ -1,0 +1,92 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "fixture-based live-proof probes",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "deployed": {
+    "frontend_edge": "ce4d1a3",
+    "bridge_agent": {
+      "id": "synology-bridge-1",
+      "version": "1.16.26",
+      "build_sha": "487af8868596694a96c2d2e5ac7818569ea8d6d2",
+      "since": "2026-11-15 4:38 PM EST"
+    }
+  },
+  "task_gate": {
+    "class": "production",
+    "check": "check --before production --acknowledge",
+    "result": "allowed by owner authorization",
+    "acknowledge_text": "Fixture-based live-proof probes for u2giants/popdam3 issue #469, delegated by parent agent (scope refinement: the planned _ai_test_681 asset rows are purged from production; the only fixture-class rows are toytest/TECH PACK TESTS named assets). Place harmless test files in the live scan root via the documented bridge/agent SSH path; observe ingest of #-named artwork files and the .ai sentinel 16MB read cap on the ~6:38 PM EST auto-scan; run one tiny single-asset AI-tag bulk operation scoped to ONE toytest-named fixture-class asset (paulfrank_toytest_mockup1.png) and issue the user Stop mid-batch to prove the terminal state is not overwritten and no auto-resume; then clean up. No destructive actions, no schema changes, no credential changes."
+  },
+  "live_config_read_only": {
+    "SCAN_ROOTS": ["/mnt/nas/mac/Decor"],
+    "SCAN_ALLOWED_SUBFOLDERS": ["generic decor", "character licensed"],
+    "SCAN_MIN_DATE": "2020-01-01",
+    "AUTO_SCAN_CONFIG": { "enabled": true, "interval_hours": 2 }
+  },
+  "fixtures": {
+    "placement_path": "SSH alias edgesynology1, files created inside the SSH session (repo's documented NAS fixture path; same class as #681 _ai_test_681 fixture)",
+    "root_nas": "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681",
+    "placed_at": "2026-11-15 5:25 PM EST",
+    "files": [
+      { "rel": "Decor/Generic Decor/Unused/_ai_test_681/a/#469probe.psd", "bytes": 75, "role": "probe1-positive-#", "expected": "ingested as its own asset" },
+      { "rel": "Decor/Generic Decor/Unused/_ai_test_681/a/$469probe.psd", "bytes": 75, "role": "probe1-positive-$", "expected": "ingested as its own asset" },
+      { "rel": "Decor/Generic Decor/Unused/_ai_test_681/a/@469probe.psd", "bytes": 75, "role": "probe1-positive-@", "expected": "ingested as its own asset" },
+      { "rel": "Decor/Generic Decor/Unused/_ai_test_681/#469probe-skip/inner.psd", "bytes": 86, "role": "probe1-negative-control", "expected": "NOT ingested (folder pruned by shouldSkipFolder)" },
+      { "rel": "Decor/Generic Decor/Unused/_ai_test_681/a/469probe-big.ai", "bytes": 16999996, "role": "probe2-sentinel-16mb-cap", "expected": "ingested as its own asset; NOT flagged no_pdf_compat; read refused over cap" }
+    ]
+  },
+  "probe1_ingest_filename_gate": {
+    "status": "pending-observation",
+    "claim": "shouldSkipPath does not apply folder rules to filenames; ingest isExcludedRelativePath checks folder segments only",
+    "code": [
+      "packages/path-filters/index.ts:89-100 (last segment exempt from folder rules; only '.' hidden-file rule)",
+      "supabase/functions/_shared/path-filters.ts:102-115 (parts.slice(0, -1))",
+      "src/test/path-filters-skip.test.ts:5-8",
+      "supabase/functions/_shared/path-filters.test.ts ('is not apply directory rules to the filename segment')"
+    ],
+    "observation_window": "~6:38 PM EST 2026-11-15 auto-scan (AUTO_SCAN_CONFIG 2h; bridge restarted 4:38 PM EST)",
+    "handoff": "8:33 PM EST 2026-11-15 scheduled one-shot check (named on #469); then clean up fixtures"
+  },
+  "probe2_ai_sentinel_cap": {
+    "status": "pending-observation",
+    "claim": "sentinel/thumbnail path caps reads at 16 MiB and refuses over-cap files without buffering them",
+    "code": [
+      "apps/bridge-agent/src/ai-sentinel-detect.ts:37 (SENTINEL_READ_LIMIT_BYTES = 16 * 1024 * 1024)",
+      "apps/bridge-agent/src/ai-sentinel-detect.ts:80-84 (readFileWithinLimit before mupdf; null -> isSentinel false)",
+      "packages/agent-common/src/bounded-read.ts (stat first; size > maxBytes returns null without reading content)"
+    ],
+    "deployed_build_verified_contains_cap": "487af8868596694a96c2d2e5ac7818569ea8d6d2",
+    "fixture": "469probe-big.ai, 16,999,996 bytes > 16,777,216 (16 MiB)",
+    "observation_window": "same auto-scan; expect own asset + absence of scanner_ai_ignores row (reason no_pdf_compat) + healthy bridge",
+    "handoff": "8:33 PM EST scheduled one-shot check"
+  },
+  "probe3_user_stop_mid_batch": {
+    "status": "proven",
+    "evidence_file": "stop-probe-log.json",
+    "op_key": "ai-tag-single-d7bb23e1-e259-49a1-a447-825166c1aad6",
+    "asset": { "id": "d7bb23e1-e259-49a1-a447-825166c1aad6", "filename": "paulfrank_toytest_mockup1.png", "class": "toytest-named fixture-class row (planned _ai_test_681 rows are purged; gate re-checked with refined scope)" },
+    "timeline": {
+      "op_started": "2026-11-15 5:26:20.15 PM EST",
+      "user_stop_written": "2026-11-15 5:26:26.10 PM EST",
+      "batch_apply_completed_underneath": "2026-11-15 5:26:40.98 PM EST (ai_tagged_at; 12 AI tags) — stop landed mid-batch, last-batch window",
+      "terminal_write": "refused; op updated_at frozen at the stop write 2026-11-15T22:26:26.099Z on 12 observations over 120 s + later check 5:29:08 PM EST",
+      "auto_resume": "none; status never returned to running; next_auto_resume_at null throughout"
+    },
+    "guard": "apps/worker/src/operation-loop.ts persistOpState(..., { onlyIfRunning: true }) -> update_bulk_operation p_only_if_status='running' (guardedPersistOpState); #713 + PR #821 error-path guards",
+    "disclosed_writes": [
+      "12 ordinary AI tags + ai_tagged_at on the one toytest asset (normal re-tag output; left in place)",
+      "op row left status=interrupted, interruption_reason_code=user_stop"
+    ]
+  },
+  "cleanup": {
+    "stop_probe": "done",
+    "nas_fixtures": "pending ingest observation; exact rm commands in live-proof-2026-11-15.md; purge resulting asset rows through the admin path afterwards",
+    "not_ours_leave_in_place": "Decor/Generic Decor/Unused/_ai_test_681/a/ai-test-681-moved-file.pdf"
+  },
+  "not_run_per_instructions": [
+    "Tesseract finally termination (heavy OCR backfill)",
+    "10,000-iteration batch loop cap (needs a very large bulk run)",
+    "ensureRootMarkers read-only-share backoff (needs a read-only share; config change on production agents)"
+  ]
+}
