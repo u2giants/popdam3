@@ -100,8 +100,58 @@ begin
         and conname = 'mg_category_merch_group_merch_group_mg_id_fkey'
         and confrelid = 'dflow_prod."merchGroup"'::regclass and convalidated) <> 1 then
     raise exception 'contract E failed: re-apply did not leave exactly one validated key on dflow_prod'; end if;
-  raise notice 'PASS #6252 mg_category_merch_group key contracts';
 end
 $e$;
+
+-- F (#6310): empty parent (unseeded preview / fresh database). Put the old key
+-- back with a stored link, empty dflow_prod."merchGroup", re-run: the key must
+-- reference dflow_prod NOT VALID, the stored link must survive, and a new link
+-- to a group absent from dflow_prod must still be refused.
+savepoint before_empty_parent;
+do $f$
+declare
+  cat uuid := current_setting('zz.cat')::uuid;
+begin
+  alter table core.mg_category_merch_group drop constraint mg_category_merch_group_merch_group_mg_id_fkey;
+  alter table core.mg_category_merch_group add constraint mg_category_merch_group_merch_group_mg_id_fkey
+    foreign key (merch_group_mg_id) references core."merchGroup"(mg_id) on delete cascade;
+  insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
+    values (cat, current_setting('zz.core_only')::int);
+  alter table core.mg_category_merch_group drop constraint mg_category_merch_group_merch_group_mg_id_fkey;
+  delete from dflow_prod."merchGroup";
+  alter table core.mg_category_merch_group add constraint mg_category_merch_group_merch_group_mg_id_fkey
+    foreign key (merch_group_mg_id) references core."merchGroup"(mg_id) on delete cascade;
+end
+$f$;
+
+:mig
+
+do $f2$
+declare
+  cat uuid := current_setting('zz.cat')::uuid;
+begin
+  if not exists (select 1 from pg_constraint
+                 where conrelid = 'core.mg_category_merch_group'::regclass
+                   and conname = 'mg_category_merch_group_merch_group_mg_id_fkey'
+                   and confrelid = 'dflow_prod."merchGroup"'::regclass and not convalidated) then
+    raise exception 'contract F failed: empty parent did not leave a NOT VALID key on dflow_prod'; end if;
+  if not exists (select 1 from core.mg_category_merch_group
+                 where merch_group_mg_id = current_setting('zz.core_only')::int) then
+    raise exception 'contract F failed: stored link row was removed'; end if;
+  begin
+    insert into core.mg_category_merch_group (mg_category_id, merch_group_mg_id)
+      values (cat, current_setting('zz.app_only')::int);
+    raise exception 'contract F failed: a link to a group absent from dflow_prod was accepted';
+  exception when foreign_key_violation then null;
+  end;
+end
+$f2$;
+rollback to savepoint before_empty_parent;
+
+do $g$
+begin
+  raise notice 'PASS #6252 mg_category_merch_group key contracts';
+end
+$g$;
 
 rollback;
