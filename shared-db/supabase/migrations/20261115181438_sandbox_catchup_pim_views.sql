@@ -1,5 +1,6 @@
 -- #6356 sandbox catch-up batch 8: DesignFlow sandbox (xupnyeifmpsacrqahwwm) ONLY. Never apply to shared preview or production.
 -- Ports pim AI activity triage tables and plm/api/dflow current-state views from production (crm.contact_ext and the dam-backed api views are deferred).
+-- Not ported: the two pm_jev_triage_worker policies (that production runtime login does not exist on the sandbox).
 -- derived-from: none
 
 set check_function_bodies = off;
@@ -51,7 +52,6 @@ CREATE INDEX IF NOT EXISTS ai_activity_triage_live_comment_idx ON pim.ai_activit
 alter table pim.ai_activity_triage enable row level security;
 create policy "pm_ai_activity_triage_admin_audit" on pim.ai_activity_triage as permissive for select to authenticated using (app.has_role('administrator'::app.app_role));
 create policy "pm_ai_activity_triage_select_own" on pim.ai_activity_triage as permissive for select to authenticated using ((requester_profile_id = app.current_profile_id()));
-create policy "pm_ai_activity_triage_worker_all" on pim.ai_activity_triage as permissive for all to pm_jev_triage_worker using (true) with check (true);
 comment on table pim.ai_activity_triage is 'Redacted provider/result metadata only. Never stores comment text, titles, emails, URLs, or credentials.';
 create table if not exists pim.ai_activity_triage_eligibility (
   "id" uuid default gen_random_uuid() not null,
@@ -81,7 +81,6 @@ CREATE INDEX IF NOT EXISTS ai_activity_triage_eligibility_comment_idx ON pim.ai_
 alter table pim.ai_activity_triage_eligibility enable row level security;
 create policy "pm_ai_activity_triage_eligibility_admin_audit" on pim.ai_activity_triage_eligibility as permissive for select to authenticated using (app.has_role('administrator'::app.app_role));
 create policy "pm_ai_activity_triage_eligibility_select_own" on pim.ai_activity_triage_eligibility as permissive for select to authenticated using ((requester_profile_id = app.current_profile_id()));
-create policy "pm_ai_activity_triage_eligibility_worker_all" on pim.ai_activity_triage_eligibility as permissive for all to pm_jev_triage_worker using (true) with check (true);
 comment on table pim.ai_activity_triage_eligibility is 'Append-only-during-pilot eligibility/reservation ledger. No raw comment text.';
 alter table pim.ai_activity_triage add constraint "ai_activity_triage_live_comment_id_fkey" FOREIGN KEY (live_comment_id) REFERENCES app.comment(id) ON DELETE SET NULL;
 alter table pim.ai_activity_triage add constraint "ai_activity_triage_live_product_id_fkey" FOREIGN KEY (live_product_id) REFERENCES pim.product(id) ON DELETE SET NULL;
