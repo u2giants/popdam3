@@ -5,6 +5,90 @@
 
 set check_function_bodies = off;
 
+-- Columns, constraints and row level security that production has on existing sandbox tables; the views below need the sku_sg_* columns.
+alter table plm.peanuts_asset add column if not exists "sku_sg_file_key" text;
+alter table plm.wildbrain_character add column if not exists "core_character_id" uuid;
+alter table plm.item add column if not exists "product_construction" text;
+alter table plm.marvel_dcp_asset add column if not exists "do_not_use_reason" text;
+alter table crm.department add column if not exists "salesperson_profile_id" uuid;
+alter table plm.wb_character_normalized add column if not exists "resolved_by" text;
+alter table plm.dcp_opa_property_resolution_member add column if not exists "submission_source_system" text /* NOT NULL in production; nullable here because the column has no default */;
+alter table core.factory add column if not exists "party_type" text;
+alter table plm.item add column if not exists "product_material" text;
+alter table plm.peanuts_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.item add column if not exists "product_type" text;
+alter table plm.item add column if not exists "product_type_status" text;
+alter table dflow."Roles" add column if not exists "app_role_id" uuid;
+alter table plm.wb_character_normalized add column if not exists "resolved_at" timestamp with time zone;
+alter table plm.nbcu_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.marvel_dcp_asset add column if not exists "sku_sg_file_key" text;
+alter table plm.dcp_opa_property_resolution add column if not exists "creative_decision_state" text;
+alter table plm.twentieth_century_dcp_asset add column if not exists "do_not_use_reason" text;
+alter table plm.wb_character_normalized add column if not exists "resolution_status" text default 'unresolved'::text not null;
+alter table plm.wildbrain_character add column if not exists "resolution_status" text default 'unresolved'::text not null;
+alter table app.user_notification add column if not exists "created_at" timestamp with time zone default now() not null;
+alter table plm.production_lane_canary add column if not exists "step6_train_note_b" text;
+alter table plm.opa_property_scope_membership add column if not exists "compliance_capture_id" uuid;
+alter table plm.dcp_opa_property_resolution_member add column if not exists "submission_source_table" text /* NOT NULL in production; nullable here because the column has no default */;
+alter table plm.production_lane_canary add column if not exists "step1_acceptance_note" text;
+alter table plm.opa_property_scope_membership add column if not exists "compliance_status" text default 'unknown'::text not null;
+alter table core.factory add column if not exists "orders_with_problem" integer;
+alter table app.comment add column if not exists "body_revision" integer default 1 not null;
+alter table core.factory add column if not exists "designflow_vendor_id" integer;
+alter table plm.dcp_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.item add column if not exists "product_treatment" text;
+alter table core.factory add column if not exists "orders_completed" integer;
+alter table plm.sesame_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.lucasfilm_dcp_asset add column if not exists "do_not_use_reason" text;
+alter table plm.lucasfilm_dcp_asset add column if not exists "sku_sg_file_key" text;
+alter table plm.nbcu_asset add column if not exists "sku_sg_file_key" text;
+alter table core.factory add column if not exists "trade_name" text;
+alter table plm.production_lane_canary add column if not exists "step6_train_note_a" text;
+alter table plm.wildbrain_character add column if not exists "resolved_at" timestamp with time zone;
+alter table plm.marvel_asgard_node_asset_observation add column if not exists "sku_sg_file_key" text;
+alter table plm.source_resolution add column if not exists "core_franchise_id" uuid;
+alter table crm.ingested_domain add column if not exists "customer_id" uuid;
+alter table plm.wb_character_normalized add column if not exists "core_character_id" uuid;
+alter table plm.item add column if not exists "product_type_read_at" timestamp with time zone;
+alter table plm.wb_style_guide_normalized add column if not exists "sku_sg_label_key" text;
+alter table plm.sesame_asset add column if not exists "sku_sg_file_key" text;
+alter table crm.department add column if not exists "secondary_salesperson_profile_id" uuid;
+alter table plm.lucasfilm_dcp_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.dcp_opa_property_resolution_member add column if not exists "submission_source_id" text /* NOT NULL in production; nullable here because the column has no default */;
+alter table dflow.artists add column if not exists "core_artist_id" uuid;
+alter table plm.marvel_dcp_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.dcp_asset add column if not exists "sku_sg_file_key" text;
+alter table plm.source_resolution add column if not exists "core_licensor_id" uuid;
+alter table plm.wildbrain_character add column if not exists "resolved_by" text;
+alter table plm.wildbrain_character add column if not exists "resolution_reason" text;
+alter table plm.marvel_asgard_style_guide add column if not exists "sku_sg_label_key" text;
+alter table plm.wb_character_normalized add column if not exists "resolution_reason" text;
+alter table plm.item add column if not exists "product_type_rules_version" text;
+alter table plm.wb_asset_normalized add column if not exists "sku_sg_file_key" text;
+-- plm.source_resolution: production accepts licensor and franchise entities.
+alter table plm.source_resolution drop constraint if exists source_resolution_entity_kind_chk;
+alter table plm.source_resolution add constraint source_resolution_entity_kind_chk CHECK ((entity_kind = ANY (ARRAY['property'::text, 'character'::text, 'style_guide'::text, 'asset'::text, 'licensor'::text, 'franchise'::text])));
+alter table plm.source_resolution drop constraint if exists source_resolution_matched_target_chk;
+alter table plm.source_resolution add constraint source_resolution_matched_target_chk CHECK (((resolution_status = 'matched'::text) = (num_nonnulls(core_property_id, core_character_id, core_style_guide_id, dam_asset_id, core_licensor_id, core_franchise_id) = 1)));
+alter table plm.source_resolution drop constraint if exists source_resolution_source_system_supported_chk;
+alter table plm.source_resolution add constraint source_resolution_source_system_supported_chk CHECK (((source_system = ANY (ARRAY['paramount'::text, 'nbcu'::text, 'disney_opa'::text, 'disney_dcpvault'::text, 'lucasfilm_dcpvault'::text, 'marvel_dcpvault'::text, 'twentieth_century_dcpvault'::text, 'wildbrain'::text])) OR ((source_system ~~ 'warner:%'::text) AND (SUBSTRING(source_system FROM (length('warner:'::text) + 1)) !~ '^[[:space:]]*$'::text))));
+alter table plm.source_resolution drop constraint if exists source_resolution_target_kind_chk;
+alter table plm.source_resolution add constraint source_resolution_target_kind_chk CHECK (
+CASE entity_kind
+    WHEN 'property'::text THEN ((core_character_id IS NULL) AND (core_style_guide_id IS NULL) AND (dam_asset_id IS NULL) AND (core_licensor_id IS NULL) AND (core_franchise_id IS NULL))
+    WHEN 'character'::text THEN ((core_property_id IS NULL) AND (core_style_guide_id IS NULL) AND (dam_asset_id IS NULL) AND (core_licensor_id IS NULL) AND (core_franchise_id IS NULL))
+    WHEN 'style_guide'::text THEN ((core_property_id IS NULL) AND (core_character_id IS NULL) AND (dam_asset_id IS NULL) AND (core_licensor_id IS NULL) AND (core_franchise_id IS NULL))
+    WHEN 'asset'::text THEN ((core_property_id IS NULL) AND (core_character_id IS NULL) AND (core_style_guide_id IS NULL) AND (core_licensor_id IS NULL) AND (core_franchise_id IS NULL))
+    WHEN 'licensor'::text THEN ((core_property_id IS NULL) AND (core_character_id IS NULL) AND (core_style_guide_id IS NULL) AND (dam_asset_id IS NULL) AND (core_franchise_id IS NULL))
+    WHEN 'franchise'::text THEN ((core_property_id IS NULL) AND (core_character_id IS NULL) AND (core_style_guide_id IS NULL) AND (dam_asset_id IS NULL) AND (core_licensor_id IS NULL))
+    ELSE false
+END);
+-- plm.erp_salesperson / plm.erp_season: production has row level security with an administrator-only read policy.
+alter table plm.erp_salesperson enable row level security;
+create policy plm_erp_salesperson_admin_only on plm.erp_salesperson as permissive for select to authenticated using (app.has_role('administrator'::app.app_role));
+alter table plm.erp_season enable row level security;
+create policy plm_erp_season_admin_only on plm.erp_season as permissive for select to authenticated using (app.has_role('administrator'::app.app_role));
+
 create table if not exists pim.ai_activity_triage (
   "id" uuid default gen_random_uuid() not null,
   "eligibility_id" uuid not null,
