@@ -94,11 +94,11 @@ function markdown(s) {
 async function main(argv) {
   const linked = argv.includes("--linked");
   const i = argv.indexOf("--summary");
-  const definition = parseResult(runSql(DEFINITION_SQL, { linked }), { raw: true });
+  const definition = parseResult(runSql(DEFINITION_SQL, { linked, readOnly: true }), { raw: true });
   if (typeof definition !== "string" || !definition.includes("db_data_admin_scraped_source_inventory")) {
     throw new Error("could not read the deployed inventory definition");
   }
-  const s = summarize(parseResult(runSql(buildSql(definition), { linked })));
+  const s = summarize(parseResult(runSql(buildSql(definition), { linked, readOnly: true })));
   const md = markdown(s);
   console.log(md);
   if (i >= 0) fs.appendFileSync(argv[i + 1], md);

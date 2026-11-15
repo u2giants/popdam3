@@ -104,7 +104,7 @@ function main(argv) {
   const i = argv.indexOf("--out");
   let plan;
   try {
-    plan = buildPlan(parseResult(runSql(ALERT_SQL, { linked })));
+    plan = buildPlan(parseResult(runSql(ALERT_SQL, { linked, readOnly: true })));
   } catch (e) {
     plan = { ok: false, deliver: false, reason: `alert probe failed: ${e.message}` };
   }

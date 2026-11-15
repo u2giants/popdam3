@@ -602,3 +602,27 @@ test("recordFailure stores the header-track request as sent", async () => {
   const plain = failedRequestParams({ endpoint: "/x", stage: "S1" }, { from: "2026-01-01", to: "2026-01-05" }, "FIX", null, true);
   assert.deepEqual(plain, { companyCode: "FIX", fromDate: "2026-01-01", toDate: "2026-01-05", stageCode: "S1" });
 });
+
+// Supabase CLI v3 refuses an unconfirmed hosted statement under --output json unless the caller
+// passes --read-only; v2 has no such flag. Read-only callers must work on both.
+test("readOnly adds --read-only, and retries without it on a CLI that lacks the flag", () => {
+  const calls = [];
+  const v3 = (cmd, args) => { calls.push(args); return { status: 0, stdout: "[]", stderr: "" }; };
+  runSql("select 1;", { linked: true, readOnly: true, spawn: v3 });
+  assert.ok(calls[0].includes("--read-only"));
+
+  calls.length = 0;
+  const v2 = (cmd, args) => {
+    calls.push(args);
+    return args.includes("--read-only")
+      ? { status: 1, stdout: "", stderr: "Error: unknown flag: --read-only" }
+      : { status: 0, stdout: "[]", stderr: "" };
+  };
+  assert.equal(runSql("select 1;", { linked: true, readOnly: true, spawn: v2 }), "[]");
+  assert.equal(calls.length, 2);
+  assert.ok(!calls[1].includes("--read-only"));
+
+  calls.length = 0;
+  runSql("select 1;", { linked: true, spawn: v3 });
+  assert.ok(!calls[0].includes("--read-only"), "writers are unchanged");
+});

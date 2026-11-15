@@ -376,7 +376,7 @@ export function redactPsqlError(stderr) {
     .slice(0, 1000);
 }
 
-export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
+export function runSql(sql, { linked = false, readOnly = false, spawn = spawnSync } = {}) {
   const databaseUrl = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL;
   if (!databaseUrl && !linked) {
     const error = new Error(
@@ -438,7 +438,13 @@ export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
     // never minted here (handing the CLI a URL under the name it uses to override its
     // link state, while argv says --linked, is a target-selection ambiguity, not a
     // feature).
-    const args = ["db", "query", "--linked", "--output", "json", "--file", file];
+    // readOnly: Supabase CLI v3 refuses an unconfirmed statement against a hosted production
+    // project when output is json ("Confirmation required ... pass --read-only"), which broke
+    // the read-only production checks from 2026-11-02. `--read-only` runs the statement in a
+    // read-only transaction (the database itself refuses writes). CLI v2 has no such flag, so
+    // an "unknown flag" refusal retries once without it; v2 never asked for confirmation.
+    const baseArgs = ["db", "query", "--linked", "--output", "json", "--file", file];
+    const args = readOnly ? [...baseArgs, "--read-only"] : baseArgs;
     const cliEnv = { ...process.env };
     // One case-insensitive sweep (Windows env names are case-insensitive; a
     // bare `delete cliEnv.SUPABASE_DB_URL` would miss Supabase_Db_Url): drop
@@ -450,7 +456,7 @@ export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
       const upper = k.toUpperCase();
       if (upper.startsWith("PG") || upper === "SUPABASE_DB_URL") delete cliEnv[k];
     }
-    const result = spawn("supabase", args, {
+    const spawnOptions = {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: cliEnv,
@@ -459,7 +465,11 @@ export function runSql(sql, { linked = false, spawn = spawnSync } = {}) {
       // Identical wall clock to the psql branch above — see SPAWN_TIMEOUT_MS (#550 / B12).
       timeout: SPAWN_TIMEOUT_MS,
       killSignal: "SIGKILL",
-    });
+    };
+    let result = spawn("supabase", args, spawnOptions);
+    if (readOnly && result.status !== 0 && /unknown flag: --read-only/.test(String(result.stderr ?? ""))) {
+      result = spawn("supabase", baseArgs, spawnOptions);
+    }
     if (result.error) {
       // Never let a spawn-level fault (ENOBUFS, ENOENT, EACCES) masquerade as a SQL failure.
       // Tagged CLIENT_SPAWN_FAULT so a caller cannot record it as a durable sync failure.
