@@ -169,6 +169,28 @@ class NothingLegitimateIsRejected(unittest.TestCase):
             data_statement_rejection("update plm.pg_import_log set a = 1;")
         )
 
+    def test_a_data_only_do_block_is_ACCEPTED(self) -> None:
+        """Issue #5932 DELIBERATE WIDENING: a `do` body that carries only data
+        work is a true no-op claim (20261113160920, the Disney characters
+        restore, is this shape). The body is scanned, not trusted: its DDL- and
+        execute-hiding siblings stay refused above."""
+        result = claim(
+            "do $load$\n"
+            "declare v_n integer;\n"
+            "begin\n"
+            "  select count(*) into v_n from plm.widget;\n"
+            "  insert into plm.widget (id) values (1) on conflict do nothing;\n"
+            "  perform plm.touch_widget(1);\n"
+            "  if v_n = 0 then raise exception 'empty source; refusing'; end if;\n"
+            "end\n"
+            "$load$;"
+        )
+        self.assertTrue(result["accepted"], result.get("rejected_because"))
+
+    def test_copy_is_a_data_statement(self) -> None:
+        """The pure-data definition names COPY as DML (issue #5932)."""
+        self.assertIsNone(data_statement_rejection("copy plm.widget from stdin;"))
+
 
 class TheCheckStillFailsClosed(unittest.TestCase):
     """#805 is explicit: do not widen anything while narrowing this."""
@@ -177,7 +199,12 @@ class TheCheckStillFailsClosed(unittest.TestCase):
         for statement in (
             "create table plm.t (id uuid);",
             "grant select on plm.t to authenticated;",
-            "do $$ begin perform 1; end $$;",
+            # Issue #5932: a `do` block whose BODY carries only data work is now
+            # accepted (that widening is pinned in NothingLegitimateIsRejected),
+            # but a `do` body that hides catalog DDL or dynamic SQL is exactly
+            # what the body scan refuses.
+            "do $$ begin execute 'create table plm.t(id int)'; end $$;",
+            "do $$ begin execute 'alter table plm.t drop column id'; end $$;",
             "create extension dblink;",
             "alter default privileges in schema plm grant select on tables to x;",
         ):

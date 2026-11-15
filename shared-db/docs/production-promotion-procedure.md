@@ -90,6 +90,8 @@ migrations still had to be replayed as no-ops on 2026-07-27 just to close the le
 worked example, including the verification queries:
 [`docs/migration-backlog-triage-2026-07-27.md`](../docs/migration-backlog-triage-2026-07-27.md).
 
+**Data migrations declare themselves (issue #5932):** a migration that performs only data work and creates no catalog object carries a `-- catalog-verification: no-op <reason, at least 20 characters>` line in its own header; the claim is checked, and a genuinely pure-data file (only DML — INSERT/UPDATE/DELETE/COPY; no CREATE/ALTER/DROP of catalog objects) is recorded as a note by the post-apply catalog verification instead of refused.
+
 #### 5.1-A The lane is now RUNNABLE — how a production apply actually happens (built 2026-08-10, issue #617/#660)
 
 **Everything in §5.1 above still describes the mechanics.** What changed is that you no longer

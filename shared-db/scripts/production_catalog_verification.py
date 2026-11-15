@@ -382,10 +382,12 @@ NOOP_DECLARATION_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 # Statement heads a pure-DATA migration is allowed to contain. Anything else --
-# any DDL, any `do $$` block, any grant -- means the file is NOT a no-op and the
-# declaration is rejected.
+# any DDL, any grant -- means the file is NOT a no-op and the declaration is
+# rejected. A `do` block is NOT judged here: strip_sql blanks its body, so it is
+# judged by `pure_data_offenders` below, which reads the body's own text and
+# still refuses any catalog DDL or dynamic SQL hidden inside it.
 DATA_STATEMENT_RE = re.compile(
-    r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze)\b"
+    r"^\s*(insert|update|delete|merge|with|select|values|set|reset|analyze|copy)\b"
 )
 
 # ---------------------------------------------------------------------------
@@ -478,6 +480,135 @@ def data_statement_rejection(statement: str) -> str | None:
             # Unqualified, so it resolves through search_path to pg_catalog.
             return f"writes to the system catalog ({target})"
     return None
+
+
+# A `do` block at statement head. Its body is blanked by strip_sql, so the
+# statement-level checks above cannot see it; `pure_data_offenders` reads the
+# body through `blank_comments_and_strings` instead.
+DO_BLOCK_HEAD_RE = re.compile(r"^\s*do\b")
+
+# Issue #5932: a genuinely pure-data migration (only DML -- INSERT/UPDATE/
+# DELETE/COPY and the statements around them) creates no catalog object, so the
+# catalog lexer correctly derives nothing from it and must RECORD A NOTE, not
+# refuse the run. "Pure data" is a claim about the file's whole text, including
+# `do`-block bodies, because a DO block is how data migrations wrap their
+# statements (20261113160920, the Disney characters restore). The predicate is
+# fail-closed the other way: any catalog DDL, privilege change, dynamic SQL,
+# principal change or system-catalog write anywhere in the file means the file
+# is NOT pure data and the "proved nothing" refusal still applies.
+PURE_DATA_HIDDEN_RE = re.compile(
+    r"\b(?:create|alter|drop|comment|grant|revoke|truncate|execute|prepare|"
+    r"deallocate|discard|call|lock|vacuum|cluster|reindex|refresh)\b"
+)
+# Unanchored variants of the #805 narrowing patterns, for scanning whole files
+# (statement boundaries are not visible inside a `do` body).
+PRINCIPAL_CHANGE_ANYWHERE_RE = re.compile(
+    r"\b(?:set|reset)\s+(?:local\s+|session\s+)*"
+    r"(?:role\b|session\s+authorization\b|authorization\b|all\b)"
+)
+
+
+def blank_comments_and_strings(sql: str) -> str:
+    """Blank `--`/`/* */` comments and `'...'` string literals, keep the code.
+
+    Dollar-quoted bodies are NOT special-cased: their PL code stays visible and
+    their own string literals are blanked with every other literal, which is
+    exactly what the pure-data scan needs (DDL hidden in a body is seen; prose
+    in a PL string is not). Single left-to-right pass, the Postgres token order
+    -- see the strip_sql lexer for why independent passes are wrong.
+    """
+    chars = list(sql)
+    i = 0
+    state = "code"
+    escape_string = False
+    block_depth = 0
+    while i < len(chars):
+        if state == "code" and sql.startswith("--", i):
+            state = "line_comment"; chars[i] = chars[i + 1] = " "; i += 2; continue
+        if state == "line_comment":
+            if chars[i] == "\n": state = "code"
+            else: chars[i] = " "
+            i += 1; continue
+        if state == "code" and sql.startswith("/*", i):
+            state = "block_comment"; block_depth = 1; chars[i] = chars[i + 1] = " "; i += 2; continue
+        if state == "block_comment":
+            if sql.startswith("/*", i): chars[i] = chars[i + 1] = " "; block_depth += 1; i += 2
+            elif sql.startswith("*/", i):
+                chars[i] = chars[i + 1] = " "; block_depth -= 1; i += 2
+                if block_depth == 0: state = "code"
+            else:
+                if chars[i] != "\n": chars[i] = " "
+                i += 1
+            continue
+        if state == "code" and chars[i] == "'":
+            escape_string = i > 0 and sql[i - 1] in "eE" and (i < 2 or not (sql[i - 2].isalnum() or sql[i - 2] in "_$"))
+            state = "string"; i += 1; continue
+        if state == "string":
+            if escape_string and chars[i] == "\\" and i + 1 < len(chars):
+                chars[i] = " "
+                if chars[i + 1] != "\n": chars[i + 1] = " "
+                i += 2; continue
+            if chars[i] == "'" and i + 1 < len(chars) and chars[i + 1] == "'":
+                chars[i] = chars[i + 1] = " "; i += 2; continue
+            if chars[i] == "'": state = "code"
+            elif chars[i] != "\n": chars[i] = " "
+            i += 1; continue
+        i += 1
+    return "".join(chars)
+
+
+def pure_data_offenders(raw: str) -> list[str]:
+    """Why this migration is NOT genuinely pure-data; empty when it is.
+
+    Two passes. Every statement the statement lexer can read must be data-shaped
+    (`data_statement_rejection`, which also refuses catalog writes, dblink and
+    principal changes). A `do` block is then judged by scanning the file's whole
+    code text -- comments and string literals blanked -- for catalog DDL,
+    privilege statements, dynamic SQL and the same #805 narrowing patterns.
+    Offenders name what they found: a refusal reading only "non-data statement"
+    sends the author looking at the wrong keyword.
+    """
+    offenders: list[str] = []
+    for statement in split_statements(strip_sql(raw)):
+        if DO_BLOCK_HEAD_RE.match(statement):
+            continue
+        rejection = data_statement_rejection(statement)
+        if rejection:
+            offenders.append(f"{' '.join(statement.split())[:120]} [{rejection}]")
+    if offenders:
+        return offenders
+    scan = blank_comments_and_strings(raw)
+    match = PURE_DATA_HIDDEN_RE.search(scan)
+    if match:
+        line = scan.count("\n", 0, match.start()) + 1
+        offenders.append(
+            f"`{match.group(0).lower()}` (line {line}) [catalog DDL, privilege "
+            "change or dynamic SQL is not pure data]"
+        )
+        return offenders
+    match = PRINCIPAL_CHANGE_ANYWHERE_RE.search(scan)
+    if match:
+        offenders.append(
+            f"{' '.join(match.group(0).split())} [changes the executing "
+            "principal (set/reset role or session authorization), so the file "
+            "is not pure data]"
+        )
+        return offenders
+    if REMOTE_EXEC_RE.search(scan):
+        offenders.append(
+            "dblink call [executes arbitrary SQL over a connection -- a grant, "
+            "revoke or DDL can hide inside it]"
+        )
+        return offenders
+    for match in WRITE_TARGET_RE.finditer(scan):
+        schema, relation = match.group(1), match.group(2)
+        target = f"{schema}.{relation}" if schema else relation
+        if schema:
+            if schema in CATALOG_SCHEMAS or schema.startswith("pg_"):
+                offenders.append(f"{target} [writes to the system catalog ({target})]")
+        elif relation.startswith("pg_"):
+            offenders.append(f"{target} [writes to the system catalog ({target})]")
+    return offenders
 
 BEHAVIOR_SIDECAR_DIR = Path("scripts/production-verification-sidecars")
 BEHAVIOR_SIDECAR_KEYS = {
@@ -1855,6 +1986,7 @@ class Targets:
         privileges: list[PrivilegeExpectation] | None = None,
         notes: list[str] | None = None,
         noop_declaration: dict | None = None,
+        pure_data: dict | None = None,
         indexes: set[tuple[str, str]] | None = None,
         schema_renames: set[tuple[str, str, str | None]] | None = None,
         function_settings: list[tuple[str, str | None, str, str]] | None = None,
@@ -1875,6 +2007,8 @@ class Targets:
         self.privileges = list(deduped.values())
         self.notes = sorted(set(notes or []))
         self.noop_declaration = noop_declaration
+        # {"versions": [...pure-data versions...], "rejected": {version: [offenders]}}
+        self.pure_data = pure_data or {"versions": [], "rejected": {}}
         self.change_types = sorted(change_types or set())
         self.tables = sorted(tables)
         self.views = sorted(views)
@@ -1913,6 +2047,11 @@ class Targets:
             if e.kind == "default_acl"
         }
         return sorted(found)  # type: ignore[arg-type]
+
+    @property
+    def pure_data_ok(self) -> bool:
+        """Every allowlisted file is genuinely pure-data (issue #5932)."""
+        return bool(self.pure_data.get("versions")) and not self.pure_data.get("rejected")
 
     def is_empty(self) -> bool:
         return not (
@@ -2719,25 +2858,22 @@ def read_noop_declaration(raw: str, version: str) -> dict | None:
         -- catalog-verification: no-op <reason, at least 20 characters>
 
     THE DECLARATION IS NOT TAKEN ON TRUST. Every statement in the file must then
-    be data-shaped; one `create`, one `grant`, one `do $$` block and the claim is
-    REJECTED and the run still fails. It is therefore not a bypass flag: it
-    cannot excuse a privilege migration, and it cannot be aimed at a migration id
-    from outside the file.
+    be data-shaped (or a `do` block whose body carries no catalog DDL or dynamic
+    SQL -- see `pure_data_offenders`); one `create`, one `grant`, one hidden
+    `execute` and the claim is REJECTED and the run still fails. It is therefore
+    not a bypass flag: it cannot excuse a privilege migration, and it cannot be
+    aimed at a migration id from outside the file.
     """
     match = NOOP_DECLARATION_RE.search(raw)
     if not match:
         return None
     reason = match.group("reason").strip()
-    statements = split_statements(strip_sql(raw))
     # Issue #805: the head keyword is necessary but NOT sufficient. A statement
     # whose head is data-shaped can still write the system catalog, execute SQL
-    # through dblink, or switch the executing principal. Each offender carries
-    # the reason it was rejected, so the refusal names what it found.
-    offenders = []
-    for statement in statements:
-        rejection = data_statement_rejection(statement)
-        if rejection:
-            offenders.append(f"{' '.join(statement.split())[:120]} [{rejection}]")
+    # through dblink, or switch the executing principal; a `do` body can hide
+    # any of that from the statement lexer. Each offender carries the reason it
+    # was rejected, so the refusal names what it found.
+    offenders = pure_data_offenders(raw)
     if len(reason) < 20:
         return {
             "version": version,
@@ -2762,7 +2898,7 @@ def read_noop_declaration(raw: str, version: str) -> dict | None:
         "version": version,
         "reason": reason,
         "accepted": True,
-        "statements_checked": len(statements),
+        "statements_checked": len(split_statements(strip_sql(raw))),
     }
 
 
@@ -3014,6 +3150,8 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     privileges: list[PrivilegeExpectation] = []
     notes: list[str] = []
     noop: dict | None = None
+    pure_versions: list[str] = []
+    pure_rejections: dict[str, list[str]] = {}
     indexes: set[tuple[str, str]] = set()
     schema_rename_pairs: set[tuple[str, str]] = set()
     schema_comments: dict[str, str | None] = {}
@@ -3037,6 +3175,14 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         declaration = read_noop_declaration(raw, version)
         if declaration is not None and (noop is None or not declaration["accepted"]):
             noop = declaration
+        # Issue #5932: is this file genuinely pure-data? Recorded per version so
+        # the report can note a pure-data run instead of refusing it for
+        # "proved nothing", and so a non-pure file keeps exactly that refusal.
+        pure_offenders = pure_data_offenders(raw)
+        if pure_offenders:
+            pure_rejections[version] = pure_offenders
+        else:
+            pure_versions.append(version)
         text = strip_sql(raw)
         batch_statements.extend(split_statements(text))
         for statement in split_statements(text):
@@ -3270,6 +3416,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         privileges=privileges,
         notes=notes,
         noop_declaration=noop,
+        pure_data={"versions": sorted(pure_versions), "rejected": pure_rejections},
         indexes=indexes,
         schema_renames=schema_renames,
         function_settings=list(settings.values()),
@@ -3329,8 +3476,8 @@ def diagnose_catalog_coverage(repo_root: Path, allowlist: list[str]) -> dict[str
     targets = derive_targets(local_migrations(repo_root), allowlist)
     payload = targets.as_dict()
     target_count = sum(len(value) for value in payload.values() if isinstance(value, list))
-    covered = target_count > 0 or bool(targets.noop_declaration)
-    return {"status": "covered" if covered else "missing", "target_count": target_count, "noop_declaration": targets.noop_declaration}
+    covered = target_count > 0 or bool(targets.noop_declaration) or targets.pure_data_ok
+    return {"status": "covered" if covered else "missing", "target_count": target_count, "noop_declaration": targets.noop_declaration, "pure_data": targets.pure_data}
 
 
 def _sql_array(values: list[str]) -> str:
@@ -4316,6 +4463,27 @@ def render_report(
         # artifact, and only after every statement in the file was checked to be
         # data. It is never a silent pass and never a flag on this script.
         pass
+    elif targets.is_empty() and declaration is None and targets.pure_data_ok:
+        # ISSUE #5932. A genuinely pure-data migration -- only DML (INSERT/
+        # UPDATE/DELETE/COPY and the statements around them, including `do`
+        # blocks that carry no catalog DDL) -- creates no catalog object, so
+        # the lexer correctly derives nothing and there is nothing here to
+        # verify. That is a NOTE, not a failure: refusing it flags every honest
+        # data migration for the crime of having no catalog objects. The note
+        # is the record and it is never silent. Anything the lexer merely could
+        # NOT read still lands in the refusal below.
+        add("## Pure-data migration (nothing to verify)")
+        add("")
+        add(
+            "- Migration(s) "
+            + ", ".join(f"`{v}`" for v in targets.pure_data["versions"])
+            + " contain only data work (INSERT/UPDATE/DELETE/COPY and the "
+            "statements around them) and create, alter or drop no catalog "
+            "object, so the catalog lexer derives no target and this step has "
+            "nothing to check. This note is the recorded reason; the ledger "
+            "remains the record of what applied."
+        )
+        add("")
     elif targets.is_empty():
         # ISSUE #697 EXISTS BECAUSE A GREEN TICK WAS MISTAKEN FOR EVIDENCE.
         # A run where this step proved nothing must therefore not end green in
@@ -4323,13 +4491,20 @@ def render_report(
         # statement outside a `do $$` block is an `alter view`, and before the
         # review fix even that derived nothing. The remedy for a genuinely
         # unverifiable migration is to say so on the issue, not to let the lane
-        # report a verification it did not perform.
+        # report a verification it did not perform. A genuinely pure-data
+        # migration is NOT this case and is noted above (issue #5932).
         detail = (
             f" The file's own no-op declaration was REJECTED: "
             f"{declaration['rejected_because']}."
             if declaration is not None
             else ""
         )
+        if not detail and targets.pure_data.get("rejected"):
+            named = "; ".join(
+                f"{version}: {offenders}"
+                for version, offenders in sorted(targets.pure_data["rejected"].items())
+            )
+            detail = f" It is also NOT pure-data: {named}."
         failures.append(
             "the allowlisted migrations named NO catalog object this lexer can "
             "read, so this step proved nothing. A run that verified nothing must "
@@ -4724,6 +4899,14 @@ def verify(
             f"\"{declaration['reason']}\". Every statement in that file was "
             "checked to be a data statement, so there is nothing to verify."
         )
+    elif targets.is_empty() and declaration is None and targets.pure_data_ok:
+        # Issue #5932: genuinely pure-data, undeclared. A note in the artifact
+        # and the job log -- never a failure, never silence.
+        targets.notes.append(
+            "pure-data migration: only data statements (no catalog DDL), so "
+            "there is nothing for the catalog lexer to verify. The ledger is "
+            "the record of what applied."
+        )
     elif targets.is_empty():
         # Step 2.4 (plan_ci-process-repair): a migration whose change types the
         # lexer cannot verify reports "applied, not verifiable by catalog" as a
@@ -4760,6 +4943,7 @@ def verify(
                 "targets": targets.as_dict(),
                 "privilege_expectations": [e.as_dict() for e in targets.privileges],
                 "noop_declaration": targets.noop_declaration,
+                "pure_data": targets.pure_data,
                 "catalog": catalog,
                 "row_counts": row_counts,
                 "behavior_checks": behavior_checks,

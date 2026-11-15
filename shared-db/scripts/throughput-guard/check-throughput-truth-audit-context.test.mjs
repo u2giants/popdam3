@@ -112,7 +112,11 @@ test('context migration preserves every historical identity hash verdict and rea
   const lineEndingRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-5899.json'), 'utf8'));
   assert.equal(lineEndingRetirements.schema_version, 1);
   assert.equal(lineEndingRetirements.retired_by_issue, 5899);
-  assertHistoricalDispositions(historical, current, [...lineEndingRetirements.sites, ...leanCoreRetirements.sites, ...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites, ...stageFRetirements.sites]);
+  // #5932: the diagnose_catalog_coverage payload line gained the pure_data verdict.
+  const pureDataRetirements = JSON.parse(fs.readFileSync(path.join(root, 'docs/verification/throughput-retired-identity-sites-5932.json'), 'utf8'));
+  assert.equal(pureDataRetirements.schema_version, 1);
+  assert.equal(pureDataRetirements.retired_by_issue, 5932);
+  assertHistoricalDispositions(historical, current, [...lineEndingRetirements.sites, ...pureDataRetirements.sites, ...leanCoreRetirements.sites, ...archive.sites, ...authorityRetirements.sites, ...historicalMgRetirements.sites, ...orchestratorRetirements.sites, ...strikeRetirements.sites, ...reconciliationRetirements.sites, ...skillDriftRetirements.sites, ...stageFRetirements.sites]);
 });
 
 test('historical identity retirement refuses unexplained loss and changed verdicts', () => {

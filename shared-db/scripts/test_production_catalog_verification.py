@@ -1624,11 +1624,27 @@ class NoopDeclarationTests(unittest.TestCase):
             ["20260810140000"], targets, {"relations": []}, None, [], True
         )
 
-    def test_an_undeclared_empty_migration_still_fails(self):
+    def test_an_undeclared_pure_data_migration_records_a_note_not_a_failure(self):
+        # Issue #5932: a genuinely pure-data migration (only DML; no catalog
+        # object) derives nothing by design. That is a NOTE now, not the
+        # "proved nothing" refusal -- refusing it flags every honest data
+        # migration for the crime of having no catalog objects.
         targets, (markdown, failures) = self.render("update plm.widget set a = 1;")
+        self.assertTrue(targets.is_empty())
+        self.assertEqual(failures, [])
+        self.assertIn("Pure-data migration", markdown)
+
+    def test_an_undeclared_migration_the_lexer_cannot_read_still_fails(self):
+        # The refusal survives for everything that is NOT pure data: catalog
+        # DDL the statement lexer derived nothing from (here, hidden in a `do`
+        # body) still proves nothing.
+        targets, (markdown, failures) = self.render(
+            "do $$ begin execute 'create table plm.x(id int)'; end $$;"
+        )
         self.assertTrue(targets.is_empty())
         self.assertEqual(len(failures), 1)
         self.assertIn("proved nothing", failures[0])
+        self.assertIn("NOT pure-data", failures[0])
 
     def test_a_schema_comment_only_batch_checks_the_exact_comment(self):
         targets = targets_for("comment on schema core is 'it''s core';")
@@ -1691,9 +1707,12 @@ class NoopDeclarationTests(unittest.TestCase):
         self.assertTrue(any("claim is false" in f for f in failures))
 
     def test_a_declaration_over_ddl_is_rejected_and_the_run_still_fails(self):
+        # Issue #5932 widens the claim check to accept a `do` block that carries
+        # only data work -- but a `do` body that hides real DDL is still a false
+        # claim: dynamic SQL is exactly what the body scan is for.
         sql = (
             "-- catalog-verification: no-op nothing to see here at all, move along\n"
-            "do $$ begin perform 1; end $$;\n"
+            "do $$ begin execute 'create table plm.x(id int)'; end $$;\n"
         )
         targets, (_, failures) = self.render(sql)
         self.assertTrue(targets.is_empty())
@@ -3911,7 +3930,10 @@ class SandboxTargetCatalogSafetyTests(unittest.TestCase):
 class Issue4207RealSidecars(unittest.TestCase):
     """#4207: the cron-only (#4192) and curated data-only (#4176) migrations
     name no catalog object, so their post-apply proof is their hash-bound
-    behavior sidecar. Without it the step proves nothing and fails."""
+    behavior sidecar. Since issue #5932 the catalog step itself records a NOTE
+    for a genuinely pure-data file instead of the "proved nothing" refusal; the
+    sidecar stays the real behavioral proof -- without a PASSING sidecar the
+    data-only claims are never checked, and a failing sidecar still fails."""
 
     def test_real_sidecars_load_and_make_the_data_only_proof_pass(self):
         repo = Path(__file__).resolve().parents[1]
@@ -3923,7 +3945,10 @@ class Issue4207RealSidecars(unittest.TestCase):
             targets = derive_targets(migrations, [version])
             self.assertTrue(targets.is_empty(), version)
             _md, failures = render_report([version], targets, None, None, [], True)
-            self.assertTrue(any("proved nothing" in f for f in failures), version)
+            # Issue #5932: genuinely pure-data, so the catalog step notes
+            # "nothing to verify" instead of refusing the run.
+            self.assertEqual(failures, [], version)
+            self.assertIn("Pure-data migration", _md, version)
             checks = load_behavior_sidecars(repo, migrations, [version])
             self.assertEqual({c["id"] for c in checks}, ids)
             _md, failures = render_report(

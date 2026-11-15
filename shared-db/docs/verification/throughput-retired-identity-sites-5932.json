@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "retired_by_issue": 5932,
+  "note": "Issue #5932: the diagnose_catalog_coverage payload line gained the pure_data verdict beside its existing keys, so the reviewed line identity is retired here with its historical hash, verdict and reason unchanged. The live successor is the re-reviewed catalogue entry for the new line.",
+  "sites": [
+    {
+      "site": "scripts/production_catalog_verification.py:2973",
+      "semantic_key": "scripts/production_catalog_verification.py:456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620:context-54f51b2ab9923fb2196f185e1bef5555b17df18f8fa19bb08d1636b1465715f7",
+      "line_sha256": "456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620",
+      "disposition": "excluded",
+      "reason": "New Phase 2 fail-closed diagnostic or explicit unknown-state handling; it does not infer that a database object was never created or is absent.",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:456753cdf3b6ea2e53f28e82ea76e92644a06df6bedd8124e9ca981518223620:1",
+      "state": "retired"
+    }
+  ]
+}
