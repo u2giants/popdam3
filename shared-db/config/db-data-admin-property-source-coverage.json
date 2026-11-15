@@ -318,8 +318,7 @@
       "business_purpose": "Sample tracking",
       "disposition": "not_applicable_no_source_property_vocabulary",
       "table_prefixes": ["sample"],
-      "reason": "Application data.",
-      "absent_from_repo_migrations": "The plm.sample_* sample-tracking tables predate this repository's migration history, so the catalog derived from supabase/migrations cannot see them; they are present in the live catalog, where this family is still required to match."
+      "reason": "Application data."
     },
     {
       "family": "style_tracker",
