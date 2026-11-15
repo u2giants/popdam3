@@ -5,6 +5,40 @@
 
 set check_function_bodies = off;
 
+-- Public helper functions the style-guide views call (production definitions).
+CREATE OR REPLACE FUNCTION public.file_name_norm(p_name text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE STRICT
+AS $function$
+  select nullif(
+    btrim(
+      regexp_replace(
+        regexp_replace(lower(btrim(p_name)), '.*[/\\]', ''),
+        '\.[a-z][a-z0-9]{0,4}$', '')
+    ), '')
+$function$
+;
+revoke all on function public.file_name_norm(p_name text) from public, anon, authenticated;
+grant execute on function public.file_name_norm(p_name text) to service_role;
+grant execute on function public.file_name_norm(p_name text) to authenticated;
+CREATE OR REPLACE FUNCTION public.style_guide_label_norm(p_label text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE STRICT
+AS $function$
+  select nullif(
+    btrim(
+      regexp_replace(
+        regexp_replace(lower(btrim(p_label)), '^\s*(the|a|an)\s+', ''),
+        '[^a-z0-9]+', ' ', 'g')
+    ), '')
+$function$
+;
+revoke all on function public.style_guide_label_norm(p_label text) from public, anon, authenticated;
+grant execute on function public.style_guide_label_norm(p_label text) to service_role;
+grant execute on function public.style_guide_label_norm(p_label text) to authenticated;
+
 -- Columns, constraints and row level security that production has on existing sandbox tables; the views below need the sku_sg_* columns.
 alter table plm.peanuts_asset add column if not exists "sku_sg_file_key" text;
 alter table plm.wildbrain_character add column if not exists "core_character_id" uuid;
