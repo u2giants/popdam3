@@ -66,6 +66,17 @@ class SandboxDependencies(unittest.TestCase):
             with self.assertRaises(GuardError):
                 preflight_batch(migrations, ["20260102000000"], set(), self.read())
 
+    def test_6356_live_function_rescues_check_constraint_dependency(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            creator, change = root / "base.sql", root / "change.sql"
+            creator.write_text("CREATE FUNCTION core.norm(t text) RETURNS text LANGUAGE sql AS $$ select t $$;")
+            change.write_text("CREATE TABLE core.thing(name text, CONSTRAINT c CHECK (length(core.norm(name)) > 0));")
+            migrations = {"20260101000000": creator, "20260102000000": change}
+            with self.assertRaises(GuardError):
+                preflight_batch(migrations, ["20260102000000"], set())
+            preflight_batch(migrations, ["20260102000000"], set(), self.read(rows=[{"name": "core.norm"}]))
+
     def test_6155_pre_ledger_core_relation_is_rescued_only_when_live(self):
         # #6107 sandbox dry-run 43249834351: core.licensor exists on the sandbox but
         # its creator predates the sandbox ledger. Live proof rescues it; absence still refuses.
