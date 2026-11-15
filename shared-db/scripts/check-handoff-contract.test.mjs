@@ -173,3 +173,10 @@ test("every GitHub closing keyword is recognised, and bare mentions are not", ()
   assert.deepEqual(parseClosingIssues("see #9 for context"), []);
   assert.deepEqual(parseClosingIssues("related to #9 and closes #9"), [9]);
 });
+
+test("a posting signature's display name never counts as a closing directive", () => {
+  const signed = 'Refs #5986\n\nPosted by MiMo chat "Resolve #585 merge blocked by DB readiness" (ses_ffe5e23a) on edge-dev';
+  assert.deepEqual(parseClosingIssues(signed), []);
+  assert.deepEqual(parseClosingIssues('Fixes #7\nPosted by Claude chat "Fix #12 polish" (sess_deadbeef) on edge-dev').sort((a, b) => a - b), [7]);
+  assert.deepEqual(parseClosingIssues('Posted by Claude chat "Closes: #3 retire the handoff" (sess_deadbeef) on edge-dev'), []);
+});

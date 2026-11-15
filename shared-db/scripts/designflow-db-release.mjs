@@ -112,13 +112,20 @@ function pages(endpoint, limit = 5) {
   }
   throw Error('GitHub pagination limit reached; completeness is not proven');
 }
-export function workflowRuns(read, endpoint, limit = 5) {
+export function workflowRuns(read, endpoint, limit = 50) {
   const runs = [];
+  let total = null;
   for (let page = 1; page <= limit; page++) {
     const response = read(`${endpoint}${endpoint.includes('?') ? '&' : '?'}per_page=100&page=${page}`);
     if (!response || !Array.isArray(response.workflow_runs)) throw Error('Workflow run page is unreadable');
+    if (total === null) {
+      if (!Number.isSafeInteger(response.total_count) || response.total_count < response.workflow_runs.length)
+        throw Error('Workflow run count is unreadable');
+      total = response.total_count;
+    }
     runs.push(...response.workflow_runs);
-    if (response.workflow_runs.length < 100) return runs;
+    if (runs.length >= total) return runs;
+    if (response.workflow_runs.length < 100) throw Error('Workflow run page ended before the counted total');
   }
   throw Error('Workflow run pagination bound reached; discovery is incomplete');
 }

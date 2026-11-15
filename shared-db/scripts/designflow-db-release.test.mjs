@@ -202,11 +202,24 @@ test('apply files refuse changed hashes, unexpected ledger changes and unenforce
 
 test('producer discovery reads subsequent pages and refuses truncated history', () => {
   const visited=[];
-  const read=url=>{visited.push(url);return {workflow_runs: url.endsWith('page=1') ? Array.from({length:100},(_,i)=>({id:i+1})) : [{id:101}]};};
+  const read=url=>{visited.push(url);return {total_count:101,workflow_runs: url.endsWith('page=1') ? Array.from({length:100},(_,i)=>({id:i+1})) : [{id:101}]};};
   assert.equal(workflowRuns(read,'runs?event=workflow_dispatch').at(-1).id,101);
   assert.equal(visited.length,2);
-  assert.throws(()=>workflowRuns(()=>({workflow_runs:Array(100).fill({id:1})}),'runs',2),/incomplete/);
+  assert.throws(()=>workflowRuns(()=>({total_count:10000,workflow_runs:Array(100).fill({id:1})}),'runs',2),/incomplete/);
   assert.throws(()=>workflowRuns(()=>({}),'runs'),/unreadable/);
+});
+test('producer discovery proves completeness against the counted total beyond five pages', () => {
+  const read=url=>{const page=Number(url.match(/[?&]page=(\d+)/)[1]);const start=(page-1)*100;
+    return {total_count:534,workflow_runs:Array.from({length:Math.min(100,534-start)},(_,i)=>({id:start+i+1}))};};
+  const runs=workflowRuns(read,'runs?event=workflow_dispatch');
+  assert.equal(runs.length,534);
+  assert.equal(runs.at(-1).id,534);
+  const full=()=>({total_count:500,workflow_runs:Array.from({length:100},(_,i)=>({id:i+1}))});
+  assert.equal(workflowRuns(full,'runs',5).length,500);
+  assert.throws(()=>workflowRuns(()=>({total_count:534,workflow_runs:Array.from({length:100},(_,i)=>({id:i+1}))}),'runs',3),/incomplete/);
+  assert.throws(()=>workflowRuns(()=>({total_count:500,workflow_runs:Array.from({length:50},(_,i)=>({id:i+1}))}),'runs'),/before the counted total/);
+  assert.throws(()=>workflowRuns(()=>({total_count:'500',workflow_runs:[]}),'runs'),/count is unreadable/);
+  assert.throws(()=>workflowRuns(()=>({total_count:1,workflow_runs:Array.from({length:2},(_,i)=>({id:i+1}))}),'runs'),/count is unreadable/);
 });
 test('unrelated production artifacts cannot block or supply a required source', () => {
   const files = new Map([['migration-content-manifest.json',JSON.stringify({'20261022194647':'0'.repeat(64)})], ['production-catalog-verification.json',JSON.stringify({allowlist:['20261022194647']})]]);

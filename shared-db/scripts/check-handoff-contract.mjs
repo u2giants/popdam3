@@ -208,8 +208,9 @@ export function evaluate({ changed, existing, issueStates, closingIssues }) {
 export function parseClosingIssues(text) {
   const out = new Set();
   const re = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*#(\d+)/gi;
+  const prose = String(text ?? "").split(/\r?\n/).filter((line) => !/^\s*Posted by\b/.test(line)).join("\n");
   let m;
-  while ((m = re.exec(text ?? "")) !== null) out.add(Number(m[1]));
+  while ((m = re.exec(prose)) !== null) out.add(Number(m[1]));
   return [...out];
 }
 
