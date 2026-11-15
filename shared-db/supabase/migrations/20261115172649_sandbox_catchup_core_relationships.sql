@@ -90,7 +90,6 @@ create table if not exists core.property_franchise_source_edge (
   "created_by" text,
   "updated_by" text
 );
-alter table core.property_franchise_source_edge add constraint "assert_canonical_edge_still_supported" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table core.property_franchise_source_edge add constraint "property_franchise_source_edge_confidence_range" CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
 alter table core.property_franchise_source_edge add constraint "property_franchise_source_edge_direct_has_no_confidence" CHECK (((evidence_kind <> 'direct_source_assertion'::core.relationship_evidence_kind) OR ((confidence IS NULL) AND (observation_count = 0))));
 alter table core.property_franchise_source_edge add constraint "property_franchise_source_edge_observation_count_non_negative" CHECK ((observation_count >= 0));
@@ -107,7 +106,6 @@ CREATE INDEX IF NOT EXISTS property_franchise_source_edge_property_id_idx ON cor
 CREATE INDEX IF NOT EXISTS property_franchise_source_edge_source_retirement_idx ON core.property_franchise_source_edge USING btree (source_system, id) WHERE (is_current AND (evidence_kind = 'direct_source_assertion'::core.relationship_evidence_kind));
 alter table core.property_franchise_source_edge enable row level security;
 create policy "shared_read" on core.property_franchise_source_edge as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role, 'viewer'::app.app_role, 'vendor'::app.app_role]));
-CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_franchise_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_franchise', 'property_id', 'franchise_id');
 comment on table core.property_franchise_source_edge is 'Per-source support evidence for the property <-> franchise relationship (issue #2334). Supports the canonical bridge core.property_franchise, created alongside it. One row is one source system''s claim about one pair under one licensor. evidence_kind keeps direct, inferred and co-occurrence claims as DISTINCT facts that are never merged; only a current direct_source_assertion may support a canonical edge. Withdrawing a claim is supersession, never deletion, and deleting current support -- directly or by cascade -- is refused. Seeded empty: #2334 authorizes no licensed evidence.';
 create table if not exists core.property_character_source_edge (
   "id" uuid default gen_random_uuid() not null,
@@ -130,7 +128,6 @@ create table if not exists core.property_character_source_edge (
   "created_by" text,
   "updated_by" text
 );
-alter table core.property_character_source_edge add constraint "assert_canonical_edge_still_supported" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table core.property_character_source_edge add constraint "property_character_source_edge_confidence_range" CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
 alter table core.property_character_source_edge add constraint "property_character_source_edge_direct_has_no_confidence" CHECK (((evidence_kind <> 'direct_source_assertion'::core.relationship_evidence_kind) OR ((confidence IS NULL) AND (observation_count = 0))));
 alter table core.property_character_source_edge add constraint "property_character_source_edge_observation_count_non_negative" CHECK ((observation_count >= 0));
@@ -147,7 +144,6 @@ CREATE INDEX IF NOT EXISTS property_character_source_edge_property_id_idx ON cor
 CREATE INDEX IF NOT EXISTS property_character_source_edge_source_retirement_idx ON core.property_character_source_edge USING btree (source_system, id) WHERE (is_current AND (evidence_kind = 'direct_source_assertion'::core.relationship_evidence_kind));
 alter table core.property_character_source_edge enable row level security;
 create policy "shared_read" on core.property_character_source_edge as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role, 'viewer'::app.app_role, 'vendor'::app.app_role]));
-CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_character_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_character_associations', 'property_id', 'character_id');
 comment on table core.property_character_source_edge is 'Per-source support evidence for the property <-> character relationship (issue #2334). Supports core.property_character_associations, which already existed on main and is deliberately left unaltered. One row is one source system''s claim about one pair under one licensor. evidence_kind keeps direct, inferred and co-occurrence claims as DISTINCT facts that are never merged; only a current direct_source_assertion may support a canonical edge. Withdrawing a claim is supersession, never deletion, and deleting current support -- directly or by cascade -- is refused. Seeded empty: #2334 authorizes no licensed evidence.';
 create table if not exists core.property_site_path (
   "id" uuid default gen_random_uuid() not null,
@@ -210,7 +206,6 @@ create table if not exists core.property_style_guide_source_edge (
   "created_by" text,
   "updated_by" text
 );
-alter table core.property_style_guide_source_edge add constraint "assert_canonical_edge_still_supported" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table core.property_style_guide_source_edge add constraint "property_style_guide_source_edge_confidence_range" CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
 alter table core.property_style_guide_source_edge add constraint "property_style_guide_source_edge_direct_has_no_confidence" CHECK (((evidence_kind <> 'direct_source_assertion'::core.relationship_evidence_kind) OR ((confidence IS NULL) AND (observation_count = 0))));
 alter table core.property_style_guide_source_edge add constraint "property_style_guide_source_edge_observation_count_non_negative" CHECK ((observation_count >= 0));
@@ -227,7 +222,6 @@ CREATE INDEX IF NOT EXISTS property_style_guide_source_edge_source_retirement_id
 CREATE INDEX IF NOT EXISTS property_style_guide_source_edge_style_guide_id_idx ON core.property_style_guide_source_edge USING btree (style_guide_id);
 alter table core.property_style_guide_source_edge enable row level security;
 create policy "shared_read" on core.property_style_guide_source_edge as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role, 'viewer'::app.app_role, 'vendor'::app.app_role]));
-CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_style_guide_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_style_guide', 'property_id', 'style_guide_id');
 comment on table core.property_style_guide_source_edge is 'Per-source support evidence for the property <-> style guide relationship (issue #2334). Supports the canonical bridge core.property_style_guide, created alongside it. One row is one source system''s claim about one pair under one licensor. evidence_kind keeps direct, inferred and co-occurrence claims as DISTINCT facts that are never merged; only a current direct_source_assertion may support a canonical edge. Withdrawing a claim is supersession, never deletion, and deleting current support -- directly or by cascade -- is refused. Seeded empty: #2334 authorizes no licensed evidence.';
 create table if not exists core.style_guide_character_source_edge (
   "id" uuid default gen_random_uuid() not null,
@@ -250,7 +244,6 @@ create table if not exists core.style_guide_character_source_edge (
   "created_by" text,
   "updated_by" text
 );
-alter table core.style_guide_character_source_edge add constraint "assert_canonical_edge_still_supported" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table core.style_guide_character_source_edge add constraint "style_guide_character_source_edge_confidence_range" CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
 alter table core.style_guide_character_source_edge add constraint "style_guide_character_source_edge_direct_has_no_confidence" CHECK (((evidence_kind <> 'direct_source_assertion'::core.relationship_evidence_kind) OR ((confidence IS NULL) AND (observation_count = 0))));
 alter table core.style_guide_character_source_edge add constraint "style_guide_character_source_edge_observation_count_non_negativ" CHECK ((observation_count >= 0));
@@ -267,7 +260,6 @@ CREATE INDEX IF NOT EXISTS style_guide_character_source_edge_source_retirement_i
 CREATE INDEX IF NOT EXISTS style_guide_character_source_edge_style_guide_id_idx ON core.style_guide_character_source_edge USING btree (style_guide_id);
 alter table core.style_guide_character_source_edge enable row level security;
 create policy "shared_read" on core.style_guide_character_source_edge as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role, 'viewer'::app.app_role, 'vendor'::app.app_role]));
-CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.style_guide_character_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.style_guide_character', 'style_guide_id', 'character_id');
 comment on table core.style_guide_character_source_edge is 'Per-source support evidence for the style guide <-> character relationship (issue #2334). Supports core.style_guide_character, which already existed on main and is deliberately left unaltered. One row is one source system''s claim about one pair under one licensor. evidence_kind keeps direct, inferred and co-occurrence claims as DISTINCT facts that are never merged; only a current direct_source_assertion may support a canonical edge. Withdrawing a claim is supersession, never deletion, and deleting current support -- directly or by cascade -- is refused. Seeded empty: #2334 authorizes no licensed evidence.';
 create table if not exists core.factory_product_category (
   "factory_id" uuid not null,
@@ -964,3 +956,7 @@ CREATE TRIGGER require_matching_licensor BEFORE INSERT OR UPDATE ON core.style_g
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON core.style_guide_character_source_edge FOR EACH ROW EXECUTE FUNCTION app.set_updated_at();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON core.factory_rep FOR EACH ROW EXECUTE FUNCTION app.set_updated_at();
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON core.factory_vendor_login FOR EACH ROW EXECUTE FUNCTION app.set_updated_at();
+CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_franchise_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_franchise', 'property_id', 'franchise_id');
+CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_character_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_character_associations', 'property_id', 'character_id');
+CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.property_style_guide_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.property_style_guide', 'property_id', 'style_guide_id');
+CREATE CONSTRAINT TRIGGER assert_canonical_edge_still_supported AFTER DELETE OR UPDATE ON core.style_guide_character_source_edge DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION core.assert_canonical_edge_still_supported('core.style_guide_character', 'style_guide_id', 'character_id');
