@@ -8,6 +8,10 @@
 --   3. Brand-new customer rows still seed status from customers_status.
 --
 -- Run against preview after the migration is applied. Fixtures roll back.
+--
+-- NOTE: plm.import_master_data(jsonb,jsonb) was retired by #2794 and dropped
+-- by migration 20260917102139_remove_retired_designflow_plm_import.sql.
+-- When the function is absent this test skips gracefully (notice only).
 begin;
 
 do $$
@@ -21,6 +25,12 @@ declare
   v_new_id uuid;
   v_seen integer;
 begin
+  -- Skip if the function under test was dropped.
+  if to_regprocedure('plm.import_master_data(jsonb,jsonb)') is null then
+    raise notice 'SKIP: plm.import_master_data(jsonb,jsonb) was dropped by 20260917102139; contract no longer applies';
+    return;
+  end if;
+
   -- ------------------------------------------------------------------
   -- Fixture: curated inactive customer already linked to DesignFlow PLM.
   -- ------------------------------------------------------------------
