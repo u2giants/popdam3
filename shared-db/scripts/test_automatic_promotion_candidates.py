@@ -1822,3 +1822,37 @@ class AdversarialRunIdentity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProductionLedgerIsFinal(unittest.TestCase):
+    # #6352: changes already in the production ledger were retried for hours.
+    def test_a_change_already_in_the_ledger_is_skipped(self):
+        live_pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        later = {"number": 8, "merged_at": "2026-01-02", "versions": ["2"]}
+        with contextlib.redirect_stdout(io.StringIO()):
+            action, got, _ = m.decide([live_pr, later], [], lambda n: [], main_sha="d", live={"1"})
+        self.assertEqual((action, got["number"]), ("dispatch", 8))
+
+    def test_a_partly_live_change_still_promotes(self):
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1", "2"]}
+        action, got, _ = m.decide([pr], [], lambda n: [], main_sha="d", live={"1"})
+        self.assertEqual((action, got["number"]), ("dispatch", 7))
+
+    def test_no_ledger_keeps_the_old_behaviour(self):
+        pr = {"number": 7, "merged_at": "2026-01-01", "versions": ["1"]}
+        self.assertEqual(m.decide([pr], [], lambda n: [], main_sha="d", live=None)[1]["number"], 7)
+
+    def test_ledger_file_reading(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "l.json")
+            self.assertIsNone(m.production_ledger(p))
+            with open(p, "w") as fh:
+                fh.write('["20261029162652", 20261030042314]')
+            self.assertEqual(m.production_ledger(p), {"20261029162652", "20261030042314"})
+            with open(p, "w") as fh:
+                fh.write("[]")
+            self.assertIsNone(m.production_ledger(p))
+            with open(p, "w") as fh:
+                fh.write("not json")
+            self.assertIsNone(m.production_ledger(p))

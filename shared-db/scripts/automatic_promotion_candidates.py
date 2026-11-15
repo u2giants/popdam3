@@ -397,7 +397,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
            skipped: list[dict[str, Any]] | None = None,
            refused: callable = lambda run: set(),
            stale: callable = lambda run: False,
-           refunded: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
+           refunded: callable = lambda run: False,
+           live: set[str] | None = None) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
@@ -441,6 +442,12 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             dependency_receipts[key] = (actual_apply, already_applied)
         return dependency_receipts[key]
     for pr in prs:
+        # #6352: the production ledger is the final word. Versions already applied
+        # (by any route) are delivered; retrying them only burns attempts and
+        # fails "already applied on preview", parking every later change.
+        if live and pr.get("versions") and set(pr["versions"]) <= live:
+            print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in the production ledger")
+            continue
         tag = f"PR{pr['number']} "
         titles = [(r.get("display_title") or "") + " " for r in runs]
         prod = [r for t, r in zip(titles, runs) if t.startswith("DB production apply") and tag in t]
@@ -625,6 +632,22 @@ def recent_re_runs(runs: list[dict[str, Any]], now: datetime,
             and now - _time(r.get("updated_at") or r.get("created_at") or "1970-01-01T00:00:00Z") < timedelta(hours=24)]
 
 
+def production_ledger(path: str | None = None) -> set[str] | None:
+    """Applied production versions written by scripts/write-production-ledger.mjs,
+    or None when absent or unreadable (selector then relies on run evidence)."""
+    path = path or os.environ.get("PRODUCTION_LEDGER_FILE")
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            versions = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(versions, list) or not versions:
+        return None
+    return {str(v) for v in versions}
+
+
 def main(now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -634,11 +657,13 @@ def main(now: datetime | None = None) -> int:
     main_sha = gh(f"repos/{repo}/commits/main")["sha"]
     runs = workflow_runs(repo)
     skipped: list[dict[str, Any]] = []
+    live = production_ledger()
     action, pr, reason = decide(merged_migration_prs(repo), runs, lambda n: is_held(repo, n),
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run),
                                 stale=lambda run: stale_main_refusal_only(repo, run),
-                                refunded=lambda run: refund_eligible_in_any_attempt(repo, run))
+                                refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
+                                live=live)
     for entry in skipped:
         if entry.get("pending_dependencies"):
             refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
@@ -660,7 +685,8 @@ def main(now: datetime | None = None) -> int:
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
                                     stale=lambda run: stale_main_refusal_only(repo, run),
-                                    refunded=lambda run: refund_eligible_in_any_attempt(repo, run))
+                                    refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
+                                    live=live)
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
