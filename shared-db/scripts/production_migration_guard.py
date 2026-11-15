@@ -544,6 +544,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261115133715": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 2: ports the property submission-name functions and triggers of 20261113183820; production already holds them. Source excludes shared preview and production.",
+    },
     "20261115133704": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
