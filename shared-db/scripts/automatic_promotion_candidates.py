@@ -308,6 +308,11 @@ COORDINATION_STEPS = {
     # Another PR's qualification already holds the promotion freeze (#6258:
     # PR #6245 parked on three such refusals); retrying later is the cure.
     "Acquire the promotion merge freeze for this source PR",
+    # #6340 exit-path cleanup of the freeze. With continue-on-error their red
+    # conclusion can join the failing set of the run they clean up after (a
+    # refused acquire, whose freeze wording is the staleness proof).
+    "Release the promotion merge freeze when nothing was dispatched",
+    "Release the promotion merge freeze when this production run ends",
 }
 # Runtime wording of a staleness refusal. None of these phrases appears in the
 # workflow's echoed shell source (tests enforce it), so a match is the refusal

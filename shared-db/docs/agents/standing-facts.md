@@ -142,7 +142,10 @@ have already happened in this repo, more than once.
     Freeze-tolerant merges (production-inert paths, appended migrations/tests) merge through;
     a freeze recorded for its own source PR can be replaced by the same PR, and another PR's
     freeze is never touched. Merges resume automatically when the production run's cleanup
-    releases the freeze or its TTL expires. Pick a TTL that outlives the whole window (review
+    releases the freeze or its TTL expires. Since #6340 the freeze never outlives its holder
+    on a failure path: the qualification run releases it whenever it exits without dispatching
+    the production lane, and the production run releases it at run end even when the apply job
+    was skipped. Pick a TTL that outlives the whole window (review
     round plus production run); there is no renewal. Preview and production are never blocked
     by it. The production cleanup releases only a freeze recorded for its own source PR; a
     freeze filed under another PR waits for its owner or its TTL.

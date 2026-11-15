@@ -455,6 +455,55 @@ test('the qualification job acquires the promotion merge freeze before qualify-r
   assert.match(text.slice(release, text.indexOf('\n      - name:', release + 10)), /if: always\(\) && inputs\.source_pr != ''/)
 })
 
+// Issue #6340: a qualification run that failed AFTER acquiring the promotion
+// merge freeze and BEFORE dispatching the production lane left the freeze set
+// until its 45-minute TTL — refused twice into 2026-11-15 by the next change's
+// qualification. The run that acquires the freeze must release it on every
+// exit path that did not hand it off to a dispatched production run; the
+// dispatch step IS the hand-off, so the cleanup fires exactly when our own
+// acquire succeeded and the dispatch did not. The success path keeps the
+// dispatched run's own always() release.
+test('the qualification job releases its promotion freeze when it exits without dispatching', () => {
+  const text = readWorkflow('shared-supabase-migrations.yml')
+  const job = jobBlockByName(text, 'Automatic production qualification and dispatch')
+  assert.ok(job, 'the qualification job was not found in shared-supabase-migrations.yml')
+  const acquire = stepBlock(job, 'Acquire the promotion merge freeze for this source PR')
+  const dispatch = stepBlock(job, 'Dispatch the existing serial production lane')
+  assert.ok(dispatch, 'the dispatch step was not found in the qualification job')
+  assert.match(acquire, /^ {8}id: acquire_freeze$/m, 'the acquire step must carry the id the cleanup names')
+  assert.match(dispatch, /^ {8}id: dispatch_production$/m, 'the dispatch step must carry the id the cleanup names')
+  const cleanup = stepBlock(job, 'Release the promotion merge freeze when nothing was dispatched')
+  assert.ok(cleanup, 'the no-dispatch freeze release is missing from the qualification job')
+  assert.match(cleanup, /^ {8}if: always\(\) && steps\.acquire_freeze\.outcome == 'success' && steps\.dispatch_production\.outcome != 'success'$/m)
+  assert.match(cleanup, /continue-on-error: true/)
+  assert.match(cleanup, /SOURCE_PR: \$\{\{ steps\.source_guard\.outputs\.source_pr \|\| steps\.train_source_guard\.outputs\.source_pr \}\}/)
+  assert.match(cleanup, /--release-promotion-freeze --pr "\$SOURCE_PR"/)
+  assert.ok(job.indexOf(cleanup) > job.indexOf(dispatch), 'the release must follow the dispatch attempt')
+  // Only this run's own acquire is released, keyed by its source PR.
+  assert.ok(!cleanup.includes('--owner'), 'the cleanup must release by source PR, never by owner text')
+})
+
+// Issue #6340, second exit path: production-apply's always() release never
+// runs when that job is SKIPPED — a skipped job runs no steps at all (seen
+// 2026-11-15 07:44 UTC, PR #6246: production-apply-review failed and the
+// freeze outlived the run). The notify job is the only job that runs after
+// every other job on every outcome, so the production run ends its freeze
+// there as a run-end backstop.
+test('the production run ends its promotion freeze even when the apply job is skipped', () => {
+  const text = readWorkflow('shared-supabase-migrations.yml')
+  const job = jobBlockByName(text, 'Nudge the production queue')
+  assert.ok(job, 'the notify job was not found in shared-supabase-migrations.yml')
+  const backstop = stepBlock(job, 'Release the promotion merge freeze when this production run ends')
+  assert.ok(backstop, 'the run-end freeze release is missing from the notify job')
+  assert.match(backstop, /^ {8}if: always\(\) && inputs\.target == 'production' && inputs\.mode == 'apply' && inputs\.source_pr != ''$/m)
+  assert.match(backstop, /continue-on-error: true/)
+  assert.match(backstop, /SOURCE_PR: \$\{\{ inputs\.source_pr \}\}/)
+  assert.match(backstop, /--release-promotion-freeze --pr "\$SOURCE_PR"/)
+  // A preview run that dispatched production must NOT release at its own end:
+  // the freeze has to outlive that run until the production apply finishes.
+  assert.ok(!backstop.includes('merged_preview_source_pr'), 'the backstop must never key a preview run\'s own source PR')
+})
+
 // #5937 behavior 2 / review finding #5958 Finding 1. The freeze check in
 // merge-queue-gate.yml is advisory — that gate is not a required context (lean
 // required checks, 2026-10-30), so a refusal there never stopped a group from
