@@ -55,7 +55,7 @@ end $$;
 -- 2. Data-dependent assertions (run when test data exists)
 -- ============================================================
 
--- Single film: 3FZ27DYLS01 (Stitch art only) -> LS, basis single_film
+-- Single film: 3FZ27DYNX01 (Nightmare Before Christmas, exact confidence) -> NX
 do $$
 declare
   v_count integer;
@@ -64,10 +64,10 @@ declare
 begin
   select count(*), min(mg_code), min(basis)
     into v_count, v_code, v_basis
-  from plm.suggested_property_for_sku('3FZ27DYLS01');
+  from plm.suggested_property_for_sku('3FZ27DYNX01');
   if v_count > 0 then
     assert v_count = 1, 'single-film SKU must return exactly 1 suggestion, got ' || v_count;
-    assert v_code = 'LS', 'must suggest LS, got ' || coalesce(v_code,'null');
+    assert v_code = 'NX', 'must suggest NX, got ' || coalesce(v_code,'null');
     assert v_basis = 'single_film', 'basis must be single_film, got ' || coalesce(v_basis,'null');
   end if;
 end $$;
