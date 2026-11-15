@@ -544,6 +544,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261115163358": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 5: ports licensing consolidation and Disney OPA capture tables, functions and triggers from production. Production already holds them; source excludes shared preview and production.",
+    },
     "20261115160800": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
