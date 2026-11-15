@@ -57,6 +57,7 @@ read-when: a citation says AGENTS.md §6.x or owner-rulings.md and you need to f
 | [6.37](owner-rulings-part-4.md#637-owner-ruling--coreproperty-is-coldlions-property-list-filled-daily-from-the-landing-albert-hazan-2026-11-12) | OWNER RULING — core.property is ColdLion's Property list, filled daily from the landing (Albert Hazan, 2026-11-12) |
 | [6.38](owner-rulings-part-4.md#638-owner-ruling--mickey-mouse-minnie--me-and-standard-characters-are-separate-properties-x-men-is-x-men-classic-albert-hazan-2026-11-13) | OWNER RULING — Mickey only → Mickey Mouse; Minnie only → Minnie & Me; Mickey + anyone → Standard Characters; X-Men is X-Men Classic (Albert Hazan, 2026-11-13) |
 | [6.39](owner-rulings-part-4.md#639-owner-ruling--no-coldlion-property-values-are-inactivated-now-ilona-and-laura-decide-later-albert-hazan-2026-11-13) | OWNER RULING — No ColdLion Property values are inactivated now; Ilona and Laura decide later (Albert Hazan, 2026-11-13) |
+| [6.40](owner-rulings-part-4.md#640-owner-ruling--the-one-property-x-men-half-of-638-is-dropped-the-submissions-site-scrape-wins-albert-hazan-2026-11-14) | OWNER RULING — the one-property X-Men half of 6.38 is dropped; the submissions site scrape wins (Albert Hazan, 2026-11-14) |
 
 ---
 

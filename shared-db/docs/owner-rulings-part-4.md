@@ -137,7 +137,7 @@ Verbatim Albert, 2026-11-13 2:19 PM EST, answering whether Disney OPA "Mickey Mo
 **Effect.**
 - **Mickey only → "Mickey Mouse"; Minnie only → "Minnie & Me"; Mickey plus anyone else → "Standard Characters".** Mickey Mouse and Minnie & Me sit under "Mickey Mouse Family". These are three separate properties; never merge them or link one to another's OPA property.
 - POP's `core.property` MM "Standard Characters" (nickname "Mickey Group") links to OPA 361, not OPA 372 (corrected in migration `20261113183820`, shared-db#6269).
-- X-Men (OPA 640) and X-Men Classic are one property: POP's XM row keeps its OPA link.
+- X-Men (OPA 640) and X-Men Classic are one property: POP's XM row keeps its OPA link. **Superseded for X-Men by 6.40 (2026-11-14) — see there; the submissions site scrape wins.**
 - Do not re-ask. Applies to the #2541 placement repair on shared-db#6209.
 
 ### 6.39 OWNER RULING — No ColdLion Property values are inactivated now; Ilona and Laura decide later (Albert Hazan, 2026-11-13)
@@ -151,3 +151,16 @@ Verbatim Albert, 2026-11-13 4:01 PM EST, after a draft sheet for Jamielynn propo
 - Whether a property should be turned off is Ilona's and Laura's (Licensing) call. Revisit no earlier than about 2027-02-13, and only if Albert or Licensing raises it.
 - A property's use is judged by its items in ColdLion, never by licensor-submission counts (a new license such as STEAL A BRAINROT can have items but no submissions yet).
 - Style moves between existing properties are unaffected.
+
+### 6.40 OWNER RULING — the one-property X-Men half of 6.38 is dropped; the submissions site scrape wins (Albert Hazan, 2026-11-14)
+
+Verbatim Albert, 2026-11-14, after being shown that the OPA submissions site scrape lists OPA 640 "X-Men" and OPA 1107 "X-Men Classic" as separate entries (separate licensedPropertyIDs and brandPropertyIDs), and being asked whether to treat OPA 640 as an alias of OPA 1107:
+
+> "if it contradicts the submission site scrape drop my one-property X-Men ruling"
+> "ask GitHub Support to delete the 15 dead runs"
+
+**Effect.**
+- The submissions site scrape is the identity source of truth. It lists OPA 640 and OPA 1107 as separate properties, so they ARE separate shared properties — the one-property X-Men half of 6.38 is dropped. The Mickey half of 6.38 (Mickey Mouse, Minnie & Me and Standard Characters are three separate properties) stands unchanged; the scrape agrees with it.
+- Each OPA entry keeps its exact site spelling as its licensor-submission name. Never rename a shared `core.property` row to a different OPA entry's name (that is the error 20261113041225 made).
+- The #2541 placement repair on shared-db#6209 creates the missing records and re-points the links accordingly (migration `20261115041745`).
+- Also authorized 2026-11-14: file the GitHub Support request to purge the 15 GitHub-locked ghost workflow runs from the 2026-11-11 wedge (issue #6215).
