@@ -64,6 +64,31 @@ begin
     raise exception 'second run not idempotent: %', v_res;
   end if;
   if (select count(*) from plm.coldlion_property_sync_run where applied) < 2 then raise exception 'runs not logged'; end if;
+
+  -- Skipped active value raises ONE visible alert naming the code and the reason (three runs, one alert).
+  if (select count(*) from plm.taxonomy_sync_alert
+       where source_name = 'coldlion_core_property_sync' and acknowledged_at is null
+         and payload->'codes' = jsonb_build_array('Z'||v_s)) <> 1 then
+    raise exception 'skipped value did not raise exactly one alert';
+  end if;
+  if not exists (select 1 from plm.taxonomy_sync_alert where source_name = 'coldlion_core_property_sync'
+                  and reason like 'unresolved_licensor:%' and reason like '%Z'||v_s||'%' and severity = 'warning') then
+    raise exception 'alert does not name the code and reason';
+  end if;
+  -- Once acknowledged, a later run with the same skip alerts again.
+  update plm.taxonomy_sync_alert set acknowledged_at = now(), acknowledged_by = '6194-contract'
+   where source_name = 'coldlion_core_property_sync' and payload->'codes' = jsonb_build_array('Z'||v_s);
+  perform plm.sync_core_property_from_coldlion(false);
+  if (select count(*) from plm.taxonomy_sync_alert where source_name = 'coldlion_core_property_sync'
+       and acknowledged_at is null and payload->'codes' = jsonb_build_array('Z'||v_s)) <> 1 then
+    raise exception 'acknowledged alert was not re-raised';
+  end if;
+  -- An inactive skipped value alone raises nothing.
+  insert into plm.coldlion_property_sync_run(applied, counts, skipped)
+  values (false, '{}'::jsonb, jsonb_build_array(jsonb_build_object('code','Y'||v_s,'name','x','active',false)));
+  if exists (select 1 from plm.taxonomy_sync_alert where payload->'codes' ? ('Y'||v_s)) then
+    raise exception 'inactive skipped value raised an alert';
+  end if;
 end;
 $$;
 
