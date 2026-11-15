@@ -1,5 +1,5 @@
 ---
-summary: "Per-step matview refresh timings measured on preview 2026-11-13: file_groups 2.251 s, folders 0.325 s, search 0.020 s (empty queue), all 2.686 s; search-step loaded cost remains an explicit boundary"
+summary: "Per-step matview timings on preview 2026-11-13: file_groups 2.251 s, folders 0.325 s, search 0.020 s (empty queue), all 2.686 s; loaded search cost stays open"
 kind: proof
 status: done
 read-when: checking the per-step split of public.refresh_style_guide_matviews(p_run_id, p_search_batch_size, p_step) or Step 3 residual unknowns in plan_database_efficiency_and_api_security.md
