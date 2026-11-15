@@ -43,7 +43,7 @@
       "packages/path-filters/index.ts:89-100 (last segment exempt from folder rules; only '.' hidden-file rule)",
       "supabase/functions/_shared/path-filters.ts:102-115 (parts.slice(0, -1))",
       "src/test/path-filters-skip.test.ts:5-8",
-      "supabase/functions/_shared/path-filters.test.ts ('is not apply directory rules to the filename segment')"
+      "supabase/functions/_shared/path-filters.test.ts ('should not apply directory rules to the filename segment')"
     ],
     "observation_window": "~6:38 PM EST 2026-11-15 auto-scan (AUTO_SCAN_CONFIG 2h; bridge restarted 4:38 PM EST)",
     "handoff": "8:33 PM EST 2026-11-15 scheduled one-shot check (named on #469); then clean up fixtures"

@@ -48,7 +48,7 @@ edge ingest gate `isExcludedRelativePath` no longer applies the directory
 blocklist to the filename segment (`supabase/functions/_shared/path-filters.ts:102-115`
 checks `parts.slice(0, -1)` only). Unit tests already pin both
 (`src/test/path-filters-skip.test.ts:5-8`, `supabase/functions/_shared/path-filters.test.ts`
-"is not apply directory rules to the filename segment").
+"should not apply directory rules to the filename segment").
 
 **Live proof target:** after the ~6:38 PM EST auto-scan, `#469probe.psd`,
 `$469probe.psd` and `@469probe.psd` exist as their own `assets` rows, and
