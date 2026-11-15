@@ -544,6 +544,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261115172649": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 7: Ports core franchise, canonical edge and factory tables, current-state views and guard functions from production. Production already holds them; source excludes shared preview and production.",
+    },
     "20261115163555": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
