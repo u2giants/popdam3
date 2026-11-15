@@ -6126,8 +6126,6 @@ not exists (
 )
 """
 
-if __name__ == "__main__":
-    raise SystemExit(main())
 
 
 
@@ -6146,3 +6144,7 @@ CATALOG_CONTRACTS["core_mg_category_merch_group_fk_dflow_prod_v1"] = (
     " and (select count(*) from pg_constraint where conrelid=to_regclass('core.mg_category_merch_group') and contype='f'"
     " and conname='mg_category_merch_group_merch_group_mg_id_fkey')=1"
 )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

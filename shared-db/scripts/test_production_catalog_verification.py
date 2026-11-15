@@ -4187,5 +4187,29 @@ class CatalogChangeTypes(unittest.TestCase):
             path.unlink()
 
 
+class ScriptEntryPointOrderTests(unittest.TestCase):
+    """Run 43683000460 (2026-11-15): a contract registered below the
+    `if __name__ == "__main__"` block is invisible when CI runs the file as a
+    script, so production verification refused a live, correct change."""
+
+    def test_every_sidecar_contract_is_registered_when_run_as_a_script(self):
+        import runpy
+        script = Path(__file__).resolve().parent / "production_catalog_verification.py"
+        with mock.patch.object(sys, "argv", [str(script), "--help"]), \
+                mock.patch("sys.stdout", new_callable=io.StringIO), \
+                self.assertRaises(SystemExit):
+            runpy.run_path(str(script), run_name="__main__")
+        source = script.read_text(encoding="utf-8")
+        tail = source[source.rindex('if __name__ == "__main__":'):]
+        self.assertEqual(tail.strip(), 'if __name__ == "__main__":\n    raise SystemExit(main())')
+        sidecars = Path(__file__).resolve().parent / "production-verification-sidecars"
+        names = {c["contract"] for f in sidecars.glob("*.json")
+                 for c in json.loads(f.read_text(encoding="utf-8")).get("checks", [])
+                 if c.get("kind") == "catalog_contract"}
+        import production_catalog_verification as module
+        self.assertIn("core_mg_category_merch_group_fk_dflow_prod_v1", names)
+        self.assertEqual(sorted(names - set(module.CATALOG_CONTRACTS)), [])
+
+
 if __name__ == "__main__":
     unittest.main()
