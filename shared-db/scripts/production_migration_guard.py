@@ -87,9 +87,11 @@ HARD_BLOCKED = {
     # #5932 stranded-recovery: stranded-already-on-preview; reissued as
     # 20261113160920 with byte-identical executable SQL.
     "20261101125528",
-    # #2541: failed its production post-condition three times (ColdLion feed
-    # renamed two coded rows); superseded by 20261113203533.
-    "20261112225250",
+    # UNBLOCKED 2026-11-15 (issue #6209, owner goal: deliver 20261112225250
+    # itself to production). The block's reason was the wrong taxonomy links:
+    # with 20261115041745 applied (live 2026-11-15) every one of the 528 chains
+    # name-matches, so this file's rename branch is inert and its post-condition
+    # passes 528/528. Verified read-only against the production ledger.
     # #2541: PR #6227 fix-forward would rename ColdLion-curated rows back to OPA
     # labels; superseded by 20261113203533.
     "20261113041225",
@@ -416,7 +418,6 @@ HARD_BLOCKED = {
 RETIRED_VERSION_REASONS = {
     "20261113203533": "#2541: never applied; review finding #6291 showed it would keep OPA 372 Mickey Mouse linked to the MM Standard Characters row, against owner ruling 6.38. Superseded by 20261115015656. Never apply this original.",
     "20261113041225": "#2541: PR #6227 fix-forward renames ColdLion-coded rows (MM Standard Characters, X-Men Classic) back to OPA labels, against owner rulings 6.3/6.36 (ColdLion MG06 names are curated); failed promotion 3x. Superseded by 20261113203533, which links coded rows without renaming. Never apply this original.",
-    "20261112225250": "#2541: failed production post-condition 527/528 three times (runs 43360874152, 43362398485) because the #6206 ColdLion feed renamed coded rows it would rename back. Superseded by 20261113203533, which never renames a ColdLion-coded row. Never apply this original.",
     "20261113162637": "#6261 review-fix (issue #5932): wrong derived-from base — 20260825124200 does not define replace_asset_ai_tag_result; real last replacer is 20260825165139 (review-finding #6261). Preview-only (applied on preview run 43477670482). Corrected replacement 20261115022307 has derived-from: 20260825165139. Never apply this version.",
     "20261101212654": "#6261 review-fix (issue #5932): duplicate owner of replace_asset_ai_tag_result; this file still create-or-replaces the function and conflicts with the surviving replacement 20261115022307. Never apply this version.",
     "20261030125352": "#5932 stranded-recovery (Muse ruling stranded-recovery-ruling-20261113): merged-stranded (PR #5129, preview run 41163382391 at d04252b3 vs merge b4fa655a; production gate refuses evidence per issue #679 class). Superseded by applied reissue 20261031031837 which carries byte-identical SQL body below the derivation line (issue #5128 claim #5209). Never apply this original; the live replacement owns the objects.",
