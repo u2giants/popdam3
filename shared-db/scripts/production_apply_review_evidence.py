@@ -15,6 +15,7 @@ try:  # run as scripts/<name>.py or imported as scripts.<name>
 except ImportError:  # pragma: no cover
     from scripts.repository_identity import current_repository
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Callable
@@ -79,15 +80,25 @@ def canonical_json(data: dict[str, Any]) -> str:
 
 
 def gh_json(endpoint: str) -> Any:
-    completed = subprocess.run(
-        ["gh", "api", endpoint],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-    )
-    return json.loads(completed.stdout)
+    # Read-only. A single transient GitHub API error rejected valid evidence and
+    # failed production apply run 43509901476 (2026-11-13); retry a bounded
+    # number of times before failing closed.
+    for attempt in range(3):
+        try:
+            completed = subprocess.run(
+                ["gh", "api", endpoint],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+            )
+            return json.loads(completed.stdout)
+        except subprocess.CalledProcessError:
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
+    raise AssertionError("unreachable")
 
 
 def download_artifact_zip(artifact_id: int, destination: Path) -> None:
