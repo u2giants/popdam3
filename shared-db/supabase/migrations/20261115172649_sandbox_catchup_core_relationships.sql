@@ -4,6 +4,18 @@
 
 set check_function_bodies = off;
 
+-- core.property_character_associations and core.style_guide_character already exist on the sandbox without the lifecycle columns production has.
+-- The two enforcement triggers (lock_relationship_pair, require_direct_support) are deferred: the sandbox has no
+-- support-edge rows yet, so require_direct_support would reject sandbox writes. Tracked on #6356.
+alter table core.property_character_associations add column if not exists is_current boolean default true not null;
+alter table core.property_character_associations add column if not exists retired_at timestamp with time zone;
+alter table core.property_character_associations add column if not exists retired_reason text;
+alter table core.property_character_associations add constraint property_character_associations_lifecycle_chk CHECK (((is_current AND (retired_at IS NULL) AND (retired_reason IS NULL)) OR ((NOT is_current) AND (retired_at IS NOT NULL) AND (NULLIF(btrim(retired_reason), ''::text) IS NOT NULL))));
+alter table core.style_guide_character add column if not exists is_current boolean default true not null;
+alter table core.style_guide_character add column if not exists retired_at timestamp with time zone;
+alter table core.style_guide_character add column if not exists retired_reason text;
+alter table core.style_guide_character add constraint style_guide_character_lifecycle_chk CHECK (((is_current AND (retired_at IS NULL) AND (retired_reason IS NULL)) OR ((NOT is_current) AND (retired_at IS NOT NULL) AND (NULLIF(btrim(retired_reason), ''::text) IS NOT NULL))));
+
 create table if not exists core.franchise (
   "id" uuid default gen_random_uuid() not null,
   "licensor_id" uuid not null,
