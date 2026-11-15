@@ -226,65 +226,65 @@ $function$
 ;
 revoke all on function plm.load_pmt_trackerplus_submission_capture_chunk(p_capture_id uuid, p_chunk_index integer, p_rows jsonb) from public, anon, authenticated;
 grant execute on function plm.load_pmt_trackerplus_submission_capture_chunk(p_capture_id uuid, p_chunk_index integer, p_rows jsonb) to service_role;
-create table if not exists plm."pmt_trackerplus_submission_capture" (
-  "id" uuid not null,
-  "capture_key" text not null,
-  "source_repository" text not null,
-  "source_commit_sha" text not null,
-  "source_manifest_sha256" text not null,
-  "source_captured_at" timestamp with time zone not null,
-  "load_started_at" timestamp with time zone default now() not null,
-  "load_completed_at" timestamp with time zone,
-  "status" text default 'loading'::text not null,
-  "expected_property_count" integer not null,
-  "expected_property_manifest_sha256" text not null,
-  "observed_property_count" integer default 0 not null,
-  "observed_property_manifest_sha256" text,
-  "chunk_ledger" jsonb default '{}'::jsonb not null,
-  "errors" jsonb default '[]'::jsonb not null,
-  "created_by" text not null
+create table if not exists plm.pmt_trackerplus_submission_capture (
+  id uuid not null,
+  capture_key text not null,
+  source_repository text not null,
+  source_commit_sha text not null,
+  source_manifest_sha256 text not null,
+  source_captured_at timestamp with time zone not null,
+  load_started_at timestamp with time zone default now() not null,
+  load_completed_at timestamp with time zone,
+  status text default 'loading'::text not null,
+  expected_property_count integer not null,
+  expected_property_manifest_sha256 text not null,
+  observed_property_count integer default 0 not null,
+  observed_property_manifest_sha256 text,
+  chunk_ledger jsonb default '{}'::jsonb not null,
+  errors jsonb default '[]'::jsonb not null,
+  created_by text not null
 );
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_c_expected_property_manifest_s_check" CHECK ((expected_property_manifest_sha256 ~ '^[0-9a-f]{64}$'::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_c_observed_property_manifest_s_check" CHECK (((observed_property_manifest_sha256 IS NULL) OR (observed_property_manifest_sha256 ~ '^[0-9a-f]{64}$'::text)));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_captur_expected_property_count_check" CHECK ((expected_property_count >= 0));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_captur_observed_property_count_check" CHECK ((observed_property_count >= 0));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_capture_key_check" CHECK ((btrim(capture_key) <> ''::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_capture_key_key" UNIQUE (capture_key);
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_chunk_ledger_check" CHECK ((jsonb_typeof(chunk_ledger) = 'object'::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_complete_requirements_chk" CHECK (((status <> 'complete'::text) OR ((observed_property_count = expected_property_count) AND (observed_property_manifest_sha256 IS NOT NULL) AND (observed_property_manifest_sha256 = expected_property_manifest_sha256) AND (jsonb_array_length(errors) = 0))));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_complete_time_chk" CHECK (((status = 'complete'::text) = (load_completed_at IS NOT NULL)));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_created_by_check" CHECK ((btrim(created_by) <> ''::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_errors_check" CHECK ((jsonb_typeof(errors) = 'array'::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_pkey" PRIMARY KEY (id);
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_source_commit_sha_check" CHECK ((source_commit_sha ~ '^[0-9a-f]{40}$'::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_source_manifest_sha256_check" CHECK ((source_manifest_sha256 ~ '^[0-9a-f]{64}$'::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_source_repository_check" CHECK ((btrim(source_repository) <> ''::text));
-alter table plm."pmt_trackerplus_submission_capture" add constraint "pmt_trackerplus_submission_capture_status_check" CHECK ((status = ANY (ARRAY['loading'::text, 'complete'::text, 'rejected'::text])));
-alter table plm."pmt_trackerplus_submission_capture" enable row level security;
-create policy "pmt_trackerplus_submission_capture_staff_read" on plm."pmt_trackerplus_submission_capture" as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role]));
-comment on table plm."pmt_trackerplus_submission_capture" is 'Append-only Paramount TrackerPlus submission-vocabulary capture root. A capture is complete only when its observed property count and observed exact-label manifest hash match the expected values declared before loading and no error was recorded. Private source commit, manifest hash and capture time stay in this landing schema and are never exposed through api.';
-create table if not exists plm."pmt_trackerplus_submission_property" (
-  "capture_id" uuid not null,
-  "property_local_key" text not null,
-  "exact_label" text not null,
-  "identity_method" text default 'exact-label-sha256'::text not null,
-  "ordinal" integer not null,
-  "source_field" text not null,
-  "raw" jsonb not null
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_c_expected_property_manifest_s_check" CHECK ((expected_property_manifest_sha256 ~ '^[0-9a-f]{64}$'::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_c_observed_property_manifest_s_check" CHECK (((observed_property_manifest_sha256 IS NULL) OR (observed_property_manifest_sha256 ~ '^[0-9a-f]{64}$'::text)));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_captur_expected_property_count_check" CHECK ((expected_property_count >= 0));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_captur_observed_property_count_check" CHECK ((observed_property_count >= 0));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_capture_key_check" CHECK ((btrim(capture_key) <> ''::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_capture_key_key" UNIQUE (capture_key);
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_chunk_ledger_check" CHECK ((jsonb_typeof(chunk_ledger) = 'object'::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_complete_requirements_chk" CHECK (((status <> 'complete'::text) OR ((observed_property_count = expected_property_count) AND (observed_property_manifest_sha256 IS NOT NULL) AND (observed_property_manifest_sha256 = expected_property_manifest_sha256) AND (jsonb_array_length(errors) = 0))));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_complete_time_chk" CHECK (((status = 'complete'::text) = (load_completed_at IS NOT NULL)));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_created_by_check" CHECK ((btrim(created_by) <> ''::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_errors_check" CHECK ((jsonb_typeof(errors) = 'array'::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_pkey" PRIMARY KEY (id);
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_source_commit_sha_check" CHECK ((source_commit_sha ~ '^[0-9a-f]{40}$'::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_source_manifest_sha256_check" CHECK ((source_manifest_sha256 ~ '^[0-9a-f]{64}$'::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_source_repository_check" CHECK ((btrim(source_repository) <> ''::text));
+alter table plm.pmt_trackerplus_submission_capture add constraint "pmt_trackerplus_submission_capture_status_check" CHECK ((status = ANY (ARRAY['loading'::text, 'complete'::text, 'rejected'::text])));
+alter table plm.pmt_trackerplus_submission_capture enable row level security;
+create policy "pmt_trackerplus_submission_capture_staff_read" on plm.pmt_trackerplus_submission_capture as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role]));
+comment on table plm.pmt_trackerplus_submission_capture is 'Append-only Paramount TrackerPlus submission-vocabulary capture root. A capture is complete only when its observed property count and observed exact-label manifest hash match the expected values declared before loading and no error was recorded. Private source commit, manifest hash and capture time stay in this landing schema and are never exposed through api.';
+create table if not exists plm.pmt_trackerplus_submission_property (
+  capture_id uuid not null,
+  property_local_key text not null,
+  exact_label text not null,
+  identity_method text default 'exact-label-sha256'::text not null,
+  ordinal integer not null,
+  source_field text not null,
+  raw jsonb not null
 );
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_exact_label_check" CHECK ((btrim(exact_label) <> ''::text));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_identity_method_check" CHECK ((identity_method = 'exact-label-sha256'::text));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_local_key_chk" CHECK ((property_local_key = encode(sha256(convert_to(exact_label, 'UTF8'::name)), 'hex'::text)));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_no_source_id_chk" CHECK (((NOT (raw ? 'property_source_id'::text)) AND (NOT (raw ? 'source_id'::text)) AND (NOT (raw ? 'portal_record_id'::text))));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_ordinal_check" CHECK ((ordinal >= 0));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_ordinal_uq" UNIQUE (capture_id, ordinal);
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_pkey" PRIMARY KEY (capture_id, property_local_key);
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_property_local_key_check" CHECK ((property_local_key ~ '^[0-9a-f]{64}$'::text));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_raw_check" CHECK ((jsonb_typeof(raw) = 'object'::text));
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_source_field_check" CHECK ((btrim(source_field) <> ''::text));
-alter table plm."pmt_trackerplus_submission_property" enable row level security;
-create policy "pmt_trackerplus_submission_property_staff_read" on plm."pmt_trackerplus_submission_property" as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role]));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_exact_label_check" CHECK ((btrim(exact_label) <> ''::text));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_identity_method_check" CHECK ((identity_method = 'exact-label-sha256'::text));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_local_key_chk" CHECK ((property_local_key = encode(sha256(convert_to(exact_label, 'UTF8'::name)), 'hex'::text)));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_no_source_id_chk" CHECK (((NOT (raw ? 'property_source_id'::text)) AND (NOT (raw ? 'source_id'::text)) AND (NOT (raw ? 'portal_record_id'::text))));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_ordinal_check" CHECK ((ordinal >= 0));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_ordinal_uq" UNIQUE (capture_id, ordinal);
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_pkey" PRIMARY KEY (capture_id, property_local_key);
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_property_local_key_check" CHECK ((property_local_key ~ '^[0-9a-f]{64}$'::text));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_raw_check" CHECK ((jsonb_typeof(raw) = 'object'::text));
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_source_field_check" CHECK ((btrim(source_field) <> ''::text));
+alter table plm.pmt_trackerplus_submission_property enable row level security;
+create policy "pmt_trackerplus_submission_property_staff_read" on plm.pmt_trackerplus_submission_property as permissive for select to authenticated using (app.has_any_role(ARRAY['administrator'::app.app_role, 'sales'::app.app_role, 'licensing'::app.app_role, 'designer'::app.app_role]));
 -- trigger trackerplus_property_refresh_submission_name is created by 20261113183820-equivalent follow-up batch
-comment on table plm."pmt_trackerplus_submission_property" is 'Paramount TrackerPlus submission Property vocabulary for one capture. property_local_key is the deterministic SHA-256 of the exact UTF-8 label (identity_method exact-label-sha256) because the authenticated submission picker exposes no stable portal record ID. It is a source-local key only: it is never a Paramount source ID, is never resolved against plm.pmt_property, and no fabricated portal identifier may be stored on these rows.';
-alter table plm."pmt_trackerplus_submission_property" add constraint "pmt_trackerplus_submission_property_capture_id_fkey" FOREIGN KEY (capture_id) REFERENCES plm.pmt_trackerplus_submission_capture(id);
+comment on table plm.pmt_trackerplus_submission_property is 'Paramount TrackerPlus submission Property vocabulary for one capture. property_local_key is the deterministic SHA-256 of the exact UTF-8 label (identity_method exact-label-sha256) because the authenticated submission picker exposes no stable portal record ID. It is a source-local key only: it is never a Paramount source ID, is never resolved against plm.pmt_property, and no fabricated portal identifier may be stored on these rows.';
+alter table plm.pmt_trackerplus_submission_property add constraint "pmt_trackerplus_submission_property_capture_id_fkey" FOREIGN KEY (capture_id) REFERENCES plm.pmt_trackerplus_submission_capture(id);
 
