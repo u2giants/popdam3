@@ -1856,3 +1856,31 @@ class ProductionLedgerIsFinal(unittest.TestCase):
             with open(p, "w") as fh:
                 fh.write("not json")
             self.assertIsNone(m.production_ledger(p))
+
+
+class DispatchUsesFreshMain(unittest.TestCase):
+    def test_dispatch_rereads_main_after_selection_and_freeze(self):
+        pr = {"number": 6368, "merged_at": "2026-11-15T17:23:00Z", "versions": ["20261115172333"], "stale_streak": 9}
+        shas = iter(["old", "new"])
+        saved = (m.gh, m.decide, m.workflow_runs, m.production_ledger, m.merged_migration_prs,
+                 m.backstop_freeze, m.dispatch, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
+        calls = []
+        m.gh = lambda path: {"sha": next(shas)}
+        m.decide = lambda *a, **k: ("dispatch", pr, "ok")
+        m.workflow_runs = lambda repo: []
+        m.production_ledger = lambda: None
+        m.merged_migration_prs = lambda repo: [pr]
+        m.backstop_freeze = lambda p: calls.append("freeze")
+        m.dispatch = lambda repo, p, sha: calls.append(sha)
+        sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x"], "o/r"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(m.main(datetime(2026, 11, 15, 22, 0, tzinfo=timezone.utc)), 0)
+            self.assertEqual(calls, ["freeze", "new"])
+        finally:
+            (m.gh, m.decide, m.workflow_runs, m.production_ledger, m.merged_migration_prs,
+             m.backstop_freeze, m.dispatch, sys.argv) = saved[:8]
+            if saved[8] is None:
+                os.environ.pop("GITHUB_REPOSITORY", None)
+            else:
+                os.environ["GITHUB_REPOSITORY"] = saved[8]

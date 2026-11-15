@@ -697,6 +697,11 @@ def main(now: datetime | None = None) -> int:
     if action == "dispatch" and not args.dry_run:
         if pr.get("stale_streak", 0) >= BACKSTOP_AFTER_STALE:
             backstop_freeze(pr)
+        # Selection takes minutes and main can move meanwhile; dispatching the
+        # SHA read at start makes the preview refuse ("requires the exact current
+        # main SHA"), re-arming the backstop freeze forever. Re-read main now,
+        # after the freeze (when set) stops further movement.
+        main_sha = gh(f"repos/{repo}/commits/main")["sha"]
         dispatch(repo, pr, main_sha)
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
