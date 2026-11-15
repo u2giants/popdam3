@@ -77,12 +77,32 @@ Reversible: the restored copy can be deleted; it is the same probe class as Nov 
   own asset (same step-4 class as the Nov 11 record). No scan was forced from this
   session — no verification record establishes scan-triggering as a probe class.
 
-## 4. Still open on issue #229
+## 4. Negative probe — fixture traversal jobs reported failed (added 5:00 PM EST)
 
-- Negative probe (a job with `..`/absolute `relative_path` reported failed on the live
-  agents, non-production fixture) — not done; creating such a job needs a fixture
-  job-row write outside established probe classes. Packaged-code fixture rejection proof
-  already exists (issue comment 2026-10-11).
+Coordinator-authorized fixture jobs on the bridge's snapshot-restore job surface (the
+same single-slot request class as section 2; the API-side validator was bypassed on
+purpose so the job reaches the agent). No filesystem access happens either time —
+`assertSafeRelativePath` throws before any fs call. Both requests were consumed and
+closed by the agent within one heartbeat.
+
+1. Request `f4521351-a8db-4de0-adbb-41b0b2cf5db5`, `source_path = ..\..\Startup\x.bat`
+   (the issue's literal). Reported failed 4:55:11 PM EST:
+   `{"ok": false, "error": "Unsafe path: \"..\" segment not allowed (..\\..\\Startup\\x.bat)", "action": "report-snapshot-restore", ...}`
+2. Request `b1e5e011-2452-4857-aeb7-6943c03ff01e`, `source_path = /etc/passwd` (absolute).
+   Reported failed 4:56:12 PM EST:
+   `{"ok": false, "error": "Unsafe path: absolute path not allowed (/etc/passwd)", ...}`
+
+Both payloads were rejected by `assertSafeRelativePath`
+(`packages/agent-common/src/path-containment.ts`) inside `restoreFromSnapshot` on the
+live bridge build `487af886`. Reversible: fixture request/result rows only; the failed
+requests are closed and can be deleted from `admin_config`.
+
+## 5. Still open on issue #229
+
+- Ordinary ingest first pass on build `487af886` — pending the ~6:38 PM EST auto-scan
+  (section 3); also the `skipped_before_min_date` ("too old") chip read on the admin UI
+  during that live scan for #469's parseCounters live proof. Both are window-scoped
+  read-only checks.
 - Desktop Helper checkout/check-in live proof — needs a user to run an installed Helper
   (none online as of the 2026-10-22 proof).
 
