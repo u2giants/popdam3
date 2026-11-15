@@ -1,5 +1,5 @@
 ---
-summary: "Per-step matview timings on preview 2026-11-13: file_groups 2.251 s, folders 0.325 s, search 0.020 s (empty queue), all 2.686 s; loaded search cost stays open"
+summary: "Per-step matview timings on preview 2026-11-13: file_groups 2.251 s, folders 0.325 s, search 0.020 s (empty queue), all 2.686 s; loaded search cost superseded"
 kind: proof
 status: done
 read-when: checking the per-step split of public.refresh_style_guide_matviews(p_run_id, p_search_batch_size, p_step) or Step 3 residual unknowns in plan_database_efficiency_and_api_security.md
@@ -77,6 +77,10 @@ unchanged across the window):
    0.020 s is therefore the cost of the step when there is nothing to sync — **not** the
    cost of a loaded upsert sync. The loaded search-step cost remains an explicit named
    boundary (needs a populated queue, i.e. a crawl-window or seeded queue on preview).
+   **Supersession 2026-11-15:** the loaded search-step cost is closed — measured on
+   preview 2026-11-14 in
+   `20261115T022822Z-loaded-search-sync-timings/loaded-search-sync-timings.md`
+   (100/1,000/5,000 queued rows = 0.148/0.676/3.122 s).
 3. `p_run_id => null` means no `style_guide_crawl_runs` row was written or accumulated;
    per-run attribution was not in scope of this capture.
 4. Production writes and production calls were not performed (read-only boundary intact).
