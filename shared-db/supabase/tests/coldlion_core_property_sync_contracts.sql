@@ -89,6 +89,25 @@ begin
   if exists (select 1 from plm.taxonomy_sync_alert where payload->'codes' ? ('Y'||v_s)) then
     raise exception 'inactive skipped value raised an alert';
   end if;
+  -- #6322: a new code set raises its own alert; the newest open alert names every code still skipped.
+  insert into plm.coldlion_property_sync_run(applied, counts, skipped)
+  values (false, '{}'::jsonb, jsonb_build_array(
+    jsonb_build_object('code','Z'||v_s,'name','x','active',true),
+    jsonb_build_object('code','W'||v_s,'name','x','active',true)));
+  if (select payload->'codes' from plm.taxonomy_sync_alert where source_name = 'coldlion_core_property_sync'
+       and acknowledged_at is null order by (payload->>'sync_run_id')::bigint desc limit 1) <> jsonb_build_array('W'||v_s, 'Z'||v_s) then
+    raise exception 'newest open alert does not carry the full current code set';
+  end if;
+  -- #6322: malformed entries never break the run insert (and so never break the sync).
+  insert into plm.coldlion_property_sync_run(applied, counts, skipped)
+  values (false, '{}'::jsonb, jsonb_build_array('junk'::text,
+    jsonb_build_object('code','V'||v_s,'active','maybe'),
+    jsonb_build_object('code',null,'active',true)));
+  insert into plm.coldlion_property_sync_run(applied, counts, skipped)
+  values (false, '{}'::jsonb, '{"not":"an array"}'::jsonb);
+  if exists (select 1 from plm.taxonomy_sync_alert where payload->'codes' ? ('V'||v_s)) then
+    raise exception 'malformed active value raised an alert';
+  end if;
 end;
 $$;
 

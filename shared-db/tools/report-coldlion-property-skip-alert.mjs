@@ -26,7 +26,7 @@ export const ALERT_SQL = `select json_build_object('alerts', (
   select coalesce(json_agg(json_build_object(
            'id', a.id, 'fired_at', a.fired_at, 'reason', a.reason,
            'codes', a.payload->'codes', 'sync_run_id', a.payload->'sync_run_id')
-         order by a.fired_at desc), '[]')
+         order by a.fired_at desc, (a.payload->>'sync_run_id')::bigint desc), '[]')
     from plm.taxonomy_sync_alert a
    where a.source_name = '${SOURCE_NAME}' and a.acknowledged_at is null)) as result;`;
 
@@ -38,7 +38,11 @@ export function marker(key) {
   return `<!-- ${MARKER_PREFIX}: ${key} -->`;
 }
 
-/** Pure. The newest unacknowledged alert is the current state of the skip list. */
+/**
+ * Pure. The newest unacknowledged alert is the current state of the skip list: each sync run
+ * records its complete skipped set, so the newest open alert names every code still skipped. Older
+ * open rows hide nothing; they close through the audited acknowledgement RPC.
+ */
 export function buildPlan(probe) {
   if (!probe || !Array.isArray(probe.alerts)) {
     return { ok: false, deliver: false, reason: "alert probe unreadable; failing closed" };
