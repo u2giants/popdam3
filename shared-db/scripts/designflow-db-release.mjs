@@ -758,6 +758,16 @@ async function runCurrentLiveReverification() {
 // no authority: a pasted dispatch is independently re-proven by the current-live
 // reverification job before any readiness accepts it.
 export function currentLiveRecoveryCommandFrom(binding, requirement) {
+  const values = currentLiveRecoveryInputs(binding, requirement);
+  return `gh workflow run production-catalog-verification-recovery.yml --repo ${CANONICAL} --ref main`
+    + ` -f mode=current-live-reverification -f source_pr=${values.source_pr} -f work_issue=${values.work_issue}`
+    + ` -f original_attempt=${values.original_attempt} -f original_artifact_id=${values.original_artifact_id}`
+    + ` -f apply_main_sha=${values.apply_main_sha} -f ordered_allowlist=${values.ordered_allowlist}`
+    + ` -f apply_run_id=${values.apply_run_id} -f apply_artifact_digest=${values.apply_artifact_digest}`
+    + ` -f main_sha=$(gh api repos/${CANONICAL}/commits/main --jq .sha)`;
+}
+
+export function currentLiveRecoveryInputs(binding, requirement) {
   const original = binding?.producer?.original, upload = binding?.producer?.upload;
   const values = {
     source_pr: requirement?.source_pr, work_issue: requirement?.work_issue,
@@ -773,12 +783,7 @@ export function currentLiveRecoveryCommandFrom(binding, requirement) {
   };
   for (const [key, re] of Object.entries(pattern))
     if (!re.test(String(values[key] ?? ''))) throw Error(`Malformed current-live recovery binding: ${key}`);
-  return `gh workflow run production-catalog-verification-recovery.yml --repo ${CANONICAL} --ref main`
-    + ` -f mode=current-live-reverification -f source_pr=${values.source_pr} -f work_issue=${values.work_issue}`
-    + ` -f original_attempt=${values.original_attempt} -f original_artifact_id=${values.original_artifact_id}`
-    + ` -f apply_main_sha=${values.apply_main_sha} -f ordered_allowlist=${values.ordered_allowlist}`
-    + ` -f apply_run_id=${values.apply_run_id} -f apply_artifact_digest=${values.apply_artifact_digest}`
-    + ` -f main_sha=$(gh api repos/${CANONICAL}/commits/main --jq .sha)`;
+  return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v)]));
 }
 
 // A certificate whose producer commit lacks a trusted path that current main
@@ -811,10 +816,30 @@ function staleCertificateRecoveryCommand(requirement, facts) {
         continue; // still fresh: the evidence path owns it
       const packageFiles = retainedCurrentLivePackage(receipt, receipt.proof);
       const binding = JSON.parse(readMetadataZip(packageFiles.get('current-live-content.zip')).get('current-live-binding.json'));
-      stale.push({ runId, command: currentLiveRecoveryCommandFrom(binding, requirement) });
+      stale.push({ runId, command: currentLiveRecoveryCommandFrom(binding, requirement), inputs: currentLiveRecoveryInputs(binding, requirement) });
     } catch { continue; }
   }
-  return stale.sort((a, b) => b.runId - a.runId)[0]?.command ?? null;
+  return stale.sort((a, b) => b.runId - a.runId)[0] ?? null;
+}
+
+// A stale certificate only means a trusted verifier file changed on main. Re-run
+// the read-only current-live reverification automatically (once per main SHA and
+// source) instead of waiting for someone to paste the recovery command. The
+// dispatched job independently re-proves everything; this grants no authority.
+const RECOVERY_WORKFLOW = 'production-catalog-verification-recovery.yml';
+export function dispatchCurrentLiveReverification(stale, read, write) {
+  if (!stale?.inputs) return { command: stale?.command ?? null, dispatched: false };
+  const main = read(`repos/${CANONICAL}/commits/main`).sha;
+  for (const status of ['queued', 'in_progress', 'waiting', 'pending', 'requested']) {
+    const active = read(`repos/${CANONICAL}/actions/workflows/${RECOVERY_WORKFLOW}/runs?event=workflow_dispatch&status=${status}&per_page=100`);
+    if (Array.isArray(active?.workflow_runs) && active.workflow_runs.length) return { command: stale.command, dispatched: false };
+  }
+  const done = read(`repos/${CANONICAL}/actions/workflows/${RECOVERY_WORKFLOW}/runs?event=workflow_dispatch&head_sha=${main}&per_page=100`);
+  if (Array.isArray(done?.workflow_runs) && done.workflow_runs.some(r => r.status === 'completed' && r.conclusion !== 'success' && r.head_sha === main))
+    return { command: stale.command, dispatched: false }; // a refused attempt on this main needs a person, not a loop
+  write(`repos/${CANONICAL}/actions/workflows/${RECOVERY_WORKFLOW}/dispatches`,
+    { ref: 'main', inputs: { mode: 'current-live-reverification', ...stale.inputs, main_sha: main } });
+  return { command: stale.command, dispatched: true };
 }
 
 async function currentLiveEvidence(requirement,facts,ledger) {
@@ -911,7 +936,10 @@ export async function main() {
     sourceFacts: requirement => memo(factsCache, requirement.source_pr, () => sourceFacts(requirement)),
     productionEvidence: (requirement, facts) => memo(evidenceCache, requirement.source_pr, () => productionEvidence(requirement, facts)),
     workIssue: number => api(`repos/${CANONICAL}/issues/${number}`),
-    currentLiveRecovery: (requirement, facts) => staleCertificateRecoveryCommand(requirement, facts),
+    currentLiveRecovery: (requirement, facts) => {
+      const result = dispatchCurrentLiveReverification(staleCertificateRecoveryCommand(requirement, facts), api, api);
+      return result.command;
+    },
     promote,
     catalog,
     status: (repo, head, state, description) => publishAppStatus(repo, head, { state, context: policy.status_context, description, target_url: url }, process.env.DFLOW_READINESS_STATUS_TOKEN),

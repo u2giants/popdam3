@@ -565,3 +565,20 @@ test('trustedPathsMatch treats a certificate missing a newer trusted file as sta
   assert.equal(trustedPathsMatch(OLD, MAIN, read, ['a', 'b']), false);
   assert.throws(() => trustedPathsMatch(OLD, MAIN, read, ['a', 'missing-on-main']), /absent/);
 });
+
+test('stale current-live certificates dispatch one read-only reverification on current main', async () => {
+  const { dispatchCurrentLiveReverification } = await import('./designflow-db-release.mjs');
+  const inputs = { source_pr: '4735', work_issue: '3869', original_attempt: '1', original_artifact_id: '9',
+    apply_main_sha: 'a'.repeat(40), apply_run_id: '7', ordered_allowlist: '20261024234538', apply_artifact_digest: 'sha256:' + 'b'.repeat(64) };
+  const main = 'c'.repeat(40);
+  const reads = (active = [], done = []) => endpoint => endpoint.endsWith('/commits/main') ? { sha: main }
+    : endpoint.includes('status=') ? { workflow_runs: endpoint.includes('status=in_progress') ? active : [] } : { workflow_runs: done };
+  const writes = [];
+  const r = dispatchCurrentLiveReverification({ command: 'cmd', inputs }, reads(), (e, b) => writes.push([e, b]));
+  assert.equal(r.dispatched, true);
+  assert.deepEqual(writes[0][1], { ref: 'main', inputs: { mode: 'current-live-reverification', ...inputs, main_sha: main } });
+  assert.equal(dispatchCurrentLiveReverification({ command: 'cmd', inputs }, reads([{ id: 1 }]), () => assert.fail()).dispatched, false);
+  assert.equal(dispatchCurrentLiveReverification({ command: 'cmd', inputs },
+    reads([], [{ status: 'completed', conclusion: 'failure', head_sha: main }]), () => assert.fail()).dispatched, false);
+  assert.equal(dispatchCurrentLiveReverification(null, reads(), () => assert.fail()).command, null);
+});
