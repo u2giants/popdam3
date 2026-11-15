@@ -1,0 +1,7 @@
+{
+  "label": "s1-seed-n100",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 1.528,
+  "body": "[{\"stale_updated\":100,\"queued_rows\":100,\"seeded_with_pdf_text\":0,\"role\":\"postgres\"}]"
+}

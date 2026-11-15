@@ -1,0 +1,7 @@
+{
+  "label": "q1-counts-before",
+  "readOnly": true,
+  "httpStatus": 201,
+  "wallSeconds": 0.226,
+  "body": "[{\"active_files\":217193,\"search_documents\":217193,\"queue_rows\":0,\"pdf_text_rows\":2}]"
+}

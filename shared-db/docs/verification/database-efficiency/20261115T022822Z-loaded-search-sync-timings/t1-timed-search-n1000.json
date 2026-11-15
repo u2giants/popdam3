@@ -1,0 +1,7 @@
+{
+  "label": "t1-timed-search-n1000",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 0.805,
+  "body": "[{\"seconds\":\"0.675761\",\"refreshed_at\":\"2026-11-14 21:28:31.348467-05\",\"search_documents_synced\":1000}]"
+}

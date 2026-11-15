@@ -1,0 +1,7 @@
+{
+  "label": "q0-context",
+  "readOnly": true,
+  "httpStatus": 201,
+  "wallSeconds": 1.252,
+  "body": "[{\"db_now\":\"2026-11-14 21:28:22.379264-05\",\"role\":\"supabase_read_only_user\",\"db\":\"postgres\"}]"
+}

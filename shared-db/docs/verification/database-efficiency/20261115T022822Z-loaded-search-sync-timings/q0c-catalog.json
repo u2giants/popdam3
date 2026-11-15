@@ -1,0 +1,7 @@
+{
+  "label": "q0c-catalog",
+  "readOnly": true,
+  "httpStatus": 201,
+  "wallSeconds": 0.12,
+  "body": "[{\"relname\":\"style_guide_files\",\"relrowsecurity\":true,\"relforcerowsecurity\":false,\"trig_count\":4,\"grants\":null},{\"relname\":\"style_guide_search_documents\",\"relrowsecurity\":true,\"relforcerowsecurity\":false,\"trig_count\":0,\"grants\":null},{\"relname\":\"style_guide_search_sync_queue\",\"relrowsecurity\":true,\"relforcerowsecurity\":false,\"trig_count\":0,\"grants\":null}]"
+}

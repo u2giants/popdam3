@@ -1,0 +1,7 @@
+{
+  "label": "q0b-write-role",
+  "readOnly": false,
+  "httpStatus": 201,
+  "wallSeconds": 0.114,
+  "body": "[{\"role\":\"postgres\",\"suser\":\"postgres\",\"db\":\"postgres\",\"db_now\":\"2026-11-14 21:28:22.493696-05\"}]"
+}
