@@ -119,6 +119,10 @@ All POP apps share one Supabase backend. Keep shared-db work isolated:
 - Shutdown: no untracked migration left; unfinished shared-db work gets a durable handoff naming branch, migration, preview/prod status, and the next exact action.
 - Never paper over a credential failure with ad hoc SQL/API calls or embedded tokens. Fix the canonical credential path first; runbook: /worksp/shared-db/AGENTS.md → Supabase CLI and database credential runbook.
 
+## Agent skills in this repo
+
+`.agents/skills/modern-web-guidance` (vendored pointer, Apache-2.0, from GoogleChrome/modern-web-guidance) with a relative symlink at `.claude/skills/modern-web-guidance` is discovered by ZCode, Codex, and Claude Code sessions. It is pointer-only: agents pull HTML/CSS/client-JS guides on demand via `npx modern-web-guidance search/retrieve`, so it costs no context until used. The CLI needs Node >= 22 (user-level at `~/.local/node22` on hetz, recorded in the private machine atlas). Update with `npx modern-web-guidance@latest update`; remove by deleting the folder and symlink. Same install lives in popcrm-web, poppim-web, and designflow-frontend (2026-11-13).
+
 ## Multi-model AI usage in code
 
 Model locations, structured-output contract, Exacto routing, endpoint pinning, bake-off rules, and Google/DeepSeek keys are documented in [docs/MODEL_RULES.md](MODEL_RULES.md). Quirks that look like bugs are in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md). Before changing any model reference, read those files — a model is configured in several places (dmin_config.AI_TASK_MODELS, worker handlers, bridge/windows samplers).

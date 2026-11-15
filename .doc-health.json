@@ -4,6 +4,7 @@
     "node_modules/**",
     ".claude/**",
     ".github/**",
+    ".agents/**",
     ".lovable/**",
     "docs/archive/**",
     "docs/access-records/**",

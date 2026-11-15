@@ -46,6 +46,7 @@ Always start with `AGENTS.md` (this file), then `HANDOFF.md` → the open files 
 | Stage/customer/program (path-derived) | `docs/PATH_ATTRIBUTES.md`, `docs/PATH_UTILS.md` |
 | Bulk operations / Railway worker | `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` |
 | ERP sync / MG codes / classification | `docs/ERP_ENRICHMENT_PLAN.md` (historical), `docs/MODEL_RULES.md`; agents-reference → Task-to-file navigation |
+| The vendored web-guidance agent skill (add/update/remove) | agents-reference → Agent skills in this repo |
 | OrderList / `/orders` | `docs/ORDER_LIST.md`, `docs/orderlist-exception-tools.md` |
 | Master Data / style tracker | `docs/MASTER_DATA.md` |
 | Helper / checkout-checkin / Seafile | `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` |
