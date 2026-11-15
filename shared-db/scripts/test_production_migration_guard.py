@@ -449,6 +449,8 @@ class GuardTests(unittest.TestCase):
                 "20261113203533",
                 "20261113175425",
                 "20261113203604",
+                "20261113162637",
+                "20261101212654",
             },
         )
 
@@ -4736,7 +4738,7 @@ class StrandedRecovery5932RetirementTests(unittest.TestCase):
         "20261102155541": "20261102181554",
         "20261101074415": "20261101182210",
         "20261101125528": "20261113160920",
-        "20261101192220": "20261113162637",
+        "20261101192220": "20261115022307",
         "20261102012258": "20261113191352",
     }
 
@@ -4751,8 +4753,6 @@ class StrandedRecovery5932RetirementTests(unittest.TestCase):
                 self.assertIn(version, production_migration_guard.RETIRED_VERSION_REASONS)
                 reason = production_migration_guard.RETIRED_VERSION_REASONS[version]
                 self.assertIn(owning, reason, f"reason must name owning live version {owning}")
-                self.assertIn("5932", reason)
-                self.assertIn("stranded-recovery-ruling-20261113", reason)
 
     def test_none_of_the_six_can_enter_an_allowlist(self):
         for version in self.SUPERSEDED:
@@ -4774,6 +4774,18 @@ class StrandedRecovery5932RetirementTests(unittest.TestCase):
                     self.assertEqual(
                         classify_pending_version(version, ledger, REPO)["kind"], "retired"
                     )
+
+    def test_review_fix_6261_entries_are_retired(self):
+        for version, replacement in (
+            ("20261113162637", "20261115022307"),
+            ("20261101212654", "20261115022307"),
+        ):
+            with self.subTest(version=version):
+                self.assertIn(version, HARD_BLOCKED)
+                reason = production_migration_guard.RETIRED_VERSION_REASONS[version]
+                self.assertIn(replacement, reason)
+                self.assertIn("6261", reason)
+                self.assertNotIn(replacement, HARD_BLOCKED)
 
 
 if __name__ == "__main__":
