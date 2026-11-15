@@ -1,0 +1,84 @@
+{
+  "issue": 469,
+  "pass": "live-proof 2026-11-15",
+  "observed_at": "2026-11-15T21:55:00.000Z",
+  "deployed_build": "ce4d1a3",
+  "deployed_date": "2026-11-13T13:32:49-05:00",
+  "deployed_commit_contains_pr_992": true,
+  "pr_992_merge": "ad999066d9de5b93cfca32c6c53b4e81211cfb00",
+  "hosts": ["dam.designflow.app", "sg.designflow.app"],
+  "method": "Read-only: headless Chromium (Playwright) with the approved admin tester session (1Password vibe_coding item 7s5uzpbjenka4fpvrqogh44bre) injected into localStorage['sb-popdam-auth-token']; authenticated export reads (same probe class as the 2026-11-05 export proof on #469). No production writes, no schema changes, no credential changes. No row contents or licensed filenames retained — counts and SHA-256 identity digests only.",
+  "session_ok": { "dam": true, "sg": true, "build_stamp_seen": "ce4d1a3" },
+  "export_paging": {
+    "status": "proven",
+    "probe": "export-table with page_size NOT a multiple of 1000; full-table export; compare row count and identity uniqueness",
+    "results": [
+      {
+        "table": "render_queue",
+        "page_size": 337,
+        "total_count": 2093,
+        "total_pages": 7,
+        "rows_per_page": [337, 337, 337, 337, 337, 337, 71],
+        "unique_keys": 2093,
+        "duplicate_keys": 0,
+        "cross_page_overlap": 0,
+        "count_matches_table": true,
+        "identity_digest": "df4b3f09d851f011d2f189ae8e3bd2bfea8ed0d0f63aa703824b1ac46c09de89"
+      },
+      {
+        "table": "properties",
+        "page_size": 333,
+        "total_count": 837,
+        "total_pages": 3,
+        "rows_per_page": [333, 333, 171],
+        "unique_keys": 837,
+        "duplicate_keys": 0,
+        "cross_page_overlap": 0,
+        "count_matches_table": true,
+        "identity_digest": "770a87d236eaa7f02cb5ee019da291f5f5345aff344b5f0255184d0862db7581"
+      },
+      {
+        "table": "asset_path_history",
+        "page_size": 500,
+        "total_count": 28268,
+        "total_pages": 57,
+        "rows_per_page": [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 268],
+        "unique_keys": 28268,
+        "duplicate_keys": 0,
+        "cross_page_overlap": 0,
+        "count_matches_table": true,
+        "identity_digest": "5fcab89c28817b7d066c61a2ffdb8a32ced2f8a0b53feceb6cfd25237a669aa9"
+      }
+    ]
+  },
+  "popsg_search_debounce": {
+    "status": "proven",
+    "metric": "POST .../rest/v1/rpc/search_style_guide_library_v2",
+    "debounce_ms": 350,
+    "fast_typing": { "chars": 6, "interval_ms": 40, "rpc_calls": 1 },
+    "slow_control": { "chars": 4, "interval_ms": 700, "rpc_calls": 2 },
+    "interpretation": "request count tracks pauses, not keystrokes"
+  },
+  "normalize_relative_path": {
+    "status": "proven",
+    "accepted": { "input": "Decor/Art/Final..v2.psd", "valid": "Valid: YES", "relative_path_preserved": "Decor/Art/Final..v2.psd" },
+    "control": { "input": "Decor/../secret.psd", "valid": "Valid: NO", "error": "Path traversal (..) not allowed" }
+  },
+  "ai_tagging_rate_label": {
+    "status": "proven",
+    "observed_rate_labels": ["0 assets/min", "1 assets/min"],
+    "stale_per_second_label_present": false
+  },
+  "parse_counters": {
+    "status": "partial",
+    "production_history_sums": { "rejected_subfolder": 990, "skipped_before_min_date": 420024 },
+    "scan_diagnostics_rows": [
+      "Rejected: wrong type | 228,678",
+      "Rejected: junk file | 27,692",
+      "Rejected: subfolder filter | 30"
+    ],
+    "skipped_before_min_date_chip_on_screen": false,
+    "remaining_probe": "admin UI read of the library scan-progress panel while a scan reports skipped_before_min_date (chip 'too old', LibraryTopBar.tsx:946)"
+  },
+  "resource_and_polling": { "status": "not-required", "note": "disproved in code, PR #992 checklist says reopen only with new evidence" }
+}
