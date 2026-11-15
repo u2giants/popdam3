@@ -7,9 +7,11 @@
 --   must also be allowed to SET ROLE for the privilege assertions below:
 --       \i supabase/tests/mg_category_taxonomy_contracts.sql
 --
---   Run each `do $$ ... $$;` block as its own statement. Submitting the whole file as a
---   single multi-statement batch through the transaction pooler (port 6543) wraps the
---   blocks in one implicit transaction and can stall.
+--   Run the WHOLE file as one session (psql -f or \i). Sections A-E sit inside one
+--   explicit begin; ... rollback; so the $zz6345$ prelude's temporary rename of the
+--   retired core tables is rolled back. Never run the blocks one at a time: that
+--   autocommits the prelude and leaves core."merchGroup" renamed back. Use a session
+--   connection (port 5432), not the transaction pooler (port 6543).
 --
 -- WHAT HOLDS UNCONDITIONALLY, AND WHAT IS CONDITIONAL
 --   This file runs BOTH against preview/production (populated) and against the
