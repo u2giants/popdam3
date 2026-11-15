@@ -126,8 +126,14 @@ jobs:
             });
             const existing = open.find(item => item.title === title && !item.pull_request);
             if (!existing) return;
+            // `observation-window` holds the alert open across a dated weekly
+            // gate (7 consecutive clean daily runs): record the clean measurement
+            // but never auto-close, so the window state cannot be lost to a flap.
+            const holdOpen = (existing.labels || []).some(label => label.name === 'observation-window');
             const body = [
-              'Auto-resolved: the read-only style-group reconciler measured zero assignment drift and zero effective-tag drift in the sampled assets. This sample is not exhaustive.',
+              holdOpen
+                ? 'Clean measurement. Issue held open by the `observation-window` label; the dated weekly gate in the issue body governs closure. This sample is not exhaustive.'
+                : 'Auto-resolved: the read-only style-group reconciler measured zero assignment drift and zero effective-tag drift in the sampled assets. This sample is not exhaustive.',
               '',
               `- assets_missing_or_wrong_group=${m.assets_missing_or_wrong_group}`,
               `- assets_with_unexpected_group=${m.assets_with_unexpected_group}`,
@@ -138,13 +144,19 @@ jobs:
               `Checked: ${report.checked_at}`,
               `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               '',
-              'A new alert issue opens automatically if drift returns.',
+              holdOpen
+                ? 'Left open on purpose; do not close this issue until the weekly gate is satisfied. A new alert issue opens automatically if drift returns.'
+                : 'A new alert issue opens automatically if drift returns.',
               '',
               'Posted by Claude chat unknown on GitHub Actions',
             ].join('\n');
             await github.rest.issues.createComment({
               owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body,
             });
+            if (holdOpen) {
+              core.info('observation-window label present: clean measurement recorded, issue left open.');
+              return;
+            }
             await github.rest.issues.update({
               owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number,
               state: 'closed', state_reason: 'completed',
