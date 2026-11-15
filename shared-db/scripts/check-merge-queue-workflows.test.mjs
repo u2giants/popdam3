@@ -502,6 +502,14 @@ test('the production run ends its promotion freeze even when the apply job is sk
   // A preview run that dispatched production must NOT release at its own end:
   // the freeze has to outlive that run until the production apply finishes.
   assert.ok(!backstop.includes('merged_preview_source_pr'), 'the backstop must never key a preview run\'s own source PR')
+  // 2026-11-15 20:26 UTC (PR #6368): the release ran against a missing file
+  // because this job never checked out the repository, and the TTL alone
+  // ended the freeze. The CLI must be on disk first, gated on its only user.
+  const checkout = stepBlock(job, 'Check out the coordination CLI for the run-end freeze release')
+  assert.ok(checkout, 'the run-end freeze release has no checkout of the coordination CLI')
+  assert.match(checkout, /uses: actions\/checkout@v4/)
+  assert.match(checkout, /^ {8}if: always\(\) && inputs\.target == 'production' && inputs\.mode == 'apply' && inputs\.source_pr != ''$/m)
+  assert.ok(job.indexOf(checkout) < job.indexOf(backstop), 'the checkout must precede the release that needs it')
 })
 
 // #5937 behavior 2 / review finding #5958 Finding 1. The freeze check in

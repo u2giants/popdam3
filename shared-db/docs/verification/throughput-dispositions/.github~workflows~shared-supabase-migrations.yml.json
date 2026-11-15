@@ -89,6 +89,14 @@
       "disposition": "excluded",
       "reason": "This existing call site keeps its established refusal behavior and is outside this no-behavior-change implementation.",
       "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:e84cf58890e0e43953be3872ea638fbd17f10833d7f9e9450063bd52a15bc1d7:1"
+    },
+    {
+      "site": ".github/workflows/shared-supabase-migrations.yml:2584",
+      "semantic_key": ".github/workflows/shared-supabase-migrations.yml:63bef0a4ed420e111d9631578e1109c3f7574e5e2ca341bf73264d8fb2f40d7a:context-a704d27a7a471c60ad5bc947347601935982646950da1a821f10db3b3d1180af",
+      "line_sha256": "63bef0a4ed420e111d9631578e1109c3f7574e5e2ca341bf73264d8fb2f40d7a",
+      "disposition": "excluded",
+      "reason": "Reviewed 2026-11-15: this line narrates the CI crash that motivated the checkout step (the CLI file was not on disk in the notify job); it is run-history narrative, not a claim about database objects or migration provenance.",
+      "legacy_semantic_key": ".github/workflows/shared-supabase-migrations.yml:63bef0a4ed420e111d9631578e1109c3f7574e5e2ca341bf73264d8fb2f40d7a:1"
     }
   ]
 }
