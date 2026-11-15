@@ -1,5 +1,5 @@
 -- =====================================================================================
--- mg_category_merch_group merchandise-group key contracts — migration 20261113192227
+-- mg_category_merch_group merchandise-group key contracts — migration 20261114231235
 -- (production half), claim #6252, work issue popcre/designflow-item-master#205
 -- step 3.1 (b). The non-production half 20261113192216 is the same statements on
 -- dflow."merchGroup" and is proven read-only on the sandbox after its lane apply.
@@ -13,7 +13,7 @@
 -- as the migration owner. One transaction, ends in ROLLBACK. Every value is invented.
 -- =====================================================================================
 
-\set mig `sed -e '/^begin;$/d' -e '/^commit;$/d' supabase/migrations/20261113192227_core_mg_category_merch_group_fk_dflow_prod.sql`
+\set mig `sed -e '/^begin;$/d' -e '/^commit;$/d' supabase/migrations/20261114231235_core_mg_category_merch_group_fk_dflow_prod.sql`
 
 begin;
 

@@ -6129,3 +6129,20 @@ not exists (
 if __name__ == "__main__":
     raise SystemExit(main())
 
+
+
+# Claim #6252 (designflow-item-master#205 3.1b), migration 20261114231235. The
+# merchandise-group key on core.mg_category_merch_group references
+# dflow_prod."merchGroup"(mg_id) on delete cascade, and is VALIDATED wherever
+# that parent holds any row (production). Only an empty parent (unseeded
+# preview) may carry it NOT VALID.
+CATALOG_CONTRACTS["core_mg_category_merch_group_fk_dflow_prod_v1"] = (
+    "exists (select 1 from pg_constraint con"
+    " where con.conrelid=to_regclass('core.mg_category_merch_group')"
+    " and con.conname='mg_category_merch_group_merch_group_mg_id_fkey'"
+    " and con.contype='f' and con.confrelid=to_regclass('dflow_prod.\"merchGroup\"')"
+    " and con.confdeltype='c'"
+    " and (con.convalidated or not exists (select 1 from dflow_prod.\"merchGroup\")))"
+    " and (select count(*) from pg_constraint where conrelid=to_regclass('core.mg_category_merch_group') and contype='f'"
+    " and conname='mg_category_merch_group_merch_group_mg_id_fkey')=1"
+)

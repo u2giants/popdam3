@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261114231235",
+  "migration_sha256": "b94b8e4bde1db7fe767f22296c35fe7385b9b0490bccc9b762696c3ea795aa02",
+  "checks": [
+    {
+      "id": "core_mg_category_merch_group_fk_dflow_prod",
+      "kind": "catalog_contract",
+      "contract": "core_mg_category_merch_group_fk_dflow_prod_v1",
+      "expected_count": 1
+    }
+  ]
+}

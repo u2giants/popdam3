@@ -316,6 +316,15 @@
       "line_sha256": "4f9756aa6379b6d7dbc5ff1560314a22aa98646c7bde703a34735488deef2a16",
       "disposition": "excluded",
       "reason": "Foreign-target registry note text for the retired #5026 version 20261106174810: data describing the migration self-check, not a call site that infers missing objects."
+    },
+    {
+      "source": "scripts/production_migration_guard.py",
+      "site": "scripts/production_migration_guard.py:393",
+      "semantic_key": "scripts/production_migration_guard.py:fdfe78f561e0970adf88cd6513c2463bfaeb4c96eaa4503d6591df4dd2959876:context-d8e16bef9c89d534e93cfc2b74b227024329fa23f6e0848816795b2733e17a3a",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:fdfe78f561e0970adf88cd6513c2463bfaeb4c96eaa4503d6591df4dd2959876:1",
+      "line_sha256": "fdfe78f561e0970adf88cd6513c2463bfaeb4c96eaa4503d6591df4dd2959876",
+      "disposition": "excluded",
+      "reason": "HARD_BLOCKED comment text for retired #6301 version 20261113203604 (TOAST false positive): prose, not a call site that infers missing objects."
     }
   ]
 }

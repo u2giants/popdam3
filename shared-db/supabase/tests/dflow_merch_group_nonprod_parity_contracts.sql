@@ -106,7 +106,7 @@ begin
      and confrelid = 'dflow."merchGroup"'::regclass and convalidated;
   if n <> 3 then raise exception 'contract D failed: % of 3 keys on dflow."merchGroup"', n; end if;
   -- #6252: dropping dflow_prod above cascades away a link already repointed to
-  -- dflow_prod by 20261113192227, so E checks only that THIS migration did not
+  -- dflow_prod by 20261114231235, so E checks only that THIS migration did not
   -- move the link onto dflow."merchGroup" (that is 20261113192216's job).
   if exists (select 1 from pg_constraint where conrelid = 'core.mg_category_merch_group'::regclass
              and contype = 'f' and confrelid = 'dflow."merchGroup"'::regclass) then
