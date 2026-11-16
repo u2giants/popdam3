@@ -47,8 +47,14 @@ class SandboxDependencies(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(GuardError):
                 self.read(**args)
 
+    def test_owner_approved_schemas_are_read(self):
+        import production_migration_guard as g, inspect
+        src = inspect.getsource(g)
+        for schema in ("api", "dam", "hts_rag", "archive", "public"):
+            self.assertIn(f"'{schema}'", src.split("sandbox dependency catalog is missing")[0].rsplit("statement = ", 1)[1])
+
     def test_unreadable_or_malformed_catalog_refuses(self):
-        for rows in ([], {}, [{"name": "public.sample"}], [{"name": "dflow.sample"}] * 2):
+        for rows in ([], {}, [{"name": "auth.sample"}], [{"name": "dflow.sample"}] * 2):
             with self.subTest(rows=rows), self.assertRaises(GuardError):
                 self.read(rows=rows)
 
