@@ -1,0 +1,14 @@
+-- End-to-end verification migration for #6423: --future-minutes reservation.
+--
+-- Version: 20261201100100
+--
+-- This version was reserved with
+--   check-dispatch-collision.mjs --reserve-version --future-minutes 30
+-- which computed max(newest version on origin/main + 1 minute, now + 30 minutes)
+-- = max(20261201100000 + 1min, ...) = 20261201100100.
+--
+-- The SQL body is intentionally empty (same shape as the pre-shared-db
+-- history markers). The purpose of this file is to prove the full pipeline --
+-- SQL migration guards, the ephemeral-database test, the merge queue -- accepts
+-- a future-dated version on its FIRST run, with zero renumbers. Evidence lands
+-- on #6423.
