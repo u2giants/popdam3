@@ -1,7 +1,8 @@
 -- shared-db#6150 step 6 fix-forward for 20261113145255 (review finding #6248).
 -- Re-versioned from 20261115021817 (PR #6316), which exhausted its automatic attempts:
 -- its fixed 117 shortfall check failed on preview, whose core.property holds fewer rows.
--- The check now requires every path this database CAN resolve (117 on production).
+-- The check requires every path this database CAN resolve, exactly, and all 117 where the
+-- full catalog is present (review finding #6484).
 -- 1. Top-level INSERT ... SELECT so post-apply catalog verification sees the seeded table
 --    (the earlier DO block was invisible to it).
 -- 2. Each property is resolved by (licensor code, property code), never by code alone.
@@ -12,12 +13,14 @@
 -- Idempotent with 20261113145255 (on conflict do nothing).
 -- Rollback: delete from core.property_site_path where source_evidence like 'shared-db#6150 step 6%'.
 
-create temp view mg06_step6_paths as
+drop view if exists mg06_step6_paths;
+drop view if exists mg06_step6_all;
+create temp view mg06_step6_all as
 select * from (
   select p.id as property_id, m.lcode, m.code, m.site, m.char_id,
     case m.site when 'pmt_trackerplus' then null else m.site_key end as site_property_id,
     case m.site
-      when 'disney_opa' then (select o.property_name from plm.opa_property o where o.licensed_property_id::text = m.site_key)
+      when 'disney_opa' then (select min(o.property_name) from plm.opa_property o where o.licensed_property_id::text = m.site_key)
       when 'nbcu' then (select min(n.property_label) from plm.nbcu_property n where n.property_source_id::text = m.site_key)
       when 'sega' then (select min(s.property_label) from plm.sega_submission_property s where s.property_source_id::text = m.site_key)
       when 'pmt_trackerplus' then (select min(t.exact_label) from plm.pmt_trackerplus_submission_property t where t.property_local_key = m.site_key)
@@ -147,7 +150,10 @@ select * from (
   ) as m(lcode, code, site, site_key, char_id)
   join core.licensor l on l.code = m.lcode
   join core.property p on p.licensor_id = l.id and p.code = m.code
-) r
+) r;
+
+create temp view mg06_step6_paths as
+select * from mg06_step6_all r
 where r.site_property_name is not null and (r.char_id is null or r.site_character_name is not null);
 
 insert into core.property_site_path
@@ -164,7 +170,7 @@ update core.property p set nickname = 'Mickey Group'
    and p.name = 'Standard Characters' and p.nickname is null;
 
 do $mg06_site_path_check$
-declare v_n integer; v_bad integer; v_expected integer;
+declare v_n integer; v_bad integer; v_expected integer; v_catalog integer; v_props integer;
 begin
   select count(*) into v_bad from core.property_site_path s join core.property p on p.id = s.property_id
    join core.licensor l on l.id = p.licensor_id
@@ -172,14 +178,28 @@ begin
      and s.source_evidence not like '%MG06 ' || l.code || '/' || p.code || ' %'
      and s.source_evidence not like '%MG06 ' || p.code || ' list%';
   if v_bad > 0 then raise exception '#6150: % step-6 rows point at an unexpected property', v_bad; end if;
-  select count(distinct property_id) into v_expected from mg06_step6_paths;
-  select count(distinct q.property_id) into v_n from mg06_step6_paths q
-   where exists (select 1 from core.property_site_path s where s.property_id = q.property_id and s.is_current);
+  -- Exact check: each resolvable step-6 path must exist as a current row for the same
+  -- property, site, site property id and character (not merely any current row).
+  select count(*) into v_expected from mg06_step6_paths;
+  select count(*) into v_n from mg06_step6_paths q
+   where exists (select 1 from core.property_site_path s
+                  where s.property_id = q.property_id and s.is_current
+                    and s.licensor_site = q.site
+                    and s.site_property_id is not distinct from q.site_property_id
+                    and s.site_character_id is not distinct from q.char_id);
   if v_n < v_expected then
-    raise exception '#6150: % of % resolvable MG06 properties have a current site path', v_n, v_expected;
+    raise exception '#6150: % of % resolvable MG06 site paths are current', v_n, v_expected;
   end if;
-  raise notice '#6150: % of % resolvable MG06 properties have a current site path', v_n, v_expected;
+  -- Where the full MG06 catalog is present (production: 117 properties), every one must
+  -- resolve against the scrape; a smaller catalog (preview) checks only what it holds.
+  select count(distinct property_id) into v_catalog from mg06_step6_all;
+  select count(distinct property_id) into v_props from mg06_step6_paths;
+  if v_catalog >= 117 and v_props < v_catalog then
+    raise exception '#6150: only % of % MG06 properties resolve to a site path', v_props, v_catalog;
+  end if;
+  raise notice '#6150: % of % resolvable MG06 site paths are current (% of % properties)', v_n, v_expected, v_props, v_catalog;
 end
 $mg06_site_path_check$;
 
-drop view mg06_step6_paths;
+drop view if exists mg06_step6_paths;
+drop view if exists mg06_step6_all;
