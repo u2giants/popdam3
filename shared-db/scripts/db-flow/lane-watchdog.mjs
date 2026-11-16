@@ -365,7 +365,7 @@ export function runGhostSweep({
   if (!dryRun) {
     const survivors = new Set(readQueued().map((run) => Number(run?.id)))
     for (const ghost of reap) if (survivors.has(ghost.id)) remaining.push(ghost)
-    for (const ghost of remaining) log(`ghost sweep: UNREAPABLE run ${ghost.id} (${ghost.workflow} on ${ghost.head_branch}) still queued; a GitHub support purge is the only route left`)
+    for (const ghost of remaining) log(`ghost sweep: UNREAPABLE run ${ghost.id} (${ghost.workflow} on ${ghost.head_branch}) still queued; it may hold its concurrency group. Escape: follow docs/ghost-run-escape.md (drain, then bump repo variable LANE_EPOCH); file a GitHub support purge for the record`)
   }
   return { reap, remaining, notes }
 }

@@ -328,3 +328,25 @@ test('runGhostSweep dry-run touches nothing', () => {
   assert.equal(result.reap.length, 1)
   assert.deepEqual(result.remaining, [])
 })
+
+// Guard (#6426): every Actions concurrency group must carry the shared
+// LANE_EPOCH suffix, so one repository variable can rotate all groups at once
+// and escape a GitHub ghost run without splitting a shared group.
+test('every workflow concurrency group carries the shared LANE_EPOCH suffix', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs')
+  const dir = new URL('../../.github/workflows/', import.meta.url)
+  const missing = []
+  for (const name of readdirSync(dir).filter((n) => n.endsWith('.yml'))) {
+    const lines = readFileSync(new URL(name, dir), 'utf8').split('\n')
+    let indent = -1
+    for (const line of lines) {
+      const head = line.match(/^(\s*)concurrency:\s*$/)
+      if (head) { indent = head[1].length; continue }
+      if (indent < 0) continue
+      const body = line.trim()
+      if (body && !body.startsWith('#') && line.length - line.trimStart().length <= indent) { indent = -1; continue }
+      if (/^\s*group:/.test(line) && !line.includes("-${{ vars.LANE_EPOCH || '0' }}")) missing.push(`${name}: ${body}`)
+    }
+  }
+  assert.deepEqual(missing, [])
+})

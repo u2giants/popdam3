@@ -79,7 +79,7 @@ test("every required secret is referenced BY NAME ONLY and a missing one fails l
 });
 
 test("one non-cancelling concurrency group prevents overlapping write cycles", () => {
-  assert.match(workflow, /concurrency:\s*\n\s+group: coldlion-licensor-property-production\s*\n\s+cancel-in-progress: false/);
+  assert.match(workflow, /concurrency:\s*\n\s+group: coldlion-licensor-property-production-\$\{\{ vars\.LANE_EPOCH \|\| '0' \}\}\s*\n\s+cancel-in-progress: false/);
   // Exactly one concurrency block for the whole workflow.
   assert.equal((workflow.match(/^concurrency:/gm) ?? []).length, 1);
   assert.equal((workflow.match(/cancel-in-progress:/g) ?? []).length, 1);

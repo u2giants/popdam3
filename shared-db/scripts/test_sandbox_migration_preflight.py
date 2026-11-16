@@ -148,7 +148,7 @@ class WorkflowInvariantTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", on_block)
         self.assertNotIn("pull_request", on_block)
         self.assertNotIn("merge_group", on_block)
-        self.assertRegex(WORKFLOW, r"concurrency:\n  group: designflow-sandbox-migrations\n  cancel-in-progress: false")
+        self.assertRegex(WORKFLOW, r"concurrency:\n  group: designflow-sandbox-migrations-\$\{\{ vars\.LANE_EPOCH \|\| '0' \}\}\n  cancel-in-progress: false")
 
     def test_only_sandbox_ref_and_sandbox_secret(self) -> None:
         self.assertIn("SANDBOX_PROJECT_REF: xupnyeifmpsacrqahwwm", WORKFLOW)
@@ -228,7 +228,7 @@ class WorkflowInvariantTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", on_block)
         self.assertNotIn("pull_request", on_block)
         self.assertNotIn("merge_group", on_block)
-        self.assertRegex(reconcile, r"concurrency:\n  group: designflow-sandbox-migrations\n  cancel-in-progress: false")
+        self.assertRegex(reconcile, r"concurrency:\n  group: designflow-sandbox-migrations-\$\{\{ vars\.LANE_EPOCH \|\| '0' \}\}\n  cancel-in-progress: false")
         self.assertIn("environment: designflow-sandbox", reconcile)
         self.assertIn("SANDBOX_PROJECT_REF: xupnyeifmpsacrqahwwm", reconcile)
         self.assertNotIn("SUPABASE_DB_PASSWORD_PREVIEW", reconcile)

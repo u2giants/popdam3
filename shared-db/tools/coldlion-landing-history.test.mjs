@@ -1183,7 +1183,7 @@ test("the sandbox sync cannot be reached by a push, a pull request or a fork", (
 });
 
 test("the sandbox sync shares the one sandbox writer lock and never cancels a run", () => {
-  assert.match(sandboxSync, /concurrency:\n\s+group: designflow-sandbox-migrations\n\s+cancel-in-progress: false/);
+  assert.match(sandboxSync, /concurrency:\n\s+group: designflow-sandbox-migrations-\$\{\{ vars\.LANE_EPOCH \|\| '0' \}\}\n\s+cancel-in-progress: false/);
   assert.match(readWorkflow("designflow-sandbox-migrations.yml"), /group: designflow-sandbox-migrations/);
 });
 
