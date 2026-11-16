@@ -147,6 +147,9 @@ from the repository variable; never write a preview ref down.
 hand-maintained licensor list: `core.licensor` is a nightly copy of the MG05 list, written only by
 `plm.sync_core_licensor_from_coldlion`, and a trigger refuses every other write. Never read retired
 (non-MG05) licensor rows as a source, never load licensors from elsewhere, and never bypass the guard.
+**MG groups are division-specific** (owner ruling 6.42, 2026-11-16, #6463). MG05 = Licensor and MG06 = Property
+only in licensed divisions CW001 and SP001; in EH001/EP001 the same slots mean other things (EH001 MG05 are art
+themes). Always filter ColdLion merchandise groups by division, and resolve an MG06 parent within its own division.
 
 ## Container and service inventory
 

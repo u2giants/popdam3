@@ -176,3 +176,11 @@ Verbatim Albert, 2026-11-15 8:49 PM EST:
 - `core.licensor` stays only as the stable id table every app's foreign keys use. Its single writer is `plm.sync_core_licensor_from_coldlion` (nightly, before the property sync): one row per MG05 code; rows outside MG05 are set inactive, recoverably (`metadata.mg05_retired` keeps the old status), never deleted.
 - A trigger refuses every other insert, rename, re-code, status change, delete or truncate. Never bypass it, never set `app.core_licensor_writer` by hand, and never load licensors from a spreadsheet, scrape, chat or memory. A missing or wrong licensor is fixed in ColdLion.
 - An MG06 Property's licensor is its MG05 parent's code. Never create MG06 values.
+
+### 6.42 OWNER RULING — ColdLion MG groups are division-specific; licensors come only from CW001/SP001 MG05 (Albert Hazan, 2026-11-16)
+
+Verbatim Albert, 2026-11-16 7:44 AM EST:
+
+> "art themes like Abstract and Animal are the MG05 values for division EH001. MG groups are specific to divisions."
+
+**Effect** (issue #6463, migration `20261117020100`). Refines 6.41: the canonical licensor list is MG05 from the licensed divisions CW001 and SP001 only. Every merchandise-group read filters by division; an MG06 value's MG05 parent is resolved within its own division. EH001 art themes made licensors on 2026-11-16 (DF, RB) are retired as inactive, recoverably.
