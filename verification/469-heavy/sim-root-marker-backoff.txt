@@ -1,0 +1,67 @@
+{"source_pins":[{"pin":"const MARKER_DOCKER_RETRY_MS = 60 * 60 * 1000;","present":true},{"pin":"error: \"docker_write_backoff\"","present":true},{"pin":"markerDockerRetryAfter.set(rm.root_id, Date.now() + MARKER_DOCKER_RETRY_MS)","present":true},{"pin":"markerDockerRetryAfter.delete(rm.root_id)","present":true}]}
+{"extracted":{"from_line":516,"to_line":620,"bytes":5039}}
+{"generated_file":"C:\\Users\\ahazan\\AppData\\Local\\Temp\\root-marker-backoff-sim.generated.ts"}
+{
+  "observations": [
+    {
+      "scenario": "A_first_failure",
+      "docker_calls": 1,
+      "status": {
+        "ok": false,
+        "error": "docker_write_failed:simulated docker write failure (read-only share)",
+        "at": "2026-11-16T00:02:31.213Z"
+      },
+      "backoff_set": true,
+      "retry_ms_constant": 3600000
+    },
+    {
+      "scenario": "B_within_backoff_window",
+      "docker_calls": 1,
+      "status": {
+        "ok": false,
+        "error": "docker_write_backoff",
+        "at": "2026-11-16T00:02:31.214Z"
+      },
+      "gate_skipped_docker": true
+    },
+    {
+      "scenario": "C_still_within_hour",
+      "docker_calls": 1,
+      "status": {
+        "ok": false,
+        "error": "docker_write_backoff",
+        "at": "2026-11-16T00:02:31.214Z"
+      }
+    },
+    {
+      "scenario": "D_after_one_hour",
+      "docker_calls": 2,
+      "retried_once": true,
+      "backoff_still_set": true
+    },
+    {
+      "scenario": "E_docker_success_clears_backoff",
+      "docker_calls": 3,
+      "status": {
+        "ok": true,
+        "method": "docker",
+        "at": "2026-11-16T00:02:31.214Z"
+      },
+      "backoff_cleared": true
+    },
+    {
+      "scenario": "F_direct_write_control",
+      "docker_calls_delta": 0,
+      "status": {
+        "ok": true,
+        "method": "direct",
+        "at": "2026-11-16T00:02:31.214Z"
+      }
+    }
+  ]
+}
+{"result":"PASS"}
+(node:20540) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/ahazan/AppData/Local/Temp/root-marker-backoff-sim.generated.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\ahazan\AppData\Local\Temp\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)

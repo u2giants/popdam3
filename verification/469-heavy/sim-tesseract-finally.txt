@@ -1,0 +1,100 @@
+{"source_pins":[{"site":"apps/bridge-agent/src/pdf-backfill.ts","fix_statements":1,"old_leak_pattern_remaining":false},{"site":"apps/bridge-agent/src/pdf-text-sampler.ts","fix_statements":1,"old_leak_pattern_remaining":false},{"site":"apps/windows-agent/src/pdf-backfill.ts","fix_statements":1,"old_leak_pattern_remaining":false},{"site":"apps/windows-agent/src/pdf-text-sampler.ts","fix_statements":1,"old_leak_pattern_remaining":false}]}
+{"verbatim_statements":[{"site":"apps/bridge-agent/src/pdf-backfill.ts","statement":"const result = await worker.recognize(pngBuffer).finally(() => worker.terminate());"},{"site":"apps/bridge-agent/src/pdf-text-sampler.ts","statement":"const ocrResult = await worker.recognize(pngBuffer).finally(() => worker.terminate());"},{"site":"apps/windows-agent/src/pdf-backfill.ts","statement":"const result = await worker.recognize(pngBuffer).finally(() => worker.terminate());"},{"site":"apps/windows-agent/src/pdf-text-sampler.ts","statement":"const ocrResult = await worker.recognize(pngBuffer).finally(() => worker.terminate());"}]}
+{"generated_file":"C:\\Users\\ahazan\\AppData\\Local\\Temp\\tesseract-finally-sim.generated.ts"}
+{
+  "observations": [
+    {
+      "site": "apps/bridge-agent/src/pdf-backfill.ts",
+      "case": "recognize_resolves",
+      "terminate_calls": 1,
+      "threw": null,
+      "text": "spec sheet text",
+      "pass": true
+    },
+    {
+      "site": "apps/bridge-agent/src/pdf-backfill.ts",
+      "case": "recognize_rejects",
+      "terminate_calls": 1,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/bridge-agent/src/pdf-backfill.ts",
+      "case": "pre_713_leak_control",
+      "terminate_calls": 0,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/bridge-agent/src/pdf-text-sampler.ts",
+      "case": "recognize_resolves",
+      "terminate_calls": 1,
+      "threw": null,
+      "text": "spec sheet text",
+      "pass": true
+    },
+    {
+      "site": "apps/bridge-agent/src/pdf-text-sampler.ts",
+      "case": "recognize_rejects",
+      "terminate_calls": 1,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/bridge-agent/src/pdf-text-sampler.ts",
+      "case": "pre_713_leak_control",
+      "terminate_calls": 0,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-backfill.ts",
+      "case": "recognize_resolves",
+      "terminate_calls": 1,
+      "threw": null,
+      "text": "spec sheet text",
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-backfill.ts",
+      "case": "recognize_rejects",
+      "terminate_calls": 1,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-backfill.ts",
+      "case": "pre_713_leak_control",
+      "terminate_calls": 0,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-text-sampler.ts",
+      "case": "recognize_resolves",
+      "terminate_calls": 1,
+      "threw": null,
+      "text": "spec sheet text",
+(node:10520) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/ahazan/AppData/Local/Temp/tesseract-finally-sim.generated.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\ahazan\AppData\Local\Temp\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-text-sampler.ts",
+      "case": "recognize_rejects",
+      "terminate_calls": 1,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    },
+    {
+      "site": "apps/windows-agent/src/pdf-text-sampler.ts",
+      "case": "pre_713_leak_control",
+      "terminate_calls": 0,
+      "threw": "simulated OCR recognize failure",
+      "pass": true
+    }
+  ]
+}
+{"result":"PASS"}

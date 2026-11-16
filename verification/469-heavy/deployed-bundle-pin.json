@@ -1,0 +1,33 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "item": "Batch loop cap (MAX_BATCH_LOOPS = 10_000)",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "deployed_build": "ce4d1a3 (verified present on dam.designflow.app and sg.designflow.app by the 2026-11-15 passes; contains PR #992 merge ad999066)",
+  "ancestry": {
+    "fix_commit": "2287f1b5 (PR #713)",
+    "deployed_ce4d1a3_contains_fix": true,
+    "method": "git merge-base --is-ancestor 2287f1b5 ce4d1a38e41c377f779d14cea79122a9cbcb07ac"
+  },
+  "deployed_bundle_bytes": {
+    "host": "https://sg.designflow.app",
+    "method": "fetched entry index-C7Nwwm02.js, BFS-enumerated 74 served /assets/*.js chunks, searched each for the cap message",
+    "hits": [
+      {
+        "chunk": "/assets/PopSGSettingsPage-CndcbEBH.js",
+        "cap_message_count": 2,
+        "minified_cap_ids": ["fe"],
+        "const_values": ["1e4"],
+        "context": "...for(let s=0;;s++){if(s>=fe)throw new Error(\"Stopped after too many batches; run it again to continue.\");..."
+      },
+      {
+        "chunk": "/assets/SettingsPage-1q-RZ_PK.js",
+        "cap_message_count": 2,
+        "minified_cap_ids": ["vl", "od"],
+        "const_values": ["1e4", "1e4"],
+        "context": "...for(let C=0;;C++){if(C>=vl)throw new Error(\"Stopped after too many batches; run it again to continue.\");const O=await s(\"purge-old-ass..."
+      }
+    ],
+    "conclusion": "All four capped loops from the audit are present in the SERVED production bundles, each gated on the constant 1e4 (10,000) with the exact error text 'Stopped after too many batches; run it again to continue.'"
+  }
+}
