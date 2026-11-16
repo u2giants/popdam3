@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261116013153",
+  "migration_sha256": "b5407373fd59ed51cd84d1e24f84581b85ff190b96a914ef338e975e17149d36",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 79,
+      "line_end": 79,
+      "disposition": "no_durable_target",
+      "reason": "The dynamic marker is the catalog-driven REVOKE EXECUTE loop over trigger-returning functions. No sidecar check kind can assert role privileges: the supported kinds are exact_row_count, catalog_contract and catalog_absence, none of which expresses has_function_privilege state. The durable proof is the in-migration census assertion (the same DO block raises if any in-scope anon/authenticated EXECUTE grant survives) plus the preview after-census and issue #6415's acceptance check."
+    }
+  ],
+  "checks": []
+}
