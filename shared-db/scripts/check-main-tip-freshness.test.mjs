@@ -591,3 +591,45 @@ test('step 2.5: an appended migration plus unrelated workflow edits is still a v
     assert.match(verdict.reason, /verified prefix/)
   } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })
+
+// #6258 follow-up: rehearsal run 43495421317 was refused when main gained only a
+// verification .json under docs/verification/.
+test('#6258: production accepts newly added documentation evidence under docs/', () => {
+  const { repo, sha } = makeRepo()
+  try {
+    const tip = commitFiles(repo, {
+      'docs/verification/database-efficiency/20261113T180512Z-step4-closure-audit/q-step4-measurements.json': '{"x":1}\n',
+      'docs/verification/database-efficiency/20261113T180512Z-step4-closure-audit/raw.txt': 'x\n',
+    }, 'evidence')
+    assert.equal(classify(repo, sha, tip).ok, false, 'the default lane is unchanged')
+    assert.equal(prod(repo, sha, tip).ok, true, prod(repo, sha, tip).reason)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})
+
+test('POSITIVE CONTROL #6258: gate-read docs data, gate code, workflows, config and migrations still refuse', () => {
+  const { repo } = makeRepo()
+  try {
+    const sha = commitFiles(repo, {
+      'docs/verification/baseline.json': '{"v":1}\n',
+      'scripts/gate.mjs': "readFileSync('docs/verification/baseline.json'); glob('docs/verification/dispositions/*'); readdirSync('../docs/verification/').filter((n) => /^licensor-step8-approval-/.test(n))\n",
+    }, 'gate reads docs data')
+    const cases = {
+      'docs/verification/baseline.json': '{"v":2}\n',
+      'docs/verification/dispositions/new.json': '{}\n',
+      'docs/verification/licensor-step8-approval-20261201/approval.json': '{}\n',
+      'scripts/check-anything.mjs': 'x\n',
+      '.github/workflows/shared-supabase-migrations.yml': 'x\n',
+      'config/task-gates.json': '{}\n',
+      'supabase/migrations/20260101000000_x.sql': 'select 1;\n',
+    }
+    for (const [path, body] of Object.entries(cases)) {
+      execFileSync('git', ['checkout', '-q', sha], { cwd: repo })
+      const tip = commitFiles(repo, { [path]: body }, path)
+      assert.equal(prod(repo, sha, tip).ok, false, `${path} must refuse`)
+    }
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})
