@@ -744,6 +744,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 10: additive indexes, constraints and triggers copied from production, and a forward fix for batch 9. Source excludes shared preview and production.",
     },
+    "20261117130000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 11: replays 20261113183820's core.property checks and link index, plus production's Coldlion licensor/property sync functions, MG05 licensor guard and relationship/crosswalk triggers with production's exact EXECUTE grants. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
