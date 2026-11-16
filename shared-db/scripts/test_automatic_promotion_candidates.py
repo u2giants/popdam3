@@ -3,9 +3,10 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -708,6 +709,8 @@ class FreshRecheckBeforeDispatch(unittest.TestCase):
              mock.patch.object(m, "workflow_runs", mock.Mock(side_effect=snapshots)), \
              mock.patch.object(m, "is_held", lambda repo, n: []), \
              mock.patch.object(m, "dispatch") as sent, \
+             mock.patch.object(m, "prune_claims", lambda *a: None), \
+             mock.patch.object(m, "claim_dispatch", lambda *a: True), \
              mock.patch.object(sys, "argv", ["x"]), \
              mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), \
              contextlib.redirect_stdout(io.StringIO()) as out:
@@ -1904,6 +1907,108 @@ class AdversarialRunIdentity(unittest.TestCase):
         self.assertEqual(m.decide([self.pr], [before] * 3, lambda n: [], main_sha="x")[0], "dispatch")
 
 
+class LedgerFailsClosed(unittest.TestCase):
+    """#6493 Step 2: a configured but unreadable ledger holds the cycle."""
+    def test_unreadable_ledger_holds_without_reading_or_dispatching(self):
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r", "PRODUCTION_LEDGER_FILE": "/nonexistent/ledger.json"}), \
+             mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "workflow_runs", side_effect=AssertionError("must not read runs")), \
+             mock.patch.object(m, "dispatch", side_effect=AssertionError("must not dispatch")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(m.main(), 0)
+        self.assertIn("wait: production ledger unreadable", out.getvalue())
+
+
+class DispatchClaims(unittest.TestCase):
+    """#6493 Step 2: per-PR liveness lease against duplicate dispatch."""
+    now = datetime(2026, 11, 16, 20, 0, tzinfo=timezone.utc)
+    claim = {"pr": 7, "versions": ["20261116100000"], "run_id": "11", "claimed_at": "2026-11-16T19:00:00Z"}
+
+    def arun(self, status, conclusion=None, title="DB preview apply PR7 20261116100000", at="2026-11-16T19:01:00Z"):
+        return {"display_title": title, "status": status, "conclusion": conclusion, "created_at": at, "updated_at": at}
+
+    def test_in_flight_run_keeps_the_claim_live(self):
+        self.assertFalse(m.claim_is_stale(self.claim, [self.arun("in_progress")], None, self.now))
+
+    def test_version_titled_run_without_pr_number_counts(self):
+        r = self.arun("queued", title="DB production apply recovery PR 20261116100000")
+        self.assertFalse(m.claim_is_stale(self.claim, [r], None, self.now))
+
+    def test_successful_preview_before_ledger_shows_keeps_claim(self):
+        self.assertFalse(m.claim_is_stale(self.claim, [self.arun("completed", "success")], set(), self.now))
+
+    def test_every_associated_run_failed_reclaims(self):
+        self.assertTrue(m.claim_is_stale(self.claim, [self.arun("completed", "failure")], None, self.now))
+
+    def test_failed_claimer_with_no_run_reclaims_but_live_claimer_does_not(self):
+        self.assertTrue(m.claim_is_stale(self.claim, [], None, self.now, lambda rid: True))
+        self.assertFalse(m.claim_is_stale(self.claim, [], None, self.now, lambda rid: False))
+
+    def test_ledger_applied_claim_is_stale(self):
+        self.assertTrue(m.claim_is_stale(self.claim, [self.arun("in_progress")], {"20261116100000"}, self.now))
+
+    def test_nothing_moving_for_four_hours_reclaims(self):
+        later = self.now + timedelta(hours=5)
+        self.assertTrue(m.claim_is_stale(self.claim, [self.arun("completed", "success")], set(), later))
+        self.assertFalse(m.claim_is_stale(self.claim, [self.arun("in_progress")], set(), later))
+
+    def test_runs_before_the_claim_are_ignored(self):
+        old = self.arun("completed", "failure", at="2026-11-16T18:00:00Z")
+        self.assertFalse(m.claim_is_stale(self.claim, [old], None, self.now, lambda rid: False))
+
+    def test_second_selector_is_blocked_by_a_live_claim(self):
+        pr = {"number": 7, "versions": ["20261116100000"]}
+        api = {"commits/main": {"commit": {"tree": {"sha": "t"}}}, "git/commits": {"sha": "c"}}
+
+        def gh(*args):
+            path = [a for a in args if a.startswith("repos/")][0]
+            if path.endswith("git/ref/dispatch-claims/pr-7"):
+                return {"object": {"sha": "old"}}
+            if path.endswith("git/commits/old"):
+                return {"message": json.dumps(self.claim)}
+            return next(v for k, v in api.items() if path.endswith(k))
+        refused = subprocess.CalledProcessError(1, "gh")
+        with mock.patch.object(m, "gh", gh), mock.patch.object(m.subprocess, "run", side_effect=refused), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertFalse(m.claim_dispatch("o/r", pr, [self.arun("in_progress")], None, self.now))
+        self.assertIn("already claimed", out.getvalue())
+
+    def test_dispatch_error_releases_the_claim(self):
+        pr = {"number": 7, "merged_at": "2026-11-16T10:00:00Z", "versions": ["20261116100000"]}
+        released = []
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [pr]), \
+             mock.patch.object(m, "workflow_runs", lambda repo: []), \
+             mock.patch.object(m, "is_held", lambda repo, n: []), \
+             mock.patch.object(m, "prune_claims", lambda *a: None), \
+             mock.patch.object(m, "claim_dispatch", lambda *a: True), \
+             mock.patch.object(m, "release_claim", lambda repo, n: released.append(n)), \
+             mock.patch.object(m, "dispatch", side_effect=RuntimeError("boom")), \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(RuntimeError):
+                m.main(self.now)
+        self.assertEqual(released, [7])
+
+
+class SloReport(unittest.TestCase):
+    def test_first_post_merge_run_gives_the_sample(self):
+        prs = [{"number": 7, "merged_at": "2026-11-16T10:00:00Z"}, {"number": 8, "merged_at": "2026-11-16T11:00:00Z"}]
+        runs = [{"display_title": "DB preview apply PR7 1", "created_at": "2026-11-16T10:02:00Z"},
+                {"display_title": "DB preview apply PR7 1", "created_at": "2026-11-16T10:30:00Z"},
+                {"display_title": "DB preview apply PR7 1", "created_at": "2026-11-16T09:00:00Z"},
+                {"display_title": "DB production apply PR8 2", "created_at": "2026-11-16T11:10:00Z",
+                 "run_started_at": "2026-11-16T11:12:00Z"}]
+        self.assertEqual(m.slo_samples(prs, runs, "DB preview apply"), [(7, 120.0)])
+        self.assertEqual(m.slo_samples(prs, runs, "DB production apply"), [(8, 720.0)])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            m.report_slos(prs, runs)
+        self.assertIn("SLO_A merge-to-dispatch: 120s (PR #7); p50=120s p95=120s", out.getvalue())
+        self.assertIn("SLO_B merge-to-apply-start: 720s (PR #8)", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1958,7 +2063,9 @@ class DispatchUsesFreshMain(unittest.TestCase):
         m.dispatch = lambda repo, p, sha: calls.append(sha)
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x"], "o/r"
         try:
-            with contextlib.redirect_stdout(io.StringIO()):
+            with contextlib.redirect_stdout(io.StringIO()), \
+                 mock.patch.object(m, "prune_claims", lambda *a: None), \
+                 mock.patch.object(m, "claim_dispatch", lambda *a: True):
                 self.assertEqual(m.main(datetime(2026, 11, 15, 22, 0, tzinfo=timezone.utc)), 0)
             self.assertEqual(calls, ["freeze", "new"])
         finally:
@@ -1968,3 +2075,4 @@ class DispatchUsesFreshMain(unittest.TestCase):
                 os.environ.pop("GITHUB_REPOSITORY", None)
             else:
                 os.environ["GITHUB_REPOSITORY"] = saved[8]
+
