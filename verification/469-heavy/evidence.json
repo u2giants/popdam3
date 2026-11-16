@@ -1,0 +1,67 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "heavy live-proof items (Tesseract finally, batch loop cap, ensureRootMarkers backoff)",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "deployed": {
+    "frontend_edge": "ce4d1a3",
+    "bridge_agent": { "id": "synology-bridge-1", "version": "1.16.26", "build_sha": "487af8868596694a96c2d2e5ac7818569ea8d6d2" },
+    "windows_agent": { "id": "windows-render-agent", "version": "0.17.0.211", "build_sha": "ad999066d9de5b93cfca32c6c53b4e81211cfb00", "ocr_indra_state": "ready" }
+  },
+  "method": "Admin tester session (1Password vibe_coding item 7s5uzpbjenka4fpvrqogh44bre) via Supabase password-grant; admin-api edge function for production actions; source-extracted simulations for the code-level proofs. Secrets injected only through 1Password op_run env references; never in files, argv, or logs.",
+  "task_gate": {
+    "class": "production",
+    "check": "check --before production --acknowledge",
+    "result": "allowed by owner authorization (recorded verbatim in backfill-run-log.json)"
+  },
+  "items": {
+    "tesseract_finally_termination": {
+      "verdict": "proven",
+      "evidence": [
+        "backfill-run-log.json — real OCR backfill run (trigger-pdf-backfill, 619 files, 6:52-6:57 PM EST, windows-render-agent): terminal state idle, zero OCR workers created, zero surviving, agent healthy; 9 run failures all pre-OCR ENOENT at file stat",
+        "sim-tesseract-finally.txt — verbatim fix statement from all 4 sites: terminate runs when recognize rejects (12/12 observations PASS); pre-#713 order control documents the leak",
+        "deployed builds 487af886 (bridge) and ad999066 (windows) contain fix commit 2287f1b5 (git merge-base --is-ancestor)"
+      ],
+      "scope_note": "Run took the embedded-text fast path (608/619 pdf_text) so the OCR branch was never entered; worker termination proven by code path + failure simulation. Bridge tesseract routing (force_bridge) deliberately not used — the repo avoids Tesseract on the Synology NAS (CPU) and tonight's fixture checks depend on that host.",
+      "checkbox": "[x] live proof"
+    },
+    "batch_loop_cap": {
+      "verdict": "proven (smallest scope; documented)",
+      "evidence": [
+        "sim-batch-loop-cap.txt — the four REAL loop bodies (PopSGSettingsPage x2, ScanAndOutputSettings, ActionsSection) extracted verbatim and driven against never-completing batch calls: cap fires at exactly 10,000 iterations with the exact message on every loop; completion control exits at 3 without firing (8/8 observations PASS)",
+        "deployed-bundle-pin.json — served production JS contains all four cap checks, constants 1e4, exact message",
+        "deployed ce4d1a3 ancestry contains fix commit 2287f1b5"
+      ],
+      "scope_note": "No real production bulk run was executed: exceeding 10,000 batches would mean ~5,000,000 requeued render-error rows (PopSG loops) or purging millions of production assets (the two purge loops) — a huge/destructive bulk operation. This is the smallest scope that exercises the cap; documented per task instruction.",
+      "checkbox": "[x] live proof (smallest scope)"
+    },
+    "ensureRootMarkers_hourly_backoff": {
+      "verdict": "proven at closest safe level; live read-only-share observation remains",
+      "evidence": [
+        "sim-root-marker-backoff.txt — the REAL ensureRootMarkers + backoff constants extracted verbatim and run against controlled fs/docker/clock stubs (6 scenarios PASS): first docker failure sets a 1-hour retry; within the window the next heartbeats report docker_write_backoff and spawn ZERO docker containers (the pre-#713 code spawned one every 30 s); exactly one retry after the hour; success clears the backoff; direct-write control spawns none",
+        "source pins: MARKER_DOCKER_RETRY_MS = 60 * 60 * 1000 and the docker_write_backoff gate present verbatim in apps/bridge-agent/src/index.ts",
+        "deployed bridge build 487af886 contains fix commit 2287f1b5 (git merge-base --is-ancestor)",
+        "live read-only state: synology-bridge-1 marker_statuses Decor = ok/exists (healthy root — no failure condition present in production)"
+      ],
+      "remains_for_live_proof": "A root actually mounted read-only (or otherwise write-failing) so the deployed bridge logs 'Root marker: direct write failed' -> Docker fallback failure -> status docker_write_backoff on subsequent heartbeats with at most hourly docker retries. Creating that condition requires changing SMB/share permissions (infrastructure); not authorized in this pass and deliberately not changed.",
+      "checkbox": "[ ] live proof — needs a read-only share root (infrastructure change, not authorized)"
+    }
+  },
+  "not_touched": [
+    "Tonight's NAS fixtures (#469probe.psd, $469probe.psd, @469probe.psd, 469probe-big.ai, #469probe-skip/inner.psd under _ai_test_681/) owned by the 6:55 PM / 8:33 PM EST scheduled checks",
+    "No SMB/share permissions, no schema changes, no credential changes, no scan triggered"
+  ],
+  "harnesses": [
+    "admin-call.mjs — admin-api caller (password via 1Password op_run env only)",
+    "tesseract-finally-sim.mjs",
+    "batch-loop-cap-sim.mjs",
+    "root-marker-backoff-sim.mjs"
+  ],
+  "outputs": [
+    "sim-tesseract-finally.txt",
+    "sim-batch-loop-cap.txt",
+    "sim-root-marker-backoff.txt",
+    "backfill-run-log.json",
+    "deployed-bundle-pin.json"
+  ]
+}

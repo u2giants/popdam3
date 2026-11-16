@@ -1,0 +1,81 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "item": "Tesseract finally termination — OCR backfill run",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "job": "admin-api action trigger-pdf-backfill (the repo's own PDF OCR backfill; heartbeat -> trigger_pdf_backfill -> windows-agent runPdfBackfill/processOne)",
+  "gate": {
+    "class": "production",
+    "result": "allowed by owner authorization",
+    "acknowledge_text_verbatim": "Live-proof probes for u2giants/popdam3 issue #469 heavy items, delegated by parent agent: trigger and observe the repo's own PDF OCR backfill job (admin-api trigger-pdf-backfill; 619 unsampled licensing/tech-pack PDFs remaining) and prove Tesseract worker termination with logs and code-path evidence; exercise the frontend batch-loop cap at the smallest safe scope using intercepted RPC responses with no production bulk operation; prove ensureRootMarkers hourly backoff at unit/simulation level plus deployed code path without changing SMB/share permissions. No destructive actions, no schema changes, no credential changes. Tonight's NAS fixtures in _ai_test_681/ are owned by scheduled one-shot checks and are not touched."
+  },
+  "pre_run_state": {
+    "captured_at_est": "2026-11-15 6:46 PM EST",
+    "pdf_backfill_config": {
+      "mode": "indra_rescan",
+      "status": "completed",
+      "total": 24777,
+      "processed": 19586,
+      "remaining": 693,
+      "started_at": "2026-11-03T11:09:03.897658-05:00",
+      "completed_at": "2026-11-04T23:57:25.020Z",
+      "note": "Snapshot kept: triggering a fresh run replaces this config record (the repo's UI Start button does the same). count_pdf_rescan_remaining stays data-derived (693), so future rescan work is not lost. The prior run's stats were: failed 1043, replaced 18543, designers_filled 7082, files_used_added 3283, technical_designers_filled 3044."
+    },
+    "counts_read_only": { "normal_remaining": 619, "rescan_remaining": 693 },
+    "agents": {
+      "synology-bridge-1": { "type": "bridge", "version": "1.16.26", "build_sha": "487af8868596694a96c2d2e5ac7818569ea8d6d2", "marker_statuses": { "Decor": { "ok": true, "method": "exists" } } },
+      "windows-render-agent": { "type": "windows-render", "version": "0.17.0.211", "build_sha": "ad999066d9de5b93cfca32c6c53b4e81211cfb00", "ocr_indra": { "state": "ready", "python": "C:\\ProgramData\\PopDAM\\indra\\Scripts\\python.exe" }, "online": true }
+    }
+  },
+  "run": {
+    "triggered_at_est": "2026-11-15 6:52 PM EST",
+    "trigger_response": { "ok": true, "total": 619 },
+    "started_at_utc": "2026-11-15T23:52:02.140Z",
+    "completed_at_utc": "2026-11-15T23:57:43.520Z",
+    "duration": "5 min 41 s",
+    "processing_agent": "windows-render-agent (windowsBackfillCapable; bridge fallback not used)",
+    "progress_polls": [
+      { "at_utc": "2026-11-15T23:54:13.790Z", "processed": 180, "remaining": 429, "live_current_file": "HSD68HPHW02_LICENSING SHEET.pdf", "live_current_step": "processing", "stats": { "pdf_text": 179, "failed": 1 } },
+      { "at_utc": "2026-11-15T23:57:44.262Z", "processed": 619, "remaining": 0, "live_current_file": null, "live_current_step": "idle", "status": "completed", "stats": { "pdf_text": 608, "failed": 9, "skipped": 2 } }
+    ],
+    "final_stats": { "pdf_text": 608, "failed": 9, "skipped": 2, "ocr_text": 0, "ai_vision": 0, "files_used_added": 0 },
+    "outcome_rows_query": {
+      "sql": "SELECT extraction_method, ocr_engine, left(coalesce(extraction_error,''),120) AS err, filename FROM pdf_text_samples WHERE sampled_at >= '2026-11-15T23:52:00Z' AND extraction_method <> 'pdf_text' LIMIT 25",
+      "rows": 11,
+      "finding": "All 9 failed rows are pre-OCR file-missing errors (ENOENT stat on Z:\\Decor\\... paths whose source files no longer exist). Both skipped rows have empty error. ocr_engine is null on every row: the OCR branch was never entered in this run."
+    },
+    "worker_observation": "Zero Tesseract/Indra OCR workers were created (608/619 took the embedded-text fast path pdf_text; 9 failed before OCR at file stat). The run reached its normal terminal state with live_current_step=idle, no worker processes to survive it, and windows-render-agent heartbeats stayed healthy throughout (26 s at final poll)."
+  },
+  "code_path_evidence": {
+    "fix_commit": "2287f1b5 (PR #713) changed all four OCR sites from `const result = await worker.recognize(pngBuffer); await worker.terminate();` (terminate skipped when recognize rejects — leaked worker) to `await worker.recognize(pngBuffer).finally(() => worker.terminate())` (terminate runs on both settle paths).",
+    "sites": [
+      "apps/bridge-agent/src/pdf-backfill.ts:154",
+      "apps/bridge-agent/src/pdf-text-sampler.ts:267",
+      "apps/windows-agent/src/pdf-backfill.ts:186",
+      "apps/windows-agent/src/pdf-text-sampler.ts:249"
+    ],
+    "deployed_build_ancestry": {
+      "bridge_build_487af886_contains_2287f1b5": true,
+      "windows_build_ad999066_contains_2287f1b5": true,
+      "method": "git merge-base --is-ancestor"
+    },
+    "failure_path_simulation": {
+      "harness": "tesseract-finally-sim.mjs",
+      "output": "sim-tesseract-finally.txt",
+      "result": "PASS",
+      "what_it_runs": "The four fix statements extracted VERBATIM from the source sites, against a mock worker whose recognize() rejects.",
+      "observations": "Per site: recognize resolves -> terminate called once; recognize rejects -> terminate called once (the audit case); pre-#713 statement order control -> terminate zero times on rejection (documents the leak that was fixed)."
+    }
+  },
+  "scope_notes": [
+    "The live run exercised the repo's OCR backfill job end to end, but every successful file had >=100 chars of embedded PDF text, so the OCR branch (Indra first, tesseract.js fallback) was not entered; termination of Tesseract workers is proven by code path + failure simulation, not by a live tesseract process in this run.",
+    "ocr_indra.state=ready on windows-render-agent, so even a scanned-PDF run would use Indra there; tesseract.js engages only where Indra is absent or fails per file.",
+    "Forcing OCR onto the bridge agent (PDF_TEXT_SAMPLE_REQUEST.force_bridge) was deliberately not done: the repo routes OCR away from the Synology bridge because Tesseract there spikes NAS CPU (agent-api comment on compat-audit), and tonight's NAS fixture checks depend on that host.",
+    "The indra_rescan quiet-hour rule (12:30-3:00 AM ET) gated the 693-file rescan remainder; the fresh normal-mode trigger had 619 real unsampled PDFs and is not quiet-hour gated."
+  ],
+  "disclosed_writes": [
+    "PDF_BACKFILL admin_config row replaced by the standard trigger (pre-image captured above; run record: 619 processed, status completed).",
+    "608 pdf_text_samples rows (extraction_method=pdf_text) + 9 failed rows + 2 skipped rows from the run — the job's normal output.",
+    "0 sku_files_used rows added (files_used_added=0)."
+  ]
+}

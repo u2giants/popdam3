@@ -1,0 +1,68 @@
+{"source_pins":[{"file":"popsg","cap_declared":true,"cap_check_count":2,"decl_line":"const MAX_BATCH_LOOPS = 10_000;\r"},{"file":"scan","cap_declared":true,"cap_check_count":1,"decl_line":"const MAX_BATCH_LOOPS = 10_000;\r"},{"file":"actions","cap_declared":true,"cap_check_count":1,"decl_line":"const MAX_BATCH_LOOPS = 10_000;\r"}]}
+{"extracted_loops":[{"name":"popsg#1","bytes":388},{"name":"popsg#2","bytes":389},{"name":"scan#1","bytes":464},{"name":"actions#1","bytes":431}]}
+{"generated_file":"C:\\Users\\ahazan\\AppData\\Local\\Temp\\batch-loop-cap-sim.generated.ts"}
+{
+  "observations": [
+    {
+      "loop": "popsg#1",
+      "case": "never_done",
+      "calls": 10000,
+      "error": "Stopped after too many batches; run it again to continue.",
+      "pass": true
+    },
+    {
+      "loop": "popsg#1",
+      "case": "completes_at_3",
+      "calls": 3,
+      "error": null,
+      "pass": true
+    },
+    {
+      "loop": "popsg#2",
+      "case": "never_done",
+      "calls": 10000,
+      "error": "Stopped after too many batches; run it again to continue.",
+      "pass": true
+    },
+    {
+      "loop": "popsg#2",
+      "case": "completes_at_3",
+(node:10064) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/ahazan/AppData/Local/Temp/batch-loop-cap-sim.generated.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\ahazan\AppData\Local\Temp\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+      "calls": 3,
+      "error": null,
+      "pass": true
+    },
+    {
+      "loop": "scan#1",
+      "case": "never_done",
+      "calls": 10000,
+      "error": "Stopped after too many batches; run it again to continue.",
+      "pass": true
+    },
+    {
+      "loop": "scan#1",
+      "case": "completes_at_3",
+      "calls": 3,
+      "error": null,
+      "pass": true
+    },
+    {
+      "loop": "actions#1",
+      "case": "never_done",
+      "calls": 10000,
+      "error": "Stopped after too many batches; run it again to continue.",
+      "pass": true
+    },
+    {
+      "loop": "actions#1",
+      "case": "completes_at_3",
+      "calls": 3,
+      "error": null,
+      "pass": true
+    }
+  ]
+}
+{"result":"PASS"}
