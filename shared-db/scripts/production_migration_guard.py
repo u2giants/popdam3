@@ -763,6 +763,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 12: reshapes constraints, columns, one index and four policies that exist on both sides but differ, to production's exact definitions. Source excludes shared preview and production.",
     },
+    "20261119060000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 13: copies production's existing character_alias, taxonomy_source_ref, CRM contact/customer structure, CRM api functions and related triggers with production's exact grants. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
