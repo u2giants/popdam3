@@ -1,0 +1,1112 @@
+[
+ {
+  "name": "api.clickup_task_sync_run_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.coldlion_licensor_property_run_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.coldlion_parallel_observation_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.coldlion_promotion_audit_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.coldlion_promotion_quarantine_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_access_history(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_assign_departments(uuid[],uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_department_assignments()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_role_list()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_set_app_access(uuid,text,boolean)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_set_department_salespeople(uuid[],uuid[])",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_set_user_roles(uuid,text[])",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_set_user_status(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_user_directory()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_admin_user_list()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_archive_contact(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_archive_customer(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_archive_opportunity(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_create_contact(text,text,text,text,uuid,uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_create_customer(text,text,text,text,text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_create_opportunity(text,uuid,uuid,uuid,text,numeric,date)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_customer_segment_counts()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_customer_segment_list(text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_email_routing_recent(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_email_routing_segment_counts()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_email_routing_stage_counts()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_email_routing_stage_page(text,integer,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_merge_contacts(uuid,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_counts()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_email_counts()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_email_volume(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_pending_approvals(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_pipeline_stages()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_recent_meetings(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_overview_recent_unrouted(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_set_customer_logo(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_set_opportunity_stage(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_update_account(uuid,text,text,text,text,text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_update_contact(uuid,text,text,text,text,text,text,uuid,uuid,text,text,boolean,boolean,boolean,boolean)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_update_customer(uuid,text,text,text,text,text,text,text,boolean)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.crm_update_ingested_domain(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.current_user_profile()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_audit_list(text,uuid,text,uuid,timestamp with time zone,timestamp with time zone,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_channel_list()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_customer_detail(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_customer_list(text,text,text,text,boolean,text,text,text,integer,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_decide_property_match(uuid,text,bigint[],text,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_grid_state_get(text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_grid_state_upsert(text,text,jsonb,bigint)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_licensor_property_list(text,boolean,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_licensor_property_tree(text,boolean,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_merge_customer(uuid,uuid,text,uuid,text,jsonb)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_merge_vendor(uuid,uuid,text,uuid,text,jsonb)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_preview_customer_merge(uuid,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_preview_vendor_merge(uuid,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_product_depth_list(text,boolean,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_property_match_queue(text,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_scraped_properties(text,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_scraped_source_inventory(text,text,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_set_product_depth_status(uuid,text,uuid,text,timestamp with time zone)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_set_property_status(uuid,text,uuid,text,timestamp with time zone)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_update_customer(uuid,timestamp with time zone,uuid,text,text,text,text,text,uuid[])",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_update_vendor(uuid,timestamp with time zone,uuid,text,text,text,text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_upsert_product_depth(uuid,text,text,text,uuid,timestamp with time zone)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_vendor_detail(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.db_data_admin_vendor_list(text,text,text,text,boolean,text,text,text,integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_accept_activity_triage(uuid,text,text,text,date)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_add_product_comment(uuid,text,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_begin_activity_triage(uuid,text,text,text,text,jsonb,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_cancel_product_comment_reservation(text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_complete_activity_triage(uuid,text,text,jsonb,jsonb,jsonb,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_create_decision(uuid,text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_create_dependency(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_create_reminder(uuid,text,date)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_dismiss_activity_triage(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_fail_activity_triage(uuid,text,text,jsonb,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_get_activity_triage(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_list_active_jev_triage()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_list_reviewed_jev_triage()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_record_jev_suggestion_impression(uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_recover_product_comment_handle(text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_repair_comment_triage_queue()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_reserve_product_comment_operation(uuid,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_update_dependency_status(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_update_reminder_status(uuid,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.pm_verify_jev_runtime_fence(uuid,text,text,integer,timestamp with time zone,text,text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.set_source_resolution(text,text,text,text,uuid,uuid,uuid,uuid,text,timestamp with time zone,uuid,uuid)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.set_source_resolution(text,text,text,text,uuid,uuid,uuid,uuid,text,timestamp with time zone)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.source_capture_inventory_exact(text)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.taxonomy_baseline_pin_list(text,boolean)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.taxonomy_sync_alert_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.vendor_exclusion_list()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.vendor_quarantine_list()",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "api.vendor_sync_run_list(integer)",
+  "nsp": "api",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "app.current_profile_id()",
+  "nsp": "app",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "app.has_any_role(app.app_role[])",
+  "nsp": "app",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "app.has_app_access(app.app_name)",
+  "nsp": "app",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "app.has_explicit_app_access(app.app_name)",
+  "nsp": "app",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "app.has_role(app.app_role)",
+  "nsp": "app",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "activate_popsg_property_decision_batch(text,text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "add_style_guide_manual_tag(uuid,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "add_style_tracker_rows(text,text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "approve_licensor_alias(text,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "assets_thumbnail_min_date()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "bulk_assign_style_groups(jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "bulk_insert_pdf_text_samples(jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "claim_jobs(text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "claim_pdf_backfill_batch(integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "claim_render_jobs(text,integer,integer,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "claim_tiff_jobs(text,integer,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "cleanup_mega_group_tags_batch()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 300
+ },
+ {
+  "name": "cleanup_mega_group_tags_batch(uuid,integer,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 300
+ },
+ {
+  "name": "clear_style_group_batch(uuid,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "count_pdf_backfill_remaining()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "create_dam_order(jsonb,jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "dam_resolve_customer(text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "dam_search_semantic_anchor(extensions.vector,text[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "dam_search_semantic_anchor_scoped(extensions.vector,text[],uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "dam_search_semantic_anchors(extensions.vector,extensions.vector,text[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "delete_style_tracker_rows(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "expand_dam_search_queries(text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "find_ai_pdf_duplicates()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_ai_sentinel_stats()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_dam_asset_taxonomy_counts()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_dam_customer_facets()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_dam_order_assortment_quantities(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "get_dam_order_sales_order_dates(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "get_dam_order_vendor_ids(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "get_dam_style_group_asset_count(jsonb,timestamp with time zone,uuid[],text[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_effective_filter_counts(jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_filter_counts(jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_path_facets(uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_sg_preview_stats()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_sg_render_queue_stats()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_style_guide_deterministic_tag_batch(uuid,integer,boolean)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_style_guide_deterministic_tag_batch_v2(uuid,integer,boolean)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "get_style_guide_tagging_stats()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "has_app_access(uuid,app_name)",
+  "nsp": "public",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "has_role(uuid,app_role)",
+  "nsp": "public",
+  "anon_granted": true,
+  "status": 404
+ },
+ {
+  "name": "import_dam_buy_sheet(uuid,text,text,jsonb,jsonb,jsonb,boolean)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "link_dam_order_line(uuid,uuid,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "list_licensor_aliases()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "lock_down_new_public_function_execute()",
+  "nsp": "public",
+  "anon_granted": true,
+  "status": 401
+ },
+ {
+  "name": "promote_property_alias_batch(uuid,text,text,boolean,text,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "propagate_group_tags_batch(uuid,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "propose_popsg_property_resolution(uuid,text,text,uuid,integer,text,text,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "rebuild_dam_search_documents()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "rebuild_style_groups_batch(uuid,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "reconcile_style_group_stats_batch(uuid,integer,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "refresh_dam_search_asset_document(uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "refresh_dam_search_style_group_document(uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "refresh_style_group_counts()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "refresh_style_group_counts_batch(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "refresh_style_group_primaries(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "refresh_style_group_rich_metadata(uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "refresh_style_guide_folder_consensus_batch(text,integer,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "refresh_style_tracker_item_bridge()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "reject_style_guide_auto_tag(uuid,uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "remove_style_guide_manual_tag(uuid,uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "replace_style_guide_deterministic_tags(uuid,jsonb,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "replace_style_guide_folder_consensus_tags(uuid,jsonb,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "requeue_all_failed_sg_jobs(integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "require_dam_access()",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "reset_bulk_operation_submission_lease(text,bigint,text,text,text,integer,jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "reset_stale_jobs(integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "resolve_coldlion_triage(uuid,text,uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "resolve_licensor_alias(text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "retry_sg_render_errors(uuid[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 300
+ },
+ {
+  "name": "retry_sg_render_errors(uuid[],integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 300
+ },
+ {
+  "name": "rls_auto_enable()",
+  "nsp": "public",
+  "anon_granted": true,
+  "status": 400
+ },
+ {
+  "name": "search_assets_full_text(text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "search_dam_image_similarity(extensions.halfvec,extensions.halfvec,numeric,numeric,integer,integer,text[])",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "search_style_groups_full_text(text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamp with time zone,timestamp with time zone,text,integer,integer,extensions.vector,real,text,boolean)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 401
+ },
+ {
+  "name": "search_style_tracker_link_candidates(text,text,integer,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "set_popdam_item_dismissed(text[],boolean)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "set_style_group_cover(uuid,uuid)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "update_bulk_operation(text,jsonb,text,bigint,text,integer)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "update_bulk_operations_batch(jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "update_dam_order(uuid,jsonb,jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "update_dam_order_tracking(uuid,jsonb)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "upsert_dam_order_customer_settings(text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "upsert_dam_order_sample_depth(text,text,numeric)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ },
+ {
+  "name": "upsert_style_tracker_value_resolution(text,text,text,text,text,uuid,text,text)",
+  "nsp": "public",
+  "anon_granted": false,
+  "status": 404
+ }
+]
