@@ -30,6 +30,11 @@ class Drift(unittest.TestCase):
         self.assertTrue(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES dflow.users(id)'))
         self.assertFalse(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES app.users(id)'))
 
+    def test_excluded_role_policy(self):
+        self.assertTrue(d.excluded_role_policy('policy', 'SELECT/{designflow_hts_alsand_runtime}/true/'))
+        self.assertFalse(d.excluded_role_policy('policy', 'SELECT/{authenticated,designflow_hts_alsand_runtime}/true/'))
+        self.assertFalse(d.excluded_role_policy('index', 'x'))
+
     def test_render(self):
         self.assertIn("No drift", d.render({}))
         self.assertIn("missing relation: 1", d.render({"missing relation": ["plm.y"]}))

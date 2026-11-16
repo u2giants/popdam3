@@ -790,6 +790,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 15: production's current plm.guard_production_po_number() body. Source excludes shared preview and production.",
     },
+    "20261201100000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 16: owner-approved copy of production's dam, hts_rag, archive and public structure (no rows), excluding production service logins. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():

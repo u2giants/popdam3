@@ -79,6 +79,28 @@ def same_definition(prod_value: str, sandbox_value: str) -> bool:
     return prod_value == sandbox_value or prod_value.replace("dflow_prod.", "dflow.") == sandbox_value
 
 
+# Production service logins excluded from the sandbox (#6356, 2026-11-16). A policy that applies only to these
+# roles is production-only by that decision and is not drift.
+EXCLUDED_ROLES = {
+    "dam_image_embed_login", "dam_image_embed_worker", "designflow_hts_alsand_runtime", "designflow_hts_alsand_worker",
+    "designflow_hts_evaluation_read", "designflow_hts_evaluation_reader", "designflow_hts_prod_runtime",
+    "designflow_hts_prod_worker", "designflow_prod_backend_grants", "designflow_prod_backend_runtime",
+    "designflow_prod_data_sync_grants", "designflow_prod_data_sync_runtime", "designflow_prod_item_master_grants",
+    "designflow_prod_item_master_runtime", "designflow_prod_tracking_grants", "designflow_prod_tracking_runtime",
+    "oracle_directory_reader", "pm_jev_triage_worker", "poppim_readonly_jcortazar",
+}
+
+
+def excluded_role_policy(kind: str, value: str) -> bool:
+    if kind != "policy":
+        return False
+    parts = value.split("/", 2)
+    if len(parts) < 2 or not parts[1].startswith("{"):
+        return False
+    roles = {r.strip('"') for r in parts[1].strip("{}").split(",") if r}
+    return bool(roles) and roles <= EXCLUDED_ROLES
+
+
 def compare(prod: dict, sandbox: dict, allowlist: dict) -> dict[str, list[str]]:
     """Return {category: [message]} for drift outside the allowlist. Sandbox-only objects are not drift."""
     out: dict[str, list[str]] = {}
@@ -86,6 +108,8 @@ def compare(prod: dict, sandbox: dict, allowlist: dict) -> dict[str, list[str]]:
         p, s = prod[kind], sandbox[kind]
         for key in sorted(p):
             if allowed(kind, key, allowlist):
+                continue
+            if excluded_role_policy(kind, p[key]):
                 continue
             if key not in s:
                 out.setdefault(f"missing {kind}", []).append(key)
