@@ -1,15 +1,1 @@
-{
-  "schema_version": 1,
-  "source": "scripts/sandbox_prod_drift_check.py",
-  "sites": [
-    {
-      "source": "scripts/sandbox_prod_drift_check.py",
-      "site": "scripts/sandbox_prod_drift_check.py:71",
-      "semantic_key": "scripts/sandbox_prod_drift_check.py:405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29:context-9a58c18ce6aac88c9bd75571bf401a06ad34487a3a6486359f7a01eb8603220f",
-      "legacy_semantic_key": "scripts/sandbox_prod_drift_check.py:405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29:1",
-      "line_sha256": "405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29",
-      "disposition": "excluded",
-      "reason": "Drift-report wording for objects absent from the sandbox compared with production (read-only comparison output); it reports a difference and does not infer missing objects from a failed lookup."
-    }
-  ]
-}
+{"schema_version":1,"source":"scripts/sandbox_prod_drift_check.py","sites":[{"source":"scripts/sandbox_prod_drift_check.py","site":"scripts/sandbox_prod_drift_check.py:77","semantic_key":"scripts/sandbox_prod_drift_check.py:405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29:context-88093e7d52cdce54b447e6defc2badcba458af2c8f65802c3e83da4144fc05ca","legacy_semantic_key":"scripts/sandbox_prod_drift_check.py:405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29:1","line_sha256":"405ef75d96371afd0f81ef6343a517b418fc94f8509cdbcea142612d3922cd29","disposition":"excluded","reason":"Drift-report wording for objects absent from the sandbox compared with production (read-only comparison output); it reports a difference and does not infer missing objects from a failed lookup."}]}

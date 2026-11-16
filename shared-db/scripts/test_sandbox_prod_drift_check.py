@@ -26,6 +26,10 @@ class Drift(unittest.TestCase):
         out = d.compare(prod, snap(), {"ignore_schemas": ["dam"], "ignore_patterns": ["relation:plm.skip_*"]})
         self.assertEqual(out, {"missing relation": ["plm.keep"]})
 
+    def test_dflow_prod_maps_to_sandbox_dflow(self):
+        self.assertTrue(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES dflow.users(id)'))
+        self.assertFalse(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES app.users(id)'))
+
     def test_render(self):
         self.assertIn("No drift", d.render({}))
         self.assertIn("missing relation: 1", d.render({"missing relation": ["plm.y"]}))

@@ -59,6 +59,12 @@ def allowed(kind: str, key: str, allowlist: dict) -> bool:
     return any(fnmatch.fnmatchcase(full, pat) for pat in allowlist.get("ignore_patterns", []))
 
 
+# Production's DesignFlow schema is dflow_prod; the sandbox's is dflow (#6356). A definition that differs
+# only by that schema name is the same object, not drift.
+def same_definition(prod_value: str, sandbox_value: str) -> bool:
+    return prod_value == sandbox_value or prod_value.replace("dflow_prod.", "dflow.") == sandbox_value
+
+
 def compare(prod: dict, sandbox: dict, allowlist: dict) -> dict[str, list[str]]:
     """Return {category: [message]} for drift outside the allowlist. Sandbox-only objects are not drift."""
     out: dict[str, list[str]] = {}
@@ -69,7 +75,7 @@ def compare(prod: dict, sandbox: dict, allowlist: dict) -> dict[str, list[str]]:
                 continue
             if key not in s:
                 out.setdefault(f"missing {kind}", []).append(key)
-            elif p[key] != s[key]:
+            elif not same_definition(p[key], s[key]):
                 out.setdefault(f"changed {kind}", []).append(key)
     return out
 

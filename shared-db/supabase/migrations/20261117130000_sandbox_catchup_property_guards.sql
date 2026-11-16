@@ -6,6 +6,8 @@
 -- 3. Copies production's relationship-lock, sync-alert and DCP-OPA crosswalk triggers (functions already present).
 -- Not here: policies and api.oracle_user_directory() (they need production-only runtime roles), temp_status_watch triggers, crm/character_alias/
 -- taxonomy_source_ref (open claims), sku_sg triggers (public schema awaits the owner's call).
+-- Sandbox adaptation: the Coldlion sync functions read production's dflow_prod."merchGroup"; the sandbox's copy of that
+-- DesignFlow table is dflow."merchGroup", so those references point there.
 -- derived-from: none
 -- maintains-eol-dependency: function api.db_data_admin_licensor_property_tree
 
@@ -125,11 +127,11 @@ begin
    where mg_type_code = '05' and division_code in ('CW001', 'SP001')
      and nullif(btrim(mg_code), '') is not null and nullif(btrim(mg_desc), '') is not null
    group by mg_code;
-  if exists (select 1 from pg_attribute where attrelid = to_regclass('dflow_prod."merchGroup"')
+  if exists (select 1 from pg_attribute where attrelid = to_regclass('dflow."merchGroup"')
               and attname = 'divisionCode_fk' and not attisdropped) then
     insert into _mg05(c, n, act)
     select mg_code, (array_agg(mg_desc order by is_active desc nulls last, "modTime" desc nulls last))[1], bool_or(coalesce(is_active, false))
-      from dflow_prod."merchGroup"
+      from dflow."merchGroup"
      where "mgTypeCode" = '05' and "divisionCode_fk" in ('CW001', 'SP001')
        and nullif(btrim(mg_code), '') is not null and nullif(btrim(mg_desc), '') is not null
      group by mg_code
@@ -244,7 +246,7 @@ declare
   v_id uuid; v_n integer;
   v_created integer := 0; v_coded integer := 0; v_renamed integer := 0; v_status integer := 0; v_seen integer := 0;
   v_skipped jsonb := '[]'::jsonb;
-  v_has_app boolean := to_regclass('dflow_prod."merchGroup"') is not null;
+  v_has_app boolean := to_regclass('dflow."merchGroup"') is not null;
   v_counts jsonb;
   v_cur record;
 begin
@@ -278,12 +280,12 @@ begin
    where x.code = c.code;
 
   -- Licensor 2: the MG05 parent the app list gives this MG06 code (production only).
-  if v_has_app and exists (select 1 from pg_attribute where attrelid = to_regclass('dflow_prod."merchGroup"')
+  if v_has_app and exists (select 1 from pg_attribute where attrelid = to_regclass('dflow."merchGroup"')
                             and attname = 'divisionCode_fk' and not attisdropped) then
     -- MG groups are division-specific: the parent is read within the child's own licensed division.
       update _cl_prop c set licensor_id = l.id, how = 'app_parent'
         from (select m.mg_code c, min(p.mg_code) lic
-                from dflow_prod."merchGroup" m join dflow_prod."merchGroup" p on p.mg_id = m.parent_id
+                from dflow."merchGroup" m join dflow."merchGroup" p on p.mg_id = m.parent_id
                where m."mgTypeCode" = '06' and p."mgTypeCode" = '05'
                  and coalesce(m."divisionCode_fk", 'CW001') in ('CW001', 'SP001')
                  and p."divisionCode_fk" is not distinct from m."divisionCode_fk"
@@ -291,10 +293,10 @@ begin
         join core.licensor l on l.code = a.lic
        where a.c = c.code and c.licensor_id is null;
   elsif v_has_app then
-    -- static SQL: plpgsql plans it only when this branch runs, so it is safe where dflow_prod is absent.
+    -- static SQL: plpgsql plans it only when this branch runs, so it is safe where dflow is absent.
       update _cl_prop c set licensor_id = l.id, how = 'app_parent'
         from (select m.mg_code c, min(p.mg_code) lic
-                from dflow_prod."merchGroup" m join dflow_prod."merchGroup" p on p.mg_id = m.parent_id
+                from dflow."merchGroup" m join dflow."merchGroup" p on p.mg_id = m.parent_id
                where m."mgTypeCode" = '06' group by m.mg_code having count(distinct p.mg_code) = 1) a
         join core.licensor l on l.code = a.lic
        where a.c = c.code and c.licensor_id is null;
