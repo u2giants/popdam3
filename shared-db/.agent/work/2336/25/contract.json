@@ -1,0 +1,102 @@
+{
+  "schema_version": 2,
+  "work_issue": 2336,
+  "generation": 25,
+  "evidence_parent": {
+    "work_issue": 2336,
+    "generation": 24,
+    "contract_sha256": "d440c4863259d5bb397b79d4073673194b45bda03bffe4549c2d5557341da9fc"
+  },
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Forward-only repair of confirmed M1 same-capture rollback/re-plan timestamp refusal, preserving every exact physical state/counter/actor/immutable audit guard and original applied source; qualify source then separately pass assigned review, ephemeral full native regression, guarded merge, preview, automatic production, generated-types and live acceptance.",
+  "base_sha": "ab3b833b5bd35b93e5edc531b363aa83650803cf",
+  "dispatcher": "Codex chat 01a13fd0-6bf1-7a80-b1cc-818fe11cec0b on edge-dev3",
+  "worker": "Bounded Luna 6 High implementations; Codex retains schema/security/merge/production decisions",
+  "branch": "codex/2336-recovery-current",
+  "worktree": "/home/ahazan/.codex/worktrees/2336-recovery-current/shared-db",
+  "allowed_paths": [
+    "supabase/migrations/20261015150513_licensing_recovery_timestamp.sql",
+    "supabase/tests/licensing_consolidation_contracts.sql",
+    ".github/live-proofs/2336.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261015150513.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/2336/25/contract.json",
+    ".agent/work/2336/25/completion.json"
+  ],
+  "file_writes": [
+    "supabase/migrations/20261015150513_licensing_recovery_timestamp.sql",
+    "supabase/tests/licensing_consolidation_contracts.sql",
+    ".github/live-proofs/2336.sql",
+    "scripts/production_catalog_verification.py",
+    "scripts/test_production_catalog_verification.py",
+    "scripts/production-verification-sidecars/20261015150513.json",
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    ".agent/work/2336/25/contract.json",
+    ".agent/work/2336/25/completion.json"
+  ],
+  "db_reads": [
+    "function core.bump_taxonomy_source_ref_last_seen",
+    "function plm.apply_licensing_consolidation",
+    "function plm.apply_licensing_support_operation",
+    "function plm.licensing_consolidation_operation_state",
+    "function plm.licensing_operation_identity_predicate",
+    "function plm.plan_licensing_consolidation",
+    "function plm.plan_licensing_consolidation_rollback",
+    "table core.character",
+    "table core.franchise",
+    "table core.property",
+    "table core.property_alias",
+    "table core.property_character_associations",
+    "table core.property_character_source_edge",
+    "table core.property_franchise",
+    "table core.property_franchise_source_edge",
+    "table core.property_style_guide",
+    "table core.property_style_guide_source_edge",
+    "table core.style_guide",
+    "table core.style_guide_character",
+    "table core.style_guide_character_source_edge",
+    "table core.taxonomy_source_ref",
+    "table dam.asset",
+    "table dam.asset_character",
+    "table dam.asset_character_source_edge",
+    "table dam.asset_franchise",
+    "table dam.asset_franchise_source_edge",
+    "table dam.asset_property",
+    "table dam.asset_property_source_edge",
+    "table dam.asset_style_guide",
+    "table dam.asset_style_guide_source_edge",
+    "table plm.licensing_consolidation_plan"
+  ],
+  "db_writes": [
+    "function plm.licensing_consolidation_plan_immutable"
+  ],
+  "prohibited_actions": [
+    "Never edit/replay frozen20261013130102 SQL or original2336/3998/4170 source/reviews/budgets/claims.",
+    "No broad omission of last_seen_at or any other planned integrity field; no changed grants/roles/volatility/targets/history/deletion.",
+    "No production/preview/manual SQL, credentials, curated merge, paid review, claim manipulation or source publication by subagents.",
+    "No fake full-native success from reduced PG model; all required CI/live gates remain separate."
+  ],
+  "required_checks": [
+    "python3 -m unittest scripts.test_production_catalog_verification scripts.test_shared_db_live_proof scripts.test_migration_derivation",
+    "node scripts/check-production-verification-sidecars.mjs",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "Correctly identified current-owner claim4334 reserved20261015150513. Unsupported-label claim4332 and unused version20261015145035 were terminally retired by native receipt e0460b48831b4614a7e0d2820fd77ad5dc3c4883 after all former dirty bytes were committed/pushed at b5210e4fec1bce18972e6ce2e414b0c839973e83, PR4333 closed unmerged. No source/ref/worktree/reservation was deleted or reused.",
+    "Confirmed reducednativePG17 reproduction is not full end-to-end acceptance; currentfullCIbootstrap remains mandatory.",
+    "Trigger-aware expected timestamp applies ONLY entity_source/core.taxonomy_source_ref existing-row non-no-op updates, missing_sincenull, and exactactualbase trigger timestampcondition; use greatest(planned,transaction_timestamp()).",
+    "No-op shortcircuit must retain original exact timestamp; insert,retire,and non-trigger paths unchanged. Identity/raw/source_name/counters/timestamp tamper remain rejected.",
+    "Canonical oldfunction prosrcMD53097938f8dad64d35f35931967ef3b67 and actualbase trigger body must be pinned before replacement; failclosed on otherdefinitions.",
+    "Current production proof requires new exactbody+ledger; historical v2 catalog accepts its exact oldbody beforeforwardmigration and exactnewbody only whennewledgerexists, never arbitrary allowlist.",
+    "This successor prospectively copies preserved source and unvalidated test/catalog work under the correct declared current owner and fresh reserved version, then completes verification. It does not reset any review budget or claim old evidence as new acceptance."
+  ],
+  "stop_conditions": [
+    "Stop source editing if claim check-in olderthan10minutes, actualsource scope widens, precondition hash differs, any guardweakens, or a gate refuses. Root checks in beforeprotectedactions and stops author natively at externalstop."
+  ]
+}
