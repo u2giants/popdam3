@@ -24,7 +24,7 @@ create table core.character_alias (
   evidence_notes text,
   id uuid default gen_random_uuid() not null,
   licensor_id uuid not null,
-  normalized_alias text default core.normalize_popsg_property_observation(alias),
+  normalized_alias text generated always as (core.normalize_popsg_property_observation(alias)) stored,
   source_id text,
   source_system text not null,
   updated_at timestamp with time zone default now() not null,
