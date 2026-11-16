@@ -328,7 +328,7 @@ scripts are run directly (`node scripts/...`). Generated code is only
 
 | Task | Files to touch | Files not to touch |
 |---|---|---|
-| Change database shape (table/column/view/function/RLS/index) | New `supabase/migrations/<timestamp>_<name>.sql` only | Any migration already on a ledger; consumer-repo schema copies |
+| Change database shape (table/column/view/function/RLS/index) | New `supabase/migrations/<timestamp>_<name>.sql` only | Any migration already on a ledger; consumer-repo schema copies; ad-hoc production SQL outside the runbook exception (`docs/dflow-snapshot-demolition-runbook.md`, #6325) |
 | Change shared API contract / browser view | New migration + `docs/architecture.md` / schema map if ownership changes | Ad-hoc SQL against production |
 | Change CI, merge, promotion, or task gates | Relevant `.github/workflows/*.yml`, `scripts/` guards + tests | Live production settings except via reviewed workflow |
 | Change author-lane / claim / review mechanics | `scripts/manage-migration-coordination.mjs`, `scripts/lib/lanes/**`, tests | Bypassing lease, ordering, or production authorization checks |

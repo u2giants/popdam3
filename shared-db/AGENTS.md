@@ -127,7 +127,7 @@ rules, tools, type regeneration, handoff) is in
 [`docs/agents/router-detail.md`](docs/agents/router-detail.md#task-to-file-navigation-what-to-edit-for-common-changes).
 The rules that prevent damage:
 
-- Database shape: a **new** `supabase/migrations/<timestamp>_<name>.sql` only — never a migration already on a ledger, never ad-hoc SQL against production.
+- Database shape: a **new** `supabase/migrations/<timestamp>_<name>.sql` only — never a migration already on a ledger, never ad-hoc SQL against production (sole exception: a production-only environment retirement executed per a merged runbook — see `docs/dflow-snapshot-demolition-runbook.md`, #6325).
 - Operating rules: change `AGENTS.md` and the matching `docs/agents/` chapter **together**; do not contradict `scripts/check-*.mjs` guards.
 - Business meaning: the `docs/business-rules/` topic file, never a competing copy in an app repo.
 - Types: regenerate through the generate-database-types workflow; never hand-edit `types/database.types.ts`.

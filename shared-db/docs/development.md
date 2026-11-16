@@ -168,6 +168,31 @@ wholly inside `{crm, pim, dam, plm}` (and documents), you may use
 `scripts/check-self-service-additive-lane.mjs`. Anything else stays on the
 conservative path.
 
+### Migrations touching `dflow.*`: production intentionally has no `dflow` (issue #6325)
+
+`dflow` is the **non-production** DesignFlow app schema (ephemeral CI replay,
+preview, and the DesignFlow non-production project build and use it). The
+stale production seed copy was demolished by runbook
+(`docs/dflow-snapshot-demolition-runbook.md`), so production is the one
+target where the schema does not exist. Any migration that creates, alters,
+or drops `dflow.*` objects must therefore tolerate the schema's absence on
+production — wrap the statements in a guard block that is inert where the
+schema is missing and active where it exists:
+
+```sql
+do $$
+begin
+  if exists (select 1 from pg_catalog.pg_namespace where nspname = 'dflow') then
+    -- dflow.* DDL here
+  end if;
+end
+$$;
+```
+
+Never "fix" the divergence by re-creating `dflow` on production; the
+divergence is the design. Never demolish `dflow` on the non-production
+targets — the contract suite asserts it.
+
 ## Tests and evidence
 
 - Unit/contract tests live beside the code (`scripts/*.test.mjs`,
