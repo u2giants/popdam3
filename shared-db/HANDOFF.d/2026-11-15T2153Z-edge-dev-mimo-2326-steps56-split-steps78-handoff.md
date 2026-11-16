@@ -12,7 +12,7 @@ Written 2026-11-15 4:53 PM EST by MiMo chat ses_ffe5e1ee on edge-dev (takeover s
 
 **One, conditional second.** Put both to the owner in ONE message before starting work.
 
-1. **Auth leaked-password protection — enable or not (blocks nothing else).** A Supabase Auth platform setting, not a migration. The plan reserves this exact change for Albert's explicit authorization after plan-tier and user-impact evidence (plan "Owner decisions" item 2). Recommendation: **enable it** if the current Supabase plan supports it and a test-account enrollment/reset flow passes; the security value is real and the change is reversible. What it blocks: only itself — everything else in the program proceeds without it. It is the last remaining plan item that needs a human word.
+1. **Auth leaked-password protection — ANSWERED 2026-11-16: NO, do not enable.** Albert's ruling (chat, 2026-11-16, verbatim intent: "no leaked-password protection"). Recorded on #2326 by the worker session 2026-11-16 11:29 AM EST. The plan's owner-decision item 2 is settled — do not re-ask. No platform change is to be made.
 2. **(Conditional, likely never asked) Who may see DAM style-guide structure cross-app.** If and only if the #6418 app-reference census shows more than one application reading the `style_guide_folders` / `style_guide_file_groups` matviews directly, the access contract becomes a business call (narrow to DAM vs serve all authenticated apps). Recommendation in that case: narrow to the apps that actually read it. If the census shows PopDAM only (expected), the issue self-resolves with a grant narrowing and the owner is not asked.
 
 Already settled — do NOT re-ask (dates are the ruling dates):
@@ -120,9 +120,32 @@ All of the wrap-up handoff §7 remain in force (worktree-only §2.1-W from `orig
 - **The #5747 checkpoint `auto-2` fires Mon 2026-11-16 6:00 AM EST — tomorrow morning.** If heap/live ≥ 2.0 it will propose the governed pg_repack route; do not repack by hand, and do not run the checkpoint manually. (Carried forward.)
 - Stale-by-nature: `main` SHAs and the migration maximum (checked 2026-11-15 late afternoon EST); the pgss-derived figures are a 7-day window ending 2026-11-13 with the reset at its start.
 
-## Part (b) — sub-agents
+## Part (b) — every delegated unit, separated
 
-N/A — this session dispatched no sub-agents or sub-sessions. All Step 5/6 triage (evidence reads, live read-only catalog captures, issue splitting) was done directly in this session. The inherited sub-agent blocks from the wrap-up handoff (general-1/2/3, the three sub-sessions) remain the record for that earlier work and are not repeated here.
+### Agent: [2326 Step 6-remainder and Steps 7-8](mimo-session://desktop/ses_ffe5e1eca1169ffeVMOIFzEA5L) (id `ses_ffe5e1eca1169ffeVMOIFzEA5L`) — LIVE, program owner
+
+- **Asked to do:** the successor brief in its task field (Step 6 remainder via #6415/#6416/#6418, then Steps 7-8 at the plan's phase boundary), created 2026-11-15 ~5:00 PM EST by this session after the predecessor sub-session stalled.
+- **Actually did (verified against GitHub, not self-report):** claimed and delivered all seven issues — PR [#6433](https://github.com/popcre/shared-db/pull/6433) trigger-EXECUTE revocations (merged), [#6444](https://github.com/popcre/shared-db/pull/6444) 18 unique-twin drops (merged), [#6447](https://github.com/popcre/shared-db/pull/6447) 3 plain-twin drops (merged), [#6454](https://github.com/popcre/shared-db/pull/6454) opa pair-constraint drop (merged), [#6459](https://github.com/popcre/shared-db/pull/6459) SD-RPC measurement matrix (merged; 201 functions dispositioned, 3 follow-up issues filed), plus the #6412 hot-join index (merged earlier). Issues #6409/#6410/#6411/#6412/#6415/#6416 CLOSED. Recorded the leaked-password owner ruling on #2326 (2026-11-16 11:29 AM EST). One migration needed a Guard B registration after the backdate-guard version re-stamp (`20261115033520` → `20261117200000`, content unchanged).
+- **Found:** the logged-in half of the SD-RPC measurement is blocked by broken preview sign-ins (platform-side, not this program's); the matview work needed caller-gated projections rather than a bare grant narrowing.
+- **PR / branch:** [#6451](https://github.com/popcre/shared-db/pull/6451) `mimo/2326-6418-matview-grant-narrowing` — OPEN at 2026-11-16 5:15 PM EST. Its worktree `D:\repos\shared-db-worktrees\2326-steps56-impl` is LIVE — do not touch it.
+- **Worktree:** live (resumable).
+- **Deliberately did NOT do, and why:** Steps 7-8 (plan's phase boundary says a fresh session after Step 6 closes; it will hand off again or take Step 7 after #6451 lands). Did not enable leaked-password protection (owner said no).
+
+Inherited earlier delegated units (general-1/2/3 and the three sub-sessions of the 2026-11-15 wrap-up) are recorded in the predecessor wrap-up handoff's part (b) and are not repeated here.
+
+---
+
+## Wrap-up addendum — 2026-11-16 5:15 PM EST (this session's closeout)
+
+**Session identity:** MiMo chat ses_ffe5e1eee5af1ffeVr0r1JXa4G on edge-dev. **Closeout check:** `ai-shared-db-closeout-check` run at wrap-up returned `{"blocking_claims":[],"blocking_stages":[],"ok":true,"open_claims_checked":14,"open_issues_seen":166,"session_id":"ses_ffe5e1eee5af1ffeVr0r1JXa4G","stages_checked":3}` — zero owned claims, zero owned stages. This session never held native db-claims or stage leases; its #2326 ownership was prose (claim comment 2026-11-15 4:25 PM EST), superseded by the worker session's claims.
+
+**State refresh (checked 2026-11-16 5:15 PM EST):** `origin/main` = `1933aa6a8`; maximum migration on main = `20261201100000_sandbox_catchup_dam_hts_archive_public.sql` (other sessions keep advancing this — re-fetch). This session's PRs **#6413** (Step 5 triage + plan row 5) and **#6419** (Step 6 inventory + this handoff + plan row 6) are both MERGED (2026-11-15 8:20 PM / 5:01 PM EST). All six implementation PRs of the seven issues merged except the worker's #6451 (matview gates, open). #2326 remains OPEN for Steps 6-closure + 7-8.
+
+**Secrets sweep:** swept — nothing new. The Supabase token was referenced only via `op read 'op://vibe_coding/Supabase CLI Personal Access Token/SUPABASE_ACCESS_TOKEN'` and never printed to chat, files, commits, or captures.
+
+**Docs pass:** nothing outside the handoff is stale. The plan rows 5-6 were advanced in the merged PRs; the leaked-password owner ruling is recorded on #2326 and in §0 above; no standing fact in AGENTS.md was disproved by this session's work.
+
+**Dead ends this session (in addition to §4):** PowerShell `Set-Content -Encoding utf8` BOM risk (verify bytes; write with `UTF8Encoding($hasBom)`); `ai-doc-health` "unreachable" faults caused by over-160-char `summary:` headers (shorten the header, not the link graph); repeated merge-queue ejections on a busy night — DIRTY states returned twice on PR #6413 and each time resolved by merging `origin/main` and regenerating `docs/INDEX.md` via `ai-doc-health --fix-index`. `ai-shared-db-closeout-check` needed ~20 minutes of ai-gh admission waits (budget pauses) — budget for that.
 
 ---
 
