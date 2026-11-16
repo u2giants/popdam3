@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261115041745",
+  "migration_sha256": "269813b76883fc171fdc0f3fd7a0beaf62fc2d91c205682b09fe9a5a977ccfbd",
+  "checks": [
+    {
+      "id": "opa_361_chain_link",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {"column": "source_system", "type": "text", "equals": "disney_opa"},
+        {"column": "source_table", "type": "text", "equals": "plm.opa_property"},
+        {"column": "source_id", "type": "text", "equals": "361"}
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "opa_372_chain_link",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {"column": "source_system", "type": "text", "equals": "disney_opa"},
+        {"column": "source_table", "type": "text", "equals": "plm.opa_property"},
+        {"column": "source_id", "type": "text", "equals": "372"}
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "opa_640_chain_link",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {"column": "source_system", "type": "text", "equals": "disney_opa"},
+        {"column": "source_table", "type": "text", "equals": "plm.opa_property"},
+        {"column": "source_id", "type": "text", "equals": "640"}
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "opa_1107_chain_link",
+      "kind": "exact_row_count",
+      "relation": "core.taxonomy_source_ref",
+      "filters": [
+        {"column": "source_system", "type": "text", "equals": "disney_opa"},
+        {"column": "source_table", "type": "text", "equals": "plm.opa_property"},
+        {"column": "source_id", "type": "text", "equals": "1107"}
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "mm_row_name_restored",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {"column": "code", "type": "text", "equals": "MM"},
+        {"column": "name", "type": "text", "equals": "Standard Characters"}
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "xm_row_name_restored",
+      "kind": "exact_row_count",
+      "relation": "core.property",
+      "filters": [
+        {"column": "code", "type": "text", "equals": "XM"},
+        {"column": "name", "type": "text", "equals": "X-Men Classic"}
+      ],
+      "expected_count": 1
+    }
+  ]
+}
