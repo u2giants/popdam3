@@ -3,9 +3,10 @@ import { OrderSampleSettings } from "@/components/orders/OrderSampleSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CellValueChangedEvent, IDatasource } from "ag-grid-community";
 import type { AgGridReact } from "ag-grid-react";
-import { ChevronDown, Download, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { ChevronDown, Download, Trash2, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { BuySheetImportDialog } from "@/components/orders/BuySheetImportDialog";
 import { BambooRoseDialog } from "@/components/orders/BambooRoseDialog";
+import { ClearBuySheetDialog } from "@/components/orders/ClearBuySheetDialog";
 import { toast } from "sonner";
 
 import {
@@ -63,6 +64,7 @@ export default function OrdersPage() {
   const [findResult, setFindResult] = useState<{ position: number; count: number | null } | null>(null);
   const findGeneration = useRef(0);
   const [bambooRoseOpen, setBambooRoseOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
   const [buySheetOpen, setBuySheetOpen] = useState(false);
   const [editor, setEditor] = useState<{ mode: OrderEditorMode; row: OrderListRow | null } | null>(null);
   const [relinkRow, setRelinkRow] = useState<OrderListRow | null>(null);
@@ -508,6 +510,10 @@ export default function OrdersPage() {
               <Download className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
               Bamboo Rose sheet
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setClearOpen(true)}>
+              <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+              Clear my last HFC upload
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -553,6 +559,7 @@ export default function OrdersPage() {
       </div>
 
       <BambooRoseDialog open={bambooRoseOpen} onClose={() => setBambooRoseOpen(false)} />
+      <ClearBuySheetDialog open={clearOpen} onClose={() => setClearOpen(false)} onCleared={refreshRows} />
       <BuySheetImportDialog
         open={buySheetOpen}
         onClose={() => setBuySheetOpen(false)}

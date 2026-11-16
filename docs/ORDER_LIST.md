@@ -161,7 +161,7 @@ the buy:
    (shared-db [#6008](https://github.com/popcre/shared-db/issues/6008)) and lists
    every line as New / Updated / Unchanged / Held, plus styles not linked to
    Item Master. Nothing is written.
-3. Packs that match no existing order are held until the user types their
+3. Packs that match no existing order take the master SKU (assortment #) JamieLynn assigns; no PO # is needed (production POs are written later, owner process 2026-11-16). Formerly they were held until the user typed their
    OrderList order number (D-number); typing an existing number of the same
    customer adds the lines to that order.
 4. **Import** applies the same call with `p_apply => true` in one transaction
