@@ -31,6 +31,12 @@ Rule: an applied-check must compare the RPC echo to what this write persisted, n
 
 Live proof: the first post-fix rebuild (run_id 4a19ee71, 2026-11-09 1:29–1:53 AM EST) landed its terminal row with `succeeded=true` — verified read-only, as were the 2026-11-10 and 2026-11-11 rows. The monitor passed its 2026-11-09 dispatch run 42651677874 and every scheduled run since (42688021173, 42862124924, 43066757847). Issue #863 closed 2026-11-09 11:09 AM EST via PR #880, which also retired its handoff. The 2026-11-05–07 outcome gap is unbackfillable (those run_ids were overwritten by later runs) and accepted on the issue.
 
+## Resolved 2026-11-06: Production canary false-failing on stale worker heartbeat during long operations
+
+The production canary failed with "Railway worker heartbeat: 15 minutes old" (#836) while the worker was healthy and actively progressing `ai-tag-parallel`: `WORKER_HEARTBEAT` was written only at the top of the poll loop, but `tick()` runs an entire bulk operation inline, so any long operation froze the heartbeat beyond the canary's 5-minute freshness limit.
+
+Fix (PR #846, merged f0554b8e 2026-11-06): `startHeartbeatTimer()` in `apps/worker/src/worker-heartbeat.ts` refreshes the heartbeat on an independent 60-second timer; failed writes log and retry next interval; the timer is unref'd and stopped on shutdown. Loop-top writes remain as belt-and-suspenders. Live proof: heartbeat stayed ≤0.8 min across an 8-minute window during the resumed tagging run; canary run 42240332926 passed and auto-closed the alert.
+
 ## Resolved 2026-11-01: DAM picture search times out under cold database load
 
 The exact query `spiderman coir` intermittently fails in `dam-search-ai`, causing the app to fall back to broader word matching. The earlier planning-cost repair (shared-db #5075) is live; this is a separate execution-I/O regression as style-group picture coverage grows.

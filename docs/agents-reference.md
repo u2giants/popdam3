@@ -401,6 +401,7 @@ Full entries live in [`docs/incident-log.md`](incident-log.md) — read the matc
 
 - 2026-11-10: OrderList showed ColdLion-replaced (voided) assortment lines on PO 62012008 — voided lines now hidden from list, counts and Find (shared-db #6022)
 - Resolved 2026-11-09: Nightly rebuild monitor "no terminal outcome" — worker skipped terminal-outcome recording after #713's applied-check inversion; the alarm was true (#866, #863)
+- Resolved 2026-11-06: Production canary false-failing on stale worker heartbeat during long bulk operations — heartbeat now refreshes on an independent timer (#836, #846)
 - Resolved 2026-11-01: DAM picture search cold-load timeouts — compact exact vectors and consistent totals; live exact query verified at 15 groups (#4508, PopDAM #649)
 - Resolved 2026-10-29: Master Data first load slow + false "could not be loaded" — indexed view rewrite (shared-db #5045) + app retry hardening (#581)
 - Resolved 2026-10-27: OrderList first load hit statement timeout — stale planner stats + whole-view block query; two-step fetch (#560) and table autoanalyze (shared-db #4969)
