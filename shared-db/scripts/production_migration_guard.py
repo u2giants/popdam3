@@ -410,6 +410,9 @@ HARD_BLOCKED = {
     # qualify. Superseded by identical idempotent reissue 20261115031325
     # (PR #6314); never apply original.
     "20261113145056",
+    # #6440: superseded by 20261116124500 (core.licensor is the MG05 list only, owner
+    # ruling 2026-11-15); applying this older body after it would drop the retirement step.
+    "20261115031325",
 }
 
 # One authority for versions that must never be applied. The post-batch
@@ -496,6 +499,7 @@ RETIRED_VERSION_REASONS = {
     "20261113175425": "#6286 stranded-already-on-preview: PR-head preview apply run 43490519560 dispatched with github.sha de2a55cc (pre-merge main) while merge commit 7fa0f145 carries the 20261113150753 retirement entry in this guard file, so the producer pin refuses the evidence (same class as review finding #6268). Superseded by reissue 20261113203604 (post-merge preview apply) with identical idempotent SQL body. Never apply this original; the reissue owns the objects.",
     "20261113203604": "#6301: applied to preview (run 43522145729) but its live dependent guard refused the production cascade (run 43525587047) on 101 pg_toast.pg_toast_* internal storage tables - false positives; TOAST lives in pg_toast and travels with its parent under DROP CASCADE. Production rolled back cleanly, version not recorded there. Superseded by reissue 20261113232232 whose guard excludes pg_toast/pg_temp namespaces. Never apply this original; the reissue owns the objects.",
     "20261113145056": "#6194 stranded-already-on-preview: original apply run 43498082051 at eccd0c13 carried a different production_migration_guard.py than PR #6245 merge b51e474e, so the producer pin refuses its evidence (automatic runs 43669631069, 43673158741, 43673960061). Not in production (ledger read 2026-11-14 11:30 PM EST). Superseded by byte-identical idempotent reissue 20261115031325 (PR #6314, derived-from: 20261113145056). Never apply original; reissue owns objects.",
+    "20261115031325": "#6440 superseded: never reached production (ledger read 2026-11-15 9:20 PM EST). Owner ruling 2026-11-15 makes core.licensor the ColdLion MG05 list only; 20261116124500 redefines plm.sync_core_licensor_from_coldlion with recoverable retirement and the write guard, and owns the cron job. Never apply this version.",
     "20261106174810": "merged-stranded: PR5910 merged without a PR-owned evidence pair, so the DesignFlow release observer refuses its issue binding; never applied to DesignFlow production; retain source, never apply this version; claim5909 reissued as claim5943 to forward replacement 20261108135128 under issue5026",
     "20261106214905": "merged-stranded on the issue #1608 derivation gate: declared derived-from: 20261015132149, a retired stamp held by no preview or production ledger, so the base-absent gate blocked its preview applies (runs 42309935289, 42311124480) and automatic promotion parked it after three attempts; retain source, never apply this version; reissued with the same executable SQL as 20261108195205 under issue 5950 claim 5971",
 }

@@ -164,3 +164,15 @@ Verbatim Albert, 2026-11-14, after being shown that the OPA submissions site scr
 - Each OPA entry keeps its exact site spelling as its licensor-submission name. Never rename a shared `core.property` row to a different OPA entry's name (that is the error 20261113041225 made).
 - The #2541 placement repair on shared-db#6209 creates the missing records and re-points the links accordingly (migration `20261115041745`).
 - Also authorized 2026-11-14: file the GitHub Support request to purge the 15 GitHub-locked ghost workflow runs from the 2026-11-11 wedge (issue #6215).
+
+### 6.41 OWNER RULING — core.licensor is the ColdLion MG05 list only; no hand-maintained licensor list (Albert Hazan, 2026-11-15)
+
+Verbatim Albert, 2026-11-15 8:49 PM EST:
+
+> "delete \"our own system's licensor list\" so no future session can use it. the only thing to be using is the canonical MG05 list we build from what comes in on the API"
+
+**Effect** (issue #6440, migration `20261116124500`).
+- The licensor list is ColdLion's MG05 (Licensor) list as it arrives from the API (`coldlion.merch_group_detail`, plus `dflow_prod."merchGroup"` divisions CW001/SP001). Nothing else is a licensor source.
+- `core.licensor` stays only as the stable id table every app's foreign keys use. Its single writer is `plm.sync_core_licensor_from_coldlion` (nightly, before the property sync): one row per MG05 code; rows outside MG05 are set inactive, recoverably (`metadata.mg05_retired` keeps the old status), never deleted.
+- A trigger refuses every other insert, rename, re-code, status change, delete or truncate. Never bypass it, never set `app.core_licensor_writer` by hand, and never load licensors from a spreadsheet, scrape, chat or memory. A missing or wrong licensor is fixed in ColdLion.
+- An MG06 Property's licensor is its MG05 parent's code. Never create MG06 values.
