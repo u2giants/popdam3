@@ -131,11 +131,79 @@ def candidate_order(pr: dict[str, Any]) -> tuple[int, str, str]:
     return (0 if deadline else 1, deadline or "", pr["merged_at"])
 
 
+# #6493 Step 1b: the per-PR files reads (one API call for each of ~650 merged
+# PRs) were most of the selector's 7-12 minutes. A merged PR's merged_at and
+# files never change, so those API facts are cached in actions/cache and only
+# PRs merged since the cache's watermark (minus an overlap window) are listed.
+# DISCOVERY ONLY: versions, dependencies, deadlines, holds, attempts and the
+# ledger are recomputed or re-read on every run; nothing safety-relevant is
+# taken from the cache. A missing, corrupt or old-schema cache is a full scan.
+PR_CACHE_SCHEMA = 1
+PR_CACHE_OVERLAP = timedelta(hours=1)
+
+
+def load_pr_cache(path: str | None) -> dict[str, dict[str, Any]] | None:
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if (not isinstance(data, dict) or data.get("schema_version") != PR_CACHE_SCHEMA
+                or data.get("activated_at") != ACTIVATED_AT or not isinstance(data.get("prs"), dict)
+                or not data["prs"]):
+            raise ValueError("schema mismatch")
+        for number, row in data["prs"].items():
+            if (not number.isdigit() or not isinstance(row, dict) or not isinstance(row.get("merged_at"), str)
+                    or not isinstance(row.get("files"), list)
+                    or not all(isinstance(f, dict) and isinstance(f.get("filename"), str)
+                               and isinstance(f.get("status"), str) for f in row["files"])):
+                raise ValueError(f"malformed row for PR {number}")
+        return data["prs"]
+    except (OSError, ValueError) as exc:
+        print(f"::warning::selector PR cache unusable ({exc}); doing a full scan")
+        return None
+
+
+def save_pr_cache(path: str | None, prs: dict[str, dict[str, Any]]) -> None:
+    if not path:
+        return
+    try:
+        tmp = f"{path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"schema_version": PR_CACHE_SCHEMA, "activated_at": ACTIVATED_AT, "prs": prs}, fh)
+        os.replace(tmp, path)
+    except OSError as exc:
+        print(f"::warning::could not write the selector PR cache ({exc}); next run is a full scan")
+
+
+def closed_pull_pages(repo: str, since: str | None) -> list[Any]:
+    """Closed PR pages, newest update first. With `since`, stop after the page
+    that reaches PRs last updated before it: a PR merged later was updated no
+    earlier than its merge, so it sits on an earlier page."""
+    url = f"repos/{repo}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100"
+    if since is None:
+        return gh("--paginate", "--slurp", url)
+    pages, page = [], 1
+    while True:
+        batch = gh(f"{url}&page={page}")
+        pages.append(batch)
+        if not isinstance(batch, list) or len(batch) < 100 or any(
+                isinstance(pr, dict) and (pr.get("updated_at") or "") < since for pr in batch):
+            return pages
+        page += 1
+
+
 def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
     # Old unpromoted sources must survive unrelated PR activity (#5608).
     # gh fails the whole request on a failed later page; validate every page
     # before inspecting files, so incomplete discovery cannot dispatch a child.
-    pages = gh("--paginate", "--slurp", f"repos/{repo}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100")
+    cache_path = os.environ.get("PROMOTION_PR_CACHE_FILE")
+    cached = load_pr_cache(cache_path)
+    since = None
+    if cached:
+        watermark = _time(max(row["merged_at"] for row in cached.values()))
+        since = (watermark - PR_CACHE_OVERLAP).strftime("%Y-%m-%dT%H:%M:%SZ")
+    pages = closed_pull_pages(repo, since)
     if not isinstance(pages, list) or not pages:
         raise ValueError("incomplete pull request discovery")
     unique = {}
@@ -151,14 +219,25 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             if previous is not None and previous["merged_at"] != pr["merged_at"]:
                 raise ValueError("conflicting duplicate pull request discovery")
             unique[pr["number"]] = pr
+    # Cached merged PRs older than the incremental window; a live row always wins.
+    for number, row in (cached or {}).items():
+        unique.setdefault(int(number), {"number": int(number), "merged_at": row["merged_at"]})
     pulls = unique.values()
     manifest_orphans = registered_orphan_versions()
     found = []
+    fresh_cache: dict[str, dict[str, Any]] = {}
     for pr in pulls:
         merged = pr.get("merged_at")
         if not merged or merged <= ACTIVATED_AT:
             continue
-        files = gh("--paginate", "--slurp", f"repos/{repo}/pulls/{pr['number']}/files?per_page=100")
+        row = (cached or {}).get(str(pr["number"]))
+        if row is not None and row["merged_at"] == merged:
+            files = [row["files"]]
+        else:
+            files = gh("--paginate", "--slurp", f"repos/{repo}/pulls/{pr['number']}/files?per_page=100")
+        fresh_cache[str(pr["number"])] = {"merged_at": merged, "files": [
+            {"filename": f.get("filename", ""), "status": f.get("status", "")}
+            for page in files for f in page if (f.get("filename") or "").startswith("supabase/migrations/")]}
         versions = sorted(
             m.group(1)
             for page in files for f in page
@@ -206,6 +285,8 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
         # receives this PR, not the complete earlier candidate list.
         pr["production_dependencies"] = {v: owners[v] for v in sorted(bases)
                                          if v in owners and owners[v] != pr["number"]}
+    if fresh_cache:
+        save_pr_cache(cache_path, fresh_cache)
     return sorted(found, key=candidate_order)
 
 

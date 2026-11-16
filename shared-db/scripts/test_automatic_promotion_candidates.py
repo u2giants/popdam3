@@ -304,6 +304,71 @@ class ForeignTargetVersions(unittest.TestCase):
         self.assertEqual(self.prs("20261102215524", "20261102224413")[0]["versions"], ["20261102224413"])
 
 
+class SelectorPrCache(unittest.TestCase):
+    """#6493 Step 1b: the PR cache holds API facts only and is discovery-only."""
+    old = {"number": 5045, "merged_at": "2026-10-30T00:37:42Z", "updated_at": "2026-10-30T00:37:42Z"}
+    new = {"number": 5066, "merged_at": "2026-10-30T01:41:04Z", "updated_at": "2026-11-16T10:00:00Z"}
+    old_files = [[{"status": "added", "filename": "supabase/migrations/20261029162652_x.sql"}]]
+    new_files = [[{"status": "added", "filename": "supabase/migrations/20261029213845_x.sql"}]]
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.dir.name, "cache.json")
+        self.env = mock.patch.dict(os.environ, {"PROMOTION_PR_CACHE_FILE": self.path})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.dir.cleanup()
+
+    def run_selector(self, api):
+        with mock.patch.object(m, "gh", side_effect=api) as gh:
+            return m.merged_migration_prs("o/r"), gh.call_args_list
+
+    def test_cold_scan_writes_cache_and_warm_scan_reads_no_files(self):
+        cold, _ = self.run_selector([[[self.old]], self.old_files])
+        self.assertTrue(os.path.exists(self.path))
+        warm, calls = self.run_selector([[self.new], self.new_files])
+        # One incremental list page, files only for the newly seen PR.
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn("--paginate", calls[0].args)
+        self.assertEqual([p["number"] for p in warm], [5045, 5066])
+        self.assertEqual(warm[0], cold[0])
+
+    def test_warm_scan_matches_a_full_scan(self):
+        self.run_selector([[[self.old, self.new]], self.old_files, self.new_files])
+        warm, calls = self.run_selector([[self.new]])
+        self.assertEqual(len(calls), 1)
+        os.remove(self.path)
+        full, _ = self.run_selector([[[self.old, self.new]], self.old_files, self.new_files])
+        self.assertEqual(warm, full)
+
+    def test_corrupt_or_old_schema_cache_falls_back_to_a_full_scan(self):
+        for body in ("garbage", json.dumps({"schema_version": 0, "prs": {}})):
+            with open(self.path, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            with contextlib.redirect_stdout(io.StringIO()):
+                found, calls = self.run_selector([[[self.old]], self.old_files])
+            self.assertIn("--paginate", calls[0].args)
+            self.assertEqual(found[0]["versions"], ["20261029162652"])
+
+    def test_live_merged_at_overrides_a_stale_cached_row(self):
+        self.run_selector([[[self.old]], self.old_files])
+        moved = {**self.old, "merged_at": "2026-10-30T02:00:00Z", "updated_at": "2026-11-16T11:00:00Z"}
+        found, calls = self.run_selector([[moved], self.new_files])
+        self.assertEqual(len(calls), 2)  # files re-read because merged_at changed
+        self.assertEqual(found[0]["merged_at"], "2026-10-30T02:00:00Z")
+        self.assertEqual(found[0]["versions"], ["20261029213845"])
+
+    def test_incremental_listing_pages_until_it_passes_the_watermark(self):
+        self.run_selector([[[self.new]], self.new_files])
+        recent = [{"number": 9000 + i, "merged_at": None, "updated_at": "2026-11-16T12:00:00Z"} for i in range(100)]
+        _, calls = self.run_selector([recent, [self.new]])
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(calls[1].args[0].endswith("&page=2"))
+
+
 class PerMigrationHold(unittest.TestCase):
     first = {"number": 5456, "merged_at": "2026-11-02T17:00:00Z", "versions": ["20261102170000"]}
     second = {"number": 5460, "merged_at": "2026-11-02T17:10:00Z", "versions": ["20261102171000"]}
