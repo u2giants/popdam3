@@ -18,7 +18,7 @@ SYSTEM = "('pg_catalog','information_schema','pg_toast')"
 # Reviewed exceptions (#6356). Sandbox-only objects are never drift. A schema listed in ignore_schemas is not
 # compared at all; ignore_patterns are kind:schema.name globs. Every entry needs an owner decision on #6356.
 ALLOWLIST = {
-    "ignore_schemas": ["dam", "hts_rag", "archive", "public", "dflow_prod", "dflow_archive", "cron", "repack", "realtime", "temp_status_watch", "auth", "storage", "extensions", "vault", "graphql", "graphql_public", "net", "pgsodium", "pgsodium_masks", "supabase_functions", "supabase_migrations", "_realtime", "pgbouncer"],
+    "ignore_schemas": ["dflow_prod", "dflow_archive", "cron", "repack", "realtime", "temp_status_watch", "auth", "storage", "extensions", "vault", "graphql", "graphql_public", "net", "pgsodium", "pgsodium_masks", "supabase_functions", "supabase_migrations", "_realtime", "pgbouncer"],
     # Production-only items excluded by the coordinator on #6356 (2026-11-16): service logins' access rules,
     # retired/frozen backup tables, temp_status_watch triggers, and the packaging rule that names a person by
     # email. The two Coldlion sync functions are copied with dflow in place of production's dflow_prod.
