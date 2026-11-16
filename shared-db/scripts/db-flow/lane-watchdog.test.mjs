@@ -16,7 +16,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import path from 'node:path'
+import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 
 import {
   laneContextJobs,
@@ -331,22 +334,41 @@ test('runGhostSweep dry-run touches nothing', () => {
 
 // Guard (#6426): every Actions concurrency group must carry the shared
 // LANE_EPOCH suffix, so one repository variable can rotate all groups at once
-// and escape a GitHub ghost run without splitting a shared group.
-test('every workflow concurrency group carries the shared LANE_EPOCH suffix', async () => {
-  const { readdirSync, readFileSync } = await import('node:fs')
-  const dir = new URL('../../.github/workflows/', import.meta.url)
+// and escape a GitHub ghost run without splitting a shared group. The scan
+// covers every workflow spelling the YAML guard parses (`*.yml` AND `*.yaml`):
+// a group under a `.yaml` name would otherwise sit outside the escape hatch
+// unnoticed. A trailing comment on `concurrency:` is still that key.
+const EPOCH_SUFFIX = "-${{ vars.LANE_EPOCH || '0' }}"
+function epochSuffixGaps(workflowsDir) {
   const missing = []
-  for (const name of readdirSync(dir).filter((n) => n.endsWith('.yml'))) {
-    const lines = readFileSync(new URL(name, dir), 'utf8').split('\n')
+  for (const name of readdirSync(workflowsDir).filter((n) => /\.ya?ml$/.test(n))) {
+    const lines = readFileSync(path.join(workflowsDir, name), 'utf8').split('\n')
     let indent = -1
     for (const line of lines) {
-      const head = line.match(/^(\s*)concurrency:\s*$/)
+      const head = line.match(/^(\s*)concurrency:\s*(?:#.*)?$/)
       if (head) { indent = head[1].length; continue }
       if (indent < 0) continue
       const body = line.trim()
       if (body && !body.startsWith('#') && line.length - line.trimStart().length <= indent) { indent = -1; continue }
-      if (/^\s*group:/.test(line) && !line.includes("-${{ vars.LANE_EPOCH || '0' }}")) missing.push(`${name}: ${body}`)
+      if (/^\s*group:/.test(line) && !line.includes(EPOCH_SUFFIX)) missing.push(`${name}: ${body}`)
     }
   }
-  assert.deepEqual(missing, [])
+  return missing
+}
+
+test('every workflow concurrency group carries the shared LANE_EPOCH suffix', () => {
+  const dir = fileURLToPath(new URL('../../.github/workflows/', import.meta.url))
+  assert.deepEqual(epochSuffixGaps(dir), [])
+})
+
+test('the epoch scan covers .yaml workflows and tolerates a comment on concurrency', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'epoch-suffix-gaps-'))
+  try {
+    writeFileSync(path.join(dir, 'good.yml'), `concurrency:\n  group: x${EPOCH_SUFFIX}\n`)
+    writeFileSync(path.join(dir, 'good.yaml'), `concurrency: # serialized on purpose\n  group: y${EPOCH_SUFFIX}\n`)
+    writeFileSync(path.join(dir, 'bad.yaml'), 'concurrency:\n  group: z\n')
+    writeFileSync(path.join(dir, 'bad.yml'), 'concurrency:\n  group: w\n')
+    writeFileSync(path.join(dir, 'ignored.txt'), 'concurrency:\n  group: v\n')
+    assert.deepEqual(epochSuffixGaps(dir).sort(), ['bad.yaml: group: z', 'bad.yml: group: w'])
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) }
 })

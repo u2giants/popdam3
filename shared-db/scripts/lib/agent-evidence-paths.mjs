@@ -70,7 +70,15 @@ export function validatePrDataRoot({ root, headSha, sourceRoot, sourceSha }, env
   if (data === source || source.startsWith(`${data}${path.sep}`) && path.basename(source) !== 'trusted-policy') fail('source/data directory ambiguity')
   const git = (cwd, args) => execFileSync('git', ['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...args], { cwd, encoding:'utf8', stdio:['ignore','pipe','pipe'] }).trim()
   for (const [directory, sha] of [[data,headSha],[source,sourceSha]]) {
-    if (git(directory,['rev-parse','--show-toplevel']) !== directory || git(directory,['rev-parse','HEAD']) !== sha) fail('checkout root or immutable head mismatch')
+    // Compare the checkout root by canonical filesystem identity, not by the
+    // spelling each tool happens to print: `git rev-parse --show-toplevel`
+    // answers with forward slashes on Windows while `path.resolve` answers
+    // with backslashes, so a byte comparison refused every valid checkout on
+    // that platform. realpath identity is the strict question the boundary
+    // means to ask (the directory IS the checkout root, never a subdirectory).
+    let toplevel
+    try { toplevel = realpathSync(git(directory,['rev-parse','--show-toplevel'])) } catch { fail('checkout root or immutable head mismatch') }
+    if (toplevel !== realpathSync(directory) || git(directory,['rev-parse','HEAD']) !== sha) fail('checkout root or immutable head mismatch')
     const config = git(directory,['config','--local','--list'])
     if (/^(core\.(hooksPath|fsmonitor)|filter\.|diff\..*\.(command|textconv)|include\.|includeif\.)/im.test(config)) fail('unsafe repository configuration')
   }

@@ -104,8 +104,19 @@ test('explicit PR data identity accepts real data without executing malicious tr
 for (const [label,mutate] of [
  ['wrong head',f=>f.options.headSha='a'.repeat(40)],
  ['source drift',f=>writeFileSync(path.join(f.source,'safe.json'),'changed')],
- ['tracked symlink',f=>{symlinkSync('/etc/passwd',path.join(f.data,'escape'));f.git(f.data,['add','escape']);f.git(f.data,['commit','-qm','linked data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD'])}],
  ['unsafe Git hook',f=>f.git(f.data,['config','core.hooksPath','/unsafe'])],
  ['same root',f=>{f.options.sourceRoot=f.data;f.options.sourceSha=f.options.headSha}],
+ ['subdirectory root',f=>{mkdirSync(path.join(f.data,'sub'));f.options.root=path.join(f.data,'sub')}],
 ]) test('PR data boundary refuses '+label,()=>{const f=boundaryFixture();try{mutate(f);assert.throws(()=>validatePrDataRoot(f.options,{}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})
+test('PR data boundary refuses tracked symlink',(t)=>{
+ const f=boundaryFixture()
+ try {
+  try { symlinkSync('/etc/passwd',path.join(f.data,'escape')) } catch (error) {
+   if (error?.code === 'EPERM' || error?.code === 'EACCES') { t.skip('this host forbids symlink creation'); return }
+   throw error
+  }
+  f.git(f.data,['add','escape']);f.git(f.data,['commit','-qm','linked data']);f.options.headSha=f.git(f.data,['rev-parse','HEAD'])
+  assert.throws(()=>validatePrDataRoot(f.options,{}),EvidencePathError)
+ } finally {rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
+})
 for(const key of ['NODE_OPTIONS','BASH_ENV','PYTHONPATH','LD_PRELOAD','GIT_EXTERNAL_DIFF','GIT_CONFIG_PARAMETERS','GIT_CONFIG_GLOBAL']) test('PR data boundary refuses '+key+' injection',()=>{const f=boundaryFixture();try{assert.throws(()=>validatePrDataRoot(f.options,{[key]:'untrusted'}),EvidencePathError)}finally{rmSync(f.directory,{recursive:true,force:true,maxRetries:10,retryDelay:100})}})
