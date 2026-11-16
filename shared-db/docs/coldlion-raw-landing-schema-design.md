@@ -164,6 +164,13 @@ exactly 7 days (`toDate = fromDate + 6`); overlap duplicates rows.
 | `/seasons` | `coldlion.season` | company_code, division_code, season_code |
 | `/salespersons` | `coldlion.salesperson` | company_code, salesperson_code |
 
+**Name-to-code rule (2026-11-16).** Many MG06 names repeat across several codes
+(18 codes are named "A New Hope (Episode 4)"; only `SW` is active). When turning a
+property name into a code, choose only a row with `active = 'Y'` in the item's own
+division; never the first match. A 2026-11-06 review picked retired `CB` this way;
+see `u2giants/licensor-source-data#185`. If no active code exists (e.g. `RG`
+RUGRATS), the code must be turned back on in ColdLion before use.
+
 `merch_group_detail` holds licensors, properties, sizes, style guides, artists and every other
 merch-group value in **one** table, because Coldlion serves them from one endpoint and the
 meaning of `mg_type_code` is division-dependent. The legacy four-part projection was not
