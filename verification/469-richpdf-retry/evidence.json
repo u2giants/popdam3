@@ -1,0 +1,59 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "rich-pdf failed-row retry live probe",
+  "date": "2026-11-15",
+  "timezone": "America/New_York",
+  "deployed": {
+    "worker": "PR #779 merge 832813c in deployed build ancestry",
+    "shared_db_rpc": "popcre/shared-db#5627 (parse_error/extracted_at on get_pdf_rich_extraction_hashes), production apply 41971432267",
+    "contract_test": "popcre/shared-db#6424"
+  },
+  "task_gate": {
+    "class": "production",
+    "check": "check --before production --acknowledge",
+    "result": "allowed by owner authorization",
+    "acknowledge_text": "Scoped delegation: run the rich-pdf failed-row retry live probe on #469 — induce one harmless failed rich-extraction on a toytest-class fixture PDF, verify failure row recording, attempt retry-leg proof, comment on #469, open PR with evidence."
+  },
+  "fixture": {
+    "class": "toytest-class fixture PDF",
+    "asset_id": "a4690000-4690-4000-8000-000000000001",
+    "filename": "toytest_tech_pack_469probe.pdf",
+    "relative_path": "Decor/Generic Decor/Unused/_ai_test_681/toytest_tech_pack_469probe.pdf",
+    "text_sample": "TECH PACK TEST toytest fixture for issue 469 rich-pdf retry probe. Harmless test data. Safe to delete. Materials: MDF canvas. Dimensions: 12x8 inches.",
+    "text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0",
+    "rows_created": [
+      "assets (id=a4690000-4690-4000-8000-000000000001)",
+      "pdf_text_samples (asset_id=a4690000-4690-4000-8000-000000000001)",
+      "dam.pdf_rich_extraction via upsert_pdf_rich_extraction RPC (parse_error set)"
+    ],
+    "no_real_design_files_touched": true
+  },
+  "leg1_failure_recording": {
+    "status": "proven",
+    "method": "Called upsert_pdf_rich_extraction RPC with p_parse_error='probe-induced failure for 469 retry verification', p_data={}, p_source_text_sha256=ba621d0e...",
+    "evidence": "get_pdf_rich_extraction_hashes returns: parse_error='probe-induced failure for 469 retry verification', extracted_at='2026-11-15T19:20:54.228647-05:00' (initially now(), then seeded to 25h ago)",
+    "hash_not_marked_done": "shouldExtractRichPdf returns true for this row: parse_error non-null (not a success), cooldown elapsed (extracted_at 25h ago >= 24h). The hash is NOT in the done set — it is eligible for retry.",
+    "code_ref": "apps/worker/src/handlers/rich-pdf.ts:175-186 (shouldExtractRichPdf)"
+  },
+  "leg2_retry_after_cooldown": {
+    "status": "partially-proven",
+    "cooldown_seeded": true,
+    "seeded_extracted_at": "2026-11-14T18:21:29.750622-05:00 (25h before probe time, cooldown=24h elapsed)",
+    "seed_method": "Supabase Management API SQL: UPDATE dam.pdf_rich_extraction SET extracted_at = now() - interval '25 hours' WHERE asset_id = 'a4690000-...'",
+    "retry_triggered": true,
+    "trigger_method": "Set admin_config.BULK_OPERATIONS.rich-pdf-extract status=running via Management API SQL",
+    "retry_observed": false,
+    "reason_not_observed": "Worker auto-stopped at 84% failure rate (90 failed out of 107 processed) due to DeepSeek provider failures. The scan window (200 rows, offset 0) did not reach asset a4690000-... (uuid starts with 'a', past the first 200 rows). The failure row was NOT updated — extracted_at still shows the seeded 25h-old timestamp.",
+    "op_result": "Auto-stopped: Failure rate 84% (90 failed out of 107 processed), interruption_reason_code=repeated_failure, scanned=200, skipped=17, processed=0, failed=90",
+    "observation_step": "After DeepSeek provider recovery: run rich-pdf-extract operation (set BULK_OPERATIONS.rich-pdf-extract status=running), verify asset a4690000-4690-4000-8000-000000000001 is retried (extracted_at updated to now(), parse_error cleared to null on success).",
+    "observation_time_est": "Pending — requires DeepSeek provider recovery and a fresh rich-pdf-extract run that scans to offset >200"
+  },
+  "cleanup": {
+    "fixture_rows_to_delete": [
+      "assets WHERE id='a4690000-4690-4000-8000-000000000001'",
+      "pdf_text_samples WHERE asset_id='a4690000-4690-4000-8000-000000000001'",
+      "dam.pdf_rich_extraction WHERE asset_id='a4690000-4690-4000-8000-000000000001'"
+    ],
+    "note": "Fixture rows are toytest-class only. No real design files touched. Rows pending cleanup after retry observation (left in place so the retry leg can be observed)."
+  }
+}
