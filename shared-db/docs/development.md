@@ -189,7 +189,12 @@ end
 $$;
 ```
 
-Never "fix" the divergence by re-creating `dflow` on production; the
+Shared-table constraints that reference `dflow.*` in the migration set (the
+user/art-piece/workflow-action foreign keys) reference their `dflow_prod.*`
+equivalents on production — match on constraint name and table, not on the
+referenced object, when altering or dropping them.
+
+Never "fix" either divergence by re-creating `dflow` on production; the
 divergence is the design. Never demolish `dflow` on the non-production
 targets — the contract suite asserts it.
 

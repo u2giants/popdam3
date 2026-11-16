@@ -1,8 +1,8 @@
 ---
-summary: "Production-only operational demolition of the stale dflow seed schema (issue #6325): why it is not a migration, preconditions, ordered SQL with TOAST-aware guard, verification, rollback, and the standing rule for future dflow migrations."
+summary: "Production-only operational demolition of the stale dflow seed schema (issue #6325): why it is not a migration, preconditions, ordered SQL (reader moves including 14 shared-table foreign keys, classid-correct dependent guard), verification, rollback, and the standing rules for future dflow migrations."
 kind: ops
 status: current
-read-when: executing or reviewing the production dflow snapshot demolition; authoring any migration that touches dflow.* objects; deciding whether an environment-scoped schema retirement needs a migration
+read-when: executing or reviewing the production dflow snapshot demolition; authoring any migration that touches dflow.* objects or shared-table constraints referencing dflow; deciding whether an environment-scoped schema retirement needs a migration
 ---
 
 # Production-only demolition of the stale `dflow` seed schema (issue #6325)
@@ -35,12 +35,46 @@ retirement** may be executed per this merged runbook, inside an open
 claim-scoped work issue, with the pre-captured backup below and evidence
 posted to that issue. Nothing in `supabase/migrations/` changes.
 
+## What must move before the drop (audited 2026-11-15, live)
+
+Outside dependents of production `dflow` — the complete list the drop guard
+enforces:
+
+1. `public.style_tracker_rows_with_bridge` (view) — repointed byte-identically
+   to `dflow_prod."RFQItem"/"RFQGroup"`.
+2. `api.resolve_item_mg_category(integer)` — already reads
+   `dflow_prod`/`core` only; dropped solely per the owner's "moot" retirement
+   ruling (the historical MG reclassification it served will never run).
+3. **14 foreign keys on live shared tables** (migration-built by design —
+   `dflow.users` is "the one user list" per
+   `20261002155633_repoint_user_fks_to_dflow_users.sql`; on production they
+   anchored to the seed twin). Each is dropped and re-added byte-identically
+   against its `dflow_prod` equivalent, which **repairs live integrity**
+   (shared tables stop validating user references against a frozen
+   cutover-day copy):
+
+   | Constraint | On table | New reference |
+   |---|---|---|
+   | `RolePermissions_RoleId_fkey` | `app."RolePermissions"` | `dflow_prod."Roles"("Id")` |
+   | `RolePermissions_UserId_fkey` | `app."RolePermissions"` | `dflow_prod.users(id)` |
+   | `user_notification_workflow_action_id_fkey` | `app.user_notification` | `dflow_prod.item_workflow_action(id)` — reproduced `NOT VALID` as today |
+   | `age_group_created_by_fkey` / `age_group_updated_by_fkey` | `core.age_group` | `dflow_prod.users(id)` |
+   | `art_types_created_by_fkey` / `art_types_updated_by_fkey` | `core.art_types` | `dflow_prod.users(id)` |
+   | `artist_types_created_by_fkey` / `artist_types_updated_by_fkey` | `core.artist_types` | `dflow_prod.users(id)` |
+   | `art_piece_attachment_art_piece_id_fkey` | `plm.art_piece_attachment` | `dflow_prod.art_piece(id)` — added `NOT VALID` (2 legacy rows, attachment ids 1559/1560 → art_piece 790, exist only in the seed; new writes still enforced; cleaning those rows is row-level data work outside this workstream) |
+   | `art_piece_attachment_created_by_fkey` / `art_piece_attachment_updated_by_fkey` | `plm.art_piece_attachment` | `dflow_prod.users(id)` |
+   | `productUserAssignment_user_id_fk_fkey` | `plm."productUserAssignment"` | `dflow_prod.users(id)` |
+   | `sample_comments_user_id_fkey` | `plm.sample_comments` | `dflow_prod.users(id)` |
+
+   Validation against `dflow_prod` was checked live 2026-11-15: all clean
+   except the `art_piece_id` case above.
+
 ## Scope guard — hard requirements
 
 - Target database: **production shared project `qsllyeztdwjgirsysgai` only**
   (pooler `aws-1-us-east-1.pooler.supabase.com:6543`, user
-  `postgres.qsllyeztdwjgirsysgai`). Verify with `select current_user` and the
-  `pg_namespace` shape below before any write.
+  `postgres.qsllyeztdwjgirsysgai`). Verify the `pg_namespace` shape below
+  before any write.
 - **Never** run this against the preview project (`PREVIEW_PROJECT_REF`) or the
   DesignFlow non-production project (`xupnyeifmpsacrqahwwm`) — there `dflow`
   is a live/fixture app schema. A shape check is built into step 0.
@@ -55,10 +89,10 @@ posted to that issue. Nothing in `supabase/migrations/` changes.
 ## Preconditions (re-check all on the day of execution)
 
 1. `gcloud storage ls gs://designflow-storage/backups/dflow-stale-cleanup-2026-11-12/prod_dflow_full_schema.dump` succeeds.
-2. Reader audit returns **exactly one** outside reader and no new ones (re-verified 2026-11-15: the view is the sole remaining `dflow` reader — `api.resolve_item_mg_category` already reads only `dflow_prod`/`core` and is dropped in step 2 solely per the owner's "moot" retirement ruling):
+2. Outside-dependent audit returns **exactly the 16 objects above and no new ones** (relation-level, function-level, and constraint-level — the constraint level is what the 2026-11-15 first attempt caught):
 
    ```sql
-   -- relation-level outside readers of dflow
+   -- relation-level outside readers (views)
    select distinct n.nspname, c.relname
      from pg_depend d
      join pg_rewrite r on r.oid = d.objid
@@ -70,35 +104,36 @@ posted to that issue. Nothing in `supabase/migrations/` changes.
       and n.nspname <> 'dflow';
    -- expected: public | style_tracker_rows_with_bridge
 
-   -- definition-scan for qualified dflow references outside the schema
+   -- function-level definition scan
    select distinct n.nspname, p.proname
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname not in ('dflow')
       and position('dflow.' in p.prosrc) > 0;
-   select distinct n.nspname, c.relname
-     from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where c.relkind = 'v' and n.nspname <> 'dflow'
-      and position('dflow.' in pg_get_viewdef(c.oid)) > 0;
-   -- expected: no function rows; the single view row above
+   -- expected: no rows (helper already reads dflow_prod/core only)
+
+   -- constraint-level outside dependents (FKs on live tables referencing dflow)
+   select n.nspname, r.relname, c.conname, pg_get_constraintdef(c.oid)
+     from pg_constraint c
+     join pg_class r on r.oid = c.conrelid
+     join pg_namespace n on n.oid = r.relnamespace
+     join pg_class r2 on r2.oid = c.confrelid
+     join pg_namespace n2 on n2.oid = r2.relnamespace
+    where n2.nspname = 'dflow' and n.nspname <> 'dflow'
+    order by 1, 2, 3;
+   -- expected: exactly the 14 FK rows in the table above
    ```
 
-3. Target columns for the view repoint exist in `dflow_prod`:
+3. Target objects for the repoints exist in `dflow_prod`: `users(id)`,
+   `"Roles"("Id")`, `art_piece(id)`, `item_workflow_action(id)`,
+   `"RFQItem"`, `"RFQGroup"` (RFQ columns
+   `rfqItem_date_modified`, `rfqItem_created_date`, `rfqItem_rfq_group`,
+   `rfqItem_style_number`; `RFQGroup_id`, `RFQGroup_name`, `data_added`).
+4. FK validation counts against `dflow_prod` are zero everywhere except
+   `plm.art_piece_attachment.art_piece_id` (known 2 legacy rows, ids 1559/1560).
+5. `https://alsand.designflow.app/api/health` returns 200 (baseline).
+6. No production migration dispatch is mid-flight (Actions lane quiet).
 
-   ```sql
-   select column_name from information_schema.columns
-    where table_schema = 'dflow_prod' and table_name = 'RFQItem'
-      and column_name in ('rfqItem_date_modified','rfqItem_created_date','rfqItem_rfq_group','rfqItem_style_number');
-   -- expected: 4 rows
-   select column_name from information_schema.columns
-    where table_schema = 'dflow_prod' and table_name = 'RFQGroup'
-      and column_name in ('RFQGroup_id','RFQGroup_name','data_added');
-   -- expected: 3 rows
-   ```
-
-4. `https://alsand.designflow.app/api/health` returns 200 (baseline).
-5. No production migration dispatch is mid-flight (Actions lane quiet).
-
-## Execution (single psql session, in order)
+## Execution (single psql session; steps 1–5 in ONE transaction, all-or-nothing)
 
 ### Step 0 — capture pre-state and confirm the production shape
 
@@ -219,24 +254,78 @@ create or replace view public.style_tracker_rows_with_bridge as
                   GROUP BY g."RFQGroup_id", g."RFQGroup_name") per_group) rfq ON true;
 ```
 
-Verify immediately:
-
-```sql
-select position('dflow."' in viewdef) as legacy_refs,
-       position('dflow_prod."' in viewdef) as live_refs
-  from (select pg_get_viewdef('public.style_tracker_rows_with_bridge'::regclass, true) as viewdef) v;
--- expected: legacy_refs = 0, live_refs > 0
-select count(*) from public.style_tracker_rows_with_bridge;
--- expected: same order of magnitude as pre-change (view still returns rows)
-```
-
 ### Step 2 — retire the moot helper
 
 ```sql
 drop function if exists api.resolve_item_mg_category(integer);
 ```
 
-### Step 3 — TOAST-aware live dependent guard (shape proven by shelf-drop version 20261114022200)
+### Step 3 — repoint the 14 shared-table foreign keys to `dflow_prod`
+
+Same name, same column(s), same ON UPDATE/ON DELETE actions — only the
+referenced schema changes. `NOT VALID` states are preserved exactly (two
+cases). Brief `ACCESS EXCLUSIVE` locks on small tables, same live pattern as
+migration `20261002155633`.
+
+```sql
+alter table app."RolePermissions" drop constraint RolePermissions_RoleId_fkey;
+alter table app."RolePermissions" add constraint RolePermissions_RoleId_fkey
+  foreign key ("RoleId") references dflow_prod."Roles"("Id");
+alter table app."RolePermissions" drop constraint RolePermissions_UserId_fkey;
+alter table app."RolePermissions" add constraint RolePermissions_UserId_fkey
+  foreign key ("UserId") references dflow_prod.users(id);
+
+alter table app.user_notification drop constraint user_notification_workflow_action_id_fkey;
+alter table app.user_notification add constraint user_notification_workflow_action_id_fkey
+  foreign key (workflow_action_id) references dflow_prod.item_workflow_action(id) on delete restrict not valid;
+
+alter table core.age_group drop constraint age_group_created_by_fkey;
+alter table core.age_group add constraint age_group_created_by_fkey
+  foreign key (created_by) references dflow_prod.users(id);
+alter table core.age_group drop constraint age_group_updated_by_fkey;
+alter table core.age_group add constraint age_group_updated_by_fkey
+  foreign key (updated_by) references dflow_prod.users(id);
+
+alter table core.art_types drop constraint art_types_created_by_fkey;
+alter table core.art_types add constraint art_types_created_by_fkey
+  foreign key (created_by) references dflow_prod.users(id);
+alter table core.art_types drop constraint art_types_updated_by_fkey;
+alter table core.art_types add constraint art_types_updated_by_fkey
+  foreign key (updated_by) references dflow_prod.users(id);
+
+alter table core.artist_types drop constraint artist_types_created_by_fkey;
+alter table core.artist_types add constraint artist_types_created_by_fkey
+  foreign key (created_by) references dflow_prod.users(id);
+alter table core.artist_types drop constraint artist_types_updated_by_fkey;
+alter table core.artist_types add constraint artist_types_updated_by_fkey
+  foreign key (updated_by) references dflow_prod.users(id);
+
+alter table plm.art_piece_attachment drop constraint art_piece_attachment_art_piece_id_fkey;
+alter table plm.art_piece_attachment add constraint art_piece_attachment_art_piece_id_fkey
+  foreign key (art_piece_id) references dflow_prod.art_piece(id) not valid;
+alter table plm.art_piece_attachment drop constraint art_piece_attachment_created_by_fkey;
+alter table plm.art_piece_attachment add constraint art_piece_attachment_created_by_fkey
+  foreign key (created_by) references dflow_prod.users(id);
+alter table plm.art_piece_attachment drop constraint art_piece_attachment_updated_by_fkey;
+alter table plm.art_piece_attachment add constraint art_piece_attachment_updated_by_fkey
+  foreign key (updated_by) references dflow_prod.users(id);
+
+alter table plm."productUserAssignment" drop constraint productUserAssignment_user_id_fk_fkey;
+alter table plm."productUserAssignment" add constraint productUserAssignment_user_id_fk_fkey
+  foreign key (user_id_fk) references dflow_prod.users(id) on update cascade;
+
+alter table plm.sample_comments drop constraint sample_comments_user_id_fkey;
+alter table plm.sample_comments add constraint sample_comments_user_id_fkey
+  foreign key (user_id) references dflow_prod.users(id) on update cascade;
+```
+
+### Step 4 — classid-correct dependent guard (zero outside dependents required)
+
+> Guard lessons from the 2026-11-15 first attempt: match `pg_depend` by
+> **(classid, oid) pairs** — bare-oid matching across catalogs produces false
+> positives (auth-schema index rows colliding numerically with dflow
+> pg_proc oids) — and resolve `pg_constraint`/`pg_type` dependents to their
+> owning schema, or real FK dependents are misfiled as "internal" and missed.
 
 ```sql
 do $guard$
@@ -244,31 +333,43 @@ declare
   v_outside integer;
 begin
   with inside as (
-    select oid from pg_namespace where nspname = 'dflow'
-    union all
-    select c.oid from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    select 'pg_class'::regclass as classid, c.oid
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'dflow'
     union all
-    select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    select 'pg_proc'::regclass, p.oid
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'dflow'
-  ), dependents as (
-    select d.objid,
+    union all
+    select 'pg_namespace'::regclass, oid
+      from pg_namespace where nspname = 'dflow'
+  ), dep as (
+    select d.classid, d.objid
+      from pg_depend d
+      join inside i on i.classid = d.refclassid and i.oid = d.refobjid
+     where (d.classid, d.objid) not in (select classid, oid from inside)
+  ), named as (
+    select dep.classid::regclass::text as kind, dep.objid,
            coalesce(
              (select n.nspname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-               where c.oid = d.objid and d.classid = 'pg_class'::regclass),
+               where dep.classid = 'pg_class'::regclass and c.oid = dep.objid),
              (select n.nspname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-               where p.oid = d.objid and d.classid = 'pg_proc'::regclass),
+               where dep.classid = 'pg_proc'::regclass and p.oid = dep.objid),
+             (select n.nspname from pg_type t join pg_namespace n on n.oid = t.typnamespace
+               where dep.classid = 'pg_type'::regclass and t.oid = dep.objid),
+             (select n.nspname from pg_constraint k join pg_class c on c.oid = k.conrelid
+               join pg_namespace n on n.oid = c.relnamespace
+               where dep.classid = 'pg_constraint'::regclass and k.oid = dep.objid),
              (select n.nspname from pg_rewrite rw join pg_class c on c.oid = rw.ev_class
                join pg_namespace n on n.oid = c.relnamespace
-               where rw.oid = d.objid and d.classid = 'pg_rewrite'::regclass),
+               where dep.classid = 'pg_rewrite'::regclass and rw.oid = dep.objid),
              (select n.nspname from pg_trigger t join pg_class c on c.oid = t.tgrelid
                join pg_namespace n on n.oid = c.relnamespace
-               where t.oid = d.objid and d.classid = 'pg_trigger'::regclass),
+               where dep.classid = 'pg_trigger'::regclass and t.oid = dep.objid),
              'internal') as dep_schema
-      from pg_depend d
-     where d.refobjid in (select oid from inside)
+      from dep
   )
-  select count(*) into v_outside from dependents
+  select count(*) into v_outside from named
    where dep_schema not in ('dflow', 'internal')
      and dep_schema not like 'pg_toast%'
      and dep_schema not like 'pg_temp%';
@@ -279,23 +380,29 @@ end
 $guard$;
 ```
 
-Must pass with zero outside dependents after steps 1–2. If it raises, STOP and
-re-audit readers; do not widen the exclusions.
+Must pass with zero outside dependents after steps 1–3. If it raises, STOP and
+re-audit; do not widen the exclusions.
 
-### Step 4 — demolish
+### Step 5 — demolish
 
 ```sql
 drop schema if exists dflow cascade;
 ```
 
-### Step 5 — post-verification (all must hold before the issue closes)
+### Step 6 — post-verification (all must hold before the issue closes)
 
 ```sql
-select count(*) from pg_namespace where nspname = 'dflow';          -- 0
-select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
- where n.nspname = 'api' and p.proname = 'resolve_item_mg_category'; -- 0
-select count(*) from public.style_tracker_rows_with_bridge;          -- returns rows
-select count(*) from dflow_prod."itemHeader";                        -- live schema intact
+select count(*) from pg_namespace where nspname = 'dflow';            -- 0
+select count(*) from pg_constraint c
+  join pg_class r on r.oid = c.conrelid
+  join pg_namespace n on n.oid = r.relnamespace
+  join pg_class r2 on r2.oid = c.confrelid
+  join pg_namespace n2 on n2.oid = r2.relnamespace
+ where n2.nspname = 'dflow';                                          -- 0
+select count(*) from public.style_tracker_rows_with_bridge;            -- returns rows
+select count(*) from pg_constraint where conname = 'age_group_created_by_fkey'
+  and confrelid = 'dflow_prod.users'::regclass;                        -- 1
+select count(*) from dflow_prod."itemHeader";                          -- live schema intact
 ```
 
 Plus `https://alsand.designflow.app/api/health` → 200. Post all outputs to
@@ -311,11 +418,13 @@ recover any seed object or data:
    TOC entries, restore into a temp database or schema) and copy back only
    what is actually missed. Do **not** restore the whole schema back under the
    name `dflow` without a fresh owner decision.
-3. The two reader moves are independently reversible: the view can be
-   recreated from step 1 with `dflow_prod` swapped back (only if `dflow` is
-   restored), and the helper is moot by owner ruling and stays dropped.
+3. The reader moves are independently reversible: the view can be recreated
+   from step 1 with `dflow_prod` swapped back (only if `dflow` is restored),
+   the 14 foreign keys can be re-created against a restored `dflow` from the
+   definitions in step 3, and the helper is moot by owner ruling and stays
+   dropped.
 
-## Standing rule after execution (also mirrored in docs/development.md)
+## Standing rules after execution (also mirrored in docs/development.md)
 
 Production intentionally has **no** `dflow` schema once this runbook executes.
 Everywhere else (ephemeral CI replay, preview, DesignFlow non-production
@@ -325,5 +434,10 @@ project) keeps it. Therefore:
   absence on production — wrap the DDL in a `do $$ begin if exists (select 1
   from pg_namespace where nspname = 'dflow') then … end if; end $$;` block
   (inert on production, active on every other target).
-- Never "fix" production divergence by re-creating `dflow` there; the
+- Shared-table constraints that reference `dflow.*` in the migration set
+  reference their `dflow_prod.*` equivalent on production (the 14 foreign
+  keys above). Migrations altering or dropping those constraints must tolerate
+  the different referenced schema on production (match on constraint name and
+  table, not on the referenced OID).
+- Never "fix" either divergence by re-creating `dflow` on production; the
   divergence is the design (issue #6325).
