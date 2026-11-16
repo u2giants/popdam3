@@ -268,11 +268,11 @@ cases). Brief `ACCESS EXCLUSIVE` locks on small tables, same live pattern as
 migration `20261002155633`.
 
 ```sql
-alter table app."RolePermissions" drop constraint RolePermissions_RoleId_fkey;
-alter table app."RolePermissions" add constraint RolePermissions_RoleId_fkey
+alter table app."RolePermissions" drop constraint "RolePermissions_RoleId_fkey";
+alter table app."RolePermissions" add constraint "RolePermissions_RoleId_fkey"
   foreign key ("RoleId") references dflow_prod."Roles"("Id");
-alter table app."RolePermissions" drop constraint RolePermissions_UserId_fkey;
-alter table app."RolePermissions" add constraint RolePermissions_UserId_fkey
+alter table app."RolePermissions" drop constraint "RolePermissions_UserId_fkey";
+alter table app."RolePermissions" add constraint "RolePermissions_UserId_fkey"
   foreign key ("UserId") references dflow_prod.users(id);
 
 alter table app.user_notification drop constraint user_notification_workflow_action_id_fkey;
@@ -310,8 +310,8 @@ alter table plm.art_piece_attachment drop constraint art_piece_attachment_update
 alter table plm.art_piece_attachment add constraint art_piece_attachment_updated_by_fkey
   foreign key (updated_by) references dflow_prod.users(id);
 
-alter table plm."productUserAssignment" drop constraint productUserAssignment_user_id_fk_fkey;
-alter table plm."productUserAssignment" add constraint productUserAssignment_user_id_fk_fkey
+alter table plm."productUserAssignment" drop constraint "productUserAssignment_user_id_fk_fkey";
+alter table plm."productUserAssignment" add constraint "productUserAssignment_user_id_fk_fkey"
   foreign key (user_id_fk) references dflow_prod.users(id) on update cascade;
 
 alter table plm.sample_comments drop constraint sample_comments_user_id_fkey;
