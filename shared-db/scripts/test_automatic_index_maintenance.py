@@ -81,7 +81,11 @@ class SelectionTests(unittest.TestCase):
         self.assertIn('python scripts/automatic_promotion_candidates.py',text)
         self.assertIn('python scripts/automatic_index_maintenance.py',text)
         self.assertLess(text.index('python scripts/automatic_index_maintenance.py'),text.index('python scripts/automatic_promotion_candidates.py'))
-        self.assertIn("if: always() && steps.index_maintenance.outputs.dispatched != 'true'",text)
+        # #6508: the lane guard runs before checkout and every later step
+        # respects both its skip and the maintenance dispatch.
+        self.assertIn('id: lane_guard',text)
+        self.assertLess(text.index('id: lane_guard'),text.index('uses: actions/checkout@v4'))
+        self.assertIn("if: always() && steps.lane_guard.outputs.skipped != 'true' && steps.index_maintenance.outputs.dispatched != 'true'",text)
 
 
 if __name__=='__main__':unittest.main()
