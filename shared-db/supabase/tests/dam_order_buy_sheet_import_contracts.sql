@@ -130,6 +130,10 @@ rollback;
 -- Master SKU instead of a D-number, and Clear (shared-db#6476). Rolled back.
 begin;
 select set_config('request.jwt.claims', '{"sub":"b5e00000-0000-4000-8000-000000000002","role":"authenticated"}', true);
+-- #6520: Clear is sandbox-only; enable it the way the preview/sandbox database
+-- does (production never carries this row, so the guard refuses there).
+insert into public.admin_config (key, value, updated_at)
+values ('SANDBOX_ENABLED_TOOLS', '["clear_dam_buy_sheet_import"]'::jsonb, now());
 do $$
 declare
   v_customer uuid; v_order uuid; v_line uuid; v_res jsonb; v_lines jsonb; v_imp uuid;
