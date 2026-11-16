@@ -154,7 +154,7 @@ begin
   end;
   v_lines := '[{"sku":"BSMSNEW01","delivery_date":"2026-12-10","quantity":120,"group":"2026-12-10|1"},
                {"sku":"BSMSNEW02","delivery_date":"2026-12-10","quantity":60,"group":"2026-12-10|1"},
-               {"sku":"BSMSOLD01","delivery_date":"2026-12-10","quantity":80,"group":"2026-12-10|1"},
+               {"sku":"BSMSOLD01","delivery_date":"2026-12-10","quantity":80,"case_pack":6,"group":"2026-12-10|1"},
                {"sku":"BSMSNEW03","delivery_date":"2026-12-20","quantity":10,"group":"2026-12-20|1"}]';
   v_res := public.import_dam_buy_sheet(v_customer, 'm.xlsx', repeat('d', 64), '{}', v_lines, '{}', false,
                                        '{"2026-12-10|1":" ma1234 "}');
@@ -170,7 +170,7 @@ begin
   v_imp := (v_res ->> 'import_id')::uuid;
   if (select count(distinct o.id) from plm.production_order_line l join plm.production_order o on o.id = l.production_order_id
        where l.sku in ('BSMSNEW01', 'BSMSNEW02') and o.production_order_number = '' and l.assortment_id = 'MA1234'
-         and o.source_id = 'buysheet:order:' || repeat('d', 64) || ':2026-12-10|1') <> 1
+         and o.source_id = 'buysheet:order:' || v_customer::text || ':' || repeat('d', 64) || ':2026-12-10|1') <> 1
      or (select count(*) from plm.production_order_line where sku in ('BSMSNEW01', 'BSMSNEW02')) <> 2 then
     raise exception 'blank-number order with assortment not created';
   end if;
@@ -195,13 +195,14 @@ begin
   end if;
   v_res := public.clear_dam_buy_sheet_import(v_imp, true);
   if exists (select 1 from plm.production_order_line where sku in ('BSMSNEW01', 'BSMSNEW02'))
-     or exists (select 1 from plm.production_order where source_id like 'buysheet:order:' || repeat('d', 64) || ':%')
+     or exists (select 1 from plm.production_order where source_id like 'buysheet:order:' || v_customer::text || ':' || repeat('d', 64) || ':%')
      or exists (select 1 from dam.order_buy_sheet_import where id = v_imp)
      or exists (select 1 from plm.production_order_line_source_ref r where r.production_order_line_id = v_line and r.source_system = 'popdam_buy_sheet') then
     raise exception 'clear apply left rows behind';
   end if;
   if (select quantity_ordered from plm.production_order_line where id = v_line) <> 50
      or (select assortment_id from plm.production_order_line where id = v_line) is not null
+     or (select case_pack from plm.production_order_line where id = v_line) is not null
      or (select metadata ? 'buy_sheet' from plm.production_order_line where id = v_line) then
     raise exception 'updated line not restored';
   end if;
@@ -210,7 +211,7 @@ begin
   v_res := public.import_dam_buy_sheet(v_customer, 'm.xlsx', repeat('e', 64), '{}',
     '[{"sku":"BSMSNEW09","delivery_date":"2026-12-10","quantity":5,"group":"g"}]', '{}', true, '{"g":"MA9"}');
   update plm.production_order set production_order_number = 'D-BSMS-' || left(gen_random_uuid()::text, 8)
-   where source_id = 'buysheet:order:' || repeat('e', 64) || ':g';
+   where source_id = 'buysheet:order:' || v_customer::text || ':' || repeat('e', 64) || ':g';
   begin
     perform public.clear_dam_buy_sheet_import((v_res ->> 'import_id')::uuid, true);
     raise exception 'clear after PO was not refused';
