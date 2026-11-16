@@ -728,6 +728,12 @@ FOREIGN_TARGET_MIGRATIONS = {
             "HTS_RAG_DB_ENABLED pilot. It was never reviewed against shared production."
         ),
     },
+    "20261116123000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 1 table-ACL companion (review finding #6359): restores the source's append-only table privilege block that the 20261115133704 port dropped. Applies after 20261115133704; that version's merged copy is unmodified. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
