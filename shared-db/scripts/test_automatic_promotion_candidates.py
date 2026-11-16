@@ -16,6 +16,25 @@ APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": 
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 
 
+class GhostRunsDoNotParkTheLane(unittest.TestCase):
+    """#6426 / 2026-11-16 run 43938147152: a never-dispatched queued run."""
+    now = datetime(2026, 11, 16, 20, 0, tzinfo=timezone.utc)
+
+    def mk(self, rid, created, status="queued"):
+        return {"id": rid, "status": status, "created_at": created}
+
+    def test_old_jobless_queued_run_is_dropped(self):
+        runs = [self.mk(1, "2026-11-16T19:19:34Z"), self.mk(2, "2026-11-16T19:00:00Z", "completed")]
+        with contextlib.redirect_stdout(io.StringIO()):
+            kept = m.drop_ghost_runs(runs, lambda r: 0, self.now)
+        self.assertEqual([r["id"] for r in kept], [2])
+
+    def test_young_or_started_queued_runs_are_kept(self):
+        runs = [self.mk(1, "2026-11-16T19:45:00Z"), self.mk(3, "2026-11-16T19:00:00Z")]
+        kept = m.drop_ghost_runs(runs, lambda r: 1 if r["id"] == 3 else 0, self.now)
+        self.assertEqual([r["id"] for r in kept], [1, 3])
+
+
 class AttemptsPerChange(unittest.TestCase):
     def test_a_new_main_commit_does_not_earn_fresh_attempts(self):
         # #5686: per-main resets retried a stuck change after every unrelated merge.

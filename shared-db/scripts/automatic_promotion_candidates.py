@@ -213,7 +213,31 @@ def workflow_runs(repo: str) -> list[dict[str, Any]]:
     # Every page: a PR's old production success must not age out of the window,
     # or the lane re-promotes it and parks on it (observed 2026-11-01: PR #5045).
     pages = gh("--paginate", "--slurp", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&per_page=100&created=>={ACTIVATED_AT[:10]}")
-    return [run for page in pages for run in page.get("workflow_runs", [])]
+    runs = [run for page in pages for run in page.get("workflow_runs", [])]
+    return drop_ghost_runs(runs, lambda run: len(run_jobs(repo, run["id"])))
+
+
+# A ghost run (docs/ghost-run-escape.md, #6426) is a run record GitHub created
+# but never dispatched: queued past the dispatch grace with no job ever
+# created; cancel and delete are refused. It can never run, so counting it as
+# "queued" parked the whole production lane (2026-11-16: run 43938147152 held
+# PR #6490). Same definition and 30-minute floor as the lane watchdog sweep.
+GHOST_MIN_AGE = timedelta(minutes=30)
+
+
+def drop_ghost_runs(runs: list[dict[str, Any]], jobs_count: callable,
+                    now: datetime | None = None) -> list[dict[str, Any]]:
+    now = now or datetime.now(timezone.utc)
+    kept = []
+    for run in runs:
+        created = run.get("created_at") or ""
+        if run.get("status") == "queued" and created:
+            age = now - datetime.fromisoformat(created.replace("Z", "+00:00"))
+            if age >= GHOST_MIN_AGE and jobs_count(run) == 0:
+                print(f"ghost: ignoring run {run.get('id')} (queued {int(age.total_seconds() // 60)}m, no jobs)")
+                continue
+        kept.append(run)
+    return kept
 
 
 # A production apply whose atomic apply step succeeded has written its
