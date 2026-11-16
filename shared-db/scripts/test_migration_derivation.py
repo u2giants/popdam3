@@ -148,6 +148,16 @@ class LegacyOverlay(unittest.TestCase):
             [],
         )
 
+    def test_retired_original_reissue_needs_no_base_in_production(self):
+        # #6258: 20261113145056 is retired and never reaches production.
+        version = "20261115031325"
+        path = local_migrations(REPO)[version]
+        raw = path.read_text(encoding="utf-8")
+        self.assertEqual(declared_bases(version, raw=raw), frozenset())
+        self.assertEqual(assert_derivation_bases([version], {version: path}, remote=set()), [])
+        with self.assertRaises(DerivationError):
+            declared_bases(version, raw=raw + "\n-- appended bytes\n")
+
     def test_archive_numeric_pattern_exception_requires_exact_full_immutable_source(self):
         version = "20261022132119"
         path = local_migrations(REPO)[version]

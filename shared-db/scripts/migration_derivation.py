@@ -170,12 +170,20 @@ IMMUTABLE_NON_LEDGER_DERIVATIONS: dict[str, tuple[str, str]] = {
         "dflow_prod; its declared sandbox pattern creates dflow.tracking_grid_archive "
         "and supplies no replaced object or ledger dependency. Full source hash is pinned.",
     ),
+    "20261115031325": (
+        "-- derived-from: 20261113145056\n",
+        "Issue #6258: PR #6314's byte-identical, idempotent reissue of retired "
+        "20261113145056 (HARD_BLOCKED; never applied to production). It carries the "
+        "whole body itself, so production needs no base; the declaration names the "
+        "retired original as provenance only. Full source hash is pinned.",
+    ),
 }
 
 # Only this exact immutable source may correct a numeric pattern declaration.
 # Older malformed-prose entries retain their existing declaration validation.
 IMMUTABLE_NON_LEDGER_SOURCE_SHA256 = {
     "20261022132119": "072227995c866194c7ea42ab27a331a7b57d565836babb07a569f6776e339a5f",
+    "20261115031325": "4c5b6fd3a99e976d9c37c5873a760adeb2a8675eb6f7c60bbdf7c4ed32f3e4d4",
 }
 
 
