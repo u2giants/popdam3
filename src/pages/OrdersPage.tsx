@@ -510,10 +510,12 @@ export default function OrdersPage() {
               <Download className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
               Bamboo Rose sheet
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setClearOpen(true)}>
-              <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-              Clear my last HFC upload
-            </DropdownMenuItem>
+            {IS_NON_PRODUCTION_DATABASE && (
+              <DropdownMenuItem onSelect={() => setClearOpen(true)}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+                Clear my last HFC upload
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -559,7 +561,9 @@ export default function OrdersPage() {
       </div>
 
       <BambooRoseDialog open={bambooRoseOpen} onClose={() => setBambooRoseOpen(false)} />
-      <ClearBuySheetDialog open={clearOpen} onClose={() => setClearOpen(false)} onCleared={refreshRows} />
+      {IS_NON_PRODUCTION_DATABASE && (
+        <ClearBuySheetDialog open={clearOpen} onClose={() => setClearOpen(false)} onCleared={refreshRows} />
+      )}
       <BuySheetImportDialog
         open={buySheetOpen}
         onClose={() => setBuySheetOpen(false)}

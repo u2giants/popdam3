@@ -323,4 +323,14 @@ describe("OrdersPage integration wiring", () => {
     expect(mocks.removedChannels).toHaveLength(1);
     expect(mocks.channels).toHaveLength(1);
   });
+
+  it("hides the Clear-my-last-HFC-upload item on production builds (sandbox only)", () => {
+    render(<OrdersPage />);
+    const trigger = screen.getByRole("button", { name: /Burlington/ });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(screen.getByText("Import buy sheet (HFC)")).toBeInTheDocument();
+    expect(screen.getByText("Bamboo Rose sheet")).toBeInTheDocument();
+    expect(screen.queryByText("Clear my last HFC upload")).not.toBeInTheDocument();
+  });
 });
