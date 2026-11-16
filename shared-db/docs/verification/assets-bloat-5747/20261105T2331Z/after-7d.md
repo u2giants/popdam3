@@ -100,3 +100,6 @@ Search-speed half of the 7-day recheck: **MET** — the automation comment's exp
 hold (119/119 vs 118/119) and broad search is under the 3 s target. The nearest later scored runs
 in the same window hold the same pass count (43365823149, 11:29 PM EST Nov 12: 119/119, p50 1.0 s;
 43386845973, 2:35 AM EST Nov 13: 119/119, p50 1.6 s).
+
+Later reading: [weekly-health-20261116.md](weekly-health-20261116.md) — weekly health check 6:05 AM
+EST Nov 16: heap 390 MB (flat since the 7-day reading) / live 214 MB = 1.82, below the 2.0 limit.
