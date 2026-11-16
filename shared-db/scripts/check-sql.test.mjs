@@ -197,6 +197,20 @@ test('Guard B allows a migration timestamped after the base branch newest', () =
   })
 })
 
+test('Guard B allows a migration stamped in the FUTURE: versions compare to each other, never to the clock (#6423)', () => {
+  // A --future-minutes reservation is AHEAD of wall-clock on purpose, so the
+  // backdating guard must never gain a "not yet valid" leg. This pins that:
+  // the added version is one hour in the future, main's newest is "now".
+  const stamp = (date) => date.toISOString().replace(/[-:T]/g, '').slice(0, 14)
+  const nowVersion = stamp(new Date())
+  const futureVersion = stamp(new Date(Date.now() + 60 * 60_000))
+  withFixture([`${futureVersion}_future_dated_reservation.sql`], (dir) => {
+    const { status, stdout } = runGuards(dir, { mainNewest: nowVersion })
+    assert.equal(status, 0, `a future-dated version must pass Guard B. stdout:\n${stdout}`)
+    assert.match(stdout, /Guard B: no migration sorts before/)
+  })
+})
+
 test('Guard B skips with a loud warning when the base ref is unavailable', () => {
   withFixture(['20260801120000_forward_dated_migration.sql'], (dir) => {
     const { status, stderr } = runGuards(dir, {

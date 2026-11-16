@@ -15,13 +15,18 @@ import {
   claimCommand,
   encodeRepoPath,
   localVersionSource,
+  epochMsToStamp,
   findDispatchConflicts,
   formatReport,
+  futureReserveStart,
   gatherOpenPrObjects,
+  maxVersionFromNames,
   nextFreeVersion,
   normalizeObject,
   parseClaimBlock,
+  parseFutureMinutes,
   reserveVersion,
+  stampToEpochMs,
   Unknown,
   utcStamp,
   versionRef,
@@ -880,6 +885,102 @@ test('#670 utcStamp produces a 14-digit version that versionRef accepts', () => 
   const stamp = utcStamp(new Date('2026-08-12T21:10:00.000Z'))
   assert.equal(stamp, '20260812211000')
   assert.equal(versionRef(stamp), 'refs/db-claims/20260812211000')
+})
+
+// --- #6423 future-dated reservation -----------------------------------------
+
+test('#6423 parseFutureMinutes accepts positive integers and nothing else', () => {
+  assert.equal(parseFutureMinutes('30'), 30)
+  assert.equal(parseFutureMinutes(' 1 '), 1)
+  assert.equal(parseFutureMinutes(5), 5)
+  // ONE exact message, so callers and docs can quote it.
+  for (const bad of ['0', '-5', '1.5', 'abc', '', undefined, null]) {
+    assert.throws(
+      () => parseFutureMinutes(bad),
+      (error) => error instanceof Unknown && error.message === '--future-minutes must be a positive integer',
+      `expected ${JSON.stringify(bad)} to be rejected`,
+    )
+  }
+})
+
+test('#6423 stampToEpochMs and epochMsToStamp round-trip a 14-digit stamp', () => {
+  assert.equal(epochMsToStamp(stampToEpochMs('20261116120000')), '20261116120000')
+  for (const bad of ['2026111612000', '202611161200000', 'main', '']) {
+    assert.throws(() => stampToEpochMs(bad), Unknown, `expected ${JSON.stringify(bad)} to be rejected`)
+  }
+})
+
+test('#6423 maxVersionFromNames picks the highest .sql version and ignores the rest', () => {
+  assert.equal(
+    maxVersionFromNames(['20261115132055_a.sql', '20261116120000_b.sql', 'notes.txt', '12345678901234_a.sql']),
+    '20261116120000',
+  )
+  assert.equal(maxVersionFromNames(['20260101000000_only.sql']), '20260101000000')
+  assert.equal(maxVersionFromNames([]), null)
+  assert.equal(maxVersionFromNames(['x.sql', '123_short.sql']), null)
+})
+
+test('#6423 the future floor is now + N when main newest is behind it', () => {
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  const got = futureReserveStart({ futureMinutes: 30, treeMax: '20261115132055', now })
+  assert.deepEqual(got, { start: '20261116223000', futureDated: true })
+})
+
+test('#6423 the future floor is tree_max + 1 minute when main already holds a newer version', () => {
+  // Once a future-dated version merges, an allocation at now+30 alone would be
+  // born backdated. Deep-insight 1 of the #6423 plan.
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  const got = futureReserveStart({ futureMinutes: 30, treeMax: '20261117090000', now })
+  assert.deepEqual(got, { start: '20261117090100', futureDated: true })
+})
+
+test('#6423 a missing tree max falls back to now + N', () => {
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  assert.equal(futureReserveStart({ futureMinutes: 30, treeMax: null, now }).start, '20261116223000')
+})
+
+test('#6423 the floor always clears now + 29 minutes despite second truncation', () => {
+  // The plan's verification gate: V >= max(tree_max+1min, now+29min).
+  const now = new Date()
+  const { start } = futureReserveStart({ futureMinutes: 30, treeMax: '20200101000000', now })
+  assert.ok(stampToEpochMs(start) >= now.getTime() + 29 * 60_000, `start ${start} is not far enough ahead`)
+  assert.ok(versionRef(start), 'the future stamp is a valid reservation candidate')
+})
+
+test('#6423 without --future-minutes the starting stamp is exactly what it always was', () => {
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  assert.deepEqual(futureReserveStart({ version: null, futureMinutes: null, now }), {
+    start: '20261116220000',
+    futureDated: false,
+  })
+  assert.deepEqual(futureReserveStart({ version: '20261115132055', futureMinutes: null, now }), {
+    start: '20261115132055',
+    futureDated: false,
+  })
+})
+
+test('#6423 --version and --future-minutes are refused together', () => {
+  assert.throws(
+    () => futureReserveStart({ version: '20261116220000', futureMinutes: 30 }),
+    (error) => error instanceof Unknown && /--future-minutes and --version cannot be combined/.test(error.message),
+  )
+})
+
+test('#6423 a string N is parsed, so the CLI can pass argv text straight through', () => {
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  assert.equal(futureReserveStart({ futureMinutes: '30', treeMax: null, now }).start, '20261116223000')
+})
+
+test('#6423 the atomic walk stays above the future floor when the floor second is taken', () => {
+  // Deep-insight 2 of the plan: TOCTOU on the candidate is closed by the ref
+  // create itself. A conflicting future reservation bumps second-by-second and
+  // NEVER hands back a version below the floor.
+  const now = new Date('2026-11-16T22:00:00.000Z')
+  const { start } = futureReserveStart({ futureMinutes: 30, treeMax: '20261115132055', now })
+  const io = createRefFake([start])
+  const got = reserveVersion({ stamp: start, repo: 'r', sha: 'x', io })
+  assert.equal(got.version, '20261116223001')
+  assert.ok(stampToEpochMs(got.version) >= now.getTime() + 30 * 60_000)
 })
 
 // --- READ/WRITE CLAIMS (Step 2, issue #1366) --------------------------------

@@ -329,6 +329,109 @@ export function utcStamp(now = new Date()) {
   return now.toISOString().replace(/[-:T]/g, '').slice(0, 14)
 }
 
+// ---------------------------------------------------------------------------
+// FUTURE-DATED RESERVATION (#6423). The backdating race, in one paragraph:
+// the allocator hands out the current wall-clock second, but a pull request
+// sits in CI and the merge queue for ~10-25 minutes. Any OTHER migration that
+// merges in that window carries a higher version, the queue rebases this
+// branch onto it, and `check-sql.sh` Guard B fails it as "backdated" — so the
+// author renumbers and waits another full CI round. PRs #6275 and #6370 each
+// burned three renumbers over 7+ hours on 2026-11-15. Reserving a version
+// AHEAD of the race (default 30 minutes) makes renumbering unnecessary: no
+// concurrently-merging PR can carry a newer version, so Guard B passes on the
+// first run. A future-dated version is legal everywhere it matters — the
+// ledger and the guards compare versions to each other, never to the clock
+// (proven end-to-end by 20261116120000, merged 2026-11-15).
+// ---------------------------------------------------------------------------
+
+/** Warn (never fail) above this many minutes: the version space is burned until the clock catches up. */
+export const FUTURE_MINUTES_WARN_LIMIT = 1440
+
+/**
+ * Parse and validate `--future-minutes`. Positive integers only, so `0`, `-5`,
+ * `1.5` and stray text all fail with ONE exact message the tests can pin.
+ */
+export function parseFutureMinutes(raw) {
+  const text = String(raw ?? '').trim()
+  if (!/^\d+$/.test(text) || Number(text) <= 0) {
+    throw new Unknown('--future-minutes must be a positive integer')
+  }
+  return Number(text)
+}
+
+/** A 14-digit stamp back to epoch milliseconds. Inverse of `epochMsToStamp`. */
+export function stampToEpochMs(stamp) {
+  const value = String(stamp ?? '')
+  if (!/^\d{14}$/.test(value)) {
+    throw new Unknown(`a migration version must be exactly 14 digits, got ${JSON.stringify(stamp)}`)
+  }
+  const ms = Date.UTC(
+    Number(value.slice(0, 4)),
+    Number(value.slice(4, 6)) - 1,
+    Number(value.slice(6, 8)),
+    Number(value.slice(8, 10)),
+    Number(value.slice(10, 12)),
+    Number(value.slice(12, 14)),
+  )
+  if (Number.isNaN(ms)) throw new Unknown(`migration version ${value} is not a valid timestamp`)
+  return ms
+}
+
+/** Epoch milliseconds to a 14-digit stamp (`utcStamp` for a number). */
+export function epochMsToStamp(ms) {
+  const date = new Date(ms)
+  if (Number.isNaN(date.getTime())) throw new Unknown(`${ms} is not a valid epoch in milliseconds`)
+  return utcStamp(date)
+}
+
+/**
+ * The highest 14-digit migration version in a list of file names, or null when
+ * the list holds none. Pure: the GitHub call that feeds it lives in `defaultIo`.
+ */
+export function maxVersionFromNames(names) {
+  let max = null
+  for (const name of names ?? []) {
+    const stamp = path.basename(String(name)).slice(0, 14)
+    if (/^\d{14}$/.test(stamp) && String(name).endsWith('.sql')) {
+      if (max === null || stamp > max) max = stamp
+    }
+  }
+  return max
+}
+
+/**
+ * The starting stamp for a reservation, future-dated on request (#6423).
+ *
+ * The future floor is `max(tree_max + 1 minute, now + N minutes)`:
+ *   - `tree_max + 1min` because once a future-dated version merges, every later
+ *     allocation must sort ABOVE it, or it is backdated the moment it is born;
+ *   - `now + Nmin` to outrun every PR that can merge while this one sits in CI
+ *     and the queue.
+ *
+ * `treeMax` comes from a LIVE `origin/main` read (`io.treeMaxVersion`), never
+ * from the local checkout, which may be days stale and would hand out a
+ * version already behind main. On conflict the atomic ref walk in
+ * `reserveVersion` bumps second-by-second — every bump stays above the floor.
+ *
+ * `--version` together with `--future-minutes` is refused: one pins the start
+ * by hand, the other computes it; a combined meaning would be guesswork.
+ */
+export function futureReserveStart({ version, futureMinutes, treeMax, now = new Date() }) {
+  if (futureMinutes == null) return { start: version ? String(version) : utcStamp(now), futureDated: false }
+  if (version != null && String(version) !== '') {
+    throw new Unknown(
+      '--future-minutes and --version cannot be combined: --version pins the starting ' +
+        'stamp by hand, --future-minutes computes it from the live main tree.',
+    )
+  }
+  const minutes = typeof futureMinutes === 'number' ? futureMinutes : parseFutureMinutes(futureMinutes)
+  const floorMs = Math.max(
+    treeMax != null ? stampToEpochMs(treeMax) + 60_000 : -Infinity,
+    now.getTime() + minutes * 60_000,
+  )
+  return { start: epochMsToStamp(floorMs), futureDated: true }
+}
+
 /**
  * Acquire a migration version ATOMICALLY, or report that it could not be done.
  *
@@ -675,6 +778,22 @@ export const defaultIo = {
   },
 
   /**
+   * The highest migration version on the LIVE default branch (#6423).
+   *
+   * Read through the shared tree reader (one recursive tree read of
+   * `main`, issue #2342's sanctioned shape), never from any local checkout: a
+   * stale checkout would miss migrations merged minutes ago and hand out a
+   * version that is backdated the moment it is born — the exact race
+   * --future-minutes exists to end.
+   */
+  treeMaxVersion: (repo) =>
+    maxVersionFromNames(
+      treeReader
+        .pathsAtRef(repo, 'main')
+        .filter((filePath) => filePath.startsWith(`${MIGRATIONS_DIR}/`) && filePath.endsWith('.sql')),
+    ),
+
+  /**
    * Server-side CREATE-IF-ABSENT. This one call is the whole atomicity guarantee.
    *
    * Returns 'created' or 'exists'. EVERYTHING ELSE THROWS — a 403, a 404, a rate
@@ -786,6 +905,7 @@ function parseArgs(argv) {
     allocate: false,
     reserve: false,
     claimBodyFile: null,
+    futureMinutes: null,
   }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
@@ -793,6 +913,7 @@ function parseArgs(argv) {
     if (arg === '--objects') options.objects.push(...String(next()).split(',').map((s) => s.trim()).filter(Boolean))
     else if (arg === '--task') options.task = next()
     else if (arg === '--version') options.version = next()
+    else if (arg === '--future-minutes') options.futureMinutes = next()
     else if (arg === '--sql') options.sql = next()
     else if (arg === '--allocate-version') options.allocate = true
     else if (arg === '--reserve-version') options.reserve = true
@@ -834,6 +955,16 @@ Options:
                        forward past any unavailable or already reserved. THIS MUTATES THE
                        REMOTE REPOSITORY, which is why the flag says "reserve"
                        and not "allocate".
+  --future-minutes <N> With --reserve-version: reserve a version AHEAD of the
+                       backdating race (#6423). The start becomes
+                       max(main's newest version + 1 minute, now + N minutes),
+                       computed from a LIVE read of origin/main, so no PR that
+                       merges while this one sits in CI can carry a higher
+                       version. Recommended N: 30 (CI ~10 min + queue ~15 min
+                       + margin). Positive integer only; above 1440 a warning
+                       is printed (the burned version space only recovers as
+                       the clock catches up). Without --reserve-version this
+                       flag is an error.
   --allocate-version   WITHDRAWN — it reserved nothing. Exits 2. Use
                        --reserve-version. See below.
   --json               Machine-readable output.
@@ -857,15 +988,30 @@ A task that cannot declare its objects must be dispatched READ-ONLY.
 function runReserveVersion(options, io = defaultIo) {
   const repo = resolveRepositoryIdentity()
   let reservation
+  let futureDated = false
   try {
-    const start = options.version ? String(options.version) : utcStamp()
+    // #6423 validation before any network call: a bad N or a contradictory flag
+    // combination must fail instantly and cannot create a junk ref.
+    const minutes = options.futureMinutes != null ? parseFutureMinutes(options.futureMinutes) : null
+    const start = futureReserveStart({
+      version: options.version,
+      futureMinutes: minutes,
+      treeMax: minutes != null ? io.treeMaxVersion(repo) : null,
+    })
+    futureDated = start.futureDated
     // Validate before touching the network so a typo fails instantly and
     // cannot create a junk ref.
-    versionRef(start)
+    versionRef(start.start)
+    if (minutes != null && minutes > FUTURE_MINUTES_WARN_LIMIT) {
+      console.error(
+        `WARNING: --future-minutes ${minutes} exceeds 24 hours; this permanently burns ` +
+          'version space until the clock catches up.',
+      )
+    }
     const sources = [...gatherClaims(repo), ...gatherOpenPrObjects(repo), ...localVersionSource()]
     const unavailableVersions = sources.flatMap((source) => source.versions ?? [])
     reservation = reserveVersion({
-      stamp: start,
+      stamp: start.start,
       repo,
       sha: io.baseSha(repo),
       io,
@@ -881,13 +1027,18 @@ function runReserveVersion(options, io = defaultIo) {
   }
 
   if (options.json) {
-    console.log(JSON.stringify(reservation, null, 2))
+    console.log(JSON.stringify({ ...reservation, futureDated }, null, 2))
     return 0
   }
 
   console.log(`RESERVED migration version ${reservation.version}`)
   console.log(`  ref:      ${reservation.ref}`)
   console.log(`  attempts: ${reservation.attempts}`)
+  if (futureDated) {
+    console.log('  future:   yes — this version sorts ahead of everything on main and every')
+    console.log('            PR that can merge while yours sits in CI, so Guard B cannot')
+    console.log('            flag it as backdated on the first run (#6423).')
+  }
   if (reservation.skipped.length) {
     console.log(`  unavailable on disk/PR/claim, or already reserved: ${reservation.skipped.join(', ')}`)
   }
@@ -942,6 +1093,17 @@ function main(argv) {
     console.error('server-side, which is a create-if-absent, so the number it returns is')
     console.error('genuinely yours. Duplicates are still caught at merge by')
     console.error('scripts/check-sql.sh, but that is a backstop, not the allocator.')
+    return 2
+  }
+
+  // #6423: the flag only has meaning on the one route that reserves. Rejecting
+  // here, before any network call, also keeps the read-only paths read-only.
+  if (options.futureMinutes != null && !options.reserve) {
+    console.error('--future-minutes only applies to --reserve-version.')
+    console.error('')
+    console.error('It moves the STARTING STAMP of a reservation into the future so the')
+    console.error('backdating race cannot catch it (#6423). Without a reservation there is')
+    console.error('no starting stamp to move.')
     return 2
   }
 
