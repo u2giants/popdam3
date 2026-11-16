@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import automatic_promotion_candidates as m  # noqa: E402
 import refund_fault_classification as classifier  # noqa: E402
 
+# Main-path tests stub is_held; route the batched hold read through it so no
+# test reaches the network. PrefetchHolds tests the real function.
+REAL_PREFETCH_HOLDS = m.prefetch_holds
+m.prefetch_holds = lambda repo, prs: (lambda n: m.is_held(repo, n))
+
 APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 
@@ -2007,6 +2012,39 @@ class SloReport(unittest.TestCase):
             m.report_slos(prs, runs)
         self.assertIn("SLO_A merge-to-dispatch: 120s (PR #7); p50=120s p95=120s", out.getvalue())
         self.assertIn("SLO_B merge-to-apply-start: 720s (PR #8)", out.getvalue())
+
+
+class PrefetchHolds(unittest.TestCase):
+    """#6493 Step 1c: one settle for all candidates, same fail-toward-holding."""
+    finding = {"number": 900, "state": "open", "labels": [{"name": "review-finding"}],
+               "body": "Source PR: https://github.com/o/r/pull/7", "created_at": "2026-11-16T00:00:00Z"}
+
+    def test_one_settle_and_shared_label_read_for_many_prs(self):
+        import review_finding_hold as rfh
+        sleeps, labelled = [], []
+        out = rfh.gh_issues_many("o/r", [7, 8], sleep=sleeps.append,
+                                 labelled=lambda r, p: labelled.append(1) or [self.finding],
+                                 crossed=lambda r, p: [])
+        self.assertEqual(sleeps, [rfh.SETTLE_SECONDS])
+        self.assertEqual(len(labelled), 2)
+        self.assertEqual(len(out[7]), 2)
+
+    def test_failed_batch_falls_back_to_per_pr_is_held(self):
+        with mock.patch.object(m.review_finding_hold, "gh_issues_many",
+                               side_effect=subprocess.CalledProcessError(1, "gh")), \
+             mock.patch.object(m, "is_held", lambda repo, n: True), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertIs(REAL_PREFETCH_HOLDS("o/r", [7])(7), True)
+
+    def test_prefetched_blocking_finding_holds(self):
+        with mock.patch.object(m.review_finding_hold, "gh_issues_many", lambda repo, prs: {7: [self.finding]}), \
+             mock.patch.object(m.review_finding_hold, "blocking_findings", lambda issues, repo, n: issues):
+            self.assertEqual(REAL_PREFETCH_HOLDS("o/r", [7])(7), [self.finding])
+
+    def test_pr_outside_the_batch_reads_fresh(self):
+        with mock.patch.object(m.review_finding_hold, "gh_issues_many", lambda repo, prs: {}), \
+             mock.patch.object(m, "is_held", lambda repo, n: ["fresh"]):
+            self.assertEqual(REAL_PREFETCH_HOLDS("o/r", [])(9), ["fresh"])
 
 
 if __name__ == "__main__":

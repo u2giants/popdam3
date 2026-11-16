@@ -712,6 +712,32 @@ def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
     return list({f.get("number"): f for f in found}.values())
 
 
+def prefetch_holds(repo: str, prs: list[int]) -> callable:
+    """Hold lookup for this decision pass, read in one batch with one settle
+    (#6493 Step 1c). Fresh every run, never cached across runs; a failed batch
+    read falls back to the per-PR is_held, which fails toward holding. The
+    pre-dispatch recheck still calls is_held directly."""
+    try:
+        issues = review_finding_hold.gh_issues_many(repo, prs) if prs else {}
+    except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+        print(f"::warning::batched review-finding hold read failed ({exc}); reading per PR")
+        issues = {}
+    found: dict[int, list[dict[str, Any]]] = {}
+
+    def held(number: int) -> list[dict[str, Any]] | bool:
+        if number not in issues:
+            return is_held(repo, number)
+        if number not in found:
+            try:
+                rows = review_finding_hold.blocking_findings(issues[number], repo, number)
+            except (subprocess.CalledProcessError, ValueError, OSError) as exc:
+                print(f"::warning::review-finding hold check for PR #{number} failed ({exc}); treating as held")
+                return True
+            found[number] = list({f.get("number"): f for f in rows}.values())
+        return found[number]
+    return held
+
+
 def version_on_main(version: str) -> bool:
     """True when this checkout of main still holds the migration file."""
     return bool(glob.glob(os.path.join(os.path.dirname(HERE), "supabase", "migrations", f"{version}_*.sql")))
@@ -820,7 +846,10 @@ def main(now: datetime | None = None) -> int:
         report_slos(candidates, runs)
     except (KeyError, ValueError, TypeError) as exc:
         print(f"::warning::SLO report skipped ({exc})")
-    action, pr, reason = decide(candidates, runs, lambda n: is_held(repo, n),
+    held = prefetch_holds(repo, [c["number"] for c in candidates
+                                 if not (live and c.get("versions") and set(c["versions"]) <= live)])
+    phase("review-finding holds read")
+    action, pr, reason = decide(candidates, runs, held,
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run),
                                 stale=lambda run: stale_main_refusal_only(repo, run),
