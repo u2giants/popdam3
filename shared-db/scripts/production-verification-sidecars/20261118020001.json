@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261118020001",
+  "migration_sha256": "29ac40aaa6583f80843b0dd3c719e4f1b58051defd95e5638fcf796f333be3ce",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 71,
+      "line_end": 71,
+      "disposition": "no_durable_target",
+      "reason": "The dynamic marker is the existence-guarded ALTER TABLE DROP CONSTRAINT. No sidecar check kind expresses the combined outcome (constraint absent while the identical primary key remains unique): catalog_absence cannot verify the PK keeper, and exact_row_count cannot see pg_constraint definitions. The durable proof is the in-block assertion (raises if the PK on licensed_property_id and character_id is missing after the drop) plus the ON CONFLICT post-apply preview proof on issue #6411."
+    }
+  ],
+  "checks": []
+}
