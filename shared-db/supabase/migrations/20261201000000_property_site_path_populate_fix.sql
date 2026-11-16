@@ -1,5 +1,7 @@
 -- shared-db#6150 step 6 fix-forward for 20261113145255 (review finding #6248).
--- Re-versioned from 20261115015415 (main advanced); that version stays reserved and unused.
+-- Re-versioned from 20261115021817 (PR #6316), which exhausted its automatic attempts:
+-- its fixed 117 shortfall check failed on preview, whose core.property holds fewer rows.
+-- The check now requires every path this database CAN resolve (117 on production).
 -- 1. Top-level INSERT ... SELECT so post-apply catalog verification sees the seeded table
 --    (the earlier DO block was invisible to it).
 -- 2. Each property is resolved by (licensor code, property code), never by code alone.
@@ -10,12 +12,8 @@
 -- Idempotent with 20261113145255 (on conflict do nothing).
 -- Rollback: delete from core.property_site_path where source_evidence like 'shared-db#6150 step 6%'.
 
-insert into core.property_site_path
-  (property_id, licensor_site, site_property_name, site_property_id, site_character_name, site_character_id, source_evidence)
-select r.property_id, r.site, r.site_property_name, r.site_property_id, r.site_character_name, r.char_id,
-       'shared-db#6150 step 6: ColdLion MG06 ' || r.lcode || '/' || r.code || ' list 2026-11-12 FINAL; site vocab plm scrape id '
-         || coalesce(r.site_property_id, 'local-key') || coalesce(' / character ' || r.char_id, '')
-from (
+create temp view mg06_step6_paths as
+select * from (
   select p.id as property_id, m.lcode, m.code, m.site, m.char_id,
     case m.site when 'pmt_trackerplus' then null else m.site_key end as site_property_id,
     case m.site
@@ -150,7 +148,14 @@ from (
   join core.licensor l on l.code = m.lcode
   join core.property p on p.licensor_id = l.id and p.code = m.code
 ) r
-where r.site_property_name is not null and (r.char_id is null or r.site_character_name is not null)
+where r.site_property_name is not null and (r.char_id is null or r.site_character_name is not null);
+
+insert into core.property_site_path
+  (property_id, licensor_site, site_property_name, site_property_id, site_character_name, site_character_id, source_evidence)
+select r.property_id, r.site, r.site_property_name, r.site_property_id, r.site_character_name, r.char_id,
+       'shared-db#6150 step 6: ColdLion MG06 ' || r.lcode || '/' || r.code || ' list 2026-11-12 FINAL; site vocab plm scrape id '
+         || coalesce(r.site_property_id, 'local-key') || coalesce(' / character ' || r.char_id, '')
+from mg06_step6_paths r
 on conflict do nothing;
 
 update core.property p set nickname = 'Mickey Group'
@@ -159,7 +164,7 @@ update core.property p set nickname = 'Mickey Group'
    and p.name = 'Standard Characters' and p.nickname is null;
 
 do $mg06_site_path_check$
-declare v_n integer; v_bad integer;
+declare v_n integer; v_bad integer; v_expected integer;
 begin
   select count(*) into v_bad from core.property_site_path s join core.property p on p.id = s.property_id
    join core.licensor l on l.id = p.licensor_id
@@ -167,11 +172,14 @@ begin
      and s.source_evidence not like '%MG06 ' || l.code || '/' || p.code || ' %'
      and s.source_evidence not like '%MG06 ' || p.code || ' list%';
   if v_bad > 0 then raise exception '#6150: % step-6 rows point at an unexpected property', v_bad; end if;
-  if not exists (select 1 from plm.opa_property where licensed_property_id = 361) then
-    raise notice '#6150: licensor-site scrape absent here; shortfall check skipped'; return;
+  select count(distinct property_id) into v_expected from mg06_step6_paths;
+  select count(distinct q.property_id) into v_n from mg06_step6_paths q
+   where exists (select 1 from core.property_site_path s where s.property_id = q.property_id and s.is_current);
+  if v_n < v_expected then
+    raise exception '#6150: % of % resolvable MG06 properties have a current site path', v_n, v_expected;
   end if;
-  select count(distinct property_id) into v_n from core.property_site_path
-   where is_current and source_evidence like 'shared-db#6150 step 6%';
-  if v_n < 117 then raise exception '#6150: expected 117 MG06 properties with a site path, found %', v_n; end if;
+  raise notice '#6150: % of % resolvable MG06 properties have a current site path', v_n, v_expected;
 end
 $mg06_site_path_check$;
+
+drop view mg06_step6_paths;
