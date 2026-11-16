@@ -809,9 +809,13 @@ def main(now: datetime | None = None) -> int:
               "the next trigger retries once the ledger reads")
         print("wait: production ledger unreadable")
         return 0
+    started = time.monotonic()
+    phase = lambda name: print(f"timing: {name} at {time.monotonic() - started:.1f}s", flush=True)
     runs = workflow_runs(repo)
+    phase("workflow runs read")
     skipped: list[dict[str, Any]] = []
     candidates = merged_migration_prs(repo)
+    phase("merged PRs discovered")
     try:
         report_slos(candidates, runs)
     except (KeyError, ValueError, TypeError) as exc:
@@ -834,6 +838,7 @@ def main(now: datetime | None = None) -> int:
             continue
         refs = ", ".join(f"#{f.get('number')}" for f in entry["findings"]) or "an unreadable finding query"
         print(f"held: PR #{entry['number']} by {refs}; later PRs still promote")
+    phase("decision made")
     print(f"{action}: {reason}")
     alerts = overdue_holds(skipped, now)
     if action == "dispatch":
@@ -846,6 +851,7 @@ def main(now: datetime | None = None) -> int:
                                     stale=lambda run: stale_main_refusal_only(repo, run),
                                     refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
                                     live=live)
+        phase("fresh recheck done")
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
     if action == "dispatch" and not args.dry_run:
@@ -875,6 +881,7 @@ def main(now: datetime | None = None) -> int:
     # Step 2.3: open or update ONE tracking issue for exhausted PRs.
     if exhausted and not args.dry_run:
         report_stuck_change(repo, exhausted, now)
+    phase("dispatch step done")
     reruns = recent_re_runs(runs, now, ACKNOWLEDGED_RE_RUNS)
     for r in reruns:
         print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"
