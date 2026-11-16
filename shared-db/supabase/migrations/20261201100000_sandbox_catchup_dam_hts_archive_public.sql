@@ -15,7 +15,6 @@ alter table dam.asset_character add column if not exists is_current boolean defa
 alter table dam.asset_character add column if not exists retired_at timestamp with time zone;
 alter table dam.asset_character add column if not exists retired_reason text;
 alter table dam.style_guide_file add column if not exists has_talent_likeness boolean;
-alter table public.assets add column if not exists primary_sort_tier smallint default 13 not null;
 alter table public.assets add column if not exists style_group_changed_at timestamp with time zone default now() not null;
 alter table public.dam_search_documents add column if not exists has_default_visible_member boolean;
 alter table public.dam_search_documents add column if not exists default_visible_min_date timestamp with time zone;
@@ -65,7 +64,6 @@ alter table public.assets alter column primary_sort_tier set default 13;
 CREATE SCHEMA IF NOT EXISTS archive;
 
 -- SCHEMA -.dam
-CREATE SCHEMA IF NOT EXISTS dam;
 
 -- SCHEMA -.hts_rag
 CREATE SCHEMA IF NOT EXISTS hts_rag;
