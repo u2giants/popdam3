@@ -19,7 +19,21 @@ SYSTEM = "('pg_catalog','information_schema','pg_toast')"
 # compared at all; ignore_patterns are kind:schema.name globs. Every entry needs an owner decision on #6356.
 ALLOWLIST = {
     "ignore_schemas": ["dam", "hts_rag", "archive", "public", "dflow_prod", "dflow_archive", "cron", "repack", "realtime", "temp_status_watch", "auth", "storage", "extensions", "vault", "graphql", "graphql_public", "net", "pgsodium", "pgsodium_masks", "supabase_functions", "supabase_migrations", "_realtime", "pgbouncer"],
-    "ignore_patterns": [],
+    # Production-only items excluded by the coordinator on #6356 (2026-11-16): service logins' access rules,
+    # retired/frozen backup tables, temp_status_watch triggers, and the packaging rule that names a person by
+    # email. The two Coldlion sync functions are copied with dflow in place of production's dflow_prod.
+    "ignore_patterns": [
+        "*:core.merchGroup_retired_20261115*", "*:core.merchGroupHeaders_retired_20261115*",
+        "*:plm.creative_submission_property_resolution_archive*", "*:plm.creative_submission_property_resolution_member_archive*",
+        "policy:coldlion.item_detail.hts_evaluation_read", "policy:plm.customs_benchmark_*.hts_evaluation_read",
+        "policy:coldlion.merch_group_event_log.merch_group_event_log_runtime_*",
+        "policy:coldlion.*_history_line.coldlion_history_tracking_read",
+        "policy:pim.ai_activity_triage*.pm_ai_activity_triage*_worker_all",
+        "policy:plm.*.*_dflow_prod_tracking", "function:api.oracle_user_directory()",
+        "trigger:core.licensor.licensor_status_*", "trigger:core.property.property_status_*",
+        "policy:core.packaging_type.admin_or_packaging_manager_write", "policy:core.packaging_type.shared_read",
+        "function:plm.sync_core_licensor_from_coldlion(*", "function:plm.sync_core_property_from_coldlion(*",
+    ],
 }
 
 QUERIES = {
