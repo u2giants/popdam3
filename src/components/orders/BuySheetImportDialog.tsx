@@ -67,7 +67,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
   const [customerId, setCustomerId] = useState("");
   const [file, setFile] = useState<{ name: string; sha: string; sheetName: string; grid: BuySheetGrid } | null>(null);
   const [parsed, setParsed] = useState<BuySheetParse | null>(null);
-  const [orderNumbers, setOrderNumbers] = useState<Record<string, string>>({});
+  const [masterSkus, setMasterSkus] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,11 +110,11 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     setFile(null);
     setParsed(null);
     setPreview(null);
-    setOrderNumbers({});
+    setMasterSkus({});
     setError(null);
   };
 
-  const call = async (apply: boolean, numbers = orderNumbers): Promise<ImportResult> => {
+  const call = async (apply: boolean, skus = masterSkus): Promise<ImportResult> => {
     if (!file || !parsed) throw new Error("Choose a buy sheet first.");
     const { data, error: rpcError } = await (supabase.rpc as any)("import_dam_buy_sheet", {
       p_customer_id: customer,
@@ -122,18 +122,18 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
       p_file_sha256: file.sha,
       p_raw_sheet: apply ? { ...rawSheet(file.sheetName, file.grid), header_fields: parsed.headerFields } : {},
       p_lines: parsed.lines,
-      p_order_numbers: Object.fromEntries(Object.entries(numbers).filter(([, v]) => v.trim())),
+      p_master_skus: Object.fromEntries(Object.entries(skus).map(([k, v]) => [k, v.trim().toUpperCase()]).filter(([, v]) => v)),
       p_apply: apply,
     });
     if (rpcError) throw rpcError;
     return data as ImportResult;
   };
 
-  const runPreview = async (numbers = orderNumbers) => {
+  const runPreview = async (skus = masterSkus) => {
     setBusy(true);
     setError(null);
     try {
-      setPreview(await call(false, numbers));
+      setPreview(await call(false, skus));
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -174,17 +174,6 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     }
   };
 
-  const heldGroups = useMemo(() => {
-    const groups = new Map<string, ResultLine[]>();
-    for (const l of preview?.lines ?? []) {
-      if (l.outcome === "held" && /order number/.test(l.reason ?? "")) groups.set(l.group, [...(groups.get(l.group) ?? []), l]);
-    }
-    for (const g of Object.keys(orderNumbers)) {
-      if (!groups.has(g)) groups.set(g, (preview?.lines ?? []).filter((l) => l.group === g));
-    }
-    return [...groups.entries()].sort();
-  }, [preview, orderNumbers]);
-
   const counts = preview?.counts ?? {};
   const isRevision = (counts.revision ?? 0) > 0;
   const importBlockedReason = busy ? null
@@ -196,7 +185,7 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
     : isRevision ? "Import is stopped because this sheet revises one already imported (see the red note above)."
     : (counts.new ?? 0) + (counts.updated ?? 0) === 0
       ? (counts.held ?? 0) > 0
-        ? "Nothing to import yet: every pack is held because it has no OrderList order. Type each pack's order number (D-number) in the boxes above."
+        ? "Nothing to import yet: type each pack's master SKU (assortment #) from JamieLynn in the boxes above, then Import unlocks."
         : "Nothing to import: every line on this sheet is already in OrderList with the same quantities."
     : null;
 
@@ -259,27 +248,9 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
               <p className="text-amber-700">Not linked to Item Master (fix the style, then re-import): {preview.unmatched_styles.join(", ")}</p>
             )}
 
-            {!preview.applied && heldGroups.length > 0 && (
-              <div className="space-y-1 rounded border p-2">
-                <p>These packs have no OrderList order yet. Type the order number (D-number) to create them, or leave blank to hold them:</p>
-                {heldGroups.map(([group, lines]) => (
-                  <label key={group} className="flex items-center gap-2">
-                    <span className="w-72">Ship {group.split("|")[0]}, pack {group.split("|")[1]} ({lines.map((l) => l.sku).join(", ")})</span>
-                    <Input
-                      aria-label={`Order number for ${group}`}
-                      className="h-8 w-32"
-                      value={orderNumbers[group] ?? ""}
-                      onChange={(e) => setOrderNumbers((prev) => ({ ...prev, [group]: e.target.value }))}
-                      onBlur={() => void runPreview()}
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-
             {assortments.length > 0 && (
               <div className="space-y-1 rounded border p-2">
-                <p>Suggested Item Description for each assortment (copy it for JamieLynn to create the master SKU):</p>
+                <p>For each pack: copy the description for JamieLynn, then type the master SKU (assortment #) she gives you. No PO # is needed; production POs are added later.</p>
                 {assortments.map((a) => (
                   <div key={a.group} className="flex items-center gap-2 text-xs">
                     <span className="w-40 shrink-0">Ship {a.group.split("|")[0]}, pack {a.group.split("|")[1]}</span>
@@ -288,6 +259,14 @@ export function BuySheetImportDialog({ open, onClose, onApplied, customerOptions
                       onClick={() => { void navigator.clipboard?.writeText(a.description); toast.success("Description copied"); }}>
                       Copy
                     </Button>
+                    <Input
+                      aria-label={`Master SKU for ${a.group}`}
+                      placeholder="Master SKU"
+                      className="h-8 w-36"
+                      value={masterSkus[a.group] ?? ""}
+                      onChange={(e) => setMasterSkus((prev) => ({ ...prev, [a.group]: e.target.value }))}
+                      onBlur={() => { if (preview && !preview.applied) void runPreview(); }}
+                    />
                   </div>
                 ))}
               </div>

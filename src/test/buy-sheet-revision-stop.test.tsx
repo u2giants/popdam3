@@ -55,7 +55,7 @@ describe("buy sheet revision stop (owner rule 2026-11-10)", () => {
     fireEvent.change(screen.getByLabelText("Buy sheet file"), { target: { files: [{ name: "s.xlsx", arrayBuffer: async () => new ArrayBuffer(1) }] } });
     expect(await screen.findByText(/Press Preview first/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    expect(await screen.findByText(/every pack is held/)).toBeInTheDocument();
+    expect(await screen.findByText(/type each pack.s master SKU/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
   });
 });
