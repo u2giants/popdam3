@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261117120000",
+  "migration_sha256": "6fbe6e76e75602b3363b3eaab2618f3e691e40843bc5fefe24640b14d91b97d7",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 98,
+      "line_end": 98,
+      "disposition": "no_durable_target",
+      "reason": "The dynamic markers are the catalog-driven DROP INDEX loop and the definition-based keeper assertion over duplicate unique-index twins. No sidecar check kind expresses that combined outcome: catalog_absence can name one absent object, but the keeper assertion is definition-based because keeper names diverge across environments, and exact_row_count cannot see pg_index definitions. The durable proof is the in-migration assertion (raises if any keeper is missing or not unique after the drops) plus the PR preview proof and issue #6409 acceptance."
+    }
+  ],
+  "checks": []
+}
