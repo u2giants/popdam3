@@ -571,6 +571,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261202130000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6522",
+        "note": "Sandbox property-suggestion fixture: ports the production rows for SKUs BG12VDYCP01 and 3FZ27DYNX01 (sku_files_used, dcp asset/property/observation closure, coldlion merch groups) so designflow-backend#408 step 5 can live-proof the suggestion UI on alsand. The sandbox shared schemas have zero rows in every table the feature reads. Data seed only; never applied to shared preview or production.",
+    },
     "20261116120100": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
