@@ -1926,6 +1926,13 @@ class LedgerFailsClosed(unittest.TestCase):
         self.assertIn("wait: production ledger unreadable", out.getvalue())
 
 
+class ClaimRefPaths(unittest.TestCase):
+    def test_release_deletes_the_full_ref_path(self):
+        with mock.patch.object(m.subprocess, "run") as run:
+            m.release_claim("o/r", 7)
+        self.assertEqual(run.call_args[0][0][:5], ["gh", "api", "-X", "DELETE", "repos/o/r/git/refs/dispatch-claims/pr-7"])
+
+
 class DispatchClaims(unittest.TestCase):
     """#6493 Step 2: per-PR liveness lease against duplicate dispatch."""
     now = datetime(2026, 11, 16, 20, 0, tzinfo=timezone.utc)
