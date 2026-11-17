@@ -184,3 +184,11 @@ Verbatim Albert, 2026-11-16 7:44 AM EST:
 > "art themes like Abstract and Animal are the MG05 values for division EH001. MG groups are specific to divisions."
 
 **Effect** (issue #6463, migration `20261117020100`). Refines 6.41: the canonical licensor list is MG05 from the licensed divisions CW001 and SP001 only. Every merchandise-group read filters by division; an MG06 value's MG05 parent is resolved within its own division. EH001 art themes made licensors on 2026-11-16 (DF, RB) are retired as inactive, recoverably.
+
+### 6.43 OWNER RULING — Mickey/Minnie: MM is Mickey alone, new code ME is Minnie alone, MMF is Mickey Group → Standard Characters (Albert Hazan, 2026-11-16)
+
+Verbatim Albert ruling, 2026-11-16, as recorded by the coordinator handoff (issue #6208):
+
+> "2026-11-16 (Mickey/Minnie): MM = Mickey alone ("Mickey Mouse"); new code ME = Minnie alone ("Minnie & Me"; avoid letters I/L; MN is Minions); MMF renamed "Mickey Group" in ColdLion and its licensor-site value is OPA "Standard Characters"."
+
+**Effect.** Refines 6.38 with ColdLion codes. MG06 `MM` ("Mickey Mouse") is Mickey alone. New MG06 code `ME` ("Minnie & Me") is Minnie alone; codes avoid the letters I and L, and `MN` is already Minions. MG06 `MMF` is renamed "Mickey Group" in ColdLion (a ColdLion change, not a shared-db write) and maps to licensor-site value OPA "Standard Characters".

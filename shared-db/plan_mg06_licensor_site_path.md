@@ -66,6 +66,12 @@ So MG06 "MICKEY MOUSE" (Mickey alone) must map to path `Mickey Mouse Family > Mi
 - Owner ruling 2026-11-12: Mickey plus anyone else (Minnie, Pluto, Goofy, …) is
   submitted as **"Standard Characters"**, never under any character inside
   "Mickey Mouse Family" — even though Minnie and Pluto are listed there.
+- Owner ruling 2026-11-16 (docs/owner-rulings-part-4.md §6.43), verbatim:
+  "2026-11-16 (Mickey/Minnie): MM = Mickey alone ("Mickey Mouse"); new code ME = Minnie
+  alone ("Minnie & Me"; avoid letters I/L; MN is Minions); MMF renamed "Mickey Group" in
+  ColdLion and its licensor-site value is OPA "Standard Characters"."
+  So path rows: `MM` → Mickey Mouse Family > Mickey Mouse; `ME` → Minnie > Minnie & Me;
+  `MMF` ("Mickey Group") → Standard Characters.
 
 ### 4. Scope
 In: one table + one read function + tests + loading the path rows.

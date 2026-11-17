@@ -60,6 +60,7 @@ read-when: a citation says AGENTS.md §6.x or owner-rulings.md and you need to f
 | [6.40](owner-rulings-part-4.md#640-owner-ruling--the-one-property-x-men-half-of-638-is-dropped-the-submissions-site-scrape-wins-albert-hazan-2026-11-14) | OWNER RULING — the one-property X-Men half of 6.38 is dropped; the submissions site scrape wins (Albert Hazan, 2026-11-14) |
 | [6.41](owner-rulings-part-4.md#641-owner-ruling--corelicensor-is-the-coldlion-mg05-list-only-no-hand-maintained-licensor-list-albert-hazan-2026-11-15) | OWNER RULING — core.licensor is the ColdLion MG05 list only; no hand-maintained licensor list (Albert Hazan, 2026-11-15) |
 | [6.42](owner-rulings-part-4.md#642-owner-ruling--coldlion-mg-groups-are-division-specific-licensors-come-only-from-cw001sp001-mg05-albert-hazan-2026-11-16) | OWNER RULING — ColdLion MG groups are division-specific; licensors come only from CW001/SP001 MG05 (Albert Hazan, 2026-11-16) |
+| [6.43](owner-rulings-part-4.md#643-owner-ruling--mickeyminnie-mm-is-mickey-alone-new-code-me-is-minnie-alone-mmf-is-mickey-group-standard-characters-albert-hazan-2026-11-16) | OWNER RULING — Mickey/Minnie: MM is Mickey alone, new code ME is Minnie alone, MMF is Mickey Group → Standard Characters (Albert Hazan, 2026-11-16) |
 
 ---
 
