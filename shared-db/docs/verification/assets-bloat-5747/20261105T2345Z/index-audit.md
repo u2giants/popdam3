@@ -1,11 +1,13 @@
 ---
-summary: "public.assets index audit for #5747 Step 3: 46 indexes, 1,345 MB; no drops now, earliest drop decision 2026-11-18 after stats reset."
+summary: "Historical November 5 assets index inventory for #5747; the old November 18 date is superseded. Current shared candidates and window are on #5610."
 kind: proof
-status: open
-read-when: deciding whether to drop unused public.assets indexes after 2026-11-18
+status: stale
+read-when: reviewing the original assets index inventory and its superseded eligibility date
 ---
 
 # public.assets index audit (plan Step 3, popcre/shared-db#5747)
+
+**November 17, 2026 reconciliation.** The measurements and November 18 date below are historical. Recorded restarts invalidated that date. [#5610's current plan](../../../../plan_unused-index-cleanup.md#shared-asset-index-work-with-5747) owns the overlapping listed asset pair and its conditional November 20 window. [#5747 Step 3](../../../../plan_assets-bloat-permanent-fix.md) retains the rest of this broader inventory. Reuse each index's evidence and decision once. Refresh actual identity, complete interval and consumer use before deciding; the historical zero-scan list supplies no removal authorization. Existing positive KEEP decisions override old candidate labels, including `idx_assets_ai_tag_untagged_candidates` after its separate #6011 rebuild. The original inventory below is preserved.
 
 Read 2026-11-05 ~6:45 PM EST, production (`qsllyeztdwjgirsysgai`), read-only
 `pg_stat_user_indexes` / `pg_relation_size` / `pg_constraint`.
