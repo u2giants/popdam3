@@ -15,7 +15,7 @@ Tracking issue: https://github.com/u2giants/popdam3/issues/1037
 
 ## 0. Business decisions only the owner can make
 
-None block the work. Two are parked in the plan (§13, "Open questions") to ask
+One was asked on November 17, 2026 and not answered: would a monthly fee for a rented graphics-card server be acceptable if the 0.6B text model falls short? Ask again only with a measured shortfall (plan §8 D10). None block the work. Two are parked in the plan (§13, "Open questions") to ask
 only after the live result can be shown: whether naming a property gets the same
 hard rule as naming a character, and whether a product that merely contains both
 words (wrong product type) should be hidden or just ranked lower.
@@ -42,7 +42,7 @@ on description text at all.
 
 ## 4. State of the work
 
-Plan and this handoff only. Every plan step is open.
+Plan and this handoff only. Step 0 is partly done (model found on `edge-dev`, card memory read); every other step is open. Plan on GitHub: https://github.com/u2giants/popdam3/blob/main/docs/plans/issue-1037-typed-search-meaning-matching.md
 
 ## 5. What was not verified
 
