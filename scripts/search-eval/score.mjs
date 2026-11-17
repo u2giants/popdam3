@@ -2,6 +2,10 @@
 // so the judged cases live in the private database (admin_config SEARCH_EVAL_SET_V1).
 
 const TOP = 10;
+// A named-character search must show only that character in its first 20 results (#1037).
+const CHARACTER_TOP = 20;
+// Every must-find result must appear in the first 50 when a case asks for all of them (#1037).
+const FIND_ALL_TOP = 50;
 
 /** Score one search of one case. `judged` = { relevant: [], irrelevant: [], must_find: [] }. */
 export function scoreSearch(testCase, judged, hits, { error = null, total = hits.length, ms = 0, semantic = null, corrected_query = null, engine = null } = {}) {
@@ -29,12 +33,29 @@ export function scoreSearch(testCase, judged, hits, { error = null, total = hits
     must_found: found,
     first_relevant_rank: hits.findIndex((id) => relevant.has(id)) + 1 || null,
   };
+  if (testCase.must_find_all) row.must_found_top50 = mustFindAllFound(mustFind, hits);
+  if (testCase.must_not_contain_other_character) row.other_character_top20 = otherCharacterCount(judged, hits);
   row.pass = passes(testCase, row, judged, engine);
   return row;
 }
 
+/** How many must-find ids appear within the first 50 results. */
+export function mustFindAllFound(mustFind, hits) {
+  const top = new Set(hits.slice(0, FIND_ALL_TOP));
+  return mustFind.filter((id) => top.has(id)).length;
+}
+
+/** How many of the first 20 results lack the named character. `judged.with_character` lists every
+ * result that has it; a case without that list counts every result as lacking it. */
+export function otherCharacterCount(judged, hits) {
+  const withCharacter = new Set(judged?.with_character ?? []);
+  return hits.slice(0, CHARACTER_TOP).filter((id) => !withCharacter.has(id)).length;
+}
+
 function passes(testCase, row, judged, engine) {
   if (row.error) return false;
+  if (testCase.must_find_all && row.must_found_top50 < row.must_find) return false;
+  if (testCase.must_not_contain_other_character && row.other_character_top20 > 0) return false;
   if (testCase.expected_correction && row.corrected_query !== testCase.expected_correction) return false;
   // Unknown-code picture guesses are a policy check, not a relevance judgment.
   if (testCase.expect_semantic) return row.semantic === "siglip2" && row.returned > 0;
