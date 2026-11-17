@@ -367,3 +367,20 @@ then "yes. and do it in a permanent way in the ai-devops repo so that it hits al
 apps/harnesses on all machines". Only checks that stop production-data damage
 block a merge; everything else is advisory. The rule "one licensor per change"
 for curated Master Data loads is withdrawn permanently.
+
+### Detector baselines stay blocking in the freshness rule (2026-11-16)
+
+Albert, verbatim: "confirmed" — accepting the recommendation to keep the current
+behavior, after a Muse second opinion (advisory; ai-muse session
+`6258-baseline-inert`) rejected making the baseline inert because
+`scripts/check-production-verification-sidecars.mjs` machine-reads the baseline
+bytes at merge/queue time (re-run by `merge-queue-gate.yml`), so a waiting pull
+request that skipped refresh would merge against stale verification data.
+
+What this changes: nothing in code. It records the owner's decision that a
+modified reviewed detector baseline under `docs/` (for example
+`docs/verification/throughput-guard-truth-baseline-20260828.json`) stays
+NON-inert in `scripts/check-main-tip-freshness.mjs`: waiting pull requests keep
+refreshing and re-verifying before merging, and the POSITIVE CONTROL test in
+`scripts/check-main-tip-freshness.test.mjs` stands unchanged. Do not re-ask this
+question.
