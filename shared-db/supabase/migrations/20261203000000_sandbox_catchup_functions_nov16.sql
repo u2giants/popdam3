@@ -3,6 +3,7 @@
 -- for dam.orderlist_product_facts, restored to production's exact BEGIN ATOMIC body from 20261102003158).
 -- plm.suggested_property_for_sku is left out: its newer repository version (20261201210000) has not reached
 -- production yet, and copying production's older body would undo it.
+-- Sandbox adaptation: production's dflow_prod.* is the sandbox's dflow.*.
 -- derived-from: none
 
 set check_function_bodies = off;
@@ -557,8 +558,8 @@ AS $function$
     category.id,
     category.code,
     category.name
-  from dflow_prod."itemHeader" item
-  join dflow_prod."merchGroup" mg01
+  from dflow."itemHeader" item
+  join dflow."merchGroup" mg01
     on mg01.mg_id = item.udf_merchgroup01_id
    and mg01."mgTypeCode" = '01'
    and mg01.is_active is true
