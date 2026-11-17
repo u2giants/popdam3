@@ -1,14 +1,17 @@
 ---
-summary: Open implementation plan (nothing executed yet) for the two promotion-stranding watch upgrades — pre-end promotion watch rule + automatic per-PR escalation on park.
+issue: 6561
+status: OPEN
+owner: implementing session (plan revision 2 landed a26a50eb3 2026-11-17; active)
+summary: Open implementation plan for the two promotion-stranding watch upgrades — pre-end promotion watch rule + automatic per-PR escalation on park.
 kind: handoff
-status: open
 read-when: picking up the promotion-stranding watch work; before editing scripts/automatic_promotion_candidates.py reporting or the shared-db-change skill's merge step.
 ---
 
 # Promotion-stranding watch plan — open, unimplemented
 
+- **The card:** GitHub issue [#6561](https://github.com/popcre/shared-db/issues/6561) — claim-first there; an implementing session landed plan revision 2 (a26a50eb3) and posted an advisory plan review 2026-11-17.
 - **The plan:** [plan_promotion_stranding_watch.md](../plan_promotion_stranding_watch.md)
-  — read its STATUS table first. Both upgrades are `⬜ open`.
+  — read its STATUS table first.
 - **Why it exists:** on 2026-11-16/17 nine merged migrations sat undelivered
   (2 parked after 3 failed attempts, 6 held by findings) and **no owning
   session could be notified** — all sessions share the `u2giants` login, and
