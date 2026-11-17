@@ -16,6 +16,29 @@ HISTORY = ROOT / 'docs/verification/issue-5609-trigger-acceptance/5609-original-
 ORIGINAL_SHA = '4db994c5425617fe5c211f688b6d35dd520f2af5449ef80d7c7e0c96d6a0eb9f'
 
 
+def recent_fixture_sql():
+    """Exercise the actual production selection against eligible/ineligible rows."""
+    source = PROBE.read_text()
+    recent = source[source.index('recent as ('):source.index('), metadata_source as (') + 1]
+    recent = recent.replace('public.assets', 'fixture_assets')
+    def scenario(age, expected, eligible):
+        return "with baseline as(select now()-interval '" + age + "' observed_at)," + """
+fixture_assets as (
+ select n as id, n=1 as is_deleted,
+  case when n=2 then now()-interval '3 days'
+       when n=3 then now()+interval '1 day'
+       when n=4 then now()-interval '45 minutes'
+       else now()-interval '10 minutes' end last_seen_at
+ from generate_series(9,1,-1) n
+), """ + recent + """
+select (select count(*) from fixture_assets where not is_deleted
+ and last_seen_at>=greatest((select observed_at from baseline),now()-interval '24 hours')
+ and last_seen_at<=now())=""" + str(eligible) + """
+ and (select array_agg(id order by id) from recent)=array[""" + expected + """] as passed;
+"""
+    return scenario('2 days', '4,5,6', 6) + scenario('30 minutes', '5,6,7', 5)
+
+
 def fixture_sql():
     source = PROBE.read_text()
     block = source[source.index('), metadata_source as (') + 3:source.index('\nselect case')]
@@ -208,6 +231,28 @@ def family_fixture_sql():
 
 
 class AcceptanceProbeTests(unittest.TestCase):
+    def test_third_failed_window_preserved_and_only_selection_changed(self):
+        archived = ROOT / 'docs/verification/issue-5609-trigger-acceptance/5609-third-failed-window.sql'
+        self.assertEqual(hashlib.sha256(archived.read_bytes()).hexdigest(),
+                         'abe17944933a4dda492bb59983df584b9b56470a0446d15b8aa546e8ae56a508')
+        strip_comments = lambda source: re.sub(r'(?m)^--[^\n]*\n', '', source)
+        expected = archived.read_text().replace(
+            'public.assets a tablesample system(1) repeatable(5609) cross join baseline b',
+            'public.assets a cross join baseline b').replace(
+            'and a.last_seen_at<=now() limit 3',
+            'and a.last_seen_at<=now() order by a.id limit 3')
+        self.assertEqual(strip_comments(PROBE.read_text()), strip_comments(expected))
+
+    def test_recent_selection_fills_three_from_all_eligible_rows(self):
+        source = PROBE.read_text()
+        recent = source[source.index('recent as ('):source.index('), metadata_source as (')]
+        self.assertNotIn('tablesample', recent.lower())
+        self.assertIn('order by a.id limit 3', recent)
+        self.assertIn('not a.is_deleted', recent)
+        self.assertIn("greatest(b.observed_at,now()-interval '24 hours')", recent)
+        self.assertIn('a.last_seen_at<=now()', recent)
+        self.assertNotRegex(recent, r'(?i)metadata|all_match|thumbnail_url')
+
     def test_original_failed_window_bytes_are_preserved(self):
         self.assertEqual(hashlib.sha256(HISTORY.read_bytes()).hexdigest(), ORIGINAL_SHA)
 
@@ -291,7 +336,9 @@ class AcceptanceProbeTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if '--emit-family-fixture' in sys.argv:
+    if '--emit-recent-fixture' in sys.argv:
+        print(recent_fixture_sql())
+    elif '--emit-family-fixture' in sys.argv:
         print(family_fixture_sql())
     elif '--emit-trigger-fixture' in sys.argv:
         print(trigger_fixture_sql())
