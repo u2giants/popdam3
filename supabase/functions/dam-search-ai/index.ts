@@ -19,8 +19,8 @@ import {
   buildNameIndex,
   EMPTY_NAME_INDEX,
   hasNamedScope,
-  type NameIndex,
   namedCharacterScope,
+  type NameIndex,
   pickScopeKeys,
   withNamedScope,
 } from "../_shared/named-characters.ts";

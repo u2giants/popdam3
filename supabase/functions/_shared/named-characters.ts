@@ -144,9 +144,7 @@ export function namedCharacterScope(texts: ReadonlyArray<string | null | undefin
     for (const entry of characterNames.values()) {
       // Same-named characters (two "Marie" rows) are one request; when the words also name a
       // property, keep the rows linked to it, if any are.
-      const linked = propertyIds.size
-        ? [...entry.core].filter((id) => [...(index.characterProperties.get(id) ?? [])].some((p) => propertyIds.has(p)))
-        : [];
+      const linked = propertyIds.size ? [...entry.core].filter((id) => [...(index.characterProperties.get(id) ?? [])].some((p) => propertyIds.has(p))) : [];
       (linked.length ? linked : [...entry.core]).forEach((id) => core.add(id));
       entry.legacy.forEach((id) => legacy.add(id));
     }

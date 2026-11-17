@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNameIndex, type NameIndexInput, namedCharacterScope, pickScopeKeys, withNamedScope } from "./named-characters.ts";
+import { buildNameIndex, namedCharacterScope, type NameIndexInput, pickScopeKeys, withNamedScope } from "./named-characters.ts";
 
 const base: NameIndexInput = {
   characters: [
