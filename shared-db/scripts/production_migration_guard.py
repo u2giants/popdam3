@@ -97,6 +97,11 @@ HARD_BLOCKED = {
     "20261113041225",
     # #2541: left OPA 372 linked to Standard Characters (finding #6291); superseded by 20261115015656.
     "20261113203533",
+    # #2326 index twins: originals fail deterministically (record alias out of scope,
+    # name[] = text[]); reissued as 20261204000000/000100/000200.
+    "20261117020001",
+    "20261117120000",
+    "20261118020001",
     # #5932 stranded-recovery class B: derived-from retired base 20260814223552;
     # intervening changes (20260825010603, 20260825031841) modify the function
     # between the retired base and superseding base 20260825124200, so the
@@ -439,6 +444,9 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261117020001": "PR #6447 (#2326 index-twin family): never applied; review finding #6448 showed the keeper assertion fails deterministically (operator does not exist: name[] = text[], reproduced read-only in production 2026-11-17) and the loop body reads an out-of-scope record alias. Reissued corrected as 20261204000000. Never apply this original.",
+    "20261117120000": "PR #6444 (#2326 index-twin family): never applied; review finding #6445 showed the keeper assertion fails deterministically (operator does not exist: name[] = text[], reproduced read-only in production 2026-11-17) and the loop body reads an out-of-scope record alias. Reissued corrected as 20261204000100. Never apply this original.",
+    "20261118020001": "PR #6454 (#2326 index-twin family): never applied; review finding #6458 showed the keeper assertion fails deterministically (operator does not exist: name[] = text[], reproduced read-only in production 2026-11-17). Reissued corrected as 20261204000200. Never apply this original.",
     "20261113203533": "#2541: never applied; review finding #6291 showed it would keep OPA 372 Mickey Mouse linked to the MM Standard Characters row, against owner ruling 6.38. Superseded by 20261115015656. Never apply this original.",
     "20261113041225": "#2541: PR #6227 fix-forward renames ColdLion-coded rows (MM Standard Characters, X-Men Classic) back to OPA labels, against owner rulings 6.3/6.36 (ColdLion MG06 names are curated); failed promotion 3x. Superseded by 20261113203533, which links coded rows without renaming. Never apply this original.",
     "20261113162637": "#6261 review-fix (issue #5932): wrong derived-from base — 20260825124200 does not define replace_asset_ai_tag_result; real last replacer is 20260825165139 (review-finding #6261). Preview-only (applied on preview run 43477670482). Corrected replacement 20261115022307 has derived-from: 20260825165139. Never apply this version.",
