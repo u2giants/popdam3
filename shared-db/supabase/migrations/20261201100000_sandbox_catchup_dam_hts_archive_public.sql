@@ -1660,6 +1660,7 @@ END;
 $$;
 
 -- FUNCTION public.claim_dam_search_embedding_documents(integer, text, integer)
+DROP FUNCTION IF EXISTS public.claim_dam_search_embedding_documents(integer, text, integer);
 CREATE OR REPLACE FUNCTION public.claim_dam_search_embedding_documents(p_limit integer DEFAULT 100, p_worker_id text DEFAULT NULL::text, p_lease_seconds integer DEFAULT 300) RETURNS TABLE(document_type text, entity_id uuid, search_text text, thumbnail_url text, content_sha256 text, lease_token uuid, lease_expires_at timestamp with time zone, attempt integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -4513,6 +4514,7 @@ end;
 $$;
 
 -- FUNCTION public.get_pdf_rich_extraction_hashes(uuid[])
+DROP FUNCTION IF EXISTS public.get_pdf_rich_extraction_hashes(uuid[]);
 CREATE OR REPLACE FUNCTION public.get_pdf_rich_extraction_hashes(p_asset_ids uuid[]) RETURNS TABLE(asset_id uuid, source_text_sha256 text, parse_error text, extracted_at timestamp with time zone)
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO ''
@@ -10377,6 +10379,7 @@ end;
 $$;
 
 -- FUNCTION public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text)
+DROP FUNCTION IF EXISTS public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text);
 CREATE OR REPLACE FUNCTION public.upsert_dam_search_embedding(p_document_type text, p_entity_id uuid, p_content_sha256 text, p_lease_token uuid, p_embedding extensions.vector, p_embedding_model text DEFAULT 'google/siglip2-base-patch16-naflex'::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -15689,3 +15692,11 @@ CREATE TRIGGER sku_sg_file_key BEFORE INSERT OR UPDATE OF original_file_name, sk
 CREATE TRIGGER sku_sg_label_key BEFORE INSERT OR UPDATE OF value_label, sku_sg_label_key ON plm.sesame_style_guide FOR EACH ROW EXECUTE FUNCTION sku_sg_label_value_label_key();
 CREATE TRIGGER sku_sg_file_key BEFORE INSERT OR UPDATE OF file_name, sku_sg_file_key ON plm.wb_asset_normalized FOR EACH ROW EXECUTE FUNCTION sku_sg_file_file_name_key();
 CREATE TRIGGER sku_sg_label_key BEFORE INSERT OR UPDATE OF label, sku_sg_label_key ON plm.wb_style_guide_normalized FOR EACH ROW EXECUTE FUNCTION sku_sg_label_label_key();
+
+-- grants for the three functions dropped and recreated above (production's ACL; excluded service login omitted)
+revoke all on function public.claim_dam_search_embedding_documents(integer, text, integer) from public, anon, authenticated;
+grant execute on function public.claim_dam_search_embedding_documents(integer, text, integer) to service_role;
+revoke all on function public.get_pdf_rich_extraction_hashes(uuid[]) from public, anon, authenticated;
+grant execute on function public.get_pdf_rich_extraction_hashes(uuid[]) to service_role;
+revoke all on function public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text) from public, anon, authenticated;
+grant execute on function public.upsert_dam_search_embedding(text, uuid, text, uuid, extensions.vector, text) to service_role;

@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "migration_version": "20261201100000",
-  "migration_sha256": "efdea5a9db2399fbc2aa6d77aa204fa820c1c467f9f59352767f54e748e7c4d6",
+  "migration_sha256": "164c6f9e7b8c7bc2e3160e3e7ce3f3bbf5394cf64d3d12e0141ee8c1342a2a13",
   "marker_schema_version": 1,
   "marker_reviews": [
     {
       "line_start": 1,
-      "line_end": 15691,
+      "line_end": 15702,
       "disposition": "no_durable_target",
       "reason": "Every dynamic-execution marker in this sandbox catch-up port sits inside a copied function or procedure body (create or replace function ... execute format(...)); defining the function runs none of them, so the migration itself performs no dynamic writes and has no durable target to verify. Target is the DesignFlow sandbox only."
     }
