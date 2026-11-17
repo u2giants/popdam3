@@ -26,6 +26,10 @@ that changes search or tags, above all the full AI tagging run.
 | Everything else | A relevant top-10 result; at least half of judged top-10 results are relevant |
 | PopSG guides (not code, nonsense) | A guide named for the search is first, and at least half of the must-find guides appear. Guides that only contain the character may follow: owner ruling Nov 10, 2026, "Keep all five". The test checks order only; it does not check that later results contain the character |
 
+Two optional case checks (#1037): `must_find_all` fails unless every must-find result is in the
+first 50; `must_not_contain_other_character` fails when any of the first 20 results is missing from
+the case's `with_character` list (every style group that has the named character).
+
 Results that are not judged are reported as *unjudged*. Over 30% unjudged prints a warning: tagging
 legitimately changes results, so judge them before comparing scores.
 

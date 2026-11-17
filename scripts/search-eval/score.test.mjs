@@ -74,3 +74,26 @@ test("the PopSG guides order rule does not apply to code or nonsense cases", () 
   const g = { relevant: ["a"], irrelevant: ["x", "y", "z"] };
   assert.equal(scoreSearch({ id: "1", kind: "code" }, g, ["a", "x", "y", "z"], { engine: "sg_guides" }).pass, false);
 });
+
+test("must_find_all needs every must-find result within the first 50", () => {
+  const testCase = { id: "1", kind: "meaning", must_find_all: true };
+  const g = { relevant: ["a", "m1", "m2"], irrelevant: [], must_find: ["m1", "m2"] };
+  const filler = Array.from({ length: 49 }, (_, i) => `f${i}`);
+  assert.equal(scoreSearch(testCase, g, ["a", "m1", "m2"]).pass, true);
+  assert.equal(scoreSearch(testCase, g, ["a", "m1"]).pass, false);
+  assert.equal(scoreSearch(testCase, g, ["a", "m1", ...filler, "m2"]).pass, false);
+  assert.equal(scoreSearch(testCase, g, ["a", "m1", ...filler, "m2"]).must_found_top50, 1);
+  assert.equal(scoreSearch({ id: "1", kind: "meaning" }, g, ["a", "m1"]).pass, true);
+});
+
+test("must_not_contain_other_character fails when a top-20 result lacks the character", () => {
+  const testCase = { id: "1", kind: "meaning", must_not_contain_other_character: true };
+  const g = { relevant: ["a", "b"], irrelevant: ["x"], with_character: ["a", "b", "x"] };
+  assert.equal(scoreSearch(testCase, g, ["a", "b", "x"]).pass, true);
+  assert.equal(scoreSearch(testCase, g, ["a", "b", "other"]).pass, false);
+  assert.equal(scoreSearch(testCase, g, ["a", "b", "other"]).other_character_top20, 1);
+  const tail = Array.from({ length: 18 }, () => "a");
+  assert.equal(scoreSearch(testCase, g, ["a", "b", ...tail, "other"]).pass, true);
+  assert.equal(scoreSearch(testCase, { relevant: ["a"] }, ["a"]).pass, false);
+  assert.equal(scoreSearch({ id: "1", kind: "meaning" }, g, ["a", "b", "other"]).pass, true);
+});
