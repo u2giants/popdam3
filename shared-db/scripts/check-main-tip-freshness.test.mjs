@@ -515,6 +515,33 @@ test('#6493: the added sidecar of an appended migration rides along; any other s
   }
 })
 
+test('#6600: the registry rides along only when it purely gains entries for appended migrations', () => {
+  const REG = 'config/production-verification-sidecar-registry.json'
+  const reg = (...sidecars) => JSON.stringify({ schema_version: 1, sidecars }) + '\n'
+  const old = { version: '20261026150931', issue: null }
+  const add = { version: '20261026155023', issue: 7 }
+  const trio = { 'supabase/migrations/20261026155023_b.sql': 'create table b (id int);\n', 'scripts/production-verification-sidecars/20261026155023.json': '{}\n' }
+  const cases = [
+    ['compliant trio', { ...trio, [REG]: reg(old, add) }, true],
+    ['entry for a version that is not appended', { ...trio, [REG]: reg(old, add, { version: '20261026160000', issue: 1 }) }, false],
+    ['existing entry edited', { ...trio, [REG]: reg({ ...old, issue: 9 }, add) }, false],
+    ['existing entry removed', { ...trio, [REG]: reg(add) }, false],
+    ['extra key', { ...trio, [REG]: JSON.stringify({ schema_version: 1, sidecars: [old, add], x: 1 }) }, false],
+    ['unparseable', { ...trio, [REG]: '{' }, false],
+    ['registry without a migration', { [REG]: reg(old, add) }, false],
+  ]
+  for (const [name, files, ok] of cases) {
+    const { repo } = makeRepo()
+    try {
+      const sha = commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'select 1;\n', [REG]: reg(old) }, 'base')
+      const verdict = prod(repo, sha, commitFiles(repo, files, 'later'))
+      assert.equal(verdict.ok, ok, `${name}: ${verdict.reason}`)
+    } finally {
+      rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    }
+  }
+})
+
 test('#4845: production accepts a tip moved only by a strictly later appended migration, its test and evidence', () => {
   const { repo, sha } = prefixFixture()
   try {

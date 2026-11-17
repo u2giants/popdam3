@@ -386,7 +386,31 @@ export function laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRu
     const version = SIDECAR_PATH.exec(path)?.[1]
     if (version && added.has(path) && addedVersions.has(version)) tolerated.add(path)
   }
+  if (paths.includes(SIDECAR_REGISTRY) && registryOnlyGained({ mainSha, tipSha, versions: addedVersions, cwd, gitRunner })) tolerated.add(SIDECAR_REGISTRY)
   return migrations > 0 ? tolerated : new Set()
+}
+
+// A sidecar is always declared in the registry (review finding #6600), so the
+// registry rides along only when the tip's copy is the dispatched copy plus
+// entries for appended migration versions: nothing removed, nothing edited.
+// Any read or parse error tolerates nothing.
+const SIDECAR_REGISTRY = 'config/production-verification-sidecar-registry.json'
+function registryOnlyGained({ mainSha, tipSha, versions, cwd, gitRunner }) {
+  try {
+    const read = (sha) => JSON.parse(String(gitRunner(['show', `${sha}:${SIDECAR_REGISTRY}`], { cwd })))
+    const [base, tip] = [read(mainSha), read(tipSha)]
+    for (const data of [base, tip]) {
+      if (data === null || typeof data !== 'object' || Array.isArray(data)) return false
+      if (Object.keys(data).sort().join() !== 'schema_version,sidecars' || !Array.isArray(data.sidecars)) return false
+    }
+    if (base.schema_version !== tip.schema_version) return false
+    const known = new Set(base.sidecars.map((entry) => entry?.version))
+    const gained = tip.sidecars.filter((entry) => !known.has(entry?.version))
+    if (gained.length === 0 || new Set(gained.map((entry) => entry?.version)).size !== gained.length) return false
+    if (!gained.every((entry) => entry !== null && typeof entry === 'object' && Object.keys(entry).sort().join() === 'issue,version' && versions.has(entry.version))) return false
+    const kept = tip.sidecars.filter((entry) => known.has(entry?.version))
+    return JSON.stringify(kept) === JSON.stringify(base.sidecars)
+  } catch { return false }
 }
 
 function nulPaths(raw) {
