@@ -102,6 +102,7 @@ begin
   -- Only fixture jobs are claimable for the rest of this transaction.
   update dam.search_text_embed_jobs set next_retry_at = now() + interval '1 day'
    where entity_id not in (v_sg, v_empty);
+  update dam.search_text_seed_state set done = true;
 
   -- 3/4. claim (privileges are pinned above; the CI runner cannot SET ROLE)
   perform set_config('request.jwt.claim.role', 'service_role', true);

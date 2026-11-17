@@ -444,6 +444,10 @@ HARD_BLOCKED = {
     # #6440: superseded by 20261116124500 (core.licensor is the MG05 list only, owner
     # ruling 2026-11-15); applying this older body after it would drop the retirement step.
     "20261115031325",
+    # #6605: production apply (run 44189714544) hit the statement timeout on its
+    # 183k-row backfill and rolled back; applied to preview only. Superseded by
+    # idempotent reissue 20261204003429 (no bulk backfill); never apply original.
+    "20261204001000",
 }
 
 # One authority for versions that must never be applied. The post-batch
