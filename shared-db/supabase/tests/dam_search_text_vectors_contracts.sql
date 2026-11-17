@@ -22,6 +22,8 @@ do $contract$
 declare
   v_sg uuid := gen_random_uuid();
   v_empty uuid := gen_random_uuid();
+  v_asset uuid := gen_random_uuid();
+  v_asset2 uuid := gen_random_uuid();
   v_model text := (select value #>> '{}' from public.admin_config where key = 'SEARCH_TEXT_EMBEDDING_MODEL');
   v_vec text := '[' || array_to_string(array_fill(0.03125::real, array[1024]), ',') || ']';
   v_pic text := '[' || array_to_string(array_fill(0.036::real, array[768]), ',') || ']';
@@ -30,7 +32,8 @@ declare
   v_n integer;
   f text;
 begin
-  if v_model is distinct from 'Qwen/Qwen3-Embedding-0.6B@97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3' then
+  -- Shape only (model@40-hex revision), so a later model rotation does not trip this.
+  if v_model is null or v_model !~ '^[^@\s]+/[^@\s]+@[0-9a-f]{40}$' then
     raise exception 'CONTRACT FAILED: SEARCH_TEXT_EMBEDDING_MODEL is %', v_model;
   end if;
 
@@ -74,6 +77,24 @@ begin
   if dam.search_text_embedding_input('style_group', v_sg) <> E'Item description: Contract fixture pink frame\nLicensor: Contract Licensor\nFolders: c d e f' then
     raise exception 'CONTRACT FAILED: unexpected input text %', dam.search_text_embedding_input('style_group', v_sg);
   end if;
+  -- Asset branch: group fallbacks, own licensor when ungrouped, file name dropped from folders.
+  insert into public.assets(id, style_group_id, filename, relative_path, file_type, quick_hash, modified_at, product_category)
+  values (v_asset, v_sg, 'f.psd', 'p/q/r/s/t/f.psd', 'psd', 'contract-tv-1', now(), 'Frame');
+  insert into public.assets(id, style_group_id, filename, relative_path, file_type, quick_hash, modified_at, ai_description, licensor_name)
+  values (v_asset2, null, 'y.psd', 'x/y.psd', 'psd', 'contract-tv-2', now(), 'own ai text', 'Own Licensor');
+  if dam.search_text_embedding_input('asset', v_asset) is distinct from
+     E'Product type: Frame\nItem description: Contract fixture pink frame\nLicensor: Contract Licensor\nFolders: q r s t' then
+    raise exception 'CONTRACT FAILED: unexpected grouped asset input %', dam.search_text_embedding_input('asset', v_asset);
+  end if;
+  if dam.search_text_embedding_input('asset', v_asset2) is distinct from
+     E'AI description: own ai text\nLicensor: Own Licensor\nFolders: x' then
+    raise exception 'CONTRACT FAILED: unexpected ungrouped asset input %', dam.search_text_embedding_input('asset', v_asset2);
+  end if;
+  update public.style_groups set item_description = repeat('long ', 1000) where id = v_sg;
+  if length(dam.search_text_embedding_input('style_group', v_sg)) > 2000 then
+    raise exception 'CONTRACT FAILED: long input not truncated';
+  end if;
+  update public.style_groups set item_description = 'Contract fixture pink frame' where id = v_sg;
   if length(dam.search_text_embedding_input('style_group', v_sg)) > 2000 then
     raise exception 'CONTRACT FAILED: input over 2,000 characters';
   end if;
