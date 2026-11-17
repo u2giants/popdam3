@@ -28,7 +28,9 @@ begin
 
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);
   perform set_config('request.jwt.claim.role','service_role',true);
-  if (select count(*) from public.get_search_embedding_health()) <> 2 then
+  -- dam, popsg, and dam_text (20261204001000, popdam3#1037).
+  if (select count(*) from public.get_search_embedding_health()) <> 3
+     or not exists (select 1 from public.get_search_embedding_health() where corpus = 'dam_text') then
     raise exception 'health must return one row per corpus';
   end if;
   begin
