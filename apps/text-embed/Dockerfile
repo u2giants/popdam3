@@ -16,9 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Bake the model into the image so a restart never depends on Hugging Face.
 ENV HF_HOME=/opt/hf
 RUN python -c "from transformers import AutoModel, AutoProcessor; m='google/siglip2-base-patch16-naflex'; AutoProcessor.from_pretrained(m); AutoModel.from_pretrained(m)"
+RUN python -c "from transformers import AutoModel, AutoTokenizer; m='Qwen/Qwen3-Embedding-0.6B'; r='97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3'; AutoTokenizer.from_pretrained(m, revision=r); AutoModel.from_pretrained(m, revision=r)"
 ENV HF_HUB_OFFLINE=1
 
-COPY main.py ./
+COPY main.py test_main.py ./
 
 ENV PORT=8090
 EXPOSE 8090
