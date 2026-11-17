@@ -1,6 +1,6 @@
 -- Sandbox catch-up batch 18 (#6356): DesignFlow sandbox (xupnyeifmpsacrqahwwm) ONLY. Never apply to shared preview or production.
 -- Production's current definitions and EXECUTE grants for seven functions changed in production on 2026-11-16 (or,
--- for dam.orderlist_product_facts, restored to production's exact BEGIN ATOMIC body from 20261102003158).
+-- for dam.orderlist_product_facts, grants only; see below).
 -- plm.suggested_property_for_sku is left out: its newer repository version (20261201210000) has not reached
 -- production yet, and copying production's older body would undo it.
 -- Sandbox adaptation: production's dflow_prod.* is the sandbox's dflow.*.
@@ -576,56 +576,8 @@ revoke all on function api.resolve_item_mg_category(integer) from public, anon, 
 grant execute on function api.resolve_item_mg_category(integer) to authenticated;
 grant execute on function api.resolve_item_mg_category(integer) to service_role;
 
-create or replace function dam.orderlist_product_facts(p_item_id uuid, p_catalog text)
-returns table(facts jsonb) language sql stable security invoker rows 1 begin atomic
-  with exact_links as materialized (
-    select b.id as bridge_id, b.style_tracker_row_id as tracker_id
-    from plm.style_tracker_item_bridge b
-    where b.plm_item_id=p_item_id and (p_catalog is null or b.tracker_type=p_catalog)
-  ), fallback_links as materialized (
-    select b.id as bridge_id, s.id as tracker_id
-    from plm.item target
-    join public.style_tracker_rows s
-      on lower(btrim(s.sku))=lower(btrim(coalesce(nullif(btrim(target.style_number),''),nullif(btrim(target.item_number),''))))
-      and s.tracker_type=p_catalog
-    join plm.style_tracker_item_bridge b on b.style_tracker_row_id=s.id and b.tracker_type=p_catalog
-    join plm.item linked on linked.id=b.plm_item_id
-    where target.id=p_item_id and target.source_system='coldlion' and linked.source_system='coldlion'
-      and p_catalog in ('licensed','generic')
-      and nullif(btrim(target.raw->>'companyCode'),'') is not null
-      and btrim(linked.raw->>'companyCode')=btrim(target.raw->>'companyCode')
-      and not exists(select 1 from exact_links)
-  ), links as (
-    select bridge_id, tracker_id, false as is_fallback from exact_links
-    union all select bridge_id, tracker_id, true from fallback_links
-  ), candidates as (
-    select b.id as bridge_id, s.id as tracker_id, s.tracker_type, links.is_fallback,
-      pg_catalog.jsonb_build_object(
-        'license_status', case when s.tracker_type = 'generic' then 'Generic Item'
-          when s.tracker_type='licensed' then dam.orderlist_license_status(s.row_data, s.discontinued) else s.license_status end,
-        'licensor', s.licensor, 'customer', s.customer,
-        'default_vendor', s.default_vendor,
-        'sample_vendor', case when s.row_data ? 'sample_vendor' then s.row_data->>'sample_vendor' else s.row_data->>case when s.tracker_type='licensed' then 'U' else 'S' end end,
-        'test_report', dam.orderlist_parse_boolean(case when s.row_data ? 'test_report' then s.row_data->>'test_report' else s.row_data->>case when s.tracker_type='licensed' then 'AI' else 'AE' end end),
-        'professional_photos', dam.orderlist_parse_boolean(case when s.row_data ? 'professional_photos' then s.row_data->>'professional_photos' else s.row_data->>case when s.tracker_type='licensed' then 'AH' else 'AD' end end),
-        'contractual_sample_reorder', case when s.tracker_type='licensed' then dam.orderlist_parse_boolean(case when s.row_data ? 'contractual_samples_reorder' then s.row_data->>'contractual_samples_reorder' else s.row_data->>'AO' end) else null end
-      ) as facts
-    from links
-    join plm.style_tracker_item_bridge b on b.id=links.bridge_id
-    join public.style_tracker_rows s on s.id=links.tracker_id
-  ), summary as (
-    select pg_catalog.count(*) as row_count, pg_catalog.count(distinct facts) as distinct_facts,
-      pg_catalog.bool_or(is_fallback) and pg_catalog.count(distinct tracker_id)>1 as fallback_ambiguous,
-      (pg_catalog.array_agg(facts))[1] as facts,
-      case when pg_catalog.count(*)=1 then (pg_catalog.array_agg(bridge_id))[1] end as bridge_id,
-      case when pg_catalog.count(*)=1 then (pg_catalog.array_agg(tracker_id))[1] end as tracker_id,
-      case when pg_catalog.count(distinct tracker_type)=1 then pg_catalog.min(tracker_type) end as tracker_type
-    from candidates
-  ) select case when distinct_facts=1 and not fallback_ambiguous then facts else '{}'::jsonb end || pg_catalog.jsonb_build_object(
-      'source', case when row_count=0 then 'unavailable' when distinct_facts>1 or fallback_ambiguous then 'ambiguous' else 'master_data' end,
-      'bridge_id', bridge_id, 'tracker_id', tracker_id, 'tracker_type', tracker_type
-    ) from summary;
-end;
+-- dam.orderlist_product_facts keeps batch 16's equivalent dollar-quoted body: the sandbox route's Supabase CLI
+-- (2.105) cannot split a BEGIN ATOMIC body. Only its grants are set here.
 revoke all on function dam.orderlist_product_facts(uuid,text) from public, anon, authenticated, service_role;
 grant execute on function dam.orderlist_product_facts(uuid,text) to authenticated;
 grant execute on function dam.orderlist_product_facts(uuid,text) to service_role;

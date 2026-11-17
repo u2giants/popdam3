@@ -33,6 +33,8 @@ ALLOWLIST = {
         "trigger:core.licensor.licensor_status_*", "trigger:core.property.property_status_*",
         "policy:core.packaging_type.admin_or_packaging_manager_write", "policy:core.packaging_type.shared_read",
         "function:plm.sync_core_licensor_from_coldlion(*", "function:plm.sync_core_property_from_coldlion(*",
+        # Same SQL as production in a dollar-quoted body; the sandbox route's CLI cannot apply BEGIN ATOMIC (#6356).
+        "function:dam.orderlist_product_facts(*",
     ],
 }
 
