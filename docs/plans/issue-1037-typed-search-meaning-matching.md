@@ -34,7 +34,7 @@ Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-se
 
 ## 1. The ultimate goal
 
-A POP Creations employee types ordinary words into PopDAM — a character and a product type, such as "marie frame" — and sees **every** product that is that character on that kind of product, first, and **nothing** that is a different character. Close wording works without anyone maintaining a word list: "frame", "framed" and "frames"; "lap desk", "lapdesk" and "laptop desk"; "picture frame" and "photo frame". This stays true as the catalog changes, with nobody re-running anything by hand.
+A POP Creations employee types ordinary words into PopDAM — a character and a product type, such as "character A frame" — and sees **every** product that is that character on that kind of product, first, and **nothing** that is a different character. Close wording works without anyone maintaining a word list: "frame", "framed" and "frames"; "lap desk", "lapdesk" and "laptop desk"; "picture frame" and "photo frame". This stays true as the catalog changes, with nobody re-running anything by hand.
 
 Today the search matches product text by exact words only, and adds products a picture model guesses the words might look like. It has no matching by the *meaning* of product descriptions at all.
 
@@ -50,26 +50,28 @@ Today the search matches product text by exact words only, and adds products a p
 
 ## 3. What triggered this work
 
-Owner report, November 17, 2026, on https://dam.designflow.app: natural-language search "is not working". Searching **`marie frame`** (Marie is a character in Disney's The Aristocats) returned:
+Owner report, November 17, 2026, on https://dam.designflow.app: natural-language search "is not working". Searching **`<character A> frame`** returned:
 
-- (a) not all the Aristocats framed styles, and
-- (b) products that are not framed (a Marie lap desk) or not Marie (a Minnie, a Mickey and a Lion King product).
+- (a) not all the property A framed styles, and
+- (b) products that are not framed (a character A lap desk) or not character A (a character B, a character C and a character D product).
 
-Reproduce: sign in as any viewer, style-group view, type `marie frame`. Read-only database reproduction of the word half:
+Throughout this plan, character A–D and property A are neutral placeholders. Resolve actual names and expected results only in the private test set, `admin_config.SEARCH_EVAL_SET_V1`. Keep per-character counts and catalog excerpts in private evidence.
+
+Reproduce: sign in as any viewer, style-group view, type the private case query for character A and frame. Bind `:query` to that query and `:character_pattern` to its regex-escaped whole-name pattern in a private SQL client:
 
 ```sql
--- products the exact-word half returns (5 today)
+-- products the exact-word half returns
 select title from public.dam_search_keys
 where document_type = 'style_group'
-  and search_tsv @@ websearch_to_tsquery('simple', 'marie frame');
+  and search_tsv @@ websearch_to_tsquery('simple', :query);
 
--- products that are Marie AND framed by their own catalog text (9 today)
+-- products containing the named character and framed wording
 select title from public.dam_search_documents
 where document_type = 'style_group'
-  and search_text ~* '\mmarie\M' and search_text ~* 'fram';
+  and search_text ~* :character_pattern and search_text ~* 'fram';
 ```
 
-Product codes are deliberately not printed in this file: the repository is public (`docs/SEARCH_EVAL.md` rule). Re-derive them with the SQL above.
+Names, product codes and expected counts remain private under the `docs/SEARCH_EVAL.md` rule. Re-derive expected results with the parameterised SQL above and save judgments in the private test set.
 
 ## 4. Scope
 
@@ -98,7 +100,7 @@ Product codes are deliberately not printed in this file: the repository is publi
 
 Nothing for this plan exists yet. What exists and works today (all on `main`, deployed):
 
-1. **Exact-word leg** — `public.search_dam_documents`, CTEs `queries` → `full_text_matches` → `keyword_candidates`. The typed text becomes `websearch_to_tsquery('simple', …)`: **every word is required, and words are compared exactly** (`'simple'` does no word-form reduction). Variants come from `public.expand_dam_search_queries` (splits/joins compounds such as "spiderman"/"spider man" and "door mat"/"doormat" only when the catalog itself writes them that way, plus the synonym table) and from `expandProductQueries` in `supabase/functions/_shared/search-query-expand.ts:57` (product-type phrases).
+1. **Exact-word leg** — `public.search_dam_documents`, CTEs `queries` → `full_text_matches` → `keyword_candidates`. The typed text becomes `websearch_to_tsquery('simple', …)`: **every word is required, and words are compared exactly** (`'simple'` does no word-form reduction). Variants come from `public.expand_dam_search_queries` (splits/joins compound names and product terms such as "door mat"/"doormat" only when the catalog itself writes them that way, plus the synonym table) and from `expandProductQueries` in `supabase/functions/_shared/search-query-expand.ts:57` (product-type phrases).
 2. **Picture leg** — the typed words go to `apps/text-embed/main.py` (SigLIP2 **text tower**, 768 numbers, 64-token limit), and `search_dam_documents` (CTEs `semantic_ann` / `semantic_exact`) returns the rows whose **thumbnail** fingerprint is nearest. This is the only "meaning" matching today, and it compares words to pictures, not to descriptions.
 3. **Picture floor** — `supabase/functions/_shared/semantic-floor.ts`: a picture match is kept if its score is within `RELATIVE_SEMANTIC_MARGIN = 0.035` of the best picture match for that query (anchor from `dam_search_semantic_anchor`). `admin_config.SEARCH_MIN_SEMANTIC_SCORE` (optional absolute floor) has **no row** today.
 4. **Ranking** — `candidate_ranks`: `rank = keyword_rank + 0.35 × semantic_rank`. A picture-only match is a full result; nothing requires it to agree with the words.
@@ -113,12 +115,12 @@ Nothing for this plan exists yet. What exists and works today (all on `main`, de
 
 Measured read-only on production, November 17, 2026, about 1:20 PM EST.
 
-1. **Missing framed products = exact word forms.** Of 51 Aristocats style groups, 9 are both Marie and framed by their own text. The word leg returns 5 products for `marie frame`; 4 framed Marie products are missed because their text says "Framed" and never the word "frame". Library-wide, **1,297 style groups contain "framed" but not "frame"** and are invisible to any search using "frame".
-2. **The non-framed product = an honest word match.** A lap desk's description reads "Marie in pink frame pattern": both words are present. So is a ceramic planter "with Photo Frame". Words alone cannot tell a product *type* from a word in the artwork description.
-3. **The other characters = picture guesses.** The Minnie, Mickey and Lion King products contain no "marie" (checked: the Lion King framed print has `kw = false`). `search_dam_documents` has only two sources of results, so they came from the picture leg: the picture model does not know Marie is a specific cat, turns "marie frame" into roughly "framed cartoon art", and the relative floor keeps everything within 0.035 of the best guess. The owner confirmed by eye that those products do not look like the Marie products — the picture score for a text query is flat and low (0.14–0.23, `semantic-floor.ts` comment), so "near the best guess" is not evidence of relevance.
+1. **Missing framed products = exact word forms.** The private character-plus-frame case misses framed products because their text says "Framed" and never the word "frame". Library-wide, **1,297 style groups contain "framed" but not "frame"** and are invisible to any search using "frame".
+2. **The non-framed product = an honest word match.** The private case includes a lap desk whose description mentions the character and a frame pattern, and a planter whose description mentions a photo frame. Words alone cannot tell a product *type* from a word in the artwork description.
+3. **The other characters = picture guesses.** The character B, character C and character D products contain no "character A" (checked: the character D framed print has `kw = false`). `search_dam_documents` has only two sources of results, so they came from the picture leg: the picture model does not reliably distinguish the named character, turns "character A frame" into roughly "framed cartoon art", and the relative floor keeps everything within 0.035 of the best guess. The owner confirmed by eye that those products do not look like the character A products — the picture score for a text query is flat and low (0.14–0.23, `semantic-floor.ts` comment), so "near the best guess" is not evidence of relevance.
 4. **Why it reads as "semantic search is broken":** there is no text-to-text meaning matching anywhere in PopDAM search. `docs/SEARCH_PERFORMANCE.md` still describes a 384-number `gte-small` text embedding; that was replaced by picture vectors on October 23 (`20261023184940_dam_search_siglip2_768_embeddings.sql`) and the document is stale on that point (fix in Step 8).
-5. **Character tags are usable for the named-character rule, with one known defect.** 39 style groups are tagged Marie; only 1 style group says "marie" in its text without a tag, and 2 tagged groups do not mention Aristocats. But group text shows foreign characters on some products (for example Marie products carrying "Nightmare Before Christmas", an Aristocats product carrying "Winnie the Pooh"), because a group inherits every tag from every member file and some files are mis-tagged. Under the named-character rule those wrong tags would let a product appear for the wrong character. Step 2 measures this; repair belongs to tagging (#680).
-6. **`core.character` has two rows named "Marie"** under the same licensor. The rule must treat every character row whose name or alias equals the typed name as the same request.
+5. **Character tags are usable for the named-character rule, with one known defect.** Some groups name a character without a tag, and some tagged groups omit its property. Foreign-character tags also occur because a group inherits every tag from every member file and some files are mis-tagged. Keep exact counts and examples in private evidence. Under the named-character rule those wrong tags would let a product appear for the wrong character. Step 2 measures this; repair belongs to tagging (#680).
+6. **Duplicate character names exist in `core.character`** under the same licensor. The rule must treat every character row whose name or alias equals the typed name as the same request.
 7. **Size of the job:** 11,477 style-group texts (average 477 characters) and 171,066 file texts (average 926 characters). On one RTX 3060 Ti a small text-embedding model processes this in hours, not days; measure in Step 4, do not assume.
 
 ## 7. Approaches considered and rejected
@@ -126,7 +128,7 @@ Measured read-only on production, November 17, 2026, about 1:20 PM EST.
 | Approach | Why rejected |
 |---|---|
 | Add synonym rows ("frame" → "framed", "lapdesk" → "lap desk" …) | Owner, Nov 17: "we can't do this one-by-one with every possible search term. There has to be a way for the search function to know that as a rule". |
-| Tighten the picture floor / margin again | Already tuned five times (#577, #579, #586, #690, #699; margin 0.045 → 0.035). Text-to-picture scores are flat; no threshold separates Marie from Minnie. The defect is using a picture guess as proof of relevance. |
+| Tighten the picture floor / margin again | Already tuned five times (#577, #579, #586, #690, #699; margin 0.045 → 0.035). Text-to-picture scores are flat; no threshold separates character A from character B. The defect is using a picture guess as proof of relevance. |
 | Property-level version of the licensor rule (#892) | Tested against the scorecard on #892 and rejected: it broke a misspelling case. A **character** rule is different (the owner ruled it, and it filters on tags, not on picture ownership), but re-run the misspelling cases in Step 2 for the same reason. |
 | Replace SigLIP2 with a better picture model | Locked on shared-db #4664; picture-upload search depends on it and works. A better picture model still cannot read "framed" from flat art. |
 | Embed text with the existing SigLIP2 text tower and compare to description vectors | SigLIP2's text tower is trained to match captions to pictures, has a 64-token limit and is not a general text-similarity model. |
@@ -168,7 +170,7 @@ Measured read-only on production, November 17, 2026, about 1:20 PM EST.
 ### Step 1 — Failing searches into the private test set, BEFORE score
 
 - Add cases to `admin_config.SEARCH_EVAL_SET_V1` as a new `version` (procedure: `docs/SEARCH_EVAL.md` → "Judging new results"). Keep names and codes out of the repo and the issue.
-- Cases: (a) `marie frame`, must-find = the 9 products from the §3 SQL that are genuinely framed (judge by eye; exclude the lap desk and planter), must-not-appear = any product without the character; (b) at least five more "character + product type" searches chosen from real catalog names, including one where the type is written differently in the catalog; (c) word-form pairs: frame/framed/frames, and two more found with the query below; (d) compound and near-synonym pairs: lap desk / lapdesk / laptop desk, picture frame / photo frame; (e) two purely visual searches with no character or product word, to protect the picture leg.
+- Cases: (a) `character A frame`, must-find = the products from the §3 SQL that are genuinely framed (judge by eye; exclude the lap desk and planter), must-not-appear = any product without the character; (b) at least five more "character + product type" searches chosen from real catalog names, including one where the type is written differently in the catalog; (c) word-form pairs: frame/framed/frames, and two more found with the query below; (d) compound and near-synonym pairs: lap desk / lapdesk / laptop desk, picture frame / photo frame; (e) two purely visual searches with no character or product word, to protect the picture leg.
 - Scoring additions in `scripts/search-eval/score.mjs`: a `must_not_contain_other_character` check (fails when any top-20 result lacks the named character) and a `must_find_all` check (every must-find id within the first 50). Add unit tests beside `score.test.mjs`.
 - Run the workflow "Search test set" with label `before-1037`.
 - **Gate:** the new cases fail today for the reasons in §6, the original 119 still pass, run id recorded in STATUS.
@@ -185,8 +187,8 @@ where document_type = 'style_group'
 
 - **Recognise the character.** In `dam-search-ai/index.ts`, beside `namedLicensorIds` (line 527): add `namedCharacterIds(texts, characters)` using the same whole-name, word-boundary matching as licensors, over `core.character.name` and `core.character_alias.alias`, plus legacy `public.characters.name`. Load through the existing hourly cache pattern (`licensorNames`, lines 100-155). Return every id whose name or alias matches (§6 finding 6). Longest match wins when names overlap; a licensor or property name that is also a character name counts as the licensor/property, not the character (measure how many such collisions exist and list the count on #1037).
 - **Apply the rule in the database.** shared-db change to `public.search_dam_documents`: read `p_filters->'requiredCharacterIds'` (core ids) and `p_filters->'requiredLegacyCharacterIds'` the same way `semanticLicensorIds` is read in `params`, and in `candidate_ranks` keep a candidate **from any leg** only if a non-deleted file of its style group (or the file itself, for an ungrouped file) has a matching row in `public.asset_licensor_characters` or `public.asset_characters`. Strip both keys in `visibility_params` exactly as `semanticLicensorIds` is stripped so the fast count paths still apply. Apply the same condition in the anchor function used for the floor (a new scoped anchor or an extra argument to `dam_search_semantic_anchor_scoped`) — otherwise another character's closer picture raises the floor past every allowed match (the #6024 lesson).
-- **Do not let untagged products vanish silently.** Before enabling, measure for every character name with ≥ 5 tagged style groups: how many style groups carry the name as a whole word in `search_text` but have no tag. Marie: 1. If the library-wide share of untagged-but-named groups is above 5%, keep the rule but also accept "the character's name appears as a whole word in the group's `search_text`" as containing the character, and say so on #1037. Either way, record the foreign-tag measurement from §6 finding 5 on #680.
-- **Behaviour when done:** `marie frame` returns no Minnie, Mickey or Lion King product, whatever the picture leg thinks. A search with no recognised character behaves exactly as before.
+- **Do not let untagged products vanish silently.** Before enabling, measure for every character name with ≥ 5 tagged style groups: how many style groups carry the name as a whole word in `search_text` but have no tag. Record the per-character counts privately. If the library-wide share of untagged-but-named groups is above 5%, keep the rule but also accept "the character's name appears as a whole word in the group's `search_text`" as containing the character, and report only the aggregate outcome on #1037. Either way, keep the foreign-tag measurement from §6 finding 5 private and post only a case-ID reference on #680.
+- **Behaviour when done:** `character A frame` returns no character B, character C or character D product, whatever the picture leg thinks. A search with no recognised character behaves exactly as before.
 - **Depends on:** nothing. **Gate:** Step 1 `must_not_contain_other_character` cases pass; all misspelling cases still pass (the reason the property rule was rejected); p95 not worse than the BEFORE run by more than 200 ms.
 
 ### Step 3 — Storage and queue for text-meaning vectors (shared-db)
@@ -221,23 +223,23 @@ shared-db change to `public.search_dam_documents` (new optional parameters, so t
 - New parameters `p_query_text_embedding halfvec(N) default null`, `p_min_text_score real default null`. New CTE `text_candidates`: nearest rows in `dam.search_text_vectors` for the requested document types, model equal to the configured stamp, limit 2000, floor applied after the scan (same shape as `semantic_candidates`).
 - **Ranking (O3 starting point):** `rank = keyword_rank + 0.6 × text_rank + 0.15 × picture_rank`.
 - **Text floor:** relative to the best text score for the query, like the picture floor, with its own anchor; start at "within 0.10 of the best" and tune on the scorecard. Text-to-text scores spread far wider than text-to-picture scores, so do not copy 0.035.
-- **Demotion rule for the picture leg:** a candidate matched by its picture **alone** (no exact-word match and no text-meaning match above the floor) is kept only when the exact-word and text-meaning legs together produced fewer than 10 visible results for the query. Otherwise the picture score only reorders results the text legs already justified. This is what answers "that doesn't look enough like Marie": a picture guess can no longer add a product by itself when words and meaning found real answers.
+- **Demotion rule for the picture leg:** a candidate matched by its picture **alone** (no exact-word match and no text-meaning match above the floor) is kept only when the exact-word and text-meaning legs together produced fewer than 10 visible results for the query. Otherwise the picture score only reorders results the text legs already justified. This is what answers "that doesn't look enough like character A": a picture guess can no longer add a product by itself when words and meaning found real answers.
 - The named-character rule (Step 2) and the licensor rule (#892) apply to text-leg candidates too.
 - Product-code searches keep skipping every embedding (`codeSearch`, `index.ts:502`).
 - Roll out behind `admin_config` key `SEARCH_TEXT_LEG_MODE` = `off` | `on` (read in the edge function like the floor, lines 516-534; default `off`). Ship dark, score, then switch on.
-- **Behaviour when done, for `marie frame`:** all 9 framed Marie products appear first (the four that say only "Framed" arrive through the text leg); the lap desk and planter, which truly contain both words, rank below every framed product; no other character appears.
+- **Behaviour when done, for `character A frame`:** all privately judged framed character A products appear first (those that say only "Framed" arrive through the text leg); the lap desk and planter, which truly contain both words, rank below every framed product; no other character appears.
 - **Gate:** every Step 1 case passes with the mode `on`; the original 119 PopDAM cases still pass; the two visual-only cases still return picture matches; p95 within 300 ms of BEFORE and under the 3-second target; `explain (analyze)` of the function for a broad query shows no statement near the 8-second ceiling noted in `plan_vector_consolidation.md` §3 item 4.
 
 ### Step 7 — Word forms in the exact-word leg
 
 - Add a stemmed word index beside the exact one: a generated `search_tsv_en` (English configuration) on `dam_search_keys` with a GIN index, matched as a **second, lower-scored** alternative in `full_text_matches` (exact form keeps today's score; a word-form-only match scores below every exact match). Never replace the `'simple'` index: product codes and names must stay exact.
-- Guard names: English reduction turns "marie" into the same stem as other words and would blur character names. Words recognised as a character, licensor or property name (Step 2 vocabulary) are matched in exact form only; reduction applies to the remaining words.
+- Guard names: English reduction can collapse a character name into the same stem as other words and blur character names. Words recognised as a character, licensor or property name (Step 2 vocabulary) are matched in exact form only; reduction applies to the remaining words.
 - **Gate:** the frame/framed/frames cases and the two extra word-form cases pass with the text leg switched **off** (proves this leg alone); exact-code cases unchanged; keyword-only p95 unchanged within noise (two clean runs, `docs/SEARCH_EVAL.md` → "Taking a scored run that can be trusted").
 
 ### Step 8 — AFTER score, live proof, documentation
 
 - Run "Search test set" with label `after-1037` following the trusted-run rules (one run at a time, five minutes after the last release).
-- Live proof on https://dam.designflow.app as the viewer tester: screenshots of `marie frame` and two other Step 1 searches, posted on #1037 without product codes in the text.
+- Live proof on https://dam.designflow.app as the viewer tester: capture the character A frame case and two other Step 1 searches. Store screenshots in an access-controlled private evidence location alongside the private evaluation checkpoints described in `docs/SEARCH_EVAL.md`. Post only case IDs, pass/fail results and an access-controlled evidence reference on #1037.
 - Update: `docs/SEARCH_PERFORMANCE.md` (remove the stale `gte-small`/384 description; describe three legs), `docs/SEARCH_EVAL.md` (new case kinds and checks), `apps/image-embed-worker/README.md`, `apps/text-embed/README.md`, `plan_vector_consolidation.md` STATUS (one line pointing here), this STATUS table, `docs/INDEX.md`.
 - **Gate:** see §13.
 
@@ -263,7 +265,7 @@ shared-db change to `public.search_dam_documents` (new optional parameters, so t
 
 ## 11. Constraints, standing rules, gotchas
 
-- Public repository: no licensed names beyond those already in docs, **no product codes, file ids or thumbnails** in commits, issues or PR text.
+- Public repository: **no licensed names, per-character catalog counts, catalog excerpts, product codes, file ids or thumbnails** in commits, issues or PR text.
 - Branch + pull request; never push to `main`. The AI merges its own PR (Albert does not merge). Reviews are advisory and never block.
 - Database structure only through `popcre/shared-db` (`shared-db-guard.yml` fails app PRs containing DDL). Production is reached only by shared-db's automatic promotion; no manual production SQL beyond read-only checks.
 - Every merge to `main` redeploys all edge functions; schedule scored runs accordingly.
@@ -293,10 +295,10 @@ shared-db change to `public.search_dam_documents` (new optional parameters, so t
 **Done when all are true**
 
 - [ ] Steps 0–8 gates met and STATUS rows cite run ids, commit SHAs or commands.
-- [ ] `marie frame` on production: all 9 framed Marie products in the first results, no product without the character, lap desk and planter below every framed product (screenshots on #1037).
+- [ ] `character A frame` on production: all privately judged framed character A products in the first results, no product without the character, lap desk and planter below every framed product (screenshots stored privately as in Step 8; case IDs and pass/fail results on #1037).
 - [ ] New scorecard cases pass; original 119 pass; p95 under 3 seconds.
 - [ ] Text lane drains unattended for 24 hours and the canary alarms when it is stopped (drill outside business hours).
-- [ ] Code merged, CI green, deployed commit verified, docs updated, this plan's STATUS final, handoff file deleted, #1037 closed with live proof.
+- [ ] Code merged, CI green, deployed commit verified, docs updated, this plan's STATUS final, handoff file deleted, #1037 closed with a case-ID-only live-proof summary and an access-controlled reference to private evidence.
 
 **Risks and rollback**
 
@@ -310,7 +312,7 @@ shared-db change to `public.search_dam_documents` (new optional parameters, so t
 **Open questions and how to decide them**
 
 - O1–O4 in §8.
-- Should a search naming a **property** ("aristocats frame") get the same hard rule as a character? Not asked of the owner yet; the earlier property experiment broke a misspelling case. Leave as is, measure the property cases in Step 1, and ask the owner only if they fail after Step 6.
+- Should a search naming a **property** ("property A frame") get the same hard rule as a character? Not asked of the owner yet; the earlier property experiment broke a misspelling case. Leave as is, measure the property cases in Step 1, and ask the owner only if they fail after Step 6.
 - Should the lap-desk kind of match (both words present, wrong product type) be hidden rather than ranked lower? Default: ranked lower. Ask the owner after showing the live result.
 
 ## Self-audit (November 17, 2026)
