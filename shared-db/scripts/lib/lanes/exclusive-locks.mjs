@@ -415,10 +415,17 @@ export function freezeTolerantMerge(io, pr) {
   let files
   try { files = io.getPrFiles?.(Number(pr)) } catch { return false }
   if (!Array.isArray(files) || files.length === 0) return false
+  // #6493: the added sidecar of a migration this same PR adds rides along, as
+  // in laterAppendedMigrationPaths.
+  const addedVersions = new Set(files.filter((file) => file?.status === 'added')
+    .map((file) => /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/.exec(String(file?.filename ?? file?.path ?? ''))?.[1]).filter(Boolean))
   return files.every((file) => {
     const path = String(file?.filename ?? file?.path ?? '')
     if (isProductionInertPath(path)) return true
-    return file?.status === 'added' && /^supabase\/(?:migrations\/\d{14}_[^/]+|tests\/[^/]+)\.sql$/.test(path)
+    if (file?.status !== 'added') return false
+    const sidecar = /^scripts\/production-verification-sidecars\/(\d{14})\.json$/.exec(path)?.[1]
+    if (sidecar) return addedVersions.has(sidecar)
+    return /^supabase\/(?:migrations\/\d{14}_[^/]+|tests\/[^/]+)\.sql$/.test(path)
   })
 }
 

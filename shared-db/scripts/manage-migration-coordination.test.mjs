@@ -5662,12 +5662,16 @@ test('#4845: a freeze lets only appended-migration, test and evidence merges thr
     ['renamed migration',[{filename:'supabase/migrations/20261026150932_a.sql',status:'renamed'}]],
     ['gate code',[...tolerant,{filename:'scripts/production_business_risk_gate.py',status:'modified'}]],
     ['workflow',[{filename:'.github/workflows/shared-supabase-migrations.yml',status:'modified'}]],
+    ['sidecar of another version',[...tolerant,{filename:'scripts/production-verification-sidecars/20261026150931.json',status:'added'}]],
+    ['modified sidecar',[...tolerant,{filename:'scripts/production-verification-sidecars/20261026155023.json',status:'modified'}]],
     ['empty list',[]],
   ]){
     const blocked=freezeIo();blocked.getPrFiles=()=>files
     acquirePromotionFreeze({issue:3901,pr:3902,owner:'claude-session',ttlMinutes:30,now},blocked)
     assert.throws(()=>acquireExclusive('merge',{owner:'a',pr:1,headSha:'abc',now},blocked),/merges are paused for a production run/,name)
   }
+  const withSidecar=freezeIo();withSidecar.getPrFiles=()=>[...tolerant,{filename:'scripts/production-verification-sidecars/20261026155023.json',status:'added'}]
+  assert.equal(freezeTolerantMerge(withSidecar,1),true,'#6493: the added sidecar of the added migration rides along')
   const unreadable=freezeIo();unreadable.getPrFiles=()=>{throw new Error('api down')}
   assert.equal(freezeTolerantMerge(unreadable,1),false,'an unreadable file list fails closed')
 })

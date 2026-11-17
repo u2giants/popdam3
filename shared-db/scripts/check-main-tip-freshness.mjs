@@ -357,8 +357,13 @@ const MIGRATION_PATH = /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/
 //   - the dispatched tree has at least one migration (a dispatch without a
 //     ledger cannot happen, and stays refused).
 // Added `supabase/tests/*.sql` files ride along: no production step reads them.
+// So does the ADDED verification sidecar of a tolerated migration (#6493: run
+// 43995587657 lost a whole promotion cycle to one). The sidecar gate reads the
+// dispatched tree, which cannot hold a sidecar for a version it does not have.
+// A sidecar for any other version, or a modified one, still refuses.
 // Any git error returns the empty set, so the caller refuses exactly as before.
 const SUPABASE_TEST_PATH = /^supabase\/tests\/[^/]+\.sql$/
+const SIDECAR_PATH = /^scripts\/production-verification-sidecars\/(\d{14})\.json$/
 export function laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRunner = git }) {
   const added = new Set(nulPaths(gitRunner(['diff', '--name-only', '--no-renames', '--diff-filter=A', '-z', mainSha, tipSha], { cwd })))
   const dispatched = new Set(nulPaths(gitRunner(['ls-tree', '-r', '-z', '--name-only', mainSha, '--', 'supabase/migrations'], { cwd }))
@@ -376,6 +381,10 @@ export function laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRu
       tolerated.add(path)
       migrations += 1
     } else if (SUPABASE_TEST_PATH.test(path)) tolerated.add(path)
+  }
+  for (const path of paths) {
+    const version = SIDECAR_PATH.exec(path)?.[1]
+    if (version && added.has(path) && addedVersions.has(version)) tolerated.add(path)
   }
   return migrations > 0 ? tolerated : new Set()
 }

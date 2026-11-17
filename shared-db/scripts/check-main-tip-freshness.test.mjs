@@ -488,6 +488,33 @@ function prefixFixture() {
 }
 const prod = (repo, mainSha, tipSha) => classifyMainTip({ mainSha, tipSha, gitRunner: (args) => git(repo, args), production: true })
 
+test('#6493: the added sidecar of an appended migration rides along; any other sidecar still refuses', () => {
+  const migration = { 'supabase/migrations/20261026155023_b.sql': 'create table b (id int);\n' }
+  const cases = [
+    [{ ...migration, 'scripts/production-verification-sidecars/20261026155023.json': '{}\n' }, true],
+    [{ ...migration, 'scripts/production-verification-sidecars/20261026150931.json': '{}\n' }, false],
+    [{ 'scripts/production-verification-sidecars/20261026155023.json': '{}\n' }, false],
+  ]
+  for (const [files, ok] of cases) {
+    const { repo, sha } = prefixFixture()
+    try {
+      const verdict = prod(repo, sha, commitFiles(repo, files, 'later'))
+      assert.equal(verdict.ok, ok, verdict.reason)
+    } finally {
+      rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    }
+  }
+  // A sidecar that already existed and is MODIFIED alongside a new migration refuses.
+  const { repo } = makeRepo()
+  try {
+    const sha = commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'select 1;\n', 'scripts/production-verification-sidecars/20261026155023.json': '{}\n' }, 'base')
+    const tip = commitFiles(repo, { ...migration, 'scripts/production-verification-sidecars/20261026155023.json': '{"x":1}\n' }, 'edit')
+    assert.equal(prod(repo, sha, tip).ok, false)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})
+
 test('#4845: production accepts a tip moved only by a strictly later appended migration, its test and evidence', () => {
   const { repo, sha } = prefixFixture()
   try {
