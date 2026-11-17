@@ -815,6 +815,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 17: production's appended columns on api.source_resolution and three plm ColdLion views, plus api.source_resolution grants. Source excludes shared preview and production.",
     },
+    "20261203000000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 18: production's current definitions and EXECUTE grants for seven functions changed on 2026-11-16. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():

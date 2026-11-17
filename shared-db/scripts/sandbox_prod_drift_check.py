@@ -51,7 +51,7 @@ QUERIES = {
 def read_only_query(ref: str, token: str, sql: str) -> list[dict]:
     req = urllib.request.Request(
         f"https://api.supabase.com/v1/projects/{ref}/database/query/read-only",
-        data=json.dumps({"query": sql}).encode(),
+        data=json.dumps({"query": "set timezone = 'UTC'; " + sql}).encode(),  # same rendering of timestamp defaults on both sides
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "sandbox-drift-check/1"},
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
