@@ -12,6 +12,7 @@ pull request, alongside the existing production-guard tests.
 from pathlib import Path
 from unittest import mock
 import io
+import subprocess
 import json
 import re
 import sys
@@ -4234,6 +4235,70 @@ class ScriptEntryPointOrderTests(unittest.TestCase):
         import production_catalog_verification as module
         self.assertIn("core_mg_category_merch_group_fk_dflow_prod_v1", names)
         self.assertEqual(sorted(names - set(module.CATALOG_CONTRACTS)), [])
+
+
+class ReadableMigrationCheckTests(unittest.TestCase):
+    """#6574 Fix C: a new migration the catalog check cannot read needs a sidecar or a no-op line."""
+
+    DYNAMIC = (
+        "do $$\ndeclare r record;\nbegin\n"
+        "  for r in select 'x' as sig loop\n"
+        "    execute format('revoke execute on function %s from anon', r.sig);\n"
+        "  end loop;\nend $$;\n")
+
+    def _repo(self):
+        import tempfile
+        root = Path(tempfile.mkdtemp())
+        (root / "supabase" / "migrations").mkdir(parents=True)
+        return root
+
+    def _write(self, root, version, sql):
+        (root / "supabase" / "migrations" / f"{version}_t.sql").write_text(sql, encoding="utf-8")
+
+    def _git(self, root, *args):
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                       check=True, capture_output=True)
+
+    def test_readable_check_fails_dynamic_migration_without_sidecar(self):
+        from check_catalog_readable import unreadable_versions
+        root = self._repo()
+        self._write(root, "20990101000010", self.DYNAMIC)
+        problems = unreadable_versions(root, ["20990101000010"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("#6574", problems[0])
+        self.assertIn("production-verification-sidecars/20990101000010.json", problems[0])
+
+    def test_readable_check_passes_with_sidecar(self):
+        from check_catalog_readable import unreadable_versions
+        root = self._repo()
+        self._write(root, "20990101000011", self.DYNAMIC)
+        side = root / "scripts" / "production-verification-sidecars"
+        side.mkdir(parents=True)
+        (side / "20990101000011.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(unreadable_versions(root, ["20990101000011"]), [])
+
+    def test_readable_check_passes_with_valid_noop(self):
+        from check_catalog_readable import unreadable_versions
+        root = self._repo()
+        self._write(root, "20990101000012",
+                    "-- catalog-verification: no-op rewrites one row of existing data\n"
+                    "update public.nothing set a = 1 where false;\n")
+        self.assertEqual(unreadable_versions(root, ["20990101000012"]), [])
+
+    def test_readable_check_ignores_unchanged_migrations(self):
+        from check_catalog_readable import unreadable_versions, added_versions
+        root = self._repo()
+        self._write(root, "20990101000013", self.DYNAMIC)
+        self._git(root, "init", "-q")
+        self._git(root, "add", "-A")
+        self._git(root, "commit", "-q", "-m", "base")
+        self._git(root, "branch", "-q", "base-ref")
+        self._write(root, "20990101000014", "select 1;\n")
+        self._git(root, "add", "-A")
+        self._git(root, "commit", "-q", "-m", "add")
+        added = added_versions(root, "base-ref")
+        self.assertEqual(added, ["20990101000014"])
+        self.assertEqual(unreadable_versions(root, added), [])
 
 
 if __name__ == "__main__":
