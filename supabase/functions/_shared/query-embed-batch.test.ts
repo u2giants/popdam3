@@ -91,4 +91,24 @@ describe("createQueryEmbedder", () => {
     await embedder.embed("q1"); // was evicted: one more call
     expect(calls.single.length).toBe(258);
   });
+
+  it("embedAllWithText returns picture and text vectors from one call and caches both", async () => {
+    const { calls, transport } = recorder();
+    transport.embedBatch = async (texts) => {
+      calls.batch.push(texts);
+      return { status: "ok", vectors: texts.map(() => vector(1)), textVectors: texts.map(() => vector(2)), textModel: "m@1" };
+    };
+    const embedder = createQueryEmbedder(transport);
+    const out = await embedder.embedAllWithText(["mat", "rug"]);
+    expect(out.textVectors.get("mat")).toEqual({ vector: vector(2), model: "m@1" });
+    await embedder.embedAllWithText(["mat", "rug"]);
+    expect(calls.batch).toEqual([["mat", "rug"]]);
+  });
+
+  it("embedAllWithText leaves text vectors null when the service sends none", async () => {
+    const embedder = createQueryEmbedder(batchTransport({ status: "ok", vectors: [vector(1)] }));
+    const out = await embedder.embedAllWithText(["mat"]);
+    expect(out.vectors.get("mat")).toEqual(vector(1));
+    expect(out.textVectors.get("mat")).toBeNull();
+  });
 });

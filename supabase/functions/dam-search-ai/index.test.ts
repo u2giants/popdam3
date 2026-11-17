@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   authenticate: vi.fn(),
   licensors: [] as { id: string; name: string }[],
   aliases: [] as { licensor_id: string; alias: string }[],
+  config: [] as { key: string; value: unknown }[],
+  configError: null as null | { message: string },
 }));
 vi.mock("../_shared/http.ts", () => ({
   corsServe: (handler: typeof state.handler) => {
@@ -29,8 +31,9 @@ vi.mock("../_shared/service-client.ts", () => ({
         }),
       }),
     }),
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
+        in: async () => state.configError ? { data: null, error: state.configError } : { data: table === "admin_config" ? state.config : [], error: null },
         eq: () =>
           Object.assign(Promise.resolve({ data: [] }), {
             maybeSingle: async () => ({ data: null, error: null }),
@@ -76,6 +79,8 @@ describe("DAM search embedding availability", () => {
     state.aliases.length = 0;
     resetLicensorCacheForTests();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
+    state.config.length = 0;
+    state.configError = null;
     state.productCode = false;
     state.meaningful = true;
     state.corrected = null;
@@ -320,5 +325,101 @@ describe("DAM search embedding availability", () => {
     expect((await search("disney floor covering")).status).toBe(503);
     expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")).toHaveLength(2);
     expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  describe("text-meaning leg (#1037 Step 6)", () => {
+    const MODEL = "Qwen/Qwen3-Embedding-0.6B@test";
+    const textFetch = (textModel: string | null, textDim = 1024) =>
+      vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+        if (new URL(String(input)).pathname === "/embed-text-batch") {
+          const texts = JSON.parse(String(init?.body ?? "{}")).texts as string[];
+          return Response.json({
+            ok: true,
+            vectors: texts.map(() => Array(768).fill(0)),
+            ...(textModel ? { text_model: textModel, text_dim: textDim, text_vectors: texts.map(() => Array(textDim).fill(0.1)) } : {}),
+          });
+        }
+        return Response.json({ ok: true, vector: Array(768).fill(0) });
+      });
+    const searchCalls = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents");
+    const mode = (value: string) => {
+      state.config.push({ key: "SEARCH_TEXT_LEG_MODE", value }, { key: "SEARCH_TEXT_EMBEDDING_MODEL", value: MODEL });
+    };
+
+    it("mode off sends no text vector", async () => {
+      mode("off");
+      vi.stubGlobal("fetch", textFetch(MODEL));
+      expect((await search("textleg off phrase")).status).toBe(200);
+      expect(searchCalls().length).toBeGreaterThan(0);
+      for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
+    });
+
+    it("no mode row means off", async () => {
+      vi.stubGlobal("fetch", textFetch(MODEL));
+      expect((await search("textleg default phrase")).status).toBe(200);
+      for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
+    });
+
+    it("mode on carries the text vector from the one batched call", async () => {
+      mode("on");
+      const fetch = textFetch(MODEL);
+      vi.stubGlobal("fetch", fetch);
+      expect((await search("textleg on phrase")).status).toBe(200);
+      expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")).toHaveLength(1);
+      const args = searchCalls()[0][1] as Record<string, unknown>;
+      expect((args.p_query_text_embedding as number[]).length).toBe(1024);
+    });
+
+    it("mode on with the text vector missing returns 503 before any search", async () => {
+      mode("on");
+      vi.stubGlobal("fetch", textFetch(null));
+      expect((await search("textleg missing phrase")).status).toBe(503);
+      expect(searchCalls()).toHaveLength(0);
+    });
+
+    it("mode on with a wrong-size text vector returns 503", async () => {
+      mode("on");
+      vi.stubGlobal("fetch", textFetch(MODEL, 768));
+      expect((await search("textleg wrongsize phrase")).status).toBe(503);
+      expect(searchCalls()).toHaveLength(0);
+    });
+
+    it("a model-stamp mismatch returns 503", async () => {
+      mode("on");
+      vi.stubGlobal("fetch", textFetch("Qwen/Qwen3-Embedding-0.6B@other"));
+      expect((await search("textleg mismatch phrase")).status).toBe(503);
+      expect(searchCalls()).toHaveLength(0);
+    });
+
+    it("an unreadable switch fails closed", async () => {
+      state.configError = { message: "boom" };
+      vi.stubGlobal("fetch", textFetch(MODEL));
+      expect((await search("textleg error phrase")).status).toBe(503);
+      expect(searchCalls()).toHaveLength(0);
+    });
+
+    it("product-code searches skip the text leg even when on", async () => {
+      mode("on");
+      state.productCode = true;
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      expect((await search("textleg code phrase")).status).toBe(200);
+      expect(fetch).not.toHaveBeenCalled();
+      for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
+    });
+
+    it("the browser cannot supply a text vector", async () => {
+      mode("off");
+      vi.stubGlobal("fetch", textFetch(MODEL));
+      const response = await state.handler!(
+        new Request("https://example.invalid", {
+          method: "POST",
+          headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "search", query: "textleg browser phrase", p_query_text_embedding: Array(1024).fill(1) }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
+    });
   });
 });
