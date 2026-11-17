@@ -23,9 +23,9 @@ and why is in §7 and §8.
 | 4. Durable failure reporting | ✅ | PR #6589 (merged da185c26f) |
 | 5. Tests | ✅ | PR #6589 (merged da185c26f) |
 | 6. Live proof A (immediate): today's stranded PRs carry notice + label; real API responses recorded | 🟡 partial | clean reconciler pass, run 44146394316; R5 write responses await first real park (issue #6561 comment 6956941560) |
-| 7. Session rule: rulebook pair | 🟡 this PR | §9 step 9 |
-| 8. Session rule: skill sources | ⬜ open | §9 step 10 |
-| 9. Live proof B: a labelled PR is cleared automatically on delivery | ⬜ open | §9 step 11 |
+| 7. Session rule: rulebook pair | ✅ | PR #6597 |
+| 8. Session rule: skill sources | ✅ | popcre/ai-devops#2585; installed and verified on edge-dev3 2026-11-17 |
+| 9. Live proof B: a labelled PR is cleared automatically on delivery | ⬜ waits on first real park or 8h hold | record on #6561 |
 
 A fresh session starts at §9 step 1 after re-deriving current state (§5).
 
