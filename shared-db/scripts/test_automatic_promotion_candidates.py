@@ -790,13 +790,48 @@ class EarlierPreviewApply(unittest.TestCase):
             {"id": 5, "conclusion": "success", "created_at": "2026-10-31T01:40:00Z", "display_title": "DB preview apply a PR 202610301906390"},
         ]
         self.assertEqual(m.earlier_preview_apply(pr, runs), 7)
-        self.assertEqual(m.earlier_preview_apply(pr, [runs[2]]), 3)  # pre-merge is the fallback
+        # #6574: a pre-merge apply is never the fallback; it is reported instead.
+        self.assertIsNone(m.earlier_preview_apply(pr, [runs[2]]))
+        self.assertEqual(m.pre_merge_preview_apply(pr, runs), 3)
+        self.assertIsNone(m.pre_merge_preview_apply(pr, runs[:2]))
         self.assertIsNone(m.earlier_preview_apply(pr, runs[3:]))
         recovery = {"id": 4, "conclusion": "success", "created_at": "2026-10-31T01:50:00Z", "display_title": "DB preview apply a PR 20261030190639"}
         self.assertEqual(m.earlier_preview_apply(pr, runs + [recovery]), 4)
         held = {**recovery, "id": 2, "conclusion": "failure", "created_at": "2026-10-31T01:45:00Z"}
         self.assertEqual(m.earlier_preview_apply(pr, runs + [held]), 7)
         self.assertEqual(m.earlier_preview_apply(pr, runs + [held], lambda r: r["id"] == 2), 2)
+
+    def _dispatch(self, runs):
+        pr = {"number": 6400, "merged_at": "2026-11-16T12:00:00Z", "versions": ["20261116013153"]}
+        out = io.StringIO()
+        with mock.patch.object(m.subprocess, "run") as sent, \
+             mock.patch.object(m, "preview_job_succeeded_in_any_attempt", return_value=False), \
+             contextlib.redirect_stdout(out):
+            m.dispatch("o/r", pr, "abc", runs)
+        return sent.call_args[0][0], out.getvalue()
+
+    def test_stale_pre_merge_apply_is_ignored_and_engineer_action_is_loud(self):
+        pre = {"id": 43789639543, "conclusion": "success", "created_at": "2026-11-16T02:00:00Z",
+               "display_title": "DB preview apply a PR6400 20261116013153"}
+        cmd, out = self._dispatch([pre])
+        self.assertIn("merged_preview_source_pr=6400", cmd)
+        self.assertFalse(any(a.startswith("historical_preview") for a in cmd))
+        self.assertIn("ENGINEER ACTION REQUIRED", out)
+        self.assertIn("REISSUE", out)
+        self.assertIn("43789639543", out)
+
+    def test_post_merge_apply_still_recovers_and_stays_quiet(self):
+        pre = {"id": 1, "conclusion": "success", "created_at": "2026-11-16T02:00:00Z",
+               "display_title": "DB preview apply a PR6400 20261116013153"}
+        post = {**pre, "id": 2, "created_at": "2026-11-16T13:00:00Z"}
+        cmd, out = self._dispatch([pre, post])
+        self.assertIn("historical_preview_original_run_map=20261116013153:2", cmd)
+        self.assertNotIn("ENGINEER ACTION REQUIRED", out)
+
+    def test_no_preview_apply_is_a_quiet_fresh_rehearsal(self):
+        cmd, out = self._dispatch([])
+        self.assertIn("merged_preview_source_pr=6400", cmd)
+        self.assertNotIn("ENGINEER ACTION REQUIRED", out)
 
 
 class AlreadyInProduction(unittest.TestCase):

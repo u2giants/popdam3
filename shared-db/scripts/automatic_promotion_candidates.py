@@ -776,17 +776,45 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     return "idle", None, "every merged migration PR since activation is in production"
 
 
-def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
-                          preview_ok: callable = lambda run: False) -> int | None:
-    """The oldest preview apply of this PR whose preview job succeeded, if any."""
-    hits = [r for r in runs
+def _preview_apply_hits(pr: dict[str, Any], runs: list[dict[str, Any]],
+                        preview_ok: callable) -> list[dict[str, Any]]:
+    return [r for r in runs
             if (r.get("display_title") or "").startswith("DB preview apply") and names_pr(pr, r.get("display_title") or "")
             # A run can fail after preview applied, e.g. at the review-finding hold.
             and (r.get("conclusion") == "success" or preview_ok(r))]
-    # A pre-merge rehearsal also leaves the versions on preview, so it is the
-    # fallback; the recovery lane refuses an original run whose bytes differ.
-    post_merge = [r for r in hits if r.get("created_at", "") > pr["merged_at"]]
-    return min(post_merge or hits, key=lambda r: r.get("created_at", ""))["id"] if hits else None
+
+
+def earlier_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
+                          preview_ok: callable = lambda run: False) -> int | None:
+    """The oldest POST-MERGE preview apply of this PR whose preview job succeeded.
+
+    #6574: a preview apply made before the PR merged is never recovery evidence.
+    Its bytes are not the merged bytes the gate binds to, so production
+    qualification refuses it permanently (20261116013153, run 43789639543).
+    Without a post-merge apply the lane always does a fresh rehearsal."""
+    post_merge = [r for r in _preview_apply_hits(pr, runs, preview_ok)
+                  if r.get("created_at", "") > pr["merged_at"]]
+    return min(post_merge, key=lambda r: r.get("created_at", ""))["id"] if post_merge else None
+
+
+def pre_merge_preview_apply(pr: dict[str, Any], runs: list[dict[str, Any]],
+                            preview_ok: callable = lambda run: False) -> int | None:
+    """The oldest successful preview apply of this PR made BEFORE it merged, if
+    any. Such an apply leaves the versions in preview's ledger, so the fresh
+    post-merge rehearsal cannot prove them and the gate refuses the stale one:
+    only reissuing the migration under a new version clears it (#6574)."""
+    pre = [r for r in _preview_apply_hits(pr, runs, preview_ok)
+           if r.get("created_at", "") <= pr["merged_at"]]
+    return min(pre, key=lambda r: r.get("created_at", ""))["id"] if pre else None
+
+
+def stale_pre_merge_alert(pr: dict[str, Any], run_id: int) -> str:
+    return (f"::error title=ENGINEER ACTION REQUIRED: pre-merge preview apply::"
+            f"PR #{pr['number']} versions {','.join(pr['versions'])} were applied to preview by "
+            f"pre-merge run {run_id}, before the PR merged. That apply is never used as recovery "
+            f"evidence and production qualification refuses it permanently. Cure: REISSUE the "
+            f"migration(s) under new version(s) in a new PR and retire the originals. "
+            f"A fresh post-merge rehearsal is dispatched anyway.")
 
 
 def _time(text: str) -> datetime:
@@ -1111,7 +1139,13 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str, runs: list[dict[str, 
     # `runs` is the pre-dispatch recheck's fresh read (seconds old); re-reading
     # the whole history here cost another ~20 s per dispatch (#6493 Step 1c).
     source = [f"merged_preview_source_pr={pr['number']}"]
-    original = earlier_preview_apply(pr, runs if runs is not None else workflow_runs(repo), lambda run: preview_job_succeeded_in_any_attempt(repo, run))
+    runs = runs if runs is not None else workflow_runs(repo)
+    preview_ok = lambda run: preview_job_succeeded_in_any_attempt(repo, run)  # noqa: E731
+    original = earlier_preview_apply(pr, runs, preview_ok)
+    if not original:
+        stale = pre_merge_preview_apply(pr, runs, preview_ok)
+        if stale:
+            print(stale_pre_merge_alert(pr, stale))
     if original:
         # A retry after a failed production apply: preview already holds the
         # versions, so only the historical-recovery lane can re-prove them.
