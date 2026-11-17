@@ -240,6 +240,7 @@ def _search_poller(monkeypatch, rows, vectors=None):
         dsn="postgresql://x", stamp="stamp", worker_id="test-search",
         batch=32, lease_seconds=300, search_batch=64, search_lease_seconds=900,
         no_search_lane=False, idle_exit_polls=1, download_threads=2, limit=0,
+        no_text_lane=False, text_batch=64, text_lease_seconds=600, text_model_path=None,
     )
     p = poller.Poller(args, models=None)
     calls = []
@@ -324,6 +325,7 @@ def test_sg_rows_use_the_popsg_rpcs(monkeypatch):
         dsn="postgresql://x", stamp="stamp", worker_id="test-sg",
         batch=32, lease_seconds=300, search_batch=64, search_lease_seconds=900,
         no_search_lane=False, idle_exit_polls=1, download_threads=2, limit=0,
+        no_text_lane=False, text_batch=64, text_lease_seconds=600, text_model_path=None,
     )
     p = poller.Poller(args, models=None)
     calls = []
@@ -460,3 +462,144 @@ def test_service_returns_to_dam_between_sg_documents(monkeypatch):
     monkeypatch.setattr(p, "poll_search_lane", record_lane)
     assert p.run_service() == 0
     assert order == ["dam", "sg", "dam", "sg"]
+
+
+# ---------------------------------------------------------------------------
+# Text-meaning lane (popdam3 #1037 Step 4)
+# ---------------------------------------------------------------------------
+
+def _text_row(text="Product type: Frame\nItem description: framed art", model=None):
+    import uuid
+    return ("style_group", uuid.uuid4(), text, "a" * 64, model or config.TEXT_MODEL_STAMP,
+            uuid.uuid4(), None, 1)
+
+
+def _text_poller(monkeypatch):
+    import numpy as np
+    p, calls = _search_poller(monkeypatch, [])
+    embedded = []
+
+    def fake_embed(texts, batch_size=None):
+        embedded.extend(texts)
+        return np.asarray([[0.5] + [0.0] * (config.TEXT_DIM - 1) for _ in texts], dtype=np.float32)
+
+    monkeypatch.setattr(p.text_embedder, "embed", fake_embed)
+    monkeypatch.setattr(p, "serve_query_lane_between_saves", lambda: None)
+    return p, calls, embedded
+
+
+def _fake_service_clock(monkeypatch, p, ticks):
+    import itertools
+    it = iter([False] * ticks)
+    monkeypatch.setattr(p, "connect", lambda: None)
+    monkeypatch.setattr(p, "embed_enabled", lambda: next(it))
+    monkeypatch.setattr(poller.Heartbeat, "start", lambda self: None)
+    clock = itertools.count(1000, 10)
+    monkeypatch.setattr(poller.time, "time", lambda: next(clock))
+    monkeypatch.setattr(poller.time, "sleep", lambda s: None)
+
+
+def test_text_lane_claim_upsert_round_trip(monkeypatch):
+    p, calls, embedded = _text_poller(monkeypatch)
+    assert p.claim_text_docs() == []
+    claim = calls[0]
+    assert "public.claim_dam_search_text_embedding_documents(%s, %s, %s)" in claim[0]
+    assert claim[1] == (64, "test-search", 600)
+    row = _text_row()
+    p.process_text_batch([row])
+    sql, params = calls[1]
+    assert "public.upsert_dam_search_text_embedding(%s, %s, %s, %s, %s::extensions.halfvec, %s)" in sql
+    assert params[:4] == (row[0], row[1], row[3], row[5])
+    assert len(params[4][1:-1].split(",")) == config.TEXT_DIM
+    assert embedded == [row[2]]
+    assert p.text_done == 1 and p.text_failed == 0
+
+
+def test_text_lane_writes_model_stamp_exactly(monkeypatch):
+    p, calls, _ = _text_poller(monkeypatch)
+    p.process_text_batch([_text_row()])
+    assert calls[-1][1][5] == "Qwen/Qwen3-Embedding-0.6B@97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3"
+    assert config.TEXT_MODEL_STAMP == calls[-1][1][5]
+
+
+def test_text_lane_refuses_other_model_stamp(monkeypatch, capsys):
+    p, calls, embedded = _text_poller(monkeypatch)
+    row = _text_row(model="some/other-model@abc")
+    monkeypatch.setattr(p, "claim_text_docs", lambda: [row])
+    assert p.poll_text_lane() == "error"
+    assert embedded == [] and not any("upsert" in c[0] for c in calls)
+    assert "text_lane_error" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("text", ["", "   ", None])
+def test_text_lane_empty_input_is_permanent_skip(monkeypatch, text):
+    p, calls, embedded = _text_poller(monkeypatch)
+    p.process_text_batch([_text_row(text=text)])
+    marks = [c for c in calls if "mark_dam_search_text_embedding_error" in c[0]]
+    assert len(marks) == 1 and marks[0][1][5] == "permanent"
+    assert embedded == [] and p.text_failed == 1
+
+
+def test_text_lane_long_input_is_truncated_not_failed():
+    import numpy as np
+
+    class Batch(dict):
+        def to(self, _device):
+            return self
+
+    class Tok:
+        def __call__(self, texts, **kw):
+            assert kw["truncation"] is True and kw["max_length"] == config.TEXT_MAX_TOKENS
+            ids = torch.ones((len(texts), kw["max_length"]), dtype=torch.long)
+            return Batch(input_ids=ids, attention_mask=ids)
+
+    class Out:
+        def __init__(self, h):
+            self.last_hidden_state = h
+
+    class Model:
+        def __call__(self, input_ids, attention_mask):
+            return Out(torch.ones((input_ids.shape[0], input_ids.shape[1], config.TEXT_DIM)))
+
+    e = poller.TextEmbedder(device="cpu")
+    e.tokenizer, e.model = Tok(), Model()
+    vec = e.embed(["word " * 100_000, "\U0001F642"])
+    assert vec.shape == (2, config.TEXT_DIM)
+    assert np.allclose(np.linalg.norm(vec, axis=1), 1.0)
+
+
+def test_text_lane_missing_grant_cools_down_without_stopping_other_lanes(monkeypatch):
+    p, _calls, _ = _text_poller(monkeypatch)
+    order = []
+    _fake_service_clock(monkeypatch, p, 3)
+
+    def claim():
+        order.append("text")
+        raise RuntimeError("permission denied for function claim_dam_search_text_embedding_documents")
+
+    monkeypatch.setattr(p, "claim_text_docs", claim)
+    monkeypatch.setattr(p, "poll_search_lane", lambda claim=None, lane="dam": order.append(lane) or "empty")
+    assert p.run_service() == 0
+    assert order.count("text") == 1                 # one error, then 10-minute cooldown
+    assert order.count("dam") == 3                  # other lanes keep running
+    assert p.text_cooldown_until >= 1000 + config.TEXT_LANE_ERROR_COOLDOWN_S
+
+
+def test_no_text_lane_switch(monkeypatch):
+    p, _calls, _ = _text_poller(monkeypatch)
+    p.args.no_text_lane = True
+    _fake_service_clock(monkeypatch, p, 2)
+    monkeypatch.setattr(p, "poll_search_lane", lambda claim=None, lane="dam": "empty")
+    monkeypatch.setattr(p, "claim_text_docs", lambda: pytest.fail("text lane ran"))
+    assert p.run_service() == 0
+
+
+def test_text_model_unloads_when_idle(monkeypatch):
+    p, _calls, _ = _text_poller(monkeypatch)
+    state = {"unloaded": False}
+    p.text_embedder.model = object()
+    monkeypatch.setattr(p.text_embedder, "unload", lambda: state.update(unloaded=True))
+    p.text_embedder.last_used = poller.time.time() - config.TEXT_IDLE_UNLOAD_S - 1
+    monkeypatch.setattr(p, "claim_text_docs", lambda: [])
+    assert p.poll_text_lane() == "empty"
+    assert state["unloaded"]

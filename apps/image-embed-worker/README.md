@@ -11,7 +11,7 @@ Pull-based GPU worker for the image-similarity feature (issue #486,
 `plan_image_similarity_upload_search.md` Step 3) and the durable
 search-document embedding lane (issue #646 cure (d)). Runs on an owner GPU
 desktop (today: **edge-dev**, RTX 3060 Ti), connects out to the shared
-Supabase database **through the pooler** and drains three lanes — two job
+Supabase database **through the pooler** and drains four lanes — two job
 lanes from `dam.image_embed_jobs`:
 
 - **query lane** — uploaded pictures from the `image-similarity` edge
@@ -48,6 +48,8 @@ lanes from `dam.image_embed_jobs`:
 
 PopSG lane (#706): the same service embeds `style_guide_search_documents` thumbnails through the `*_sg_search_embedding*` RPCs, same model and no border-crop. Its claim is sized from the last round's seconds per document to fit a 20-second round, between 1 and 32 documents. Uploaded-image searches are served between saves, and DAM gets its turn between rounds; DAM keeps its configured batch size (64 by default). Batch and claim-error logs identify `lane: dam` or `lane: sg`. `--no-search-lane` disables it too.
 
+Text-meaning lane (#1037 Step 4): embeds each search document's catalog text (descriptions, licensor, property, characters, folders — built server-side by `dam.search_text_embedding_input`) into `dam.search_text_vectors` with `Qwen/Qwen3-Embedding-0.6B` at revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`: fp16 on the GPU, left padding, last-token pooling, L2-normalized, `halfvec(1024)`, document side with **no** instruction prefix. Claim batch 64 / lease 600 s / poll 2 s while work exists, 30 s when idle (`TEXT_*` in `config.py`); style groups claim first, server-side. RPCs: `claim_dam_search_text_embedding_documents`, `upsert_dam_search_text_embedding`, `mark_dam_search_text_embedding_error`; progress: `select * from public.get_dam_search_text_embedding_status()` (as postgres). The model stamp written is the `model` value the claim returns (`admin_config.SEARCH_TEXT_EMBEDDING_MODEL`); if it differs from `config.TEXT_MODEL_STAMP` the lane refuses to embed, logs `text_lane_error` and cools down. Inputs longer than 512 tokens are truncated, never failed; empty inputs are marked permanent. The model loads on first work (~1.3 GB of GPU memory) and is released after 10 idle minutes. A missing grant or RPC logs one `text_lane_error`, cools down 10 minutes and retries — the other lanes keep working. `--no-text-lane` disables it; `--text-model-path` points at a local snapshot folder (edge-dev passes the pinned snapshot under `D:\models\huggingface\hub` so the service never downloads). Measured on edge-dev: about 80 documents per second of GPU time; the database round trip per save sets the real rate (see #1037).
+
 Heartbeat: `dam.image_embed_worker_heartbeat(worker_id)` every **30 s**;
 `public.image_embed_status().workers_fresh` reports the fleet available
 while at least one heartbeat is < 90 s old.
@@ -69,7 +71,7 @@ GPU-proven backfill script.
 | `image_embed_poller.py` | The service (ported reference + query lane) |
 | `config.py` | Poller-side tunable defaults (plan Muse 18) |
 | `requirements.txt` | Pinned to the proven edge-dev environment |
-| `tests/test_image_embed_poller.py` | Border-crop + upload-reject tests (no GPU needed) |
+| `tests/test_image_embed_poller.py` | Border-crop, upload-reject, search and text-lane tests (no GPU needed) |
 
 ## Connection (pooler TLS, TCP 5432 — IPv4)
 
@@ -162,7 +164,9 @@ Proven environment: Python 3.13 + `.venv` in `D:\ai\siglip2-embed`.
    .venv\Scripts\python.exe image_embed_poller.py ^
      --dsn-file D:\ai\popdam-image-embed-worker\worker.dsn ^
      --stamp-file D:\ai\popdam-image-embed-worker\worker.stamp ^
-     --worker-id edge-dev-rtx3060ti >> service.log 2>&1
+     --worker-id edge-dev-rtx3060ti ^
+     --text-model-path D:\models\huggingface\hub\models--Qwen--Qwen3-Embedding-0.6B\snapshots\97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3 ^
+     >> service.log 2>&1
    ```
 
 6. Start it: `schtasks /Run /TN PopDAM-ImageEmbedWorker`, then verify the
@@ -181,7 +185,7 @@ Proven environment: Python 3.13 + `.venv` in `D:\ai\siglip2-embed`.
 ```
 
 `--once-drain` drains the search-document lane first (style-group docs
-first, server-side claim order), then the index lane; it exits after 6
+first, server-side claim order), then the text-meaning lane, then the index lane; it exits after 6
 consecutive empty polls on both and never touches the query lane (uploads
 need the always-on service, not a drain).
 

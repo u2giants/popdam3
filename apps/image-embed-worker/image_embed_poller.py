@@ -226,6 +226,61 @@ def embed_siglip_only(images, models, batch_size=config.SEARCH_INFERENCE_BATCH):
     return np.asarray(out, dtype=np.float32)
 
 
+class TextEmbedder:
+    """Lazily loaded Qwen3-Embedding document encoder (popdam3 #1037 Step 4).
+
+    Document side per the model card: no instruction prefix, left padding,
+    last-token pooling, L2 normalize. Loaded on first use and released after
+    TEXT_IDLE_UNLOAD_S without work so the picture lanes keep their GPU room.
+    """
+
+    def __init__(self, model_path=None, device=None):
+        self.model_path = model_path
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.tokenizer = None
+        self.model = None
+        self.last_used = 0.0
+
+    @property
+    def loaded(self) -> bool:
+        return self.model is not None
+
+    def load(self):
+        if self.loaded:
+            return
+        from transformers import AutoTokenizer
+        src = self.model_path or config.TEXT_MODEL_ID
+        kw = {} if self.model_path else {"revision": config.TEXT_MODEL_REVISION}
+        self.tokenizer = AutoTokenizer.from_pretrained(src, padding_side="left", **kw)
+        dtype = torch.float16 if self.device == "cuda" else torch.float32
+        self.model = AutoModel.from_pretrained(src, torch_dtype=dtype, **kw).to(self.device).eval()
+        log(event="text_model_loaded", model=config.TEXT_MODEL_STAMP, device=self.device)
+
+    def unload(self):
+        if not self.loaded:
+            return
+        self.model = self.tokenizer = None
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        log(event="text_model_unloaded")
+
+    @torch.no_grad()
+    def embed(self, texts, batch_size=config.TEXT_INFERENCE_BATCH):
+        """texts -> numpy [n, TEXT_DIM] float32, L2-normalized."""
+        self.load()
+        self.last_used = time.time()
+        out = []
+        for i in range(0, len(texts), batch_size):
+            batch = self.tokenizer(texts[i : i + batch_size], padding=True, truncation=True,
+                                   max_length=config.TEXT_MAX_TOKENS, return_tensors="pt").to(self.device)
+            hidden = self.model(**batch).last_hidden_state
+            feats = torch.nn.functional.normalize(hidden[:, -1].float(), p=2, dim=-1)
+            out.extend(feats.cpu().tolist())
+        return np.asarray(out, dtype=np.float32)
+
+
 class Heartbeat(threading.Thread):
     def __init__(self, conn_provider, worker_id, interval=config.HEARTBEAT_INTERVAL_S):
         super().__init__(daemon=True)
@@ -293,6 +348,9 @@ class Poller:
         self.search_done = self.search_failed = self.search_stale = 0
         self.search_cooldown_until = 0.0
         self.sg_batch = config.SG_SEARCH_CLAIM_BATCH
+        self.text_done = self.text_failed = self.text_stale = 0
+        self.text_cooldown_until = 0.0
+        self.text_embedder = TextEmbedder(getattr(args, "text_model_path", None))
         self.last_query_poll = 0.0
         self.t0 = time.time()
         self.pool = ThreadPoolExecutor(max_workers=args.download_threads)
@@ -658,6 +716,106 @@ class Poller:
             return "claimed"
         return "empty"
 
+    # -- text-meaning lane (dam.search_text_vectors, popdam3 #1037 Step 4) -------
+    # rows: (document_type, entity_id, input_text, input_sha256, model,
+    #        lease_token, lease_expires_at, attempt)
+    def claim_text_docs(self):
+        def _q(c):
+            with c.cursor() as cur:
+                cur.execute(
+                    "select document_type, entity_id, input_text, input_sha256, model,"
+                    " lease_token, lease_expires_at, attempt"
+                    " from public.claim_dam_search_text_embedding_documents(%s, %s, %s)",
+                    (self.args.text_batch, self.args.worker_id, self.args.text_lease_seconds),
+                )
+                return cur.fetchall()
+        return self._run(_q)
+
+    def text_mark_error(self, row, message: str, category: str) -> None:
+        try:
+            def _q(c):
+                with c.cursor() as cur:
+                    cur.execute(
+                        "select public.mark_dam_search_text_embedding_error(%s, %s, %s, %s, %s, %s)",
+                        (row[0], row[1], row[3], row[5], message[:500], category),
+                    )
+                    return cur.fetchone()[0]
+            self._run(_q)
+        except Exception as exc:
+            log(event="text_mark_error_failed", entity=str(row[1]), error=str(exc)[:160])
+
+    def text_upsert(self, row, vector) -> bool:
+        def _q(c):
+            with c.cursor() as cur:
+                cur.execute(
+                    "select public.upsert_dam_search_text_embedding("
+                    "%s, %s, %s, %s, %s::extensions.halfvec, %s)",
+                    (row[0], row[1], row[3], row[5], halfvec_text(vector), row[4]),
+                )
+                return bool(cur.fetchone()[0])
+        return self._run(_q)
+
+    def process_text_batch(self, rows) -> None:
+        """Raises RuntimeError on a model-stamp mismatch (lane must cool down)."""
+        wrong = {r[4] for r in rows if r[4] != config.TEXT_MODEL_STAMP}
+        if wrong:
+            # Never write a vector from one model under another model's stamp.
+            raise RuntimeError(f"claimed model {sorted(map(str, wrong))} != loaded {config.TEXT_MODEL_STAMP}")
+        ready = []
+        for row in rows:
+            text = (row[2] or "").strip()
+            if not text:
+                self.text_failed += 1
+                self.text_mark_error(row, "empty embedding input", "permanent")
+                continue
+            ready.append((row, text))
+        if not ready:
+            return
+        try:
+            vectors = self.text_embedder.embed([t for _r, t in ready])
+        except Exception as exc:
+            for row, _t in ready:
+                self.text_failed += 1
+                self.text_mark_error(row, f"embed batch: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+            return
+        for idx, (row, _t) in enumerate(ready):
+            vec = vectors[idx]
+            if len(vec) != config.TEXT_DIM or not np.isfinite(vec).all():
+                self.text_failed += 1
+                self.text_mark_error(row, f"bad text vector dim {len(vec)}", "permanent")
+                continue
+            try:
+                if self.text_upsert(row, vec):
+                    self.text_done += 1
+                else:
+                    self.text_stale += 1  # lease lost or input changed: re-queued by the DB
+            except Exception as exc:
+                self.text_failed += 1
+                self.text_mark_error(row, f"upsert: {type(exc).__name__}: {str(exc)[:200]}", "transient")
+            self.serve_query_lane_between_saves()
+
+    def poll_text_lane(self) -> str:
+        """One text-lane cycle: 'claimed', 'empty' or 'error' (caller cools down)."""
+        try:
+            rows = self.claim_text_docs()
+        except Exception as exc:
+            log(event="text_lane_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
+            return "error"
+        if not rows:
+            if self.text_embedder.loaded and \
+                    time.time() - self.text_embedder.last_used >= config.TEXT_IDLE_UNLOAD_S:
+                self.text_embedder.unload()
+            return "empty"
+        t = time.time()
+        try:
+            self.process_text_batch(rows)
+        except RuntimeError as exc:
+            log(event="text_lane_error", error=str(exc)[:300])
+            return "error"
+        log(event="text_batch", claimed=len(rows), done=self.text_done, failed=self.text_failed,
+            stale=self.text_stale, docs_per_s=round(len(rows) / max(time.time() - t, 1e-6), 2))
+        return "claimed"
+
     # -- main loops ---------------------------------------------------------------
     def run_service(self) -> int:
         """Forever mode: query lane every 1 s, index lane every 5 s, search-doc
@@ -669,8 +827,10 @@ class Poller:
         self.hb = Heartbeat(self.conn_provider, self.args.worker_id)
         self.hb.start()
         log(event="service_start", worker=self.args.worker_id, stamp=self.args.stamp,
-            search_lane=not self.args.no_search_lane)
+            search_lane=not self.args.no_search_lane, text_lane=not self.args.no_text_lane)
         last_index = 0.0
+        last_text = 0.0
+        text_wait = config.TEXT_POLL_S
         last_search = 0.0
         last_sg = 0.0
         sg_cooldown_until = 0.0
@@ -703,6 +863,13 @@ class Poller:
                         sg_cooldown_until = time.time() + config.SEARCH_LANE_ERROR_COOLDOWN_S
                     elif status == "claimed":
                         self.tune_sg_batch(time.time() - last_sg, claimed_before)
+                if not self.args.no_text_lane and time.time() >= self.text_cooldown_until \
+                        and time.time() - last_text >= text_wait:
+                    last_text = time.time()
+                    status = self.poll_text_lane()
+                    if status == "error":
+                        self.text_cooldown_until = time.time() + config.TEXT_LANE_ERROR_COOLDOWN_S
+                    text_wait = config.TEXT_POLL_S if status == "claimed" else config.TEXT_IDLE_POLL_S
             except StopIteration:
                 break
             except Exception as exc:
@@ -733,6 +900,16 @@ class Poller:
                     search_idle = 0 if status == "claimed" else search_idle + 1
                     if status == "empty":
                         time.sleep(config.SEARCH_POLL_S)
+            if not self.args.no_text_lane:
+                text_idle = 0
+                while text_idle < self.args.idle_exit_polls:
+                    status = self.poll_text_lane()
+                    if status == "error":
+                        log(event="text_lane_unavailable", note="moving to the index lane")
+                        break
+                    text_idle = 0 if status == "claimed" else text_idle + 1
+                    if status == "empty":
+                        time.sleep(config.TEXT_POLL_S)
             while True:
                 jobs = self.claim_index_jobs()
                 if not jobs:
@@ -777,6 +954,13 @@ def main() -> int:
                     help="search-document lease seconds (DB clamps 30..3600)")
     ap.add_argument("--no-search-lane", action="store_true",
                     help="disable the dam_search_documents lane (image-similarity lanes only)")
+    ap.add_argument("--text-batch", type=int, default=config.TEXT_CLAIM_BATCH,
+                    help="text-meaning documents claimed per cycle (DB clamps to 500)")
+    ap.add_argument("--text-lease-seconds", type=int, default=config.TEXT_LEASE_S)
+    ap.add_argument("--text-model-path", default=None,
+                    help="local snapshot folder of the text model (default: HF cache at the pinned revision)")
+    ap.add_argument("--no-text-lane", action="store_true",
+                    help="disable the text-meaning lane (dam.search_text_vectors)")
     ap.add_argument("--idle-exit-polls", type=int, default=config.IDLE_EXIT_POLLS, help="exit after N consecutive empty polls (drain mode)")
     ap.add_argument("--download-threads", type=int, default=config.DOWNLOAD_THREADS)
     ap.add_argument("--selftest", action="store_true")
