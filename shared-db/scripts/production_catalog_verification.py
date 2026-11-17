@@ -4218,6 +4218,38 @@ def assert_privileges(
     return rows, failures
 
 
+def reviewed_no_durable_target_versions(
+    repo: Path, migrations: dict[str, Path], allowlist: list[str]
+) -> list[str]:
+    """Allowlisted versions whose sidecar records that nothing durable exists.
+
+    Issue #6571. A migration that names its objects only through
+    `execute format(...)` gives the lexer nothing to read. When its sidecar is
+    hash-bound, has NO checks, and every marker review carries disposition
+    `no_durable_target`, the reviewed claim is that no durable catalog object
+    results. Call only AFTER `load_behavior_sidecars` validated these files
+    (hash, strict keys, marker coverage); anything else is excluded here, so
+    the caller stays fail-closed.
+    """
+    reviewed: list[str] = []
+    for version in allowlist:
+        path = repo / BEHAVIOR_SIDECAR_DIR / f"{version}.json"
+        migration = migrations.get(version)
+        if not path.exists() or migration is None:
+            continue
+        item = json.loads(path.read_text(encoding="utf-8"))
+        reviews = item.get("marker_reviews")
+        if item.get("checks") or not isinstance(reviews, list) or not reviews:
+            continue
+        if any(r.get("disposition") != "no_durable_target" for r in reviews):
+            continue
+        sql = migration.read_bytes().replace(b"\r\n", b"\n").decode("utf-8")
+        if not dynamic_execution_marker_lines(sql):
+            continue
+        reviewed.append(version)
+    return reviewed
+
+
 def render_report(
     allowlist: list[str],
     targets: Targets,
@@ -4228,6 +4260,7 @@ def render_report(
     behavior_checks: list[dict] | None = None,
     behavior_results: object = None,
     behavior_error: str | None = None,
+    reviewed_no_durable: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Render the Markdown artifact and return the HARD FAILURES it found.
 
@@ -4463,6 +4496,26 @@ def render_report(
         # artifact, and only after every statement in the file was checked to be
         # data. It is never a silent pass and never a flag on this script.
         pass
+    elif (
+        targets.is_empty()
+        and reviewed_no_durable
+        and set(allowlist)
+        <= set(reviewed_no_durable)
+        | ({declaration["version"]} if declaration and declaration["accepted"] else set())
+    ):
+        # ISSUE #6571. Every allowlisted file is either a checked no-op or has a
+        # hash-bound sidecar whose reviewed markers all say no durable target.
+        add("## Reviewed dynamic SQL with no durable target")
+        add("")
+        add(
+            "- Migration(s) "
+            + ", ".join(f"`{v}`" for v in reviewed_no_durable)
+            + " name objects only through dynamic SQL, and each has a "
+            "hash-bound sidecar whose every marker review records "
+            "`no_durable_target`. No catalog object is expected; the ledger "
+            "remains the record of what applied."
+        )
+        add("")
     elif targets.is_empty() and declaration is None and targets.pure_data_ok:
         # ISSUE #5932. A genuinely pure-data migration -- only DML (INSERT/
         # UPDATE/DELETE/COPY and the statements around them, including `do`
@@ -4850,6 +4903,9 @@ def verify(
     migrations = local_migrations(repo)
     targets = derive_targets(migrations, allowlist)
     behavior_checks = load_behavior_sidecars(repo, migrations, allowlist)
+    reviewed_no_durable = reviewed_no_durable_target_versions(
+        repo, migrations, allowlist
+    )
 
     errors: list[str] = []
     catalog: object = None
@@ -4967,6 +5023,7 @@ def verify(
         behavior_checks=behavior_checks,
         behavior_results=behavior_results,
         behavior_error=behavior_error,
+        reviewed_no_durable=reviewed_no_durable,
     )
     (output_dir / "production-catalog-verification.md").write_text(
         markdown, encoding="utf-8"
