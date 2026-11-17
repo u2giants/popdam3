@@ -7,6 +7,8 @@
 -- derived-from: none
 
 set check_function_bodies = off;
+-- Load pg_trgm in this session so functions declaring SET pg_trgm.word_similarity_threshold can be created.
+select extensions.similarity('a', 'a');
 
 alter table dam.asset add column if not exists first_seen_at timestamp with time zone default now();
 alter table dam.asset add column if not exists last_seen_at timestamp with time zone default now();
@@ -426,7 +428,7 @@ $$;
 -- FUNCTION dam.orderlist_product_facts(uuid, text)
 CREATE OR REPLACE FUNCTION dam.orderlist_product_facts(p_item_id uuid, p_catalog text) RETURNS TABLE(facts jsonb)
     LANGUAGE sql STABLE ROWS 1
-    BEGIN ATOMIC
+    AS $orderlist_facts$
  WITH exact_links AS MATERIALIZED (
           SELECT b.id AS bridge_id,
              b.style_tracker_row_id AS tracker_id
@@ -527,7 +529,7 @@ CREATE OR REPLACE FUNCTION dam.orderlist_product_facts(p_item_id uuid, p_catalog
              ELSE 'master_data'::text
          END, 'bridge_id', summary.bridge_id, 'tracker_id', summary.tracker_id, 'tracker_type', summary.tracker_type))
     FROM summary;
-END;
+$orderlist_facts$;
 
 -- FUNCTION dam.orderlist_sales_order_received_date(text)
 CREATE OR REPLACE FUNCTION dam.orderlist_sales_order_received_date(p_coldlion_source_id text) RETURNS date
