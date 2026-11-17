@@ -26,6 +26,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=120s CMD curl -fsS http:/
 
 # Two bounded workers so two concurrent embed requests (search queries from
 # different users) run forward passes in parallel instead of queueing on one
-# process (#804); two torch threads each keeps total CPU use at four cores.
-ENV OMP_NUM_THREADS=2 MKL_NUM_THREADS=2
+# process (#804). Four torch threads each: the Qwen3 text-meaning model (#1037)
+# runs beside SigLIP2 per request; 4 threads cut its p95 from ~690 to ~500 ms
+# on the 8-core host (2 threads each kept total CPU at four cores before).
+ENV OMP_NUM_THREADS=4 MKL_NUM_THREADS=4
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "2"]
