@@ -222,6 +222,15 @@ PR 6021 made the lookups run once per sheet.
 Fixture: `src/test/fixtures/burlington-buy-sheet-2026-10-20.xlsx`; tests:
 `src/test/buy-sheet-import.test.ts`.
 
+**Clear my last HFC upload — sandbox only (owner correction 2026-11-16).**
+The Burlington menu's third item (`src/components/orders/ClearBuySheetDialog.tsx`,
+`public.clear_dam_buy_sheet_import`, shared-db #6476/#6520) undoes the signed-in
+uploader's most recent import. It exists only on the sandbox build
+(`IS_NON_PRODUCTION_DATABASE`, PR #1033): the item and dialog are absent from
+live production, and the database function refuses on production unless
+`admin_config.SANDBOX_ENABLED_TOOLS` lists it (a preview-only row; re-add it if
+the preview is reset). Live proof: `verification/1033-sandbox-only-hfc-clear/`.
+
 
 ### Burlington Bamboo Rose quote sheet (2026-11-10)
 
