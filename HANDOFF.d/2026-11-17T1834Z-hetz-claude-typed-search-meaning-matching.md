@@ -46,8 +46,8 @@ Plan and this handoff only. Every plan step is open.
 
 ## 5. What was not verified
 
-The exact Qwen model on `edge-dev` (the session could not inspect that PC): plan
-Step 0. Picture scores for the reported search were inferred by elimination
+The Qwen model's revision, output size and fit beside the picture worker: plan
+Step 0 (model `Qwen/Qwen3-Embedding-0.6B` confirmed present on `edge-dev`). Picture scores for the reported search were inferred by elimination
 (the function has two result sources and the word source returns five known
 products), not measured with a live query vector.
 
