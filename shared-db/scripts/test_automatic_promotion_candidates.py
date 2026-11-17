@@ -2213,6 +2213,55 @@ class PrefetchHolds(unittest.TestCase):
             self.assertEqual(REAL_PREFETCH_HOLDS("o/r", [])(9), ["fresh"])
 
 
+class PermanentRefusalTests(unittest.TestCase):
+    """#6574 Fix B: a permanent producer-mismatch refusal parks on the first run."""
+    RUN = {"id": 5, "run_attempt": 1}
+    PR = {"number": 6433, "merged_at": "2026-11-16T04:57:00Z", "versions": ["20261116013153"]}
+    FAIL = {"display_title": "DB production apply PR6433 20261116013153", "status": "completed",
+            "conclusion": "failure", "created_at": "2026-11-17T13:10:00Z"}
+    DIED = ("##[error]ENGINEER ACTION REQUIRED: automatic qualification found no evidence route the "
+            "production gate accepts: RiskGateError: the production gate would refuse this preview evidence "
+            "(scripts/production_business_risk_gate.py:1562: produced evidence with a different "
+            "scripts/production_migration_guard.py than the merge commit), and the migration is high-risk "
+            "to live data so the ephemeral CI route cannot substitute. Nothing was dispatched.\n")
+
+    def check(self, log=None, raises=None):
+        jobs = [{"id": 11, "steps": [{"name": "Qualify", "conclusion": "failure"}]}]
+        def fake_run(cmd, **kw):
+            if raises:
+                raise raises
+            class R:
+                stdout = log
+            return R()
+        with mock.patch.object(m, "attempt_jobs", return_value=[jobs]), \
+                mock.patch.object(m.subprocess, "run", side_effect=fake_run):
+            return m.permanent_refusal("o/r", self.RUN)
+
+    def test_permanent_refusal_is_recognised(self):
+        self.assertTrue(self.check(self.DIED))
+
+    def test_permanent_refusal_parks_on_first_run(self):
+        action, got, reason = m.decide([self.PR], [self.FAIL], lambda n: [],
+                                       main_sha="new", permanent=lambda run: True)
+        self.assertEqual(action, "idle")
+        self.assertIn("permanent refusal", reason)
+
+    def test_permanent_refusal_unreadable_log_counts_as_ordinary_attempt(self):
+        self.assertFalse(self.check(raises=subprocess.CalledProcessError(1, "gh")))
+        action, got, _ = m.decide([self.PR], [self.FAIL], lambda n: [],
+                                  main_sha="new", permanent=lambda run: False)
+        self.assertEqual((action, got["number"]), ("dispatch", 6433))
+
+    def test_stale_refusal_is_not_permanent(self):
+        self.assertFalse(self.check("##[error]REFUSED: has moved past the dispatched commit\n"))
+
+    def test_ordinary_failure_still_needs_three(self):
+        self.assertEqual(m.decide([self.PR], [self.FAIL] * 2, lambda n: [], main_sha="new",
+                                  permanent=lambda run: False)[0], "dispatch")
+        self.assertEqual(m.decide([self.PR], [self.FAIL] * 3, lambda n: [], main_sha="new",
+                                  permanent=lambda run: False)[0], "idle")
+
+
 if __name__ == "__main__":
     unittest.main()
 

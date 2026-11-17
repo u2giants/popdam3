@@ -541,6 +541,14 @@ STALE_MAIN_RE = re.compile(
     r"|a promotion merge freeze is already set"
     r"|##\[error\]ENGINEER ACTION REQUIRED: main moved after preview")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# #6574: a refusal that no retry can cure. The preview evidence was made by a
+# different apply-shaping producer than the gate pins to, and the change is
+# high-risk, so no evidence route exists. Retrying burns the lane (PR #6433:
+# 7 runs, 2026-11-17 13:07-14:07 UTC).
+PERMANENT_REFUSAL_RE = re.compile(
+    r"ENGINEER ACTION REQUIRED: automatic qualification found no evidence route"
+    r".*produced evidence with (?:a different \S+ than|\S+ (?:present|absent) where)"
+    r".*high-risk to live data")
 
 
 def stale_main_refusal_only(repo: str, run: dict[str, Any]) -> bool:
@@ -572,6 +580,22 @@ def stale_main_refusal_only(repo: str, run: dict[str, Any]) -> bool:
     except (subprocess.CalledProcessError, ValueError, OSError):
         return False
     return bool(STALE_MAIN_RE.search(ANSI_RE.sub("", logs)))
+
+
+def permanent_refusal(repo: str, run: dict[str, Any]) -> bool:
+    """True when a failed job of this run logged a permanent producer-mismatch
+    refusal on a high-risk change (#6574). Any read error returns False, so the
+    run counts as an ordinary attempt (fail safe)."""
+    try:
+        refused_jobs = [job for jobs in attempt_jobs(repo, run) for job in jobs
+                        if any(s.get("conclusion") == "failure" for s in job.get("steps") or [])]
+        logs = "".join(subprocess.run(
+            ["gh", "run", "view", "--repo", repo, "--job", str(job["id"]), "--log-failed"],
+            check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace").stdout
+            for job in refused_jobs)
+    except (subprocess.CalledProcessError, ValueError, OSError, KeyError, TypeError):
+        return False
+    return any(PERMANENT_REFUSAL_RE.search(line) for line in ANSI_RE.sub("", logs).splitlines())
 
 
 def our_workflow(run: dict[str, Any]) -> bool:
@@ -618,7 +642,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
            refused: callable = lambda run: set(),
            stale: callable = lambda run: False,
            refunded: callable = lambda run: False,
-           live: set[str] | None = None) -> tuple[str, dict[str, Any] | None, str]:
+           live: set[str] | None = None,
+           permanent: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
@@ -735,7 +760,13 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
                     and r.get("created_at", "") > pr["merged_at"]
                     and r.get("conclusion") != "success"]
         attempts, refunds, refund_parked, stale_streak = 0, 0, False, 0
+        permanent_hit = False
         for failure in sorted(failures, key=lambda r: r.get("created_at", "")):
+            # #6574: a permanent refusal cannot be cured by a retry; park on this
+            # first run instead of spending the remaining attempts.
+            if permanent(failure):
+                attempts, permanent_hit = MAX_ATTEMPTS, True
+                break
             # #5937: a main-moved refusal never touched a database and is caused
             # by other people's merges -- it counts neither attempt nor refund.
             if stale(failure):
@@ -756,7 +787,7 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             # PR, with a loud alert in main(), so one dead PR cannot park every
             # later promotion while still refusing to retry it (#5532).
             passed_over += 1
-            entry = {**pr, "findings": [], "exhausted": attempts, "refunds": refunds}
+            entry = {**pr, "findings": [], "exhausted": attempts, "refunds": refunds, "permanent": permanent_hit}
             out_of_attempts.append(entry)
             if skipped is not None:
                 skipped.append(entry)
@@ -768,6 +799,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
         if out_of_attempts:
             names = ", ".join(
+                f"PR #{e['number']} (permanent refusal: producer mismatch on a high-risk change -- reissue under a new version)"
+                if e.get("permanent") else
                 f"PR #{e['number']} ({e['exhausted']} attempts"
                 + (f", {e['refunds']} refunds used" if e.get("refunds") else "") + ")"
                 for e in out_of_attempts)
@@ -991,6 +1024,7 @@ def main(now: datetime | None = None) -> int:
                                 lambda run: applied_in_any_attempt(repo, run), main_sha,
                                 skipped, lambda run: refused_as_applied(repo, run),
                                 stale=lambda run: stale_main_refusal_only(repo, run),
+                                permanent=lambda run: permanent_refusal(repo, run),
                                 refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
                                 live=live)
     for entry in skipped:
@@ -1023,6 +1057,7 @@ def main(now: datetime | None = None) -> int:
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
                                     stale=lambda run: stale_main_refusal_only(repo, run),
+                                    permanent=lambda run: permanent_refusal(repo, run),
                                     refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
                                     live=live)
         phase("fresh recheck done")
@@ -1060,6 +1095,7 @@ def main(now: datetime | None = None) -> int:
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
                                     stale=lambda run: stale_main_refusal_only(repo, run),
+                                    permanent=lambda run: permanent_refusal(repo, run),
                                     refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
                                     live=live)
         print(f"{action}: {reason} (after passing over claimed PR(s) "
