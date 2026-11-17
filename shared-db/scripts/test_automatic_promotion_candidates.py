@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
@@ -1987,6 +1988,35 @@ class DispatchClaims(unittest.TestCase):
             self.assertFalse(m.claim_dispatch("o/r", pr, [self.arun("in_progress")], None, self.now))
         self.assertIn("already claimed", out.getvalue())
 
+    def test_failed_production_after_a_passed_preview_reclaims(self):
+        # 2026-11-17, PR #6370: preview passed, production apply failed, and the
+        # claim stayed live -- the queue parked behind it for 97 minutes.
+        preview = self.arun("completed", "success")
+        prod = self.arun("completed", "failure", title="DB production apply PR7 20261116100000", at="2026-11-16T19:06:00Z")
+        self.assertTrue(m.claim_is_stale(self.claim, [prod, preview], set(), self.now))
+
+    def test_recovery_success_after_a_failure_keeps_the_claim(self):
+        failed = self.arun("completed", "failure")
+        retry = self.arun("completed", "success", at="2026-11-16T19:10:00Z")
+        self.assertFalse(m.claim_is_stale(self.claim, [failed, retry], set(), self.now))
+
+    def test_a_claimed_pr_is_passed_over_and_the_next_dispatches(self):
+        first = {"number": 7, "merged_at": "2026-11-16T10:00:00Z", "versions": ["20261116100000"]}
+        second = {"number": 8, "merged_at": "2026-11-16T11:00:00Z", "versions": ["20261116110000"]}
+        sent = []
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [first, second]), \
+             mock.patch.object(m, "workflow_runs", lambda repo: []), \
+             mock.patch.object(m, "is_held", lambda repo, n: []), \
+             mock.patch.object(m, "prune_claims", lambda *a: None), \
+             mock.patch.object(m, "claim_dispatch", lambda repo, pr, *a: pr["number"] != 7), \
+             mock.patch.object(m, "dispatch", lambda repo, pr, sha: sent.append(pr["number"])), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(m.main(self.now), 0)
+        self.assertEqual(sent, [8])
+        self.assertIn("after passing over claimed PR(s) #7", out.getvalue())
+
     def test_dispatch_error_releases_the_claim(self):
         pr = {"number": 7, "merged_at": "2026-11-16T10:00:00Z", "versions": ["20261116100000"]}
         released = []
@@ -2003,6 +2033,100 @@ class DispatchClaims(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 m.main(self.now)
         self.assertEqual(released, [7])
+
+
+class LaneGuardWaitsForAFinishingRun(unittest.TestCase):
+    """#6493 Step 4: the completion nudge arrives while its own run is still
+    closing. The guard must wait for that run instead of dropping the nudge,
+    and must still skip at once while a run is really applying. Runs the
+    workflow step's own shell against a scripted `gh`."""
+
+    ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    STUB = """#!/usr/bin/env bash
+d="$GH_STUB_DIR"
+if [ "$2" = list ]; then
+  n=$(cat "$d/n" 2>/dev/null || echo 0); echo $((n + 1)) > "$d/n"
+  f="$d/list.$n"; [ -f "$f" ] || f="$d/list.last"
+  [ -f "$f" ] || exit 1
+  cat "$f"
+else
+  cat "$d/jobs.$3"
+fi
+"""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(cls.ROOT, ".github", "workflows", "automatic-production-trigger.yml"), encoding="utf-8") as fh:
+            cls.trigger = fh.read()
+        with open(os.path.join(cls.ROOT, ".github", "workflows", "shared-supabase-migrations.yml"), encoding="utf-8") as fh:
+            cls.migrations = fh.read()
+        block = cls.trigger.split("id: lane_guard\n        run: |\n", 1)[1]
+        lines = []
+        for line in block.split("\n"):
+            if line.strip() and not line.startswith(" " * 10):
+                break
+            lines.append(line[10:])
+        cls.script = "\n".join(lines)
+
+    def guard(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            bindir = os.path.join(tmp, "bin")
+            os.mkdir(bindir)
+            stub = os.path.join(bindir, "gh")
+            with open(stub, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(self.STUB)
+            os.chmod(stub, 0o755)
+            for name, value in files.items():
+                with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(value))
+            output = os.path.join(tmp, "out")
+            open(output, "w").close()
+            env = {**os.environ, "PATH": bindir + os.pathsep + os.environ["PATH"], "GH_STUB_DIR": tmp,
+                   "GITHUB_REPOSITORY": "o/r", "GITHUB_OUTPUT": output, "LANE_GUARD_POLL_SECONDS": "0"}
+            done = subprocess.run(["bash", "-e", "-c", self.script], env=env, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True)
+            with open(output, encoding="utf-8") as fh:
+                return done.returncode, "skipped=true" in fh.read(), done.stdout
+
+    BUSY = [{"databaseId": 5, "status": "in_progress"}, {"databaseId": 4, "status": "completed"}]
+    DONE = [{"databaseId": 5, "status": "completed"}]
+    NUDGING = {"jobs": [{"name": "Production apply (automatic evidence gates)", "status": "completed"},
+                        {"name": "Nudge the production queue", "status": "in_progress"}]}
+    APPLYING = {"jobs": [{"name": "Production apply (automatic evidence gates)", "status": "in_progress"}]}
+
+    def test_idle_lane_proceeds(self):
+        self.assertEqual(self.guard({"list.last": self.DONE})[:2], (0, False))
+
+    def test_a_run_still_applying_skips_at_once(self):
+        code, skipped, out = self.guard({"list.last": self.BUSY, "jobs.5": self.APPLYING})
+        self.assertEqual((code, skipped), (0, True))
+        self.assertNotIn("wait:", out)
+
+    def test_a_finishing_run_is_waited_for_then_the_selector_runs(self):
+        code, skipped, out = self.guard({"list.0": self.BUSY, "list.1": self.BUSY, "list.last": self.DONE,
+                                         "jobs.5": self.NUDGING})
+        self.assertEqual((code, skipped), (0, False), out)
+        self.assertIn("wait: migration run(s) 5 finishing", out)
+
+    def test_a_finishing_run_beside_an_applying_run_skips(self):
+        both = [{"databaseId": 5, "status": "in_progress"}, {"databaseId": 6, "status": "queued"}]
+        code, skipped, _ = self.guard({"list.last": both, "jobs.5": self.NUDGING, "jobs.6": {"jobs": []}})
+        self.assertEqual((code, skipped), (0, True))
+
+    def test_a_run_that_never_completes_skips_after_the_bounded_wait(self):
+        code, skipped, out = self.guard({"list.last": self.BUSY, "jobs.5": self.NUDGING})
+        self.assertEqual((code, skipped), (0, True))
+        self.assertEqual(out.count("wait:"), 36)
+
+    def test_a_failed_lane_query_fails_open(self):
+        code, skipped, out = self.guard({})
+        self.assertEqual((code, skipped), (0, False))
+        self.assertIn("fail-open", out)
+
+    def test_the_guard_names_the_real_nudge_job(self):
+        body = self.migrations.split("\n  notify-production-queue:", 1)[1]
+        self.assertIn("name: Nudge the production queue\n", body[:200])
+        self.assertIn('.name == "Nudge the production queue"', self.trigger)
 
 
 class SloReport(unittest.TestCase):

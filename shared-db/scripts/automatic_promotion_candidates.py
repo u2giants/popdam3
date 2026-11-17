@@ -870,7 +870,8 @@ def main(now: datetime | None = None) -> int:
     phase("decision made")
     print(f"{action}: {reason}")
     alerts = overdue_holds(skipped, now)
-    if action == "dispatch":
+    claimed_elsewhere: set[int] = set()
+    while action == "dispatch":
         # Selecting takes minutes; a run started meanwhile must count (#5558:
         # a re-run began after the snapshot and PR #5539 was dispatched again).
         fresh_runs = workflow_runs(repo)
@@ -883,7 +884,9 @@ def main(now: datetime | None = None) -> int:
         phase("fresh recheck done")
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
-    if action == "dispatch" and not args.dry_run:
+            break
+        if args.dry_run:
+            break
         if pr.get("stale_streak", 0) >= BACKSTOP_AFTER_STALE:
             backstop_freeze(pr)
         # Selection takes minutes and main can move meanwhile; dispatching the
@@ -898,6 +901,25 @@ def main(now: datetime | None = None) -> int:
             except Exception:
                 release_claim(repo, pr["number"])
                 raise
+            break
+        # #6493 Step 4: a PR another selector holds a live claim on is passed
+        # over like a held PR -- later PRs still promote. Ending the cycle here
+        # parked the whole queue behind PR #6370's claim (2026-11-17, two
+        # selector runs chose it, were refused, and dispatched nothing).
+        claimed_elsewhere.add(pr["number"])
+        if len(claimed_elsewhere) >= MAX_CLAIM_PASSES:
+            action, reason = "idle", f"{len(claimed_elsewhere)} candidates are claimed by other selector runs"
+            print(f"{action}: {reason}")
+            break
+        action, pr, reason = decide([c for c in candidates if c["number"] not in claimed_elsewhere],
+                                    fresh_runs, held,
+                                    lambda run: applied_in_any_attempt(repo, run), main_sha,
+                                    None, lambda run: refused_as_applied(repo, run),
+                                    stale=lambda run: stale_main_refusal_only(repo, run),
+                                    refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
+                                    live=live)
+        print(f"{action}: {reason} (after passing over claimed PR(s) "
+              f"{', '.join(f'#{n}' for n in sorted(claimed_elsewhere))})")
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
     exhausted = [e for e in skipped if e.get("exhausted") or e.get("refunds")]
@@ -998,6 +1020,8 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
 # already serializes selector runs; this is defense in depth.
 CLAIM_PREFIX = "refs/dispatch-claims/pr-"
 CLAIM_IDLE_LIMIT = timedelta(hours=4)
+# Candidates one selector run may pass over because another run holds their claim.
+MAX_CLAIM_PASSES = 3
 
 
 def claim_runs(claim: dict[str, Any], runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1020,7 +1044,13 @@ def claim_is_stale(claim: dict[str, Any], runs: list[dict[str, Any]], live: set[
     if now - _time(last) > CLAIM_IDLE_LIMIT:
         return True
     if associated:
-        return all(r.get("conclusion") != "success" for r in associated)
+        # #6493 Step 4: the pipeline is over once its NEWEST run ended without
+        # success. Requiring every run to have failed kept the claim live for
+        # 4 h after preview passed and the production apply failed (PR #6370,
+        # 2026-11-17: 97 min with the whole queue parked behind it). Retries
+        # stay bounded by the attempt caps in decide().
+        newest = max(associated, key=lambda r: r.get("created_at") or "")
+        return newest.get("conclusion") != "success"
     return bool(claimer_failed(claim.get("run_id")))
 
 
