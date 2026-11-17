@@ -181,6 +181,10 @@ object/version/source protection. See the current procedure in the full text.
 
    ⚠️ **Owner-quoted allowlist widening for a fresh later draw (source history includes PR #4294).** For a new slot, the earliest live peer anchors policy; a fresh later draw may widen that policy only with a recorded verbatim owner quote and a strict-superset allowlist. A slot's own durable policy controls its retries and replacements exactly. The quote is stored only when widening actually occurs. Narrowing, disjoint policies, unquoted widening, or restricting an unrestricted peer are refused. Fresh peer, carried-history and policy reads are rechecked under the assignment mutex.
 
+   **High-risk migrations are refused a pre-merge preview APPLY (#6574).** A claim-lane apply of a
+   migration the risk gate classes high-risk stops in the validate job, before any preview database step.
+   Use `mode=dry-run` before merge; the automatic queue rehearses it after merge.
+
    **Merge first, then rehearse on preview from merged `main`, then promote.** A rehearsal runs
    **once** — an applied version can never be applied again, so a re-dispatch and a GitHub
    "Re-run jobs" are both refused, and both refusals are correct. If a rehearsal must be recovered,
