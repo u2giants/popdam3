@@ -70,6 +70,26 @@ SG_SEARCH_ROUND_BUDGET_S = 20.0
 SG_SEARCH_POLL_S = 1.0                  # PopSG lane cadence; throughput is set by the GPU, not this delay
 
 # ---------------------------------------------------------------------------
+# Text-meaning lane (dam.search_text_vectors — popdam3 #1037 Step 4).
+# Qwen3-Embedding-0.6B, document side (no instruction prefix), last-token
+# pooling, L2-normalized, halfvec(1024). The stamp written is the `model`
+# column the claim RPC returns (admin_config.SEARCH_TEXT_EMBEDDING_MODEL);
+# the lane refuses to embed when it differs from TEXT_MODEL_STAMP below.
+# ---------------------------------------------------------------------------
+TEXT_MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
+TEXT_MODEL_REVISION = "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3"
+TEXT_MODEL_STAMP = f"{TEXT_MODEL_ID}@{TEXT_MODEL_REVISION}"
+TEXT_DIM = 1024
+TEXT_POLL_S = 2.0                   # text lane claim cadence while work exists
+TEXT_IDLE_POLL_S = 30.0             # cadence after an empty claim
+TEXT_LEASE_S = 600                  # lease seconds (DB clamps 30..3600)
+TEXT_CLAIM_BATCH = 64               # documents claimed per cycle (DB clamps to 500)
+TEXT_INFERENCE_BATCH = 16           # texts per forward pass
+TEXT_MAX_TOKENS = 512               # longer inputs are truncated, never failed
+TEXT_IDLE_UNLOAD_S = 600            # release GPU memory after this long with no work
+TEXT_LANE_ERROR_COOLDOWN_S = 600    # missing grant / RPC: one error, retry in 10 min
+
+# ---------------------------------------------------------------------------
 # Upload payload guards (query lane). The edge re-checks size + magic bytes;
 # the poller re-validates with Pillow and rejects permanently on abuse.
 # ---------------------------------------------------------------------------
