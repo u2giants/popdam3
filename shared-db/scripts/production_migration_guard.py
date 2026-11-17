@@ -790,6 +790,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 10: additive indexes, constraints and triggers copied from production, and a forward fix for batch 9. Source excludes shared preview and production.",
     },
+    "20261204000900": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6584",
+        "note": "Sandbox half of 20261204000800: creates core.merchGroupRepairJournal only, because the sandbox has no dflow_prod schema. Source excludes shared preview and production.",
+    },
     "20261117130000": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
