@@ -440,7 +440,7 @@ class OverdueHoldAlert(unittest.TestCase):
         saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: [pr]
-        m.workflow_runs = lambda repo: []
+        m.workflow_runs = lambda repo, **_: []
         m.is_held = lambda repo, n: self.pr["findings"]
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
@@ -468,7 +468,7 @@ class ExhaustedAlert(unittest.TestCase):
         saved = (m.gh, m.merged_migration_prs, m.workflow_runs, m.is_held, sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: [self.pr]
-        m.workflow_runs = lambda repo: self.fails
+        m.workflow_runs = lambda repo, **_: self.fails
         m.is_held = lambda repo, n: []
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
@@ -687,7 +687,7 @@ class ProductionReRunAlert(unittest.TestCase):
                  sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: []
-        m.workflow_runs = lambda repo: [self.rerun]
+        m.workflow_runs = lambda repo, **_: [self.rerun]
         m.is_held = lambda repo, n: []
         m.applied_in_any_attempt = lambda repo, run: False
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
@@ -768,7 +768,7 @@ class ManualReRunInFlight(unittest.TestCase):
         busy = self._run("in_progress", None)
         with mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
              mock.patch.object(m, "merged_migration_prs", lambda repo: [self.PR]), \
-             mock.patch.object(m, "workflow_runs", lambda repo: [busy]), \
+             mock.patch.object(m, "workflow_runs", lambda repo, **_: [busy]), \
              mock.patch.object(m, "is_held", lambda repo, n: []), \
              mock.patch.object(m, "dispatch") as sent, \
              mock.patch.object(sys, "argv", ["x"]), \
@@ -1020,7 +1020,7 @@ class TriggerReporting(unittest.TestCase):
                  sys.argv, os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GITHUB_STEP_SUMMARY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: prs
-        m.workflow_runs = lambda repo: runs
+        m.workflow_runs = lambda repo, **_: runs
         m.is_held = held or (lambda repo, n: [])
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         if summary_path:
@@ -1824,7 +1824,7 @@ class ClassifiedRefundBudget(unittest.TestCase):
                  sys.argv, os.environ.get("GITHUB_REPOSITORY"))
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: [pr]
-        m.workflow_runs = lambda repo: runs
+        m.workflow_runs = lambda repo, **_: runs
         m.is_held = lambda repo, n: []
         m.refund_eligible_in_any_attempt = lambda repo, run: True
         m.stale_main_refusal_only = lambda repo, run: False
@@ -2007,11 +2007,11 @@ class DispatchClaims(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), mock.patch.object(sys, "argv", ["x"]), \
              mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
              mock.patch.object(m, "merged_migration_prs", lambda repo: [first, second]), \
-             mock.patch.object(m, "workflow_runs", lambda repo: []), \
+             mock.patch.object(m, "workflow_runs", lambda repo, **_: []), \
              mock.patch.object(m, "is_held", lambda repo, n: []), \
              mock.patch.object(m, "prune_claims", lambda *a: None), \
              mock.patch.object(m, "claim_dispatch", lambda repo, pr, *a: pr["number"] != 7), \
-             mock.patch.object(m, "dispatch", lambda repo, pr, sha: sent.append(pr["number"])), \
+             mock.patch.object(m, "dispatch", lambda repo, pr, sha, *_: sent.append(pr["number"])), \
              contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertEqual(m.main(self.now), 0)
         self.assertEqual(sent, [8])
@@ -2023,7 +2023,7 @@ class DispatchClaims(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), mock.patch.object(sys, "argv", ["x"]), \
              mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
              mock.patch.object(m, "merged_migration_prs", lambda repo: [pr]), \
-             mock.patch.object(m, "workflow_runs", lambda repo: []), \
+             mock.patch.object(m, "workflow_runs", lambda repo, **_: []), \
              mock.patch.object(m, "is_held", lambda repo, n: []), \
              mock.patch.object(m, "prune_claims", lambda *a: None), \
              mock.patch.object(m, "claim_dispatch", lambda *a: True), \
@@ -2225,11 +2225,11 @@ class DispatchUsesFreshMain(unittest.TestCase):
         calls = []
         m.gh = lambda path: {"sha": next(shas)}
         m.decide = lambda *a, **k: ("dispatch", pr, "ok")
-        m.workflow_runs = lambda repo: []
+        m.workflow_runs = lambda repo, **_: []
         m.production_ledger = lambda: None
         m.merged_migration_prs = lambda repo: [pr]
         m.backstop_freeze = lambda p: calls.append("freeze")
-        m.dispatch = lambda repo, p, sha: calls.append(sha)
+        m.dispatch = lambda repo, p, sha, runs=None: calls.append(sha)
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()), \
@@ -2245,3 +2245,150 @@ class DispatchUsesFreshMain(unittest.TestCase):
             else:
                 os.environ["GITHUB_REPOSITORY"] = saved[8]
 
+
+
+class SelectorRunCache(unittest.TestCase):
+    """#6493 Step 1c: the workflow-run cache is discovery-only."""
+    NOW = "2026-11-17T12:00:00Z"
+
+    def run_(self, i, status="completed", conclusion="failure", at="2026-11-17T09:00:00Z",
+             title="DB preview apply a PR7 20261116100000"):
+        return {"id": i, "status": status, "conclusion": conclusion, "created_at": at,
+                "display_title": title, "run_attempt": 1}
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.dir.name, "runs.json")
+        self.env = mock.patch.dict(os.environ, {"PROMOTION_RUN_CACHE_FILE": self.path})
+        self.env.start()
+        m._RUN_SNAPSHOT = None
+        self.calls = []
+        self.clock = mock.patch.object(m, "_utcnow", lambda: m._time(self.NOW))
+        self.clock.start()
+        self.jobs = mock.patch.object(m, "run_jobs", lambda *a: [{"name": "job"}])
+        self.jobs.start()
+
+    def tearDown(self):
+        m._RUN_SNAPSHOT = None
+        self.clock.stop()
+        self.jobs.stop()
+        self.env.stop()
+        self.dir.cleanup()
+
+    def api(self, full=(), recent=(), in_flight=(), by_id=None):
+        def gh(*args):
+            url = args[-1]
+            self.calls.append(url)
+            if "/actions/runs/" in url:
+                return (by_id or {})[int(url.rsplit("/", 1)[1])]
+            if "status=" in url:
+                status = url.split("status=")[1]
+                return [{"workflow_runs": [r for r in in_flight if r["status"] == status]}]
+            if f"created=>={m.ACTIVATED_AT[:10]}" in url:
+                return [{"workflow_runs": list(full)}]
+            return [{"workflow_runs": list(recent)}]
+        return gh
+
+    def write_cache(self, runs, read_at="2026-11-17T11:00:00Z"):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump({"schema_version": m.RUN_CACHE_SCHEMA, "activated_at": m.ACTIVATED_AT,
+                       "read_at": read_at, "runs": runs}, fh)
+
+    def read(self, gh, **kw):
+        m._RUN_SNAPSHOT = None
+        with mock.patch.object(m, "gh", gh), contextlib.redirect_stdout(io.StringIO()):
+            return m.workflow_runs("o/r", **kw)
+
+    def full_reads(self):
+        return [c for c in self.calls if f"created=>={m.ACTIVATED_AT[:10]}" in c]
+
+    def test_cold_cache_does_a_full_read_and_writes_the_cache(self):
+        runs = self.read(self.api(full=[self.run_(1)]))
+        self.assertEqual([r["id"] for r in runs], [1])
+        self.assertEqual(len(self.full_reads()), 1)
+        with open(self.path, encoding="utf-8") as fh:
+            self.assertEqual([r["id"] for r in json.load(fh)["runs"]], [1])
+
+    def test_warm_cache_reads_only_recent_and_in_flight_runs(self):
+        self.write_cache([self.run_(1, at="2026-11-01T00:00:00Z")])
+        new = self.run_(2, at="2026-11-17T11:30:00Z", conclusion="success")
+        runs = self.read(self.api(recent=[new]))
+        self.assertEqual([r["id"] for r in runs], [2, 1])
+        self.assertEqual(self.full_reads(), [])
+        self.assertTrue(any("created=>=2026-11-17T10:50:00Z" in c for c in self.calls))
+
+    def test_corrupt_or_expired_cache_falls_back_to_a_full_read(self):
+        for body in ("{not json", json.dumps({"schema_version": 99})):
+            with open(self.path, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            self.calls = []
+            self.read(self.api(full=[self.run_(1)]))
+            self.assertEqual(len(self.full_reads()), 1, body)
+        self.write_cache([self.run_(1)], read_at="2026-11-16T00:00:00Z")
+        self.calls = []
+        self.read(self.api(full=[self.run_(1)]))
+        self.assertEqual(len(self.full_reads()), 1)
+
+    def test_a_failed_refresh_falls_back_to_a_full_read(self):
+        self.write_cache([self.run_(1, status="in_progress", conclusion=None)])
+        def gh(*args):
+            if "/actions/runs/" in args[-1]:
+                raise subprocess.CalledProcessError(1, "gh")
+            return self.api(full=[self.run_(1)])(*args)
+        runs = self.read(gh)
+        self.assertEqual(runs[0]["status"], "completed")
+        self.assertEqual(len(self.full_reads()), 1)
+
+    def test_cached_non_terminal_runs_are_refetched(self):
+        self.write_cache([self.run_(5, status="in_progress", conclusion=None, at="2026-11-01T00:00:00Z")])
+        done = self.run_(5, at="2026-11-01T00:00:00Z", conclusion="success")
+        runs = self.read(self.api(by_id={5: done}))
+        self.assertEqual((runs[0]["status"], runs[0]["conclusion"]), ("completed", "success"))
+        self.assertIn("repos/o/r/actions/runs/5", self.calls)
+
+    def test_a_rerun_of_an_old_completed_run_is_seen_in_flight(self):
+        self.write_cache([self.run_(6, at="2026-11-01T00:00:00Z")])
+        rerun = self.run_(6, status="queued", conclusion=None, at="2026-11-01T00:00:00Z")
+        runs = self.read(self.api(in_flight=[rerun]))
+        self.assertEqual(runs[0]["status"], "queued")
+        action, _, _ = m.decide([{"number": 7, "merged_at": "2026-10-31T00:00:00Z", "versions": ["1"]}],
+                                runs, lambda n: [])
+        self.assertEqual(action, "wait")
+
+    def test_attempts_are_never_counted_from_the_cache(self):
+        """The cache says PR 7's three attempts all failed; fresh GitHub says one
+        was re-run to success. The pre-dispatch read (fresh_since = merge) must
+        re-read every run of the PR, not trust the cached conclusions."""
+        title = "DB preview apply a PR7 20261116100000"
+        cached = [self.run_(i, at=f"2026-11-16T1{i}:00:00Z", title=title) for i in (1, 2, 3)]
+        self.write_cache(cached)
+        fresh = [{**cached[0], "conclusion": "success"}, cached[1], cached[2]]
+        def gh(*args):
+            url = args[-1]
+            if "created=>=2026-11-16T10:00:00Z" in url:
+                self.calls.append(url)
+                return [{"workflow_runs": fresh}]
+            return self.api()(*args)
+        runs = self.read(gh, fresh_since="2026-11-16T10:00:00Z")
+        self.assertEqual({r["id"]: r["conclusion"] for r in runs}[1], "success")
+        self.assertEqual(self.full_reads(), [])
+
+    def test_main_rechecks_with_the_candidate_and_dependency_merge_times(self):
+        dep = {"number": 6, "merged_at": "2026-11-15T00:00:00Z", "versions": ["20261115000000"]}
+        pr = {"number": 7, "merged_at": "2026-11-16T10:00:00Z", "versions": ["20261116100000"],
+              "production_dependencies": {"20261115000000": 6}}
+        seen, sent = [], []
+        prod = {"id": 9, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T01:00:00Z",
+                "display_title": "DB production apply a PR6 20261115000000"}
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), mock.patch.object(sys, "argv", ["x"]), \
+             mock.patch.object(m, "gh", lambda *a: {"sha": "abc"}), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [dep, pr]), \
+             mock.patch.object(m, "workflow_runs", lambda repo, **kw: seen.append(kw) or [prod]), \
+             mock.patch.object(m, "is_held", lambda repo, n: []), \
+             mock.patch.object(m, "prune_claims", lambda *a: None), \
+             mock.patch.object(m, "claim_dispatch", lambda *a: True), \
+             mock.patch.object(m, "dispatch", lambda repo, p, sha, runs: sent.append(runs)), \
+             contextlib.redirect_stdout(io.StringIO()):
+            m.main(m._time("2026-11-17T00:00:00Z"))
+        self.assertEqual(seen, [{}, {"fresh_since": "2026-11-15T00:00:00Z"}])
+        self.assertEqual(sent, [[prod]])  # dispatch reuses the fresh read, no third read

@@ -69,10 +69,20 @@ def main():
         record=receipts.read(ref)
         if record is not None and ref.endswith('/complete'):receipts.verify_run(record)
         return record
-    candidate=select(policy,verified_read,active,lambda pr:bool(promotion.is_held(maintenance.REPO,pr)),maintenance.gh('commits/main')['sha'])
+    # #6493 Step 1c: one batched hold read (one 20 s settle) for every
+    # operation's source PR, taken only when select() first needs a hold --
+    # never when nothing is dispatchable. Fresh every run; a failed batch
+    # falls back to per-PR reads that fail toward held.
+    batch=[]
+    def held(pr):
+        if not batch:batch.append(promotion.prefetch_holds(maintenance.REPO,sorted({e['source_pr'] for e in policy['operations'].values()})))
+        return bool(batch[0](pr))
+    candidate=select(policy,verified_read,active,held,maintenance.gh('commits/main')['sha'])
     if candidate is None:
         print('No ready index maintenance operation.');return 0
     # Existing 3-attempt policy, operation-qualified and exact main-qualified.
+    # Attempts are never counted from the run cache: re-read every run now.
+    runs=promotion.workflow_runs(maintenance.REPO,fresh_since=promotion.ACTIVATED_AT)
     dispatch_ref=f"refs/db-index-maintenance-operations/{candidate['operation_id']}/{candidate['target']}/{candidate['source_sha']}"
     title=f"INDEX {candidate['target']} {dispatch_ref} {candidate['source_sha']}"
     attempts=[r for r in runs if r.get('display_title')==title and r.get('conclusion') in {'failure','cancelled','timed_out'}]

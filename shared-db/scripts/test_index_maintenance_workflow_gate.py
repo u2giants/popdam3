@@ -88,7 +88,7 @@ class WorkflowGateTests(unittest.TestCase):
             fields=dict(args[i+1].split('=',1) for i,value in enumerate(args) if value=='-f')
             dispatches.append(fields)
             return subprocess.CompletedProcess(args,0,'','')
-        with patch.dict(os.environ,self.env,clear=True),patch.object(maintenance,'POLICY',policy_path),patch.object(maintenance,'gh',side_effect=self.api),patch.object(promotion,'workflow_runs',return_value=[]),patch.object(promotion,'is_held',return_value=False),patch.object(maintenance.Receipts,'read',side_effect=read),patch.object(maintenance.Receipts,'create',side_effect=create),patch.object(automatic.subprocess,'run',side_effect=dispatch_process),patch.object(sys,'argv',['automatic_index_maintenance.py']),redirect_stdout(io.StringIO()):
+        with patch.dict(os.environ,self.env,clear=True),patch.object(maintenance,'POLICY',policy_path),patch.object(maintenance,'gh',side_effect=self.api),patch.object(promotion,'workflow_runs',return_value=[]),patch.object(promotion,'is_held',return_value=False),patch.object(promotion,'prefetch_holds',return_value=lambda pr:[]),patch.object(maintenance.Receipts,'read',side_effect=read),patch.object(maintenance.Receipts,'create',side_effect=create),patch.object(automatic.subprocess,'run',side_effect=dispatch_process),patch.object(sys,'argv',['automatic_index_maintenance.py']),redirect_stdout(io.StringIO()):
             self.assertEqual(automatic.main(),0)
         self.assertEqual(len(dispatches),1)
         fields=dispatches[0]

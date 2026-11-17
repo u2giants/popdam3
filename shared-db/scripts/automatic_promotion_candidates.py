@@ -290,11 +290,121 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
     return sorted(found, key=candidate_order)
 
 
-def workflow_runs(repo: str) -> list[dict[str, Any]]:
+# #6493 Step 1c: workflow-run cache. One full paginated read cost ~18-25 s and
+# ran three times per dispatching cycle plus once in index maintenance. A run
+# snapshot (this process's last read, else PROMOTION_RUN_CACHE_FILE restored
+# by actions/cache, within RUN_CACHE_TTL) is refreshed instead of re-read:
+#   - every run created since the snapshot (minus an overlap) is re-read;
+#   - every run the snapshot holds as not completed is re-read by id;
+#   - every run GitHub reports in flight right now is re-read (a re-run of an
+#     old completed run turns queued/in_progress again).
+# Only completed runs older than the overlap come from the snapshot, and only
+# for discovery: the pre-dispatch recheck passes `fresh_since` (the candidate's
+# and its dependencies' merge time), so every run that can count an attempt or
+# prove dependency evidence for the chosen PR is re-read at dispatch time.
+# Any refresh failure, or a missing/corrupt/expired cache, is a full read.
+RUN_CACHE_SCHEMA = 1
+RUN_CACHE_TTL = timedelta(hours=6)
+RUN_CACHE_OVERLAP = timedelta(minutes=10)
+IN_FLIGHT = ("queued", "in_progress", "waiting", "requested", "pending")
+_RUN_SNAPSHOT: dict[str, Any] | None = None
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _runs_url(repo: str, extra: str = "") -> str:
+    return f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&per_page=100{extra}"
+
+
+def _paged_runs(repo: str, extra: str) -> list[dict[str, Any]]:
+    pages = gh("--paginate", "--slurp", _runs_url(repo, extra))
+    return [run for page in pages for run in page.get("workflow_runs", [])]
+
+
+def _valid_run(run: Any) -> bool:
+    return (isinstance(run, dict) and type(run.get("id")) is int and isinstance(run.get("status"), str)
+            and isinstance(run.get("created_at"), str))
+
+
+def load_run_cache(path: str | None, now: datetime) -> dict[str, Any] | None:
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if (not isinstance(data, dict) or data.get("schema_version") != RUN_CACHE_SCHEMA
+                or data.get("activated_at") != ACTIVATED_AT or not isinstance(data.get("read_at"), str)
+                or not isinstance(data.get("runs"), list) or not all(_valid_run(r) for r in data["runs"])):
+            raise ValueError("schema mismatch")
+        age = now - _time(data["read_at"])
+        if age > RUN_CACHE_TTL or age < -RUN_CACHE_OVERLAP:
+            print(f"selector run cache expired ({int(age.total_seconds() // 60)} min old); doing a full read")
+            return None
+        return data
+    except (OSError, ValueError) as exc:
+        print(f"::warning::selector run cache unusable ({exc}); doing a full read")
+        return None
+
+
+def save_run_cache(path: str | None, snapshot: dict[str, Any]) -> None:
+    if not path:
+        return
+    try:
+        tmp = f"{path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"schema_version": RUN_CACHE_SCHEMA, "activated_at": ACTIVATED_AT, **snapshot}, fh)
+        os.replace(tmp, path)
+    except OSError as exc:
+        print(f"::warning::could not write the selector run cache ({exc}); next run is a full read")
+
+
+def refresh_runs(repo: str, base: dict[str, Any], fresh_since: str | None) -> list[dict[str, Any]]:
+    floor = (_time(base["read_at"]) - RUN_CACHE_OVERLAP).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if fresh_since and fresh_since < floor:
+        floor = fresh_since
+    merged = {r["id"]: r for r in base["runs"]}
+    stale_ids = [r["id"] for r in base["runs"] if r["status"] != "completed"]
+    reads = [lambda: _paged_runs(repo, f"&created=>={floor}")]
+    reads += [lambda s=s: _paged_runs(repo, f"&status={s}") for s in IN_FLIGHT]
+    reads += [lambda i=i: [gh(f"repos/{repo}/actions/runs/{i}")] for i in stale_ids]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda read: read(), reads))
+    for batch in results:
+        for run in batch:
+            if not _valid_run(run):
+                raise ValueError("malformed refreshed workflow run")
+            merged[run["id"]] = run
+    print(f"workflow runs: refreshed {len(results[0])} since {floor}, {len(stale_ids)} non-terminal by id, "
+          f"{sum(len(b) for b in results[1:1 + len(IN_FLIGHT)])} in flight; {len(merged)} total")
+    return list(merged.values())
+
+
+def workflow_runs(repo: str, fresh_since: str | None = None) -> list[dict[str, Any]]:
     # Every page: a PR's old production success must not age out of the window,
     # or the lane re-promotes it and parks on it (observed 2026-11-01: PR #5045).
-    pages = gh("--paginate", "--slurp", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?event=workflow_dispatch&per_page=100&created=>={ACTIVATED_AT[:10]}")
-    runs = [run for page in pages for run in page.get("workflow_runs", [])]
+    global _RUN_SNAPSHOT
+    now = _utcnow()
+    path = os.environ.get("PROMOTION_RUN_CACHE_FILE")
+    base = _RUN_SNAPSHOT or load_run_cache(path, now)
+    runs = None
+    if base is not None:
+        try:
+            runs = refresh_runs(repo, base, fresh_since)
+        except (subprocess.CalledProcessError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            print(f"::warning::workflow run refresh failed ({exc}); doing a full read")
+    if runs is None:
+        runs = _paged_runs(repo, f"&created=>={ACTIVATED_AT[:10]}")
+    if all(_valid_run(r) for r in runs):
+        runs.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
+        _RUN_SNAPSHOT = {"read_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "runs": runs}
+        save_run_cache(path, _RUN_SNAPSHOT)
+    else:
+        # Rows the cache cannot key or age are never cached; the next read is full.
+        print("::warning::workflow run rows lack id/status/created_at; not caching this read")
+        _RUN_SNAPSHOT = None
     return drop_ghost_runs(runs, lambda run: len(run_jobs(repo, run["id"])))
 
 
@@ -874,7 +984,13 @@ def main(now: datetime | None = None) -> int:
     while action == "dispatch":
         # Selecting takes minutes; a run started meanwhile must count (#5558:
         # a re-run began after the snapshot and PR #5539 was dispatched again).
-        fresh_runs = workflow_runs(repo)
+        # #6493 Step 1c: re-read every run created since the candidate (or a
+        # production dependency) merged, plus everything in flight, so attempt
+        # caps, dependency evidence and the wait never come from the cache.
+        merged_at = {c["number"]: c["merged_at"] for c in candidates}
+        fresh_since = min([pr["merged_at"]] + [merged_at[n] for n in pr.get("production_dependencies", {}).values()
+                                               if n in merged_at])
+        fresh_runs = workflow_runs(repo, fresh_since=fresh_since)
         action, pr, reason = decide([pr], fresh_runs, lambda n: is_held(repo, n),
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
@@ -897,7 +1013,7 @@ def main(now: datetime | None = None) -> int:
         prune_claims(repo, live)
         if claim_dispatch(repo, pr, fresh_runs, live, now):
             try:
-                dispatch(repo, pr, main_sha)
+                dispatch(repo, pr, main_sha, fresh_runs)
             except Exception:
                 release_claim(repo, pr["number"])
                 raise
@@ -991,9 +1107,11 @@ def backstop_freeze(pr: dict[str, Any]) -> bool:
     return True
 
 
-def dispatch(repo: str, pr: dict[str, Any], main_sha: str) -> None:
+def dispatch(repo: str, pr: dict[str, Any], main_sha: str, runs: list[dict[str, Any]] | None = None) -> None:
+    # `runs` is the pre-dispatch recheck's fresh read (seconds old); re-reading
+    # the whole history here cost another ~20 s per dispatch (#6493 Step 1c).
     source = [f"merged_preview_source_pr={pr['number']}"]
-    original = earlier_preview_apply(pr, workflow_runs(repo), lambda run: preview_job_succeeded_in_any_attempt(repo, run))
+    original = earlier_preview_apply(pr, runs if runs is not None else workflow_runs(repo), lambda run: preview_job_succeeded_in_any_attempt(repo, run))
     if original:
         # A retry after a failed production apply: preview already holds the
         # versions, so only the historical-recovery lane can re-prove them.

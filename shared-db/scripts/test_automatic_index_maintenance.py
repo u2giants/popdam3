@@ -73,19 +73,25 @@ class SelectionTests(unittest.TestCase):
             receipts=MagicMock();receipts.read.return_value=None
             with patch.dict(os.environ,{'GITHUB_REPOSITORY':maintenance.REPO,'GITHUB_OUTPUT':str(output)}),patch.object(maintenance,'POLICY',path),\
                  patch.object(maintenance,'Receipts',return_value=receipts),patch.object(maintenance,'gh',return_value={'sha':'a'*40}),\
-                 patch.object(promotion,'workflow_runs',side_effect=runs) as fetch,patch.object(promotion,'is_held',return_value=False),\
+                 patch.object(promotion,'workflow_runs',side_effect=runs) as fetch,patch.object(promotion,'prefetch_holds',return_value=lambda pr:[]) as holds,\
                  patch.object(automatic.time,'monotonic',side_effect=clock),patch.object(automatic.time,'sleep') as sleep,\
                  patch.object(automatic.subprocess,'run') as dispatch,patch.object(sys,'argv',['automatic_index_maintenance.py']):
                 self.assertEqual(automatic.main(),0)
+            self.holds,self.fetch=holds,fetch
             return fetch.call_count,sleep.call_count,dispatch.call_count,output.read_text() if output.exists() else ''
     def test_waits_for_finishing_run_then_dispatches_and_signals_promotion_skip(self):
         active=[{'status':'in_progress'}]
-        self.assertEqual(self.run_main([active,active,[]],[0,1,2]),(3,2,1,'dispatched=true\n'))
+        self.assertEqual(self.run_main([active,active,[],[]],[0,1,2]),(4,2,1,'dispatched=true\n'))
+        # #6493 Step 1c: attempts are counted from a fresh re-read, never the cache.
+        self.assertEqual(self.fetch.call_args.kwargs,{'fresh_since':promotion.ACTIVATED_AT})
     def test_idle_queue_does_not_sleep(self):
-        self.assertEqual(self.run_main([[]],[0]),(1,0,1,'dispatched=true\n'))
+        self.assertEqual(self.run_main([[],[]],[0]),(2,0,1,'dispatched=true\n'))
+        self.holds.assert_called_once()
     def test_wait_is_bounded_and_active_queue_dispatches_nothing(self):
         active=[{'status':'in_progress'}]
         self.assertEqual(self.run_main([active,active],[0,1,automatic.ACTIVE_WAIT_S]),(2,1,0,''))
+        # Nothing dispatchable: no hold read, so no 20 s settle.
+        self.holds.assert_not_called()
     def test_automatic_selector_is_part_of_existing_trigger(self):
         text=(ROOT/'.github/workflows/automatic-production-trigger.yml').read_text()
         self.assertIn('python scripts/automatic_promotion_candidates.py',text)
