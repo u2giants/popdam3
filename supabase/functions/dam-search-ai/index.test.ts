@@ -10,7 +10,36 @@ const state = vi.hoisted(() => ({
   authenticate: vi.fn(),
   licensors: [] as { id: string; name: string }[],
   aliases: [] as { licensor_id: string; alias: string }[],
+  characters: [] as { id: string; name: string }[],
+  characterAliases: [] as { character_id: string; alias: string }[],
+  legacyCharacters: [] as { id: string; name: string }[],
+  properties: [] as { id: string; name: string }[],
+  links: [] as { property_id: string; character_id: string }[],
 }));
+const tableRows = (table: string): unknown[] =>
+  ({
+    licensor: state.licensors,
+    licensor_alias: state.aliases,
+    character: state.characters,
+    character_alias: state.characterAliases,
+    characters: state.legacyCharacters,
+    property: state.properties,
+    property_character_associations_current: state.links,
+  } as Record<string, unknown[]>)[table] ?? [];
+const tableQuery = (table: string) => ({
+  select: (_columns?: string, options?: { head?: boolean }) => {
+    const query = {
+      order: () => query,
+      range: () => query,
+      abortSignal: async () => options?.head ? { count: tableRows(table).length, error: null } : { data: tableRows(table), error: null },
+      eq: () =>
+        Object.assign(Promise.resolve({ data: [] }), {
+          maybeSingle: async () => ({ data: null, error: null }),
+        }),
+    };
+    return query;
+  },
+});
 vi.mock("../_shared/http.ts", () => ({
   corsServe: (handler: typeof state.handler) => {
     state.handler = handler;
@@ -22,21 +51,8 @@ vi.mock("../_shared/supabase-js.ts", () => ({ createClient: () => ({ rpc: state.
 vi.mock("../_shared/service-client.ts", () => ({
   serviceClient: () => ({
     rpc: (name: string, args: unknown) => ({ abortSignal: (signal: AbortSignal) => state.formatRpc(name, args, signal) }),
-    schema: () => ({
-      from: (table: string) => ({
-        select: () => ({
-          abortSignal: async () => ({ data: table === "licensor_alias" ? state.aliases : state.licensors, error: null }),
-        }),
-      }),
-    }),
-    from: () => ({
-      select: () => ({
-        eq: () =>
-          Object.assign(Promise.resolve({ data: [] }), {
-            maybeSingle: async () => ({ data: null, error: null }),
-          }),
-      }),
-    }),
+    schema: () => ({ from: tableQuery }),
+    from: tableQuery,
   }),
 }));
 vi.mock("../_shared/admin-auth.ts", () => ({ authenticateUser: state.authenticate }));
@@ -46,7 +62,7 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   addNameToVocabulary: vi.fn(),
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
-const { resetLicensorCacheForTests } = await import("./index.ts");
+const { resetLicensorCacheForTests, resetNameIndexCacheForTests } = await import("./index.ts");
 // Answers both text-embed endpoints like the real service: batch requests get
 // one vector per requested text, single-text requests get one vector.
 const embedFetch = () =>
@@ -74,7 +90,9 @@ describe("DAM search embedding availability", () => {
     vi.restoreAllMocks();
     state.licensors.length = 0;
     state.aliases.length = 0;
+    for (const rows of [state.characters, state.characterAliases, state.legacyCharacters, state.properties, state.links]) rows.length = 0;
     resetLicensorCacheForTests();
+    resetNameIndexCacheForTests();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
     state.productCode = false;
     state.meaningful = true;
@@ -274,6 +292,47 @@ describe("DAM search embedding availability", () => {
     expect(filtersOf()).toEqual([{}]);
     expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.not.objectContaining({ p_licensor_ids: expect.anything() }));
     expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor_scoped", expect.anything());
+  });
+
+  it("requires a named character on every leg and anchors inside it (#1037)", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    const marie1 = "33333333-3333-4333-8333-333333333331";
+    const marie2 = "33333333-3333-4333-8333-333333333332";
+    state.characters.push({ id: marie1, name: "Marie" }, { id: marie2, name: "Marie" });
+    state.legacyCharacters.push({ id: "44444444-4444-4444-8444-444444444444", name: "Marie" });
+    const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
+    expect((await search("marie frame")).status).toBe(200);
+    const scope = {
+      requiredCharacterNames: ["marie"],
+      requiredCharacterIds: [marie1, marie2],
+      requiredLegacyCharacterIds: ["44444444-4444-4444-8444-444444444444"],
+    };
+    expect(filtersOf()).toEqual([scope]);
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor_named", expect.objectContaining({ p_filters: scope }));
+    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+    // Keyword-only searches (no picture leg) still require the character.
+    state.rpc.mockClear();
+    state.meaningful = false;
+    expect((await search("marie frame")).status).toBe(200);
+    expect(filtersOf()).toEqual([scope]);
+  });
+
+  it("sends no character keys when the search names no character (#1037)", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.characters.push({ id: "33333333-3333-4333-8333-333333333331", name: "Marie" });
+    const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
+    expect((await search("mariella frame")).status).toBe(200);
+    expect(filtersOf()).toEqual([{}]);
+    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+  });
+
+  it("product-code searches never carry the character rule (#1037)", async () => {
+    state.productCode = true;
+    vi.stubGlobal("fetch", vi.fn());
+    state.characters.push({ id: "33333333-3333-4333-8333-333333333331", name: "Marie" });
+    expect((await search("marie")).status).toBe(200);
+    const filters = state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
+    expect(filters).toEqual([{}]);
   });
 
   it("scopes a search that names a licensor by a recorded alias (#897)", async () => {
