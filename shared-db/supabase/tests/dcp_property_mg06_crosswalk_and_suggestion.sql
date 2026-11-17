@@ -41,6 +41,38 @@ begin
     'function must be STABLE (read-only)';
 end $$;
 
+-- Least-privilege grants are exactly the reviewed set (review finding #6372):
+-- PUBLIC/anon must NOT execute; authenticated/service_role must (migration
+-- 20261116120000). Structural, always testable.
+do $$
+begin
+  assert not has_function_privilege('public', 'plm.suggested_property_for_sku(text)', 'EXECUTE'),
+    'PUBLIC must not execute suggested_property_for_sku';
+  assert not has_function_privilege('anon', 'plm.suggested_property_for_sku(text)', 'EXECUTE'),
+    'anon must not execute suggested_property_for_sku';
+  assert has_function_privilege('authenticated', 'plm.suggested_property_for_sku(text)', 'EXECUTE'),
+    'authenticated must execute suggested_property_for_sku';
+  assert has_function_privilege('service_role', 'plm.suggested_property_for_sku(text)', 'EXECUTE'),
+    'service_role must execute suggested_property_for_sku';
+end $$;
+
+-- Authenticated smoke call (review finding #6372): the whole read chain
+-- (public.sku_files_used, plm.dcp_*, plm.coldlion_item_merch_group consumer
+-- view) must be callable as authenticated without a permission error. On a
+-- data-empty ephemeral DB the count is simply 0; on production/seeded preview
+-- it returns the ranked rows. A caller-rights regression (the #6276 defect
+-- class) fails here with permission denied instead.
+do $$
+declare
+  v_count integer;
+begin
+  set local role authenticated;
+  select count(*) into v_count
+  from plm.suggested_property_for_sku('3FZ27DYNX01');
+  reset role;
+  assert v_count >= 0, 'unreachable';
+end $$;
+
 -- Unknown SKU -> empty result (always testable)
 do $$
 declare
@@ -49,6 +81,21 @@ begin
   select count(*) into v_count
   from plm.suggested_property_for_sku('NO-SUCH-SKU-XYZ');
   assert v_count = 0, 'unknown SKU must return empty';
+end $$;
+
+-- Non-exact mapping must never surface (review finding #6372):
+-- 3FZ27DYLS01's art is lilo-and-stitch-umbrella, seeded in the crosswalk as
+-- confidence 'strong_candidate'. Deleting the exact-only filter from the
+-- function would return LS here, so this assert fails the suite. Deterministic
+-- on every lane: 0 rows wherever data is absent, and 0 rows on production
+-- because strong_candidate is filtered out.
+do $$
+declare
+  v_count integer;
+begin
+  select count(*) into v_count
+  from plm.suggested_property_for_sku('3FZ27DYLS01');
+  assert v_count = 0, 'strong_candidate (LS) must not surface as a suggestion, got ' || v_count;
 end $$;
 
 -- ============================================================
