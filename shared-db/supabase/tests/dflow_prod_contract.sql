@@ -20,7 +20,8 @@ begin
       'prod_order_milestone_schedule',  -- #4646; isolated milestone contracts prove its shape and access
       'item_customer_selling',  -- #4991; proved by its own exact contract
       'mg_combination_description', 'mg_combination_description_history',
-      'item_product_description', 'item_product_description_history'  -- #5026; proved by its own exact contract
+      'item_product_description', 'item_product_description_history',  -- #5026; proved by its own exact contract
+      'merchGroupRepairJournal'  -- #6584; repair undo journal
     );
   if v_tables <> 103 then
     raise exception 'expected 103 dflow_prod tables, found %', v_tables;
@@ -41,7 +42,8 @@ begin
                 'sample_approval_event', 'sample_carrier', 'sample_creation_batch', 'sample_factory_visit', 'sample_factory_visit_event', 'sample_import_job', 'sample_import_row', 'sample_inventory_balance', 'sample_movement', 'sample_path_revision', 'sample_piece_lineage', 'sample_remote_request', 'sample_remote_request_history', 'sample_remote_request_item', 'sample_reservation', 'sample_shipment', 'sample_shipment_line', 'sample_stop_closeout', 'sample_workflow',
                 'sample_shipment_notice', 'sample_shipment_notice_recipient', 'product_type_factory_time', 'vendor_wechat_identity', 'prod_order_milestone_schedule', 'item_customer_selling',  -- #2874, #2875, #3737, #4634, #4646 and #4991
                 'mg_combination_description', 'mg_combination_description_history',
-                'item_product_description', 'item_product_description_history')  -- #5026; excludes their three identity sequences the same way
+                'item_product_description', 'item_product_description_history',  -- #5026; excludes their three identity sequences the same way
+                'merchGroupRepairJournal')  -- #6584
          )
     );
   if v_sequences <> 97 then
