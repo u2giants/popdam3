@@ -97,6 +97,8 @@ HARD_BLOCKED = {
     "20261113041225",
     # #2541: left OPA 372 linked to Standard Characters (finding #6291); superseded by 20261115015656.
     "20261113203533",
+    # #6433: preview evidence predates its merge; gate refuses it permanently. Reissued 20261204000300.
+    "20261116013153",
     # #6263 stranded: byte-equivalent reissue 20261115024204 is applied in production.
     "20261113174422",
     # #6317 stranded: its #2541 outcome is live via applied 20261115041745 (finding #6324).
@@ -448,6 +450,7 @@ HARD_BLOCKED = {
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261116013153": "PR #6433 (#6415 revoke anon/authenticated EXECUTE on trigger functions): applied on preview before merge (run 43789639543 at a2311d0); automatic qualification refuses that evidence permanently because the guard differs from merge commit 3b0c25e and the migration is high-risk (runs 44092383652, 44093787649). Never applied to production. Reissued with identical SQL as 20261204000300. Never apply this original.",
     "20261113174422": "PR #6263 (MM nickname 'Mickey Group'): parked after transient refusals (runs 43509901476, 43511779725, 43522272522, 43527810278); never applied. Superseded by applied reissue 20261115024204 (same SQL plus one comment line); production core.property MM nickname reads 'Mickey Group'. Never apply this original.",
     "20261115015656": "PR #6317 (#2541 separate OPA Mickey from Standard Characters): held by review finding #6324; never applied. Superseded by applied 20261115041745 (issue #6209), which already links OPA 361 to MM Standard Characters, OPA 372 to its own DY Mickey Mouse row, OPA 640/1107 to separate MV rows (verified read-only in production 2026-11-17). Never apply this original.",
     "20261117020001": "PR #6447 (#2326 index-twin family): never applied; review finding #6448 showed the keeper assertion fails deterministically (operator does not exist: name[] = text[], reproduced read-only in production 2026-11-17) and the loop body reads an out-of-scope record alias. Reissued corrected as 20261204000000. Never apply this original.",
