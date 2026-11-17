@@ -82,9 +82,12 @@ class SelectionTests(unittest.TestCase):
         self.assertIn('python scripts/automatic_index_maintenance.py',text)
         self.assertLess(text.index('python scripts/automatic_index_maintenance.py'),text.index('python scripts/automatic_promotion_candidates.py'))
         # #6508: the lane guard runs before checkout and every later step
-        # respects both its skip and the maintenance dispatch.
+        # respects both its skip and the maintenance dispatch. The guard must
+        # count dispatched lane runs only (--event workflow_dispatch), like the
+        # selector's own wait; CI runs never hold the lane.
         self.assertIn('id: lane_guard',text)
         self.assertLess(text.index('id: lane_guard'),text.index('uses: actions/checkout@v4'))
+        self.assertIn('--event workflow_dispatch',text)
         self.assertIn("if: always() && steps.lane_guard.outputs.skipped != 'true' && steps.index_maintenance.outputs.dispatched != 'true'",text)
 
 
