@@ -1,27 +1,28 @@
 ---
 summary: Stop merged shared-db migrations from stranding unpromoted and unnoticed — the promotion selector marks every parked or long-held PR on the PR itself (comment + label, cleared on delivery), and sessions check those labels at start and before ending.
 kind: implementation-plan
-status: ready-for-implementation (revision 2, 2026-11-17)
+status: ready-for-implementation (revision 3, 2026-11-17)
 read-when: implementing or reviewing the stranded-PR escalation in the automatic promotion trigger or the promotion-watch session rule; when a merged migration sits unpromoted and nobody knows.
 ---
 
-# Plan: promotion-stranding watch (revision 2)
+# Plan: promotion-stranding watch (revision 3)
 
-Implementation issue: popcre/shared-db#6561. Revision 2 replaces the first
-draft (landed by PR #6560) after the review on that issue
-(`issues/6561#issuecomment-6949048674`). What changed and why is in §8.
+Implementation issue: popcre/shared-db#6561. Revision 3 follows a review of
+the first draft (`issues/6561#issuecomment-6949048674`) and a debate of
+revision 2 with an independent reviewer (record on the issue). What changed
+and why is in §7 and §8.
 
 ## STATUS
 
 | Step | Status | Evidence / next action |
 |---|---|---|
-| 0. Plan landed | ✅ | PR #6560 (draft 1); revision 2 by the PR that carries this text |
+| 0. Plan landed | ✅ | PR #6560 (draft 1), PR #6562 (revision 2); revision 3 by the PR that carries this text |
 | 1. Permission: trigger job `pull-requests: write` + guard test | ⬜ open | §9 step 1 |
-| 2. Escalation code: parked + held-over-24h, comment + label | ⬜ open | §9 steps 2-4 |
-| 3. Clearing on delivery | ⬜ open | §9 step 5 |
-| 4. Roll-up shows per-PR notice outcome; loud annotation on failure | ⬜ open | §9 step 6 |
+| 2. Shared per-PR classifier (pure refactor) | ⬜ open | §9 step 2 |
+| 3. Reconciler: mark parked + held-over-8h, repair, clear | ⬜ open | §9 steps 3-5 |
+| 4. Durable failure reporting | ⬜ open | §9 step 6 |
 | 5. Tests | ⬜ open | §10 |
-| 6. Live proof A (immediate): today's stranded PRs carry notice + label | ⬜ open | §9 step 8 — do not wait for a future park |
+| 6. Live proof A (immediate): today's stranded PRs carry notice + label; real API responses recorded | ⬜ open | §9 step 8 |
 | 7. Session rule: rulebook pair | ⬜ open | §9 step 9 |
 | 8. Session rule: skill sources | ⬜ open | §9 step 10 |
 | 9. Live proof B: a labelled PR is cleared automatically on delivery | ⬜ open | §9 step 11 |
@@ -41,9 +42,9 @@ review finding) for a long time:
 
 1. The stranded PR itself says so, durably and queryably (comment + label),
    and stops saying so when it is delivered.
-2. A defined reader looks: every shared-db session checks the labels when it
-   starts structural work and before it ends, and a session that merged a
-   migration does not end without a watch on its own delivery.
+2. Anyone can find every stranded change with one query, and sessions are
+   told to run it (best-effort — see R9; the marking in point 1 is the only
+   guarantee).
 3. If the marking itself breaks, that is visible somewhere durable — it must
    never fail quietly.
 
@@ -72,7 +73,7 @@ Vocabulary used below:
 - **Held** — a PR passed over because an open blocking `review-finding` issue
   names it. In code: an entry in `skipped` with a non-empty `findings` list
   and no `exhausted`/`refunds`/`pending_dependencies`.
-- **Stranded** — parked, or held longer than 24 hours.
+- **Stranded** — parked, or held longer than 8 hours.
 - **Production ledger** — the set of migration versions applied in
   production; `production_ledger()` in the selector, passed around as `live`.
 - **Roll-up** — the single open tracking issue titled
@@ -108,7 +109,7 @@ knew. Times EST.
   login, reaching no session. #6263 had been parked 82 hours.
 
 So the incident was **2 parked + 6 held**. Draft 1 covered only the parked
-two; revision 2 covers both kinds.
+two; this plan covers both kinds.
 
 **Root cause:**
 
@@ -131,7 +132,9 @@ two; revision 2 covers both kinds.
 
 **OUT:**
 
-- How promotions are dispatched, retried, counted or refunded.
+- How promotions are dispatched, retried, counted or refunded. (Step 2's
+  classifier extraction is a behaviour-preserving refactor, proven by the
+  unedited existing tests; any behaviour change is out of scope.)
 - Reliability of the hourly schedule.
 - Automatic repair of a stranded change (needs judgment).
 - How often the roll-up issue is commented (it is commented every selector
@@ -165,8 +168,14 @@ editing.
   `versions` are all in `live`. `live` can be empty/None when the read fails.
 - **`decide` returns at the first dispatchable PR, and returns `wait`
   immediately while any lane run is in progress.** So on most passes `skipped`
-  is *incomplete*. Absence from `skipped` proves nothing. (This is why
-  clearing in §9 step 5 is driven by positive evidence only.)
+  is *incomplete*. Absence from `skipped` proves nothing, and nothing may
+  be marked or cleared from it (R1, R6).
+- `main()` prefetches holds for every candidate not already in `live`
+  (`prefetch_holds`) before `decide`, then re-decides the pick with fresh
+  reads inside the dispatch loop; a pick can be withdrawn there.
+- Candidate discovery (`merged_migration_prs`) drops PRs whose versions are
+  foreign-target, hard-blocked retired originals, deleted from main, or
+  registered orphans — such a PR silently stops being a candidate.
 - Every entry has `number`, `versions`, `merged_at`; parked entries add
   `exhausted`, `refunds`; held entries add `findings` (each with `number`,
   `created_at`). When the finding query fails, `findings` is `[]` — unknown,
@@ -188,7 +197,8 @@ env:
 PR through `/repos/{repo}/issues/{n}/comments` and `/issues/{n}/labels` with
 the job token requires `pull-requests: write`; `issues: write` covers plain
 issues only (the call is refused with "Resource not accessible by
-integration"). Draft 1 assumed no new permission was needed; that was wrong.
+integration"). This is the author's reading of GitHub's documented
+behaviour and is not yet proven in this repository — see R5 and live proof A.
 
 Tests: `scripts/test_automatic_promotion_candidates.py` has the
 `report_stuck_change` block (fakes `gh` and `subprocess.run`) and
@@ -226,60 +236,102 @@ ai-devops configuration repository, never the installed copy.
 - **Notify the owner** — against owner rulings; he is not on call.
 - **Trigger dispatches a repair session** — repair needs judgment.
 - **Re-running failed runs** — prohibited by lane rules.
-- **Clear a label when the PR is absent from this pass's `skipped`** —
-  unsafe; `skipped` is incomplete on `wait` and `dispatch` passes (§5).
-- **Idempotency by searching all PR comments for a marker** (draft 1) — needs
-  pagination and still cannot tell a new episode from an old one. The label
-  is the state; see D2.
+- **Escalating from `skipped`** (revision 2) — `skipped` is only the prefix
+  before the first dispatchable PR and is empty on `wait` passes, so a
+  stranded PR behind a healthy one would never be marked. Reconcile over all
+  candidates instead (R1).
+- **"Positively not held = the dispatch pick"** (revision 2) — the pick is
+  re-decided twice after `skipped` is built and can be withdrawn; nothing
+  records per-PR hold evidence. Clear on a fresh hold read instead (R6).
+- **Clearing `promotion-parked` when a pass does not list the PR as parked** —
+  attempt, refund and stale classification read run logs and fail safe, so a
+  PR can flap between passes and spam comments. Parked clears only on
+  delivery or when the lane stops tracking the PR (R6).
+- **A repeated `decide()` loop to survey every parked PR** — re-reads the same
+  run evidence once per candidate and can classify the same run differently
+  across calls. Use one shared, memoised per-PR classifier (R3).
+- **Comment first, then label** — a persistent label failure would post a new
+  comment every pass. Label first, with marker repair (R4).
+- **A weekly audit or report job** — one more output with no reader, which is
+  the original defect. The labels are the audit: one query.
+- **A separate reconcile workflow** — it would have to rebuild the ledger,
+  hold and attempt evidence the selector already has in hand.
 - **Failing the trigger run when a notice cannot post** — a red trigger hides
-  real lane alerts (#5558). Use a loud annotation plus the roll-up instead.
+  real lane alerts (#5558).
 
 ### 8. Design decisions (locked unless marked OPEN)
 
-Revision 2 supersedes draft 1's L2026-11-17.1-.6.
+Revision 3 (2026-11-17) supersedes revision 2's D1-D8 after a debate with an
+independent reviewer (Muse); the record is on issue #6561.
 
-- **D1.** Stranded PRs are marked on the PR: one comment + one label.
-  Labels: `promotion-parked` (out of attempts) and `promotion-held` (held by
-  review findings over 24 hours). The roll-up issue stays as the aggregate.
-- **D2.** **The label is the episode state.** Escalate only when the label is
-  absent. Order per PR: add label → post comment → if the comment fails,
-  remove the label again so the next pass retries. No comment search.
-- **D3.** Held PRs are in scope now (was OPEN in draft 1): draft 1's own
-  adoption test — "a held PR demonstrably strands unowned" — was already met
-  by six PRs in §3. Threshold constant `HELD_ESCALATE_AFTER = 24 hours`, age
-  computed exactly as `overdue_holds` does. A held entry with unknown
-  findings (`findings == []`) is **not** escalated — that is a failed read.
-- **D4.** Labels are cleared only on positive evidence:
-  `promotion-parked` and `promotion-held` when all the PR's versions are in
-  `live`; additionally `promotion-held` when this pass positively evaluated
-  the PR as not held (it is the dispatch pick, or it is in the parked list —
-  in which case it gets `promotion-parked` instead). Never on absence. Skip
-  all clearing when `live` is empty.
-- **D5.** The trigger job gets `pull-requests: write`. This reverses draft
-  1's "no new permissions". Guarded by a test like the existing
-  `issues: write` guard.
-- **D6.** Marking I/O never fails the run. But every PR whose notice could
-  not be posted prints `::error title=Stranded-PR notice not delivered::…`
-  (an annotation; it does not change the exit code) and is listed as
-  `notice: FAILED` in the roll-up comment.
-- **D7.** Comment text is public-surface safe: versions, counts, ages, run
-  and issue links only. No database URLs, project refs, or secrets. It is
-  signed as automation and points to this plan. It repeats the standing
-  rules: never re-run a failed run; no manual production command; repair by
-  fix-forward or retire-and-reissue.
-- **D8.** The session rule has two halves: **look** (list labelled PRs when
-  starting structural work and before ending) and **watch your own** (a
-  session that merged a migration PR ends only with delivery proven, or a
-  scheduled bounded self-check where the harness can schedule, or the exact
-  re-check recorded in its HANDOFF.d file; the landing issue carries
-  `- [ ] promotion delivered to production`, ticked only from a production
-  ledger read).
-- **OPEN (implementer):** label colours; exact comment wording.
-- **OPEN (verify in step 5):** how the selector stops listing a
-  retired-and-reissued original (see the "preserved retired original"
-  comment in the selector). If such a PR never reaches `live`, its label
-  stays; record what you find in STATUS and leave manual removal to the
-  repair session that retires it — do not invent a retire detector here.
+- **R1. One level-triggered reconciler.** `reconcile_stranded_marks(...)`
+  runs once per selector pass in `main()`, after the dispatch loop, over
+  **all candidates** — never over `skipped`. It compares what should be
+  labelled with what is labelled and fixes the difference. It is wrapped in
+  its own exception guard and can never change the run's exit code.
+- **R2. Two labels on the PR.** `promotion-parked` (out of automatic attempts
+  or refunds) and `promotion-held` (held by review findings longer than
+  `HELD_ESCALATE_AFTER = 8 hours`, age by the `overdue_holds` rule). Each
+  comes with one notice comment carrying a hidden marker
+  `<!-- promotion-stranded:<label> -->`. Both labels may sit on one PR.
+  Eight hours, not 24: the label is cheap, clears itself, and the only
+  earlier signal is a run annotation nobody reads. A hold whose finding read
+  failed or returned unknown is UNKNOWN: neither marked nor cleared.
+- **R3. Parked status comes from one shared classifier.** Extract the
+  per-PR classification inside `decide()` (findings → dependencies →
+  attempts/refunds) into a helper that `decide()` itself calls, and have the
+  reconciler call the same helper for every candidate. This is a pure
+  refactor: every existing `decide()` test must pass unchanged. Evidence
+  callables (`applied`, `refused`, `stale`, `refunded`) are memoised by
+  `(run id, run attempt)` for the pass. On a `wait` pass (a lane run in
+  flight) parked status is not evaluated — no parked label is added or
+  cleared — and the log line says so with the run id.
+- **R4. Add and repair.** For a PR that should carry a label:
+  not labelled and no marker comment → add label, then post the notice; if
+  the notice fails, remove the label (outcome `FAILED`). Not labelled but a
+  marker comment exists (someone removed the label) → re-add the label only.
+  Labelled but no marker comment (killed between the two calls, or labelled
+  by hand) → post the notice (outcome `repaired`). Labelled with marker →
+  nothing. Two overlapping selector passes can post at most one extra notice
+  on a true read race; accepted.
+- **R5. Permission.** The trigger job gets `pull-requests: write`
+  (`issues: write` stays). That GitHub refuses PR comments and labels to a
+  job token holding only `issues: write` is the author's reading of
+  GitHub's documented behaviour, **not proven in this repository**; live
+  proof A must capture the real response for label add, notice post and
+  label removal on a real PR.
+- **R6. Clearing, on positive evidence only.**
+  (a) Either label: the PR is a candidate and all its versions are in
+  `live` → remove, comment "Delivered". Never when `live` is None or empty;
+  never on a partial version set.
+  (b) `promotion-held`: a **fresh** hold read made by the reconciler itself
+  (not the pre-dispatch prefetch) succeeds and is empty → remove, comment
+  "No longer held by review findings".
+  (c) Either label: the PR is no longer a candidate at all, and candidate
+  discovery this pass was complete (`discovery_ok`: no exception, no cache
+  fallback) → remove, comment "No longer tracked by the automatic lane
+  (versions retired, removed from main, or superseded)". This settles
+  revision 2's open question about retired originals.
+  `promotion-parked` is never cleared merely because a pass does not
+  classify the PR as parked.
+- **R7. Failures are durable.** Any `FAILED` outcome — parked or held, add
+  or clear — prints `::error title=Stranded-PR notice not delivered::…`,
+  is written to `$GITHUB_STEP_SUMMARY`, and is posted to the roll-up issue
+  by the reconciler's own write (not through `report_stuck_change`, which
+  returns early when nothing is parked). That write is itself non-fatal.
+- **R8. Public-safe text.** Notices carry versions, counts, ages, run and
+  issue links only; no database URLs, project refs or secrets. They are
+  signed as automation, link this plan, and repeat: never re-run a failed
+  run; no manual production command; repair by fix-forward or
+  retire-and-reissue.
+- **R9. The session rule is best-effort.** Phase 1 is the only guarantee.
+  Phase 2 puts the label list in front of sessions (at start of structural
+  work and before ending) and asks a session that merged a migration to
+  leave its delivery check behind (scheduled self-check where the harness
+  can, else the exact re-check in its HANDOFF.d file and
+  `- [ ] promotion delivered to production` on the landing issue). Nothing
+  enforces it and the plan does not pretend otherwise.
+- **OPEN (implementer):** label colours; exact notice wording.
 
 ---
 
@@ -297,115 +349,87 @@ Worktree from fresh `origin/main`. Claim the files on issue #6561 first
    change `pull-requests: read` to
    `pull-requests: write  # stranded-PR notices and labels (#6561)`.
    Add `test_trigger_job_grants_pull_requests_write` beside
-   `test_trigger_job_grants_issues_write`, same technique.
-   *Done when:* the new test passes and fails if the line is reverted.
+   `test_trigger_job_grants_issues_write`.
+   *Done when:* the test passes and fails if the line is reverted.
 
-2. **Label plumbing.** Near `STUCK_ISSUE_TITLE` add
-   `PARKED_LABEL = "promotion-parked"`, `HELD_LABEL = "promotion-held"`,
-   `HELD_ESCALATE_AFTER = timedelta(hours=24)`. Add
-   `ensure_label(repo, name, description) -> bool`: GET
-   `/repos/{repo}/labels/{name}`; on 404 POST `/repos/{repo}/labels`; a 422
-   on create (another run made it first) counts as success; any other
-   failure → `::warning`, return False. Follow the file's existing `gh`
-   helper and subprocess style.
-   *Done when:* unit tests for exists / 404-then-create / 422 / failure pass.
+2. **Shared classifier (R3).** Extract the per-PR classification from
+   `decide()` into a helper returning one of: delivered, held (with
+   findings), unknown-hold, waiting-on-dependency, parked (with attempt and
+   refund counts), dispatchable. `decide()` calls it and behaves exactly as
+   before. Add a memoising wrapper for the four evidence callables keyed by
+   `(run id, run attempt)`.
+   *Done when:* the entire existing suite passes with no test edited.
 
-3. **Stranded sets.** Add `stranded_holds(skipped, now)` returning held
-   entries older than `HELD_ESCALATE_AFTER`, reusing the age rule in
-   `overdue_holds` (refactor the shared age computation into one helper
-   rather than copying it). Exclude entries with `exhausted`, `refunds`,
-   `pending_dependencies`, or empty `findings`.
-   *Done when:* a 23h hold is excluded, a 25h hold included, an
-   unknown-findings entry excluded.
+3. **Label plumbing.** Constants `PARKED_LABEL`, `HELD_LABEL`,
+   `HELD_ESCALATE_AFTER = timedelta(hours=8)`, and the marker format.
+   `ensure_label(repo, name, description) -> bool`: GET the label; 404 →
+   create; 422 on create counts as success; anything else → warning, False.
+   `labelled_prs(repo, label)`: paginated `issues?labels=…&state=all`,
+   keeping **only** items that have a `pull_request` key.
+   `has_marker(repo, n, label)`: paginated comment read.
 
-4. **Escalate.** Add `escalate_stranded(repo, parked, held, now) -> dict[int, str]`
-   returning per-PR outcome: `posted`, `already`, or `FAILED`. For each PR
-   and its label (D2):
-   - Read the PR's labels (`/repos/{repo}/issues/{n}/labels`). Label present
-     → `already`.
-   - Else `ensure_label`, POST the label, then POST the comment. Parked body:
-     heading `## Parked: automatic promotion out of attempts`, versions,
-     attempt and refund counts, hours since merge, "NOT in production".
-     Held body: heading `## Held over 24 hours by review findings`, versions,
-     the finding issue numbers as links, hours held, "NOT in production".
-     Both: the D7 rules and a link to this plan.
-   - Comment POST fails → DELETE the label, outcome `FAILED`.
-   - Any exception for one PR is caught for that PR only: `FAILED`, print the
-     D6 `::error` annotation, continue with the next PR.
-   *Done when:* a second pass with no state change makes zero POSTs.
+4. **Desired sets.** For every candidate not fully in `live`, using the
+   shared classifier: desired-held when held with known findings and hold
+   age over `HELD_ESCALATE_AFTER` (share the age computation with
+   `overdue_holds`; do not copy it); desired-parked when parked, skipped
+   entirely on a `wait` pass. Use the post-dispatch run snapshot when the
+   dispatch loop produced one.
 
-5. **Clear.** Add `clear_delivered(repo, candidates, live, positively_not_held)`.
-   If `live` is empty, return. List issues with each label
-   (`/repos/{repo}/issues?labels=<label>&state=all&per_page=100`, all pages).
-   For each labelled PR found in `candidates` whose versions are all in
-   `live`: DELETE the label and post one short comment
-   `Delivered: all versions are in the production ledger; label removed.`
-   For `promotion-held` also clear when the PR number is in
-   `positively_not_held` (D4), comment `No longer held by review findings.`
-   A labelled PR not in `candidates` is left alone. Failures → `::warning`.
-   Resolve the OPEN item about retired originals here and record it.
-   *Done when:* tests in §10 for clearing pass, including "empty `live`
-   clears nothing" and "absent from `skipped` clears nothing".
+5. **Reconcile (R4, R6).** Implement `reconcile_stranded_marks` returning a
+   per-PR outcome: `posted`, `repaired`, `relabelled`, `already`,
+   `cleared`, `FAILED`, or `unknown`. Thread a `discovery_ok` boolean out of
+   candidate discovery; if it cannot be established, rule R6(c) is skipped
+   that pass. For R6(b) make one fresh hold read per PR that currently
+   carries `promotion-held`. Each PR is handled in its own try/except.
+   *Done when:* a second pass with no state change performs zero writes.
 
-6. **Wire into `main()` and the roll-up.** When not `args.dry_run`:
-   call `clear_delivered` every pass; compute `held = stranded_holds(skipped, now)`;
-   call `escalate_stranded(repo, exhausted, held, now)` when either list is
-   non-empty; pass the outcomes into `report_stuck_change` so each parked
-   line ends with `— PR notice: posted|already|FAILED`. Do not change when
-   the roll-up is commented (still only when `exhausted` is non-empty).
-   Under `--dry-run`, print what would be escalated and cleared and write
-   nothing.
-   *Done when:* the whole suite is green and a `--dry-run` makes no writes
-   (assert in a test that no POST/DELETE is issued).
+6. **Wire in and report (R1, R7).** Call the reconciler from `main()` after
+   the dispatch loop, inside a guard that catches everything and prints a
+   warning. Under `--dry-run`, print the intended adds and clears and write
+   nothing. Add the `— PR notice: <outcome>` suffix to each parked line of
+   the existing roll-up comment, and add the reconciler's own roll-up write
+   for any `FAILED` outcome (R7). Do not change when `report_stuck_change`
+   itself comments.
 
 7. **Gate.** `python -I scripts/test_automatic_promotion_candidates.py` green
    locally; "Promotion selector tests" green on the PR;
-   `bash scripts/check-sql.sh` still exits 0 (no migrations added). Merge
-   through the queue with plain `gh pr merge`.
+   `bash scripts/check-sql.sh` still exits 0. Merge through the queue with
+   plain `gh pr merge`.
 
 8. **Live proof A — immediately, not "the next park".** After the merge,
-   read the next trigger run's log and the PR pages. Expected, if the 11-17
-   state still holds: #6263 and #6436 carry `promotion-parked` and the
-   notice; the six held PRs in §3 that are still held carry `promotion-held`
-   and the notice. If the stranded set has changed, prove on whatever is
-   stranded then. If nothing at all is stranded, the proof is a trigger run
-   log showing the clear pass ran with no error, and step 6 of STATUS stays
-   open until the next real stranding. **If any notice shows `FAILED` or the
-   `Stranded-PR notice not delivered` annotation appears, Phase 1 is not
-   done** — read the refusal text and fix it. Link the evidence on #6561.
-   Never run the selector's write path locally against the real repository.
+   read the next trigger run's log and step summary, and the PR pages. Every
+   PR stranded at that moment (on 11-17: parked #6263 and #6436; held #6317,
+   #6447, #6433, #6444, #6454, #6529 where still held) carries its label
+   and notice. Record on #6561 the actual success or refusal responses for
+   label add and notice post (this is the proof of R5), and for label
+   removal as soon as the first clear happens. If nothing is stranded, the
+   proof is a clean reconciler log line and STATUS step 6 stays open.
+   **Any `FAILED` outcome means Phase 1 is not done.** Never run the write
+   path locally against the real repository.
 
-**Phase 2 — session rule (context cut point; a fresh session re-reads §5 and
-§8 D8 first).**
+**Phase 2 — session rule (context cut point; re-read §5 and R9 first).**
 
 9. **Rulebook pair, one PR, class `reviewer-safety`.**
-   - `AGENTS.md` "Session wrap-up convention": add one short paragraph —
-     before ending, a shared-db session lists PRs labelled `promotion-parked`
-     or `promotion-held`; it reports any it merged or can repair, and never
-     ends silently with its own merged migration undelivered: delivery
-     proven from the production ledger, or a scheduled bounded self-check
-     (where the harness can schedule) that stops on delivery, or the exact
-     re-check recorded in its HANDOFF.d file. Landing issues carry
-     `- [ ] promotion delivered to production`.
+   - `AGENTS.md` "Session wrap-up convention": one short paragraph — before
+     ending, a shared-db session lists PRs labelled `promotion-parked` or
+     `promotion-held`, reports any it merged or can repair, and leaves the
+     delivery check for its own merged migration as R9 describes.
    - `docs/agents/worktrees-and-handoffs.md` §2.1-H: the same rule in long
-     form, with the two list queries spelled out and a link to this plan.
+     form with the two list queries and a link to this plan.
    - Section numbers do not change.
    *Done when:* documents checks pass on the PR head and it is merged.
 
-10. **Skill sources, in the ai-devops configuration repository** (find them
-    by searching that repository for the skill directory names in §5; do not
-    edit installed copies). Add to the shared-db-change skill (and its Codex
-    variant): at start, list the two labels and say what is stranded; after
-    merging a migration PR, the D8 "watch your own" step. Add to the
+10. **Skill sources, in the ai-devops configuration repository** (search it
+    for the skill directory names in §5; never edit installed copies). The
+    shared-db-change skill and its Codex variant: list the two labels at
+    start; the R9 delivery check after merging a migration PR. The
     shared-db-handover skill: the pre-end list and the delivered checkbox.
-    Land in that repository by its own rules, then run the dotfiles sync on
-    this machine.
-    *Done when:* the installed copies on this machine show the new steps and
-    each variant carries the same wording (diff them).
+    Land by that repository's rules, then run the dotfiles sync here.
+    *Done when:* installed copies on this machine show the steps and the
+    variants carry the same wording.
 
-11. **Live proof B.** When any labelled PR is delivered, confirm the label
-    was removed and the "Delivered" comment posted without a human or
-    session doing it. Link it on #6561 and tick the last checklist item.
+11. **Live proof B.** When a labelled PR is delivered, confirm the label was
+    removed and "Delivered" posted with no session doing it. Link on #6561.
 
 ### 10. Tests required
 
@@ -415,22 +439,34 @@ existing block does.
 | Hostile or boundary case | Test name |
 |---|---|
 | Workflow loses PR write permission | `test_trigger_job_grants_pull_requests_write` |
-| Each parked PR gets label + comment once | `test_parked_pr_is_escalated_once` |
-| Label already present → no POST | `test_escalation_skips_when_label_present` |
-| Held 25h escalated; 23h not; unknown findings not | `test_held_pr_escalates_only_after_24h_with_known_findings` |
-| Comment POST fails → label removed, outcome FAILED, next PR still done | `test_failed_notice_rolls_back_label_and_continues` |
-| 403 "Resource not accessible by integration" on label POST → FAILED + `::error` annotation, no exception | `test_permission_refusal_is_loud_not_fatal` |
+| Classifier refactor changes nothing | the whole existing suite, unedited |
+| Parked PR gets label + notice once | `test_parked_pr_is_marked_once` |
+| Held PR **behind a dispatchable PR** is still marked | `test_held_pr_behind_dispatch_pick_is_marked` |
+| Parked PR behind a dispatchable PR is still marked | `test_parked_pr_behind_dispatch_pick_is_marked` |
+| `wait` pass: held reconciled, parked untouched | `test_wait_pass_reconciles_holds_only` |
+| Held 9h marked; 7h not; unknown read neither marked nor cleared | `test_held_threshold_and_unknown_read` |
+| `overdue_holds` (30 min) and the 8h rule deliberately differ | `test_alert_and_escalation_thresholds_differ` |
+| Labelled + marker → zero writes | `test_marked_pr_is_left_alone` |
+| Labelled, no marker → notice posted (`repaired`) | `test_label_without_notice_is_repaired` |
+| Marker, label removed by hand → label re-added, no new notice | `test_removed_label_is_restored_without_duplicate_notice` |
+| Notice POST fails → label removed, `FAILED`, next PR still handled | `test_failed_notice_rolls_back_label_and_continues` |
+| 403 "Resource not accessible by integration" on label add, notice post and label removal → `FAILED` + `::error`, no exception, exit code unchanged | `test_permission_refusal_is_loud_not_fatal` |
+| Held-only `FAILED` still reaches roll-up and step summary | `test_held_only_failure_is_recorded_durably` |
+| Roll-up write failure is non-fatal | `test_rollup_failure_does_not_fail_run` |
 | Label missing → created once; 422 race tolerated | `test_missing_label_is_created_and_race_tolerated` |
-| Delivered PR → label removed + comment | `test_delivered_pr_label_is_cleared` |
-| Empty `live` → nothing cleared | `test_no_clearing_without_a_ledger_read` |
-| PR absent from `skipped` but not delivered → not cleared | `test_absence_from_skipped_never_clears` |
-| Held label cleared when PR becomes the dispatch pick | `test_held_label_cleared_when_positively_not_held` |
-| More than 100 labelled PRs | `test_label_listing_is_paginated` |
-| Roll-up line shows notice outcome | `test_rollup_reports_notice_outcome_per_pr` |
-| Comment bodies carry no database URL or project ref | `test_notice_bodies_are_public_safe` |
-| `--dry-run` writes nothing | `test_dry_run_issues_no_writes` |
+| Delivered → cleared with comment | `test_delivered_pr_is_cleared` |
+| `live` None and `live` empty both clear nothing | `test_no_clearing_without_a_ledger_read` |
+| Only some versions live → not cleared | `test_partial_delivery_is_not_cleared` |
+| Held cleared only on a fresh empty read; stale prefetch alone does not clear | `test_held_cleared_only_on_fresh_read` |
+| Withdrawn dispatch does not clear `promotion-held` | `test_withdrawn_dispatch_clears_nothing` |
+| Parked not cleared when a pass classifies it otherwise | `test_parked_label_does_not_flap` |
+| Non-candidate labelled PR cleared only when `discovery_ok` | `test_untracked_pr_cleared_only_on_complete_discovery` |
+| Label listing ignores plain issues; listing and comment reads paginate | `test_label_listing_is_prs_only_and_paginated` |
+| Reconciler exception never changes exit code | `test_reconciler_crash_is_contained` |
+| Notice bodies carry no database URL or project ref | `test_notice_bodies_are_public_safe` |
+| `--dry-run` issues no POST, PATCH or DELETE | `test_dry_run_issues_no_writes` |
 
-The existing suite and `check-sql.sh` stay green.
+`check-sql.sh` stays green.
 
 ### 11. Constraints and gotchas
 
@@ -462,19 +498,21 @@ HANDOFF.d registration is retired by its own session or its successor.
 
 **Risks:**
 
-- *Notice spam* if label add succeeds and the roll-back delete fails after a
-  comment failure — bounded: the label then stays, so no repeat; the roll-up
-  shows `FAILED` once.
-- *Stale label* on a retired-and-reissued original — see the OPEN item in §8;
-  removed by the repair session that retires it.
+- *Label without notice* after a kill between the two calls — repaired on
+  the next pass by the marker check (R4).
+- *One duplicate notice* when two selector passes race — accepted (R4).
+- *Parked label outlives a recovery in progress* — it stays until delivery
+  by design, to avoid flapping (R6); the notice text says attempts may have
+  resumed.
+- *Classifier refactor alters dispatch* — guarded by the unedited existing
+  suite (step 2).
 - *Sessions ignore the rule* — the labels and roll-up do not depend on
   obedience; the skill step puts the list in front of every structural
   session.
 - *Wider token permission* — `pull-requests: write` on a job that already
   holds `contents: write` and `actions: write` adds no meaningful reach.
 
-**Open questions:** label colours and wording; retired-original handling
-(both in §8).
+**Open questions:** label colours and wording (§8).
 
 ---
 
