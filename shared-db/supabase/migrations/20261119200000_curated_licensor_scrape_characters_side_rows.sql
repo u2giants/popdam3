@@ -1,6 +1,9 @@
 -- Version: 20261119200000
 -- derived-from: none
 --
+-- RETIRED BY RE-STAMP, never apply: this version lost three backdate tip races while
+-- held by review finding #6496 and was superseded by 20261202120000 (same SQL, new stamp).
+-- File kept for source truth per the retired-original convention.
 -- Second fix-forward of the #5079 Disney side rows (issue #5932), replacing merged-but-unapplied
 -- 20261119010000 (itself a re-stamp of the unapplyable 20261113223432 / 20261102012258 content).
 -- Chain of refusals this file cures:
