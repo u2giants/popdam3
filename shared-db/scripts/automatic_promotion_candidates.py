@@ -636,6 +636,159 @@ def title_versions(title: str) -> set[str]:
     return {v for word in title.split() for v in word.split(",") if re.fullmatch(r"\d{14}", v)}
 
 
+def memoised_evidence(fn: callable) -> callable:
+    """Wrap one run-evidence callable (applied, refused, stale, refunded) so a
+    selector pass reads each run's evidence once, keyed by (run id, run attempt)
+    (plan_promotion_stranding_watch.md R3). Exceptions are not cached: the next
+    caller reads again and handles the failure as it always has."""
+    cache: dict[tuple[Any, Any], Any] = {}
+
+    def wrapped(run):
+        key = (run.get("id", id(run)), run.get("run_attempt", 1))
+        if key not in cache:
+            cache[key] = fn(run)
+        return cache[key]
+    return wrapped
+
+
+def dependency_evidence_reader(applied: callable, refused: callable) -> callable:
+    """Per-pass reader of a failed production run's dependency receipt:
+    (actually applied, versions refused as already applied). Unreadable evidence
+    is unproved, never fatal (#5651)."""
+    receipts: dict[tuple[Any, Any], tuple[bool, set[str]]] = {}
+
+    def read(run):
+        key = (run.get("id", id(run)), run.get("run_attempt", 1))
+        if key not in receipts:
+            actual_apply, already_applied = False, set()
+            try:
+                actual_apply = applied(run)
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                print("::warning::dependency apply evidence unreadable; treating this receipt as unproved")
+            try:
+                already_applied = set(refused(run))
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                print("::warning::dependency ledger refusal evidence unreadable; treating this receipt as unproved")
+            receipts[key] = (actual_apply, already_applied)
+        return receipts[key]
+    return read
+
+
+def classify_pr(pr: dict[str, Any], runs: list[dict[str, Any]], held: callable,
+                applied: callable, refused: callable, stale: callable,
+                refunded: callable, live: set[str] | None,
+                dependency_evidence: callable,
+                permanent: callable = lambda run: False) -> tuple[str, dict[str, Any]]:
+    """Classify one candidate PR against this pass's evidence; the single source
+    of per-PR status shared by decide() and the stranded-PR reconciler
+    (plan_promotion_stranding_watch.md R3). `runs` must already be filtered to
+    our workflow. Returns (kind, detail):
+
+    - ("delivered", {})                            versions already in production
+    - ("held", {"findings": [...]})                blocking review findings
+    - ("unknown-hold", {"findings": []})           finding read failed; held, findings unknown
+    - ("waiting-on-dependency", {"pending_dependencies": {...}})
+    - ("parked", {"exhausted": n, "refunds": n, "permanent": bool})
+                                                   out of attempts or refunds, or a
+                                                   permanent refusal (#6574)
+    - ("dispatchable", {"stale_streak": n})
+    """
+    # #6352: the production ledger is the final word. Versions already applied
+    # (by any route) are delivered; retrying them only burns attempts and
+    # fails "already applied on preview", parking every later change.
+    if live and pr.get("versions") and set(pr["versions"]) <= live:
+        print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in the production ledger")
+        return "delivered", {}
+    tag = f"PR{pr['number']} "
+    titles = [(r.get("display_title") or "") + " " for r in runs]
+    prod = [r for t, r in zip(titles, runs) if t.startswith("DB production apply") and tag in t]
+    if any(r.get("conclusion") == "success" for r in prod):
+        print(f"skip: PR #{pr['number']} has a successful production apply")
+        return "delivered", {}
+    if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
+        print(f"skip: PR #{pr['number']} applied; a later post-apply step failed")
+        return "delivered", {}
+    wanted = set(pr["versions"])
+    in_production: set[str] = set()
+    for t, r in zip(titles, runs):
+        if not t.startswith("DB production apply") or not (named := title_versions(t)) & wanted:
+            continue
+        if r.get("conclusion") == "success":
+            in_production |= named
+        elif r.get("conclusion") == "failure":
+            in_production |= refused(r)
+        if wanted <= in_production:
+            break
+    if wanted <= in_production:
+        print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in production via another run")
+        return "delivered", {}
+    findings = held(pr["number"])
+    if findings:
+        if isinstance(findings, list):
+            return "held", {"findings": findings}
+        return "unknown-hold", {"findings": []}
+    dependencies = pr.get("production_dependencies", {})
+    proven_bases = set()
+    for title, run in zip(titles, runs):
+        if not title.startswith("DB production apply") or not (named := title_versions(title)) & dependencies.keys():
+            continue
+        if run.get("conclusion") == "success":
+            proven_bases |= named
+        elif run.get("conclusion") == "failure":
+            actual_apply, already_applied = dependency_evidence(run)
+            if actual_apply:
+                proven_bases |= named
+            proven_bases |= already_applied
+    missing_bases = {v: owner for v, owner in dependencies.items() if v not in proven_bases}
+    if missing_bases:
+        return "waiting-on-dependency", {"pending_dependencies": missing_bases}
+    # Attempts count per change since its merge, NOT per main commit (#5683/#5686,
+    # Nov 5 2026): resetting on every main advance let one stuck change be retried
+    # after each unrelated merge and starve every later promotion. A cure for a stuck
+    # change is a new governed version, which is a new candidate. The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
+    # production apply re-enters through a historical recovery preview that succeeds
+    # by design, so counting only preview failures could never bound that loop. A
+    # recovery run titles itself "PR " with no number, hence the version match.
+    # CLASSIFIED failures (plan §9 2.1–2.3): a pure main-SHA staleness refusal
+    # never touched a database (#5856) and a run marked refund-eligible-fault
+    # is an infrastructure/coordination fault, not the change's — neither burns
+    # an attempt while this change's refund budget (MAX_REFUNDS) lasts. The
+    # classified failure that finds the budget empty parks the change, and so
+    # does the MAX_ATTEMPTS-th ordinary (unclassified) failure, exactly as
+    # before. Per-attempt evidence (applied / refused / preview) is unaffected.
+    failures = [r for t, r in zip(titles, runs)
+                if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
+                and (tag in t or names_pr(pr, t))
+                and r.get("created_at", "") > pr["merged_at"]
+                and r.get("conclusion") != "success"]
+    attempts, refunds, refund_parked, stale_streak = 0, 0, False, 0
+    permanent_hit = False
+    for failure in sorted(failures, key=lambda r: r.get("created_at", "")):
+        # #6574: a permanent refusal cannot be cured by a retry; park on this
+        # first run instead of spending the remaining attempts.
+        if permanent(failure):
+            attempts, permanent_hit = MAX_ATTEMPTS, True
+            break
+        # #5937: a main-moved refusal never touched a database and is caused
+        # by other people's merges -- it counts neither attempt nor refund.
+        if stale(failure):
+            stale_streak += 1
+            continue
+        stale_streak = 0
+        if refunded(failure):
+            if refunds >= MAX_REFUNDS:
+                refund_parked = True
+                break
+            refunds += 1
+        else:
+            attempts += 1
+            if attempts >= MAX_ATTEMPTS:
+                break
+    if attempts >= MAX_ATTEMPTS or refund_parked:
+        return "parked", {"exhausted": attempts, "refunds": refunds, "permanent": permanent_hit}
+    return "dispatchable", {"stale_streak": stale_streak}
+
+
 def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable,
            applied: callable = lambda run: False, main_sha: str = "",
            skipped: list[dict[str, Any]] | None = None,
@@ -670,130 +823,35 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     out_of_attempts: list[dict[str, Any]] = []
     # #5651: only dependency receipts share reads within this decision pass.
     # The fresh recheck invokes decide again and must read new evidence.
-    dependency_receipts = {}
-
-    def dependency_evidence(run):
-        key = (run.get("id", id(run)), run.get("run_attempt", 1))
-        if key not in dependency_receipts:
-            actual_apply, already_applied = False, set()
-            try:
-                actual_apply = applied(run)
-            except (OSError, ValueError, subprocess.CalledProcessError):
-                print("::warning::dependency apply evidence unreadable; treating this receipt as unproved")
-            try:
-                already_applied = set(refused(run))
-            except (OSError, ValueError, subprocess.CalledProcessError):
-                print("::warning::dependency ledger refusal evidence unreadable; treating this receipt as unproved")
-            dependency_receipts[key] = (actual_apply, already_applied)
-        return dependency_receipts[key]
+    dependency_evidence = dependency_evidence_reader(applied, refused)
     for pr in prs:
-        # #6352: the production ledger is the final word. Versions already applied
-        # (by any route) are delivered; retrying them only burns attempts and
-        # fails "already applied on preview", parking every later change.
-        if live and pr.get("versions") and set(pr["versions"]) <= live:
-            print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in the production ledger")
+        kind, detail = classify_pr(pr, runs, held, applied, refused, stale, refunded,
+                                   live, dependency_evidence, permanent)
+        if kind == "delivered":
             continue
-        tag = f"PR{pr['number']} "
-        titles = [(r.get("display_title") or "") + " " for r in runs]
-        prod = [r for t, r in zip(titles, runs) if t.startswith("DB production apply") and tag in t]
-        if any(r.get("conclusion") == "success" for r in prod):
-            print(f"skip: PR #{pr['number']} has a successful production apply")
-            continue
-        if any(r.get("conclusion") == "failure" and applied(r) for r in prod):
-            print(f"skip: PR #{pr['number']} applied; a later post-apply step failed")
-            continue
-        wanted = set(pr["versions"])
-        in_production: set[str] = set()
-        for t, r in zip(titles, runs):
-            if not t.startswith("DB production apply") or not (named := title_versions(t)) & wanted:
-                continue
-            if r.get("conclusion") == "success":
-                in_production |= named
-            elif r.get("conclusion") == "failure":
-                in_production |= refused(r)
-            if wanted <= in_production:
-                break
-        if wanted <= in_production:
-            print(f"skip: PR #{pr['number']} versions {','.join(pr['versions'])} already in production via another run")
-            continue
-        findings = held(pr["number"])
-        if findings:
+        if kind in ("held", "unknown-hold"):
             passed_over += 1
             if skipped is not None:
-                skipped.append({**pr, "findings": findings if isinstance(findings, list) else []})
+                skipped.append({**pr, "findings": detail["findings"]})
             continue
-        dependencies = pr.get("production_dependencies", {})
-        proven_bases = set()
-        for title, run in zip(titles, runs):
-            if not title.startswith("DB production apply") or not (named := title_versions(title)) & dependencies.keys():
-                continue
-            if run.get("conclusion") == "success":
-                proven_bases |= named
-            elif run.get("conclusion") == "failure":
-                actual_apply, already_applied = dependency_evidence(run)
-                if actual_apply:
-                    proven_bases |= named
-                proven_bases |= already_applied
-        missing_bases = {v: owner for v, owner in dependencies.items() if v not in proven_bases}
-        if missing_bases:
+        if kind == "waiting-on-dependency":
             passed_over += 1
             if skipped is not None:
-                skipped.append({**pr, "pending_dependencies": missing_bases})
+                skipped.append({**pr, "pending_dependencies": detail["pending_dependencies"]})
             continue
-        # Attempts count per change since its merge, NOT per main commit (#5683/#5686,
-        # Nov 5 2026): resetting on every main advance let one stuck change be retried
-        # after each unrelated merge and starve every later promotion. A cure for a stuck
-        # change is a new governed version, which is a new candidate. The WHOLE automatic cycle counts, not only preview applies (#5532): a failed
-        # production apply re-enters through a historical recovery preview that succeeds
-        # by design, so counting only preview failures could never bound that loop. A
-        # recovery run titles itself "PR " with no number, hence the version match.
-        # CLASSIFIED failures (plan §9 2.1–2.3): a pure main-SHA staleness refusal
-        # never touched a database (#5856) and a run marked refund-eligible-fault
-        # is an infrastructure/coordination fault, not the change's — neither burns
-        # an attempt while this change's refund budget (MAX_REFUNDS) lasts. The
-        # classified failure that finds the budget empty parks the change, and so
-        # does the MAX_ATTEMPTS-th ordinary (unclassified) failure, exactly as
-        # before. Per-attempt evidence (applied / refused / preview) is unaffected.
-        failures = [r for t, r in zip(titles, runs)
-                    if (t.startswith("DB preview apply") or t.startswith("DB production apply"))
-                    and (tag in t or names_pr(pr, t))
-                    and r.get("created_at", "") > pr["merged_at"]
-                    and r.get("conclusion") != "success"]
-        attempts, refunds, refund_parked, stale_streak = 0, 0, False, 0
-        permanent_hit = False
-        for failure in sorted(failures, key=lambda r: r.get("created_at", "")):
-            # #6574: a permanent refusal cannot be cured by a retry; park on this
-            # first run instead of spending the remaining attempts.
-            if permanent(failure):
-                attempts, permanent_hit = MAX_ATTEMPTS, True
-                break
-            # #5937: a main-moved refusal never touched a database and is caused
-            # by other people's merges -- it counts neither attempt nor refund.
-            if stale(failure):
-                stale_streak += 1
-                continue
-            stale_streak = 0
-            if refunded(failure):
-                if refunds >= MAX_REFUNDS:
-                    refund_parked = True
-                    break
-                refunds += 1
-            else:
-                attempts += 1
-                if attempts >= MAX_ATTEMPTS:
-                    break
-        if attempts >= MAX_ATTEMPTS or refund_parked:
+        if kind == "parked":
             # Out of automatic attempts or out of refunds: passed over like a held
             # PR, with a loud alert in main(), so one dead PR cannot park every
             # later promotion while still refusing to retry it (#5532).
             passed_over += 1
-            entry = {**pr, "findings": [], "exhausted": attempts, "refunds": refunds, "permanent": permanent_hit}
+            entry = {**pr, "findings": [], "exhausted": detail["exhausted"], "refunds": detail["refunds"],
+                     "permanent": detail["permanent"]}
             out_of_attempts.append(entry)
             if skipped is not None:
                 skipped.append(entry)
             continue
-        if stale_streak >= BACKSTOP_AFTER_STALE:
-            pr = {**pr, "stale_streak": stale_streak}
+        if detail["stale_streak"] >= BACKSTOP_AFTER_STALE:
+            pr = {**pr, "stale_streak": detail["stale_streak"]}
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
     if passed_over:
         base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
@@ -854,6 +912,14 @@ def _time(text: str) -> datetime:
     return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
+def hold_since(entry: dict[str, Any]) -> datetime:
+    """When this PR's review hold began: the later of its merge and its oldest
+    blocking finding (the merge alone when no finding carries a date)."""
+    opened = [_time(f["created_at"]) for f in entry.get("findings") or [] if f.get("created_at")]
+    merged = _time(entry["merged_at"])
+    return max(merged, min(opened)) if opened else merged
+
+
 def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     """One line per PR held longer than ALERT_AFTER. A PR is held from the later
     of its merge and its oldest blocking finding (unknown findings: the merge).
@@ -862,8 +928,7 @@ def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     for pr in skipped:
         if pr.get("exhausted") or pr.get("refunds") or pr.get("pending_dependencies"):
             continue
-        opened = [_time(f["created_at"]) for f in pr["findings"] if f.get("created_at")]
-        since = max(_time(pr["merged_at"]), min(opened)) if opened else _time(pr["merged_at"])
+        since = hold_since(pr)
         if now - since > ALERT_AFTER:
             refs = ", ".join(f"#{f.get('number')}" for f in pr["findings"]) or "an unreadable finding query"
             minutes = int((now - since).total_seconds() // 60)
@@ -1020,13 +1085,17 @@ def main(now: datetime | None = None) -> int:
     held = prefetch_holds(repo, [c["number"] for c in candidates
                                  if not (live and c.get("versions") and set(c["versions"]) <= live)])
     phase("review-finding holds read")
-    action, pr, reason = decide(candidates, runs, held,
-                                lambda run: applied_in_any_attempt(repo, run), main_sha,
-                                skipped, lambda run: refused_as_applied(repo, run),
-                                stale=lambda run: stale_main_refusal_only(repo, run),
-                                permanent=lambda run: permanent_refusal(repo, run),
-                                refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
-                                live=live)
+    # Plan R3 (#6561): one read of each run's evidence per pass, shared by the
+    # first decision and the stranded-PR reconciler. The fresh recheck below
+    # keeps reading new evidence.
+    pass_applied = memoised_evidence(lambda run: applied_in_any_attempt(repo, run))
+    pass_refused = memoised_evidence(lambda run: refused_as_applied(repo, run))
+    pass_stale = memoised_evidence(lambda run: stale_main_refusal_only(repo, run))
+    pass_permanent = memoised_evidence(lambda run: permanent_refusal(repo, run))
+    pass_refunded = memoised_evidence(lambda run: refund_eligible_in_any_attempt(repo, run))
+    action, pr, reason = decide(candidates, runs, held, pass_applied, main_sha,
+                                skipped, pass_refused, stale=pass_stale,
+                                refunded=pass_refunded, live=live, permanent=pass_permanent)
     for entry in skipped:
         if entry.get("pending_dependencies"):
             refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
@@ -1043,6 +1112,7 @@ def main(now: datetime | None = None) -> int:
     print(f"{action}: {reason}")
     alerts = overdue_holds(skipped, now)
     claimed_elsewhere: set[int] = set()
+    reconcile_runs = runs
     while action == "dispatch":
         # Selecting takes minutes; a run started meanwhile must count (#5558:
         # a re-run began after the snapshot and PR #5539 was dispatched again).
@@ -1053,6 +1123,7 @@ def main(now: datetime | None = None) -> int:
         fresh_since = min([pr["merged_at"]] + [merged_at[n] for n in pr.get("production_dependencies", {}).values()
                                                if n in merged_at])
         fresh_runs = workflow_runs(repo, fresh_since=fresh_since)
+        reconcile_runs = fresh_runs
         action, pr, reason = decide([pr], fresh_runs, lambda n: is_held(repo, n),
                                     lambda run: applied_in_any_attempt(repo, run), main_sha,
                                     None, lambda run: refused_as_applied(repo, run),
@@ -1102,7 +1173,25 @@ def main(now: datetime | None = None) -> int:
               f"{', '.join(f'#{n}' for n in sorted(claimed_elsewhere))})")
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
-    exhausted = [e for e in skipped if e.get("exhausted") or e.get("refunds")]
+    # Plan R1/R7 (#6561): mark stranded PRs on the PRs themselves, over every
+    # candidate. Contained: a reconciler defect never changes the exit code.
+    # merged_migration_prs raises on incomplete discovery, so reaching here
+    # means discovery this pass was complete (discovery_ok, card decision 1).
+    try:
+        marks = reconcile_stranded_marks(repo, candidates, reconcile_runs, live, now, held,
+                                         pass_applied, pass_refused, pass_stale, pass_refunded,
+                                         discovery_ok=True, dry_run=args.dry_run,
+                                         permanent=pass_permanent)
+    except Exception as exc:
+        print(f"::warning title=Stranded-PR reconciler defect::{type(exc).__name__}: {exc}; "
+              "labels and notices were not reconciled this pass")
+        marks = []
+    notice_failures = [r for r in marks if r["outcome"] == "FAILED"]
+    if notice_failures and not args.dry_run:
+        report_notice_failures(repo, notice_failures)
+    parked_notice = {r["number"]: r["outcome"] for r in marks if r["label"] == PARKED_LABEL}
+    exhausted = [{**e, "notice": parked_notice[e["number"]]} if e["number"] in parked_notice else e
+                 for e in skipped if e.get("exhausted") or e.get("refunds")]
     for entry in exhausted:
         cap_note = (f" {entry['refunds']} refunds used, now parked (refund cap {MAX_REFUNDS} per change)"
                     if entry.get("refunds") else "")
@@ -1147,6 +1236,12 @@ def main(now: datetime | None = None) -> int:
                 fh.write(f"- Overdue holds: {len(alerts)}\n")
             if reruns:
                 fh.write(f"- Acknowledged re-runs: {len(reruns)}\n")
+            for r in notice_failures:
+                fh.write(f"- Stranded-PR notice not delivered: PR #{r['number']} {r['label']}: {r['detail']}\n")
+            touched = [r for r in marks if r["outcome"] not in ("already", "unknown")]
+            if touched:
+                fh.write("- Stranded-PR marks: " + ", ".join(
+                    f"PR #{r['number']} {r['label']} {r['outcome']}" for r in touched) + "\n")
     return 0
 
 
@@ -1342,6 +1437,7 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
             f"failed {e['exhausted']} automatic attempts"
             + (f" and used its {e['refunds']} refunds (refund cap {MAX_REFUNDS} per change)" if e.get("refunds") else "")
             + f"; merged {hours}h ago and not live"
+            + (f" — PR notice: {e['notice']}" if e.get("notice") else "")
         )
     body = (
         "## Delivery needed\n\n"
@@ -1375,6 +1471,341 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
             + (f" stderr={stderr.strip()}" if stderr else "")
             + "; the alert above is still the signal"
         )
+
+
+PARKED_LABEL = "promotion-parked"
+HELD_LABEL = "promotion-held"
+HELD_ESCALATE_AFTER = timedelta(hours=8)
+LABEL_COLOURS = {PARKED_LABEL: "B60205", HELD_LABEL: "FBCA04"}
+LABEL_DESCRIPTIONS = {
+    PARKED_LABEL: "Merged migration out of automatic promotion attempts; not in production",
+    HELD_LABEL: "Merged migration held over 8h by open review findings; not in production",
+}
+
+
+def marker(label: str) -> str:
+    """Hidden marker in the notice comment that proves a label was announced."""
+    return f"<!-- promotion-stranded:{label} -->"
+
+
+def gh_write(method: str, path: str, fields: dict[str, str | list[str]] | None = None) -> tuple[bool, str]:
+    """One GitHub write through `gh api`. A refused call returns (False, text)
+    rather than raising; the caller decides what the failure means."""
+    cmd = ["gh", "api", "-X", method, path]
+    for key, value in (fields or {}).items():
+        if isinstance(value, list):
+            cmd += [arg for item in value for arg in ("-f", f"{key}[]={item}")]
+        else:
+            cmd += ["-f", f"{key}={value}"]
+    try:
+        done = subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        return False, str(exc)
+    if done.returncode == 0:
+        return True, (done.stdout or "").strip()[:200] or "ok"
+    return False, (done.stderr or "").strip() or (done.stdout or "").strip()
+
+
+def ensure_label(repo: str, name: str, description: str) -> bool:
+    """True when the label exists or was just created. A 422 on create means
+    another run created it first (race), which also counts as success."""
+    colour = LABEL_COLOURS.get(name)
+    if colour is None:
+        print(f"::warning::no colour defined for label {name}")
+        return False
+    try:
+        found = subprocess.run(["gh", "api", f"repos/{repo}/labels/{name}"], check=False,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        print(f"::warning::could not read label {name} ({exc})")
+        return False
+    if found.returncode == 0:
+        return True
+    text = f"{found.stderr or ''}{found.stdout or ''}"
+    if "Not Found" not in text and "HTTP 404" not in text:
+        print(f"::warning::could not read label {name} ({text.strip()})")
+        return False
+    ok, msg = gh_write("POST", f"repos/{repo}/labels",
+                       {"name": name, "color": colour, "description": description})
+    if ok or "422" in msg or "already_exists" in msg:
+        return True
+    print(f"::warning::could not create label {name} ({msg})")
+    return False
+
+
+def labelled_prs(repo: str, label: str) -> list[int]:
+    """Numbers of pull requests (plain issues dropped) carrying the label, any
+    state. Exceptions propagate; the caller guards."""
+    pages = gh("--paginate", "--slurp", f"repos/{repo}/issues?labels={label}&state=all&per_page=100") or []
+    items = [item for page in pages for item in page]
+    return [item["number"] for item in items if "pull_request" in item]
+
+
+def cleared_marker(label: str) -> str:
+    """Hidden marker in the clear comment; it closes the episode the notice opened."""
+    return f"<!-- promotion-stranded-cleared:{label} -->"
+
+
+def has_marker(repo: str, n: int, label: str) -> bool:
+    """True when the PR's latest episode for this label was announced: the last
+    comment carrying this label's notice or clear marker is a notice. A cleared
+    episode does not count, so a PR stranded again gets a fresh notice (R4)."""
+    pages = gh("--paginate", "--slurp", f"repos/{repo}/issues/{n}/comments?per_page=100") or []
+    notice, cleared = marker(label), cleared_marker(label)
+    last = None
+    for page in pages:
+        for comment in page:
+            body = comment.get("body") or ""
+            if notice in body:
+                last = True
+            elif cleared in body:
+                last = False
+    return bool(last)
+
+
+OUTCOMES = ("posted", "repaired", "relabelled", "already", "cleared", "FAILED", "unknown")
+PLAN_URL = "https://github.com/popcre/shared-db/blob/main/plan_promotion_stranding_watch.md"
+CLEAR_TEXT = {
+    "delivered": "Delivered: every version of this PR is in production.",
+    "released": "No longer held by review findings.",
+    "untracked": "No longer tracked by the automatic lane (versions retired, removed from main, or superseded).",
+}
+
+
+def _footer() -> str:
+    server = os.environ.get("GITHUB_SERVER_URL")
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    run = f" (run {server}/{repository}/actions/runs/{run_id})" if server and repository and run_id else ""
+    return f"_Posted automatically by the automatic production trigger{run}._"
+
+
+def notice_body(label: str, entry: dict[str, Any], now: datetime) -> str:
+    """The notice comment for one PR. Public-safe: versions, counts, ages and
+    links to this repository only (plan R8)."""
+    versions = ",".join(entry.get("versions") or [])
+    if label == PARKED_LABEL:
+        refunds = f", {entry['refunds']} refunds used" if entry.get("refunds") else ""
+        hours = int((now - _time(entry["merged_at"])).total_seconds() // 3600)
+        status = (
+            "**This merged migration is parked and is not in production.** "
+            + ("The automatic promotion lane stopped on a permanent refusal (producer mismatch on a "
+               "high-risk change); only a reissue under a new version can deliver it. "
+               if entry.get("permanent") else
+               f"The automatic promotion lane stopped after {entry.get('exhausted', 0)} failed automatic attempts{refunds}. ")
+            + f"Versions: {versions}. Merged {hours}h ago."
+        )
+    else:
+        findings = entry.get("findings") or []
+        refs = ", ".join(f"#{f.get('number')}" for f in findings)
+        verb = "has" if len(findings) == 1 else "have"
+        hours = int((now - hold_since(entry)).total_seconds() // 3600)
+        status = (
+            "**This merged migration is held and is not in production.** "
+            f"Open review finding{'' if len(findings) == 1 else 's'} {refs} {verb} blocked it for {hours}h."
+        )
+    repair = (
+        "Repair by fix-forward (a new governed version) or retire-and-reissue. "
+        "Never re-run a failed run; there is no manual production command. "
+        "Attempts may resume on their own; this label is removed automatically when the versions reach production."
+    )
+    listing = f"Open stranded changes: PRs labelled `{PARKED_LABEL}` or `{HELD_LABEL}`. Plan: {PLAN_URL}"
+    return "\n\n".join([marker(label), status, repair, listing, _footer()])
+
+
+def clear_body(label: str, reason: str) -> str:
+    """The comment posted when a stranded label is removed."""
+    return f"{cleared_marker(label)}\n`{label}` removed. {CLEAR_TEXT[reason]}\n\n{_footer()}"
+
+
+def reconcile_stranded_marks(repo: str, candidates: list[dict[str, Any]], runs: list[dict[str, Any]],
+                             live: set[str] | None, now: datetime, held: callable,
+                             applied: callable, refused: callable, stale: callable, refunded: callable,
+                             discovery_ok: bool, dry_run: bool = False,
+                             fresh_held: callable | None = None,
+                             permanent: callable = lambda run: False) -> list[dict[str, Any]]:
+    """Plan R1-R6: make the stranded-PR labels and notices match the shared
+    classifier, once per selector pass. Returns one dict per (PR, label) touched.
+    A per-PR problem is recorded and the pass goes on; nothing here raises."""
+    results: list[dict[str, Any]] = []
+
+    def record(number: int, label: str, outcome: str, detail: str = "") -> None:
+        results.append({"number": number, "label": label, "outcome": outcome, "detail": detail})
+
+    def attempt(number: int, label: str, action: str, method: str, path: str,
+                fields: dict[str, Any] | None = None, gone_ok: bool = False) -> tuple[bool, str]:
+        ok, msg = gh_write(method, path, fields)
+        if not ok and gone_ok and ("Not Found" in msg or "HTTP 404" in msg):
+            ok = True
+        print(f"reconcile: PR #{number} {label} {action}: " + ("ok" if ok else f"refused: {msg}"))
+        return ok, msg
+
+    def fail(number: int, label: str, action: str, msg: str) -> None:
+        print(f"::error title=Stranded-PR notice not delivered::PR #{number} {label} {action}: {msg}")
+        record(number, label, "FAILED", f"{action}: {msg}")
+
+    runs = [r for r in runs if our_workflow(r)]
+    in_flight = [r for r in runs if r.get("status") != "completed"]
+    wait = bool(in_flight)
+    if wait:
+        print(f"reconcile: wait pass (run {in_flight[0].get('id')} in flight); parked labels neither added nor cleared")
+
+    applied_m, refused_m = memoised_evidence(applied), memoised_evidence(refused)
+    stale_m, refunded_m = memoised_evidence(stale), memoised_evidence(refunded)
+    permanent_m = memoised_evidence(permanent)
+    dependency_evidence = dependency_evidence_reader(applied_m, refused_m)
+
+    def delivered_live(pr: dict[str, Any]) -> bool:
+        return bool(live) and bool(pr.get("versions")) and set(pr["versions"]) <= live
+
+    by_number = {pr["number"]: pr for pr in candidates}
+    desired: dict[str, dict[int, dict[str, Any]]] = {PARKED_LABEL: {}, HELD_LABEL: {}}
+    unclassified: dict[int, str] = {}
+    for pr in candidates:
+        number = pr["number"]
+        if delivered_live(pr):
+            continue
+        try:
+            kind, detail = classify_pr(pr, runs, held, applied_m, refused_m, stale_m, refunded_m,
+                                       live, dependency_evidence, permanent_m)
+            entry = {**pr, **detail}
+            if kind == "held" and now - hold_since(entry) > HELD_ESCALATE_AFTER:
+                desired[HELD_LABEL][number] = entry
+            elif kind == "unknown-hold":
+                unclassified[number] = "review finding read failed"
+            elif kind == "parked" and not wait:
+                desired[PARKED_LABEL][number] = entry
+        except Exception as exc:
+            print(f"::warning::reconcile: PR #{number} could not be classified ({exc}); its labels are left unchanged")
+            unclassified[number] = f"classification failed: {exc}"
+
+    current: dict[str, set[int]] = {}
+    for label in (PARKED_LABEL, HELD_LABEL):
+        try:
+            current[label] = set(labelled_prs(repo, label))
+        except Exception as exc:
+            print(f"::warning::reconcile: could not list {label} PRs ({exc}); that label is left alone this pass")
+
+    label_ready: dict[str, bool] = {}
+    for label in (PARKED_LABEL, HELD_LABEL):
+        if label not in current:
+            continue
+        for number, entry in sorted(desired[label].items()):
+            try:
+                if dry_run:
+                    print(f"dry-run: would mark PR #{number} {label}")
+                    record(number, label, "unknown", "dry-run")
+                    continue
+                labelled = number in current[label]
+                marked = has_marker(repo, number, label)
+                if labelled and marked:
+                    record(number, label, "already")
+                elif labelled:
+                    ok, msg = attempt(number, label, "notice post", "POST",
+                                      f"repos/{repo}/issues/{number}/comments",
+                                      {"body": notice_body(label, entry, now)})
+                    if ok:
+                        record(number, label, "repaired")
+                    else:
+                        fail(number, label, "notice post", msg)
+                else:
+                    if label not in label_ready:
+                        label_ready[label] = ensure_label(repo, label, LABEL_DESCRIPTIONS[label])
+                    if not label_ready[label]:
+                        fail(number, label, "label create", "the label could not be created")
+                        continue
+                    ok, msg = attempt(number, label, "label add", "POST",
+                                      f"repos/{repo}/issues/{number}/labels", {"labels": [label]})
+                    if not ok:
+                        fail(number, label, "label add", msg)
+                    elif marked:
+                        record(number, label, "relabelled")
+                    else:
+                        ok, msg = attempt(number, label, "notice post", "POST",
+                                          f"repos/{repo}/issues/{number}/comments",
+                                          {"body": notice_body(label, entry, now)})
+                        if ok:
+                            record(number, label, "posted")
+                        else:
+                            attempt(number, label, "label remove", "DELETE",
+                                    f"repos/{repo}/issues/{number}/labels/{label}", gone_ok=True)
+                            fail(number, label, "notice post", msg)
+            except Exception as exc:
+                print(f"::warning::reconcile: PR #{number} {label} not reconciled ({type(exc).__name__}: {exc})")
+                record(number, label, "unknown", f"reconcile error: {exc}")
+
+    for label in (PARKED_LABEL, HELD_LABEL):
+        if label not in current or (label == PARKED_LABEL and wait):
+            continue
+        for number in sorted(current[label]):
+            if number in desired[label]:
+                continue
+            try:
+                pr = by_number.get(number)
+                if pr is None:
+                    if not discovery_ok:
+                        continue
+                    reason = "untracked"
+                elif delivered_live(pr):
+                    reason = "delivered"
+                elif label == PARKED_LABEL:
+                    continue
+                elif number in unclassified:
+                    record(number, label, "unknown", unclassified[number])
+                    continue
+                else:
+                    fresh = (fresh_held or (lambda n: is_held(repo, n)))(number)
+                    if not (isinstance(fresh, list) and not fresh):
+                        continue
+                    reason = "released"
+                if dry_run:
+                    print(f"dry-run: would clear PR #{number} {label} ({reason})")
+                    record(number, label, "unknown", "dry-run")
+                    continue
+                ok, msg = attempt(number, label, "label remove", "DELETE",
+                                  f"repos/{repo}/issues/{number}/labels/{label}", gone_ok=True)
+                if not ok:
+                    fail(number, label, "label remove", msg)
+                    continue
+                ok, msg = attempt(number, label, "clear notice post", "POST",
+                                  f"repos/{repo}/issues/{number}/comments",
+                                  {"body": clear_body(label, reason)})
+                if ok:
+                    record(number, label, "cleared", reason)
+                else:
+                    fail(number, label, "clear notice post", msg)
+            except Exception as exc:
+                print(f"::warning::reconcile: PR #{number} {label} not reconciled ({type(exc).__name__}: {exc})")
+                record(number, label, "unknown", f"reconcile error: {exc}")
+
+    counts = {name: sum(1 for r in results if r["outcome"] == name) for name in OUTCOMES}
+    print("reconcile: " + ", ".join(f"{name}={counts[name]}" for name in OUTCOMES))
+    return results
+
+
+def report_notice_failures(repo: str, failures: list[dict[str, Any]]) -> None:
+    """R7: every FAILED stranded-PR write is also written to the roll-up issue.
+    Never fatal: the run's exit code does not depend on this comment."""
+    failed = [f for f in failures if f.get("outcome") == "FAILED"]
+    if not failed:
+        return
+    lines = [f"- PR #{f['number']} {f['label']}: {f.get('detail') or 'no detail'}" for f in failed]
+    body = (
+        "## Stranded-PR notices or labels not delivered\n\n"
+        "The automatic promotion trigger could not add, repair or remove a stranded-PR label or "
+        "notice on this run. Each line names the PR, the label and the refused step.\n\n"
+        + "\n".join(lines) + "\n\n" + _footer() + "\n"
+    )
+    try:
+        existing = find_stuck_issue(repo)
+        if existing:
+            subprocess.run(["gh", "issue", "comment", str(existing["number"]), "--repo", repo, "--body", body],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", STUCK_ISSUE_TITLE, "--body", body],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except Exception as exc:
+        print(f"::warning::could not write the stranded-PR failures to the roll-up issue ({exc})")
 
 
 if __name__ == "__main__":

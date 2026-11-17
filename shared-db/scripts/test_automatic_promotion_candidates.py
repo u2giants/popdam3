@@ -1397,6 +1397,560 @@ class TriggerTokenCanOwnTheTrackingIssue(unittest.TestCase):
         self.assertIn("issues: write", job)
         self.assertNotIn("issues: read", job)
 
+    def test_trigger_job_grants_pull_requests_write(self):
+        # #6561: stranded-PR notices and promotion labels are written with the
+        # job token. Read-only pull-requests makes those writes fail, so guard it.
+        wf = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..",
+            ".github", "workflows", "automatic-production-trigger.yml",
+        )
+        with open(wf, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("  trigger:", text)
+        job = text.split("  trigger:", 1)[1]
+        self.assertIn("pull-requests: write", job)
+        self.assertNotIn("pull-requests: read", job)
+
+
+class PromotionLabelPlumbing(unittest.TestCase):
+    """#6561: labels, notice markers and the PR-only label listing."""
+
+    def test_label_listing_is_prs_only_and_paginated(self):
+        pages = [[{"number": 7, "pull_request": {"url": "x"}}, {"number": 8}],
+                 [{"number": 9, "pull_request": {"url": "y"}}]]
+        with mock.patch.object(m, "gh", side_effect=lambda *a: pages) as fake:
+            self.assertEqual(m.labelled_prs("o/r", m.PARKED_LABEL), [7, 9])
+        # The listing must be read in full (paginated), all states.
+        args = fake.call_args.args
+        self.assertEqual(args[:2], ("--paginate", "--slurp"))
+        self.assertEqual(args[2], "repos/o/r/issues?labels=promotion-parked&state=all&per_page=100")
+
+    def test_missing_label_is_created_and_race_tolerated(self):
+        def proc(rc=0, out="", err=""):
+            return subprocess.CompletedProcess(args=[], returncode=rc, stdout=out, stderr=err)
+
+        def run_with(gets, posts):
+            calls = []
+            def fake_run(cmd, **kw):
+                calls.append(cmd)
+                return (posts if "-X" in cmd else gets).pop(0)
+            return calls, fake_run
+
+        # Missing: GET 404, POST creates it.
+        calls, fake_run = run_with([proc(1, err="gh: Not Found (HTTP 404)")], [proc(0, out="{}")])
+        with mock.patch.object(m.subprocess, "run", fake_run):
+            self.assertTrue(m.ensure_label("o/r", m.PARKED_LABEL, m.LABEL_DESCRIPTIONS[m.PARKED_LABEL]))
+        post = calls[1]
+        self.assertEqual(post[:6], ["gh", "api", "-X", "POST", "repos/o/r/labels", "-f"])
+        self.assertIn("name=promotion-parked", post)
+        self.assertIn("color=B60205", post)
+
+        # Race: another run created it between our GET and POST (422).
+        calls, fake_run = run_with([proc(1, err="gh: Not Found (HTTP 404)")],
+                                   [proc(1, err='gh: Validation Failed (HTTP 422) {"code":"already_exists"}')])
+        with mock.patch.object(m.subprocess, "run", fake_run):
+            self.assertTrue(m.ensure_label("o/r", m.HELD_LABEL, m.LABEL_DESCRIPTIONS[m.HELD_LABEL]))
+
+        # Already present: GET succeeds, nothing is created.
+        calls, fake_run = run_with([proc(0, out="{}")], [])
+        with mock.patch.object(m.subprocess, "run", fake_run):
+            self.assertTrue(m.ensure_label("o/r", m.HELD_LABEL, m.LABEL_DESCRIPTIONS[m.HELD_LABEL]))
+        self.assertEqual(len(calls), 1)
+
+        # Any other read failure: warning, False, no create attempted.
+        calls, fake_run = run_with([proc(1, err="gh: Server Error (HTTP 500)")], [])
+        buf = io.StringIO()
+        with mock.patch.object(m.subprocess, "run", fake_run), contextlib.redirect_stdout(buf):
+            self.assertFalse(m.ensure_label("o/r", m.HELD_LABEL, m.LABEL_DESCRIPTIONS[m.HELD_LABEL]))
+        self.assertIn("::warning::", buf.getvalue())
+        self.assertEqual(len(calls), 1)
+
+    def test_gh_write_expands_lists_and_reports_refusals(self):
+        def proc(rc, out="", err=""):
+            return subprocess.CompletedProcess(args=[], returncode=rc, stdout=out, stderr=err)
+
+        seen = []
+        def fake_run(cmd, **kw):
+            seen.append(cmd)
+            return proc(0, out='{"id": 1}\n')
+
+        with mock.patch.object(m.subprocess, "run", fake_run):
+            ok, _ = m.gh_write("POST", "repos/o/r/issues/7/labels", {"labels": ["promotion-held", "x"]})
+        self.assertTrue(ok)
+        self.assertEqual(seen[0], ["gh", "api", "-X", "POST", "repos/o/r/issues/7/labels",
+                                   "-f", "labels[]=promotion-held", "-f", "labels[]=x"])
+
+        with mock.patch.object(m.subprocess, "run",
+                               lambda cmd, **kw: proc(1, err="gh: Resource not accessible by integration (HTTP 403)\n")):
+            self.assertEqual(m.gh_write("POST", "repos/o/r/issues/7/comments", {"body": "hi"}),
+                             (False, "gh: Resource not accessible by integration (HTTP 403)"))
+
+        def missing_gh(cmd, **kw):
+            raise OSError("gh not found")
+        with mock.patch.object(m.subprocess, "run", missing_gh):
+            self.assertEqual(m.gh_write("DELETE", "repos/o/r/issues/7/labels/x"), (False, "gh not found"))
+
+    def test_has_marker_reads_all_pages_and_matches_label(self):
+        self.assertEqual(m.marker(m.PARKED_LABEL), "<!-- promotion-stranded:promotion-parked -->")
+        pages = [[{"body": "chatter"}, {"body": None}], [{"body": m.marker(m.HELD_LABEL)}]]
+        with mock.patch.object(m, "gh", side_effect=lambda *a: pages) as fake:
+            self.assertTrue(m.has_marker("o/r", 7, m.HELD_LABEL))
+            self.assertFalse(m.has_marker("o/r", 7, m.PARKED_LABEL))
+        self.assertEqual(fake.call_args.args[:2], ("--paginate", "--slurp"))
+        self.assertEqual(fake.call_args.args[2], "repos/o/r/issues/7/comments?per_page=100")
+
+    def test_cleared_episode_needs_a_fresh_notice(self):
+        """A PR stranded again after a clear must get a new notice (R4), so
+        only the latest notice-or-clear comment counts."""
+        cleared = m.clear_body(m.PARKED_LABEL, "delivered")
+        notice = m.marker(m.PARKED_LABEL)
+        for comments, expected in (([notice, cleared], False),
+                                   ([notice, cleared, notice], True),
+                                   ([cleared], False)):
+            pages = [[{"body": b} for b in comments]]
+            with mock.patch.object(m, "gh", side_effect=lambda *a: pages):
+                self.assertEqual(m.has_marker("o/r", 7, m.PARKED_LABEL), expected, comments)
+
+
+NOW = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+REFUSAL = "gh: Resource not accessible by integration (HTTP 403)"
+PARKED, HELD = m.PARKED_LABEL, m.HELD_LABEL
+
+
+def ver(n):
+    return f"2026111000{n:04d}"
+
+
+def _pr(number, versions=None, merged="2026-11-10T00:00:00Z", **extra):
+    return {"number": number, "merged_at": merged, "versions": versions or [ver(number)], **extra}
+
+
+def _exhausted(number):
+    title = f"DB preview apply abc PR{number} {ver(number)}"
+    return [{"display_title": title, "status": "completed", "conclusion": "failure",
+             "created_at": "2026-11-11T01:00:00Z"}] * 3
+
+
+def _finding(number, created):
+    return {"number": number, "created_at": created}
+
+
+OLD_FINDING = _finding(901, "2026-11-01T00:00:00Z")
+
+
+class StrandedRepoFake:
+    """In-memory GitHub side of the stranded labels and notices. Every write is
+    recorded; a write applies to state only when `refuse` does not refuse it."""
+
+    def __init__(self, labels=None, comments=None, refuse=None):
+        self.labels = {n: set(v) for n, v in (labels or {}).items()}
+        self.comments = {n: list(v) for n, v in (comments or {}).items()}
+        self.refuse = refuse or (lambda method, path, fields: None)
+        self.writes = []
+        self.ensured = []
+
+    def labelled_prs(self, repo, label):
+        return sorted(n for n, names in self.labels.items() if label in names)
+
+    def has_marker(self, repo, n, label):
+        return any(m.marker(label) in body for body in self.comments.get(n, []))
+
+    def ensure_label(self, repo, name, description):
+        self.ensured.append(name)
+        return True
+
+    def gh_write(self, method, path, fields=None):
+        fields = dict(fields or {})
+        self.writes.append((method, path, fields))
+        refusal = self.refuse(method, path, fields)
+        if refusal:
+            return False, refusal
+        n = int(re.search(r"issues/(\d+)", path).group(1))
+        if method == "POST" and path.endswith("/labels"):
+            self.labels.setdefault(n, set()).update(fields["labels"])
+        elif method == "DELETE" and "/labels/" in path:
+            self.labels.get(n, set()).discard(path.rsplit("/", 1)[1])
+        elif method == "POST" and path.endswith("/comments"):
+            self.comments.setdefault(n, []).append(fields["body"])
+        return True, "ok"
+
+    def touched(self):
+        return sorted({int(re.search(r"issues/(\d+)", p).group(1)) for _, p, _ in self.writes})
+
+
+def _reconcile(fake, candidates, runs=(), live=None, held=None, discovery_ok=True,
+               fresh_held=None, dry_run=False, now=NOW):
+    held = held or (lambda n: [])
+    out = io.StringIO()
+    with mock.patch.multiple(m, labelled_prs=fake.labelled_prs, has_marker=fake.has_marker,
+                             ensure_label=fake.ensure_label, gh_write=fake.gh_write,
+                             is_held=lambda repo, n: held(n)), contextlib.redirect_stdout(out):
+        results = m.reconcile_stranded_marks("o/r", candidates, list(runs), live, now, held,
+                                             lambda r: False, lambda r: set(), lambda r: False,
+                                             lambda r: False, discovery_ok, dry_run=dry_run,
+                                             fresh_held=fresh_held)
+    return results, out.getvalue()
+
+
+def _outcomes(results):
+    return {(r["number"], r["label"]): r["outcome"] for r in results}
+
+
+class StrandedLabelReconciler(unittest.TestCase):
+    """#6561 plan §10: R1-R7 of plan_promotion_stranding_watch.md."""
+
+    def test_parked_pr_is_marked_once(self):
+        fake = StrandedRepoFake()
+        pr = _pr(7)
+        results, _ = _reconcile(fake, [pr], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "posted"})
+        self.assertEqual([(meth, path) for meth, path, _ in fake.writes], [
+            ("POST", "repos/o/r/issues/7/labels"), ("POST", "repos/o/r/issues/7/comments")])
+        self.assertEqual(fake.writes[0][2], {"labels": [PARKED]})
+        body = fake.writes[1][2]["body"]
+        self.assertEqual(body.splitlines()[0], m.marker(PARKED))
+        self.assertIn("3 failed automatic attempts", body)
+        # A second pass with no state change performs zero writes.
+        results, _ = _reconcile(fake, [pr], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "already"})
+        self.assertEqual(len(fake.writes), 2)
+
+    def test_held_pr_behind_dispatch_pick_is_marked(self):
+        fake = StrandedRepoFake()
+        dispatch, held_pr = _pr(9), _pr(8)
+        held = lambda n: [OLD_FINDING] if n == 8 else []
+        results, _ = _reconcile(fake, [dispatch, held_pr], held=held)
+        self.assertEqual(_outcomes(results), {(8, HELD): "posted"})
+        self.assertEqual(fake.touched(), [8])
+
+    def test_parked_pr_behind_dispatch_pick_is_marked(self):
+        fake = StrandedRepoFake()
+        results, _ = _reconcile(fake, [_pr(9), _pr(7)], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "posted"})
+        self.assertEqual(fake.touched(), [7])
+
+    def test_wait_pass_reconciles_holds_only(self):
+        fake = StrandedRepoFake(labels={5: {HELD}, 6: {PARKED}})
+        inflight = {"display_title": "DB production apply inflight", "status": "in_progress",
+                    "id": 555, "conclusion": None, "created_at": "2026-11-17T11:00:00Z"}
+        candidates = [_pr(5), _pr(6), _pr(7), _pr(8)]
+        held = lambda n: [OLD_FINDING] if n == 8 else []
+        results, out = _reconcile(fake, candidates, runs=[inflight] + _exhausted(7), held=held)
+        self.assertIn("wait pass (run 555 in flight)", out)
+        # Held 8 is marked; held 5 (no longer held on a fresh read) is released;
+        # parked 7 is not marked and parked 6 is not cleared.
+        self.assertEqual(fake.touched(), [5, 8])
+        self.assertEqual(_outcomes(results), {(8, HELD): "posted", (5, HELD): "cleared"})
+        self.assertIn(PARKED, fake.labels[6])
+
+    def test_held_threshold_and_unknown_read(self):
+        fake = StrandedRepoFake(labels={11: {HELD}})
+        finding = _finding(901, "2026-11-17T00:00:00Z")
+        nine_hours = _pr(9, merged="2026-11-17T03:00:00Z", findings=[finding])
+        seven_hours = _pr(10, merged="2026-11-17T05:00:00Z")
+        unknown = _pr(11, merged="2026-11-17T03:00:00Z")
+        held = lambda n: {9: [finding], 10: [finding], 11: True}.get(n, [])
+        results, _ = _reconcile(fake, [nine_hours, seven_hours, unknown], held=held)
+        self.assertEqual(fake.touched(), [9])
+        self.assertEqual(_outcomes(results), {(9, HELD): "posted", (11, HELD): "unknown"})
+        self.assertIn(HELD, fake.labels[11])
+
+    def test_alert_and_escalation_thresholds_differ(self):
+        self.assertEqual(m.ALERT_AFTER, timedelta(minutes=30))
+        self.assertEqual(m.HELD_ESCALATE_AFTER, timedelta(hours=8))
+        finding = _finding(901, "2026-11-17T10:00:00Z")
+        one_hour = _pr(10, merged="2026-11-17T11:00:00Z", findings=[finding])
+        # Held one hour: the operator alert fires, the label does not.
+        self.assertEqual(len(m.overdue_holds([one_hour], NOW)), 1)
+        fake = StrandedRepoFake()
+        results, _ = _reconcile(fake, [one_hour], held=lambda n: [finding])
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+
+    def test_marked_pr_is_left_alone(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}, 8: {HELD}},
+                                comments={7: [m.marker(PARKED)], 8: [m.marker(HELD)]})
+        held = lambda n: [OLD_FINDING] if n == 8 else []
+        results, _ = _reconcile(fake, [_pr(7), _pr(8)], runs=_exhausted(7), held=held)
+        self.assertEqual(_outcomes(results), {(7, PARKED): "already", (8, HELD): "already"})
+        self.assertEqual(fake.writes, [])
+
+    def test_label_without_notice_is_repaired(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}})
+        results, _ = _reconcile(fake, [_pr(7)], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "repaired"})
+        self.assertEqual([(meth, path) for meth, path, _ in fake.writes],
+                         [("POST", "repos/o/r/issues/7/comments")])
+
+    def test_removed_label_is_restored_without_duplicate_notice(self):
+        fake = StrandedRepoFake(comments={7: [m.marker(PARKED)]})
+        results, _ = _reconcile(fake, [_pr(7)], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "relabelled"})
+        self.assertEqual([(meth, path) for meth, path, _ in fake.writes],
+                         [("POST", "repos/o/r/issues/7/labels")])
+
+    def test_failed_notice_rolls_back_label_and_continues(self):
+        def refuse(method, path, fields):
+            if method == "POST" and path.endswith("/issues/7/comments"):
+                return "gh: Server Error (HTTP 500)"
+            return None
+        fake = StrandedRepoFake(refuse=refuse)
+        runs = _exhausted(7) + _exhausted(8)
+        results, out = _reconcile(fake, [_pr(7), _pr(8)], runs=runs)
+        self.assertEqual(_outcomes(results), {(7, PARKED): "FAILED", (8, PARKED): "posted"})
+        self.assertEqual([(meth, path) for meth, path, _ in fake.writes], [
+            ("POST", "repos/o/r/issues/7/labels"), ("POST", "repos/o/r/issues/7/comments"),
+            ("DELETE", f"repos/o/r/issues/7/labels/{PARKED}"),
+            ("POST", "repos/o/r/issues/8/labels"), ("POST", "repos/o/r/issues/8/comments")])
+        self.assertNotIn(PARKED, fake.labels.get(7, set()))
+        self.assertIn(PARKED, fake.labels[8])
+        self.assertIn(f"::error title=Stranded-PR notice not delivered::PR #7 {PARKED} notice post", out)
+
+    def test_permission_refusal_is_loud_not_fatal(self):
+        # (a) the label add is refused: nothing else is attempted.
+        fake = StrandedRepoFake(refuse=lambda method, path, fields: REFUSAL)
+        results, out = _reconcile(fake, [_pr(7)], runs=_exhausted(7))
+        self.assertEqual(results, [{"number": 7, "label": PARKED, "outcome": "FAILED",
+                                    "detail": f"label add: {REFUSAL}"}])
+        self.assertEqual(len(fake.writes), 1)
+        self.assertIn(f"::error title=Stranded-PR notice not delivered::PR #7 {PARKED} label add", out)
+        # (b) the label removal on a delivered PR is refused.
+        fake = StrandedRepoFake(labels={7: {PARKED}}, refuse=lambda method, path, fields: REFUSAL)
+        results, out = _reconcile(fake, [_pr(7)], live={ver(7)})
+        self.assertEqual(_outcomes(results), {(7, PARKED): "FAILED"})
+        self.assertEqual([meth for meth, _, _ in fake.writes], ["DELETE"])
+        self.assertIn("::error", out)
+        # (c) the notice post is refused and the rollback removal is refused too.
+        def refuse_notice_and_removal(method, path, fields):
+            return REFUSAL if method == "DELETE" or path.endswith("/comments") else None
+        fake = StrandedRepoFake(refuse=refuse_notice_and_removal)
+        results, out = _reconcile(fake, [_pr(7)], runs=_exhausted(7))
+        self.assertEqual(_outcomes(results), {(7, PARKED): "FAILED"})
+        self.assertIn(PARKED, fake.labels[7])
+        self.assertIn(f"::error title=Stranded-PR notice not delivered::PR #7 {PARKED} notice post", out)
+
+    def test_held_only_failure_is_recorded_durably(self):
+        import subprocess as sp
+        failures = [
+            {"number": 8, "label": HELD, "outcome": "FAILED", "detail": "notice post: gh: Server Error (HTTP 500)"},
+            {"number": 7, "label": PARKED, "outcome": "posted", "detail": ""},
+        ]
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return sp.CompletedProcess(cmd, 0, "", "")
+        with mock.patch.object(m, "find_stuck_issue", lambda repo: {"number": 42}), \
+             mock.patch.object(m.subprocess, "run", fake_run):
+            m.report_notice_failures("o/r", failures)
+        self.assertEqual(calls[0][:5], ["gh", "issue", "comment", "42", "--repo"])
+        body = calls[0][calls[0].index("--body") + 1]
+        self.assertIn(f"PR #8 {HELD}: notice post: gh: Server Error (HTTP 500)", body)
+        self.assertNotIn("PR #7", body)
+        # With no open roll-up issue, the failure opens one under the same title.
+        calls.clear()
+        with mock.patch.object(m, "find_stuck_issue", lambda repo: None), \
+             mock.patch.object(m.subprocess, "run", fake_run):
+            m.report_notice_failures("o/r", failures)
+        self.assertEqual(calls[0][:4], ["gh", "issue", "create", "--repo"])
+        self.assertIn(m.STUCK_ISSUE_TITLE, calls[0])
+
+    def test_rollup_failure_does_not_fail_run(self):
+        import subprocess as sp
+        failures = [{"number": 8, "label": HELD, "outcome": "FAILED", "detail": "label add: x"}]
+        buf = io.StringIO()
+        with mock.patch.object(m, "find_stuck_issue", side_effect=OSError("gh missing")), \
+             contextlib.redirect_stdout(buf):
+            self.assertIsNone(m.report_notice_failures("o/r", failures))
+        self.assertIn("::warning::", buf.getvalue())
+        def broken(cmd, **kw):
+            raise sp.CalledProcessError(1, cmd, stderr="Resource not accessible by integration")
+        buf = io.StringIO()
+        with mock.patch.object(m, "find_stuck_issue", lambda repo: {"number": 42}), \
+             mock.patch.object(m.subprocess, "run", broken), contextlib.redirect_stdout(buf):
+            self.assertIsNone(m.report_notice_failures("o/r", failures))
+        self.assertIn("::warning::", buf.getvalue())
+
+    def test_delivered_pr_is_cleared(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}})
+        results, _ = _reconcile(fake, [_pr(7)], live={ver(7)})
+        self.assertEqual(_outcomes(results), {(7, PARKED): "cleared"})
+        self.assertEqual(fake.writes[0][:2], ("DELETE", f"repos/o/r/issues/7/labels/{PARKED}"))
+        self.assertEqual(fake.writes[1][:2], ("POST", "repos/o/r/issues/7/comments"))
+        self.assertTrue(fake.writes[1][2]["body"].splitlines()[1].startswith(
+            f"`{PARKED}` removed. Delivered: every version of this PR is in production."))
+        self.assertNotIn(PARKED, fake.labels[7])
+
+    def test_no_clearing_without_a_ledger_read(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}})
+        for live in (None, set()):
+            results, _ = _reconcile(fake, [_pr(7)], live=live)
+            self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+        self.assertIn(PARKED, fake.labels[7])
+
+    def test_partial_delivery_is_not_cleared(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}})
+        pr = _pr(7, versions=[ver(7), ver(70)])
+        results, _ = _reconcile(fake, [pr], live={ver(7)})
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+
+    def test_held_cleared_only_on_fresh_read(self):
+        # The pass's own hold read is empty, but a fresh read says the hold is
+        # unknown: no clear.
+        fake = StrandedRepoFake(labels={8: {HELD}})
+        results, _ = _reconcile(fake, [_pr(8)], held=lambda n: [], fresh_held=lambda n: True)
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+        # A fresh empty read clears it.
+        results, _ = _reconcile(fake, [_pr(8)], held=lambda n: [], fresh_held=lambda n: [])
+        self.assertEqual(_outcomes(results), {(8, HELD): "cleared"})
+        self.assertTrue(fake.writes[1][2]["body"].splitlines()[1].startswith(
+            f"`{HELD}` removed. No longer held by review findings."))
+
+    def test_withdrawn_dispatch_clears_nothing(self):
+        # The dispatch looked clear, but the pre-dispatch fresh read finds a hold.
+        fake = StrandedRepoFake(labels={8: {HELD}})
+        results, _ = _reconcile(fake, [_pr(8)], held=lambda n: [], fresh_held=lambda n: [OLD_FINDING])
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+        self.assertIn(HELD, fake.labels[8])
+
+    def test_parked_label_does_not_flap(self):
+        fake = StrandedRepoFake(labels={7: {PARKED}, 8: {PARKED}})
+        dispatchable = _pr(7)
+        waiting = _pr(8, production_dependencies={ver(6): 6})
+        results, _ = _reconcile(fake, [dispatchable, waiting])
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+
+    def test_untracked_pr_cleared_only_on_complete_discovery(self):
+        fake = StrandedRepoFake(labels={9: {PARKED}})
+        results, _ = _reconcile(fake, [_pr(7)], discovery_ok=False)
+        self.assertEqual(results, [])
+        self.assertEqual(fake.writes, [])
+        results, _ = _reconcile(fake, [_pr(7)], discovery_ok=True)
+        self.assertEqual(_outcomes(results), {(9, PARKED): "cleared"})
+        self.assertEqual(fake.writes[0][:2], ("DELETE", f"repos/o/r/issues/9/labels/{PARKED}"))
+        self.assertIn("No longer tracked by the automatic lane", fake.writes[1][2]["body"])
+
+    def test_notice_bodies_are_public_safe(self):
+        parked = {**_pr(7), "exhausted": 3, "refunds": 1}
+        held = {**_pr(8), "findings": [OLD_FINDING]}
+        env = {"GITHUB_SERVER_URL": "https://github.com", "GITHUB_REPOSITORY": "popcre/shared-db",
+               "GITHUB_RUN_ID": "123"}
+        with mock.patch.dict(os.environ, env):
+            bodies = [m.notice_body(PARKED, parked, NOW), m.notice_body(HELD, held, NOW)]
+            bodies += [m.clear_body(PARKED, reason) for reason in ("delivered", "released", "untracked")]
+        self.assertEqual(bodies[0].splitlines()[0], m.marker(PARKED))
+        self.assertEqual(bodies[1].splitlines()[0], m.marker(HELD))
+        self.assertIn("#901", bodies[1])
+        self.assertIn("1 refunds used", bodies[0])
+        self.assertIn("actions/runs/123", bodies[0])
+        for body in bodies:
+            for url in re.findall(r"https?://\S+", body):
+                self.assertTrue(url.startswith("https://github.com/popcre/shared-db"), url)
+            for banned in ("supabase", "postgres", "database", "service_role", "secret", "token"):
+                self.assertNotIn(banned, body.lower())
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for key in env:
+                os.environ.pop(key, None)
+            self.assertNotIn("actions/runs", m.notice_body(PARKED, parked, NOW))
+
+
+class StrandedWiringInMain(unittest.TestCase):
+    """#6561 plan §10: main() contains reconciler defects and dry-run writes nothing."""
+
+    def _main(self, *, prs, runs, labels=None, live=None, argv=("x", "--dry-run"), extra=None):
+        labels = labels or {}
+        sp_calls = []
+
+        def fake_gh(*args):
+            text = " ".join(args)
+            if "commits/main" in text:
+                return {"sha": "abc"}
+            for label in (PARKED, HELD):
+                if f"labels={label}&" in text:
+                    return [[{"number": n, "pull_request": {}} for n in labels.get(label, [])]]
+            if "/comments?" in text:
+                return [[]]
+            raise AssertionError(f"unexpected read in main(): {text}")
+
+        def recording_run(cmd, **kw):
+            sp_calls.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        patches = dict(
+            gh=fake_gh, merged_migration_prs=lambda repo: prs, workflow_runs=lambda repo, **_: runs,
+            is_held=lambda repo, n: [], production_ledger=lambda path=None: live,
+            applied_in_any_attempt=lambda repo, run: False,
+            refused_as_applied=lambda repo, run: set(),
+            stale_main_refusal_only=lambda repo, run: False,
+            refund_eligible_in_any_attempt=lambda repo, run: False,
+        )
+        patches.update(extra or {})
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), \
+             mock.patch.dict(os.environ), \
+             mock.patch.object(sys, "argv", list(argv)), \
+             mock.patch.object(m.subprocess, "run", recording_run), \
+             mock.patch.multiple(m, **patches), \
+             contextlib.redirect_stdout(out):
+            os.environ.pop("GITHUB_STEP_SUMMARY", None)
+            code = m.main(NOW)
+        return code, out.getvalue(), sp_calls
+
+    def test_reconciler_crash_is_contained(self):
+        crash = mock.Mock(side_effect=RuntimeError("boom"))
+        code, out, _ = self._main(prs=[], runs=[], extra={"reconcile_stranded_marks": crash})
+        crash.assert_called_once()
+        self.assertEqual(code, 0)
+        self.assertIn("Stranded-PR reconciler defect", out)
+
+    def test_dry_run_issues_no_writes(self):
+        gh_write = mock.Mock(return_value=(True, "ok"))
+        ensure = mock.Mock(return_value=True)
+        notice_failures = mock.Mock()
+        stuck = mock.Mock()
+        extra = {"gh_write": gh_write, "ensure_label": ensure,
+                 "report_notice_failures": notice_failures, "report_stuck_change": stuck}
+        code, out, sp_calls = self._main(
+            prs=[_pr(7), _pr(9)], runs=_exhausted(7), labels={PARKED: [9]}, live={ver(9)}, extra=extra)
+        self.assertEqual(code, 0)
+        gh_write.assert_not_called()
+        ensure.assert_not_called()
+        notice_failures.assert_not_called()
+        stuck.assert_not_called()
+        writes = [c for c in sp_calls if {"POST", "PATCH", "DELETE", "create", "comment"} & set(c)]
+        self.assertEqual(writes, [])
+        self.assertIn("dry-run: would mark PR #7 promotion-parked", out)
+        self.assertIn("dry-run: would clear PR #9 promotion-parked (delivered)", out)
+
+    def test_rollup_line_carries_pr_notice_outcome(self):
+        entries = [{"number": 7, "merged_at": "2026-11-01T00:00:00Z", "versions": [ver(7)],
+                    "findings": [], "exhausted": 3, "notice": "posted"}]
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            class R:
+                stdout = "https://github.com/o/r/issues/99\n"
+                stderr = ""
+            return R()
+        saved_run = subprocess.run
+        saved_gh = m.gh
+        subprocess.run = fake_run
+        m.gh = lambda *a: []  # no existing roll-up issue
+        try:
+            m.report_stuck_change("o/r", entries, datetime(2026, 11, 2, 20, 0, tzinfo=timezone.utc))
+        finally:
+            subprocess.run = saved_run
+            m.gh = saved_gh
+        creates = [c for c in calls if "create" in c]
+        self.assertEqual(len(creates), 1)
+        body = creates[0][creates[0].index("--body") + 1]
+        self.assertIn("— PR notice: posted", body)
+
 
 class CompletePullDiscovery(unittest.TestCase):
     def test_old_pending_base_and_child_survive_more_than_one_hundred_prs(self):
