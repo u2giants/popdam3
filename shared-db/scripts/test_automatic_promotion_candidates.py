@@ -2260,6 +2260,21 @@ class PermanentRefusalTests(unittest.TestCase):
                                   permanent=lambda run: False)[0], "dispatch")
         self.assertEqual(m.decide([self.PR], [self.FAIL] * 3, lambda n: [], main_sha="new",
                                   permanent=lambda run: False)[0], "idle")
+class PreMergeRefusalWorkflowTests(unittest.TestCase):
+    """#6574 Fix A: the refusal runs in the validate job, which the preview job needs,
+    so a refused claim-lane apply never reaches any preview database step."""
+
+    def test_premerge_refusal_step_gated_and_runs_before_preview(self):
+        import os
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        with open(os.path.join(root, ".github", "workflows", "shared-supabase-migrations.yml"), encoding="utf-8") as fh:
+            text = fh.read()
+        validate = text[text.index("\n  validate:\n"):text.index("\n  preview:\n")]
+        step = validate.index("- name: Refuse pre-merge apply of a high-risk migration")
+        self.assertIn("inputs.claim_pr != '' && inputs.mode == 'apply'", validate[step:step + 300])
+        self.assertIn("premerge-preview-check", validate[step:step + 600])
+        preview = text[text.index("\n  preview:\n"):]
+        self.assertIn("needs: validate", preview[:400])
 
 
 if __name__ == "__main__":

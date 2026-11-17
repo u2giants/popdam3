@@ -5268,5 +5268,43 @@ class WorkflowCustodyConcurrencyTests(unittest.TestCase):
                             _workflow_custody_normal_form(without_nested))
 
 
+class PreMergePreviewRefusalTests(unittest.TestCase):
+    """#6574 Fix A: a pre-merge preview APPLY of a high-risk migration is refused."""
+
+    def _repo(self, version, sql):
+        import tempfile
+        root = Path(tempfile.mkdtemp())
+        (root / "supabase" / "migrations").mkdir(parents=True)
+        (root / "supabase" / "migrations" / f"{version}_test.sql").write_text(sql, encoding="utf-8")
+        return root
+
+    def _run(self, root, allowlist):
+        import contextlib
+        import io
+        from production_business_risk_gate import premerge_preview_check_main
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = premerge_preview_check_main(["--repo", str(root), "--allowlist", allowlist])
+        return code, err.getvalue()
+
+    def test_premerge_check_refuses_high_risk_allowlist(self):
+        sql = "do $$ begin execute format('revoke execute on function %s from anon', 'x'); end $$;\n"
+        root = self._repo("20990101000000", sql)
+        code, err = self._run(root, "20990101000000")
+        self.assertEqual(code, 1)
+        self.assertIn("#6574", err)
+
+    def test_premerge_check_allows_low_risk_allowlist(self):
+        sql = "create schema if not exists scratch_six_seven_four;\ncreate table scratch_six_seven_four.t (id int);\n"
+        root = self._repo("20990101000001", sql)
+        code, _ = self._run(root, "20990101000001")
+        self.assertEqual(code, 0)
+
+    def test_premerge_check_refuses_unknown_version(self):
+        root = self._repo("20990101000002", "select 1;\n")
+        code, _ = self._run(root, "20990101000099")
+        self.assertNotEqual(code, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

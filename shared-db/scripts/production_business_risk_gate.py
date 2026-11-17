@@ -4006,7 +4006,39 @@ def qualify_route_main(argv: list[str]) -> int:
     return 0
 
 
+def premerge_preview_check_main(argv: list[str]) -> int:
+    """#6574: refuse a pre-merge preview APPLY of a high-risk migration.
+
+    A claim-lane apply makes the version "already on preview" before merge; after
+    merge only the historical recovery lane can prove it, and any apply-shaping
+    producer change in between refuses it forever. Dry-run writes nothing and is
+    not refused here (the workflow only calls this for mode == apply).
+    """
+    parser = argparse.ArgumentParser(prog="production_business_risk_gate.py premerge-preview-check")
+    parser.add_argument("--repo", type=Path, default=Path.cwd())
+    parser.add_argument("--allowlist", required=True)
+    args = parser.parse_args(argv)
+    try:
+        versions = normalize_review_allowlist(args.allowlist)
+        reasons = preview_required_reasons(args.repo.resolve(), versions)
+    except Exception as exc:  # noqa: BLE001 - an unreadable migration refuses, never passes
+        print(f"::error::REFUSED: could not classify the migration(s) for a pre-merge preview "
+              f"apply ({type(exc).__name__}: {exc}). Refusing (#6574).", file=sys.stderr)
+        return 1
+    if reasons:
+        print(f"::error::REFUSED: {', '.join(versions)} is high-risk to live data "
+              f"({'; '.join(reasons)}). A pre-merge preview APPLY would strand it (#6574: once applied "
+              f"on preview before merge, only the historical recovery lane can prove it, and any producer "
+              f"change before merge refuses it forever). Run mode=dry-run now, merge, and let the automatic "
+              f"queue rehearse it post-merge.", file=sys.stderr)
+        return 1
+    print(f"Pre-merge preview apply allowed: {', '.join(versions)} is not high-risk.")
+    return 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "qualify-route":
         raise SystemExit(qualify_route_main(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "premerge-preview-check":
+        raise SystemExit(premerge_preview_check_main(sys.argv[2:]))
     raise SystemExit(main())
