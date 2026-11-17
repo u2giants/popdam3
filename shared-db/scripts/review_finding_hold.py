@@ -217,10 +217,16 @@ def gh_issues_many(repository: str, prs: Iterable[int], settle: float = SETTLE_S
     for attempt in range(2):
         if attempt:
             sleep(settle)
-        shared = labelled(repository, 0)
-        for pr in prs:
-            reads[pr].extend(shared)
-            reads[pr].extend(crossed(repository, pr))
+        # The reads within one round are independent; run them together
+        # (same reads, same union, same settle between rounds).
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            shared_read = pool.submit(labelled, repository, 0)
+            crossed_reads = {pr: pool.submit(crossed, repository, pr) for pr in prs}
+            shared = shared_read.result()
+            for pr in prs:
+                reads[pr].extend(shared)
+                reads[pr].extend(crossed_reads[pr].result())
     return reads
 
 
