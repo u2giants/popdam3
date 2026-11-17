@@ -20,7 +20,6 @@ def select(policy,read_receipt,active_runs,held,source_sha):
     if active_runs:return None
     for operation_id in sorted(policy['operations']):
         entry=maintenance.operation(policy,operation_id)
-        if held(entry['source_pr']):continue
         base=f'refs/db-index-maintenance/{operation_id}'
         def completed(target):
             record=read_receipt(base+'/'+target+'/complete')
@@ -30,10 +29,20 @@ def select(policy,read_receipt,active_runs,held,source_sha):
                 or record.get('policy_digest')!=maintenance.digest(entry)):
                 raise maintenance.Refusal('completion receipt binding refused')
             return record
-        if completed('production') is not None:continue
-        preview=completed('preview')
+        # #6493 Step 4: receipts first, the hold last. Each hold read settles
+        # for 20 s, and reading it for every operation -- finished ones too --
+        # cost every trigger run ~80 s before the promotion selector started.
+        # A finished operation needs no hold read; a held operation is still
+        # never dispatched, and still never fails the step on its receipts.
+        try:
+            if completed('production') is not None:continue
+            preview=completed('preview')
+        except maintenance.Refusal:
+            if held(entry['source_pr']):continue
+            raise
         # Test-mode operations (weekly check, Step 7 gate) stop after preview.
         if entry.get('preview_only') and preview is not None:continue
+        if held(entry['source_pr']):continue
         target='production' if preview is not None else 'preview'
         return dict(operation_id=operation_id,target=target,source_sha=source_sha)
     return None
