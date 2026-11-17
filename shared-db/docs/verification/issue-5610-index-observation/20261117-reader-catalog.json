@@ -1,0 +1,990 @@
+{
+  "functions": [
+    {
+      "schema": "public",
+      "name": "refresh_style_guide_matviews_job",
+      "identity": "refresh_style_guide_matviews_job()",
+      "definition_md5": "43b6172bc90505e12678fa498727e0a7"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_lucasfilm_dcp_metadata_run",
+      "identity": "plm.begin_lucasfilm_dcp_metadata_run(text,uuid,date,text,text,text,text,jsonb)",
+      "definition_md5": "13508c2befc608a8da0827995022a084"
+    },
+    {
+      "schema": "plm",
+      "name": "complete_sesame_capture",
+      "identity": "plm.complete_sesame_capture(uuid,jsonb,integer,boolean,boolean,boolean,integer,jsonb)",
+      "definition_md5": "edea92c59ecaab1b866306fe1f4f598b"
+    },
+    {
+      "schema": "public",
+      "name": "dam_search_documents_set_default_visible",
+      "identity": "dam_search_documents_set_default_visible()",
+      "definition_md5": "2eb628d0cde4e5756d54c18aa529a542"
+    },
+    {
+      "schema": "public",
+      "name": "assets_refresh_default_visible_flags",
+      "identity": "assets_refresh_default_visible_flags()",
+      "definition_md5": "bca7b6613dce362ddea64bf9b0ed67f4"
+    },
+    {
+      "schema": "public",
+      "name": "dam_lock_default_visible_owner",
+      "identity": "dam_lock_default_visible_owner(text,uuid)",
+      "definition_md5": "e723a7fe6d87f82d118ecd182e601758"
+    },
+    {
+      "schema": "public",
+      "name": "search_dam_documents",
+      "identity": "search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)",
+      "definition_md5": "4cacfee9a7cbf80934915f0c2cd99a98"
+    },
+    {
+      "schema": "public",
+      "name": "prepare_sku_style_guide_resolution",
+      "identity": "prepare_sku_style_guide_resolution(boolean)",
+      "definition_md5": "e7a022ea9d23bd06081a25638765f642"
+    },
+    {
+      "schema": "public",
+      "name": "get_dam_asset_taxonomy_counts",
+      "identity": "get_dam_asset_taxonomy_counts()",
+      "definition_md5": "bd98987c835d579e0a8cf927ecad66d2"
+    },
+    {
+      "schema": "public",
+      "name": "get_search_embedding_health",
+      "identity": "get_search_embedding_health()",
+      "definition_md5": "30bfdd973f70eee64e2648a5edb0e0c6"
+    },
+    {
+      "schema": "plm",
+      "name": "load_marvel_dcp_asset_chunk",
+      "identity": "plm.load_marvel_dcp_asset_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "ad8d46ccd663fedff1e3e47df4b3f330"
+    },
+    {
+      "schema": "plm",
+      "name": "load_marvel_dcp_metadata_chunk",
+      "identity": "plm.load_marvel_dcp_metadata_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "d402e0c45032a4a42a5669c8984e9aaf"
+    },
+    {
+      "schema": "plm",
+      "name": "pmt_refresh_shrink_check",
+      "identity": "plm.pmt_refresh_shrink_check(uuid)",
+      "definition_md5": "edee4187d2f8e3a06fe6d48f241cc61e"
+    },
+    {
+      "schema": "public",
+      "name": "get_dam_material_facets",
+      "identity": "get_dam_material_facets()",
+      "definition_md5": "bf9a1ebcfef25406f7f56e67ad4b8a84"
+    },
+    {
+      "schema": "public",
+      "name": "dam_default_visible_member_count",
+      "identity": "dam_default_visible_member_count(text,uuid,uuid,timestamp with time zone)",
+      "definition_md5": "1edb0c4329276ccdeff2df7195a8cd7e"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_dcp_crawl",
+      "identity": "plm.begin_dcp_crawl(date,text,text,text,text,text,text,integer,integer,text)",
+      "definition_md5": "25972e5ea3ad506ea61ff78c38763a8e"
+    },
+    {
+      "schema": "public",
+      "name": "dam_refresh_default_visible_flag",
+      "identity": "dam_refresh_default_visible_flag(text,uuid)",
+      "definition_md5": "fab938a0cd398353a587998c8a959d96"
+    },
+    {
+      "schema": "public",
+      "name": "dam_sweep_default_visible_flags",
+      "identity": "dam_sweep_default_visible_flags(integer)",
+      "definition_md5": "69230db980942957d88a09bedbd8f3ac"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_dcp_metadata_run",
+      "identity": "plm.begin_dcp_metadata_run(uuid,date,text,text,text,text,jsonb)",
+      "definition_md5": "d4d36499c8adc5d032c0ba320a403353"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_lucasfilm_dcp_crawl",
+      "identity": "plm.begin_lucasfilm_dcp_crawl(text,date,text,text,text,text,text,text,integer,integer,text)",
+      "definition_md5": "2dcf8aed0d7c9b7d4bcaf057c54c62ec"
+    },
+    {
+      "schema": "public",
+      "name": "rebuild_style_groups_batch",
+      "identity": "rebuild_style_groups_batch(uuid,integer,timestamp with time zone)",
+      "definition_md5": "9222e39f7953290f2050123aa07811b6"
+    },
+    {
+      "schema": "public",
+      "name": "reconcile_stale_sg_files_batch",
+      "identity": "reconcile_stale_sg_files_batch(text,uuid,integer,numeric)",
+      "definition_md5": "f4c0bf5b3f49d2ef0a10fb172a9c44bf"
+    },
+    {
+      "schema": "public",
+      "name": "reconcile_style_group_drift",
+      "identity": "reconcile_style_group_drift(integer)",
+      "definition_md5": "12edbca8680d869b07118969bff242b3"
+    },
+    {
+      "schema": "hts_rag",
+      "name": "hts_rag_search_rulings_pass",
+      "identity": "hts_rag.hts_rag_search_rulings_pass(text,tsquery,extensions.halfvec,text[])",
+      "definition_md5": "97fb84ad4a543763e9e6b1e5b34879ad"
+    },
+    {
+      "schema": "public",
+      "name": "get_ai_tag_candidates",
+      "identity": "get_ai_tag_candidates(text,integer,integer,uuid,uuid[])",
+      "definition_md5": "fff63cbab49720ec4acdfa332e5dc3e8"
+    },
+    {
+      "schema": "public",
+      "name": "dam_search_semantic_anchor_scoped",
+      "identity": "dam_search_semantic_anchor_scoped(extensions.vector,text[],uuid[])",
+      "definition_md5": "34fa75bf4d052f95ccd0e0ea3fa8b888"
+    },
+    {
+      "schema": "plm",
+      "name": "dcp_metadata_run_freeze",
+      "identity": "plm.dcp_metadata_run_freeze()",
+      "definition_md5": "8b04f8dba1625073574d6ad1cb687f8e"
+    },
+    {
+      "schema": "public",
+      "name": "search_style_guide_library_v2",
+      "identity": "search_style_guide_library_v2(text,text,text[],text[],text[],text[],text[],text[],text[],text[],timestamp with time zone,timestamp with time zone,text,integer,integer,extensions.vector,real,text,boolean)",
+      "definition_md5": "21e6341c32116ca268dde2aa55a70e2d"
+    },
+    {
+      "schema": "public",
+      "name": "upsert_style_guide_crawl_files",
+      "identity": "upsert_style_guide_crawl_files(uuid,jsonb)",
+      "definition_md5": "79f34a554cb1d26550e910d871c26579"
+    },
+    {
+      "schema": "public",
+      "name": "count_style_guide_crawl_seen",
+      "identity": "count_style_guide_crawl_seen(text,uuid)",
+      "definition_md5": "f3d98df4a0d636cf67d992c9d34e5cb4"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_dcp_crawl",
+      "identity": "plm.finalize_dcp_crawl(uuid)",
+      "definition_md5": "4eac5dabd0e4b22692f7477baf40e9f3"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_peanuts_capture",
+      "identity": "plm.finalize_peanuts_capture(uuid,jsonb,jsonb)",
+      "definition_md5": "a7373f4565ee73588beba43e839bd0b1"
+    },
+    {
+      "schema": "dam",
+      "name": "path_candidates",
+      "identity": "dam.path_candidates(text,uuid)",
+      "definition_md5": "e4e1e076319c45302851821789208d9d"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_sega_capture",
+      "identity": "plm.finalize_sega_capture(uuid,jsonb,jsonb)",
+      "definition_md5": "374ea3ace0cb1cc052a99bc792600cd8"
+    },
+    {
+      "schema": "plm",
+      "name": "load_twentieth_century_dcp_asset_chunk",
+      "identity": "plm.load_twentieth_century_dcp_asset_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "531a5dd5560e70ca300ba94a09f2558d"
+    },
+    {
+      "schema": "plm",
+      "name": "lucasfilm_dcp_metadata_run_freeze",
+      "identity": "plm.lucasfilm_dcp_metadata_run_freeze()",
+      "definition_md5": "c7b004cb984696fd97eb74256fffeb60"
+    },
+    {
+      "schema": "plm",
+      "name": "marvel_dcp_metadata_run_freeze",
+      "identity": "plm.marvel_dcp_metadata_run_freeze()",
+      "definition_md5": "b407cdcb47b648ccbed45c04a81034e3"
+    },
+    {
+      "schema": "plm",
+      "name": "suggested_property_for_sku",
+      "identity": "plm.suggested_property_for_sku(text)",
+      "definition_md5": "f64971a3b110f3824b5b52dc9816fce3"
+    },
+    {
+      "schema": "public",
+      "name": "claim_style_guide_pdf_text",
+      "identity": "claim_style_guide_pdf_text(text,integer,interval,integer)",
+      "definition_md5": "c09727655b66855bf7b138bc4c2ebf66"
+    },
+    {
+      "schema": "public",
+      "name": "cleanup_mega_group_tags_batch",
+      "identity": "cleanup_mega_group_tags_batch()",
+      "definition_md5": "7e58b9565d6e329f65584dae29e387a2"
+    },
+    {
+      "schema": "plm",
+      "name": "validate_pmt_capture",
+      "identity": "plm.validate_pmt_capture(uuid)",
+      "definition_md5": "9afa1ed966e6c9e5bb96b82c99f7baa8"
+    },
+    {
+      "schema": "public",
+      "name": "get_dam_search_performance_stats",
+      "identity": "get_dam_search_performance_stats()",
+      "definition_md5": "17a6eabee1854a26f59a1c82d198d416"
+    },
+    {
+      "schema": "plm",
+      "name": "wb_validate_normalized_row",
+      "identity": "plm.wb_validate_normalized_row(text,jsonb)",
+      "definition_md5": "127ffb3944c0881caa7602da7d6c681d"
+    },
+    {
+      "schema": "plm",
+      "name": "twentieth_century_dcp_metadata_run_freeze",
+      "identity": "plm.twentieth_century_dcp_metadata_run_freeze()",
+      "definition_md5": "09a09f5e2a586a9e636b64a1a9f97b11"
+    },
+    {
+      "schema": "public",
+      "name": "sync_cover_description_to_style_group",
+      "identity": "sync_cover_description_to_style_group()",
+      "definition_md5": "2713358f13f661b9bc10cd12850a620f"
+    },
+    {
+      "schema": "hts_rag",
+      "name": "hts_rag_nearest_products",
+      "identity": "hts_rag.hts_rag_nearest_products(text,text,integer,text[])",
+      "definition_md5": "bd05519c204c9745f878e36f61ca9f4e"
+    },
+    {
+      "schema": "public",
+      "name": "apply_erp_item_updates",
+      "identity": "apply_erp_item_updates(jsonb)",
+      "definition_md5": "5f4646ea0e404859e9df6b48bfc883b0"
+    },
+    {
+      "schema": "public",
+      "name": "apply_sheet_designers",
+      "identity": "apply_sheet_designers(uuid,text,text)",
+      "definition_md5": "14f41c85dce95a41c0958209e11e749d"
+    },
+    {
+      "schema": "public",
+      "name": "complete_style_guide_pdf_text",
+      "identity": "complete_style_guide_pdf_text(uuid,text,text,integer,text)",
+      "definition_md5": "78251089e8fadb38fb5bcb9b7faf63ab"
+    },
+    {
+      "schema": "public",
+      "name": "get_ai_sentinel_stats",
+      "identity": "get_ai_sentinel_stats()",
+      "definition_md5": "fef63ebf8b4efd88d1d9f67eb7e86e70"
+    },
+    {
+      "schema": "public",
+      "name": "get_effective_asset_metadata",
+      "identity": "get_effective_asset_metadata(uuid)",
+      "definition_md5": "cda09b35c9f8074e08661cca179b50a8"
+    },
+    {
+      "schema": "public",
+      "name": "get_effective_filter_counts_unchecked_1703",
+      "identity": "get_effective_filter_counts_unchecked_1703(jsonb)",
+      "definition_md5": "3e898db838ce2a08b24f72c66b3b6ed4"
+    },
+    {
+      "schema": "public",
+      "name": "get_filter_counts_unchecked_1703",
+      "identity": "get_filter_counts_unchecked_1703(jsonb)",
+      "definition_md5": "958ebcb9482f502be56a3e7834c8dea4"
+    },
+    {
+      "schema": "public",
+      "name": "image_embed_stale_assets",
+      "identity": "image_embed_stale_assets(uuid,integer)",
+      "definition_md5": "df17b9b90223362c766eccac92a9dcab"
+    },
+    {
+      "schema": "public",
+      "name": "sync_asset_effective_tags",
+      "identity": "sync_asset_effective_tags()",
+      "definition_md5": "ed98088686fd084c0b4d8e0e9cbdc12d"
+    },
+    {
+      "schema": "public",
+      "name": "parse_pdf_declared_style_guide",
+      "identity": "parse_pdf_declared_style_guide(uuid)",
+      "definition_md5": "3e257aea3bf5f04064a367b2cdc2c900"
+    },
+    {
+      "schema": "public",
+      "name": "preview_stale_sg_files",
+      "identity": "preview_stale_sg_files(text,uuid,numeric)",
+      "definition_md5": "1a305110e379363bf30ad37ad32a1cd5"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_dam_search_style_group_document",
+      "identity": "refresh_dam_search_style_group_document(uuid)",
+      "definition_md5": "9f387d45f6188fe0e5cc0271aa593e8d"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_group_counts_batch",
+      "identity": "refresh_style_group_counts_batch(uuid[])",
+      "definition_md5": "2a71b83e547dfd46e1cc32cd780dbd9a"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_guide_library_default_snapshot",
+      "identity": "refresh_style_guide_library_default_snapshot()",
+      "definition_md5": "ce8147d31e08038fc5f844665b540b9a"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_guide_folder_consensus_batch",
+      "identity": "refresh_style_guide_folder_consensus_batch(text,integer,text)",
+      "definition_md5": "6c266db6c3ab80402d07bbe362bd647c"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_guide_matviews",
+      "identity": "refresh_style_guide_matviews(uuid,integer,text)",
+      "definition_md5": "3c7e1cbcaef88e074e00df5be0e23cb1"
+    },
+    {
+      "schema": "public",
+      "name": "replace_asset_ai_tag_result",
+      "identity": "replace_asset_ai_tag_result(uuid,text,text,jsonb)",
+      "definition_md5": "10632e22e95252f3bf449dccd326b2c6"
+    },
+    {
+      "schema": "public",
+      "name": "trg_refresh_dam_tag_or_character_stmt",
+      "identity": "trg_refresh_dam_tag_or_character_stmt()",
+      "definition_md5": "9b168e84705355567f8748b3e5a0918c"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_lucasfilm_dcp_crawl",
+      "identity": "plm.finalize_lucasfilm_dcp_crawl(uuid)",
+      "definition_md5": "0a9095256c289281a5437101707cfbde"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_lucasfilm_dcp_metadata_run",
+      "identity": "plm.finalize_lucasfilm_dcp_metadata_run(uuid)",
+      "definition_md5": "26be2b49acfb4d179690a50146a2bc1c"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_marvel_asgard_capture",
+      "identity": "plm.finalize_marvel_asgard_capture(uuid,text)",
+      "definition_md5": "b7a6aaecd446d482e2aad5c8d64c947d"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_marvel_dcp_crawl",
+      "identity": "plm.finalize_marvel_dcp_crawl(uuid)",
+      "definition_md5": "1b95db0a0ce2fb6afb635fa6886bac31"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_marvel_dcp_metadata_run",
+      "identity": "plm.finalize_marvel_dcp_metadata_run(uuid)",
+      "definition_md5": "0c48ac43045b806944f43b6649ad5594"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_nbcu_capture",
+      "identity": "plm.finalize_nbcu_capture(uuid)",
+      "definition_md5": "ebdf8c2a75cc4a030a81ebb3b1b51d14"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_wildbrain_capture",
+      "identity": "plm.finalize_wildbrain_capture(uuid,jsonb,jsonb)",
+      "definition_md5": "e65f9a042ef9b979229fcd88551f5722"
+    },
+    {
+      "schema": "plm",
+      "name": "licensing_consolidation_capture_snapshot",
+      "identity": "plm.licensing_consolidation_capture_snapshot(text,uuid)",
+      "definition_md5": "7431924eefff9aaee7bafd5d88781d84"
+    },
+    {
+      "schema": "api",
+      "name": "db_data_admin_scraped_properties",
+      "identity": "api.db_data_admin_scraped_properties(text,text,integer)",
+      "definition_md5": "707946c0cd8d53d567e7e07b698e5f5b"
+    },
+    {
+      "schema": "api",
+      "name": "db_data_admin_scraped_source_inventory",
+      "identity": "api.db_data_admin_scraped_source_inventory(text,text,text,integer)",
+      "definition_md5": "2a6290dbf96b45be51f1791fcc4f3edb"
+    },
+    {
+      "schema": "core",
+      "name": "merge_customer",
+      "identity": "core.merge_customer(uuid,uuid,boolean)",
+      "definition_md5": "27f0de967338b76c3d21ae152dddcbb4"
+    },
+    {
+      "schema": "dam",
+      "name": "complete_image_embed_job",
+      "identity": "dam.complete_image_embed_job(uuid,extensions.halfvec,extensions.halfvec,text,boolean,text)",
+      "definition_md5": "7971bdc48831f3b82686b976b21c7371"
+    },
+    {
+      "schema": "dam",
+      "name": "get_image_embed_asset_thumbnails",
+      "identity": "dam.get_image_embed_asset_thumbnails(uuid[])",
+      "definition_md5": "3ab32c7141df98942c06a302b432c47d"
+    },
+    {
+      "schema": "dam",
+      "name": "search_embedding_image_provenance",
+      "identity": "dam.search_embedding_image_provenance(uuid,text,jsonb)",
+      "definition_md5": "56b0436c41620d2b6d06588a149dad6b"
+    },
+    {
+      "schema": "hts_rag",
+      "name": "hts_rag_search_rulings",
+      "identity": "hts_rag.hts_rag_search_rulings(text,text[],integer,extensions.halfvec,integer)",
+      "definition_md5": "ecaab5c86607dda9fd0c7e4f720a4e00"
+    },
+    {
+      "schema": "hts_rag",
+      "name": "validate_sentence_provenance",
+      "identity": "hts_rag.validate_sentence_provenance()",
+      "definition_md5": "70a57d94322d94c534e0d932be6be78c"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_marvel_dcp_crawl",
+      "identity": "plm.begin_marvel_dcp_crawl(text,date,text,text,text,text,text,text,integer,integer,text)",
+      "definition_md5": "90e8eac2ad4f144bc823d4f319fdf7a6"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_marvel_dcp_metadata_run",
+      "identity": "plm.begin_marvel_dcp_metadata_run(text,uuid,date,text,text,text,text,jsonb)",
+      "definition_md5": "68847d844336bc4e76af3665583d68dc"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_nbcu_capture",
+      "identity": "plm.begin_nbcu_capture(text,text,text,text,text,timestamp with time zone,jsonb,jsonb,text,text)",
+      "definition_md5": "2fbf63af47c0681d2ce28214603acc48"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_peanuts_capture",
+      "identity": "plm.begin_peanuts_capture(text,text,text,text,text,text,text,timestamp with time zone,jsonb,jsonb,text,integer,integer,integer,boolean,boolean,boolean,text)",
+      "definition_md5": "e572335081352e45bfa7d180e71974e0"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_sega_capture",
+      "identity": "plm.begin_sega_capture(text,text,text,text,text,timestamp with time zone,jsonb,jsonb,text,boolean,boolean,boolean,boolean,text)",
+      "definition_md5": "b4162b014a3ef005b0276b2663cac7d0"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_twentieth_century_dcp_crawl",
+      "identity": "plm.begin_twentieth_century_dcp_crawl(text,date,text,text,text,text,text,text,integer,integer,text)",
+      "definition_md5": "514f6b06d90af29014ba2f29fcc12b7f"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_twentieth_century_dcp_metadata_run",
+      "identity": "plm.begin_twentieth_century_dcp_metadata_run(text,uuid,date,text,text,text,text,jsonb)",
+      "definition_md5": "e328f0719c1f6f443cf25b6ca1676668"
+    },
+    {
+      "schema": "plm",
+      "name": "begin_wildbrain_capture",
+      "identity": "plm.begin_wildbrain_capture(text,text,text,text,text,timestamp with time zone,jsonb,jsonb,text,boolean,integer,integer,text)",
+      "definition_md5": "820a5a901401620bde0af45328a4fc20"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_coke_capture",
+      "identity": "plm.finalize_coke_capture(uuid)",
+      "definition_md5": "c5fee263829bc8fb6dc5eebcac516f24"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_dcp_metadata_run",
+      "identity": "plm.finalize_dcp_metadata_run(uuid)",
+      "definition_md5": "d7eca1e51a3ffa8f8914ea0cd9f97eef"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_twentieth_century_dcp_crawl",
+      "identity": "plm.finalize_twentieth_century_dcp_crawl(uuid)",
+      "definition_md5": "d463f34e5274d3c3c78a65985c8ee77f"
+    },
+    {
+      "schema": "plm",
+      "name": "finalize_twentieth_century_dcp_metadata_run",
+      "identity": "plm.finalize_twentieth_century_dcp_metadata_run(uuid)",
+      "definition_md5": "40f68c2d259ad08f5f3361b1b3886247"
+    },
+    {
+      "schema": "plm",
+      "name": "load_dcp_asset_chunk",
+      "identity": "plm.load_dcp_asset_chunk(uuid,integer,text,text)",
+      "definition_md5": "0d6aebe69eb00f31df3ff8ff21f5593a"
+    },
+    {
+      "schema": "plm",
+      "name": "load_dcp_metadata_chunk",
+      "identity": "plm.load_dcp_metadata_chunk(uuid,integer,text,text)",
+      "definition_md5": "0051b8406ec6e3bad0a9adca1b2fa177"
+    },
+    {
+      "schema": "plm",
+      "name": "load_lucasfilm_dcp_asset_chunk",
+      "identity": "plm.load_lucasfilm_dcp_asset_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "05cfe1b7f6ff8c5f818b1df8cf520f64"
+    },
+    {
+      "schema": "plm",
+      "name": "load_lucasfilm_dcp_metadata_chunk",
+      "identity": "plm.load_lucasfilm_dcp_metadata_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "4a5040fb81110859b8a5d7f013bb2990"
+    },
+    {
+      "schema": "plm",
+      "name": "load_marvel_asgard_chunk",
+      "identity": "plm.load_marvel_asgard_chunk(uuid,text,text,jsonb)",
+      "definition_md5": "2f3e5ca2de8111f71676b99d7ff116ed"
+    },
+    {
+      "schema": "plm",
+      "name": "load_twentieth_century_dcp_metadata_chunk",
+      "identity": "plm.load_twentieth_century_dcp_metadata_chunk(text,uuid,integer,text,text)",
+      "definition_md5": "eca0aec500956d18e95e516aa7b4ba48"
+    },
+    {
+      "schema": "plm",
+      "name": "peanuts_publish_lifecycle",
+      "identity": "plm.peanuts_publish_lifecycle(uuid)",
+      "definition_md5": "42ad89cb4d886e591813d9d1bf877820"
+    },
+    {
+      "schema": "public",
+      "name": "bulk_assign_style_groups",
+      "identity": "bulk_assign_style_groups(jsonb)",
+      "definition_md5": "64664404c291413a73c677428e127ee0"
+    },
+    {
+      "schema": "public",
+      "name": "claim_sg_search_embedding_documents",
+      "identity": "claim_sg_search_embedding_documents(integer,text,integer)",
+      "definition_md5": "12f5801405cda254c4c2f8d69e26e978"
+    },
+    {
+      "schema": "public",
+      "name": "add_style_guide_manual_tag",
+      "identity": "add_style_guide_manual_tag(uuid,text,text)",
+      "definition_md5": "e4a0dc1f334b2429cdd18f06c2b2149b"
+    },
+    {
+      "schema": "public",
+      "name": "count_pdf_backfill_remaining",
+      "identity": "count_pdf_backfill_remaining()",
+      "definition_md5": "50a2fd9b5c8a451b2f0ed839ceb1abf0"
+    },
+    {
+      "schema": "public",
+      "name": "apply_pdf_sheet_style_tags",
+      "identity": "apply_pdf_sheet_style_tags()",
+      "definition_md5": "7ded732fe2f9f9ac046d50b3a86a09d2"
+    },
+    {
+      "schema": "public",
+      "name": "count_pdf_rescan_remaining",
+      "identity": "count_pdf_rescan_remaining()",
+      "definition_md5": "d4d94eeb4ac2b07e285ad871f1496d16"
+    },
+    {
+      "schema": "public",
+      "name": "claim_pdf_backfill_batch",
+      "identity": "claim_pdf_backfill_batch(integer)",
+      "definition_md5": "218937e9c0592dc27a772fe555e7c766"
+    },
+    {
+      "schema": "public",
+      "name": "claim_pdf_rescan_batch",
+      "identity": "claim_pdf_rescan_batch(integer)",
+      "definition_md5": "f1bfdaf9be862b9415ee864c8a987ca7"
+    },
+    {
+      "schema": "public",
+      "name": "cleanup_mega_group_tags_batch",
+      "identity": "cleanup_mega_group_tags_batch(uuid,integer,integer)",
+      "definition_md5": "2e1c418bf233d3b87acecfee8e29192a"
+    },
+    {
+      "schema": "public",
+      "name": "clear_style_group_batch",
+      "identity": "clear_style_group_batch(uuid,integer)",
+      "definition_md5": "3dbea0ab37aa21181efa966cbb4e1d8f"
+    },
+    {
+      "schema": "public",
+      "name": "commit_pdf_rescan_batch",
+      "identity": "commit_pdf_rescan_batch(jsonb)",
+      "definition_md5": "5aac52059bcb0d024e2d7085af94e4f5"
+    },
+    {
+      "schema": "public",
+      "name": "complete_style_guide_pdf_text_v2",
+      "identity": "complete_style_guide_pdf_text_v2(uuid,text,text,text,integer,text,text)",
+      "definition_md5": "cd67221fb1559ff4d01246e1a34b34b0"
+    },
+    {
+      "schema": "public",
+      "name": "filter_effective_assets",
+      "identity": "filter_effective_assets(jsonb)",
+      "definition_md5": "deb0f99659cc3dd20514feaa4aa8307a"
+    },
+    {
+      "schema": "public",
+      "name": "filter_effective_assets_unchecked_1703",
+      "identity": "filter_effective_assets_unchecked_1703(jsonb)",
+      "definition_md5": "5628072f5245338f4194e9c1b2de8a3b"
+    },
+    {
+      "schema": "public",
+      "name": "find_ai_pdf_duplicates",
+      "identity": "find_ai_pdf_duplicates()",
+      "definition_md5": "b454470d6a98be0a50a9e3c3d2bf7076"
+    },
+    {
+      "schema": "public",
+      "name": "get_dam_customer_facets",
+      "identity": "get_dam_customer_facets()",
+      "definition_md5": "2ab65be04f4570f7f64dc6bbe1d96bed"
+    },
+    {
+      "schema": "public",
+      "name": "get_sg_preview_stats",
+      "identity": "get_sg_preview_stats()",
+      "definition_md5": "64eabf9997ce1df79c8f3af2168276bc"
+    },
+    {
+      "schema": "public",
+      "name": "get_sg_search_embedding_status",
+      "identity": "get_sg_search_embedding_status()",
+      "definition_md5": "df888489d900a436971aaa4a1c5fd2f4"
+    },
+    {
+      "schema": "public",
+      "name": "get_style_guide_deterministic_tag_batch",
+      "identity": "get_style_guide_deterministic_tag_batch(uuid,integer,boolean)",
+      "definition_md5": "43e38016a8a3f08d2f8a25d047009028"
+    },
+    {
+      "schema": "public",
+      "name": "get_style_guide_deterministic_tag_batch_v2",
+      "identity": "get_style_guide_deterministic_tag_batch_v2(uuid,integer,boolean)",
+      "definition_md5": "be378f0cde08462b55fa34ff6676d999"
+    },
+    {
+      "schema": "public",
+      "name": "get_style_guide_tagging_stats",
+      "identity": "get_style_guide_tagging_stats()",
+      "definition_md5": "23420cefce4a9978cc5c27e31fb03e2a"
+    },
+    {
+      "schema": "public",
+      "name": "resolve_sku_files_used",
+      "identity": "resolve_sku_files_used()",
+      "definition_md5": "16e2b4e80b242c2d348da83dd33f7511"
+    },
+    {
+      "schema": "public",
+      "name": "image_embed_enqueue_index",
+      "identity": "image_embed_enqueue_index(uuid)",
+      "definition_md5": "555eba7e300e91b548af9558249243ac"
+    },
+    {
+      "schema": "public",
+      "name": "parse_pdf_files_used_v2",
+      "identity": "parse_pdf_files_used_v2(uuid)",
+      "definition_md5": "3601d4d42d36e421cd8670224ffbb2f7"
+    },
+    {
+      "schema": "public",
+      "name": "propagate_group_tags_batch",
+      "identity": "propagate_group_tags_batch(uuid,integer)",
+      "definition_md5": "1c44095b46fb81d0618ace3649b50d34"
+    },
+    {
+      "schema": "public",
+      "name": "queue_sg_render_jobs_by_ids",
+      "identity": "queue_sg_render_jobs_by_ids(uuid[])",
+      "definition_md5": "5cc38486e98dd9ba7f3aaf0dc0d58fe2"
+    },
+    {
+      "schema": "public",
+      "name": "rebuild_dam_search_documents",
+      "identity": "rebuild_dam_search_documents()",
+      "definition_md5": "32bc2ad24469c4ec3b2e246edda68521"
+    },
+    {
+      "schema": "public",
+      "name": "rebuild_style_groups_batch",
+      "identity": "rebuild_style_groups_batch(uuid,integer)",
+      "definition_md5": "65c89b152f1d4aa49f3877043a16bd6b"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_dam_search_after_render_completion",
+      "identity": "refresh_dam_search_after_render_completion()",
+      "definition_md5": "11707d6aed86934a5568ad9d595c45d4"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_dam_search_asset_document",
+      "identity": "refresh_dam_search_asset_document(uuid)",
+      "definition_md5": "3eb6b6f8687203a0b659afc666de317c"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_group_counts",
+      "identity": "refresh_style_group_counts()",
+      "definition_md5": "8f5f5592aa03c91e9a5a6b8148c0188d"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_group_primaries",
+      "identity": "refresh_style_group_primaries(uuid[])",
+      "definition_md5": "12c6828ce2d02026fc289d3ada0079d3"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_group_rich_metadata",
+      "identity": "refresh_style_group_rich_metadata(uuid)",
+      "definition_md5": "b3767ad020947ace34c8dd928e8ae8d5"
+    },
+    {
+      "schema": "public",
+      "name": "refresh_style_guide_file_tag_cache",
+      "identity": "refresh_style_guide_file_tag_cache(uuid)",
+      "definition_md5": "82aee06411d5f5c9629ed77eb20a9de0"
+    },
+    {
+      "schema": "public",
+      "name": "replace_style_group_ai_profile",
+      "identity": "replace_style_group_ai_profile(uuid,text,text,text,jsonb,uuid[])",
+      "definition_md5": "000ceb9bc0fe94c8f082937da0e9de51"
+    },
+    {
+      "schema": "public",
+      "name": "resolve_sku_files_used_fuzzy",
+      "identity": "resolve_sku_files_used_fuzzy(real)",
+      "definition_md5": "7f063dfffc2c8dee1811e47da9e638ff"
+    },
+    {
+      "schema": "public",
+      "name": "retry_sg_render_errors",
+      "identity": "retry_sg_render_errors(uuid[])",
+      "definition_md5": "e09e84653ce53471d74b1a6f3e8c2201"
+    },
+    {
+      "schema": "public",
+      "name": "retry_sg_render_errors",
+      "identity": "retry_sg_render_errors(uuid[],integer)",
+      "definition_md5": "0875583ba24fefef30840f6e5ad7ae17"
+    },
+    {
+      "schema": "public",
+      "name": "run_full_reconcile_style_group_stats",
+      "identity": "run_full_reconcile_style_group_stats()",
+      "definition_md5": "59408ae46558bb022148b1d8ae2bad21"
+    },
+    {
+      "schema": "public",
+      "name": "search_dam_image_similarity",
+      "identity": "search_dam_image_similarity(extensions.halfvec,extensions.halfvec,numeric,numeric,integer,integer,text[])",
+      "definition_md5": "540736c919374228e1047a17f8d1ca36"
+    },
+    {
+      "schema": "public",
+      "name": "set_style_group_cover",
+      "identity": "set_style_group_cover(uuid,uuid)",
+      "definition_md5": "a80505e7e7a4f67c7150af1857b33691"
+    },
+    {
+      "schema": "public",
+      "name": "sync_asset_tags_to_array",
+      "identity": "sync_asset_tags_to_array()",
+      "definition_md5": "1b7e50e701be9dd386896a1116fc8702"
+    },
+    {
+      "schema": "public",
+      "name": "sync_designer_to_style_group",
+      "identity": "sync_designer_to_style_group()",
+      "definition_md5": "9280bd7fbf0b3ef841ffdcdb36eccbee"
+    },
+    {
+      "schema": "public",
+      "name": "trg_refresh_dam_tag_or_character",
+      "identity": "trg_refresh_dam_tag_or_character()",
+      "definition_md5": "b247d08ec17af01ec1a116a821256ee5"
+    }
+  ],
+  "search_wrappers": [
+    {
+      "identity": "search_assets_full_text(text,integer)",
+      "definition_md5": "921219bd75708d26f0c7b64b3b117dfd"
+    },
+    {
+      "identity": "search_style_groups_full_text(text,integer)",
+      "definition_md5": "e34ca354a7e3717c5a3cfb40fbc685e1"
+    }
+  ],
+  "dependencies": [
+    {
+      "schema": "hts_rag",
+      "index_name": "hts_rag_ruling_sentences_hash_idx",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    },
+    {
+      "schema": "hts_rag",
+      "index_name": "hts_rag_rulings_search_trgm_idx",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    },
+    {
+      "schema": "public",
+      "index_name": "idx_assets_full_text_search",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    },
+    {
+      "schema": "public",
+      "index_name": "idx_assets_tags",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    },
+    {
+      "schema": "public",
+      "index_name": "idx_sgf_directory_path_trgm",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    },
+    {
+      "schema": "public",
+      "index_name": "idx_style_guide_files_tag_search_trgm",
+      "constraint_name": null,
+      "constraint_type": null,
+      "dependent_object": null,
+      "deptype": null
+    }
+  ],
+  "views_and_policies": [
+    {
+      "kind": "view",
+      "schema": "api",
+      "name": "pmt_property_franchise_evidence",
+      "definition": " SELECT pfe.capture_id,\n    p.property_source_id,\n    p.property_name,\n    f.franchise_source_id,\n    f.franchise_name,\n    pfe.evidence_kind,\n    pfe.evidence_asset_count,\n    pfe.is_direct_source_relationship,\n    'CO-OCCURRENCE ONLY. Paramount states no property-to-franchise relationship. These two appear together on some assets; that is an observation about assets, NOT an authority about ownership.'::text AS authority_warning\n   FROM (((plm.pmt_property_franchise_evidence pfe\n     JOIN plm.pmt_property p ON (((p.capture_id = pfe.capture_id) AND (p.property_source_id = pfe.property_source_id))))\n     JOIN plm.pmt_franchise f ON (((f.capture_id = pfe.capture_id) AND (f.franchise_source_id = pfe.franchise_source_id))))\n     JOIN api.pmt_latest_capture lc ON ((lc.capture_id = pfe.capture_id)));"
+    },
+    {
+      "kind": "view",
+      "schema": "public",
+      "name": "sg_archive_usage",
+      "definition": " WITH usage AS (\n         SELECT f.licensor_name,\n            f.property_folder,\n            max(sg.latest_file_date) AS most_recent_design_date,\n            count(DISTINCT u_1.id) AS design_ref_count,\n            count(DISTINCT u_1.sku) AS designs_using\n           FROM ((sku_files_used u_1\n             JOIN style_groups sg ON ((sg.sku = u_1.sku)))\n             JOIN style_guide_files f ON ((f.id = u_1.style_guide_file_id)))\n          GROUP BY f.licensor_name, f.property_folder\n        ), guides AS (\n         SELECT style_guide_files.licensor_name,\n            style_guide_files.property_folder,\n            count(*) AS total_files,\n            count(*) FILTER (WHERE style_guide_files.is_active) AS active_files,\n            max(style_guide_files.modified_at) AS newest_sg_file_date\n           FROM style_guide_files\n          GROUP BY style_guide_files.licensor_name, style_guide_files.property_folder\n        )\n SELECT g.licensor_name,\n    g.property_folder,\n    g.total_files,\n    g.active_files,\n    g.newest_sg_file_date,\n    u.most_recent_design_date,\n    COALESCE(u.designs_using, (0)::bigint) AS designs_using,\n    COALESCE(u.design_ref_count, (0)::bigint) AS design_ref_count,\n    ((u.most_recent_design_date IS NULL) OR (u.most_recent_design_date < (now() - '3 years'::interval))) AS archive_candidate\n   FROM (guides g\n     LEFT JOIN usage u ON (((u.licensor_name = g.licensor_name) AND (NOT (u.property_folder IS DISTINCT FROM g.property_folder)))));"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "hts_rag",
+      "name": "hts_rag_type_code6_stats",
+      "definition": " WITH codes AS (\n         SELECT p_1.id AS product_id,\n            p_1.ruling_number,\n            p_1.article_type_id,\n            p_1.primary_material_id,\n            'held'::text AS outcome,\n            \"left\"(regexp_replace(p_1.held_code, '\\D'::text, ''::text, 'g'::text), 6) AS code6\n           FROM hts_rag.hts_rag_ruling_products p_1\n          WHERE (p_1.held_code IS NOT NULL)\n        UNION\n         SELECT p_1.id,\n            p_1.ruling_number,\n            p_1.article_type_id,\n            p_1.primary_material_id,\n            d.outcome,\n            \"left\"(regexp_replace(d.code_prefix, '\\D'::text, ''::text, 'g'::text), 6) AS \"left\"\n           FROM (hts_rag.hts_rag_heading_decisions d\n             JOIN hts_rag.hts_rag_ruling_products p_1 ON ((p_1.id = d.product_id)))\n          WHERE ((d.outcome = ANY (ARRAY['rejected'::text, 'alternative_mentioned'::text])) AND (length(regexp_replace(COALESCE(d.code_prefix, ''::text), '\\D'::text, ''::text, 'g'::text)) >= 6))\n        )\n SELECT c.article_type_id,\n    (GROUPING(c.primary_material_id) = 1) AS all_materials,\n    c.primary_material_id,\n    c.code6,\n    \"left\"(c.code6, 4) AS heading,\n    \"left\"(c.code6, 2) AS chapter,\n    c.outcome,\n    count(DISTINCT c.product_id) AS product_count,\n    count(DISTINCT c.ruling_number) AS ruling_count,\n    max(r.ruling_date) AS newest_ruling_date\n   FROM ((codes c\n     JOIN hts_rag.hts_rag_ruling_products p ON ((p.id = c.product_id)))\n     JOIN hts_rag.hts_rag_rulings r ON ((r.ruling_number = c.ruling_number)))\n  WHERE ((p.effective_status = 'active'::text) AND (p.review_state = 'trusted'::text) AND (c.article_type_id IS NOT NULL) AND (length(c.code6) = 6))\n  GROUP BY GROUPING SETS ((c.article_type_id, c.code6, c.outcome), (c.article_type_id, c.primary_material_id, c.code6, c.outcome));"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "hts_rag",
+      "name": "hts_rag_type_heading_stats",
+      "definition": " SELECT p.article_type_id,\n    (GROUPING(p.primary_material_id) = 1) AS all_materials,\n    p.primary_material_id,\n    d.heading,\n    \"left\"(d.heading, 2) AS chapter,\n    d.outcome,\n    count(DISTINCT p.id) AS product_count,\n    count(DISTINCT p.ruling_number) AS ruling_count,\n    max(r.ruling_date) AS newest_ruling_date\n   FROM ((hts_rag.hts_rag_heading_decisions d\n     JOIN hts_rag.hts_rag_ruling_products p ON ((p.id = d.product_id)))\n     JOIN hts_rag.hts_rag_rulings r ON ((r.ruling_number = p.ruling_number)))\n  WHERE ((p.effective_status = 'active'::text) AND (p.review_state = 'trusted'::text) AND (p.article_type_id IS NOT NULL))\n  GROUP BY GROUPING SETS ((p.article_type_id, d.heading, d.outcome), (p.article_type_id, p.primary_material_id, d.heading, d.outcome));"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "public",
+      "name": "style_guide_file_groups",
+      "definition": " SELECT md5(((COALESCE(root_label, ''::text) || '/'::text) || COALESCE(directory_path, ''::text))) AS group_key,\n    root_label,\n    directory_path,\n    licensor_name,\n    property_folder,\n    style_guide_folder,\n    COALESCE(NULLIF(style_guide_folder, ''::text), NULLIF(property_folder, ''::text), licensor_name, 'Unfiled'::text) AS style_guide_name,\n    (count(*))::integer AS file_count,\n    max(modified_at) AS latest_modified_at,\n    (sum(COALESCE(size_bytes, (0)::bigint)))::bigint AS total_size_bytes,\n    (array_remove(array_agg(thumbnail_url ORDER BY modified_at DESC NULLS LAST), NULL::text))[1] AS sample_thumbnail_url\n   FROM style_guide_files\n  WHERE (is_active = true)\n  GROUP BY root_label, directory_path, licensor_name, property_folder, style_guide_folder;"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "public",
+      "name": "style_guide_folders",
+      "definition": " SELECT DISTINCT licensor_name,\n    property_folder\n   FROM style_guide_files\n  WHERE ((is_active = true) AND (licensor_name IS NOT NULL));"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "public",
+      "name": "style_guide_library_default_guides",
+      "definition": " WITH render_rollup AS MATERIALIZED (\n         SELECT q.style_guide_file_id,\n            bool_or((q.status = ANY (ARRAY['pending'::queue_status, 'claimed'::queue_status, 'processing'::queue_status]))) AS has_open_work,\n            bool_or(((q.status = 'failed'::queue_status) AND (q.attempts < 3))) AS has_recoverable_error,\n            bool_or(((q.status = 'failed'::queue_status) AND (q.attempts >= 3))) AS has_terminal_error\n           FROM style_guide_render_queue q\n          GROUP BY q.style_guide_file_id\n        ), live_files AS NOT MATERIALIZED (\n         SELECT style_guide_files.id,\n            true AS has_preview,\n            false AS has_error\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NOT NULL))\n        UNION ALL\n         SELECT style_guide_files.id,\n            false,\n            false\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NULL) AND (style_guide_files.thumbnail_error IS NULL))\n        UNION ALL\n         SELECT style_guide_files.id,\n            false,\n            true\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NULL) AND (style_guide_files.thumbnail_error IS NOT NULL))\n        ), active_children AS MATERIALIZED (\n         SELECT concat_ws(chr(31), COALESCE(((length(d_1.root_label) || ':'::text) || d_1.root_label), '-'::text), COALESCE(((length(d_1.licensor_name) || ':'::text) || d_1.licensor_name), '-'::text), COALESCE(((length(d_1.property_folder) || ':'::text) || d_1.property_folder), '-'::text), COALESCE(((length(d_1.style_guide_folder) || ':'::text) || d_1.style_guide_folder), '-'::text), COALESCE(((length(d_1.style_guide_name) || ':'::text) || d_1.style_guide_name), '-'::text)) AS group_id,\n            d_1.style_guide_file_id,\n            d_1.root_label,\n            d_1.licensor_name,\n            d_1.property_folder,\n            d_1.style_guide_folder,\n            d_1.style_guide_name,\n            lower(d_1.file_extension) AS extension,\n            d_1.tag_names,\n            d_1.modified_at,\n                CASE\n                    WHEN f.has_preview THEN 'available'::text\n                    ELSE 'missing'::text\n                END AS preview_state,\n                CASE\n                    WHEN f.has_preview THEN 'none'::text\n                    WHEN COALESCE(r.has_open_work, false) THEN 'waiting'::text\n                    WHEN COALESCE(r.has_recoverable_error, false) THEN 'recoverable_error'::text\n                    WHEN (f.has_error OR COALESCE(r.has_terminal_error, false)) THEN 'terminal_exception'::text\n                    ELSE 'unclassified'::text\n                END AS render_exception_state,\n                CASE\n                    WHEN (lower(COALESCE(d_1.file_extension, ''::text)) <> 'pdf'::text) THEN 'not_applicable'::text\n                    WHEN ((d_1.pdf_text_status = 'extracted'::text) AND (d_1.pdf_text_length > 0)) THEN 'available'::text\n                    ELSE 'unavailable'::text\n                END AS pdf_content_state,\n            (0)::real AS rank\n           FROM ((style_guide_search_documents d_1\n             JOIN live_files f ON ((f.id = d_1.style_guide_file_id)))\n             LEFT JOIN render_rollup r ON ((r.style_guide_file_id = d_1.style_guide_file_id)))\n          WHERE d_1.is_active\n        ), entities AS MATERIALIZED (\n         SELECT g.group_id,\n            concat_ws(chr(31), g.root_label, COALESCE(g.licensor_name, ''::text), COALESCE(g.property_folder, ''::text), COALESCE(g.style_guide_folder, ''::text), g.style_guide_name) AS entity_key,\n            g.modified_at,\n            lower(g.style_guide_name) AS sort_name,\n            g.root_label,\n            g.licensor_name,\n            g.property_folder,\n            g.style_guide_folder,\n            g.style_guide_name\n           FROM ( SELECT d_1.group_id,\n                    max(d_1.modified_at) AS modified_at,\n                    min(d_1.root_label) AS root_label,\n                    min(d_1.licensor_name) AS licensor_name,\n                    min(d_1.property_folder) AS property_folder,\n                    min(d_1.style_guide_folder) AS style_guide_folder,\n                    min(d_1.style_guide_name) AS style_guide_name\n                   FROM active_children d_1\n                  GROUP BY d_1.group_id) g\n        )\n SELECT e.group_id,\n    e.entity_key,\n    e.modified_at,\n    e.sort_name,\n    jsonb_build_object('result_mode', 'guides', 'guide_key', e.entity_key, 'root_label', e.root_label, 'licensor_name', e.licensor_name, 'property_folder', e.property_folder, 'style_guide_folder', e.style_guide_folder, 'style_guide_name', e.style_guide_name, 'matched_file_count', count(DISTINCT d.style_guide_file_id), 'file_extensions', to_jsonb(COALESCE(array_agg(DISTINCT d.extension) FILTER (WHERE (d.extension IS NOT NULL)), '{}'::text[])), 'tag_names', to_jsonb(COALESCE(array_agg(DISTINCT tag.value ORDER BY tag.value) FILTER (WHERE (tag.value IS NOT NULL)), '{}'::text[])), 'modified_at', max(d.modified_at), 'thumbnail_url', (array_agg(live_payload.thumbnail_url ORDER BY (live_payload.thumbnail_url IS NULL), d.modified_at DESC NULLS LAST, d.style_guide_file_id) FILTER (WHERE (live_payload.thumbnail_url IS NOT NULL)))[1], 'preview_states', to_jsonb(array_agg(DISTINCT d.preview_state ORDER BY d.preview_state)), 'render_exception_states', to_jsonb(array_agg(DISTINCT d.render_exception_state ORDER BY d.render_exception_state)), 'pdf_content_states', to_jsonb(array_agg(DISTINCT d.pdf_content_state ORDER BY d.pdf_content_state)), 'rank', max(d.rank)) AS result\n   FROM (((entities e\n     JOIN active_children d ON ((d.group_id = e.group_id)))\n     JOIN style_guide_files live_payload ON ((live_payload.id = d.style_guide_file_id)))\n     LEFT JOIN LATERAL unnest(d.tag_names) tag(value) ON (true))\n  GROUP BY e.group_id, e.entity_key, e.modified_at, e.sort_name, e.root_label, e.licensor_name, e.property_folder, e.style_guide_folder, e.style_guide_name;"
+    },
+    {
+      "kind": "materialized view",
+      "schema": "public",
+      "name": "style_guide_library_default_summary",
+      "definition": " WITH render_rollup AS MATERIALIZED (\n         SELECT q.style_guide_file_id,\n            bool_or((q.status = ANY (ARRAY['pending'::queue_status, 'claimed'::queue_status, 'processing'::queue_status]))) AS has_open_work,\n            bool_or(((q.status = 'failed'::queue_status) AND (q.attempts < 3))) AS has_recoverable_error,\n            bool_or(((q.status = 'failed'::queue_status) AND (q.attempts >= 3))) AS has_terminal_error\n           FROM style_guide_render_queue q\n          GROUP BY q.style_guide_file_id\n        ), live_files AS NOT MATERIALIZED (\n         SELECT style_guide_files.id,\n            true AS has_preview,\n            false AS has_error\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NOT NULL))\n        UNION ALL\n         SELECT style_guide_files.id,\n            false,\n            false\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NULL) AND (style_guide_files.thumbnail_error IS NULL))\n        UNION ALL\n         SELECT style_guide_files.id,\n            false,\n            true\n           FROM style_guide_files\n          WHERE (style_guide_files.is_active AND (style_guide_files.thumbnail_url IS NULL) AND (style_guide_files.thumbnail_error IS NOT NULL))\n        ), active_children AS MATERIALIZED (\n         SELECT concat_ws(chr(31), COALESCE(((length(d.root_label) || ':'::text) || d.root_label), '-'::text), COALESCE(((length(d.licensor_name) || ':'::text) || d.licensor_name), '-'::text), COALESCE(((length(d.property_folder) || ':'::text) || d.property_folder), '-'::text), COALESCE(((length(d.style_guide_folder) || ':'::text) || d.style_guide_folder), '-'::text), COALESCE(((length(d.style_guide_name) || ':'::text) || d.style_guide_name), '-'::text)) AS group_id,\n            d.licensor_name,\n            d.property_folder,\n            d.style_guide_name,\n            lower(d.file_extension) AS extension,\n            d.tag_names,\n                CASE\n                    WHEN f.has_preview THEN 'available'::text\n                    ELSE 'missing'::text\n                END AS preview_state,\n                CASE\n                    WHEN f.has_preview THEN 'none'::text\n                    WHEN COALESCE(r.has_open_work, false) THEN 'waiting'::text\n                    WHEN COALESCE(r.has_recoverable_error, false) THEN 'recoverable_error'::text\n                    WHEN (f.has_error OR COALESCE(r.has_terminal_error, false)) THEN 'terminal_exception'::text\n                    ELSE 'unclassified'::text\n                END AS render_exception_state,\n                CASE\n                    WHEN (lower(COALESCE(d.file_extension, ''::text)) <> 'pdf'::text) THEN 'not_applicable'::text\n                    WHEN ((d.pdf_text_status = 'extracted'::text) AND (d.pdf_text_length > 0)) THEN 'available'::text\n                    ELSE 'unavailable'::text\n                END AS pdf_content_state\n           FROM ((style_guide_search_documents d\n             JOIN live_files f ON ((f.id = d.style_guide_file_id)))\n             LEFT JOIN render_rollup r ON ((r.style_guide_file_id = d.style_guide_file_id)))\n          WHERE d.is_active\n        ), entities AS MATERIALIZED (\n         SELECT d.group_id,\n            min(d.licensor_name) AS licensor_name,\n            min(d.property_folder) AS property_folder,\n            min(d.style_guide_name) AS style_guide_name\n           FROM active_children d\n          GROUP BY d.group_id\n        ), guide_facets AS MATERIALIZED (\n         SELECT counts.category,\n            jsonb_agg(jsonb_build_object('value', counts.value, 'count', counts.count) ORDER BY counts.count DESC, counts.value) AS facet_values\n           FROM ( SELECT 'extensions'::text AS category,\n                    u.value,\n                    count(*) AS count\n                   FROM ( SELECT DISTINCT d.group_id,\n                            d.extension AS value\n                           FROM active_children d\n                          WHERE (d.extension IS NOT NULL)) u\n                  GROUP BY u.value\n                UNION ALL\n                 SELECT 'tags'::text AS text,\n                    u.value,\n                    count(*) AS count\n                   FROM ( SELECT DISTINCT d.group_id,\n                            t.value\n                           FROM (active_children d\n                             CROSS JOIN LATERAL unnest(d.tag_names) t(value))\n                          WHERE (t.value IS NOT NULL)) u\n                  GROUP BY u.value\n                UNION ALL\n                 SELECT 'preview_states'::text AS text,\n                    u.value,\n                    count(*) AS count\n                   FROM ( SELECT DISTINCT d.group_id,\n                            d.preview_state AS value\n                           FROM active_children d) u\n                  GROUP BY u.value\n                UNION ALL\n                 SELECT 'render_exception_states'::text AS text,\n                    u.value,\n                    count(*) AS count\n                   FROM ( SELECT DISTINCT d.group_id,\n                            d.render_exception_state AS value\n                           FROM active_children d) u\n                  GROUP BY u.value\n                UNION ALL\n                 SELECT 'pdf_content_states'::text AS text,\n                    u.value,\n                    count(*) AS count\n                   FROM ( SELECT DISTINCT d.group_id,\n                            d.pdf_content_state AS value\n                           FROM active_children d) u\n                  GROUP BY u.value) counts\n          GROUP BY counts.category\n        )\n SELECT 'files'::text AS result_mode,\n    ( SELECT count(*) AS count\n           FROM active_children) AS total,\n    jsonb_build_object('licensors', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.licensor_name AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  WHERE (c.licensor_name IS NOT NULL)\n                  GROUP BY c.licensor_name) facet), '[]'::jsonb), 'properties', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.property_folder AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  WHERE (c.property_folder IS NOT NULL)\n                  GROUP BY c.property_folder) facet), '[]'::jsonb), 'style_guides', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.style_guide_name AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  GROUP BY c.style_guide_name) facet), '[]'::jsonb), 'extensions', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.extension AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  WHERE (c.extension IS NOT NULL)\n                  GROUP BY c.extension) facet), '[]'::jsonb), 'tags', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT t.value,\n                    count(*) AS count\n                   FROM (active_children c\n                     CROSS JOIN LATERAL unnest(c.tag_names) t(value))\n                  GROUP BY t.value) facet), '[]'::jsonb), 'preview_states', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.preview_state AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  GROUP BY c.preview_state) facet), '[]'::jsonb), 'render_exception_states', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.render_exception_state AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  GROUP BY c.render_exception_state) facet), '[]'::jsonb), 'pdf_content_states', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT c.pdf_content_state AS value,\n                    count(*) AS count\n                   FROM active_children c\n                  GROUP BY c.pdf_content_state) facet), '[]'::jsonb)) AS facets\nUNION ALL\n SELECT 'guides'::text AS result_mode,\n    ( SELECT count(*) AS count\n           FROM entities) AS total,\n    jsonb_build_object('licensors', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT entities.licensor_name AS value,\n                    count(*) AS count\n                   FROM entities\n                  WHERE (entities.licensor_name IS NOT NULL)\n                  GROUP BY entities.licensor_name) facet), '[]'::jsonb), 'properties', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT entities.property_folder AS value,\n                    count(*) AS count\n                   FROM entities\n                  WHERE (entities.property_folder IS NOT NULL)\n                  GROUP BY entities.property_folder) facet), '[]'::jsonb), 'style_guides', COALESCE(( SELECT jsonb_agg(jsonb_build_object('value', facet.value, 'count', facet.count) ORDER BY facet.count DESC, facet.value) AS jsonb_agg\n           FROM ( SELECT entities.style_guide_name AS value,\n                    count(*) AS count\n                   FROM entities\n                  GROUP BY entities.style_guide_name) facet), '[]'::jsonb), 'extensions', COALESCE(( SELECT guide_facets.facet_values\n           FROM guide_facets\n          WHERE (guide_facets.category = 'extensions'::text)), '[]'::jsonb), 'tags', COALESCE(( SELECT guide_facets.facet_values\n           FROM guide_facets\n          WHERE (guide_facets.category = 'tags'::text)), '[]'::jsonb), 'preview_states', COALESCE(( SELECT guide_facets.facet_values\n           FROM guide_facets\n          WHERE (guide_facets.category = 'preview_states'::text)), '[]'::jsonb), 'render_exception_states', COALESCE(( SELECT guide_facets.facet_values\n           FROM guide_facets\n          WHERE (guide_facets.category = 'render_exception_states'::text)), '[]'::jsonb), 'pdf_content_states', COALESCE(( SELECT guide_facets.facet_values\n           FROM guide_facets\n          WHERE (guide_facets.category = 'pdf_content_states'::text)), '[]'::jsonb)) AS facets;"
+    },
+    {
+      "kind": "policy",
+      "schema": "hts_rag",
+      "name": "hts_rag_rulings.hts_rag_alsand_runtime_read",
+      "definition": "(EXISTS ( SELECT 1\n   FROM hts_rag.hts_rag_precedent_rulings pr\n  WHERE (pr.ruling_id = hts_rag_rulings.id))) "
+    },
+    {
+      "kind": "policy",
+      "schema": "hts_rag",
+      "name": "hts_rag_rulings.hts_rag_prod_runtime_read",
+      "definition": "(EXISTS ( SELECT 1\n   FROM hts_rag.hts_rag_precedent_rulings pr\n  WHERE (pr.ruling_id = hts_rag_rulings.id))) "
+    },
+    {
+      "kind": "policy",
+      "schema": "public",
+      "name": "asset_effective_tags.Authenticated read asset_effective_tags",
+      "definition": "(EXISTS ( SELECT 1\n   FROM assets a\n  WHERE (a.id = asset_effective_tags.asset_id))) "
+    }
+  ]
+}

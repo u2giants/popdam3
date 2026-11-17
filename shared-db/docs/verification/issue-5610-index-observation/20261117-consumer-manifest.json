@@ -1,0 +1,145 @@
+[
+  {
+    "repository": "popcre/designflow-backend",
+    "commit": "00c78a36eed64c95d14bd0b1b869f204036bbb95",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 1118,
+    "text_files_searched": 1095,
+    "binary_or_non_utf8_excluded": 23,
+    "tracked_directory_links_excluded": [],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 117,
+    "matching_paths": 54,
+    "open_issues_fetched": 15,
+    "issue_list_saturated": false,
+    "paths_sha256": "a35e57d2756650cb501088917c6d5c778b24554ef721fc29cba26832b3e65b1e"
+  },
+  {
+    "repository": "popcre/designflow-bff",
+    "commit": "3f9ba26709927a75e494405c5f79d49d316f5fe9",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 91,
+    "text_files_searched": 91,
+    "binary_or_non_utf8_excluded": 0,
+    "tracked_directory_links_excluded": [],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 0,
+    "matching_paths": 0,
+    "open_issues_fetched": 0,
+    "issue_list_saturated": false,
+    "paths_sha256": "777f972725d4a8c395b302b07c8405652075d82eb7f51baaa363172080695ad6"
+  },
+  {
+    "repository": "popcre/designflow-data-syncing",
+    "commit": "a1d046fb46e3ca9fbf9f5fff809f54275072a4a6",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 247,
+    "text_files_searched": 235,
+    "binary_or_non_utf8_excluded": 12,
+    "tracked_directory_links_excluded": [],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 0,
+    "matching_paths": 0,
+    "open_issues_fetched": 12,
+    "issue_list_saturated": false,
+    "paths_sha256": "9b1fc7f31a84acd522c01945f0a38cd65e1d904775cc9c6aa152fb24481f9607"
+  },
+  {
+    "repository": "popcre/designflow-frontend",
+    "commit": "708c78bf51864f5c9891ddd205550b46f93a7fb4",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 1610,
+    "text_files_searched": 1559,
+    "binary_or_non_utf8_excluded": 50,
+    "tracked_directory_links_excluded": [
+      ".claude/skills/modern-web-guidance"
+    ],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 199,
+    "matching_paths": 50,
+    "open_issues_fetched": 6,
+    "issue_list_saturated": false,
+    "paths_sha256": "7dec1773ed793d28a0b4cee1b64aa18d4a37c7ff0ce9bd56bf050b504dfdad25"
+  },
+  {
+    "repository": "popcre/designflow-item-master",
+    "commit": "b5b60080a9e65726243a49afe0af2b82fd0ac63b",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 392,
+    "text_files_searched": 360,
+    "binary_or_non_utf8_excluded": 32,
+    "tracked_directory_links_excluded": [],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 52,
+    "matching_paths": 14,
+    "open_issues_fetched": 5,
+    "issue_list_saturated": false,
+    "paths_sha256": "629a82bcb047a9da33514a8a950a37dabc4a5f30baa4f47011e3504aa9e1c838"
+  },
+  {
+    "repository": "popcre/designflow-tracking",
+    "commit": "25478b0054b93feceeae54848845b9ddddc9ab6d",
+    "default_ref": "refs/remotes/origin/develop",
+    "tracked_files_excluding_shared_db": 436,
+    "text_files_searched": 431,
+    "binary_or_non_utf8_excluded": 5,
+    "tracked_directory_links_excluded": [],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 38,
+    "matching_paths": 11,
+    "open_issues_fetched": 10,
+    "issue_list_saturated": false,
+    "paths_sha256": "95d409b38be0032cac669026994727510c3876653c3611dea7f425e85d6284c8"
+  },
+  {
+    "repository": "u2giants/popcrm-web",
+    "commit": "71ad9696d3b486dd587b2375fdfe7c562d7f0cb5",
+    "default_ref": "refs/remotes/origin/main",
+    "tracked_files_excluding_shared_db": 242,
+    "text_files_searched": 219,
+    "binary_or_non_utf8_excluded": 22,
+    "tracked_directory_links_excluded": [
+      ".claude/skills/modern-web-guidance"
+    ],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 8,
+    "matching_paths": 5,
+    "open_issues_fetched": 3,
+    "issue_list_saturated": false,
+    "paths_sha256": "690eb2a4819e565e4391b8a89be16681a2ebc7ed814e89a5f4eab74697167a12"
+  },
+  {
+    "repository": "u2giants/popdam3",
+    "commit": "e716f1d6c808f32e58d200635a83e91d055f0408",
+    "default_ref": "refs/remotes/origin/main",
+    "tracked_files_excluding_shared_db": 1500,
+    "text_files_searched": 1476,
+    "binary_or_non_utf8_excluded": 23,
+    "tracked_directory_links_excluded": [
+      ".claude/skills/modern-web-guidance"
+    ],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 922,
+    "matching_paths": 175,
+    "open_issues_fetched": 107,
+    "issue_list_saturated": false,
+    "paths_sha256": "7af3e12c03ba1c3b2b3859edfcd59ea14c4d205b001a5f8c34c7bfd8922d12bc"
+  },
+  {
+    "repository": "u2giants/poppim-web",
+    "commit": "09f5df0e13da4e7e97ed948980cd492aba6d1697",
+    "default_ref": "refs/remotes/origin/main",
+    "tracked_files_excluding_shared_db": 213,
+    "text_files_searched": 200,
+    "binary_or_non_utf8_excluded": 12,
+    "tracked_directory_links_excluded": [
+      ".claude/skills/modern-web-guidance"
+    ],
+    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "matching_lines": 46,
+    "matching_paths": 13,
+    "open_issues_fetched": 5,
+    "issue_list_saturated": false,
+    "paths_sha256": "b478fcd104534a18a57c063a93ce1bb638d56549dd416f985f899f8df75ef480"
+  }
+]

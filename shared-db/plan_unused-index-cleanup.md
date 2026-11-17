@@ -9,18 +9,20 @@ read-when: dropping unused indexes after the observation window (#5610)
 Historical assessment handoff (write-once; current state is this plan and #5610): (handoff retired 2026-11-12; see docs/handoff-review-2026-11-08.md)
 Owning issue: popcre/shared-db#5610. Related: #2427 (large-index findings), #1966 (high-churn tables), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) Step 7 ("dated index observation" — this plan executes that step for the largest candidates; tick it there when done), [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (#5482, house style).
 
-## STATUS (2026-11-17 reconciliation; observation opening remains 2026-11-06 11:25:52.885243 AM EST)
+## STATUS (2026-11-17 current audit; observation opening remains 2026-11-06 11:25:52.885243 AM EST)
 | Step | State | Evidence |
 |---|---|---|
 | 0 Open a trustworthy observation window | Successor opening recorded; observation ongoing | [Restart/new-window receipt](docs/verification/issue-5610-index-observation/20261106-second-restart-window.md), November 6, 2026, 11:25:52.885243 AM EST; both earlier windows invalidated |
 | 1 Re-measure at window end (≥14 days) | ⬜ open | — |
-| 2 Code-path proof per drop candidate | ⬜ open | — |
+| 2 Code-path proof per drop candidate | Current source/planned-use audit delivered; final refresh remains open | [November 17 audit](docs/verification/issue-5610-index-observation/20261117-consumer-audit.md): all nine consumers, current production routines/views/RLS, current open issues/PRs and DesignFlow main/develop/sandbox-albert refs |
 | 3 Migration: drop confirmed candidates | ⬜ open | — |
 | 4 Preview rehearsal | ⬜ open | — |
 | 5 Land via automatic promotion | ⬜ open | — |
 | 6 Live proof (size freed, no regressions) | ⬜ open | — |
 | 7 Old DAM claim index decision | KEEP; no removal | Opening snapshot proved 18 scans; any separate #5482 investigation does not authorize a drop |
 Resume at step 1. Opening snapshot found reads on `idx_style_guide_file_tags_tag_status` (72), `idx_assets_ai_tag_untagged_candidates` (2), and old `dam_search_embedding_claim_idx` (18): KEEP all three; no removal is authorized. Four original zero-scan candidates remain (historical size ~329 MiB), subject to the full observation and code-path proof. Execution and acceptance for this scope are tracked on #5610. The session executing its next step records its exact scope and result there. The end-of-window measurement and any removal/delivery/live-proof steps cannot complete before **November 20, 2026, 11:25:52.885243 AM EST** (fourteen days from the measured new opening November 6 at 11:25:52.885243 AM EST; full continuity and all nine then-current consumer proofs remain required). The original November 18 cutoff and November 6 morning opening are invalid after the two recorded restarts. Current positive-reader inspection may proceed now; refresh all nine consumers at the final decision.
+
+**November 17 execution checkpoint, 4:44:17.332395 PM EST production catalog:** the four original candidate OIDs/full definitions, postmaster identity and database-reset identity remain unchanged, all valid/ready with zero scans. Three remain within the current removal scope: directory trigram, style-guide tag-search trigram and assets full-text. Assets tags is currently 28,311,552 bytes, below the 50 MiB cutoff; preserve it. Its executable compatibility containment path is not observed live index use, and normal tag filtering uses effective-tag data. The HTS folded-expression trigram index has a supported current regexp reader and stays KEEP. The sentence-hash index stays retained/not admitted: active hash-based quote-resolution design remains, no current SQL hash lookup was found, and no actual owning-maintainer no-planned-use note exists. Neither HTS index was included in the November 6 eleven-index opening, so neither inherits that interval. The [audit and exact catalogs](docs/verification/issue-5610-index-observation/20261117-consumer-audit.md) distinguish materialized-view directory reads, search-document full-text reads and cache projections from base-index readers. No migration/removal or final official probe exists; no completed no-safe-drops result or live acceptance is claimed. The coordinator owns the three timed candidate decisions and all subsequent justified delivery/proof on this same issue.
 
 
 ## Shared asset-index work with #5747

@@ -1,0 +1,87 @@
+---
+summary: "Issue #5610 current nine-consumer and production index audit: three original candidates remain observation-gated; assets tags and HTS readers are retained."
+kind: proof
+status: open
+read-when: continuing unused-index observation or deciding #5610 candidate eligibility
+---
+
+# Current consumer and catalog audit for #5610
+
+Owner: the task coordinator on [#5610](https://github.com/popcre/shared-db/issues/5610). This is one shared asset-index inventory, also consumed by [#5747](https://github.com/popcre/shared-db/issues/5747) Step 3. It does not finish that issue's wider residual inventory. No database write, reset, index removal, hosted rehearsal, or production promotion was performed for this audit. No licensed/application rows were collected.
+
+## Current result and genuine remaining gate
+
+The target-proved read-only production snapshot in [catalog JSON](20261117-catalog.json) was collected November 17, 2026, 4:44:17.332395 PM EST. Its exact timestamp is retained in the JSON. Postmaster identity and database statistics-reset identity match the measured November 6 opening. All four original candidate table/index OIDs and full definitions match exactly, with valid/ready indexes and monotonic zero scan counters. Ten of eleven original observed identities are unchanged; the AI-tag untagged KEEP index was separately rebuilt and still has positive reads. That rebuild does not restart unrelated candidates.
+
+The full fourteen-day observation has **not** elapsed. For the three remaining in-scope original candidates, the earliest conditional final measurement is November 20, 2026, 11:25:52.885243 AM EST. A date alone never authorizes removal. Final source, reset, OID/definition, scan, size, dependency and planned-use checks remain mandatory. A subsequent removal requires the normal new migration/tests, preview rehearsal, automatic promotion, and at least twenty-four actual hours of no-regression evidence. The earliest possible no-regression end after an immediate justified removal would therefore be November 21 at that same EST time; actual delivery can only move this later.
+
+No zero-safe-drops conclusion or complete live-proof artifact is established. No placeholder or partial-success `.github/live-proofs/5610.sql` has been added. The final probe must assert the actual completed decision/delivery, not present retention while candidate decisions remain open.
+
+## Exact candidate dispositions
+
+| Index | Current bytes/scans | Current disposition and evidence |
+|---|---:|---|
+| `public.idx_sgf_directory_path_trgm` | 120111104 / 0 | PENDING full observation. No base-table trigram predicate found in the current source/catalog audit. The application ILIKE hit is on the separate materialized view, as explained below. |
+| `public.idx_style_guide_files_tag_search_trgm` | 79896576 / 0 | PENDING full observation. No base-table `tag_search_text` trigram predicate found. Cache writers, projections and readiness reporting are not index readers. |
+| `public.idx_assets_full_text_search` | 76898304 / 0 | PENDING full observation. No current reader of this exact assets expression/predicate found. DAM keyword searches use search-key documents, not the indexed concatenation on assets. |
+| `public.idx_assets_tags` | 28311552 / 0 | RETAIN / outside #5610's current 50 MiB removal cutoff. Executable compatibility source also retains a containment path; normal effective-tag requests bypass it. Broader #5747 owns any below-cutoff reconsideration. |
+| `hts_rag.hts_rag_rulings_search_trgm_idx` | 669417472 / 0 | RETAIN: current backend regexp queries use the identical folded subject/full-text expression. Trigram indexes can support this operator; searching only `%`/ILIKE would miss the reader. |
+| `hts_rag.hts_rag_ruling_sentences_hash_idx` | 415145984 / 0 | RETAIN / not admitted for removal. Active reasoning-layer design preserves hash-based quote resolution. No current SQL lookup by this hash was found, and no owning-maintainer no-planned-use note was found. Neither reading the table by primary key nor in-memory hash resolution proves SQL hash-index use. |
+| `public.hts_rag_rulings_search_trgm_idx` | 16384 / 0 | Outside scope: distinct tiny legacy relation, not the HTS schema index. |
+
+Positive historical KEEP decisions remain binding for `idx_style_guide_file_tags_tag_status` (currently 3040 scans), `idx_assets_ai_tag_untagged_candidates` (currently 4 reads after rebuild), and `dam_search_embedding_claim_idx` (currently 2 scans). All four protected vector indexes remain retained regardless of current zero counts; the DAM search-document HNSW now has 79 reads.
+
+The shared catalog contains all current assets indexes, not just this pair. Its residual entries have not been assigned final #5747 keep/drop dispositions by this narrower audit. This is reused evidence, not completion of the wider asset plan.
+
+## Complete consumer source coverage
+
+The current [sync matrix](https://github.com/popcre/shared-db/blob/68d40689bbea/.github/workflows/sync.yml) has nine consumers. Each default branch was cloned completely at the pinned commit below. Searches enumerated Git-tracked UTF-8 text, including source, migrations, tests, current docs and plans; the mirrored `shared-db/` copy was excluded to avoid counting duplicate evidence. Binary/non-UTF8 files and directory links to general web guidance were excluded and counted explicitly. No clone failed. No remote code-search ceiling, HTTP429, pagination truncation, or inaccessible consumer was used as an absence result.
+
+The [machine-readable manifest](20261117-consumer-manifest.json) records exact commits, default refs, file counts, path-list hashes, matching counts, exclusions and the literal broad search expression. The key search terms cover candidate columns, tags, folded HTS expressions, PostgreSQL full-text constructors/operators and client text-search calls. Every match was classified by relation/operator; generic tags in PIM, PLM or product taxonomies are not assets-array readers.
+
+| Consumer | Pinned commit | Relevant result |
+|---|---|---|
+| `u2giants/popcrm-web` | `71ad9696d3b486dd587b2375fdfe7c562d7f0cb5` | No candidate reader found outside the mirror; CRM/product tags are different relations. |
+| `u2giants/popdam3` | `e716f1d6c808f32e58d200635a83e91d055f0408` | Assets containment compatibility path; directory filtering on a materialized view; current DAM/PopSG search RPCs target search documents/keys. |
+| `u2giants/poppim-web` | `09f5df0e13da4e7e97ed948980cd492aba6d1697` | Generated types and product-tag features are not candidate reader predicates. |
+| `popcre/designflow-bff` | `3f9ba26709927a75e494405c5f79d49d316f5fe9` | No candidate-column or indexed-expression reader found. |
+| `popcre/designflow-frontend` | `708c78bf51864f5c9891ddd205550b46f93a7fb4` | Static asset URLs, product tags and UI values are not candidate database readers. |
+| `popcre/designflow-backend` | `00c78a36eed64c95d14bd0b1b869f204036bbb95` | HTS folded-expression regexp reader; active sentence reasoning/quote-resolution design. |
+| `popcre/designflow-item-master` | `b5b60080a9e65726243a49afe0af2b82fd0ac63b` | Art-piece/item tags are distinct PLM relations, not assets-array predicates. |
+| `popcre/designflow-tracking` | `25478b0054b93feceeae54848845b9ddddc9ab6d` | Release-contract/general tag occurrences, no candidate reader found. |
+| `popcre/designflow-data-syncing` | `a1d046fb46e3ca9fbf9f5fff809f54275072a4a6` | No candidate reader found. |
+
+These are current-source findings, not proof that untracked external/monthly queries do not exist. Refresh the then-current matrix and every source at the final decision. The current active canonical plans were searched for candidate names; the owning unused-index plan and the shared assets-bloat plan are the matching execution plans. Historical migrations were checked for creation and old readers, but current deployed bodies take precedence over obsolete replaced definitions.
+
+### Additional branch and proposed-code coverage
+
+The [planned-ref manifest](20261117-planned-ref-manifest.json) also binds all eighteen then-present DesignFlow `main`, `develop` and `sandbox-albert` branch heads, all twenty-one consumer open PR heads, and all sixty-one shared-db open PR heads. Each consumer head was fetched and its complete text source searched, excluding the mirrored rulebook and tool-private directories; each shared-db PR's complete proposed diff was inspected for relevant relation/column/operator changes. All lists were below the 1000 requested ceiling and every fetched head was accessible. Each manifest records the requested and actually fetched SHA so a moved source cannot hide. Existing general-tag/static-asset matches were distinguished from candidate-table readers. The additional consumer heads introduced no new candidate predicate beyond the default-source findings above.
+
+Shared-db [PR #6451](https://github.com/popcre/shared-db/pull/6451) projects directory paths and incorporates tag-search text in metadata cache checksums while replacing materialized-view API surfaces. Those changes are planned readers of values, not new base-table trigram predicates. No other open shared-db diff supplied a candidate-column/operator reader. This is a bounded source/proposed-code snapshot; actual deployed DesignFlow revision SHAs and runtime configuration were not independently established in this index audit. That limitation remains part of the conservative no-removal state and must be resolved or covered by current authoritative runtime/source evidence before any absence-based drop.
+
+## Positive and misleading reader details
+
+1. [Assets containment compatibility source](https://github.com/u2giants/popdam3/blob/e716f1d6c808f32e58d200635a83e91d055f0408/src/hooks/useAssets.ts#L219) emits `contains("tags", ...)` only when `effectiveScopeApplied` is false. Normal tag requests select `filter_effective_assets`; the explicit legacy path remains exposed through `buildAssetCountQuery(..., false)` and is [contract-tested](https://github.com/u2giants/popdam3/blob/e716f1d6c808f32e58d200635a83e91d055f0408/src/test/effective-asset-filtering.test.ts#L274). This is retained executable capability, not observed live index use.
+2. [PopSG directory ILIKE](https://github.com/u2giants/popdam3/blob/e716f1d6c808f32e58d200635a83e91d055f0408/src/pages/popsg/PopSGLibraryPage.tsx#L816) starts from `style_guide_file_groups`. Live `pg_matviews` confirms that this is materialized. Its own filtered storage is read, so this hit does not prove a scan of `style_guide_files.directory_path`'s trigram index. Base-table file expansion uses `.in("directory_path", memberPaths)`, which is equality rather than a trigram-search predicate.
+3. [DAM assets RPC selection](https://github.com/u2giants/popdam3/blob/e716f1d6c808f32e58d200635a83e91d055f0408/src/hooks/useAssets.ts#L51) chooses `search_assets_full_text`; its live wrapper calls `search_dam_documents`, whose keyword branch reads `dam_search_keys.search_tsv`. The fallback searches individual columns with ILIKE. Neither matches the concatenated `to_tsvector('simple',...)` expression indexed on assets. AI search `.textSearch("search_tsv",...)` similarly targets `dam_search_keys`.
+4. [PopSG readiness](https://github.com/u2giants/popdam3/blob/e716f1d6c808f32e58d200635a83e91d055f0408/scripts/popsg-readiness-baseline.mjs#L57) selects `tag_search_text` to measure coverage. Current `refresh_style_guide_file_tag_cache` writes it. Current search-library functions filter/rank search-document fields. Projection and writes are not positive trigram reads.
+5. [HTS library search](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/helpers/hts-rag/ruling-library.js#L80) and [HTS precheck](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/helpers/hts-rag-precheck.js#L102) construct the exact folded subject/full-text expression with a regexp operator. [PostgreSQL's index-support documentation](https://www.postgresql.org/docs/17/pgtrgm.html#PGTRGM-INDEX) confirms GIN/GiST trigram support for `~`/`~*`; limiting the audit to `%`/ILIKE would miss it. The model's local default says `public`, but [secondary-store initialization](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/models/hts-rag-store.js#L177) overrides every HTS model to its configured schema, and [the enabled deployment path](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/cloudbuild.yaml#L168) explicitly sets `hts_rag`. This is supported configured reader capability, not independent proof of the current deployed revision/environment or an observed index scan. It is sufficient positive planned-use evidence to retain the index.
+6. [Sentence design](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/docs/design_cbp-ruling-database.md#L440) explicitly resolves quotes by hash then trigram. [Current quote resolution](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/helpers/hts-rag/reasoning-gold.js#L51) is in memory; [fault-line SQL](https://github.com/popcre/designflow-backend/blob/00c78a36eed64c95d14bd0b1b869f204036bbb95/helpers/hts-rag/fault-line-query.js#L212) joins sentence primary keys. These facts preserve the active feature/planned-use uncertainty, not an invented SQL hash reader or a maintainer clearance.
+
+## Live database dependencies and source binding
+
+Target identity was freshly checked immediately before the read-only database collections and matched production. The protected project identifier is deliberately omitted from this public evidence. [Reader catalog](20261117-reader-catalog.json) lists all 143 matching non-system routines with exact identities/MD5 bodies, both indirect search wrappers, matching views/materialized views/RLS predicates, and six exact candidate index dependency results. The scope covered every non-system schema, not just `public`. No candidate backs a primary/unique/foreign-key constraint; no catalog object directly depends on any of these six indexes. This does not infer PL/pgSQL/dynamic-query absence from `pg_depend`: function bodies and source were reviewed separately.
+
+Relevant current hashes include `search_dam_documents(...) = 4cacfee9a7cbf80934915f0c2cd99a98`, `search_assets_full_text(text,integer) = 921219bd75708d26f0c7b64b3b117dfd`, and `filter_effective_assets(jsonb) = deb0f99659cc3dd20514feaa4aa8307a`. Source body changes after collection require another review.
+
+[Catalog/continuity SQL](catalog-and-continuity.sql) reproduces the complete asset plus original candidate/protected inventory. [Reader/dependency SQL](reader-and-dependency-capture.sql) reproduces source and dependency collection. Both are read-only inspection, not official acceptance probes. Full function bodies remain private inspection material; the published record contains hashes and catalog-only metadata.
+
+## Planned-use inspection and exact next action
+
+All open issue bodies were fetched completely for all nine consumers plus shared-db. Counts were 3 CRM, 107 DAM, 5 PIM, 0 BFF, 6 frontend, 15 backend, 5 item-master, 10 tracking, 12 syncing and 162 shared-db; every list was below its requested 1000 ceiling. Candidate-specific searches found only the existing #5610/#5747 scope bodies in shared-db, and no new consumer issue explicitly naming the candidate indexes/columns. Current consumer plans/docs were included in source searches. This does not fabricate an owning-maintainer note or eliminate undocumented planned use.
+
+The coordinator retains the conditional HTS pair; no maintainer request is necessary while neither is proposed for removal. If hash-index removal is later proposed, obtain an actual owning-repository maintainer no-planned-use record and a fresh complete observation of that exact index first. These HTS indexes were not included in the November 6 eleven-index opening, so they cannot inherit its fourteen-day date. Their November 17 catalog reading is only a current snapshot, not an established eligible closing interval.
+
+At or after the genuine original-candidate close time, the coordinator reruns both capture queries after target proof, compares exact identities/definitions and reset history with the November 6 opening and this interim, refreshes all consumers/planned-use records, and decides the three pending candidates. Any reset/rebuild affects the relevant proof; preserve all old observations. Only qualifying removals receive a new minimum migration with recreate DDL and tests. After actual delivery, capture exact freed storage and per-feature statement/call/runtime/error observations at opening and at least twenty-four hours later; a complete authentic interval, functional checks and retained-index assertions must feed the final committed official probe. Keep `implemented` and `live proof` unchecked on #5610 until that complete outcome exists.
+
+The final probe must bind exact final retained/dropped names and catalog definitions, immutable promotion/ledger evidence for any removal, original observation identities, and the complete no-regression interval. Catalog presence alone, a source-search summary, or a green retention fragment cannot complete this issue.

@@ -1,0 +1,1139 @@
+[
+  {
+    "repository": "popcre/designflow-backend",
+    "open_pr_count": 2,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "afa265fac492c39a0ff8fa6f31d0de020d7c3e47",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "afa265fac492c39a0ff8fa6f31d0de020d7c3e47",
+        "search_exit": 0,
+        "matching_lines": 207,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 117
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "6f21d9202c54a37e1586dad52576af094d5d1894",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "6f21d9202c54a37e1586dad52576af094d5d1894",
+        "search_exit": 0,
+        "matching_lines": 207,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 117
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "dd349ec94bd1558ca687a4fd0d364b94e197406d",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "dd349ec94bd1558ca687a4fd0d364b94e197406d",
+        "search_exit": 0,
+        "matching_lines": 232,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 121
+      },
+      {
+        "kind": "pr",
+        "number": 445,
+        "name": "mimo/hts-hide-one-scorer",
+        "sha": "7641eb64a280067eb09ce6016ad8f5a5ae4a8213",
+        "local": "refs/5610audit/pr/445",
+        "observed_sha": "7641eb64a280067eb09ce6016ad8f5a5ae4a8213",
+        "search_exit": 0,
+        "matching_lines": 214,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 118
+      },
+      {
+        "kind": "pr",
+        "number": 442,
+        "name": "sandbox-albert",
+        "sha": "dd349ec94bd1558ca687a4fd0d364b94e197406d",
+        "local": "refs/5610audit/pr/442",
+        "observed_sha": "dd349ec94bd1558ca687a4fd0d364b94e197406d",
+        "search_exit": 0,
+        "matching_lines": 232,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 121
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/designflow-bff",
+    "open_pr_count": 1,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "81eeeb21105863b0aaefed743da2ebd45757e1c1",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "81eeeb21105863b0aaefed743da2ebd45757e1c1",
+        "search_exit": 1,
+        "matching_lines": 0,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "d4025cf65b9fc98b260a5d67a72e62bd598640c2",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "d4025cf65b9fc98b260a5d67a72e62bd598640c2",
+        "search_exit": 1,
+        "matching_lines": 0,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "66bb2fb62d3e7b03429592e3711bff54586b7968",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "66bb2fb62d3e7b03429592e3711bff54586b7968",
+        "search_exit": 1,
+        "matching_lines": 0,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "pr",
+        "number": 94,
+        "name": "sandbox-albert",
+        "sha": "66bb2fb62d3e7b03429592e3711bff54586b7968",
+        "local": "refs/5610audit/pr/94",
+        "observed_sha": "66bb2fb62d3e7b03429592e3711bff54586b7968",
+        "search_exit": 1,
+        "matching_lines": 0,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/designflow-data-syncing",
+    "open_pr_count": 2,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "d2c835b6b292059be36ff38dfcb09db36750c7bf",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "d2c835b6b292059be36ff38dfcb09db36750c7bf",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "575a023d0d2580f0ee54f31f65cc4559ace0a9d4",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "575a023d0d2580f0ee54f31f65cc4559ace0a9d4",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "17b479494b84b8224ff24c978333c6e62027ffee",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "17b479494b84b8224ff24c978333c6e62027ffee",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "pr",
+        "number": 145,
+        "name": "ai/item-refresh-144",
+        "sha": "7a7cdf945df082c4681da9efc22480b5d3394bf0",
+        "local": "refs/5610audit/pr/145",
+        "observed_sha": "7a7cdf945df082c4681da9efc22480b5d3394bf0",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      },
+      {
+        "kind": "pr",
+        "number": 143,
+        "name": "sandbox-albert",
+        "sha": "17b479494b84b8224ff24c978333c6e62027ffee",
+        "local": "refs/5610audit/pr/143",
+        "observed_sha": "17b479494b84b8224ff24c978333c6e62027ffee",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 1,
+        "operator_matching_lines": 0
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/designflow-frontend",
+    "open_pr_count": 3,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "e8f6d8cdf7f7e71eff3490fa2b6ea01f25ddd1db",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "e8f6d8cdf7f7e71eff3490fa2b6ea01f25ddd1db",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "8b7f235bb0d417c46aafbf19c5931e090945833e",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "8b7f235bb0d417c46aafbf19c5931e090945833e",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "4fe60cc37548a6abf02990d69a8bf6ff4865b85a",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "4fe60cc37548a6abf02990d69a8bf6ff4865b85a",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      },
+      {
+        "kind": "pr",
+        "number": 597,
+        "name": "fix/item-library-merch-code-labels",
+        "sha": "73eb080efb1161e649f43e0ec43f3a9bd1e7a799",
+        "local": "refs/5610audit/pr/597",
+        "observed_sha": "73eb080efb1161e649f43e0ec43f3a9bd1e7a799",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      },
+      {
+        "kind": "pr",
+        "number": 596,
+        "name": "feature/item-library-assortments",
+        "sha": "e8f9dcca38318d06eb6d1804b7f470ffe4952b2d",
+        "local": "refs/5610audit/pr/596",
+        "observed_sha": "e8f9dcca38318d06eb6d1804b7f470ffe4952b2d",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      },
+      {
+        "kind": "pr",
+        "number": 595,
+        "name": "fix/item-library-product-type-labels",
+        "sha": "15772f15d4be555027bf4486b452c0e48bceee12",
+        "local": "refs/5610audit/pr/595",
+        "observed_sha": "15772f15d4be555027bf4486b452c0e48bceee12",
+        "search_exit": 0,
+        "matching_lines": 131,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 199
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/designflow-item-master",
+    "open_pr_count": 2,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "f002a56333703bf54334946e596597ec2ad3e95e",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "f002a56333703bf54334946e596597ec2ad3e95e",
+        "search_exit": 0,
+        "matching_lines": 5,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 52
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "1c24697ec47e54910630bbd0dbad5298c4f07096",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "1c24697ec47e54910630bbd0dbad5298c4f07096",
+        "search_exit": 0,
+        "matching_lines": 5,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 52
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "edbf0edbe3626acceb42479f2254c94a09f6a06d",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "edbf0edbe3626acceb42479f2254c94a09f6a06d",
+        "search_exit": 0,
+        "matching_lines": 5,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 50
+      },
+      {
+        "kind": "pr",
+        "number": 258,
+        "name": "feature/item-library-assortments",
+        "sha": "5a7decc741e48260f07f622fbecaf411d2ccf275",
+        "local": "refs/5610audit/pr/258",
+        "observed_sha": "5a7decc741e48260f07f622fbecaf411d2ccf275",
+        "search_exit": 0,
+        "matching_lines": 5,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 52
+      },
+      {
+        "kind": "pr",
+        "number": 255,
+        "name": "sandbox-albert",
+        "sha": "edbf0edbe3626acceb42479f2254c94a09f6a06d",
+        "local": "refs/5610audit/pr/255",
+        "observed_sha": "edbf0edbe3626acceb42479f2254c94a09f6a06d",
+        "search_exit": 0,
+        "matching_lines": 5,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 50
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/designflow-tracking",
+    "open_pr_count": 1,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "branch",
+        "name": "refs/heads/develop",
+        "sha": "7f6e0c56f489e7c2848c03a2c24624892c86b8c3",
+        "local": "refs/5610audit/refs/heads/develop",
+        "observed_sha": "7f6e0c56f489e7c2848c03a2c24624892c86b8c3",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 38
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/main",
+        "sha": "74e9b17a461bc69305780292d9a6971b875c15d5",
+        "local": "refs/5610audit/refs/heads/main",
+        "observed_sha": "74e9b17a461bc69305780292d9a6971b875c15d5",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 38
+      },
+      {
+        "kind": "branch",
+        "name": "refs/heads/sandbox-albert",
+        "sha": "678b333e703dc8a65285dba13d414ace541bd587",
+        "local": "refs/5610audit/refs/heads/sandbox-albert",
+        "observed_sha": "678b333e703dc8a65285dba13d414ace541bd587",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 38
+      },
+      {
+        "kind": "pr",
+        "number": 204,
+        "name": "sandbox-albert",
+        "sha": "678b333e703dc8a65285dba13d414ace541bd587",
+        "local": "refs/5610audit/pr/204",
+        "observed_sha": "678b333e703dc8a65285dba13d414ace541bd587",
+        "search_exit": 0,
+        "matching_lines": 2,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 38
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "u2giants/popcrm-web",
+    "open_pr_count": 0,
+    "pr_list_saturated": false,
+    "refs": [],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "u2giants/popdam3",
+    "open_pr_count": 10,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "pr",
+        "number": 1045,
+        "name": "claude/1037-step2-named-character",
+        "sha": "5cc2fd1eb89e76fc0acab52caefbbb2e0a851edf",
+        "local": "refs/5610audit/pr/1045",
+        "observed_sha": "5cc2fd1eb89e76fc0acab52caefbbb2e0a851edf",
+        "search_exit": 0,
+        "matching_lines": 2558,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 922
+      },
+      {
+        "kind": "pr",
+        "number": 842,
+        "name": "codex/5609-render-primary-cache",
+        "sha": "ed757c048a37c8a9e50e07ea7261920d4513a3f0",
+        "local": "refs/5610audit/pr/842",
+        "observed_sha": "ed757c048a37c8a9e50e07ea7261920d4513a3f0",
+        "search_exit": 0,
+        "matching_lines": 2410,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 879
+      },
+      {
+        "kind": "pr",
+        "number": 816,
+        "name": "codex/vb-format-negative-gate",
+        "sha": "0f546d84da6b273052a5ee63e2203dcf1f1e398d",
+        "local": "refs/5610audit/pr/816",
+        "observed_sha": "0f546d84da6b273052a5ee63e2203dcf1f1e398d",
+        "search_exit": 0,
+        "matching_lines": 2376,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 875
+      },
+      {
+        "kind": "pr",
+        "number": 787,
+        "name": "codex/t9-browse-containment-tests",
+        "sha": "bc4be568902d51d5002739a2ab9e58c7d5da20ee",
+        "local": "refs/5610audit/pr/787",
+        "observed_sha": "bc4be568902d51d5002739a2ab9e58c7d5da20ee",
+        "search_exit": 0,
+        "matching_lines": 2340,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 843
+      },
+      {
+        "kind": "pr",
+        "number": 766,
+        "name": "codex/t9-scanner-efficiency",
+        "sha": "a732b91b04edb6297ee3a833d547b925676cb5ec",
+        "local": "refs/5610audit/pr/766",
+        "observed_sha": "a732b91b04edb6297ee3a833d547b925676cb5ec",
+        "search_exit": 0,
+        "matching_lines": 2332,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 843
+      },
+      {
+        "kind": "pr",
+        "number": 758,
+        "name": "codex/vector-pipeline-watchdog",
+        "sha": "c1cfb681264c8498fe1437023df392839ac16ed1",
+        "local": "refs/5610audit/pr/758",
+        "observed_sha": "c1cfb681264c8498fe1437023df392839ac16ed1",
+        "search_exit": 0,
+        "matching_lines": 2340,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 843
+      },
+      {
+        "kind": "pr",
+        "number": 492,
+        "name": "mimo/section3-licensor-gates-handoff",
+        "sha": "6912c3703877beabe42dbe1586ca2a2e03ddde8e",
+        "local": "refs/5610audit/pr/492",
+        "observed_sha": "6912c3703877beabe42dbe1586ca2a2e03ddde8e",
+        "search_exit": 0,
+        "matching_lines": 2179,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 733
+      },
+      {
+        "kind": "pr",
+        "number": 350,
+        "name": "codex/open-issues-coordinator-publication-20261011",
+        "sha": "1297c15e96927a3f87a83d3b87b04d98d3ef67ab",
+        "local": "refs/5610audit/pr/350",
+        "observed_sha": "1297c15e96927a3f87a83d3b87b04d98d3ef67ab",
+        "search_exit": 0,
+        "matching_lines": 2041,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 696
+      },
+      {
+        "kind": "pr",
+        "number": 320,
+        "name": "dependabot/github_actions/github-actions-0782f3dd49",
+        "sha": "820407577f18eb26b5f8fb3d05f4e5204aa0baf2",
+        "local": "refs/5610audit/pr/320",
+        "observed_sha": "820407577f18eb26b5f8fb3d05f4e5204aa0baf2",
+        "search_exit": 0,
+        "matching_lines": 2540,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 912
+      },
+      {
+        "kind": "pr",
+        "number": 168,
+        "name": "mimo/2701-error-surface",
+        "sha": "0202000ee413f6ee942fdd80446e8d3fece0e769",
+        "local": "refs/5610audit/pr/168",
+        "observed_sha": "0202000ee413f6ee942fdd80446e8d3fece0e769",
+        "search_exit": 0,
+        "matching_lines": 1950,
+        "operator_search_exit": 0,
+        "operator_matching_lines": 666
+      }
+    ],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "u2giants/poppim-web",
+    "open_pr_count": 0,
+    "pr_list_saturated": false,
+    "refs": [],
+    "whole_head_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b"
+  },
+  {
+    "repository": "popcre/shared-db",
+    "open_pr_count": 61,
+    "pr_list_saturated": false,
+    "refs": [
+      {
+        "kind": "pr",
+        "number": 6615,
+        "name": "claude/6603-verify-alter-column-type",
+        "sha": "3c95db19e51c81a7fd7ca6b40549fcca45af9580",
+        "local": "refs/5610audit/pr/6615",
+        "observed_sha": "3c95db19e51c81a7fd7ca6b40549fcca45af9580",
+        "diff_exit": 0,
+        "matching_lines": 14
+      },
+      {
+        "kind": "pr",
+        "number": 6614,
+        "name": "claude/main-moved-registry-6493",
+        "sha": "7757bb871f880574f349654938f2fa89fdd4e4e5",
+        "local": "refs/5610audit/pr/6614",
+        "observed_sha": "7757bb871f880574f349654938f2fa89fdd4e4e5",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 6613,
+        "name": "claude/dam-text-vectors-1037-tests",
+        "sha": "a05c31aa51f3a3d0d22413633f3f27d72d70393e",
+        "local": "refs/5610audit/pr/6613",
+        "observed_sha": "a05c31aa51f3a3d0d22413633f3f27d72d70393e",
+        "diff_exit": 0,
+        "matching_lines": 5
+      },
+      {
+        "kind": "pr",
+        "number": 6611,
+        "name": "review-fix/6609",
+        "sha": "7ccbb9f8f5c2b53af96979d7a97a8e78b5ca2bde",
+        "local": "refs/5610audit/pr/6611",
+        "observed_sha": "7ccbb9f8f5c2b53af96979d7a97a8e78b5ca2bde",
+        "diff_exit": 0,
+        "matching_lines": 10
+      },
+      {
+        "kind": "pr",
+        "number": 6595,
+        "name": "claude/mickey-minnie-categorization-864326",
+        "sha": "f440b047c614406f9dec8d8d4776fb341561cd4a",
+        "local": "refs/5610audit/pr/6595",
+        "observed_sha": "f440b047c614406f9dec8d8d4776fb341561cd4a",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 6510,
+        "name": "review-fix/6509",
+        "sha": "259a1e2c0497c507e777a9c13db4547df8eb5cbd",
+        "local": "refs/5610audit/pr/6510",
+        "observed_sha": "259a1e2c0497c507e777a9c13db4547df8eb5cbd",
+        "diff_exit": 0,
+        "matching_lines": 4
+      },
+      {
+        "kind": "pr",
+        "number": 6466,
+        "name": "review-fix/6465",
+        "sha": "722d1d44c5e4343dd9e635808b62156b12c4b2a6",
+        "local": "refs/5610audit/pr/6466",
+        "observed_sha": "722d1d44c5e4343dd9e635808b62156b12c4b2a6",
+        "diff_exit": 0,
+        "matching_lines": 5
+      },
+      {
+        "kind": "pr",
+        "number": 6451,
+        "name": "mimo/2326-6418-matview-grant-narrowing",
+        "sha": "b2334a0854a8d7ea61063ce8c83c6256f6d77aa7",
+        "local": "refs/5610audit/pr/6451",
+        "observed_sha": "b2334a0854a8d7ea61063ce8c83c6256f6d77aa7",
+        "diff_exit": 0,
+        "matching_lines": 34
+      },
+      {
+        "kind": "pr",
+        "number": 6414,
+        "name": "review-fix/6408",
+        "sha": "5879d209737fd0b3523059a1748f4e19526013ca",
+        "local": "refs/5610audit/pr/6414",
+        "observed_sha": "5879d209737fd0b3523059a1748f4e19526013ca",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 6384,
+        "name": "review-fix/6383",
+        "sha": "c39060e9d1551e700540ec715088e817a900d7c5",
+        "local": "refs/5610audit/pr/6384",
+        "observed_sha": "c39060e9d1551e700540ec715088e817a900d7c5",
+        "diff_exit": 0,
+        "matching_lines": 11
+      },
+      {
+        "kind": "pr",
+        "number": 6376,
+        "name": "review-fix/6375",
+        "sha": "90cfd9cb0818aa154174bef58e9bdf3f2d3f0387",
+        "local": "refs/5610audit/pr/6376",
+        "observed_sha": "90cfd9cb0818aa154174bef58e9bdf3f2d3f0387",
+        "diff_exit": 0,
+        "matching_lines": 10
+      },
+      {
+        "kind": "pr",
+        "number": 6365,
+        "name": "review-fix/6364",
+        "sha": "46994e7574ca1961ca3bea6c54938eee44ea1b12",
+        "local": "refs/5610audit/pr/6365",
+        "observed_sha": "46994e7574ca1961ca3bea6c54938eee44ea1b12",
+        "diff_exit": 0,
+        "matching_lines": 8
+      },
+      {
+        "kind": "pr",
+        "number": 6355,
+        "name": "review-fix/6354",
+        "sha": "e816d3394ff11466a2d218e37060f7a73f662066",
+        "local": "refs/5610audit/pr/6355",
+        "observed_sha": "e816d3394ff11466a2d218e37060f7a73f662066",
+        "diff_exit": 0,
+        "matching_lines": 4
+      },
+      {
+        "kind": "pr",
+        "number": 6323,
+        "name": "review-fix/6321",
+        "sha": "b6a0d0fa43b9d8c921c3c6e30c8a8257951bdf26",
+        "local": "refs/5610audit/pr/6323",
+        "observed_sha": "b6a0d0fa43b9d8c921c3c6e30c8a8257951bdf26",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 6296,
+        "name": "review-fix/6295",
+        "sha": "1201976095c3144cb53a5e6924540f9c55a8aa97",
+        "local": "refs/5610audit/pr/6296",
+        "observed_sha": "1201976095c3144cb53a5e6924540f9c55a8aa97",
+        "diff_exit": 0,
+        "matching_lines": 5
+      },
+      {
+        "kind": "pr",
+        "number": 6229,
+        "name": "review-fix/6228",
+        "sha": "6dd702834ba9d5bc6db7c8a6400942aa9a57cc82",
+        "local": "refs/5610audit/pr/6229",
+        "observed_sha": "6dd702834ba9d5bc6db7c8a6400942aa9a57cc82",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 6218,
+        "name": "review-fix/6217",
+        "sha": "d6dd391fd640dad1836dc02008688e51a1f835a9",
+        "local": "refs/5610audit/pr/6218",
+        "observed_sha": "d6dd391fd640dad1836dc02008688e51a1f835a9",
+        "diff_exit": 0,
+        "matching_lines": 13
+      },
+      {
+        "kind": "pr",
+        "number": 6205,
+        "name": "review-fix/6202",
+        "sha": "68d391ceb50fc369041596700f28bb8ee5961745",
+        "local": "refs/5610audit/pr/6205",
+        "observed_sha": "68d391ceb50fc369041596700f28bb8ee5961745",
+        "diff_exit": 0,
+        "matching_lines": 4
+      },
+      {
+        "kind": "pr",
+        "number": 6185,
+        "name": "review-fix/6176",
+        "sha": "f4a2df5714da76f8086d0dee918cb144dd60fe5d",
+        "local": "refs/5610audit/pr/6185",
+        "observed_sha": "f4a2df5714da76f8086d0dee918cb144dd60fe5d",
+        "diff_exit": 0,
+        "matching_lines": 18
+      },
+      {
+        "kind": "pr",
+        "number": 6160,
+        "name": "review-fix/6159",
+        "sha": "ac02baf51f00031968e9507d87a9cb03855bf7a9",
+        "local": "refs/5610audit/pr/6160",
+        "observed_sha": "ac02baf51f00031968e9507d87a9cb03855bf7a9",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 6099,
+        "name": "review-fix/6098",
+        "sha": "9a9238a9d5ea2f0d657fa7e7bf6857920067ad96",
+        "local": "refs/5610audit/pr/6099",
+        "observed_sha": "9a9238a9d5ea2f0d657fa7e7bf6857920067ad96",
+        "diff_exit": 0,
+        "matching_lines": 4
+      },
+      {
+        "kind": "pr",
+        "number": 6015,
+        "name": "review-fix/6014",
+        "sha": "c687d22a5f880569a5a40ef379a1a9cc1c1b1f2c",
+        "local": "refs/5610audit/pr/6015",
+        "observed_sha": "c687d22a5f880569a5a40ef379a1a9cc1c1b1f2c",
+        "diff_exit": 0,
+        "matching_lines": 9
+      },
+      {
+        "kind": "pr",
+        "number": 6006,
+        "name": "review-fix/6004",
+        "sha": "b72223f72e8614f5479580093023c152a840ef87",
+        "local": "refs/5610audit/pr/6006",
+        "observed_sha": "b72223f72e8614f5479580093023c152a840ef87",
+        "diff_exit": 0,
+        "matching_lines": 9
+      },
+      {
+        "kind": "pr",
+        "number": 5979,
+        "name": "review-fix/5978",
+        "sha": "db3012d82a16c86e371f9af57e0797b490df3318",
+        "local": "refs/5610audit/pr/5979",
+        "observed_sha": "db3012d82a16c86e371f9af57e0797b490df3318",
+        "diff_exit": 0,
+        "matching_lines": 7
+      },
+      {
+        "kind": "pr",
+        "number": 5977,
+        "name": "review-fix/5976",
+        "sha": "f4302bf76545782b891d4ad6c41e2e9f218f5fdf",
+        "local": "refs/5610audit/pr/5977",
+        "observed_sha": "f4302bf76545782b891d4ad6c41e2e9f218f5fdf",
+        "diff_exit": 0,
+        "matching_lines": 13
+      },
+      {
+        "kind": "pr",
+        "number": 5965,
+        "name": "review-fix/5964",
+        "sha": "589261d0a64e20d7553a2645c58512a93f0aaad1",
+        "local": "refs/5610audit/pr/5965",
+        "observed_sha": "589261d0a64e20d7553a2645c58512a93f0aaad1",
+        "diff_exit": 0,
+        "matching_lines": 4
+      },
+      {
+        "kind": "pr",
+        "number": 5956,
+        "name": "review-fix/5949",
+        "sha": "63376c849139c6bfba0fc67c020fab462a4d1a41",
+        "local": "refs/5610audit/pr/5956",
+        "observed_sha": "63376c849139c6bfba0fc67c020fab462a4d1a41",
+        "diff_exit": 0,
+        "matching_lines": 8
+      },
+      {
+        "kind": "pr",
+        "number": 5935,
+        "name": "review-fix/5934",
+        "sha": "ddcae70c51c6d1de35259e38dd66958467c77dea",
+        "local": "refs/5610audit/pr/5935",
+        "observed_sha": "ddcae70c51c6d1de35259e38dd66958467c77dea",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 5926,
+        "name": "review-fix/5925",
+        "sha": "08ff5771ca08484e30d4c0486271b9a7b66563c6",
+        "local": "refs/5610audit/pr/5926",
+        "observed_sha": "08ff5771ca08484e30d4c0486271b9a7b66563c6",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 5892,
+        "name": "review-fix/5889",
+        "sha": "8662cd31e6331e5738b5a0b3b2f9c60baa5dd28a",
+        "local": "refs/5610audit/pr/5892",
+        "observed_sha": "8662cd31e6331e5738b5a0b3b2f9c60baa5dd28a",
+        "diff_exit": 0,
+        "matching_lines": 8
+      },
+      {
+        "kind": "pr",
+        "number": 5864,
+        "name": "review-fix/5863",
+        "sha": "a1b428a7fd0f9e5ede60e4f800bd9f320963f1e2",
+        "local": "refs/5610audit/pr/5864",
+        "observed_sha": "a1b428a7fd0f9e5ede60e4f800bd9f320963f1e2",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 5859,
+        "name": "review-fix/5858",
+        "sha": "053360014e75f1997fb4375215e96c28a8bfa0d8",
+        "local": "refs/5610audit/pr/5859",
+        "observed_sha": "053360014e75f1997fb4375215e96c28a8bfa0d8",
+        "diff_exit": 0,
+        "matching_lines": 3
+      },
+      {
+        "kind": "pr",
+        "number": 5842,
+        "name": "review-fix/5841",
+        "sha": "c71ee65bd4bfbbd62d0f72bacae6864d49aae412",
+        "local": "refs/5610audit/pr/5842",
+        "observed_sha": "c71ee65bd4bfbbd62d0f72bacae6864d49aae412",
+        "diff_exit": 0,
+        "matching_lines": 43
+      },
+      {
+        "kind": "pr",
+        "number": 5819,
+        "name": "review-fix/5818",
+        "sha": "0b8cbd60fb738d89d0094fc850fab2a41d6b550d",
+        "local": "refs/5610audit/pr/5819",
+        "observed_sha": "0b8cbd60fb738d89d0094fc850fab2a41d6b550d",
+        "diff_exit": 0,
+        "matching_lines": 7
+      },
+      {
+        "kind": "pr",
+        "number": 5799,
+        "name": "review-fix/5797",
+        "sha": "b0fc51653774c615f2464d49458dac61c713d000",
+        "local": "refs/5610audit/pr/5799",
+        "observed_sha": "b0fc51653774c615f2464d49458dac61c713d000",
+        "diff_exit": 0,
+        "matching_lines": 9
+      },
+      {
+        "kind": "pr",
+        "number": 5798,
+        "name": "review-fix/5789",
+        "sha": "7b30c207102762379d42e94558925fb7fdd1550b",
+        "local": "refs/5610audit/pr/5798",
+        "observed_sha": "7b30c207102762379d42e94558925fb7fdd1550b",
+        "diff_exit": 0,
+        "matching_lines": 11
+      },
+      {
+        "kind": "pr",
+        "number": 5794,
+        "name": "review-fix/5788",
+        "sha": "564ba2c0c136d2d3eee051c0d93969a9951222ba",
+        "local": "refs/5610audit/pr/5794",
+        "observed_sha": "564ba2c0c136d2d3eee051c0d93969a9951222ba",
+        "diff_exit": 0,
+        "matching_lines": 11
+      },
+      {
+        "kind": "pr",
+        "number": 5762,
+        "name": "codex/5447-hts-release-contract",
+        "sha": "88a8c2ca1aa5371a02a3610fb1f8ea5badee95b0",
+        "local": "refs/5610audit/pr/5762",
+        "observed_sha": "88a8c2ca1aa5371a02a3610fb1f8ea5badee95b0",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 5737,
+        "name": "claude/dflow-table-groups",
+        "sha": "6fecff60ffcba0e2569ad8170fad3d52c1d9fb6e",
+        "local": "refs/5610audit/pr/5737",
+        "observed_sha": "6fecff60ffcba0e2569ad8170fad3d52c1d9fb6e",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 5733,
+        "name": "codex/index-maintenance-early-pin-5622",
+        "sha": "e298558e925ddc4065ffb25fed84aa70d81135c3",
+        "local": "refs/5610audit/pr/5733",
+        "observed_sha": "e298558e925ddc4065ffb25fed84aa70d81135c3",
+        "diff_exit": 0,
+        "matching_lines": 24
+      },
+      {
+        "kind": "pr",
+        "number": 5721,
+        "name": "codex/health-index-activation-packet-5622",
+        "sha": "53f5a16afd598ebb511d645f9cb09bfd1f8cfe86",
+        "local": "refs/5610audit/pr/5721",
+        "observed_sha": "53f5a16afd598ebb511d645f9cb09bfd1f8cfe86",
+        "diff_exit": 0,
+        "matching_lines": 2
+      },
+      {
+        "kind": "pr",
+        "number": 5693,
+        "name": "review-fix/5689",
+        "sha": "6227f96c641cbfe107fbd4d5ad6b0854520959a2",
+        "local": "refs/5610audit/pr/5693",
+        "observed_sha": "6227f96c641cbfe107fbd4d5ad6b0854520959a2",
+        "diff_exit": 0,
+        "matching_lines": 8
+      },
+      {
+        "kind": "pr",
+        "number": 5644,
+        "name": "codex/t9-count-fixture-correction",
+        "sha": "0c439f0b9a9f0a6abbd6fd66be593ea57f0e7f0b",
+        "local": "refs/5610audit/pr/5644",
+        "observed_sha": "0c439f0b9a9f0a6abbd6fd66be593ea57f0e7f0b",
+        "diff_exit": 0,
+        "matching_lines": 3
+      },
+      {
+        "kind": "pr",
+        "number": 4765,
+        "name": "codex/dflow-release-closeout-1629",
+        "sha": "bf9b0a625de3033922f71e0a90cd9f2b5d91b5de",
+        "local": "refs/5610audit/pr/4765",
+        "observed_sha": "bf9b0a625de3033922f71e0a90cd9f2b5d91b5de",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 4621,
+        "name": "claude/handoff-4578",
+        "sha": "cd7440b46da3a71283de0c2a8bd92794b56156ab",
+        "local": "refs/5610audit/pr/4621",
+        "observed_sha": "cd7440b46da3a71283de0c2a8bd92794b56156ab",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 4170,
+        "name": "codex/2530-queue-recovery",
+        "sha": "cddf31e10361dbfc43a722801deed78dc936cc44",
+        "local": "refs/5610audit/pr/4170",
+        "observed_sha": "cddf31e10361dbfc43a722801deed78dc936cc44",
+        "diff_exit": 0,
+        "matching_lines": 58
+      },
+      {
+        "kind": "pr",
+        "number": 4146,
+        "name": "codex/770-wrapup-handoff",
+        "sha": "687ebd5b89f56aaa9414d2d9a3ac44f302ee92bd",
+        "local": "refs/5610audit/pr/4146",
+        "observed_sha": "687ebd5b89f56aaa9414d2d9a3ac44f302ee92bd",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 4109,
+        "name": "codex/3618-expired-merged-adoption",
+        "sha": "dea119ab5df521a3fb2ed68ea5850f310d2d6b27",
+        "local": "refs/5610audit/pr/4109",
+        "observed_sha": "dea119ab5df521a3fb2ed68ea5850f310d2d6b27",
+        "diff_exit": 0,
+        "matching_lines": 14
+      },
+      {
+        "kind": "pr",
+        "number": 4036,
+        "name": "codex/3536-successor-stop-handoff-20261007",
+        "sha": "5712dc8db683e938791dcfd7225f6e2132c1dfc7",
+        "local": "refs/5610audit/pr/4036",
+        "observed_sha": "5712dc8db683e938791dcfd7225f6e2132c1dfc7",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 4002,
+        "name": "codex/3536-ledger-monitor-docs",
+        "sha": "acde6c920cab61fb2a922730230389b29758c9b3",
+        "local": "refs/5610audit/pr/4002",
+        "observed_sha": "acde6c920cab61fb2a922730230389b29758c9b3",
+        "diff_exit": 0,
+        "matching_lines": 3
+      },
+      {
+        "kind": "pr",
+        "number": 3998,
+        "name": "codex/3536-queue-retirement",
+        "sha": "592e16c7acd27b8ff81df87bfa9988f94ff803c1",
+        "local": "refs/5610audit/pr/3998",
+        "observed_sha": "592e16c7acd27b8ff81df87bfa9988f94ff803c1",
+        "diff_exit": 0,
+        "matching_lines": 58
+      },
+      {
+        "kind": "pr",
+        "number": 3823,
+        "name": "claude/gate-cutback-mirror",
+        "sha": "718018e25338cecde3aea468518be308e0d6292d",
+        "local": "refs/5610audit/pr/3823",
+        "observed_sha": "718018e25338cecde3aea468518be308e0d6292d",
+        "diff_exit": 0,
+        "matching_lines": 14
+      },
+      {
+        "kind": "pr",
+        "number": 3796,
+        "name": "fix/ledger-drift-test",
+        "sha": "076ab19bfd2372148da5c9d4a0438b98bca3120c",
+        "local": "refs/5610audit/pr/3796",
+        "observed_sha": "076ab19bfd2372148da5c9d4a0438b98bca3120c",
+        "diff_exit": 0,
+        "matching_lines": 9
+      },
+      {
+        "kind": "pr",
+        "number": 3766,
+        "name": "mimo/3724-step13-owner-map",
+        "sha": "3b7b175eee0e05e1508f17e41a0c980ec9546e66",
+        "local": "refs/5610audit/pr/3766",
+        "observed_sha": "3b7b175eee0e05e1508f17e41a0c980ec9546e66",
+        "diff_exit": 0,
+        "matching_lines": 1
+      },
+      {
+        "kind": "pr",
+        "number": 3753,
+        "name": "codex/evidence-rebind-residual",
+        "sha": "16ee49b27d8380d9925336a7a11c035fcd4a7432",
+        "local": "refs/5610audit/pr/3753",
+        "observed_sha": "16ee49b27d8380d9925336a7a11c035fcd4a7432",
+        "diff_exit": 0,
+        "matching_lines": 13
+      },
+      {
+        "kind": "pr",
+        "number": 3666,
+        "name": "fix/3617-request-cost",
+        "sha": "1bca5004a96940132883d77e0f51de0f3f6c94d4",
+        "local": "refs/5610audit/pr/3666",
+        "observed_sha": "1bca5004a96940132883d77e0f51de0f3f6c94d4",
+        "diff_exit": 0,
+        "matching_lines": 8
+      },
+      {
+        "kind": "pr",
+        "number": 3636,
+        "name": "codex/3634-live-proof-provenance",
+        "sha": "89525ac7081603f69880103a64627234b08fad35",
+        "local": "refs/5610audit/pr/3636",
+        "observed_sha": "89525ac7081603f69880103a64627234b08fad35",
+        "diff_exit": 0,
+        "matching_lines": 9
+      },
+      {
+        "kind": "pr",
+        "number": 3635,
+        "name": "codex/3629-python-interpreter",
+        "sha": "95a875b65447fa8b5ca9a6211ab7bc6657130c61",
+        "local": "refs/5610audit/pr/3635",
+        "observed_sha": "95a875b65447fa8b5ca9a6211ab7bc6657130c61",
+        "diff_exit": 0,
+        "matching_lines": 12
+      },
+      {
+        "kind": "pr",
+        "number": 3627,
+        "name": "codex/3563-curated-data-recovery",
+        "sha": "dd64ac91cf6e38052e99a93258896fbaa7992dcb",
+        "local": "refs/5610audit/pr/3627",
+        "observed_sha": "dd64ac91cf6e38052e99a93258896fbaa7992dcb",
+        "diff_exit": 0,
+        "matching_lines": 17
+      },
+      {
+        "kind": "pr",
+        "number": 3626,
+        "name": "codex/3624-mandatory-review-preflight",
+        "sha": "f09cd4717c44e2918fb0a4d0f29252cc85b150b8",
+        "local": "refs/5610audit/pr/3626",
+        "observed_sha": "f09cd4717c44e2918fb0a4d0f29252cc85b150b8",
+        "diff_exit": 0,
+        "matching_lines": 31
+      },
+      {
+        "kind": "pr",
+        "number": 3389,
+        "name": "guard/vendor-identity-source-authority",
+        "sha": "9ec79a07d95595879355ceab99dff2954cd0a0cd",
+        "local": "refs/5610audit/pr/3389",
+        "observed_sha": "9ec79a07d95595879355ceab99dff2954cd0a0cd",
+        "diff_exit": 0,
+        "matching_lines": 9
+      }
+    ]
+  }
+]
