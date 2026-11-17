@@ -120,6 +120,35 @@ retire it. That is the whole mechanism: the duty travels with the work, not with
 session may retire the file — but say so in the pull request body, with the evidence
 (closed issue, merged PR). Never delete another session's file silently.
 
+**Stranded promotions — check at start and before ending (#6561).** A merged migration can
+stop short of production with nobody watching it. The automatic production trigger now marks
+such pull requests with two labels, and a session checks them at the start of structural
+work and again before it ends:
+
+- `gh pr list --repo popcre/shared-db --state all --label promotion-parked`
+- `gh pr list --repo popcre/shared-db --state all --label promotion-held`
+
+`promotion-parked` means the automatic lane is out of attempts for that change, or a refusal
+is permanent. `promotion-held` means open review findings have blocked the change for more
+than 8 hours. Each label comes with one notice comment on the pull request that says what is
+wrong and how it can be repaired.
+
+The automatic trigger adds and removes these labels itself, and it clears them when the
+versions reach production. **Never add or remove them by hand**; a hand edit defeats the
+check. Before ending, a session lists both queries, reports any stranded change it merged or
+can repair, and states that it checked. A repair is one of two routes: fix-forward under a
+new governed version, or retire-and-reissue. Never re-run a failed run, and there is no
+manual production command.
+
+If this session merged a migration PR, it also leaves that PR's delivery check behind. Use a
+scheduled self-check where the harness supports one. Otherwise, write the exact re-check into
+the session's `HANDOFF.d` file and leave `- [ ] promotion delivered to production` unchecked
+on the landing issue. Whoever finds it later ticks the box once production has the version.
+
+This rule is best-effort: nothing forces a session to run these queries, so the labels are
+the guarantee. The full design, the repair rules and the open questions are in
+[`plan_promotion_stranding_watch.md`](../../plan_promotion_stranding_watch.md).
+
 ## 2.1 Host/server boundary
 
 This repo owns shared database schema and Supabase migrations. (The PLM import code and the `systemd/plm-sync.*` templates were removed by #2794 and must not be recreated.) Durable host/OS changes on `hetz` are owned by the canonical Ansible repo at `/worksp/ansible` / [`u2giants/ansible`](https://github.com/u2giants/ansible), then applied by GitHub Actions.

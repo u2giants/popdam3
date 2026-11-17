@@ -327,6 +327,14 @@ secrets encountered, and leave the repo handoff-safe. For this repo, do not leav
 untracked migrations or docs behind; either finish the shared-db branch + PR +
 merge workflow or write an explicit handoff with the next exact action.
 
+Before ending, a shared-db session lists the PRs labelled `promotion-parked` or
+`promotion-held` (queries in [`worktrees-and-handoffs.md`](docs/agents/worktrees-and-handoffs.md)
+§2.1-H), reports any it merged or can repair, and never adds or removes those labels by hand.
+If it merged a migration PR, it leaves that PR's delivery check behind: a scheduled self-check
+where the harness supports one, otherwise the exact re-check in its HANDOFF.d file and an
+unchecked `- [ ] promotion delivered to production` on the landing issue. The labels, not the
+sessions, are the guarantee.
+
 ## 1. The owner is not a programmer
 
 The owner directs the work and judges results; he does not review code, manage branches, or merge.

@@ -17,13 +17,13 @@ and why is in §7 and §8.
 | Step | Status | Evidence / next action |
 |---|---|---|
 | 0. Plan landed | ✅ | PR #6560 (draft 1), PR #6562 (revision 2); revision 3 by the PR that carries this text |
-| 1. Permission: trigger job `pull-requests: write` + guard test | ⬜ open | §9 step 1 |
-| 2. Shared per-PR classifier (pure refactor) | ⬜ open | §9 step 2 |
-| 3. Reconciler: mark parked + held-over-8h, repair, clear | ⬜ open | §9 steps 3-5 |
-| 4. Durable failure reporting | ⬜ open | §9 step 6 |
-| 5. Tests | ⬜ open | §10 |
-| 6. Live proof A (immediate): today's stranded PRs carry notice + label; real API responses recorded | ⬜ open | §9 step 8 |
-| 7. Session rule: rulebook pair | ⬜ open | §9 step 9 |
+| 1. Permission: trigger job `pull-requests: write` + guard test | ✅ | PR #6589 (merged da185c26f) |
+| 2. Shared per-PR classifier (pure refactor) | ✅ | PR #6589 (merged da185c26f) |
+| 3. Reconciler: mark parked + held-over-8h, repair, clear | ✅ | PR #6589 (merged da185c26f) |
+| 4. Durable failure reporting | ✅ | PR #6589 (merged da185c26f) |
+| 5. Tests | ✅ | PR #6589 (merged da185c26f) |
+| 6. Live proof A (immediate): today's stranded PRs carry notice + label; real API responses recorded | 🟡 partial | clean reconciler pass, run 44146394316; R5 write responses await first real park (issue #6561 comment 6956941560) |
+| 7. Session rule: rulebook pair | 🟡 this PR | §9 step 9 |
 | 8. Session rule: skill sources | ⬜ open | §9 step 10 |
 | 9. Live proof B: a labelled PR is cleared automatically on delivery | ⬜ open | §9 step 11 |
 
