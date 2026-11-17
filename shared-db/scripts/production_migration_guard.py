@@ -796,6 +796,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 16: owner-approved copy of production's dam, hts_rag, archive and public structure (no rows), excluding production service logins. Source excludes shared preview and production.",
     },
+    "20261201200000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6356",
+        "note": "Sandbox catch-up batch 17: production's appended columns on api.source_resolution and three plm ColdLion views, plus api.source_resolution grants. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
