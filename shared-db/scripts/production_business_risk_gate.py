@@ -744,6 +744,8 @@ PREVIEW_PRODUCER_PATHS = (
     # Existing explicit PR-data boundary now executes transitively from protected source.
     "scripts/lib/agent-evidence-paths.mjs",
     "scripts/refresh-code-pr-branch.mjs",
+    # #6574 follow-up: advisory PL/pgSQL lint that check-sql.sh runs.
+    "scripts/lint-plpgsql-migrations.mjs",
     # The manager's cohesive modules, split out of it without behavior change.
     # They are statically imported and run inside the same process, so each is
     # pinned exactly like the manager itself.

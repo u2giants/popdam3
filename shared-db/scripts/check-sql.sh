@@ -7,7 +7,7 @@ if [[ "$#" -gt 0 ]]; then
   [[ "$#" = 6 && "$1" = --data-root && "$3" = --head-sha && "$5" = --source-sha ]] || { echo 'Explicit data root/head/source identity required' >&2; exit 2; }
   root_dir="$(node "$source_dir/scripts/lib/agent-evidence-paths.mjs" --data-root "$2" --head-sha "$4" --source-root "$source_dir" --source-sha "$6")"
   # Guard seams cannot override a security-bound actual PR data inventory.
-  for boundary_var in CHECK_SQL_MIGRATION_DIR CHECK_SQL_MAIN_NEWEST CHECK_SQL_MIGRATIONS_ONLY CHECK_SQL_EOL_DIFF_FILE; do
+  for boundary_var in CHECK_SQL_MIGRATION_DIR CHECK_SQL_MAIN_NEWEST CHECK_SQL_MIGRATIONS_ONLY CHECK_SQL_EOL_DIFF_FILE CHECK_SQL_PLPGSQL_LINT_FILES; do
     [[ -z "${!boundary_var:-}" ]] || { echo 'Data boundary forbids test overrides' >&2; exit 2; }
   done
   cd "$root_dir"
@@ -740,6 +740,35 @@ if [[ -n "$promote_by_bad" ]]; then
   exit 1
 fi
 
+# --- PL/pgSQL lint (advisory) ---------------------------------------------------
+# #6574 follow-up: flag the two PL/pgSQL mistakes that forced the 2026-11-17
+# reissues (loop body using the VALUES alias instead of the loop record; a
+# name[] = text[] comparison without ::name[]). Scoped to migrations this branch
+# ADDS, which are not in production yet. ADVISORY ONLY: the owner's lean-checks
+# ruling (2026-10-30) lets only production-data-damage or secret-leak checks
+# block, and a broken migration aborts atomically. It surfaces as a GitHub
+# warning annotation. CHECK_SQL_PLPGSQL_LINT_FILES is a test seam (space list).
+plpgsql_lint_files=()
+if [[ -n "${CHECK_SQL_PLPGSQL_LINT_FILES:-}" ]]; then
+  read -r -a plpgsql_lint_files <<< "$CHECK_SQL_PLPGSQL_LINT_FILES"
+elif [[ "$guard_b2_scope_known" -eq 1 ]]; then
+  while IFS= read -r version; do
+    [[ -n "$version" ]] || continue
+    for f in "$migration_dir/$version"*.sql; do [[ -f "$f" ]] && plpgsql_lint_files+=("$f"); done
+  done < "$added_versions_file"
+fi
+if [[ "${#plpgsql_lint_files[@]}" -gt 0 ]]; then
+  if plpgsql_findings="$(node "$source_dir/scripts/lint-plpgsql-migrations.mjs" "${plpgsql_lint_files[@]}")"; then
+    echo "PL/pgSQL lint: ${#plpgsql_lint_files[@]} added migration(s) clean."
+  else
+    while IFS= read -r finding; do
+      [[ -n "$finding" ]] || continue
+      lint_file="${finding%%:*}"; rest="${finding#*:}"; lint_line="${rest%%:*}"; lint_msg="${rest#*: }"
+      echo "::warning file=${lint_file#"$root_dir"/},line=${lint_line},title=PL/pgSQL lint (advisory)::${lint_msg}"
+    done <<< "$plpgsql_findings"
+    echo "PL/pgSQL lint: findings above are ADVISORY (lean-checks ruling); fix them before merge -- this migration will fail on replay." >&2
+  fi
+fi
 rm -f "$added_versions_file" "$migration_names_file"
 
 if [[ "$guard_b2_failed" -ne 0 ]]; then
