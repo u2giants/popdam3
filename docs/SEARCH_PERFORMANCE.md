@@ -15,8 +15,8 @@ cluster.
 - `public.dam_search_documents` is the flattened search table for DAM assets and
   style groups.
 - `search_tsv` is a stored generated `tsvector` column indexed with GIN.
-- `title`, `path`, `customer`, and `program` have trigram indexes for substring
-  searches such as SKU prefixes (`3fz`).
+- The ranked search uses trigram indexes on `public.dam_search_keys`
+  (`title`, `path`, `customer`, and `program`) for substring matches.
 - The old `embedding vector(384)` (`gte-small`) column is retired; nothing in
   search reads it. Meaning vectors live in separate tables: SigLIP2 picture
   vectors (768) and Qwen3-Embedding-0.6B text-meaning vectors (1024,
@@ -26,6 +26,29 @@ cluster.
 - The legacy RPCs `search_assets_full_text(...)` and
   `search_style_groups_full_text(...)` remain as wrappers so the app does not
   need a coordinated frontend cutover.
+
+## Item-number search
+
+`dam-search-ai` checks the current style-group catalog for a full item number
+or the start of one. Catalog-confirmed item searches and unknown full numbers
+in a supported catalog format skip spelling, vector settings, and vector
+search. They use the same ranked keyword search, including matching outside
+the item-number field, filters, ordering, and totals. See [the catalog search
+rule](https://github.com/popcre/shared-db/blob/main/docs/business-rules/digital-asset-classification-and-tags.md#product-code-searches)
+and [PopDAM #1061](https://github.com/u2giants/popdam3/pull/1061).
+
+If a prefix is slow, measure the catalog check and ranked query separately
+using `product_code` and `search_rpc` in the response's `Server-Timing` header.
+Check which indexes the ranked query actually uses before proposing a new one.
+A starts-with check on the item-number field alone can omit existing keyword
+matches. Compare ordered IDs and totals across pages with a viewer account;
+include a filtered request if changing filter handling.
+
+In the [November 18 live check](https://github.com/u2giants/popdam3/issues/804#issuecomment-6987728536),
+the existing indexed substring step found 188 matches in about 60 ms. The
+same prefix returned in 0.36–0.78 s across three live requests, with all 188
+groups verified across four pages. This sample did not establish peak-load
+latency.
 
 ## Supabase Features In Use
 
