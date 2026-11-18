@@ -41,7 +41,13 @@ function makeDb(opts: Opts) {
 async function run(opts: Opts, body: Row) {
   const { db, tables } = makeDb(opts);
   const handler = new Function(
-    "getUserId", "serviceClient", "json", "err", "isCheckinVerificationEnabled", "VERIFY_FLAG_MS", "VERIFY_RESOLVE_MS",
+    "getUserId",
+    "serviceClient",
+    "json",
+    "err",
+    "isCheckinVerificationEnabled",
+    "VERIFY_FLAG_MS",
+    "VERIFY_RESOLVE_MS",
     `${compiled};return handleCompleteCheckin;`,
   )(
     async () => "u1",
