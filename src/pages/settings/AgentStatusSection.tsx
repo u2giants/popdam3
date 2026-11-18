@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { isInstallConfirmed, isStatusForRequest } from "@/lib/agent-update-confirmation";
 
 export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,19 +31,33 @@ export function CopyButton({ text }: { text: string }) {
 
 // ── Agent Update Controls ───────────────────────────────────────────
 
-export function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentName: string }) {
+export function AgentUpdateControls({
+  agentId,
+  agentName,
+  fromVersion = null,
+  fromSha = null,
+  targetVersion = null,
+  targetSha = null,
+}: {
+  agentId: string;
+  agentName: string;
+  fromVersion?: string | null;
+  fromSha?: string | null;
+  targetVersion?: string | null;
+  targetSha?: string | null;
+}) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<Record<string, unknown> | null>(null);
 
-  const pollStatus = useCallback(async (maxAttempts: number, intervalMs: number) => {
+  const pollStatus = useCallback(async (requestedAt: string, maxAttempts: number, intervalMs: number) => {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, intervalMs));
       try {
         const resp = await call("get-update-status");
-        if (resp?.status && resp.status.reported_at) {
+        if (isStatusForRequest(resp?.status, requestedAt)) {
           setUpdateStatus(resp.status as Record<string, unknown>);
           return resp.status as Record<string, unknown>;
         }
@@ -55,8 +70,9 @@ export function AgentUpdateControls({ agentId, agentName }: { agentId: string; a
     setChecking(true);
     setUpdateStatus(null);
     try {
-      await call("trigger-agent-update", { update_action: "check" });
-      const result = await pollStatus(10, 3000);
+      const requestedAt = new Date().toISOString();
+      const resp = await call("trigger-agent-update", { update_action: "check", agent_type: "bridge" });
+      const result = await pollStatus((resp?.requested_at as string) || requestedAt, 10, 3000);
       if (!result) {
         toast.error("Update check timed out — agent may be busy");
       }
@@ -70,15 +86,17 @@ export function AgentUpdateControls({ agentId, agentName }: { agentId: string; a
   const handleApply = async () => {
     setApplying(true);
     try {
-      await call("trigger-agent-update", { update_action: "apply" });
+      const localRequestedAt = new Date().toISOString();
+      const trig = await call("trigger-agent-update", { update_action: "apply", agent_type: "bridge" });
+      const requestedAt = (trig?.requested_at as string) || localRequestedAt;
       toast.info("Update in progress — agent will reconnect in ~30s");
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         try {
           const resp = await call("list-agents");
           const agents = resp?.agents || [];
           const agent = agents.find((a: Record<string, unknown>) => a.id === agentId || a.name === agentName);
-          if (agent && agent.status === "online") {
+          if (isInstallConfirmed(agent, { requestedAt, fromVersion, fromSha, targetVersion, targetSha })) {
             toast.success("Agent updated and back online");
             queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
             setUpdateStatus(null);
@@ -87,7 +105,7 @@ export function AgentUpdateControls({ agentId, agentName }: { agentId: string; a
           }
         } catch { /* keep polling */ }
       }
-      toast.warning("Agent hasn't reconnected yet — check Container Manager");
+      toast.warning("Agent hasn't reported the new version yet — check Container Manager");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -404,7 +422,14 @@ export function AgentStatusSection() {
                     <ScanCounters counters={agent.last_counters as Record<string, number>} />
                   )}
                   {agent.status === "online" && agent.type === "bridge" && (
-                    <AgentUpdateControls agentId={agent.id as string} agentName={agent.name as string} />
+                    <AgentUpdateControls
+                      agentId={agent.id as string}
+                      agentName={agent.name as string}
+                      fromVersion={currentVersion}
+                      fromSha={currentSha}
+                      targetVersion={latestVersion && latestVersion !== "0.0.0" ? latestVersion : null}
+                      targetSha={latestSha}
+                    />
                   )}
                 </div>
               );

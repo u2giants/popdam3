@@ -9,6 +9,7 @@
 import { err, formatPostgrestError, json, optionalString, requireString, serviceClient } from "../admin-utils.ts";
 import { redactAdminConfigValues } from "../admin-config-secret.ts";
 import { generatePairingCode } from "../pairing-code.ts";
+import { shouldFlagWindowsRenderers } from "../agent-update-scope.ts";
 
 // ── generate-agent-key ──────────────────────────────────────────────
 
@@ -711,12 +712,13 @@ export async function handleTriggerAgentUpdate(
   const db = serviceClient();
   const requestId = crypto.randomUUID();
   const actorId = userId === "system" ? null : userId;
+  const requestedAt = new Date().toISOString();
 
   const { error } = await db.from("admin_config").upsert({
     key: "AGENT_UPDATE_REQUEST",
     value: {
       request_id: requestId,
-      requested_at: new Date().toISOString(),
+      requested_at: requestedAt,
       requested_by: actorId,
       action,
     },
@@ -725,6 +727,10 @@ export async function handleTriggerAgentUpdate(
   });
 
   if (error) return err(error.message, 500);
+
+  if (!shouldFlagWindowsRenderers(action, body.agent_type)) {
+    return json({ ok: true, request_id: requestId, requested_at: requestedAt });
+  }
 
   const { data: windowsAgents } = await db
     .from("agent_registrations")
@@ -741,14 +747,14 @@ export async function handleTriggerAgentUpdate(
             ...meta,
             trigger_update: true,
             update_requested_by: actorId,
-            update_requested_at: new Date().toISOString(),
+            update_requested_at: requestedAt,
           },
         })
         .eq("id", agent.id);
     }
   }
 
-  return json({ ok: true, request_id: requestId });
+  return json({ ok: true, request_id: requestId, requested_at: requestedAt });
 }
 
 // ── get-update-status ───────────────────────────────────────────────
