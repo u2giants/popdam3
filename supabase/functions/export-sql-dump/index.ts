@@ -1,10 +1,28 @@
-import { exportRange, insertRowSQL, type ManifestEntry, manifestEntry } from "../_shared/export-pagination.ts";
+import {
+  afterCursorFilter,
+  clampChunkSize,
+  decodeCursor,
+  encodeCursor,
+  insertRowSQL,
+  type ManifestEntry,
+  manifestEntry,
+  parseCutoff,
+  snapshotColumn,
+} from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *
  * Two modes:
- *   GET ?action=manifest   → JSON with table names + row counts
- *   GET ?table=X&offset=Y  → SQL file with INSERT batch for that chunk
+ *   GET ?action=manifest   → JSON with table names, row counts and a snapshot
+ *                            cutoff; counts include only rows inserted by it
+ *   GET ?table=X&offset=Y&cutoff=C[&after=K]
+ *                          → SQL file with the next rows after keyset cursor K
+ *                            (none = start), inserted by C. X-Next-Cursor
+ *                            carries the cursor for the following chunk.
+ *
+ * Live ingestion keeps writing while an export runs (#1132): the cutoff keeps
+ * counts stable and keyset paging keeps rows from shifting between chunks.
+ * offset only labels the chunk.
  *
  * Each chunk is a self-contained transaction:
  *   BEGIN;
@@ -85,11 +103,20 @@ corsServe(async (req) => {
 
     // ── MANIFEST ──────────────────────────────────────────────────
     if (action === "manifest") {
-      const chunkSize = parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10);
+      let chunkSize: number;
+      try {
+        chunkSize = clampChunkSize(parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10));
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid chunk_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
+      }
+      const cutoff = new Date().toISOString();
       const tables: ManifestEntry[] = [];
 
       for (const table of TABLES_IN_ORDER) {
-        const { count, error } = await tableSource(db, table).select("*", { count: "exact", head: true });
+        const col = snapshotColumn(table);
+        let countQuery = tableSource(db, table).select("*", { count: "exact", head: true });
+        if (col) countQuery = countQuery.lte(col, cutoff);
+        const { count, error } = await countQuery;
         try {
           tables.push(manifestEntry(table, count, error, chunkSize));
         } catch (e) {
@@ -101,7 +128,7 @@ corsServe(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ chunkSize, tables, complete: true, generated: new Date().toISOString() }), {
+      return new Response(JSON.stringify({ chunkSize, cutoff, tables, complete: true, generated: new Date().toISOString() }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -116,22 +143,31 @@ corsServe(async (req) => {
     }
 
     const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
-    const chunkSize = Math.min(
-      parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10),
-      10000,
-    );
-    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(chunkSize) || chunkSize < 1) {
-      return new Response(JSON.stringify({ error: "Invalid offset or chunk_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    let chunkSize: number;
+    let cutoff: string | null;
+    let afterKey: string[] | null;
+    try {
+      chunkSize = clampChunkSize(parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10));
+      cutoff = parseCutoff(url.searchParams.get("cutoff"));
+      const after = url.searchParams.get("after");
+      afterKey = after ? decodeCursor(table, after) : null;
+    } catch (e) {
+      return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      return new Response(JSON.stringify({ error: "Invalid offset" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
     const includeTruncate = url.searchParams.get("truncate") === "true" && offset === 0;
+    const col = snapshotColumn(table);
 
-    // Fetch rows in PostgREST pages
+    // Fetch rows in PostgREST pages, keyset-ordered after the cursor
     const rows: Record<string, unknown>[] = [];
-    let pgOffset = offset;
     while (rows.length < chunkSize) {
       const requested = Math.min(POSTGREST_PAGE, chunkSize - rows.length);
-      const { data: page, error } = await orderedTableSource(db, table)
-        .range(...exportRange(pgOffset, chunkSize - rows.length, POSTGREST_PAGE));
+      let query = orderedTableSource(db, table);
+      if (col && cutoff) query = query.lte(col, cutoff);
+      if (afterKey) query = query.or(afterCursorFilter(table, afterKey));
+      const { data: page, error } = await query.limit(requested);
 
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
@@ -142,8 +178,9 @@ corsServe(async (req) => {
       if (!page || page.length === 0) break;
       for (const r of page) rows.push(r as Record<string, unknown>);
       if (page.length < requested) break;
-      pgOffset += requested;
+      afterKey = decodeCursor(table, encodeCursor(table, rows[rows.length - 1]));
     }
+    const nextCursor = rows.length ? encodeCursor(table, rows[rows.length - 1]) : "";
 
     // Build SQL
     const lines: string[] = [];
@@ -181,6 +218,7 @@ corsServe(async (req) => {
         "X-Table": table,
         "X-Offset": String(offset),
         "X-Rows-In-Chunk": String(rows.length),
+        "X-Next-Cursor": nextCursor,
       },
     });
   } catch (err) {
