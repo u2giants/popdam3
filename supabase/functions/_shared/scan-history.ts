@@ -34,9 +34,7 @@ export function buildScanHistoryEntry(
 ): ScanHistoryEntry {
   const startMs = startedAt ? Date.parse(startedAt) : NaN;
   const endMs = Date.parse(finishedAt);
-  const duration = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs
-    ? Math.round((endMs - startMs) / 1000)
-    : null;
+  const duration = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs ? Math.round((endMs - startMs) / 1000) : null;
   return {
     session_id: sessionId,
     status,

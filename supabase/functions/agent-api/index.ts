@@ -71,14 +71,15 @@ import {
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS, unassignStyleGroup } from "../_shared/style-group-assignment.ts";
-import { AI_INHERITANCE_COLUMNS, inheritedAiFields, isRevivableRetirement, RETIRED_MISSING_MARKER, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
 import {
-  appendScanHistory,
-  buildScanHistoryEntry,
-  isExpiredSiblingScanRow,
-  SCAN_HISTORY_KEY,
-  TERMINAL_SCAN_STATUSES,
-} from "../_shared/scan-history.ts";
+  AI_INHERITANCE_COLUMNS,
+  inheritedAiFields,
+  isRevivableRetirement,
+  RETIRED_MISSING_MARKER,
+  RETIRED_STALE_MARKER,
+  staleRetirementRefusal,
+} from "../_shared/stale-asset-retirement.ts";
+import { appendScanHistory, buildScanHistoryEntry, isExpiredSiblingScanRow, SCAN_HISTORY_KEY, TERMINAL_SCAN_STATUSES } from "../_shared/scan-history.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 import {
@@ -1506,15 +1507,26 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const checkedOut = new Set((checkouts ?? []).map((c: { asset_id: string }) => c.asset_id));
 
   const skipped: Record<string, number> = {};
-  const skip = (reason: string) => { skipped[reason] = (skipped[reason] ?? 0) + 1; };
+  const skip = (reason: string) => {
+    skipped[reason] = (skipped[reason] ?? 0) + 1;
+  };
   const retireIds: string[] = [];
   const history: Array<Record<string, unknown>> = [];
   const found = new Set<string>();
   for (const row of (rows ?? []) as Array<{ id: string; relative_path: string; is_deleted: boolean | null }>) {
     found.add(row.id);
-    if (row.is_deleted) { skip("not_live"); continue; }
-    if (row.relative_path !== wanted.get(row.id)) { skip("path_changed_since_check"); continue; }
-    if (checkedOut.has(row.id)) { skip("open_checkout"); continue; }
+    if (row.is_deleted) {
+      skip("not_live");
+      continue;
+    }
+    if (row.relative_path !== wanted.get(row.id)) {
+      skip("path_changed_since_check");
+      continue;
+    }
+    if (checkedOut.has(row.id)) {
+      skip("open_checkout");
+      continue;
+    }
     retireIds.push(row.id);
     history.push({ asset_id: row.id, old_relative_path: row.relative_path, new_relative_path: RETIRED_MISSING_MARKER });
   }
