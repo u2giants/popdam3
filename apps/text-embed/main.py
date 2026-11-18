@@ -18,6 +18,7 @@ import copy
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Annotated
 
 import torch
 from fastapi import FastAPI, Header, HTTPException
@@ -65,15 +66,20 @@ with torch.inference_mode():
     ).past_key_values
 
 
+# One limit for every text the service accepts, single or batched (#1105).
+TEXT_MAX_CHARS = 8000
+TextInput = Annotated[str, Field(min_length=1, max_length=TEXT_MAX_CHARS)]
+
+
 class EmbedRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=8000)
+    text: TextInput
 
 
 class EmbedBatchRequest(BaseModel):
     # Search sends the typed query plus its product-phrase variants together:
     # one forward pass for them all instead of requests that queue on the CPU
     # (padding is already fixed at max_length, so extra texts cost ~nothing).
-    texts: list[str] = Field(..., min_length=1, max_length=16)
+    texts: list[TextInput] = Field(..., min_length=1, max_length=16)
 
 
 def _as_tensor(out):

@@ -62,6 +62,42 @@ def test_prefix_cache_matches_full_forward():
 
 
 def test_long_query_truncated():
-    long = "frame " * 2000
+    # Longest text the service accepts (#1105): still cut to TEXT_MAX_TOKENS.
+    long = ("frame " * main.TEXT_MAX_CHARS)[: main.TEXT_MAX_CHARS]
     body = client.post("/embed-text-batch", json={"texts": [long]}, headers=H).json()
     assert len(body["text_vectors"][0]) == 1024
+
+
+def test_single_and_batch_share_one_text_limit():
+    single = main.EmbedRequest.model_json_schema()["properties"]["text"]
+    batch_item = main.EmbedBatchRequest.model_json_schema()["properties"]["texts"]["items"]
+    assert single["maxLength"] == main.TEXT_MAX_CHARS == batch_item["maxLength"]
+    assert single["minLength"] == batch_item["minLength"] == 1
+
+
+def test_batch_rejects_oversized_item_like_single():
+    too_long = "a" * (main.TEXT_MAX_CHARS + 1)
+    single = client.post("/embed-text", json={"text": too_long}, headers=H)
+    batch = client.post("/embed-text-batch", json={"texts": [too_long]}, headers=H)
+    assert single.status_code == 422
+    assert batch.status_code == 422
+
+
+def test_batch_rejects_oversized_item_even_beside_valid_items():
+    texts = ["framed print", "b" * (main.TEXT_MAX_CHARS + 1)]
+    r = client.post("/embed-text-batch", json={"texts": texts}, headers=H)
+    assert r.status_code == 422
+
+
+def test_batch_accepts_item_at_limit_like_single():
+    at_limit = ("frame " * main.TEXT_MAX_CHARS)[: main.TEXT_MAX_CHARS]
+    assert len(at_limit) == main.TEXT_MAX_CHARS
+    assert client.post("/embed-text", json={"text": at_limit}, headers=H).status_code == 200
+    r = client.post("/embed-text-batch", json={"texts": [at_limit]}, headers=H)
+    assert r.status_code == 200
+    assert len(r.json()["text_vectors"][0]) == 1024
+
+
+def test_batch_still_caps_item_count():
+    r = client.post("/embed-text-batch", json={"texts": ["frame"] * 17}, headers=H)
+    assert r.status_code == 422

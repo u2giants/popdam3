@@ -27,8 +27,8 @@ same stamp.
 | Endpoint | Body | Response |
 |---|---|---|
 | `GET /health` | — | `{ok, model, device, dim, text_model, text_dim}` |
-| `POST /embed-text` | `{text}` | `{ok, dim, model, vector[768], took_ms}` |
-| `POST /embed-text-batch` | `{texts: [up to 16]}` | `{ok, dim, model, vectors[768][], text_dim, text_model, text_vectors[1024][], took_ms}` |
+| `POST /embed-text` | `{text}` (1–8000 characters) | `{ok, dim, model, vector[768], took_ms}` |
+| `POST /embed-text-batch` | `{texts: [up to 16, each 1–8000 characters]}` | `{ok, dim, model, vectors[768][], text_dim, text_model, text_vectors[1024][], took_ms}` |
 
 Auth: optional `X-Embed-Key` header matching `EMBED_API_KEY` (open if unset).
 
