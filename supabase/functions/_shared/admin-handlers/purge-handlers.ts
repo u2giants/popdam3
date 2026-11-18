@@ -5,6 +5,7 @@
 import { refreshStyleGroupCounts } from "../style-group-counts-refresh.ts";
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
+import { partitionStyleGroupsByOccupancy } from "../style-group-occupancy.ts";
 
 export async function handlePurgeOldAssets(body: Record<string, unknown>) {
   const cutoffDate = typeof body.cutoff_date === "string" ? body.cutoff_date : null;
@@ -50,19 +51,10 @@ export async function handlePurgeOldAssets(body: Record<string, unknown>) {
   let groupsUpdated = 0;
 
   if (affectedGroupIds.length > 0) {
-    // Use a consolidated query to find groups with zero remaining assets
-    const { data: groupCounts } = await db
-      .from("assets")
-      .select("style_group_id")
-      .eq("is_deleted", false)
-      .in("style_group_id", affectedGroupIds);
-
-    const groupsWithAssets = new Set(
-      (groupCounts ?? []).map((r: any) => r.style_group_id),
-    );
-
-    const emptyGroups = affectedGroupIds.filter((id) => !groupsWithAssets.has(id));
-    const nonEmptyGroups = affectedGroupIds.filter((id) => groupsWithAssets.has(id));
+    const occ = await partitionStyleGroupsByOccupancy(db, affectedGroupIds);
+    if (!occ.ok) return err(`Group occupancy check failed; no groups removed: ${occ.error}`, 500);
+    const emptyGroups = occ.empty;
+    const nonEmptyGroups = occ.occupied;
 
     // Delete empty groups
     if (emptyGroups.length > 0) {
@@ -158,15 +150,10 @@ export async function handlePurgeExcludedSubfolderAssets() {
   let groupsUpdated = 0;
 
   if (affectedGroupIds.length > 0) {
-    const { data: groupCounts } = await db
-      .from("assets")
-      .select("style_group_id")
-      .eq("is_deleted", false)
-      .in("style_group_id", affectedGroupIds);
-
-    const groupsWithAssets = new Set((groupCounts ?? []).map((r: any) => r.style_group_id));
-    const emptyGroups = affectedGroupIds.filter((id) => !groupsWithAssets.has(id));
-    const nonEmptyGroups = affectedGroupIds.filter((id) => groupsWithAssets.has(id));
+    const occ = await partitionStyleGroupsByOccupancy(db, affectedGroupIds);
+    if (!occ.ok) return err(`Group occupancy check failed; no groups removed: ${occ.error}`, 500);
+    const emptyGroups = occ.empty;
+    const nonEmptyGroups = occ.occupied;
 
     if (emptyGroups.length > 0) {
       const { error: delGroupErr } = await db.from("style_groups").delete().in("id", emptyGroups);
