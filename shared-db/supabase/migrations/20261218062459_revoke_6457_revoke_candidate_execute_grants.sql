@@ -7,11 +7,15 @@
 -- The #6416 measurement classified 107 "revoke-candidate" SD functions (no
 -- application .rpc() caller). Contract-test analysis (2026-11-17) revealed
 -- that most are exercised as authenticated by supabase/tests contract tests
--- (direct SQL calls, not supabase-js .rpc()). Only 37 have NO test coverage,
+-- (direct SQL calls, not supabase-js .rpc()). Only 36 have NO test coverage,
 -- NO .rpc() caller, NO RLS/invoker chain, and NO contract-test privilege pin.
 --
--- KEEP (69 unique names): 7 RLS/invoker-reachable + 62 contract-test-called/pinned.
--- REVOKE (37): truly unused surface.
+-- KEEP (70 unique names): 7 RLS/invoker-reachable + 62 contract-test-called/pinned
+-- + `public.resolve_coldlion_triage` (carve-out, issue #6657: its creating
+-- migration 20261029023554 deliberately revokes public/anon and grants
+-- `to authenticated, service_role` for the guided-triage journey, pinned by
+-- .github/live-proofs/5004.sql — the supabase/tests-only caller scan missed it).
+-- REVOKE (36): truly unused surface.
 --
 -- ROLLBACK (named): forward migration re-granting for exactly the revoked
 -- signatures listed in the evidence artifact.
@@ -66,8 +70,7 @@ begin
       'public.reject_style_guide_auto_tag',
       'public.remove_style_guide_manual_tag',
       'public.replace_style_guide_deterministic_tags',
-      'public.replace_style_guide_folder_consensus_tags',
-      'public.resolve_coldlion_triage'
+      'public.replace_style_guide_folder_consensus_tags'
     )
       and p.prosecdef
       and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
@@ -123,8 +126,7 @@ begin
       'public.reject_style_guide_auto_tag',
       'public.remove_style_guide_manual_tag',
       'public.replace_style_guide_deterministic_tags',
-      'public.replace_style_guide_folder_consensus_tags',
-      'public.resolve_coldlion_triage'
+      'public.replace_style_guide_folder_consensus_tags'
   )
     and p.prosecdef
     and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
@@ -136,7 +138,7 @@ begin
     raise exception 'revoke-set functions still exposed after revoke: %', leftover;
   end if;
 
-  raise notice 'kept (RLS/invoker + contract-test): 69 names; revoke set: 37 names';
+  raise notice 'kept (RLS/invoker + contract-test + triage carve-out): 70 names; revoke set: 36 names';
 end
 $$;
 

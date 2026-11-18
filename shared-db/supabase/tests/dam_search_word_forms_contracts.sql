@@ -8,7 +8,7 @@ do $test$
 declare
   lic uuid;
   g_exact uuid; g_form uuid; g_plural uuid; g_other uuid; g_name_exact uuid; g_name_form uuid; g_name_blur uuid;
-  r record; ids uuid[]; n bigint; v tsvector; q tsquery; done integer;
+  r record; ids uuid[]; expected_page uuid; n bigint; v tsvector; q tsquery; done integer;
   exact_rank real; form_rank real; plural_rank real; base_rank real;
 begin
   -- the stemmed column, its index and trigger exist; the exact index is untouched
@@ -80,10 +80,20 @@ begin
   if public.dam_search_tsv_en_backfill() <> 0 then raise exception 'popdam3#1037 Step 7: second backfill not a no-op'; end if;
 
   -- "frame" finds frame, framed and frames; the exact one ranks first, word forms below every exact match
-  select array_agg(s.entity_id), min(s.total_count) into ids, n
-  from public.search_dam_documents('zqlamp frame', '{}'::jsonb, 50, 0, null, null, 0, null) s;
-  if n <> 3 or not (ids @> array[g_exact, g_form, g_plural]) or ids && array[g_other] then
+  select array_agg(s.entity_id order by s.ordinality), min(s.total_count) into ids, n
+  from public.search_dam_documents('zqlamp frame', '{}'::jsonb, 50, 0, null, null, 0, null) with ordinality s;
+  if n is distinct from 3 or cardinality(ids) is distinct from 3
+      or ids[1] is distinct from g_exact or not (ids @> array[g_exact, g_form, g_plural]) then
     raise exception 'popdam3#1037 Step 7: zqlamp frame returned % %', n, ids;
+  end if;
+  -- The exact key also matches the stemmed query. Excluding its duplicate must leave
+  -- both word forms reachable on later pages and preserve the exact visible total.
+  expected_page := ids[3];
+  select s.* into strict r
+  from public.search_dam_documents('zqlamp frame', '{}'::jsonb, 1, 2, null, null, 0, null) s;
+  if r.entity_id is distinct from expected_page or r.total_count is distinct from 3
+      or r.has_more is distinct from false then
+    raise exception 'popdam3#1037 Step 7: the word-form-only last page or its exact total changed';
   end if;
   select max(s.keyword_rank) filter (where s.entity_id=g_exact), max(s.keyword_rank) filter (where s.entity_id=g_form),
          max(s.keyword_rank) filter (where s.entity_id=g_plural)

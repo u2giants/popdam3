@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "migration_version": "20261218062459",
-  "migration_sha256": "03c324c560fa4a403d93f05760e12cc0ae2c71ca5d22799eb38705e40d97b3b9",
+  "migration_sha256": "310bc110d1d6d3cfca0ee585b13671f7fe49f9386f846f516a7ef3ce974d168f",
   "marker_schema_version": 1,
   "marker_reviews": [
     {
-      "line_start": 79,
-      "line_end": 80,
+      "line_start": 82,
+      "line_end": 83,
       "disposition": "no_durable_target",
-      "reason": "The dynamic marker is the existence-guarded REVOKE EXECUTE loop over the 37 named revoke-candidate functions (issue #6457). No sidecar check kind can assert role privileges: the supported kinds are exact_row_count, catalog_contract and catalog_absence, none of which expresses has_function_privilege state. The durable proof is the in-migration assertion (the same DO block raises if any in-scope anon/authenticated/PUBLIC EXECUTE grant survives on the revoke set) plus the preview after-census and issue #6457's acceptance check. Same shape and rationale as the #6415 sidecar for migration 20261116013153."
+      "reason": "The dynamic marker is the existence-guarded REVOKE EXECUTE loop over the 36 named revoke-candidate functions (issue #6457; 36 after the public.resolve_coldlion_triage carve-out of issue #6657 — its creating migration 20261029023554 deliberately grants authenticated/service_role for the guided-triage journey pinned by .github/live-proofs/5004.sql). No sidecar check kind can assert role privileges: the supported kinds are exact_row_count, catalog_contract and catalog_absence, none of which expresses has_function_privilege state. The durable proof is the in-migration assertion (the same DO block raises if any in-scope anon/authenticated/PUBLIC EXECUTE grant survives on the revoke set) plus the preview after-census and issue #6457's acceptance check. Same shape and rationale as the #6415 sidecar for migration 20261116013153."
     }
   ],
   "checks": []
