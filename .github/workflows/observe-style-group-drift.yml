@@ -29,7 +29,9 @@ jobs:
   observe:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 13
+    # Budget: up to 3 RPC attempts at 240 s each plus retry delays (see
+    # scripts/observe-style-group-drift.mjs), then artifact + alert steps.
+    timeout-minutes: 15
     permissions:
       contents: read
       issues: write
