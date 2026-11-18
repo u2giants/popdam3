@@ -1059,8 +1059,8 @@ async function reconcileCatalogWithDisk(candidates: FileCandidate[], scanRoots: 
     });
     counters.retired_missing = result.retired;
     if (result.refused) {
-      logger.warn("Missing-file reconciliation retired nothing", { ...result });
-      if (result.refused === "too_many_missing") counters.errors++;
+      logger.warn("Missing-file reconciliation stopped early", { ...result });
+      if (result.refused === "too_many_missing" || result.refused === "retire_failed") counters.errors++;
     } else {
       logger.info("Missing-file reconciliation complete", { ...result });
     }

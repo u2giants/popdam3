@@ -312,9 +312,9 @@ export async function listLiveAssetPaths(afterId: string | null): Promise<{
 
 export async function retireMissingAssets(
   assets: Array<{ asset_id: string; confirmed_absent_path: string }>,
-): Promise<{ retired: number }> {
+): Promise<{ retired: number; error?: string }> {
   const data = await callApi("retire-missing-assets", { assets }, 120_000);
-  return { retired: Number(data.retired ?? 0) };
+  return { retired: Number(data.retired ?? 0), ...(data.partial ? { error: String(data.error ?? "partial retirement") } : {}) };
 }
 
 export interface ScanCheckpoint {
