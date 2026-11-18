@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { expectedChunkRows, manifestEntry } from "../../supabase/functions/_shared/export-pagination";
+import { expectedChunkRows, insertRowSQL, manifestEntry } from "../../supabase/functions/_shared/export-pagination";
 
 describe("SQL dump manifest (#1082)", () => {
   it("refuses to report a failed count as an empty table", () => {
@@ -37,5 +37,14 @@ describe("SQL dump download validation (#1083-#1085)", () => {
     expect(ps).toMatch(/restore-order\.txt/);
     expect(ps).not.toMatch(/Get-ChildItem .*\*\.sql/);
     expect(ps).toMatch(/ON_ERROR_STOP=1/);
+  });
+});
+
+describe("SQL dump row encoding (#1085 restore proof)", () => {
+  it("decodes JSON through the target's column types and escapes quotes", () => {
+    const sql = insertRowSQL("public.erp_sync_runs", { id: "x", error_samples: [{ m: "it's" }] });
+    expect(sql).toBe(
+      `INSERT INTO public.erp_sync_runs ("id", "error_samples") SELECT "id", "error_samples" FROM jsonb_populate_record(NULL::public.erp_sync_runs, '{"id":"x","error_samples":[{"m":"it''s"}]}'::jsonb);`,
+    );
   });
 });
