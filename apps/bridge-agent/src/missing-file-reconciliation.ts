@@ -50,6 +50,8 @@ export interface ReconcileResult {
   live_under_roots: number;
   missing: number;
   retired: number;
+  /** Batches the cloud could not retire; their records stay live for the next scan. */
+  failed_batches: number;
   refused?: "skipped_dirs" | "root_unreadable" | "too_many_missing" | "aborted";
 }
 
@@ -68,7 +70,7 @@ async function rootsReadable(roots: string[], readdir: ReconcileDeps["readdir"])
 }
 
 export async function reconcileMissingFiles(options: ReconcileOptions, deps: ReconcileDeps): Promise<ReconcileResult> {
-  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0 };
+  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0, failed_batches: 0 };
   if (options.skippedDirsTruncated) return { ...result, refused: "skipped_dirs" };
   const skipped = options.skippedDirs.map((d) => d.replace(/^\/+|\/+$/g, "")).filter(Boolean);
 
@@ -125,11 +127,16 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
   if (missing.length > ceiling) return { ...result, refused: "too_many_missing" };
   if (!await rootsReadable(roots, deps.readdir)) return { ...result, refused: "root_unreadable" };
 
-  const batchSize = options.retireBatchSize ?? 100;
+  const batchSize = options.retireBatchSize ?? 25;
   for (let i = 0; i < missing.length; i += batchSize) {
     if (deps.shouldAbort?.()) return { ...result, refused: "aborted" };
-    const { retired } = await deps.retire(missing.slice(i, i + batchSize));
-    result.retired += retired;
+    try {
+      const { retired } = await deps.retire(missing.slice(i, i + batchSize));
+      result.retired += retired;
+    } catch {
+      // One slow batch must not hide the rest or lose the count so far.
+      result.failed_batches++;
+    }
   }
   return result;
 }

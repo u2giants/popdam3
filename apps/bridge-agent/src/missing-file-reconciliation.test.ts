@@ -144,3 +144,29 @@ test("a name differing only by case or Unicode form is present", async () => {
   });
   assert.deepEqual(retired, []);
 });
+
+test("a failed batch does not stop the rest or lose the count", async () => {
+  const paths = Array.from({ length: 30 }, (_, i) => `Decor/f${i}.psd`);
+  let calls = 0;
+  const result = await reconcileMissingFiles({
+    mountRoot: "/mnt",
+    scanRoots: ["/mnt/Decor"],
+    seenPaths: new Set(paths.slice(3)),
+    skippedDirs: [],
+    skippedDirsTruncated: false,
+    retireBatchSize: 1,
+  }, {
+    listLivePaths: async () => ({ assets: paths.map((p, i) => ({ id: `id${i}`, relative_path: p })), next_after_id: null }),
+    retire: async (assets) => {
+      if (++calls === 2) throw new Error("timeout");
+      return { retired: assets.length };
+    },
+    stat: async (p) => {
+      if (!paths.slice(3).includes(p.replace("/mnt/", ""))) throw enoent();
+    },
+    readdir: async () => ["x"],
+  });
+  assert.equal(result.missing, 3);
+  assert.equal(result.retired, 2);
+  assert.equal(result.failed_batches, 1);
+});

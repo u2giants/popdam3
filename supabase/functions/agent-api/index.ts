@@ -1477,6 +1477,7 @@ async function handleListLiveAssetPaths(body: Record<string, unknown>) {
 // a file that returns at the same path revives the record on its next ingest.
 
 const RETIRE_MISSING_MAX_BATCH = 100;
+// The bridge sends 25 at a time; larger batches timed out on the first live run.
 
 async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const items = body.assets;
@@ -1532,19 +1533,46 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   }
   for (const id of ids) if (!found.has(id)) skip("not_found");
 
+  // Retire first and record history only for rows that really changed, so a
+  // retried call adds nothing twice. A whole-batch update can hit the statement
+  // timeout (row triggers), so on failure fall back to one row at a time.
+  const retired: string[] = [];
   if (retireIds.length > 0) {
-    // History first: without the marker a returning file could not revive the record.
-    const { error: historyError } = await db.from("asset_path_history").insert(history);
-    if (historyError) return err(historyError.message, 500);
-    const { error: retireError } = await db
+    const { data: flipped, error: retireError } = await db
       .from("assets")
       .update({ is_deleted: true })
       .in("id", retireIds)
-      .eq("is_deleted", false);
-    if (retireError) return err(retireError.message, 500);
+      .eq("is_deleted", false)
+      .select("id");
+    if (!retireError) {
+      retired.push(...(flipped ?? []).map((r: { id: string }) => r.id));
+    } else {
+      console.warn(`[retire-missing-assets] batch update failed (${retireError.message}); retrying row by row`);
+      for (const id of retireIds) {
+        const { data: one, error: oneError } = await db
+          .from("assets")
+          .update({ is_deleted: true })
+          .eq("id", id)
+          .eq("is_deleted", false)
+          .select("id");
+        if (oneError) { skip("update_failed"); continue; }
+        if (one?.length) retired.push(id);
+      }
+    }
   }
-  console.log(`[retire-missing-assets] retired ${retireIds.length}, skipped ${JSON.stringify(skipped)}`);
-  return json({ ok: true, retired: retireIds.length, skipped });
+  if (retired.length > 0) {
+    const done = new Set(retired);
+    const { error: historyError } = await db
+      .from("asset_path_history")
+      .insert(history.filter((h) => done.has(h.asset_id as string)));
+    if (historyError) {
+      // Without the marker a returning file could not revive the record: undo.
+      await db.from("assets").update({ is_deleted: false }).in("id", retired);
+      return err(historyError.message, 500);
+    }
+  }
+  console.log(`[retire-missing-assets] retired ${retired.length}, skipped ${JSON.stringify(skipped)}`);
+  return json({ ok: true, retired: retired.length, skipped });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────
