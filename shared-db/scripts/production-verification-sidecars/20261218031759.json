@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261218031759",
+  "migration_sha256": "52a4d4083be0d2ccf166d1a0d58061132af025d9695655dc30865061ec69a32a",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 109,
+      "line_end": 109,
+      "disposition": "no_durable_target",
+      "reason": "The dynamic marker is the existence-guarded REVOKE EXECUTE loop over the 17 pinned security-definer signatures. No sidecar check kind can assert role privileges: the supported kinds are exact_row_count, catalog_contract and catalog_absence, none of which expresses has_function_privilege state, and the functions remain present (catalog_absence would be false). The durable proof is the in-migration post-revoke assertion (the same DO block raises if any in-scope signature that exists still grants EXECUTE to anon or authenticated) plus the preview after-census on issue #6455 and the named rollback in the migration header."
+    }
+  ],
+  "checks": []
+}
