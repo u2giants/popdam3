@@ -11,7 +11,13 @@
  * also serves repeated searches and the eval harness's warm-up pass for free.
  */
 export type BatchEmbedOutcome =
-  | { status: "ok"; vectors: number[][] }
+  | {
+    status: "ok";
+    vectors: number[][];
+    /** popdam3#1037 Step 6: text-meaning (Qwen3) vectors from the same call, when the service sends them. */
+    textVectors?: (number[] | null)[];
+    textModel?: string | null;
+  }
   | { status: "absent" }
   | { status: "failed" };
 
@@ -25,6 +31,18 @@ export interface QueryEmbedTransport {
 export interface QueryEmbedder {
   embed(text: string): Promise<number[] | null>;
   embedAll(texts: string[]): Promise<Map<string, number[] | null>>;
+  /** Picture AND text-meaning vectors for every text from ONE batched call (#804, #1037). */
+  embedAllWithText(texts: string[]): Promise<EmbedWithText>;
+}
+
+export interface TextVector {
+  vector: number[];
+  model: string;
+}
+
+export interface EmbedWithText {
+  vectors: Map<string, number[] | null>;
+  textVectors: Map<string, TextVector | null>;
 }
 
 const MAX_CACHE_ENTRIES = 256;
@@ -49,7 +67,57 @@ export function createQueryEmbedder(transport: QueryEmbedTransport): QueryEmbedd
     cache.set(text, vector);
   };
 
+  const textCache = new Map<string, TextVector>();
+  const cachedText = (text: string): TextVector | null => {
+    const hit = textCache.get(text) ?? null;
+    if (hit) {
+      textCache.delete(text);
+      textCache.set(text, hit);
+    }
+    return hit;
+  };
+  const rememberText = (text: string, value: TextVector | null) => {
+    if (!value) return;
+    if (!textCache.has(text) && textCache.size >= MAX_CACHE_ENTRIES) {
+      textCache.delete(textCache.keys().next().value as string);
+    }
+    textCache.set(text, value);
+  };
+
   return {
+    async embedAllWithText(texts) {
+      const vectors = new Map<string, number[] | null>();
+      const textVectors = new Map<string, TextVector | null>();
+      const misses: string[] = [];
+      for (const text of new Set(texts)) {
+        const picture = cached(text);
+        const meaning = cachedText(text);
+        vectors.set(text, picture);
+        textVectors.set(text, meaning);
+        if (!picture || !meaning) misses.push(text);
+      }
+      if (!misses.length) return { vectors, textVectors };
+      const outcome = await transport.embedBatch(misses);
+      // Only the batch endpoint carries text vectors: an absent endpoint or a failure leaves
+      // them null and the caller fails the search when the text leg is required (D4).
+      if (outcome.status !== "ok") {
+        for (const text of misses) {
+          if (!cached(text)) vectors.set(text, null);
+        }
+        return { vectors, textVectors };
+      }
+      misses.forEach((text, index) => {
+        const vector = outcome.vectors[index] ?? null;
+        vectors.set(text, vector);
+        remember(text, vector);
+        const textVector = outcome.textVectors?.[index] ?? null;
+        const meaning = textVector && outcome.textModel ? { vector: textVector, model: outcome.textModel } : null;
+        textVectors.set(text, meaning);
+        rememberText(text, meaning);
+      });
+      return { vectors, textVectors };
+    },
+
     async embed(text) {
       const hit = cached(text);
       if (hit) return hit;

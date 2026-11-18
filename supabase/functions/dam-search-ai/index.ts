@@ -13,7 +13,7 @@ import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
 import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
-import { type BatchEmbedOutcome, createQueryEmbedder } from "../_shared/query-embed-batch.ts";
+import { type BatchEmbedOutcome, createQueryEmbedder, type EmbedWithText } from "../_shared/query-embed-batch.ts";
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
 
 /**
@@ -23,6 +23,9 @@ import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "
  */
 const SIGLIP2_MODEL = "google/siglip2-base-patch16-naflex";
 const SIGLIP2_DIM = 768;
+const TEXT_MEANING_DIM = 1024;
+export const SEARCH_TEXT_LEG_MODE_KEY = "SEARCH_TEXT_LEG_MODE";
+export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
 const PRODUCT_WORDS = [
@@ -219,6 +222,32 @@ async function authenticateCaller(req: Request) {
  * search to keyword-only (that downgrade is itself a result-set change users
  * see between refreshes). Deterministic results are cached per isolate.
  */
+/**
+ * popdam3#1037 Step 6: SEARCH_TEXT_LEG_MODE ("off" | "on", default off) and the stored text-vector
+ * model stamp. Returns null when the config cannot be read (the caller answers 503), and when the
+ * mode is on without a model stamp.
+ */
+export function textLegSettings(
+  result: { data?: { key: string; value: unknown }[] | null; error?: unknown },
+): { on: boolean; model: string | null } | null {
+  if (result.error) {
+    console.error("SEARCH_TEXT_LEG_MODE read failed; failing closed");
+    return null;
+  }
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const read = (key: string) => {
+    const value = unwrapConfigValue(rows.find((row) => row.key === key)?.value);
+    return typeof value === "string" ? value.trim() : null;
+  };
+  const on = read(SEARCH_TEXT_LEG_MODE_KEY)?.toLowerCase() === "on";
+  const model = read(SEARCH_TEXT_EMBEDDING_MODEL_KEY) || null;
+  if (on && !model) {
+    console.error("SEARCH_TEXT_LEG_MODE is on but SEARCH_TEXT_EMBEDDING_MODEL is unset");
+    return null;
+  }
+  return { on, model };
+}
+
 const queryEmbedder = createQueryEmbedder({
   async embedBatch(texts) {
     const attempt = async (): Promise<BatchEmbedOutcome> => {
@@ -248,6 +277,8 @@ const queryEmbedder = createQueryEmbedder({
           dim?: number;
           model?: string;
           vectors?: number[][];
+          text_model?: string;
+          text_vectors?: number[][];
         };
         if (
           !payload.ok || !Array.isArray(payload.vectors) || payload.vectors.length !== texts.length ||
@@ -262,7 +293,19 @@ const queryEmbedder = createQueryEmbedder({
           console.error(`text-embed model mismatch: ${payload.model}`);
           return { status: "failed" };
         }
-        return { status: "ok", vectors: payload.vectors };
+        // popdam3#1037 Step 6: text-meaning vectors ride the same call. A malformed set is
+        // dropped (not the picture vectors); the text leg then fails the search when required.
+        const textOk = Array.isArray(payload.text_vectors) && payload.text_vectors.length === texts.length &&
+          payload.text_vectors.every((v) => Array.isArray(v) && v.length === TEXT_MEANING_DIM) &&
+          typeof payload.text_model === "string" && payload.text_model.length > 0;
+        if (payload.text_vectors !== undefined && !textOk) {
+          console.error(`text-embed batch returned bad text vectors count=${payload.text_vectors?.length ?? 0}`);
+        }
+        return {
+          status: "ok",
+          vectors: payload.vectors,
+          ...(textOk ? { textVectors: payload.text_vectors, textModel: payload.text_model } : {}),
+        };
       } catch (e) {
         console.error("text-embed batch call failed", e instanceof Error ? e.message : e);
         return { status: "failed" };
@@ -472,6 +515,15 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // A real product code, whole or its start, has no visual meaning: its picture leg only returns
         // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
         // The product-code check and spelling resolve together so neither waits on the other.
+        // popdam3#1037 Step 6: the text-meaning switch and its model stamp, read alongside the
+        // prechecks. Fail closed: an unreadable switch must not silently drop a required leg (D4).
+        const textLegConfig = timer.time(
+          "text_leg_config",
+          Promise.resolve(
+            serviceClient().from("admin_config").select("key, value")
+              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY]),
+          ).then((result) => result, (error: unknown) => ({ data: null, error })),
+        );
         const [productCodeSearch, spellingHelp] = await timer.time(
           "precheck",
           Promise.all([
@@ -513,10 +565,18 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // calls (one per variant, or query-then-variants) queue behind each other
         // and pay 1–3 s of tail (#804). One call, one latency draw.
         const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-        const [embeddings, floorConfig, licensors] = await timer.time(
+        const textLeg = textLegSettings(await textLegConfig);
+        if (!textLeg) return err("Search unavailable", 503);
+        // Text leg on: the text-meaning vectors ride the SAME batched call (#804: one latency draw).
+        const embedCall = (): Promise<EmbedWithText | null> => {
+          if (!semanticTexts.length) return Promise.resolve(null);
+          if (textLeg.on) return queryEmbedder.embedAllWithText(semanticTexts);
+          return queryEmbedder.embedAll(semanticTexts).then((vectors) => ({ vectors, textVectors: new Map() }));
+        };
+        const [embedded, floorConfig, licensors] = await timer.time(
           "prepare",
           Promise.all([
-            semanticTexts.length ? timer.time("embed", queryEmbedder.embedAll(semanticTexts)) : Promise.resolve(null),
+            timer.time("embed", embedCall()),
             // Server-side only: callers cannot override the admin-configured floor.
             timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
             usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
@@ -525,6 +585,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // A search that names a licensor keeps a picture-only match only when it belongs to that
         // licensor: pictures match the product's look, not whose artwork it is (#892).
         const semanticLicensorIds = namedLicensorIds([query, spelling.corrected], licensors);
+        const embeddings = embedded?.vectors ?? null;
         const embedding = embeddings?.get(query) ?? null;
         // Fail open: a config read failure must not take search down; it only
         // drops the optional floor for this request.
@@ -547,6 +608,28 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
 
         if (expanded.some(({ query: variant, semantic }) => semantic && usePictures && !variantEmbeddings.get(variant))) {
           return err("Search unavailable", 503);
+        }
+        // Text leg (#1037 Step 6): every variant with a picture vector also needs a text vector
+        // from the configured model; a missing vector or another model's stamp fails the search
+        // (D4: error and Retry, never fewer results; never compare vectors from different models).
+        const variantTextEmbeddings = new Map<string, number[] | null>();
+        if (textLeg.on) {
+          for (const [variant, picture] of variantEmbeddings) {
+            if (!picture) {
+              variantTextEmbeddings.set(variant, null);
+              continue;
+            }
+            const meaning = embedded?.textVectors.get(variant) ?? null;
+            if (!meaning) {
+              console.error(`text-meaning vector missing for a required variant; failing the search`);
+              return err("Search unavailable", 503);
+            }
+            if (meaning.model !== textLeg.model) {
+              console.error(`text-meaning model mismatch: service ${meaning.model} vs stored ${textLeg.model}`);
+              return err("Search unavailable", 503);
+            }
+            variantTextEmbeddings.set(variant, meaning.vector);
+          }
         }
 
         // One immediate retry per RPC call: statement timeouts under load are
@@ -595,6 +678,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               p_query_embedding: variantEmbedding,
               p_min_rank: minRank,
               p_min_semantic_score: floor,
+              ...(variantTextEmbeddings.get(variant) ? { p_query_text_embedding: variantTextEmbeddings.get(variant) } : {}),
             });
           let { data, error } = await timer.time("search_rpc", invoke);
           if (error) {
