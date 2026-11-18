@@ -79,6 +79,7 @@ import {
   RETIRED_STALE_MARKER,
   staleRetirementRefusal,
 } from "../_shared/stale-asset-retirement.ts";
+import { retireMissingInChunks } from "../_shared/retire-missing-chunks.ts";
 import { appendScanHistory, buildScanHistoryEntry, isExpiredSiblingScanRow, SCAN_HISTORY_KEY, TERMINAL_SCAN_STATUSES } from "../_shared/scan-history.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
@@ -1510,8 +1511,7 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const skip = (reason: string) => {
     skipped[reason] = (skipped[reason] ?? 0) + 1;
   };
-  const retireIds: string[] = [];
-  const history: Array<Record<string, unknown>> = [];
+  const retireRows: Array<{ id: string; relative_path: string }> = [];
   const found = new Set<string>();
   for (const row of (rows ?? []) as Array<{ id: string; relative_path: string; is_deleted: boolean | null }>) {
     found.add(row.id);
@@ -1527,24 +1527,37 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
       skip("open_checkout");
       continue;
     }
-    retireIds.push(row.id);
-    history.push({ asset_id: row.id, old_relative_path: row.relative_path, new_relative_path: RETIRED_MISSING_MARKER });
+    retireRows.push({ id: row.id, relative_path: row.relative_path });
   }
   for (const id of ids) if (!found.has(id)) skip("not_found");
 
-  if (retireIds.length > 0) {
-    // History first: without the marker a returning file could not revive the record.
-    const { error: historyError } = await db.from("asset_path_history").insert(history);
-    if (historyError) return err(historyError.message, 500);
-    const { error: retireError } = await db
-      .from("assets")
-      .update({ is_deleted: true })
-      .in("id", retireIds)
-      .eq("is_deleted", false);
-    if (retireError) return err(retireError.message, 500);
-  }
-  console.log(`[retire-missing-assets] retired ${retireIds.length}, skipped ${JSON.stringify(skipped)}`);
-  return json({ ok: true, retired: retireIds.length, skipped });
+  const outcome = await retireMissingInChunks(retireRows, {
+    insertHistory: async (rows) => {
+      const { data, error } = await db
+        .from("asset_path_history")
+        .insert(rows.map((r) => ({ ...r, new_relative_path: RETIRED_MISSING_MARKER })))
+        .select("id");
+      return { ids: ((data ?? []) as Array<{ id: string }>).map((r) => r.id), error: error?.message };
+    },
+    softDelete: async (assetIds) => {
+      const { data, error } = await db
+        .from("assets")
+        .update({ is_deleted: true })
+        .in("id", assetIds)
+        .eq("is_deleted", false)
+        .select("id");
+      return { ids: ((data ?? []) as Array<{ id: string }>).map((r) => r.id), error: error?.message };
+    },
+    deleteHistory: async (historyIds) => {
+      if (historyIds.length === 0) return {};
+      const { error } = await db.from("asset_path_history").delete().in("id", historyIds);
+      return { error: error?.message };
+    },
+  });
+  console.log(`[retire-missing-assets] retired ${outcome.retired}, skipped ${JSON.stringify(skipped)}${outcome.error ? `, stopped: ${outcome.error}` : ""}`);
+  // Work done before a failure is reported, not lost: a 500 would make the
+  // bridge retry rows already retired and hide the count.
+  return json({ ok: true, retired: outcome.retired, skipped, ...(outcome.error ? { partial: true, error: outcome.error } : {}) });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────

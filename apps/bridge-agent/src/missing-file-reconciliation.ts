@@ -24,7 +24,7 @@ export interface LiveAssetPath {
 
 export interface ReconcileDeps {
   listLivePaths: (afterId: string | null) => Promise<{ assets: LiveAssetPath[]; next_after_id: string | null }>;
-  retire: (assets: Array<{ asset_id: string; confirmed_absent_path: string }>) => Promise<{ retired: number }>;
+  retire: (assets: Array<{ asset_id: string; confirmed_absent_path: string }>) => Promise<{ retired: number; error?: string }>;
   stat: (path: string) => Promise<unknown>;
   readdir: (path: string) => Promise<string[]>;
   shouldAbort?: () => boolean;
@@ -50,7 +50,9 @@ export interface ReconcileResult {
   live_under_roots: number;
   missing: number;
   retired: number;
-  refused?: "skipped_dirs" | "root_unreadable" | "too_many_missing" | "aborted";
+  refused?: "skipped_dirs" | "root_unreadable" | "too_many_missing" | "aborted" | "retire_failed";
+  /** With refused="retire_failed": why the cloud stopped accepting retirements. */
+  retire_error?: string;
 }
 
 const fold = (p: string) => p.normalize("NFC").toLowerCase();
@@ -125,11 +127,19 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
   if (missing.length > ceiling) return { ...result, refused: "too_many_missing" };
   if (!await rootsReadable(roots, deps.readdir)) return { ...result, refused: "root_unreadable" };
 
-  const batchSize = options.retireBatchSize ?? 100;
+  // A failed batch (the soft delete fires heavy search-index triggers and can
+  // hit the statement timeout) stops the run but keeps the count of what was
+  // already retired; the next scan picks up the rest.
+  const batchSize = options.retireBatchSize ?? 25;
   for (let i = 0; i < missing.length; i += batchSize) {
     if (deps.shouldAbort?.()) return { ...result, refused: "aborted" };
-    const { retired } = await deps.retire(missing.slice(i, i + batchSize));
-    result.retired += retired;
+    try {
+      const { retired, error } = await deps.retire(missing.slice(i, i + batchSize));
+      result.retired += retired;
+      if (error) return { ...result, refused: "retire_failed", retire_error: error };
+    } catch (e) {
+      return { ...result, refused: "retire_failed", retire_error: (e as Error).message };
+    }
   }
   return result;
 }

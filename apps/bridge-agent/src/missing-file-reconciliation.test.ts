@@ -144,3 +144,53 @@ test("a name differing only by case or Unicode form is present", async () => {
   });
   assert.deepEqual(retired, []);
 });
+
+test("a failed retirement batch keeps what was already retired (#1117)", async () => {
+  const paths = Array.from({ length: 6 }, (_, i) => `Decor/f${i}.psd`);
+  const calls: string[][] = [];
+  const result = await reconcileMissingFiles({
+    mountRoot: "/mnt",
+    scanRoots: ["/mnt/Decor"],
+    seenPaths: new Set(),
+    skippedDirs: [],
+    skippedDirsTruncated: false,
+    minMissingAllowance: 10,
+    retireBatchSize: 2,
+  }, {
+    listLivePaths: async () => ({ assets: live(...paths), next_after_id: null }),
+    retire: async (assets) => {
+      calls.push(assets.map((a) => a.asset_id));
+      if (calls.length === 2) throw new Error("canceling statement due to statement timeout");
+      return { retired: assets.length };
+    },
+    stat: async () => { throw enoent(); },
+    readdir: async () => ["x"],
+  });
+  assert.equal(result.refused, "retire_failed");
+  assert.equal(result.retired, 2);
+  assert.equal(result.missing, 6);
+  assert.match(result.retire_error ?? "", /statement timeout/);
+  assert.equal(calls.length, 2);
+});
+
+test("a partial retirement reported by the cloud stops the run with its count", async () => {
+  const paths = Array.from({ length: 6 }, (_, i) => `Decor/f${i}.psd`);
+  let calls = 0;
+  const result = await reconcileMissingFiles({
+    mountRoot: "/mnt",
+    scanRoots: ["/mnt/Decor"],
+    seenPaths: new Set(),
+    skippedDirs: [],
+    skippedDirsTruncated: false,
+    minMissingAllowance: 10,
+    retireBatchSize: 3,
+  }, {
+    listLivePaths: async () => ({ assets: live(...paths), next_after_id: null }),
+    retire: async () => (++calls === 1 ? { retired: 1, error: "statement timeout" } : { retired: 3 }),
+    stat: async () => { throw enoent(); },
+    readdir: async () => ["x"],
+  });
+  assert.equal(result.refused, "retire_failed");
+  assert.equal(result.retired, 1);
+  assert.equal(calls, 1);
+});
