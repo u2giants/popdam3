@@ -5,8 +5,9 @@
 -- survives the test. NOTE: refresh_style_guide_matviews() is deliberately NOT
 -- called -- it issues REFRESH MATERIALIZED VIEW CONCURRENTLY, which PostgreSQL
 -- forbids inside a transaction block. Its two guarantees are proven instead by
--- (a) the catalogue check that style_guide_folders now HAS the unique index that
--- makes a concurrent refresh possible at all, and (b) the CHECK constraint that
+-- (a) the catalogue check that style_guide_folders_snapshot (the matview behind
+-- the gated public.style_guide_folders projection since #6418) HAS the unique
+-- index that makes a concurrent refresh possible at all, and (b) the CHECK constraint that
 -- makes a run's completion impossible without a recorded refresh.
 
 begin;
@@ -81,19 +82,21 @@ begin
   end if;
 
   -- =========================================================================
-  -- verify 2: style_guide_folders can now be refreshed CONCURRENTLY
-  -- (a unique index over plain columns is exactly what PostgreSQL requires)
+  -- verify 2: the style-guide folders matview can be refreshed CONCURRENTLY
+  -- (a unique index over plain columns is exactly what PostgreSQL requires).
+  -- #6418 renamed the matview to style_guide_folders_snapshot behind a gated
+  -- projection; the index follows the rename and the snapshot is what refreshes.
   -- =========================================================================
   if not exists (
     select 1
       from pg_index i
       join pg_class c on c.oid = i.indexrelid
-     where i.indrelid = 'public.style_guide_folders'::regclass
+     where i.indrelid = 'public.style_guide_folders_snapshot'::regclass
        and c.relname = 'sgfolders_licensor_property_uidx'
        and i.indisunique
        and i.indexprs is null
        and i.indpred is null) then
-    raise exception 'contract 2: style_guide_folders still has no plain unique index, so CONCURRENTLY is impossible';
+    raise exception 'contract 2: style_guide_folders_snapshot still has no plain unique index, so CONCURRENTLY is impossible';
   end if;
 
   -- =========================================================================
