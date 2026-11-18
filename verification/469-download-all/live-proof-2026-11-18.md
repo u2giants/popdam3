@@ -33,10 +33,10 @@ production-class action was taken; the checkout is the workflow under test.
 ### 1. ONE batch URL carries multiple tokens
 
 Tokens generated (2, each 32 hex chars, 5-minute one-time):
-- Asset `59416dfd-136e-5c4f-b0fb-c2db487c66b9` (`469-toytest-checkout-art-a.psd`) -> token `c734f92aac2293d821fa185bb2a13fce`
-- Asset `78d15273-6243-5339-be9e-00028989fb18` (`469-toytest-checkout-art-b.psd`) -> token `97042fb07662145114780135c683e583`
+- Asset `59416dfd-136e-5c4f-b0fb-c2db487c66b9` (`469-toytest-checkout-art-a.psd`) -> token `[REDACTED_TOKEN_1]`
+- Asset `78d15273-6243-5339-be9e-00028989fb18` (`469-toytest-checkout-art-b.psd`) -> token `[REDACTED_TOKEN_2]`
 
-Batch URL: `popdam://checkout-batch?tokens=c734f92aac2293d821fa185bb2a13fce,97042fb07662145114780135c683e583`
+Batch URL: `popdam://checkout-batch?tokens=[REDACTED_TOKEN_1],[REDACTED_TOKEN_2]`
 
 ### 2. Helper receives and processes the batch
 
