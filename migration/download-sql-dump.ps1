@@ -89,6 +89,7 @@ Write-Host ""
 # Step 2: Download each chunk; any failed, short or truncated chunk aborts the run (#1084)
 $fileIndex = 0
 $downloadedFiles = @()
+$expectedFiles = $totalChunks
 
 foreach ($t in $manifest.tables) {
     if ($t.rows -eq 0) { continue }
@@ -126,6 +127,10 @@ foreach ($t in $manifest.tables) {
                 if (-not $expectedSha) { $problem = "has no X-Content-SHA256 header" }
                 elseif ($actualSha -ne $expectedSha) { $problem = "is truncated or corrupted (SHA-256 mismatch)" }
                 elseif (-not $resp.Content.TrimEnd().EndsWith("COMMIT;")) { $problem = "is truncated (no COMMIT)" }
+                elseif ($t.volatile -eq $true) {
+                    # Queue rows finished mid-run are gone for good; more rows than counted is still an error (#1132)
+                    if ($rowsInChunk -gt $expectedRows) { $problem = "has $rowsInChunk rows, more than the $expectedRows counted" }
+                }
                 elseif ($rowsInChunk -ne $expectedRows) { $problem = "has $rowsInChunk rows, expected $expectedRows" }
             }
             if (-not $problem) { break }
@@ -133,15 +138,20 @@ foreach ($t in $manifest.tables) {
             Start-Sleep -Seconds (5 * $attempt)
         }
         if ($problem) { Write-Host " FAILED" -ForegroundColor Red; Fail-Run "$fileName $problem" }
-        $cursor = "$($resp.Headers['X-Next-Cursor'])"
-        if (-not $cursor) { Fail-Run "$fileName returned no next cursor" }
         $resp.Content | Out-File -FilePath $filePath -Encoding UTF8 -NoNewline
         Write-Host " $rowsInChunk rows" -ForegroundColor Green
         $downloadedFiles += $fileName
+        if ($t.volatile -eq $true -and $rowsInChunk -lt $ChunkSize) {
+            # A short queue chunk is the end of that table: skip its remaining chunks
+            $expectedFiles -= ($t.chunks - 1 - $chunk)
+            break
+        }
+        $cursor = "$($resp.Headers['X-Next-Cursor'])"
+        if (-not $cursor) { Fail-Run "$fileName returned no next cursor" }
     }
 }
 
-if ($downloadedFiles.Count -ne $totalChunks) { Fail-Run "downloaded $($downloadedFiles.Count) of $totalChunks chunks" }
+if ($downloadedFiles.Count -ne $expectedFiles) { Fail-Run "downloaded $($downloadedFiles.Count) of $totalChunks chunks" }
 
 # Step 3: Publish the restore bundle — only validated files, in order (#1085)
 $RestoreList = Join-Path $RunDir "restore-order.txt"
