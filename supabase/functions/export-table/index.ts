@@ -67,7 +67,14 @@ corsServe(async (req) => {
 
     const db = createClient(supabaseUrl, serviceKey);
 
-    const { count: totalCount } = await tableSource(db, table).select("*", { count: "exact", head: true });
+    const { count: totalCount, error: countErr } = await tableSource(db, table).select("*", { count: "exact", head: true });
+    // A failed count must not be exported as "0 rows" or a page of the wrong size (#1097)
+    if (countErr || typeof totalCount !== "number") {
+      return new Response(JSON.stringify({ error: `Count failed for ${table}: ${countErr?.message ?? "count missing"}` }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     // PostgREST caps at 1000 rows per request, so we paginate internally
     const CHUNK = 1000;
@@ -77,7 +84,6 @@ corsServe(async (req) => {
 
     let offset = from;
     while (rows.length < targetRows) {
-      const requested = Math.min(CHUNK, targetRows - rows.length);
       const [, chunkEnd] = exportRange(offset, targetRows - rows.length, CHUNK);
       const { data: chunk, error: chunkErr } = await orderedTableSource(db, table).range(offset, chunkEnd);
       if (chunkErr) {
@@ -86,10 +92,10 @@ corsServe(async (req) => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      if (!chunk || chunk.length === 0) break;
+      if (!chunk || chunk.length === 0) break; // past the last row
       for (const r of chunk) rows.push(r as Record<string, unknown>);
-      if (chunk.length < requested) break; // no more data
-      offset += requested;
+      // A short chunk is not proof of the end: advance by what was actually returned
+      offset += chunk.length;
     }
 
     const totalPages = Math.ceil((totalCount ?? 0) / pageSize);
@@ -119,7 +125,7 @@ corsServe(async (req) => {
         if (val === null || val === undefined) return "";
         if (typeof val === "object") return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
         const str = String(val);
-        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
           return `"${str.replace(/"/g, '""')}"`;
         }
         return str;
@@ -135,6 +141,7 @@ corsServe(async (req) => {
         "Content-Disposition": `attachment; filename="${table}_page${page}.csv"`,
         "X-Total-Count": String(totalCount ?? 0),
         "X-Total-Pages": String(totalPages),
+        "X-Rows-In-Page": String(rows.length),
         "X-Page": String(page),
         "X-Page-Size": String(pageSize),
       },
