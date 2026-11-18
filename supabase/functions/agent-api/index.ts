@@ -3232,6 +3232,8 @@ async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: s
 // ── Route: complete-sibling-scan ────────────────────────────────────
 // Bridge Agent reports completion or failure of a sibling scan.
 
+const SIBLING_SWEEP_DELETE_CHUNK = 50;
+
 async function handleCompleteSiblingScan(body: Record<string, unknown>) {
   const requestId = requireString(body, "request_id");
   const status = requireString(body, "status"); // "completed" | "failed"
@@ -3278,10 +3280,21 @@ async function handleCompleteSiblingScan(body: Record<string, unknown>) {
     const expired = (oldRows ?? [])
       .filter((r: { key: string; value: unknown; updated_at: string }) => r.key !== configKey && isExpiredSiblingScanRow(r.value, r.updated_at, nowMs))
       .map((r: { key: string }) => r.key);
-    if (expired.length > 0) {
-      await db.from("admin_config").delete().in("key", expired);
-      console.log(`[complete-sibling-scan] Removed ${expired.length} finished request rows`);
+    // The key list travels in the request URL: 500 keys overflow it and the
+    // delete fails without throwing, so go in URL-sized groups and check each.
+    let removed = 0;
+    for (let i = 0; i < expired.length; i += SIBLING_SWEEP_DELETE_CHUNK) {
+      const { error: sweepError } = await db
+        .from("admin_config")
+        .delete()
+        .in("key", expired.slice(i, i + SIBLING_SWEEP_DELETE_CHUNK));
+      if (sweepError) {
+        console.warn("[complete-sibling-scan] cleanup chunk failed", sweepError.message);
+        break;
+      }
+      removed += Math.min(SIBLING_SWEEP_DELETE_CHUNK, expired.length - i);
     }
+    if (removed > 0) console.log(`[complete-sibling-scan] Removed ${removed} finished request rows`);
   } catch (e) {
     console.warn("[complete-sibling-scan] cleanup failed", (e as Error).message);
   }
