@@ -603,3 +603,45 @@ def test_text_model_unloads_when_idle(monkeypatch):
     monkeypatch.setattr(p, "claim_text_docs", lambda: [])
     assert p.poll_text_lane() == "empty"
     assert state["unloaded"]
+
+
+def test_text_only_runs_only_the_text_lane(monkeypatch):
+    p, _calls, _ = _text_poller(monkeypatch)
+    p.args.text_only = True
+    monkeypatch.setattr(p, "connect", lambda: None)
+    monkeypatch.setattr(poller.time, "sleep", lambda s: None)
+    monkeypatch.setattr(poller.Heartbeat, "start", lambda self: pytest.fail("heartbeat started"))
+    for name in ("claim_query_job", "claim_index_jobs", "claim_search_docs", "claim_sg_docs",
+                 "embed_enabled"):
+        monkeypatch.setattr(p, name, lambda *a, **k: pytest.fail("picture lane ran"))
+    results = iter(["claimed", "empty", "error"])
+    seen = []
+
+    def poll():
+        try:
+            r = next(results)
+        except StopIteration:
+            raise StopIteration
+        seen.append(r)
+        return r
+
+    monkeypatch.setattr(p, "poll_text_lane", poll)
+    assert p.run_text_only() == 0
+    assert seen == ["claimed", "empty", "error"]
+    assert p.text_cooldown_until > 0 and p.hb is None
+
+
+def test_text_only_skips_query_lane_between_saves(monkeypatch):
+    p, _calls = _search_poller(monkeypatch, [])
+    p.args.text_only = True
+    monkeypatch.setattr(p, "embed_enabled", lambda: pytest.fail("query lane touched"))
+    p.serve_query_lane_between_saves()
+
+
+def test_main_text_only_never_loads_picture_models(monkeypatch, tmp_path):
+    dsn = tmp_path / "w.dsn"
+    dsn.write_text("postgresql://x")
+    monkeypatch.setattr(poller, "load_models", lambda: pytest.fail("picture models loaded"))
+    monkeypatch.setattr(poller.Poller, "run_text_only", lambda self: 0)
+    monkeypatch.setattr(poller.sys, "argv", ["x", "--text-only", "--dsn-file", str(dsn)])
+    assert poller.main() == 0

@@ -189,6 +189,30 @@ first, server-side claim order), then the text-meaning lane, then the index lane
 consecutive empty polls on both and never touches the query lane (uploads
 need the always-on service, not a drain).
 
+## Second box: text-only mode
+
+`--text-only` runs only the text-meaning lane: it never loads the picture
+models and runs no query, index or search-document lane and no heartbeat, so
+the box never counts as the picture worker. Claims are leased per
+`--worker-id`, so any number of boxes share the text backlog safely, and a
+box that is switched off simply lets its leases expire. Only `--dsn-file` is
+needed (no stamp). A GPU newer than the pinned torch (for example an RTX 50
+series card) needs a CUDA 12.8 torch build; text vectors stay
+interchangeable (checked by cosine > 0.999 against edge-dev on sample texts).
+
+```bat
+@echo off
+cd /d D:\ai\popdam-text-embed-worker
+.venv\Scripts\python.exe image_embed_poller.py --text-only ^
+  --dsn-file D:\ai\popdam-text-embed-worker\worker.dsn ^
+  --worker-id <box>-text ^
+  --text-model-path <pinned Qwen3-Embedding snapshot folder> ^
+  >> service.log 2>&1
+```
+
+Install it as its own scheduled task (boot trigger plus the 5-minute
+restart trigger, as above) under a separate task name.
+
 ## Long-term placement
 
 This service stays a pull-based desktop worker by design (plan section 8):
