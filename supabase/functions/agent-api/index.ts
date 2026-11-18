@@ -2463,10 +2463,8 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   // are reported, never swallowed: unscheduled files keep no_pdf_compat and
   // the next scan retries them; pending/claimed jobs are never duplicated.
   const renderRetry = await scheduleRenderRetries(needsRender, {
-    findAssets: async (paths) =>
-      await db.from("assets").select("id, relative_path").in("relative_path", paths).eq("is_deleted", false),
-    findQueued: async (ids) =>
-      await db.from("render_queue").select("asset_id").in("asset_id", ids).in("status", ["pending", "claimed"]),
+    findAssets: async (paths) => await db.from("assets").select("id, relative_path").in("relative_path", paths).eq("is_deleted", false),
+    findQueued: async (ids) => await db.from("render_queue").select("asset_id").in("asset_id", ids).in("status", ["pending", "claimed"]),
     insertJobs: async (rows) => await db.from("render_queue").insert(rows),
   });
   if (renderRetry.error) {

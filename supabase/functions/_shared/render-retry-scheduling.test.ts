@@ -4,12 +4,10 @@ import { type RenderRetryWriter, scheduleRenderRetries } from "./render-retry-sc
 function fake(opts: { assetErr?: boolean; queueErr?: boolean; insertErr?: boolean; queued?: string[] } = {}) {
   const inserted: string[] = [];
   const writer: RenderRetryWriter = {
-    findAssets: async (paths) => opts.assetErr
-      ? { data: null, error: { message: "boom" } }
-      : { data: paths.map((p) => ({ id: `id-${p}`, relative_path: p })), error: null },
-    findQueued: async () => opts.queueErr
-      ? { data: null, error: { message: "boom" } }
-      : { data: (opts.queued ?? []).map((a) => ({ asset_id: a })), error: null },
+    findAssets: async (paths) =>
+      opts.assetErr ? { data: null, error: { message: "boom" } } : { data: paths.map((p) => ({ id: `id-${p}`, relative_path: p })), error: null },
+    findQueued: async () =>
+      opts.queueErr ? { data: null, error: { message: "boom" } } : { data: (opts.queued ?? []).map((a) => ({ asset_id: a })), error: null },
     insertJobs: async (rows) => {
       if (opts.insertErr) return { error: { message: "boom" } };
       inserted.push(...rows.map((r) => r.asset_id));
