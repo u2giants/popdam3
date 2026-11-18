@@ -48,7 +48,9 @@ export default function DirectoryBrowserTab() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [helperAvailable, setHelperAvailable] = useState<boolean | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Each browse gets a sequence number. Only the newest request may update the
+  // view; older responses (Realtime, polling or HTTP) are dropped when they arrive.
+  const latestRequestRef = useRef(0);
 
   // Detect whether the local helper is running and has roots configured
   useEffect(() => {
@@ -58,33 +60,32 @@ export default function DirectoryBrowserTab() {
       .catch(() => setHelperAvailable(false));
   }, []);
 
-  const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  };
-
-  const browseViaAgent = useCallback(async (path: string): Promise<BrowseResult> => {
+  const browseViaAgent = useCallback(async (path: string, isLatest: () => boolean): Promise<BrowseResult> => {
     const { request_id } = await call("request-dir-browse", { path });
+    if (!isLatest()) throw new Error("superseded");
 
     return new Promise<BrowseResult>((resolve, reject) => {
-      let done = false;
+      // Timers and the channel are local to this request, so a newer request
+      // never clears or reuses them.
+      let settled = false;
+      let polling = false;
+
+      const settle = () => {
+        settled = true;
+        clearInterval(pollTimer);
+        clearTimeout(timeoutHandle);
+        channel.unsubscribe();
+      };
 
       const finish = (r: BrowseResult) => {
-        if (done) return;
-        done = true;
-        stopPolling();
-        channel.unsubscribe();
-        clearTimeout(timeoutHandle);
+        if (settled) return;
+        settle();
         resolve(r);
       };
 
       const fail = (msg: string) => {
-        if (done) return;
-        done = true;
-        stopPolling();
-        channel.unsubscribe();
+        if (settled) return;
+        settle();
         reject(new Error(msg));
       };
 
@@ -102,13 +103,23 @@ export default function DirectoryBrowserTab() {
         )
         .subscribe();
 
-      // Fallback: poll every 500ms in case Realtime misses the event
-      pollRef.current = setInterval(async () => {
+      // Fallback: poll every 500ms in case Realtime misses the event.
+      // One poll in flight at a time; stop as soon as a newer selection exists.
+      const pollTimer = setInterval(async () => {
+        if (settled) return;
+        if (!isLatest()) {
+          fail("superseded");
+          return;
+        }
+        if (polling) return;
+        polling = true;
         try {
           const resp = await call("get-dir-browse-result");
           const r = resp?.result as BrowseResult | null;
           if (r?.request_id === request_id) finish(r);
-        } catch { /* keep polling */ }
+        } catch { /* keep polling */ } finally {
+          polling = false;
+        }
       }, 500);
 
       const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 60s"), 60_000);
@@ -116,17 +127,19 @@ export default function DirectoryBrowserTab() {
   }, [call]);
 
   const browse = useCallback(async (path: string) => {
-    stopPolling();
+    const requestSeq = ++latestRequestRef.current;
+    const isLatest = () => requestSeq === latestRequestRef.current;
     setLoading(true);
     try {
-      const r = helperAvailable ? await browseViaHelper(path) : await browseViaAgent(path);
+      const r = helperAvailable ? await browseViaHelper(path) : await browseViaAgent(path, isLatest);
+      if (!isLatest()) return;
       setResult(r);
       setCurrentPath(r.path);
       setPathInput(r.path);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Browse failed");
+      if (isLatest()) toast.error(e instanceof Error ? e.message : "Browse failed");
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
   }, [helperAvailable, browseViaAgent]);
 
