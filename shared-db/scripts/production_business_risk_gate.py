@@ -123,6 +123,21 @@ PREVIEW_RELEASE_ONLY_JOB_CONCLUSIONS = {
 }
 PREVIEW_RELEASE_STEP = "Release the exclusive preview lane with ownership proof"
 PREVIEW_EVIDENCE_STEPS = ("Bounded apply", "Save preview evidence")
+PREVIEW_QUEUE_AND_INDEX_JOBS = {
+    "Exact concurrent index maintenance": "skipped",
+    "Nudge the production queue": "success",
+}
+PREVIEW_CURRENT_EVIDENCE_STEPS = (
+    "Assert the target project ref is PREVIEW",
+    "Capture preview migration record (before)",
+    "Bounded apply",
+    "Capture preview migration record (after)",
+    "Report the preview ledger delta",
+    "Bind this rehearsal to its commit and its preview database",
+    "Publish the exact-SHA preview rehearsal status for the merge queue",
+    "Save preview evidence",
+)
+PREVIEW_POST_RELEASE_MARKER = "refund-eligible-fault"
 
 
 def _exact_job_graph(rows: list[Any], conclusions: dict[str, str]) -> bool:
@@ -148,6 +163,33 @@ def _preview_failed_only_at_release(rows: list[Any]) -> bool:
         sum(1 for s in steps if isinstance(s, dict) and s.get("name") == name and s.get("conclusion") == "success") == 1
         for name in PREVIEW_EVIDENCE_STEPS
     )
+
+
+def _preview_failed_only_at_current_release(rows: list[Any]) -> bool:
+    # The current workflow can fail release and its subsequent fault
+    # classifier after publishing immutable preview evidence (run 44368108338).
+    steps = next(job for job in rows if job["name"] == "preview").get("steps")
+    if not isinstance(steps, list):
+        return False
+    expected_failures = (PREVIEW_RELEASE_STEP, PREVIEW_POST_RELEASE_MARKER)
+    required_steps = (*PREVIEW_CURRENT_EVIDENCE_STEPS, *expected_failures)
+    actual_required = []
+    last_number = 0
+    for step in steps:
+        if not isinstance(step, dict) or step.get("status") != "completed":
+            return False
+        number, name, conclusion = step.get("number"), step.get("name"), step.get("conclusion")
+        if type(number) is not int or number <= last_number or not isinstance(name, str):
+            return False
+        last_number = number
+        if name in required_steps:
+            actual_required.append(name)
+            expected = "failure" if name in expected_failures else "success"
+            if conclusion != expected:
+                return False
+        elif conclusion not in ("success", "skipped"):
+            return False
+    return tuple(actual_required) == required_steps
 
 
 def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
@@ -177,11 +219,12 @@ def preview_run_has_immutable_apply(run: Any, jobs: Any = None) -> bool:
     # same immutable preview apply: preview succeeded, only promotion failed.
     # Accept exactly these two additions, never arbitrary extra jobs.
     if len(rows) == 8:
-        return _exact_job_graph(rows, {
-            **PREVIEW_FAILURE_JOB_CONCLUSIONS,
-            "Exact concurrent index maintenance": "skipped",
-            "Nudge the production queue": "success",
-        })
+        if _exact_job_graph(rows, {**PREVIEW_FAILURE_JOB_CONCLUSIONS, **PREVIEW_QUEUE_AND_INDEX_JOBS}):
+            return True
+        return (
+            _exact_job_graph(rows, {**PREVIEW_RELEASE_ONLY_JOB_CONCLUSIONS, **PREVIEW_QUEUE_AND_INDEX_JOBS})
+            and _preview_failed_only_at_current_release(rows)
+        )
     if len(rows) != 6:
         return False
     if _exact_job_graph(rows, PREVIEW_FAILURE_JOB_CONCLUSIONS):

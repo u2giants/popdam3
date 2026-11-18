@@ -158,6 +158,88 @@ class ProductionBusinessRiskGateTests(unittest.TestCase):
         for conclusion in ("cancelled", "timed_out", None):
             self.assertFalse(preview_run_has_immutable_apply({"status": "completed", "conclusion": conclusion}, jobs))
 
+    def test_current_preview_release_failure_keeps_immutable_apply_evidence(self):
+        # Original attempt 44368108338 used the current queue/index workflow.
+        run = {"status": "completed", "conclusion": "failure"}
+        conclusions = (
+            ("SQL migration guards", "success"),
+            ("preview", "failure"),
+            ("Exact concurrent index maintenance", "skipped"),
+            ("production-dry-run", "skipped"),
+            ("Production apply review (immutable evidence + hard guards)", "skipped"),
+            ("Production apply (automatic evidence gates)", "skipped"),
+            ("Nudge the production queue", "success"),
+            ("Automatic production qualification and dispatch", "skipped"),
+        )
+        step_states = (
+            (1, "Set up job", "success"),
+            (2, "Assert the target project ref is PREVIEW", "success"),
+            (3, "Run actions/checkout@v4", "success"),
+            (4, "Prove the post-merge rehearsal source", "success"),
+            (5, "Prove historical preview recovery source", "skipped"),
+            (6, "Acquire the exclusive GitHub-backed preview lane", "success"),
+            (7, "Resolve the exact commit under test", "success"),
+            (8, "Run supabase/setup-cli@v1", "success"),
+            (9, "Ensure a working PostgreSQL client (psql)", "success"),
+            (10, "Capture preview migration record (before)", "success"),
+            (11, "Announce the bounded set (apply list and skip list)", "success"),
+            (12, "Hard guard preflight", "success"),
+            (13, "Build bounded checkout", "success"),
+            (14, "Bounded dry-run", "skipped"),
+            (15, "Bounded apply", "success"),
+            (16, "Recover proof for migrations already present on preview", "skipped"),
+            (17, "Capture preview migration record (after)", "success"),
+            (18, "Report the preview ledger delta", "success"),
+            (19, "Bind this rehearsal to its commit and its preview database", "success"),
+            (20, "Publish the exact-SHA preview rehearsal status for the merge queue", "success"),
+            (21, "Save preview evidence", "success"),
+            (22, "Release the exclusive preview lane with ownership proof", "failure"),
+            (23, "refund-eligible-fault", "failure"),
+            (46, "Post Run actions/checkout@v4", "success"),
+            (47, "Complete job", "success"),
+        )
+        graph = [
+            {"name": name, "status": "completed", "conclusion": conclusion}
+            for name, conclusion in conclusions
+        ]
+        steps = [
+            {"name": name, "number": number, "status": "completed", "conclusion": conclusion}
+            for number, name, conclusion in step_states
+        ]
+        graph[1]["steps"] = steps
+        jobs = {"total_count": 8, "jobs": graph}
+        self.assertTrue(preview_run_has_immutable_apply(run, jobs))
+
+        for index in (1, 9, 14, 16, 17, 18, 19, 20, 21, 22):
+            for invalid in ("skipped", "cancelled", None):
+                with self.subTest(step=step_states[index][1], conclusion=invalid):
+                    candidate = json.loads(json.dumps(jobs))
+                    candidate["jobs"][1]["steps"][index]["conclusion"] = invalid
+                    self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+            with self.subTest(missing_step=step_states[index][1]):
+                candidate = json.loads(json.dumps(jobs))
+                candidate["jobs"][1]["steps"].pop(index)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+
+        for mutate in (
+            lambda value: value.update(total_count=7),
+            lambda value: value["jobs"][2].update(conclusion="success"),
+            lambda value: value["jobs"][6].update(conclusion="skipped"),
+            lambda value: value["jobs"][7].update(conclusion="failure"),
+            lambda value: value["jobs"][7].update(name="unknown job"),
+            lambda value: value["jobs"][1]["steps"][8].update(conclusion="failure"),
+            lambda value: value["jobs"][1]["steps"][19].update(status="in_progress"),
+            lambda value: value["jobs"][1]["steps"][20].update(name="Bounded apply"),
+            lambda value: value["jobs"][1]["steps"][20].update(number=22),
+            lambda value: value["jobs"][1]["steps"][21].update(name="refund-eligible-fault"),
+            lambda value: value["jobs"][1]["steps"][22].update(conclusion="success"),
+            lambda value: value["jobs"][1]["steps"][23].update(conclusion="failure"),
+        ):
+            with self.subTest(mutation=mutate):
+                candidate = json.loads(json.dumps(jobs))
+                mutate(candidate)
+                self.assertFalse(preview_run_has_immutable_apply(run, candidate))
+
     def test_failed_workflow_is_preview_evidence_when_only_lane_release_failed(self):
         run = {"status": "completed", "conclusion": "failure"}
         conclusions = {
