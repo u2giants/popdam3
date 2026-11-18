@@ -98,7 +98,8 @@ function Publish-File([string]$Source, [string]$Destination) {
 
 function Test-ResourceLimitError($ErrorRecord) {
     $text = "$($ErrorRecord.ErrorDetails.Message) $($ErrorRecord.Exception.Message)"
-    return ($text -match "WORKER_RESOURCE_LIMIT|not having enough compute resources")
+    # Out of memory, or too slow to finish within the 150 s request limit
+    return ($text -match "WORKER_RESOURCE_LIMIT|not having enough compute resources|IDLE_TIMEOUT")
 }
 
 function Get-SmallerPageSize([int]$Size, [int64]$Offset) {

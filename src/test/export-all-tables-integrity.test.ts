@@ -102,6 +102,7 @@ describe("CSV export page sizes fit the edge function (#1143)", () => {
   });
   it("retries a WORKER_RESOURCE_LIMIT page with a smaller page instead of failing", () => {
     expect(ps).toMatch(/WORKER_RESOURCE_LIMIT/);
+    expect(ps).toMatch(/IDLE_TIMEOUT/);
     expect(ps).toMatch(/\$smaller = Get-SmallerPageSize \$size \$totalRows/);
     expect(ps).toMatch(/\(\$Offset % \$candidate\) -eq 0/);
   });
