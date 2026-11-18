@@ -36,7 +36,16 @@ const index = buildNameIndex(base);
 describe("namedSearchPhrases", () => {
   it("keeps the same ASCII word boundaries as the name matcher", () => {
     expect(namedSearchPhrases(["AİB K-café", "ai b", null])).toEqual([
-      "ai", "ai b", "ai b k", "ai b k caf", "b", "b k", "b k caf", "k", "k caf", "caf",
+      "ai",
+      "ai b",
+      "ai b k",
+      "ai b k caf",
+      "b",
+      "b k",
+      "b k caf",
+      "k",
+      "k caf",
+      "caf",
     ]);
     expect(namedSearchPhrases([" ? ", null])).toEqual([]);
   });

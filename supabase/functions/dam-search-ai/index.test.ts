@@ -142,15 +142,21 @@ describe("DAM search embedding availability", () => {
     expect(state.namesRpc).toHaveBeenCalledExactlyOnceWith("get_dam_search_named_rows", {
       p_keys: ["berl", "berl rug", "rug", "beryl", "beryl rug"],
     }, expect.any(AbortSignal));
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({
-      p_filters: expect.objectContaining({ requiredCharacterIds: ["beryl"], requiredCharacterNames: ["beryl"] }),
-    }));
+    expect(state.rpc).toHaveBeenCalledWith(
+      "search_dam_documents",
+      expect.objectContaining({
+        p_filters: expect.objectContaining({ requiredCharacterIds: ["beryl"], requiredCharacterNames: ["beryl"] }),
+      }),
+    );
   });
 
   it.each([
     { data: null, error: { code: "57014" } },
     { data: { characters: [] }, error: null },
-    { data: { characters: [{ id: "beryl", name: null }], aliases: [], legacyCharacters: [], properties: [], propertyCharacters: [], licensorNames: [] }, error: null },
+    {
+      data: { characters: [{ id: "beryl", name: null }], aliases: [], legacyCharacters: [], properties: [], propertyCharacters: [], licensorNames: [] },
+      error: null,
+    },
   ])("returns Retry without a ranked call when required name data is unavailable", async (reply) => {
     vi.stubGlobal("fetch", embedFetch());
     state.namesRpc.mockResolvedValue(reply);
@@ -162,9 +168,11 @@ describe("DAM search embedding availability", () => {
 
   it("returns Retry when the name lookup reaches its deadline", async () => {
     vi.stubGlobal("fetch", embedFetch());
-    state.namesRpc.mockImplementation((_name, _args, signal: AbortSignal) => new Promise((resolve) => {
-      signal.addEventListener("abort", () => resolve({ data: null, error: { code: "57014" } }), { once: true });
-    }));
+    state.namesRpc.mockImplementation((_name, _args, signal: AbortSignal) =>
+      new Promise((resolve) => {
+        signal.addEventListener("abort", () => resolve({ data: null, error: { code: "57014" } }), { once: true });
+      })
+    );
     const response = await search("Beryl frame");
     expect(response.status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();

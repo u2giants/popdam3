@@ -19,8 +19,8 @@ import {
   buildNameIndex,
   hasNamedScope,
   namedCharacterScope,
-  namedSearchPhrases,
   type NamedScope,
+  namedSearchPhrases,
   pickScopeKeys,
   withNamedScope,
 } from "../_shared/named-characters.ts";
@@ -175,9 +175,18 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
       !namedRows(propertyCharacters, ["propertyId", "characterId"]) ||
       !Array.isArray(licensorNames) || !licensorNames.every((name) => typeof name === "string")
     ) return null;
-    return namedCharacterScope(texts, buildNameIndex({
-      characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames, productWords: PRODUCT_WORDS,
-    }));
+    return namedCharacterScope(
+      texts,
+      buildNameIndex({
+        characters,
+        aliases,
+        legacyCharacters,
+        properties,
+        propertyCharacters,
+        licensorNames,
+        productWords: PRODUCT_WORDS,
+      }),
+    );
   } catch {
     return null;
   }
