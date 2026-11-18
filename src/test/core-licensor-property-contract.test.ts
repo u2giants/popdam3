@@ -22,7 +22,7 @@ describe("canonical licensor/property contract", () => {
     for (const table of ["licensor", "property", "character"]) {
       expect(search).toContain(`loadNames("${table}", signal)`);
     }
-    expect(search).toContain("AbortSignal.timeout(1500)");
+    expect(search).toContain("AbortSignal.timeout(VOCABULARY_BUDGET_MS)");
     expect(search).toContain(".abortSignal(signal)");
     expect(search).not.toMatch(/loadNames\("(?:licensors|properties|characters)"/);
     expect(search).not.toContain("row.usage_count");
