@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261218140000",
+  "migration_sha256": "b45571878c13c12841f732c5578acd3ea73b41a702dcf87fbca69dd5eaefa8a9",
+  "checks": [
+    {
+      "id": "alsand_worker_connection_limit_ceiling",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_roles",
+      "filters": [
+        {
+          "column": "rolname",
+          "type": "text",
+          "equals": "designflow_hts_alsand_worker"
+        },
+        {
+          "column": "rolconnlimit",
+          "type": "integer",
+          "equals": 8
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
