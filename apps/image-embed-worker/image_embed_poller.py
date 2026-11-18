@@ -594,6 +594,8 @@ class Poller:
 
     def serve_query_lane_between_saves(self) -> None:
         # Uploaded-image searches must not wait out a whole SG batch.
+        if getattr(self.args, "text_only", False):
+            return  # text-only box: no picture models, never touches the query lane
         if time.time() - self.last_query_poll < config.QUERY_POLL_S:
             return
         self.last_query_poll = time.time()
@@ -878,6 +880,30 @@ class Poller:
             time.sleep(config.QUERY_POLL_S)
         return 0
 
+    def run_text_only(self) -> int:
+        """--text-only: a second box that only shares the text-meaning backlog.
+        No picture models, no query/index/search-document lanes and no
+        heartbeat (so it never looks like the picture worker). Claims are
+        leased per worker id, so several boxes split the queue safely."""
+        self.connect()
+        log(event="text_only_start", worker=self.args.worker_id)
+        while True:
+            try:
+                if time.time() < self.text_cooldown_until:
+                    time.sleep(config.TEXT_IDLE_POLL_S)
+                    continue
+                status = self.poll_text_lane()
+                if status == "error":
+                    self.text_cooldown_until = time.time() + config.TEXT_LANE_ERROR_COOLDOWN_S
+                elif status == "empty":
+                    time.sleep(config.TEXT_IDLE_POLL_S)
+            except StopIteration:
+                break
+            except Exception as exc:
+                log(event="loop_error", error=f"{type(exc).__name__}: {str(exc)[:200]}")
+                time.sleep(2)
+        return 0
+
     def run_drain(self) -> int:
         """--once-drain: backfill mode. Drains the search-document lane first
         (style-group docs claim first server-side), then index jobs, exiting
@@ -961,6 +987,9 @@ def main() -> int:
                     help="local snapshot folder of the text model (default: HF cache at the pinned revision)")
     ap.add_argument("--no-text-lane", action="store_true",
                     help="disable the text-meaning lane (dam.search_text_vectors)")
+    ap.add_argument("--text-only", action="store_true",
+                    help="run ONLY the text-meaning lane: no picture models, no query/index/"
+                         "search-document lanes, no heartbeat (second-box mode)")
     ap.add_argument("--idle-exit-polls", type=int, default=config.IDLE_EXIT_POLLS, help="exit after N consecutive empty polls (drain mode)")
     ap.add_argument("--download-threads", type=int, default=config.DOWNLOAD_THREADS)
     ap.add_argument("--selftest", action="store_true")
@@ -975,6 +1004,16 @@ def main() -> int:
         args.stamp = Path(args.stamp_file).read_text(encoding="utf-8").strip()
     if args.stamp:
         args.stamp = args.stamp.strip()
+
+    if args.text_only:
+        if not args.dsn:
+            print("--dsn/--dsn-file is required with --text-only", file=sys.stderr)
+            return 2
+        poller = Poller(args, models=None)
+        try:
+            return poller.run_text_only()
+        finally:
+            poller.pool.shutdown(wait=False)
 
     print("loading models...", flush=True)
     models = load_models()
