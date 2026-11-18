@@ -26,6 +26,7 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import urllib.error
           import urllib.request
 
           endpoint = "https://backboard.railway.com/graphql/v2"
@@ -42,14 +43,17 @@ jobs:
               def redirect_request(self, req, fp, code, msg, headers, newurl):
                   return None
 
+          class CredentialDenied(Exception):
+              pass
+
           browser = urllib.request.build_opener(NoRedirect())
 
-          def query(document, variables=None):
+          def query(stage, authorization, document, variables=None):
               request = urllib.request.Request(
                   endpoint,
                   data=json.dumps({"query": document, "variables": variables or {}}).encode(),
                   headers={
-                      "Project-Access-Token": token,
+                      **authorization,
                       "Content-Type": "application/json",
                       "User-Agent": "curl/8.14.1",
                   },
@@ -57,39 +61,65 @@ jobs:
               try:
                   with browser.open(request, timeout=15) as response:
                       result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  if error.code in (401, 403):
+                      raise CredentialDenied(stage) from None
+                  raise SystemExit(f"Railway {stage} did not accept the read request.") from None
               except (OSError, ValueError):
-                  raise SystemExit("Railway read request failed.") from None
-              if not isinstance(result, dict) or result.get("errors") or not isinstance(result.get("data"), dict):
-                  raise SystemExit("Railway denied or could not complete the read request.")
+                  raise SystemExit(f"Railway {stage} response could not be read.") from None
+              if not isinstance(result, dict):
+                  raise SystemExit(f"Railway {stage} returned an unexpected response.")
+              errors = result.get("errors") or []
+              if any(
+                  error.get("message", "").lower() in {"not authorized", "project token not found"}
+                  for error in errors
+              ):
+                  raise CredentialDenied(stage)
+              if errors or not isinstance(result.get("data"), dict):
+                  raise SystemExit(f"Railway {stage} could not complete the read request.")
               return result["data"]
 
-          scope = query("query { projectToken { projectId environmentId } }")["projectToken"]
-          if scope != {key: target[key] for key in ("projectId", "environmentId")}:
-              raise SystemExit("Railway project credential scope does not match PopDAM production.")
+          authorization = {"Project-Access-Token": token}
+          route = "project token"
+          try:
+              scope = query("project identity", authorization, "query { projectToken { projectId environmentId } }")["projectToken"]
+              if scope != {key: target[key] for key in ("projectId", "environmentId")}:
+                  raise SystemExit("Railway project credential scope does not match PopDAM production.")
+          except CredentialDenied:
+              print("Railway rejected the project-token route. Checking the same worker through the bearer route.")
+              authorization = {"Authorization": "Bearer " + token}
+              route = "bearer"
 
-          data = query(
-              """
-              query WorkerDeployment($input: DeploymentListInput!) {
-                  deployments(input: $input, first: 1) {
-                      edges { node { status } }
+          try:
+              data = query(
+                  "deployment lookup",
+                  authorization,
+                  """
+                  query WorkerDeployment($input: DeploymentListInput!) {
+                      deployments(input: $input, first: 1) {
+                          edges { node { status } }
+                      }
                   }
-              }
-              """,
-              {"input": {**target, "status": {"successfulOnly": True}}},
-          )
-          deployments = data["deployments"]["edges"]
-          if len(deployments) != 1 or deployments[0]["node"]["status"] != "SUCCESS":
-              raise SystemExit("No successful deployment was confirmed for the PopDAM worker.")
+                  """,
+                  {"input": {**target, "status": {"in": ["SUCCESS"]}}},
+              )
+              deployments = data["deployments"]["edges"]
+              if len(deployments) != 1 or deployments[0]["node"]["status"] != "SUCCESS":
+                  raise SystemExit("No successful deployment was confirmed for the PopDAM worker.")
 
-          variables = query(
-              """
-              query WorkerVariables($projectId: String!, $environmentId: String!, $serviceId: String) {
-                  variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
-              }
-              """,
-              target,
-          )["variables"]
-          if not isinstance(variables, dict) or "DEEPSEEK_API_KEY" not in variables:
-              raise SystemExit("The expected worker setting could not be confirmed.")
-          print("Verified the scoped Railway credential and PopDAM production worker read access.")
+              variables = query(
+                  "worker setting lookup",
+                  authorization,
+                  """
+                  query WorkerVariables($projectId: String!, $environmentId: String!, $serviceId: String) {
+                      variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+                  }
+                  """,
+                  target,
+              )["variables"]
+              if not isinstance(variables, dict) or "DEEPSEEK_API_KEY" not in variables:
+                  raise SystemExit("The expected worker setting could not be confirmed.")
+          except CredentialDenied as denial:
+              raise SystemExit(f"Railway denied the {route} credential at {denial.args[0]}.") from None
+          print(f"Verified PopDAM production worker read access through the {route} route.")
           PY
