@@ -11,10 +11,11 @@ declare
   lic uuid; prop uuid; ch1 uuid; ch2 uuid; leg_lic uuid := gen_random_uuid(); leg_prop uuid := gen_random_uuid();
   lc1 uuid := gen_random_uuid();
   g1 uuid; g2 uuid; g3 uuid; g4 uuid; g5 uuid; g6 uuid; g7 uuid;
-  a1 uuid; a3a uuid; a3b uuid; a4 uuid; a6 uuid; a7 uuid; a8 uuid;
+  a1 uuid; a3a uuid; a3b uuid; a4 uuid; a5 uuid; a6 uuid; a7 uuid; a8 uuid;
   e0 extensions.vector := (array[1]::real[] || array_fill(0::real, array[767]))::extensions.vector;
   eh extensions.vector := (array[0.70710677,0.70710677]::real[] || array_fill(0::real, array[766]))::extensions.vector;
   f jsonb; ids uuid[]; n bigint; probe bigint; s real; s0 real; raised boolean;
+  scope_sets record;
 begin
   insert into plm.licensing_write_authorization (
     backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash,
@@ -60,7 +61,7 @@ begin
   insert into public.assets (filename, relative_path, file_type, quick_hash, modified_at, file_created_at, thumbnail_url, style_group_id)
     values ('zq1037d.pdf','zq1037/d.pdf','pdf','zq1037d', now(), now(), 'https://example.invalid/d.png', g4) returning id into a4;
   insert into public.assets (filename, relative_path, file_type, quick_hash, modified_at, file_created_at, thumbnail_url, style_group_id)
-    values ('zq1037e.pdf','zq1037/e.pdf','pdf','zq1037e', now(), now(), 'https://example.invalid/e.png', g5);
+    values ('zq1037e.pdf','zq1037/e.pdf','pdf','zq1037e', now(), now(), 'https://example.invalid/e.png', g5) returning id into a5;
   -- g6: two files; only the DELETED one carries the tag.
   insert into public.assets (filename, relative_path, file_type, quick_hash, modified_at, file_created_at, thumbnail_url, style_group_id)
     values ('zq1037f1.pdf','zq1037/f1.pdf','pdf','zq1037f1', now(), now(), 'https://example.invalid/f1.png', g6) returning id into a6;
@@ -190,9 +191,75 @@ begin
   s := public.dam_search_semantic_anchor_named(e0, array['style_group'], jsonb_build_object('requiredCharacterIds', jsonb_build_array(ch1)));
   if s is null or s > 0.75 or s < 0.65 then raise exception 'popdam3#1037 style-group character anchor %', s; end if;
 
+  foreach f in array array['{}'::jsonb, '{"requiredCharacterIds":[]}'::jsonb] loop
+    select * into strict scope_sets from public.dam_search_named_scope(f);
+    if not (scope_sets is null) then
+      raise exception 'popdam3#1037 omitted or empty scope % should yield four NULLs: %', f, scope_sets;
+    end if;
+  end loop;
+
+  select * into strict scope_sets
+  from public.dam_search_named_scope(jsonb_build_object('semanticPropertyIds', jsonb_build_array(prop)));
+  if scope_sets.character_groups is not null or scope_sets.character_assets is not null
+     or scope_sets.property_groups is distinct from array[g4]
+     or scope_sets.property_assets is distinct from '{}'::uuid[] then
+    raise exception 'popdam3#1037 property scope sets: %', scope_sets;
+  end if;
+
+  foreach f in array array[
+    jsonb_build_object('requiredCharacterIds', to_jsonb(array_fill(ch1, array[1001]))),
+    jsonb_build_object('requiredCharacterNames', to_jsonb(array_fill('ZQMarietta'::text, array[51])))
+  ] loop
+    raised := false;
+    begin
+      perform public.dam_search_named_scope(f);
+    exception when invalid_parameter_value then raised := true;
+    end;
+    if not raised then
+      raise exception 'popdam3#1037 named scope accepted an oversized list';
+    end if;
+  end loop;
+
+  -- The grouped asset inherits the name from g5. The ungrouped asset names
+  -- it in its own text and has a closer picture, but neither qualifies it.
+  insert into public.dam_search_documents (document_type, entity_id, asset_id, style_group_id, title, path, embedding, embedding_model)
+  values ('asset', a5, a5, g5, 'zq1037assetprobe grouped', '/lampstone/e.pdf', eh, 'google/siglip2-base-patch16-naflex')
+  on conflict (document_type, entity_id) do update
+    set asset_id=excluded.asset_id, style_group_id=excluded.style_group_id, title=excluded.title, path=excluded.path,
+        embedding=excluded.embedding, embedding_model=excluded.embedding_model;
+  update public.dam_search_documents
+  set title = 'zq1037assetprobe zqmarietta eight', embedding = e0
+  where document_type = 'asset' and entity_id = a8;
+
+  f := '{"requiredCharacterNames":["ZQMarietta"]}'::jsonb;
+  select * into strict scope_sets from public.dam_search_named_scope(f);
+  if scope_sets.character_groups is distinct from array[g5]
+     or scope_sets.character_assets is distinct from '{}'::uuid[]
+     or scope_sets.property_groups is not null or scope_sets.property_assets is not null then
+    raise exception 'popdam3#1037 character name scope sets: %', scope_sets;
+  end if;
+
+  select array_agg(entity_id), min(total_count) into ids, n
+  from public.search_dam_documents('zq1037assetprobe', '{}', 50, 0, array['asset'], null, 0, null);
+  if n is distinct from 2 or (ids @> array[a5,a8]) is distinct from true then
+    raise exception 'popdam3#1037 unscoped asset keyword search: total % ids %', n, ids;
+  end if;
+  select array_agg(entity_id), min(total_count) into ids, n
+  from public.search_dam_documents('zq1037assetprobe', f, 50, 0, array['asset'], null, 0, null);
+  if n is distinct from 1 or ids is distinct from array[a5] then
+    raise exception 'popdam3#1037 named asset keyword search: total % ids %', n, ids;
+  end if;
+  s0 := public.dam_search_semantic_anchor(e0, array['asset']);
+  s := public.dam_search_semantic_anchor_named(e0, array['asset'], f);
+  if s0 is null or s0 < 0.99 or s is null or s > 0.75 or s < 0.65 then
+    raise exception 'popdam3#1037 asset anchor: unscoped %, named %', s0, s;
+  end if;
+
   if has_function_privilege('anon', 'public.dam_search_semantic_anchor_named(extensions.vector,text[],jsonb)', 'execute')
      or has_function_privilege('anon', 'public.dam_search_uuid_list(jsonb)', 'execute')
-     or has_function_privilege('authenticated', 'public.dam_search_name_queries(jsonb)', 'execute') then
+     or has_function_privilege('authenticated', 'public.dam_search_name_queries(jsonb)', 'execute')
+     or has_function_privilege('anon', 'public.dam_search_named_scope(jsonb)', 'execute')
+     or has_function_privilege('authenticated', 'public.dam_search_named_scope(jsonb)', 'execute') then
     raise exception 'popdam3#1037 grants too wide';
   end if;
 end;
