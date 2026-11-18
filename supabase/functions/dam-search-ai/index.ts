@@ -594,28 +594,12 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         if (typeof filters !== "object" || Array.isArray(filters)) {
           return err("Invalid filters", 400);
         }
-        // A real product code, whole or its start, has no visual meaning: its picture leg only returns
-        // lookalikes (VDD83MVSP01 returned 7; HXP83MVSX02 returned 367). Match it by words only.
-        // The product-code check and spelling resolve together so neither waits on the other.
-        // popdam3#1037 Step 6: the text-meaning switch and its model stamp, read alongside the
-        // prechecks. Fail closed: an unreadable switch must not silently drop a required leg (D4).
-        const textLegConfig = timer.time(
-          "text_leg_config",
-          Promise.resolve(
-            serviceClient().from("admin_config").select("key, value")
-              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY]),
-          ).then((result) => result, (error: unknown) => ({ data: null, error })),
-        );
-        const [productCodeSearch, spellingHelp] = await timer.time(
-          "precheck",
-          Promise.all([
-            isProductCodeSearch(
-              query,
-              async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
-            ),
-            checkSpelling(query, spellingLookup),
-          ]),
-        );
+        // Confirm product codes with the catalog before preparing a meaning search.
+        const productCodeSearch = await timer.time("product_code", () =>
+          isProductCodeSearch(
+            query,
+            async (pattern) => await serviceClient().from("style_groups").select("id").ilike("sku", pattern).limit(1),
+          ));
         let unknownCatalogFormat = false;
         try {
           if (!productCodeSearch) {
@@ -634,7 +618,17 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // groups for SQX26DYMM02 ("NOTHING like the item # i typed in"); match it by words only,
         // which finds nothing and says so.
         const codeSearch = productCodeSearch || unknownCatalogFormat;
-        const spelling = codeSearch ? { corrected: null, meaningful: true } : spellingHelp;
+        // Both known codes and unknown codes in a supported format use the keyword
+        // search with the same filters and totals. Spelling and vector settings cannot
+        // change their result, and can delay or fail an otherwise usable search.
+        const textLegConfig = codeSearch ? null : timer.time(
+          "text_leg_config",
+          Promise.resolve(
+            serviceClient().from("admin_config").select("key, value")
+              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY]),
+          ).then((result) => result, (error: unknown) => ({ data: null, error })),
+        );
+        const spelling = codeSearch ? { corrected: null, meaningful: true } : await timer.time("spelling", () => checkSpelling(query, spellingLookup));
         const usePictures = !codeSearch && spelling.meaningful;
         // Product-type phrases ("floor covering") also run as catalog nouns
         // ("mat", "rug") so compound queries do not drop real mats.
@@ -647,7 +641,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // calls (one per variant, or query-then-variants) queue behind each other
         // and pay 1–3 s of tail (#804). One call, one latency draw.
         const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-        const textLeg = textLegSettings(await textLegConfig);
+        const textLeg = textLegConfig ? textLegSettings(await textLegConfig) : { on: false, model: null };
         if (!textLeg) return err("Search unavailable", 503);
         // Text leg on: the text-meaning vectors ride the SAME batched call (#804: one latency draw).
         const embedCall = (): Promise<EmbedWithText | null> => {
@@ -660,7 +654,9 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           Promise.all([
             timer.time("embed", embedCall()),
             // Server-side only: callers cannot override the admin-configured floor.
-            timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
+            codeSearch
+              ? Promise.resolve({ data: null, error: null })
+              : timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
             usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
             codeSearch ? Promise.resolve(EMPTY_NAME_INDEX) : timer.time("names", nameIndexWithin(NAME_INDEX_BUDGET_MS)),
           ]),

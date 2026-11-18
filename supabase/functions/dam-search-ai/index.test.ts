@@ -468,6 +468,29 @@ describe("DAM search embedding availability", () => {
       for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
     });
 
+    it.each([true, false])("skips spelling and vector settings for a code (catalog match: %s)", async (catalogMatch) => {
+      state.productCode = catalogMatch;
+      state.formatRpc.mockResolvedValue({ data: true, error: null });
+      state.configError = { message: "vector settings unavailable" };
+      state.corrected = "unrelated spelling correction";
+      vi.stubGlobal("fetch", vi.fn());
+
+      const response = await search("ABC123456", undefined, ["style_group"]);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Server-Timing")).not.toMatch(/spelling|text_leg_config|floor_config/);
+      expect(await response.json()).toMatchObject({ semantic: "skipped", corrected_query: null });
+      expect(searchCalls()).toEqual([[
+        "search_dam_documents",
+        expect.objectContaining({
+          p_query: "ABC123456",
+          p_document_types: ["style_group"],
+          p_query_embedding: null,
+          p_min_semantic_score: null,
+        }),
+      ]]);
+    });
+
     it("the browser cannot supply a text vector", async () => {
       mode("off");
       vi.stubGlobal("fetch", textFetch(MODEL));
