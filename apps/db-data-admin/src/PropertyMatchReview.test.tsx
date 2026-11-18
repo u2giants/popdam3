@@ -274,6 +274,27 @@ describe('PropertyMatchReview', () => {
     expect(screen.queryByText('Nothing is waiting for a decision.')).not.toBeInTheDocument()
   })
 
+  it('clears rows already on screen when a refresh fails, so stale rows never look current', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { rows: [row()], next_cursor: null, page_size: 200 }, error: null })
+      .mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+    render(<PropertyMatchReview client={clientOf(rpc)} />)
+    await screen.findByRole('heading', { name: 'Muppets' })
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh property matches' }))
+    expect(await screen.findByText(/review queue did not load/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Muppets' })).not.toBeInTheDocument()
+    expect(screen.getByText('Queue not loaded')).toBeInTheDocument()
+    expect(screen.queryByText(/awaiting a decision/)).not.toBeInTheDocument()
+  })
+
+  it('uses the fallback sentence when a failed load carries no message', async () => {
+    const rpc = vi.fn().mockRejectedValue('boom')
+    render(<PropertyMatchReview client={clientOf(rpc)} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The review queue could not be loaded.')
+    expect(screen.getByText(/review queue did not load/)).toBeInTheDocument()
+    expect(screen.getByText('Queue not loaded')).toBeInTheDocument()
+  })
+
   it('says a search that hides every row is not the same as an empty queue', async () => {
     render(<PropertyMatchReview client={clientOf(queueOnce([row()]))} />)
     await screen.findByRole('heading', { name: 'Muppets' })
