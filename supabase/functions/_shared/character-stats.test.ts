@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { planCharacterStats } from "./character-stats.ts";
 
 const row = (id: string, usage_count: number, is_priority: boolean) => ({
-  id, name: id, property_id: "p", usage_count, is_priority,
+  id,
+  name: id,
+  property_id: "p",
+  usage_count,
+  is_priority,
 });
 
 describe("planCharacterStats (#1095)", () => {
