@@ -3,6 +3,7 @@ import copy
 from decimal import Decimal
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -19,6 +20,7 @@ class BaselineTests(unittest.TestCase):
         row='(16486,5,t,-9223372036854775808,1793973600.123456,'+'a'*32+',9007199254740993,123456789.123456789,18446744073709551615)'
         self.assertEqual(digest,hashlib.md5(row.encode()).hexdigest())
         self.assertIn('9007199254740993::bigint',values)
+        self.assertIn("'-9223372036854775808'::bigint",values)
         c['family'][0]['stats_since']='2026-11-06T14:00:00.123456+00:00'
         self.assertEqual(m.prepare(c)[1],digest)
 
@@ -52,5 +54,24 @@ class BaselineTests(unittest.TestCase):
         self.assertIn('1::bigint as family_entry_count',proposed)
         self.assertNotIn('where false',proposed)
         self.assertEqual(original,template.read_text())
+
+    def test_archived_full_vector_roundtrips_through_unset_template(self):
+        root=Path(__file__).resolve().parent.parent
+        evidence=root/'docs/verification/issue-5609-trigger-acceptance'
+        opening=(evidence/'20261117-new-opening.json').read_bytes()
+        self.assertEqual(hashlib.sha256(opening).hexdigest(),
+                         '82b328601d52d99c3525bb171e12d116b18b5ae4fd657b900e7ab5c5760f3450')
+        source=(root/'.github/live-proofs/5609.sql').read_text()
+        if ' -- UNSET: populate' not in source:
+            self.skipTest('active source now contains a separately pinned opening')
+        candidate=json.loads(opening)
+        verified='8431240c38706c96991024f40198899c'
+        self.assertEqual(m.prepare(candidate)[:2],(226,verified))
+        # Local regression fixture only: compare the exact failed SQL body without repinning it.
+        archived=(evidence/'5609-20261117-failed-window.sql').read_text()
+        proposal=m.proposed(candidate,source,verified)
+        start='with baseline as ('
+        self.assertEqual(proposal[proposal.index(start):],archived[archived.index(start):])
+
 
 if __name__=='__main__':unittest.main()

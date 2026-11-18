@@ -65,7 +65,7 @@ def prepare(candidate):
         epoch = Decimal(delta.days*86400+delta.seconds)+Decimal(delta.microseconds)/1000000
         counters = [integer(r['calls'],0,2**63-1), numeric(r['total_exec_time']), numeric(r['wal_bytes'])]
         text = '('+','.join(vals+[format(epoch,'.6f'),r['query_md5']]+counters)+')'
-        sqlvals = [vals[0]+'::oid',vals[1]+'::oid',str(r['toplevel']).lower(),vals[3]+'::bigint',literal(ts.isoformat())+'::timestamptz',literal(r['query_md5']),counters[0]+'::bigint',counters[1]+'::numeric',counters[2]+'::numeric']
+        sqlvals = [vals[0]+'::oid',vals[1]+'::oid',str(r['toplevel']).lower(),literal(vals[3])+'::bigint',literal(ts.isoformat())+'::timestamptz',literal(r['query_md5']),counters[0]+'::bigint',counters[1]+'::numeric',counters[2]+'::numeric']
         encoded.append((key,text,'('+','.join(sqlvals)+')'))
     encoded.sort()
     digest = hashlib.md5('\n'.join(x[1] for x in encoded).encode()).hexdigest()

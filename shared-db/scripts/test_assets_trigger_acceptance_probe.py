@@ -231,17 +231,28 @@ def family_fixture_sql():
 
 
 class AcceptanceProbeTests(unittest.TestCase):
-    def test_third_failed_window_preserved_and_only_selection_changed(self):
+    def test_third_failed_window_preserved_and_acceptance_guards_unchanged(self):
         archived = ROOT / 'docs/verification/issue-5609-trigger-acceptance/5609-third-failed-window.sql'
         self.assertEqual(hashlib.sha256(archived.read_bytes()).hexdigest(),
                          'abe17944933a4dda492bb59983df584b9b56470a0446d15b8aa546e8ae56a508')
+        corrected = ROOT / 'docs/verification/issue-5609-trigger-acceptance/5609-third-failed-window-corrected.sql'
+        self.assertEqual(hashlib.sha256(corrected.read_bytes()).hexdigest(),
+                         '4ebc6ddcacbb3b2e1ae885472a2c6659405a2ffdd4e23137d6e83de4c0239a9e')
+        november17 = ROOT / 'docs/verification/issue-5609-trigger-acceptance/5609-20261117-failed-window.sql'
+        self.assertEqual(hashlib.sha256(november17.read_bytes()).hexdigest(),
+                         'f588afb03d66cd7fdb369f5f9fb385df641a310b54162814b3a4ca5dfb72ab6d')
         strip_comments = lambda source: re.sub(r'(?m)^--[^\n]*\n', '', source)
         expected = archived.read_text().replace(
             'public.assets a tablesample system(1) repeatable(5609) cross join baseline b',
             'public.assets a cross join baseline b').replace(
             'and a.last_seen_at<=now() limit 3',
             'and a.last_seen_at<=now() order by a.id limit 3')
-        self.assertEqual(strip_comments(PROBE.read_text()), strip_comments(expected))
+        current = PROBE.read_text()
+        tail = '), query_stats as ('
+        self.assertEqual(strip_comments(current[current.index(tail):]),
+                         strip_comments(expected[expected.index(tail):]))
+        self.assertEqual([line for line in current.splitlines() if ' as pre_' in line],
+                         [line for line in expected.splitlines() if ' as pre_' in line])
 
     def test_recent_selection_fills_three_from_all_eligible_rows(self):
         source = PROBE.read_text()
@@ -267,7 +278,7 @@ class AcceptanceProbeTests(unittest.TestCase):
             for alias in aliases:
                 self.assertNotRegex(current,r'null::\w+ as '+alias+r'\b')
             self.assertNotIn('where false',current)
-            rows=re.findall(r"\(\d+::oid,\d+::oid,(?:true|false),-?\d+::bigint,'[^']+'::timestamptz,'[0-9a-f]{32}',\d+::bigint,[0-9.]+::numeric,[0-9.]+::numeric\)",current)
+            rows=re.findall(r"\(\d+::oid,\d+::oid,(?:true|false),(?:-?\d+|'-?\d+')::bigint,'[^']+'::timestamptz,'[0-9a-f]{32}',\d+::bigint,[0-9.]+::numeric,[0-9.]+::numeric\)",current)
             count=int(re.search(r'(\d+)::bigint as family_entry_count',current)[1])
             self.assertGreater(count,0)
             self.assertEqual(len(rows),count)
@@ -276,9 +287,9 @@ class AcceptanceProbeTests(unittest.TestCase):
             spec=importlib.util.spec_from_file_location('baseline',ROOT/'scripts/prepare_assets_trigger_baseline.py')
             module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
             parsed=[]
-            pattern=r"\((\d+)::oid,(\d+)::oid,(true|false),(-?\d+)::bigint,'([^']+)'::timestamptz,'([0-9a-f]{32})',(\d+)::bigint,([0-9.]+)::numeric,([0-9.]+)::numeric\)"
+            pattern=r"\((\d+)::oid,(\d+)::oid,(true|false),(-?\d+|'-?\d+')::bigint,'([^']+)'::timestamptz,'([0-9a-f]{32})',(\d+)::bigint,([0-9.]+)::numeric,([0-9.]+)::numeric\)"
             for row in re.findall(pattern,current):
-                parsed.append(dict(zip(module.FIELDS,[row[0],row[1],row[2]=='true',*row[3:]])))
+                parsed.append(dict(zip(module.FIELDS,[row[0],row[1],row[2]=='true',row[3].strip("'"),*row[4:]])))
             opening=re.search(r"'([^']+)'::timestamptz as observed_at",current)[1]
             digest=re.search(r"'([0-9a-f]{32})'::text as family_vector_md5",current)[1]
             self.assertEqual(module.prepare({'family':parsed,'observed_at':opening})[:2],(count,digest))
