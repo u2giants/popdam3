@@ -1,0 +1,95 @@
+name: Check PopDAM worker management access (#469)
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: issue-469-railway-access-probe
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: >-
+      github.repository == 'u2giants/popdam3' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'u2giants' &&
+      github.triggering_actor == 'u2giants'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check scoped worker access
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          endpoint = "https://backboard.railway.com/graphql/v2"
+          target = {
+              "projectId": "8645c5fe-ae60-413e-8464-508456c65365",
+              "environmentId": "70aef28e-b9f8-4aa6-b902-c9a06aec08d5",
+              "serviceId": "f777713f-d0f8-4f9b-9685-37c9090c98ef",
+          }
+          token = os.environ.get("RAILWAY_TOKEN", "")
+          if not token:
+              raise SystemExit("Railway project credential is unavailable.")
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          browser = urllib.request.build_opener(NoRedirect())
+
+          def query(document, variables=None):
+              request = urllib.request.Request(
+                  endpoint,
+                  data=json.dumps({"query": document, "variables": variables or {}}).encode(),
+                  headers={
+                      "Project-Access-Token": token,
+                      "Content-Type": "application/json",
+                      "User-Agent": "curl/8.14.1",
+                  },
+              )
+              try:
+                  with browser.open(request, timeout=15) as response:
+                      result = json.load(response)
+              except (OSError, ValueError):
+                  raise SystemExit("Railway read request failed.") from None
+              if not isinstance(result, dict) or result.get("errors") or not isinstance(result.get("data"), dict):
+                  raise SystemExit("Railway denied or could not complete the read request.")
+              return result["data"]
+
+          scope = query("query { projectToken { projectId environmentId } }")["projectToken"]
+          if scope != {key: target[key] for key in ("projectId", "environmentId")}:
+              raise SystemExit("Railway project credential scope does not match PopDAM production.")
+
+          data = query(
+              """
+              query WorkerDeployment($input: DeploymentListInput!) {
+                  deployments(input: $input, first: 1) {
+                      edges { node { status } }
+                  }
+              }
+              """,
+              {"input": {**target, "status": {"successfulOnly": True}}},
+          )
+          deployments = data["deployments"]["edges"]
+          if len(deployments) != 1 or deployments[0]["node"]["status"] != "SUCCESS":
+              raise SystemExit("No successful deployment was confirmed for the PopDAM worker.")
+
+          variables = query(
+              """
+              query WorkerVariables($projectId: String!, $environmentId: String!, $serviceId: String) {
+                  variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+              }
+              """,
+              target,
+          )["variables"]
+          if not isinstance(variables, dict) or "DEEPSEEK_API_KEY" not in variables:
+              raise SystemExit("The expected worker setting could not be confirmed.")
+          print("Verified the scoped Railway credential and PopDAM production worker read access.")
+          PY
