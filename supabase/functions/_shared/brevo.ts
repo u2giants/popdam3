@@ -3,7 +3,12 @@
  *
  * Uses the Brevo v3 REST API to send transactional emails.
  * Requires BREVO_API_KEY in environment.
+ *
+ * Logs never contain recipient addresses, subject text or raw provider bodies;
+ * see ./log-redact.ts for the masking rules.
  */
+
+import { describeSubject, maskEmail, maskEmailsInText, summarizeProviderBody } from "./log-redact.ts";
 
 interface SendEmailParams {
   to: string;
@@ -46,7 +51,7 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResu
   };
   if (params.textContent) body.textContent = params.textContent;
 
-  console.log(`[brevo] Sending email to=${params.to} from=${sender.email} subject="${params.subject}"`);
+  console.log(`[brevo] Sending email to=${maskEmail(params.to)} from=${sender.email} ${describeSubject(params.subject)}`);
 
   let res: Response;
   try {
@@ -60,34 +65,35 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResu
       body: JSON.stringify(body),
     });
   } catch (fetchErr) {
-    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    const msg = maskEmailsInText(fetchErr instanceof Error ? fetchErr.message : String(fetchErr));
     console.error(`[brevo] Network error: ${msg}`);
     return { ok: false, error: `Network error calling Brevo: ${msg}` };
   }
 
   const rawText = await res.text();
-  console.log(`[brevo] HTTP ${res.status} — raw response: ${rawText}`);
+  const bodySummary = summarizeProviderBody(rawText);
 
   if (!res.ok) {
-    console.error(`[brevo] API error [${res.status}]:`, rawText);
+    console.error(`[brevo] API error [${res.status}]: ${bodySummary}`);
     return {
       ok: false,
-      error: `Brevo API error [${res.status}]: ${rawText.slice(0, 300)}`,
+      error: `Brevo API error [${res.status}]: ${bodySummary}`,
       httpStatus: res.status,
-      rawBody: rawText.slice(0, 500),
+      rawBody: bodySummary,
     };
   }
+  console.log(`[brevo] HTTP ${res.status} — ${bodySummary}`);
 
   // Parse the response body
   let data: Record<string, unknown>;
   try {
     data = JSON.parse(rawText);
   } catch {
-    console.warn(`[brevo] Could not parse JSON response: ${rawText}`);
+    console.warn(`[brevo] Could not parse JSON response: ${bodySummary}`);
     return {
       ok: true,
       httpStatus: res.status,
-      rawBody: rawText.slice(0, 500),
+      rawBody: bodySummary,
       warning: "Brevo returned 2xx but response was not valid JSON",
     };
   }
@@ -95,11 +101,11 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResu
   const messageId = data.messageId as string | undefined;
 
   if (!messageId) {
-    console.warn(`[brevo] Brevo returned ${res.status} but NO messageId. Full response:`, rawText);
+    console.warn(`[brevo] Brevo returned ${res.status} but NO messageId: ${bodySummary}`);
     return {
       ok: true,
       httpStatus: res.status,
-      rawBody: rawText.slice(0, 500),
+      rawBody: bodySummary,
       warning: "Brevo accepted the request (HTTP 2xx) but returned no messageId. " +
         "This usually means the sender email/domain is not verified in your Brevo account. " +
         "Check Settings → Senders & IPs → Domains in Brevo.",
