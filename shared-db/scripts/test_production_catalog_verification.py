@@ -357,9 +357,13 @@ class DeriveTargetsTests(unittest.TestCase):
         )
         self.assertEqual(t.indexes, [("plm.widget_code_idx", "plm.widget")])
 
+    def test_quoted_mixed_case_index_is_read(self):
+        # #6716
+        t = targets_for('create index "MixedCase" on plm.widget (id);')
+        self.assertEqual(t.indexes, [('plm."MixedCase"', "plm.widget")])
+
     def test_unsupported_index_forms_are_not_silently_dropped(self):
         for sql in (
-            'create index "MixedCase" on plm.widget (id);',
             "create index widget_idx on widget (id);",
             "create index on plm.widget (id);",
         ):
@@ -462,8 +466,13 @@ class DeriveTargetsTests(unittest.TestCase):
         self.assertEqual(t.tables, [])
         self.assertTrue(t.is_empty())
 
-    def test_quoted_identifiers_are_not_claimed(self):
+    def test_quoted_identifiers_are_claimed_with_case(self):
+        # #6716: Postgres keeps a quoted name's case, so the check must too.
         t = targets_for('create table "PLM"."Widget" (id int);')
+        self.assertEqual(t.tables, ['"PLM"."Widget"'])
+
+    def test_quoted_identifiers_with_unsafe_characters_are_not_claimed(self):
+        t = targets_for('create table plm."Odd.Name" (id int);')
         self.assertEqual(t.tables, [])
 
     def test_search_path_relative_names_are_not_claimed(self):
@@ -3791,11 +3800,12 @@ class HtsProductPhraseContractTests(unittest.TestCase):
         self.assertIn("hts_product_phrase_columns_contract", sql)
         self.assertIn("hts_product_phrase_columns_v1", CATALOG_CONTRACTS)
 
-    def test_phrase_migration_derives_no_lexer_target_so_the_sidecar_is_the_only_evidence(self):
-        # The quoted mixed-case identifiers are invisible to the statement lexer,
-        # so without the sidecar a phrase-only allowlist verifies NOTHING and
-        # enforcing mode refuses. This pin keeps that reason honest.
-        self.assertTrue(derive_targets({self.VERSION: self.migration()}, [self.VERSION]).is_empty())
+    def test_phrase_migration_lexer_reads_quoted_tables_and_sidecar_proves_columns(self):
+        # #6716: the lexer now reads the quoted mixed-case ALTER targets, so the
+        # tables must exist; the column shape is still proved only by the sidecar.
+        t = derive_targets({self.VERSION: self.migration()}, [self.VERSION])
+        self.assertIn('plm."itemHeader"', t.tables)
+        self.assertIn('dflow_prod."RFQItem"', t.tables)
 
 
 

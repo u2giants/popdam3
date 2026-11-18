@@ -2341,6 +2341,7 @@ def strip_sql(
     keep_literals: bool = False,
     keep_dollar: bool = False,
     keep_regclass: bool = True,
+    keep_case: bool = False,
 ) -> str:
     """Lowercase SQL with comments and dollar-quoted bodies removed.
 
@@ -2494,7 +2495,9 @@ def strip_sql(
         else:
             out.append(ch)
             i += 1
-    return "".join(out).lower()
+    # keep_case (#6716): callers that must read a quoted mixed-case identifier
+    # (`core."merchGroupRepairJournal"`) fold case themselves, outside quotes.
+    return "".join(out) if keep_case else "".join(out).lower()
 
 
 def created_objects(raw: str) -> set[str]:
