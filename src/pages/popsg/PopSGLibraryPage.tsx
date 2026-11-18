@@ -57,6 +57,7 @@ import {
 // licensor_name is a generated column: split_part(relative_path, '/', 1)
 // property_folder is segments[1] from the root (licensor's property name)
 import { talentLikenessLabel } from "./talentLikenessLabel";
+import { fetchAllPopSGFolderRows } from "./popsgFolderRows";
 
 interface StyleGuideFile {
   id: string;
@@ -775,16 +776,18 @@ export default function PopSGLibraryPage() {
   const { data: tree = [], error: treeError, refetch: refetchTree } = useQuery<TreeNode[]>({
     queryKey: ["popsg", "tree"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("style_guide_folders")
-        .select("licensor_name,property_folder")
-        .order("licensor_name")
-        .order("property_folder")
-        .limit(5000);
-      if (error) throw error;
+      // Read every page: a single capped request dropped later licensors (#1103).
+      const rows = await fetchAllPopSGFolderRows<{ licensor_name: string | null; property_folder: string | null }>(
+        (from, to) => supabase
+          .from("style_guide_folders")
+          .select("licensor_name,property_folder")
+          .order("licensor_name")
+          .order("property_folder")
+          .range(from, to),
+      );
 
       const map = new Map<string, Set<string>>();
-      for (const r of (data ?? []) as { licensor_name: string | null; property_folder: string | null }[]) {
+      for (const r of rows) {
         if (!r.licensor_name) continue;
         if (!map.has(r.licensor_name)) map.set(r.licensor_name, new Set());
         if (r.property_folder) map.get(r.licensor_name)!.add(r.property_folder);
