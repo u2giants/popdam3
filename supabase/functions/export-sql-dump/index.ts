@@ -1,9 +1,9 @@
 import {
   afterCursorFilter,
   clampChunkSize,
+  clearTableSQL,
   decodeCursor,
   encodeCursor,
-  clearTableSQL,
   insertRowSQL,
   type ManifestEntry,
   manifestEntry,
