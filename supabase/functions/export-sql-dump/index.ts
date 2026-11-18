@@ -214,8 +214,15 @@ corsServe(async (req) => {
     const sqlContent = lines.join("\n");
     const filename = `${table}_chunk${String(chunkIndex).padStart(3, "0")}.sql`;
 
-    return new Response(sqlContent, {
+    // Integrity proof for the client: a body cut in transit fails the hash (#1132)
+    const body = new TextEncoder().encode(sqlContent);
+    const digest = await crypto.subtle.digest("SHA-256", body);
+    const sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    return new Response(body, {
       headers: {
+        "Content-Length": String(body.byteLength),
+        "X-Content-SHA256": sha256,
         "Content-Type": "text/sql; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "X-Table": table,
