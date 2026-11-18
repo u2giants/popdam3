@@ -81,6 +81,7 @@ import {
   staleRetirementRefusal,
 } from "../_shared/stale-asset-retirement.ts";
 import { retireMissingInChunks } from "../_shared/retire-missing-chunks.ts";
+import { mergeCompatAuditFlagged } from "../_shared/compat-audit-preview-merge.ts";
 import { appendScanHistory, buildScanHistoryEntry, isExpiredSiblingScanRow, SCAN_HISTORY_KEY, TERMINAL_SCAN_STATUSES } from "../_shared/scan-history.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
@@ -4830,9 +4831,9 @@ async function handleClearCompatThumbnails(body: Record<string, unknown>) {
 }
 
 // ── Route: update-compat-audit-preview ───────────────────────────────
-// Called by bridge-agent after each batch during a preview scan.
-// Writes intermediate progress (scanned count + flagged-so-far) so the UI
-// can show live progress without waiting for the full scan to complete.
+// Called by bridge-agent and windows-agent after each batch during a preview scan.
+// The body's `flagged` holds only the assets flagged since the previous write;
+// they are appended to the stored list (merged by asset id, so repeats are harmless).
 
 async function handleUpdateCompatAuditPreview(body: Record<string, unknown>) {
   const db = serviceClient();
@@ -4848,13 +4849,14 @@ async function handleUpdateCompatAuditPreview(body: Record<string, unknown>) {
 
   if (!reqRow?.value) return json({ ok: true, ignored: true });
 
+  const current = reqRow.value as Record<string, unknown>;
   await db.from("admin_config").upsert({
     key: "COMPAT_AUDIT_PREVIEW_REQUEST",
     value: {
-      ...(reqRow.value as Record<string, unknown>),
+      ...current,
       status: "scanning",
       scanned,
-      flagged,
+      flagged: mergeCompatAuditFlagged(current.flagged, flagged),
     },
     updated_at: nowIso,
   });
@@ -4863,9 +4865,9 @@ async function handleUpdateCompatAuditPreview(body: Record<string, unknown>) {
 }
 
 // ── Route: complete-compat-audit-preview ─────────────────────────────
-// Called by bridge-agent when the full preview scan finishes.
-// Stores the final list of flagged assets so the admin UI can display them
-// before the user commits to the destructive full audit.
+// Called by bridge-agent and windows-agent when the full preview scan finishes.
+// Appends any flagged assets not yet delivered (merged by id) so the admin UI
+// can display the complete list before the user commits to the destructive full audit.
 
 async function handleCompleteCompatAuditPreview(body: Record<string, unknown>) {
   const db = serviceClient();
@@ -4882,12 +4884,13 @@ async function handleCompleteCompatAuditPreview(body: Record<string, unknown>) {
 
   if (!reqRow?.value) return json({ ok: true, ignored: true });
 
+  const current = reqRow.value as Record<string, unknown>;
   const updated: Record<string, unknown> = {
-    ...(reqRow.value as Record<string, unknown>),
+    ...current,
     status: errorMsg ? "error" : "completed",
     completed_at: nowIso,
     scanned,
-    flagged,
+    flagged: mergeCompatAuditFlagged(current.flagged, flagged),
   };
   if (errorMsg) updated.error = errorMsg.slice(0, 500);
 
