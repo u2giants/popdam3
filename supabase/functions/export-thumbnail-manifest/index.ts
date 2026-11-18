@@ -33,14 +33,6 @@ corsServe(async (req) => {
 
     const db = serviceClient();
 
-    // Cheap count for the X-Row-Count header; rows themselves are streamed.
-    const { count, error: countError } = await db
-      .from("assets")
-      .select("id", { count: "exact", head: true })
-      .not("thumbnail_url", "is", null)
-      .eq("is_deleted", false);
-    if (countError) return err(countError.message, 500);
-
     const fetchPage: FetchManifestPage = async (afterId, limit) => {
       let q = db
         .from("assets")
@@ -57,7 +49,6 @@ corsServe(async (req) => {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="thumbnail_manifest.csv"`,
-        "X-Row-Count": count === null || count === undefined ? "?" : String(count),
       },
     });
   } catch (e) {
