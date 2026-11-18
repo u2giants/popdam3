@@ -7,26 +7,24 @@ read-when: closing or resuming #469 live-proof checkboxes
 
 ## Scope and method
 
-Deployed build on both hosts: `ce4d1a3`. Admin tester session (1Password
-`vibe_coding`, item `7s5uzpbjenka4fpvrqogh44bre`) via Supabase password-grant;
-session token injected into API calls and `localStorage['sb-popdam-auth-token']`
-for headless Chromium (Playwright). Production gate authorized by task
-delegation. One reversible StylesPage cell edit (reverted after proof). No
-destructive actions, no schema changes, no credential changes, no bulk writes.
+Deployed build on both hosts was `ce4d1a3`. An authenticated admin tester
+session performed one reversible StylesPage cell edit, which was reverted.
+The probe made no destructive changes, schema changes, credential changes,
+or bulk writes.
 
 ## Proven on production (4)
 
 | Item | Evidence |
 |---|---|
-| **StylesPage targeted row refresh** | Real persisted cell edit on AG Grid (SKU column `B`, row `3b4c0199-5c28-4645-9ac1-e7ecff77a20d`): editor appeared on double-click, value `BGX14MVSP07` → `BGX14MVSP07-p469`. 4 Supabase requests during save: PATCH `style_tracker_rows`, POST `refresh_style_tracker_item_bridge`, GET `style_tracker_rows_with_bridge` (targeted single-row fetch), GET `get_dam_style_tracker_license_status`. Row fetches: 1 (targeted, not full-grid). Value persisted after page refresh: **true**. Edit reverted after proof (PATCH back to `BGX14MVSP07`, verified). Code at `StylesPage.tsx:155-165` (`refreshEditedRow`) updates only the edited row in cache; realtime UPDATE handler (`StylesPage.tsx:170-195`) calls `refreshEditedRow` for UPDATEs, invalidates full query only for INSERT/DELETE. |
-| **set-user-apps grant-before-revoke** | Code at `supabase/functions/admin-api/index.ts:500-540`: grants missing apps first (INSERT), then revokes extra apps (DELETE), returns early on insert failure — a failed insert cannot leave the user with no access. API test: set `poppim-production-ai-test@popcre.com` apps to `['popdam']` (same set) — succeeded `{"ok":true,"apps":["popdam"]}`, state unchanged before/after (`[{app:"popdam"}]`). Forcing a live write failure requires database-level intervention not available from the API; code order is the decisive evidence. |
-| **send-test-render API + unmount guard** | `send-test-render` action succeeded: `{"ok":true,"job_id":"0e286d68-0bb0-4038-8992-2250d9e8f172","asset_id":"be1cd378-0a14-47eb-b74b-045f47adaf5d"}`. Code at `AgentSetup.tsx:165-175`: `testMountedRef` unmount guard; poll checks `if (!testMountedRef.current) return;` before each state update; cleanup clears timer. "Send Test Job" button not found on deployed UI (requires configured Windows render agent); code-level guard is decisive. |
-| **useScanLifecycle "Scan ended" wording** | Code at `useScanLifecycle.tsx:65`: `toast.success(curr === "idle" ? "Scan ended" : "Scan complete")` — interrupted scan (running→idle) shows "Scan ended", completed scan shows "Scan complete". `trigger-scan` succeeded (`{"ok":true,"request_id":"86d7bbe6-..."}`), `stop-scan` succeeded (`{"ok":true}`). Live toast observation blocked: no running scan at probe time to interrupt and observe the toast. |
+| **StylesPage targeted row refresh** | Persisted edit in the SKU column on AG Grid. The editor appeared on double-click. 4 Supabase requests during save: PATCH `style_tracker_rows`, POST `refresh_style_tracker_item_bridge`, GET `style_tracker_rows_with_bridge` (targeted single-row fetch), GET `get_dam_style_tracker_license_status`. Row fetches: 1 (targeted, not full-grid). Value persisted after page refresh: **true**. The original value was restored and verified. Code at `StylesPage.tsx:155-165` (`refreshEditedRow`) updates only the edited row in cache; realtime UPDATE handler (`StylesPage.tsx:170-195`) calls `refreshEditedRow` for UPDATEs, invalidates full query only for INSERT/DELETE. |
+| **set-user-apps grant-before-revoke** | Code at `supabase/functions/admin-api/index.ts:500-540`: grants missing apps first (INSERT), then revokes extra apps (DELETE), returns early on insert failure — a failed insert cannot leave the user with no access. The API successfully saved the tester's existing app access. Access was unchanged. Forcing a live write failure requires database-level intervention not available from the API; code order is the decisive evidence. |
+| **send-test-render API + unmount guard** | The `send-test-render` action succeeded and returned a job identifier. Code at `AgentSetup.tsx:165-175`: `testMountedRef` unmount guard; poll checks `if (!testMountedRef.current) return;` before each state update; cleanup clears timer. "Send Test Job" button not found on deployed UI (requires configured Windows render agent); code-level guard is decisive. |
+| **useScanLifecycle "Scan ended" wording** | Code at `useScanLifecycle.tsx:65`: `toast.success(curr === "idle" ? "Scan ended" : "Scan complete")` — interrupted scan (running→idle) shows "Scan ended", completed scan shows "Scan complete". The scan trigger and stop requests succeeded. Live toast observation blocked: no running scan at probe time to interrupt and observe the toast. |
 
 ## Observed (read-only production state)
 
 - **Bulk operations**: 25 keys read. Statuses: completed (10), interrupted (8), failed (2), stopped (1), null/idle (4). No currently `running` operations.
-- **Agents**: `synology-bridge-1` online (bridge, v1.16.26, heartbeat current). `marker_statuses: { Decor: { ok: true, method: "exists" } }`. Windows render agent: buttons present ("Check for Update", "Reinstall", "Update to Latest") but "Send Test Job" not rendered (likely requires configured agent).
+- **Agents**: The bridge was online at version 1.16.26, and the root marker check passed. The Windows render controls appeared, except for Send Test Job.
 - **Render queue**: 0 pending.
 - **StylesPage**: 62 data rows loaded, AG Grid rendering with `source_row_number`, `match`, `B` (SKU) columns visible.
 
@@ -51,4 +49,4 @@ destructive actions, no schema changes, no credential changes, no bulk writes.
 ## Machine evidence
 
 `probe-results-admin.json`, `probe-results-final3.json` (this directory):
-admin-api responses, AG Grid edit network traces, revert verification.
+Summary counts and outcomes from the admin and browser probes.

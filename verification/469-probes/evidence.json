@@ -3,41 +3,58 @@
   "pass": "production-probe 2026-11-15",
   "observed_at": "2026-11-15T23:30:00.000Z",
   "deployed_build": "ce4d1a3",
-  "hosts": ["dam.designflow.app", "sg.designflow.app"],
-  "method": "Admin tester session (1Password vibe_coding 7s5uzpbjenka4fpvrqogh44bre) via Supabase password-grant; headless Chromium (Playwright) + admin-api edge function. One reversible StylesPage cell edit. No destructive actions, no schema changes, no credential changes, no bulk writes.",
+  "hosts": [
+    "dam.designflow.app",
+    "sg.designflow.app"
+  ],
+  "method": "Authenticated admin tester and browser session. One reversible StylesPage cell edit. No destructive actions, schema changes, credential changes, or bulk writes.",
   "proven": {
     "styles_page_row_refresh": {
       "status": "proven",
-      "probe": "Real persisted cell edit on AG Grid SKU column B, row 3b4c0199",
+      "probe": "Persisted cell edit in the StylesPage SKU column",
       "editor_appeared": true,
-      "value_before": "BGX14MVSP07",
-      "value_after": "BGX14MVSP07-p469",
       "requests_during_save": 4,
-      "request_urls": [
-        "PATCH /rest/v1/style_tracker_rows?id=eq.3b4c0199-...",
-        "POST /rest/v1/rpc/refresh_style_tracker_item_bridge",
-        "GET /rest/v1/style_tracker_rows_with_bridge?select=...",
-        "GET /rest/v1/rpc/get_dam_style_tracker_license_status"
-      ],
       "targeted_row_fetches": 1,
       "full_grid_reload": false,
       "value_persisted_after_refresh": true,
       "edit_reverted": true,
-      "revert_verified": "sku=BGX14MVSP07"
+      "revert_verified": true,
+      "request_endpoints": [
+        "PATCH /rest/v1/style_tracker_rows",
+        "POST /rest/v1/rpc/refresh_style_tracker_item_bridge",
+        "GET /rest/v1/style_tracker_rows_with_bridge",
+        "GET /rest/v1/rpc/get_dam_style_tracker_license_status"
+      ]
     },
     "set_user_apps_grant_before_revoke": {
       "status": "proven-code-and-api",
       "code_path": "supabase/functions/admin-api/index.ts:500-540",
       "code_behavior": "Grant missing apps first (INSERT), then revoke extra (DELETE), return early on insert failure",
-      "api_test": "set poppim-production-ai-test@popcre.com apps to ['popdam'] (same set)",
-      "result": {"ok": true, "apps": ["popdam"]},
-      "state_before": [{"app": "popdam"}],
-      "state_after": [{"app": "popdam"}],
+      "api_test": "Set the tester's existing app access again",
+      "result": {
+        "ok": true,
+        "apps": [
+          "popdam"
+        ]
+      },
+      "state_before": [
+        {
+          "app": "popdam"
+        }
+      ],
+      "state_after": [
+        {
+          "app": "popdam"
+        }
+      ],
       "note": "Forcing a live write failure requires database-level intervention; code order is decisive"
     },
     "send_test_render_api_and_unmount_guard": {
       "status": "proven-api-and-code",
-      "api_result": {"ok": true, "job_id": "0e286d68-0bb0-4038-8992-2250d9e8f172", "asset_id": "be1cd378-0a14-47eb-b74b-045f47adaf5d"},
+      "api_result": {
+        "ok": true,
+        "job_id_returned": true
+      },
       "code_path": "src/components/settings/windows-agent/AgentSetup.tsx:165-175",
       "code_behavior": "testMountedRef unmount guard; poll checks mounted before state update; cleanup clears timer",
       "note": "Send Test Job button not rendered on deployed UI (requires configured Windows agent)"
@@ -46,29 +63,62 @@
       "status": "proven-code",
       "code_path": "src/hooks/useScanLifecycle.tsx:65",
       "code_behavior": "toast.success(curr === 'idle' ? 'Scan ended' : 'Scan complete')",
-      "api_test": "trigger-scan ok (86d7bbe6-...), stop-scan ok",
+      "api_test": "Trigger scan and stop scan requests succeeded",
       "note": "Live toast observation blocked: no running scan at probe time"
     }
   },
   "observed_state": {
     "bulk_operations": {
       "total_keys": 25,
-      "statuses": {"completed": 10, "interrupted": 8, "failed": 2, "stopped": 1, "null": 4},
+      "statuses": {
+        "completed": 10,
+        "interrupted": 8,
+        "failed": 2,
+        "stopped": 1,
+        "null": 4
+      },
       "running": 0
     },
     "agents": {
-      "synology-bridge-1": {"status": "online", "version": "1.16.26", "marker_statuses": {"Decor": {"ok": true, "method": "exists"}}}
+      "bridge": {
+        "status": "online",
+        "version": "1.16.26",
+        "root_marker_check_passed": true
+      }
     },
     "render_queue_pending": 0,
     "styles_page_rows": 62
   },
   "not_proven": [
-    {"item": "User Stop mid-batch", "blocker": "No running bulk operation at probe time"},
-    {"item": "shouldSkipPath / ingest filename gate", "blocker": "Needs scan run with #/$/@-named artwork files"},
-    {"item": "ensureRootMarkers hourly backoff", "blocker": "Needs read-only share"},
-    {"item": ".ai sentinel 16 MB cap", "blocker": "Needs large .ai file in scan root"},
-    {"item": "Tesseract finally termination", "blocker": "Needs OCR backfill run"},
-    {"item": "Batch loop cap", "blocker": "Needs bulk run exceeding 10,000 iterations"}
+    {
+      "item": "User Stop mid-batch",
+      "blocker": "No running bulk operation at probe time"
+    },
+    {
+      "item": "shouldSkipPath / ingest filename gate",
+      "blocker": "Needs scan run with #/$/@-named artwork files"
+    },
+    {
+      "item": "ensureRootMarkers hourly backoff",
+      "blocker": "Needs read-only share"
+    },
+    {
+      "item": ".ai sentinel 16 MB cap",
+      "blocker": "Needs large .ai file in scan root"
+    },
+    {
+      "item": "Tesseract finally termination",
+      "blocker": "Needs OCR backfill run"
+    },
+    {
+      "item": "Batch loop cap",
+      "blocker": "Needs bulk run exceeding 10,000 iterations"
+    }
   ],
-  "skipped": ["Download all (needs Helper workstation)", "skipped_before_min_date (covered elsewhere)", "rich-pdf (needs shared-db)", "ResourceAndPolling (not required)"]
+  "skipped": [
+    "Download all (needs Helper workstation)",
+    "skipped_before_min_date (covered elsewhere)",
+    "rich-pdf (needs shared-db)",
+    "ResourceAndPolling (not required)"
+  ]
 }
