@@ -1054,6 +1054,28 @@ def production_ledger(path: str | None = None) -> set[str] | None:
     return {str(v) for v in versions}
 
 
+def needs_recheck(action: str, skipped: list[dict[str, Any]], claimed_elsewhere: set[int] = frozenset()) -> bool:
+    """#6493 Step 4b: True when this pass dispatched nothing but a candidate is
+    waiting on a TRANSIENT condition that clears without any event this
+    workflow hears (a run in flight, an unreadable ledger, a production
+    dependency, another selector's claim). Review-finding holds are excluded
+    (their close/unlabel re-arms the trigger directly) and parked PRs are
+    excluded (they need an engineer), so a long hold never spins the backstop."""
+    if action == "dispatch":
+        return False
+    if action == "wait" or claimed_elsewhere:
+        return True
+    return any(e.get("pending_dependencies") for e in skipped)
+
+
+def write_recheck_output(recheck: bool) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(f"recheck={'true' if recheck else 'false'}\n")
+    print(f"recheck: {'scheduled' if recheck else 'not needed'}")
+
+
 def main(now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -1070,6 +1092,7 @@ def main(now: datetime | None = None) -> int:
         print("::error title=Production ledger unreadable::holding this promotion cycle; "
               "the next trigger retries once the ledger reads")
         print("wait: production ledger unreadable")
+        write_recheck_output(True)
         return 0
     started = time.monotonic()
     phase = lambda name: print(f"timing: {name} at {time.monotonic() - started:.1f}s", flush=True)
@@ -1202,6 +1225,7 @@ def main(now: datetime | None = None) -> int:
     if exhausted and not args.dry_run:
         report_stuck_change(repo, exhausted, now)
     phase("dispatch step done")
+    write_recheck_output(not args.dry_run and needs_recheck(action, skipped, claimed_elsewhere))
     reruns = recent_re_runs(runs, now, ACKNOWLEDGED_RE_RUNS)
     for r in reruns:
         print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"

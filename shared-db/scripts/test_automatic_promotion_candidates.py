@@ -3045,3 +3045,155 @@ class SelectorRunCache(unittest.TestCase):
             m.main(m._time("2026-11-17T00:00:00Z"))
         self.assertEqual(seen, [{}, {"fresh_since": "2026-11-15T00:00:00Z"}])
         self.assertEqual(sent, [[prod]])  # dispatch reuses the fresh read, no third read
+
+
+def _gh_expr(expr: str, ctx: dict) -> object:
+    """Evaluate the small GitHub-expression subset the trigger uses (==, !=,
+    &&, ||, !, contains(x.*.name, 'v'), fromJSON, string literals) against a
+    nested event context, with GitHub's null/falsy semantics."""
+    def lookup(path):
+        cur = ctx
+        parts = path.split(".")
+        for i, part in enumerate(parts):
+            if part == "*":
+                rest = parts[i + 1:]
+                return [item.get(rest[0]) if rest else item for item in (cur or [])]
+            cur = cur.get(part) if isinstance(cur, dict) else None
+        return cur
+    names = {}
+
+    def ident(match):
+        key = f"_v{len(names)}"
+        names[key] = lookup(match.group(0))
+        return key
+    py = re.sub(r"(?<!['\w])(?:github|inputs|vars|needs|steps)\.[\w.*-]+", ident, expr)
+    py = py.replace("&&", " and ").replace("||", " or ")
+    py = re.sub(r"!(?!=)", " not ", py)
+    names["contains"] = lambda seq, v: v in (seq or [])
+    names["fromJSON"] = json.loads
+    return eval(py, {"__builtins__": {}}, names)  # noqa: S307 - test-only, repo-owned text
+
+
+class HoldClearWakesTheTrigger(unittest.TestCase):
+    """#6493 Step 4b: closing or unlabeling a hold re-arms the trigger; every
+    other issue event is filtered out before a runner starts and never joins
+    the real wake-up concurrency group."""
+
+    HOLDS = ("review-finding", "promotion-held", "promotion-parked")
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".github", "workflows", "automatic-production-trigger.yml"), encoding="utf-8") as fh:
+            cls.text = fh.read()
+        job = cls.text.split("\n  trigger:\n", 1)[1]
+        cls.job_if = re.search(r"    if: >-\n((?:      .*\n)+)", job).group(1)
+        cls.group = re.search(r"      group: (.*)\n", job).group(1)
+
+    def ctx(self, action, labels, removed=None):
+        return {"github": {"event_name": "issues", "event": {
+            "action": action, "issue": {"labels": [{"name": n} for n in labels]},
+            "label": {"name": removed} if removed else None}}, "vars": {}}
+
+    def passes(self, ctx):
+        return bool(_gh_expr(" ".join(self.job_if.split()), ctx))
+
+    def group_of(self, ctx):
+        parts = re.findall(r"\$\{\{(.*?)\}\}", self.group)[1:]  # [0] is the lane epoch
+        return "".join(_gh_expr(p, ctx) or "" for p in parts)
+
+    def test_issue_events_are_declared(self):
+        self.assertRegex(self.text, r"\n  issues:\n    types: \[closed, unlabeled\]\n")
+
+    def test_closing_a_hold_issue_passes_the_filter_and_joins_the_main_group(self):
+        for label in self.HOLDS:
+            with self.subTest(label=label):
+                c = self.ctx("closed", ["bug", label])
+                self.assertTrue(self.passes(c))
+                self.assertEqual(self.group_of(c), "")
+
+    def test_removing_a_hold_label_passes_the_filter(self):
+        for label in self.HOLDS:
+            with self.subTest(label=label):
+                c = self.ctx("unlabeled", ["bug"], removed=label)
+                self.assertTrue(self.passes(c))
+                self.assertEqual(self.group_of(c), "")
+
+    def test_unrelated_issue_events_are_filtered_and_kept_out_of_the_main_group(self):
+        for c in (self.ctx("closed", ["bug"]), self.ctx("closed", []),
+                  self.ctx("unlabeled", ["review-finding"], removed="bug")):
+            with self.subTest(c=c):
+                self.assertFalse(self.passes(c))
+        self.assertEqual(self.group_of(self.ctx("closed", ["bug"])), "-issue-noise")
+
+    def test_ci_noise_split_is_preserved(self):
+        noise = {"github": {"event_name": "workflow_run", "event": {"workflow_run": {
+            "event": "pull_request", "conclusion": "success"}}}, "vars": {}}
+        real = {"github": {"event_name": "workflow_run", "event": {"workflow_run": {
+            "event": "workflow_dispatch", "conclusion": "failure"}}}, "vars": {}}
+        self.assertEqual(self.group_of(noise), "-ci-noise")
+        self.assertFalse(self.passes(noise))
+        self.assertEqual(self.group_of(real), "")
+        self.assertTrue(self.passes(real))
+        for name in ("repository_dispatch", "schedule", "workflow_dispatch", "push"):
+            c = {"github": {"event_name": name, "event": {}}, "vars": {}}
+            self.assertTrue(self.passes(c))
+            self.assertEqual(self.group_of(c), "")
+        self.assertIn("cancel-in-progress: false", self.text.split("\n  recheck:\n", 1)[0])
+
+
+class SelfScheduledRecheck(unittest.TestCase):
+    """#6493 Step 4b backstop that does not depend on GitHub cron."""
+
+    import automatic_promotion_candidates as cand  # noqa: E402
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".github", "workflows", "automatic-production-trigger.yml"), encoding="utf-8") as fh:
+            cls.text = fh.read()
+        cls.job = cls.text.split("\n  recheck:\n", 1)[1]
+
+    def test_backstop_is_present_bounded_and_off_the_main_slot(self):
+        self.assertIn("needs: trigger", self.job)
+        self.assertIn("needs.trigger.outputs.recheck == 'true'", self.job)
+        self.assertIn("fromJSON(inputs.recheck_hop || '0') < 8", self.job)
+        self.assertIn('recheck_hop="$((HOP + 1))"', self.job)
+        self.assertRegex(self.job, r"timeout-minutes: (1\d|20)\n")
+        delay = int(re.search(r"RECHECK_DELAY_SECONDS:-(\d+)", self.job).group(1))
+        self.assertTrue(600 <= delay <= 900, delay)
+        self.assertIn("-recheck", re.search(r"group: (.*)", self.job).group(1))
+        self.assertNotIn("gh api", self.job)
+        self.assertIn("recheck: ${{ steps.selector.outputs.recheck }}", self.text)
+        # The slot lives on the trigger job, so the sleep cannot hold it.
+        self.assertIsNone(re.search(r"^concurrency:", self.text, re.M))
+        self.assertRegex(self.text, r"cron: '23 \* \* \* \*'")
+
+    def test_hop_cap_stops_the_chain(self):
+        cond = re.search(r"    if: (.*)\n", self.job).group(1)
+        for hop, expected in (("0", True), ("7", True), ("8", False), (None, True)):
+            ctx = {"needs": {"trigger": {"outputs": {"recheck": "true"}}}, "inputs": {"recheck_hop": hop}}
+            self.assertEqual(bool(_gh_expr(cond.replace("always() &&", ""), ctx)), expected, hop)
+        ctx = {"needs": {"trigger": {"outputs": {"recheck": "false"}}}, "inputs": {}}
+        self.assertFalse(_gh_expr(cond.replace("always() &&", ""), ctx))
+
+    def test_only_transient_waits_request_a_recheck(self):
+        r = self.cand.needs_recheck
+        self.assertTrue(r("wait", []))
+        self.assertTrue(r("idle", [{"pending_dependencies": {"1": 2}}]))
+        self.assertTrue(r("idle", [], {5}))
+        self.assertFalse(r("dispatch", [{"pending_dependencies": {"1": 2}}]))
+        self.assertFalse(r("idle", []))
+        self.assertFalse(r("idle", [{"findings": [{"number": 1}]}]))  # hold: issue event re-arms
+        self.assertFalse(r("idle", [{"findings": [], "exhausted": 3}]))  # parked: engineer
+
+    def test_recheck_output_is_written(self):
+        with tempfile.NamedTemporaryFile("r+", delete=False) as fh:
+            path = fh.name
+        try:
+            with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": path}), contextlib.redirect_stdout(io.StringIO()):
+                self.cand.write_recheck_output(True)
+            with open(path, encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), "recheck=true\n")
+        finally:
+            os.unlink(path)
