@@ -71,6 +71,10 @@ COORDINATION_REFUSALS = (
     "has advanced past the dispatched commit",
     "does not contain the dispatched commit",
     "ENGINEER ACTION REQUIRED: main moved after preview",
+    # #6352: the preview lane's author-acquisition mutex stayed held by another
+    # run (acquire or release refused). Contention, not the change: PR #6709
+    # burned all three attempts on this and parked.
+    "refs/db-coordination/author-acquisition remained occupied at",
 )
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
