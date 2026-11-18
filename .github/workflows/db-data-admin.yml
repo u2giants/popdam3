@@ -37,7 +37,7 @@ jobs:
     # upgrade (actions/runner-images#14748).
     runs-on: ubuntu-24.04
     # A stalled step must fail on its own budget instead of blocking merges for hours (#1266).
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/db-data-admin
@@ -73,24 +73,36 @@ jobs:
       # attempt can starve is not a retry. `timeout-minutes` is kept as a backstop, sized to
       # cover both attempts plus overhead, so the step still cannot hang if `timeout` itself
       # is defeated.
+      #
+      # 2026-11-18 (run 44415907134): a timed-out attempt left its root apt-get child running,
+      # so the retry died at once on the dpkg lock ("Could not get lock ... held by apt-get").
+      # Now apt itself waits for the lock and retries/times out per file, each attempt first
+      # waits for leftover apt/dpkg processes, and there are three attempts with backoff.
       - name: Install the Playwright browser (fails fast rather than hanging)
-        timeout-minutes: 9
+        timeout-minutes: 22
         run: |
           set -euo pipefail
-          attempt() { timeout --signal=TERM --kill-after=30s 4m npx playwright install --with-deps chromium; }
-          # Capture the status explicitly. `if ! attempt; then code=$?` reads 0, because the
-          # `if` has already consumed and reset $?, so the warning would claim "exit 0" on a
-          # real timeout and send the reader looking for the wrong problem.
-          code=0
-          attempt || code=$?
-          if [ "$code" -ne 0 ]; then
-            if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
-              echo "::warning::playwright install exceeded 4 minutes (likely a package-mirror stall); retrying once"
-            else
-              echo "::warning::playwright install failed with exit $code; retrying once"
-            fi
-            attempt
-          fi
+          printf '%s\n' 'DPkg::Lock::Timeout "180";' 'Acquire::Retries "5";' \
+            'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-resilience >/dev/null
+          wait_for_apt() {
+            for _ in $(seq 1 24); do
+              pgrep -x 'apt-get|apt|dpkg|unattended-upgr' >/dev/null || return 0
+              sleep 5
+            done
+            echo "::warning::apt/dpkg still busy after 2 minutes; continuing (apt lock timeout applies)"
+          }
+          attempt() { timeout --signal=TERM --kill-after=30s 5m npx playwright install --with-deps chromium; }
+          # Capture the status explicitly: `if ! attempt; then code=$?` would read 0.
+          for n in 1 2 3; do
+            wait_for_apt
+            code=0
+            attempt || code=$?
+            if [ "$code" -eq 0 ]; then exit 0; fi
+            echo "::warning::playwright install attempt $n failed with exit $code (124/137 = timeout, 100 = apt/dpkg)"
+            if [ "$n" -lt 3 ]; then sleep $((n * 10)); fi
+          done
+          exit 1
       - run: VITE_BUILD_DATE="$(date -u +%Y-%m-%d)" npm run test:browser
         env:
           VITE_BUILD_SHA: ${{ github.sha }}
