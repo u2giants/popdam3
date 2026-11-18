@@ -164,10 +164,14 @@ function namedRows<K extends string>(rows: unknown, fields: readonly K[]): rows 
 async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal: AbortSignal): Promise<NamedScope | null> {
   const phrases = namedSearchPhrases(texts);
   if (!phrases.length) return {};
-  const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(NAME_SCOPE_TIMEOUT_MS)]);
+  if (requestSignal.aborted) return null;
+  const controller = new AbortController();
+  const abort = () => controller.abort(requestSignal.reason);
+  requestSignal.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(() => controller.abort(), NAME_SCOPE_TIMEOUT_MS);
   try {
-    const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: phrases }).abortSignal(signal);
-    if (error || signal.aborted || !data || typeof data !== "object") return null;
+    const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: phrases }).abortSignal(controller.signal);
+    if (error || controller.signal.aborted || !data || typeof data !== "object") return null;
     const { characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames } = data as Record<string, unknown>;
     if (
       !namedRows(characters, ["id", "name"]) || !namedRows(aliases, ["characterId", "alias"]) ||
@@ -189,6 +193,9 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
     );
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+    requestSignal.removeEventListener("abort", abort);
   }
 }
 

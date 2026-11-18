@@ -167,13 +167,16 @@ describe("DAM search embedding availability", () => {
   });
 
   it("returns Retry when the name lookup reaches its deadline", async () => {
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", embedFetch());
     state.namesRpc.mockImplementation((_name, _args, signal: AbortSignal) =>
       new Promise((resolve) => {
         signal.addEventListener("abort", () => resolve({ data: null, error: { code: "57014" } }), { once: true });
       })
     );
-    const response = await search("Beryl frame");
+    const pendingResponse = search("Beryl frame");
+    await vi.advanceTimersByTimeAsync(1500);
+    const response = await pendingResponse;
     expect(response.status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();
   });
