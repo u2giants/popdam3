@@ -1,4 +1,4 @@
-import { exportRange, manifestEntry, type ManifestEntry } from "../_shared/export-pagination.ts";
+import { exportRange, type ManifestEntry, manifestEntry } from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *

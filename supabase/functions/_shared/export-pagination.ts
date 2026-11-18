@@ -8,7 +8,11 @@ export function exportOrderColumns(table: string): string[] {
   return table === "asset_characters" ? ["asset_id", "character_id"] : ["id"];
 }
 
-export interface ManifestEntry { table: string; rows: number; chunks: number }
+export interface ManifestEntry {
+  table: string;
+  rows: number;
+  chunks: number;
+}
 
 /**
  * Build one manifest row from a PostgREST exact count. A failed or missing
