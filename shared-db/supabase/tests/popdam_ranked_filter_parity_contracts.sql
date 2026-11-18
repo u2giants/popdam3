@@ -86,6 +86,9 @@ begin
   if has_function_privilege('anon','public.filter_effective_assets(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.get_effective_filter_counts(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.dam_asset_matches_filters(uuid, boolean, timestamptz, timestamptz, text, uuid, uuid, uuid, uuid, uuid, uuid, uuid, public.file_type, text, text[], public.asset_status, public.workflow_status, text, boolean, public.asset_type, public.art_source, text, text, text, text, text, jsonb, timestamptz)','EXECUTE')
+     -- popdam3#1037 (20261218230700): the visibility pre-test value reader stays owner-only.
+     or has_function_privilege('anon','public.dam_search_filter_pretest_values(jsonb)','EXECUTE')
+     or has_function_privilege('authenticated','public.dam_search_filter_pretest_values(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
     raise exception 'anon gained access to a DAM filter contract';
   end if;
