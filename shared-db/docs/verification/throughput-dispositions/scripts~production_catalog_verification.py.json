@@ -337,6 +337,14 @@
       "disposition": "excluded",
       "reason": "Literal routine ACL resolution failure is always a hard FAIL naming the exact signature; this is not a missing-production-source ambiguity and cannot use an unrelated legacy overload.",
       "legacy_semantic_key": "scripts/production_catalog_verification.py:fdb5aea013dbb126249fc8164afefe5fc71639ddb7d4e6823c64315e059e93e4:1"
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:3208",
+      "semantic_key": "scripts/production_catalog_verification.py:44d66f517521a7ca77d44f33d48fc5b6a83f0aa9cc5b627ce7c8cdfc0e0b9eca:context-44d8ea16d46edd00e68604d923f5731ac06da5c0b969cd7ea14fa008d39dcbdc",
+      "line_sha256": "44d66f517521a7ca77d44f33d48fc5b6a83f0aa9cc5b627ce7c8cdfc0e0b9eca",
+      "disposition": "excluded",
+      "reason": "Docstring (#6716) describing the case-folding bug; it executes nothing and asserts nothing about the database.",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:44d66f517521a7ca77d44f33d48fc5b6a83f0aa9cc5b627ce7c8cdfc0e0b9eca:1"
     }
   ]
 }
