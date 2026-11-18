@@ -237,9 +237,12 @@ const spellingLookup: SpellingLookup = {
   async countDocs(word, signal) {
     // dam_search_keys carries the indexed copy of search_tsv (the documents copy lost its
     // index). A count, not a limit: with LIMIT the planner seq-scans for rare words (~20 s).
+    // "estimated" is exact while the planner expects at most the API row limit (1000) and the
+    // planner's figure above it; only "fewer than 3" matters, and an exact count of a common
+    // word ("art": 100k documents) took 4 s and spent the whole spelling budget (#1037).
     const { count, error } = await serviceClient()
       .from("dam_search_keys")
-      .select("entity_id", { count: "exact", head: true })
+      .select("entity_id", { count: "estimated", head: true })
       .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
       .abortSignal(signal ?? AbortSignal.timeout(1000));
     if (error) throw new Error(error.message);
