@@ -1179,6 +1179,7 @@ export type Database = {
           path: string
           program: string | null
           search_tsv: unknown
+          search_tsv_en: unknown
           style_group_id: string | null
           title: string
           title_key: string
@@ -1192,6 +1193,7 @@ export type Database = {
           path: string
           program?: string | null
           search_tsv: unknown
+          search_tsv_en?: unknown
           style_group_id?: string | null
           title: string
           title_key: string
@@ -1205,6 +1207,7 @@ export type Database = {
           path?: string
           program?: string | null
           search_tsv?: unknown
+          search_tsv_en?: unknown
           style_group_id?: string | null
           title?: string
           title_key?: string
@@ -4819,6 +4822,10 @@ export type Database = {
         Returns: undefined
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
+      dam_search_exact_names: {
+        Args: { p_filters: Json; p_query: string }
+        Returns: unknown
+      }
       dam_search_name_queries: { Args: { p_names: Json }; Returns: unknown[] }
       dam_search_named_scope: {
         Args: { p_filters: Json }
@@ -4855,6 +4862,8 @@ export type Database = {
           score: number
         }[]
       }
+      dam_search_tsv_en: { Args: { p_tsv: unknown }; Returns: unknown }
+      dam_search_tsv_en_backfill: { Args: never; Returns: number }
       dam_search_uuid_list: { Args: { p_ids: Json }; Returns: string[] }
       dam_sweep_default_visible_flags: {
         Args: { p_limit?: number }
