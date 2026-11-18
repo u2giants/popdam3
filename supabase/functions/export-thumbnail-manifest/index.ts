@@ -7,28 +7,23 @@
  *   old_asset_id, relative_path, filename, quick_hash, thumbnail_url
  *
  * Only includes rows where thumbnail_url IS NOT NULL.
- * Paginates internally (PostgREST 1000-row pages) and streams the full result.
+ * Keyset-paginates (1000-row pages) and streams each page as it arrives,
+ * so memory stays bounded as the catalog grows (#1099).
  *
  * Auth: admin JWT or service role key.
  */
 
 import { requireAdmin } from "../_shared/admin-auth.ts";
-import { corsServe, err, json } from "../_shared/http.ts";
+import { corsServe, err } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
+import { type FetchManifestPage, type ManifestRow, streamThumbnailManifest } from "../_shared/thumbnail-manifest.ts";
 
 async function authorizeAdmin(req: Request): Promise<boolean> {
   const auth = await requireAdmin(req, { parseMode: "loose", allowServiceRole: true });
   return auth.ok;
 }
 
-function escapeCSV(val: string | null): string {
-  if (val === null || val === undefined) return "";
-  const s = String(val);
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
+const COLUMNS = "id,relative_path,filename,quick_hash,thumbnail_url";
 
 corsServe(async (req) => {
   try {
@@ -37,49 +32,32 @@ corsServe(async (req) => {
     }
 
     const db = serviceClient();
-    const PAGE = 1000;
-    const columns = ["id", "relative_path", "filename", "quick_hash", "thumbnail_url"];
-    const header = "old_asset_id,relative_path,filename,quick_hash,thumbnail_url\n";
 
-    const chunks: string[] = [header];
-    let offset = 0;
+    // Cheap count for the X-Row-Count header; rows themselves are streamed.
+    const { count, error: countError } = await db
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .not("thumbnail_url", "is", null)
+      .eq("is_deleted", false);
+    if (countError) return err(countError.message, 500);
 
-    while (true) {
-      const { data, error } = await db
+    const fetchPage: FetchManifestPage = async (afterId, limit) => {
+      let q = db
         .from("assets")
-        .select(columns.join(","))
+        .select(COLUMNS)
         .not("thumbnail_url", "is", null)
-        .eq("is_deleted", false)
-        .order("id")
-        .range(offset, offset + PAGE - 1);
+        .eq("is_deleted", false);
+      if (afterId !== null) q = q.gt("id", afterId);
+      const { data, error } = await q.order("id").limit(limit);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as ManifestRow[];
+    };
 
-      if (error) return err(error.message, 500);
-      if (!data || data.length === 0) break;
-
-      for (const row of (data as unknown as Array<{ id: string; relative_path: string; filename: string; quick_hash: string; thumbnail_url: string }>)) {
-        chunks.push(
-          [
-            escapeCSV(row.id),
-            escapeCSV(row.relative_path),
-            escapeCSV(row.filename),
-            escapeCSV(row.quick_hash),
-            escapeCSV(row.thumbnail_url),
-          ].join(",") + "\n",
-        );
-      }
-
-      if (data.length < PAGE) break;
-      offset += PAGE;
-    }
-
-    const csv = chunks.join("");
-    const rowCount = chunks.length - 1; // minus header
-
-    return new Response(csv, {
+    return new Response(streamThumbnailManifest(fetchPage), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="thumbnail_manifest.csv"`,
-        "X-Row-Count": String(rowCount),
+        "X-Row-Count": count === null || count === undefined ? "?" : String(count),
       },
     });
   } catch (e) {
