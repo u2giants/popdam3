@@ -1555,7 +1555,10 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
           .eq("id", id)
           .eq("is_deleted", false)
           .select("id");
-        if (oneError) { skip("update_failed"); continue; }
+        if (oneError) {
+          skip("update_failed");
+          continue;
+        }
         if (one?.length) retired.push(id);
       }
     }
