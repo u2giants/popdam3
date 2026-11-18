@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { retireMissingInChunks, type RetireChunkDb } from "./retire-missing-chunks.ts";
+import { type RetireChunkDb, retireMissingInChunks } from "./retire-missing-chunks.ts";
 
 function fakeDb(failOnCall?: number) {
   const history = new Map<string, string>();
