@@ -3,6 +3,15 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const EXPECTED_URL = "https://qsllyeztdwjgirsysgai.supabase.co";
+// A 5xx from the REST gateway (notably 504: the RPC's tail latency crosses the
+// proxy timeout under load, shared-db #804 class) is transport failure, not
+// measurement. One bounded retry budget keeps a single tail run from recording
+// "could not measure" and resetting the observation streak; a persistent
+// failure still fails closed with the same message as before.
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+const PER_ATTEMPT_TIMEOUT_MS = 240_000;
+const RETRY_DELAY_MS = [5_000, 10_000];
 const COUNT_FIELDS = [
   "live_assets", "grouped_assets", "ungrouped_assets", "style_group_rows",
   "effective_tag_rows", "assets_missing_or_wrong_group",
@@ -46,7 +55,29 @@ export function assessDriftRow(rows) {
     effective_tag_drift_rate: rate, failures };
 }
 
-export async function observe({ url, key, fetchImpl = fetch, now = () => new Date() }) {
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function requestAggregate({ key, fetchImpl, sleep }) {
+  for (let attempt = 1; ; attempt += 1) {
+    let response;
+    try {
+      response = await fetchImpl(`${EXPECTED_URL}/rest/v1/rpc/reconcile_style_group_drift`, {
+        method: "POST",
+        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_effective_tag_sample: 5000 }),
+        signal: AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (attempt >= MAX_ATTEMPTS) throw error;
+      await sleep(RETRY_DELAY_MS[attempt - 1]);
+      continue;
+    }
+    if (attempt >= MAX_ATTEMPTS || !RETRYABLE_STATUSES.has(response.status)) return response;
+    await sleep(RETRY_DELAY_MS[attempt - 1]);
+  }
+}
+
+export async function observe({ url, key, fetchImpl = fetch, now = () => new Date(), sleep = defaultSleep }) {
   const checkedAt = now().toISOString();
   const report = { ok: false, checked_at: checkedAt, project_ref: "qsllyeztdwjgirsysgai",
     measurement: null, failures: [] };
@@ -54,12 +85,7 @@ export async function observe({ url, key, fetchImpl = fetch, now = () => new Dat
     if (url?.replace(/\/$/, "") !== EXPECTED_URL || !key) {
       throw new Error("expected production Supabase URL and injected service-role key");
     }
-    const response = await fetchImpl(`${EXPECTED_URL}/rest/v1/rpc/reconcile_style_group_drift`, {
-      method: "POST",
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_effective_tag_sample: 5000 }),
-      signal: AbortSignal.timeout(660_000),
-    });
+    const response = await requestAggregate({ key, fetchImpl, sleep });
     if (!response.ok) throw new Error(`reconciler RPC returned HTTP ${response.status}`);
     const measurement = assessDriftRow(await response.json());
     report.measurement = { ...measurement, failures: undefined };

@@ -68,3 +68,62 @@ test("HTTP failure is visible without leaking response or credential", async () 
   assert.doesNotMatch(JSON.stringify(report), /protected/);
   assert.match(JSON.stringify(report), /HTTP 403/);
 });
+
+test("a transient gateway 504 is retried and the clean retry stands", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return calls === 1 ? { ok: false, status: 504 } : { ok: true, json: async () => [base] };
+  };
+  const report = await observe({ url, key: "protected", fetchImpl, sleep: async () => {} });
+  assert.equal(report.ok, true);
+  assert.equal(calls, 2);
+});
+
+test("a persistent gateway 504 fails closed after the bounded retry budget", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: false, status: 504 };
+  };
+  const report = await observe({ url, key: "protected", fetchImpl, sleep: async () => {} });
+  assert.equal(report.ok, false);
+  assert.equal(report.measurement, null);
+  assert.deepEqual(report.failures, ["reconciler RPC returned HTTP 504"]);
+  assert.equal(calls, 3);
+});
+
+test("a client error is not retried", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: false, status: 403 };
+  };
+  const report = await observe({ url, key: "protected", fetchImpl, sleep: async () => {} });
+  assert.equal(report.ok, false);
+  assert.equal(calls, 1);
+});
+
+test("a real drift measurement is never retried", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => [{ ...base, assets_with_unexpected_group: 1 }] };
+  };
+  const report = await observe({ url, key: "protected", fetchImpl, sleep: async () => {} });
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.failures, ["assets_with_unexpected_group=1"]);
+  assert.equal(calls, 1);
+});
+
+test("a network failure is retried and fails closed if it persists", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    throw new Error("socket hang up");
+  };
+  const report = await observe({ url, key: "protected", fetchImpl, sleep: async () => {} });
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.failures, ["reconciler request failed or returned an invalid response"]);
+  assert.equal(calls, 3);
+});
