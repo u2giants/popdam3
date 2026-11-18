@@ -14,6 +14,7 @@ import { CURRENT_APP } from "@/lib/app-mode";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
+import { countCsvRows } from "@/lib/csv-row-count";
 
 const MAX_BATCH_LOOPS = 10_000;
 
@@ -71,8 +72,9 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
         throw new Error(message);
       }
 
-      const rowCount = res.headers.get("X-Row-Count") || "?";
       const blob = await res.blob();
+      // The export streams, so the row count is taken from the file itself (#1099).
+      const rowCount = countCsvRows(await blob.text());
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
@@ -82,7 +84,7 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
       a.remove();
       URL.revokeObjectURL(blobUrl);
 
-      toast.success(`Thumbnail manifest downloaded — ${Number(rowCount).toLocaleString()} rows`);
+      toast.success(`Thumbnail manifest downloaded — ${rowCount.toLocaleString()} rows`);
     } catch (e: any) {
       toast.error(e.message || "Manifest download failed");
     } finally {
