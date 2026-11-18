@@ -4561,9 +4561,9 @@ def render_report(
     if targets.is_empty() and not errors:
         add("## Catalog verification")
         add("")
-        add("**applied, not verifiable by catalog** — the lexer could not read a "
-            "catalog object from these migrations. The ledger is the record of "
-            "what applied.")
+        add("The SQL lexer did not derive any catalog targets. The behavioral "
+            "assertion results above record any separately checked effects. "
+            "The migration ledger records delivery.")
         add("")
     add("## Derived targets")
     add("")
@@ -5099,17 +5099,7 @@ def verify(
             "there is nothing for the catalog lexer to verify. The ledger is "
             "the record of what applied."
         )
-    elif targets.is_empty():
-        # Step 2.4 (plan_ci-process-repair): a migration whose change types the
-        # lexer cannot verify reports "applied, not verifiable by catalog" as a
-        # success with a note, never a failed apply. The ledger remains the
-        # record of what applied.
-        types_found = ", ".join(targets.change_types) if targets.change_types else "none recognized"
-        targets.notes.append(
-            f"applied, not verifiable by catalog. "
-            f"Change types found: {types_found}. The ledger is the record of what applied."
-        )
-    else:
+    elif not targets.is_empty():
         try:
             catalog = extract_report(
                 run_query(project_ref, token, build_catalog_sql(targets), api)
@@ -6549,6 +6539,88 @@ CATALOG_CONTRACTS["core_merch_group_prod_retired_v1"] = (
     " and exists (select 1 from pg_class c where c.relnamespace='core'::regnamespace and c.relkind='r'"
     " and c.relname ~ '^merchGroupHeaders_retired_[0-9]{8}$')"
 )
+
+# #6658: these checks recover historical apply evidence for guarded dynamic DDL.
+# Test the retired name and a valid keeper on the exact, ordered key columns.
+# A missing parent is allowed only for optional environment-specific copies.
+def _retired_index_twins_contract(rows: str, unique: bool) -> str:
+    return f"""
+      (select bool_and(
+        to_regclass(format('%I.%I', expected.schema_name, expected.twin_name)) is null
+        and (parent.oid is null and expected.optional_parent
+          or parent.relkind = 'r' and exists (
+            select from pg_index ix
+            join pg_class keeper on keeper.oid = ix.indexrelid
+            join pg_am am on am.oid = keeper.relam
+            where ix.indrelid = parent.oid and keeper.relname <> expected.twin_name
+              and ix.indisunique = {str(unique).lower()} and ix.indisvalid and ix.indisready
+              and am.amname = 'btree' and ix.indpred is null and ix.indexprs is null
+              and ix.indnatts = ix.indnkeyatts
+              and (select array_agg(a.attname::text order by key.ord)
+                   from unnest(ix.indkey) with ordinality as key(attnum, ord)
+                   join pg_attribute a on a.attrelid = parent.oid and a.attnum = key.attnum)
+                  = expected.column_names
+          ))
+        is true)
+       from (values {rows}) expected(schema_name, table_name, twin_name, column_names, optional_parent)
+       left join pg_class parent on parent.oid = to_regclass(format('%I.%I', expected.schema_name, expected.table_name)))
+    """
+
+
+CATALOG_CONTRACTS["retired_plain_index_twins_6658_v1"] = _retired_index_twins_contract("""
+    ('plm', 'production_order', 'plm_production_order_number_idx', array['production_order_number'], false),
+    ('plm', 'opa_property_character', 'plm_opa_property_character_character_idx', array['character_id'], false),
+    ('public', 'app_access', 'app_access_user_id_idx', array['user_id'], false)
+""", unique=False)
+
+CATALOG_CONTRACTS["retired_unique_index_twins_6658_v1"] = _retired_index_twins_contract("""
+    ('app', 'quote_auth_token', 'quote_auth_token_pkey', array['id'], false),
+    ('dflow', 'quote_auth_token', 'quote_auth_token_pkey', array['id'], true),
+    ('dflow_prod', 'quote_auth_token', 'quote_auth_token_pkey', array['id'], true),
+    ('dflow', 'GridLayout', 'GridLayout_pkey', array['id'], true),
+    ('dflow_prod', 'GridLayout', 'GridLayout_pkey', array['id'], true),
+    ('plm', 'GridLayout', 'GridLayout_pkey', array['id'], true),
+    ('dflow', 'StandardizedDetail', 'StandardizedVersionDetail_pkey', array['id'], true),
+    ('dflow_prod', 'StandardizedDetail', 'StandardizedVersionDetail_pkey', array['id'], true),
+    ('plm', 'StandardizedDetail', 'StandardizedVersionDetail_pkey', array['id'], true),
+    ('app', 'RolePermissions', 'RolePermissions_unique_role_user_element', array['RoleId', 'UserId', 'ElementId'], false),
+    ('dflow', 'RolePermissions', 'RolePermissions_unique_role_user_element', array['RoleId', 'UserId', 'ElementId'], true),
+    ('dflow_prod', 'RolePermissions', 'RolePermissions_unique_role_user_element', array['RoleId', 'UserId', 'ElementId'], true),
+    ('dflow', 'item_prod_order_detail_associations', 'item_prod_order_detail_associations_unique_pair', array['item_header_id', 'prod_order_detail_pkey'], true),
+    ('dflow_prod', 'item_prod_order_detail_associations', 'item_prod_order_detail_associations_unique_pair', array['item_header_id', 'prod_order_detail_pkey'], true),
+    ('plm', 'item_prod_order_detail_associations', 'item_prod_order_detail_associations_unique_pair', array['item_header_id', 'prod_order_detail_pkey'], true),
+    ('dflow', 'licensingMilestone', 'unique_item_stage', array['itemheader_id_fk', 'stage'], true),
+    ('dflow_prod', 'licensingMilestone', 'unique_item_stage', array['itemheader_id_fk', 'stage'], true),
+    ('plm', 'licensingMilestone', 'unique_item_stage', array['itemheader_id_fk', 'stage'], true)
+""", unique=True)
+
+CATALOG_CONTRACTS["retired_opa_pair_constraint_6658_v1"] = """
+    to_regclass('plm.plm_opa_property_character_pair_key') is null
+    and not exists (
+      select from pg_constraint c
+      where c.conrelid = to_regclass('plm.opa_property_character')
+        and c.conname = 'plm_opa_property_character_pair_key')
+    and exists (
+      select from pg_constraint c
+      join pg_index ix on ix.indexrelid = c.conindid
+      where c.conrelid = to_regclass('plm.opa_property_character')
+        and c.contype = 'p' and c.convalidated and ix.indisvalid and ix.indisready
+        and (select array_agg(a.attname order by key.ord)
+             from unnest(c.conkey) with ordinality as key(attnum, ord)
+             join pg_attribute a on a.attrelid = c.conrelid and a.attnum = key.attnum)
+            = array['licensed_property_id', 'character_id']::name[])
+"""
+
+CATALOG_CONTRACTS["trigger_execute_revoke_6658_v1"] = """
+    (select count(*) > 0 and bool_and(
+        not has_function_privilege('anon', p.oid, 'EXECUTE')
+        and not has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where p.prorettype = 'trigger'::regtype
+       and n.nspname not in ('auth', 'extensions', 'pg_catalog', 'storage', 'realtime', 'cron', 'repack'))
+"""
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1,1 +1,25 @@
-{"schema_version":1,"migration_version":"20261204000000","migration_sha256":"32ee547f60f4804fb39a460b72de5ee5fd6514482f5d437eb481166efd17442a","marker_schema_version":1,"marker_reviews":[{"line_start":67,"line_end":67,"disposition":"no_durable_target","reason":"The dynamic markers are the catalog-driven DROP INDEX loop and the definition-based keeper assertion over duplicate plain-index twins. No sidecar check kind expresses that combined outcome: catalog_absence can name one absent object, but the keeper assertion is definition-based because keeper names diverge across environments, and exact_row_count cannot see pg_index definitions. The durable proof is the in-migration assertion (raises if any keeper is missing after the drops) plus the PR preview proof and issue #6410 acceptance."}],"checks":[]}
+{
+  "schema_version": 1,
+  "migration_version": "20261204000000",
+  "migration_sha256": "32ee547f60f4804fb39a460b72de5ee5fd6514482f5d437eb481166efd17442a",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 67,
+      "line_end": 67,
+      "disposition": "checks",
+      "reason": "Verify every dropped plain index is absent and a valid non-unique btree keeper remains on the same key columns.",
+      "check_ids": [
+        "retired_plain_index_twins_6658_v1"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "retired_plain_index_twins_6658_v1",
+      "kind": "catalog_contract",
+      "contract": "retired_plain_index_twins_6658_v1",
+      "expected_count": 1
+    }
+  ]
+}

@@ -7,9 +7,19 @@
     {
       "line_start": 85,
       "line_end": 85,
-      "disposition": "no_durable_target",
-      "reason": "The dynamic marker is the catalog-driven REVOKE EXECUTE loop over trigger-returning functions. No sidecar check kind can assert role privileges: the supported kinds are exact_row_count, catalog_contract and catalog_absence, none of which expresses has_function_privilege state. The durable proof is the in-migration census assertion (the same DO block raises if any in-scope anon/authenticated EXECUTE grant survives) plus the preview after-census and issue #6415's acceptance check."
+      "disposition": "checks",
+      "reason": "Verify the migration's nonempty trigger function scope and the absence of effective EXECUTE for both API roles across that scope.",
+      "check_ids": [
+        "trigger_execute_revoke_6658_v1"
+      ]
     }
   ],
-  "checks": []
+  "checks": [
+    {
+      "id": "trigger_execute_revoke_6658_v1",
+      "kind": "catalog_contract",
+      "contract": "trigger_execute_revoke_6658_v1",
+      "expected_count": 1
+    }
+  ]
 }

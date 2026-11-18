@@ -4190,8 +4190,6 @@ class CatalogChangeTypes(unittest.TestCase):
             migrations = {"20260101000000": path}
             targets = derive_targets(migrations, ["20260101000000"])
             self.assertTrue(targets.is_empty())
-            # The note "applied, not verifiable by catalog" is added by verify()
-            # when targets.is_empty(); derive_targets tracks change_types.
             self.assertEqual(targets.change_types, [])
         finally:
             path.unlink()

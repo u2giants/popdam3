@@ -11,6 +11,14 @@
       "legacy_semantic_key": "scripts/production_catalog_verification.py:03c896706f76fbdca2ed9993bc4bccfc796ea786ceb58ee6cabf1f46155f8e61:1"
     },
     {
+      "site": "scripts/production_catalog_verification.py:6545",
+      "semantic_key": "scripts/production_catalog_verification.py:0ac8daafcf68cb08f0f3b7ca09cabcf2c0608c5c52b3d54bf4005463b0223991:context-07e2a48551fdd4917d5a136e436bf0dd742d3201f5d14421dec727ae7c60c7e8",
+      "line_sha256": "0ac8daafcf68cb08f0f3b7ca09cabcf2c0608c5c52b3d54bf4005463b0223991",
+      "disposition": "excluded",
+      "reason": "This comment documents which environment-specific parent tables may be absent. The recovery query still requires each retired name to be absent and a matching keeper on every existing parent.",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:0ac8daafcf68cb08f0f3b7ca09cabcf2c0608c5c52b3d54bf4005463b0223991:1"
+    },
+    {
       "site": "scripts/production_catalog_verification.py:4006",
       "semantic_key": "scripts/production_catalog_verification.py:0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652:context-744a947bc09fc0b56dcae9f0a8863d01773df2f8c102702991006870d23826be",
       "line_sha256": "0affce0deacc19865075d37b82173f3f3c8928c8dd9b15bba438f61f86309652",

@@ -1,1 +1,25 @@
-{"schema_version":1,"migration_version":"20261204000200","migration_sha256":"64866e6369e881ec8a8c7eea3b0b01ad90e66605ce6a241cae4de8a6c2fd66ab","marker_schema_version":1,"marker_reviews":[{"line_start":75,"line_end":75,"disposition":"no_durable_target","reason":"The dynamic marker is the existence-guarded ALTER TABLE DROP CONSTRAINT. No sidecar check kind expresses the combined outcome (constraint absent while the identical primary key remains unique): catalog_absence cannot verify the PK keeper, and exact_row_count cannot see pg_constraint definitions. The durable proof is the in-block assertion (raises if the PK on licensed_property_id and character_id is missing after the drop) plus the ON CONFLICT post-apply preview proof on issue #6411."}],"checks":[]}
+{
+  "schema_version": 1,
+  "migration_version": "20261204000200",
+  "migration_sha256": "64866e6369e881ec8a8c7eea3b0b01ad90e66605ce6a241cae4de8a6c2fd66ab",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 75,
+      "line_end": 75,
+      "disposition": "checks",
+      "reason": "Verify the redundant unique constraint and its index are absent and the identical two-column primary key still enforces uniqueness.",
+      "check_ids": [
+        "retired_opa_pair_constraint_6658_v1"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "retired_opa_pair_constraint_6658_v1",
+      "kind": "catalog_contract",
+      "contract": "retired_opa_pair_constraint_6658_v1",
+      "expected_count": 1
+    }
+  ]
+}
