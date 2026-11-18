@@ -135,4 +135,5 @@ Read the summary; open a document only when it matches your task.
 | File | Status | Summary | Read when |
 |---|---|---|---|
 | [docs/audit-2026-10-21.md](audit-2026-10-21.md) | current | Verified findings from the 2026-10-21 full-codebase audit, tracked as issues #468-471; pick from the issues, never re-audit. | picking audit-backlog work |
+| [docs/audit-2026-11-18.md](audit-2026-11-18.md) | current | PopDAM and PopSG code audit, November 18, 2026 | Prioritizing reliability, data integrity, privacy, and performance work |
 | [docs/designer-master-data-audit-20260707.md](designer-master-data-audit-20260707.md) | done | 2026-07-07 audit comparing 9,491 live Designer cells against core.creative_designer; mismatch list and cleanup basis. | checking designer-name cleanup history |
