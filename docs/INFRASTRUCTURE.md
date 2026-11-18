@@ -309,10 +309,12 @@ The shared master-data feeder owns canonical taxonomy synchronization; PopDAM ha
 **Auth:** Admin JWT or service role key.
 
 **Usage:**
-- `GET ?action=manifest` — returns JSON with table names and row counts.
-- `GET ?table=<name>&offset=<n>` — returns a SQL file with `INSERT` statements for that chunk.
+- `GET ?action=manifest` — returns JSON with table names, row counts and a `cutoff` time.
+- `GET ?table=<name>&cutoff=<t>&after=<cursor>` — returns a SQL file with `INSERT` statements for the next chunk; the `X-Next-Cursor` header feeds the following request.
 
-Each chunk is a self-contained transaction. Tables are exported in dependency order (parents before children). Default chunk size: 5,000 rows, max 10,000.
+Each chunk is a self-contained transaction. Tables are exported in dependency order (parents before children). Default chunk size: 5,000 rows, max 10,000. Counts and chunks only include rows that existed at the cutoff, so an export completes while ingestion runs (#1132); chunks page by key, not OFFSET, so a full export (~2.8M rows) takes about 10 minutes (#1133).
+
+**Restore target:** a database with the full shared-db schema. The first chunk of each PopDAM table clears it with `DELETE` under replica mode (never `TRUNCATE ... CASCADE`, which reached append-only `plm` tables and was refused); shared `core.licensor`/`core.property` rows are upserted on `id`, never wiped (#1134). Restore only the files in `restore-order.txt` with `ON_ERROR_STOP=1` (`migration/download-sql-dump.ps1`). Restoring the same export twice is safe. Proven 2026-11-18 on a throwaway copy.
 
 ---
 
