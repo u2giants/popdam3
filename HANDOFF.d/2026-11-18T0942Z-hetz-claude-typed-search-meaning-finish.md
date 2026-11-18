@@ -50,6 +50,13 @@ Not started: Step 8 (AFTER score, screenshots, docs, close); alarm drill; refres
 - DB load still 16 active `designflow_hts_alsand_worker` connections at 9:21 AM EST; raised as https://github.com/popcre/shared-db/issues/6685 (ask: cap that role's connections). Step 2 gate now = that issue resolved or load <= 4.
 - `SEARCH_TEXT_LEG_MODE` still `off`.
 
+### Update Nov 18, 11:17 AM EST (Step 7 finished)
+- Step 7 is LIVE: migrations 20261218084203/084303/084403/084604 in production; word-form backfill done 10:41 AM EST (182,726 rows). Evidence: https://github.com/u2giants/popdam3/issues/1037#issuecomment-6984374156. Step 6 gate 1 of section 6 is met.
+- marie frame (mode off) = all 9 framed Marie products, no other character. Word-form cases 4/4.
+- CORRECTION: scorecard run 44268209376 was NOT empty (bad printing). PopDAM 124/137, p95 5.2 s, mode on, under load. Newly failing: cha-020, mis-081, mis-091, mis-097, mng-004, vis-002, wf-003, wf-004 (wf now pass after Step 7).
+- OPEN RISK: a bare frame search now takes 14-19 s under the current load (was 0.3 s) because it carries 2,868 candidates. Once the DB is quiet, re-measure; if still slow, cap word-form-only candidates in search_dam_documents (via shared-db). Keyword p95 gate unproven.
+- Stale Step 2 claim #6607 closed by the helper. All Step 7 claims closed.
+
 ## 4. What did NOT work
 
 - **One-shot queue backfill** of 183k rows (shared-db #6606): rolled back in production at the 2-minute statement limit. Reissued with in-claim seeding (#6622). Any migration touching big tables must be batched.
