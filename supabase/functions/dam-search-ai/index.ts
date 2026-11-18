@@ -11,7 +11,7 @@ import { getPopSGQueryEmbedding, nameExpansion, type NameVectors, zeroResultFall
 import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
 import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
-import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
+import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup, VOCABULARY_BUDGET_MS } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 import { type BatchEmbedOutcome, createQueryEmbedder } from "../_shared/query-embed-batch.ts";
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
@@ -237,7 +237,7 @@ const spellingLookup: SpellingLookup = {
     const words = (async () => {
       const vocabulary = new Map<string, number>();
       PRODUCT_WORDS.forEach((word) => vocabulary.set(word, 1_000_000));
-      for (const name of await spellingNames(AbortSignal.timeout(1500))) {
+      for (const name of await spellingNames(AbortSignal.timeout(VOCABULARY_BUDGET_MS))) {
         // Canonical names have equal authority; core.character has no usage_count.
         addNameToVocabulary(vocabulary, name, 1_000_000);
         knownFullNames.add(normalizeName(name));

@@ -59,6 +59,7 @@ vi.mock("../_shared/admin-auth.ts", () => ({ authenticateUser: state.authenticat
 vi.mock("../_shared/product-code.ts", () => ({ isProductCodeSearch: async () => state.productCode }));
 vi.mock("../_shared/search-spelling.ts", () => ({
   RARE_WORD_DOCS: 3,
+  VOCABULARY_BUDGET_MS: 4000,
   addNameToVocabulary: vi.fn(),
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
