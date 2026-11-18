@@ -156,14 +156,14 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
     // Re-derive path-based metadata
     const derived = await deriveMetadataFromPath(asset.relative_path, db);
 
-    if (asset.is_licensed !== derived.is_licensed) {
-      updates.is_licensed = derived.is_licensed;
-    }
     if (asset.workflow_status !== derived.workflow_status) {
       updates.workflow_status = derived.workflow_status;
     }
-    // Re-derive SKU metadata from filename
+    // Re-derive SKU metadata from filename. ERP decides is_licensed whenever it
+    // knows the item; the folder flag applies only when it does not (#596).
     const licensing = await resolveAuthoritativeLicensing(db, derived.is_licensed, parsed, licensingMaps);
+    const isLicensed = licensing.is_licensed ?? derived.is_licensed;
+    if (asset.is_licensed !== isLicensed) updates.is_licensed = isLicensed;
     if (asset.licensor_id !== licensing.licensor_id) updates.licensor_id = licensing.licensor_id;
     if (asset.property_id !== licensing.property_id) updates.property_id = licensing.property_id;
     if (licensing.unresolved_licensor) unresolvedLicensor++;
