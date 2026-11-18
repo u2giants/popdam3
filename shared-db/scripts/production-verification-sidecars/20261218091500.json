@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261218091500",
+  "migration_sha256": "cee5784920ba62510b29a690561e6d54df191283afa4409b15a6dd82cb33269c",
+  "checks": [
+    {
+      "id": "dflow_property_suggestion_service_facade",
+      "kind": "catalog_contract",
+      "contract": "dflow_property_suggestion_service_facade_v1",
+      "expected_count": 1
+    }
+  ]
+}

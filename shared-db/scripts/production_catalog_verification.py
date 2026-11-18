@@ -6578,6 +6578,47 @@ CATALOG_CONTRACTS["core_merch_group_prod_retired_v1"] = (
     " and c.relname ~ '^merchGroupHeaders_retired_[0-9]{8}$')"
 )
 
+
+# Issue #6693. The shared preview contains both service schemas. Production
+# and the separate sandbox each install only their existing schema's facade.
+# The SQL lives in a guarded DO block, so the ordinary catalog lexer cannot
+# derive these targets directly.
+CATALOG_CONTRACTS["dflow_property_suggestion_service_facade_v1"] = """
+  (to_regnamespace('dflow_prod') is not null or to_regnamespace('dflow') is not null)
+  and not exists (
+    select 1
+    from (values
+      ('dflow_prod', to_regprocedure('dflow_prod.suggested_property_for_sku(text)')),
+      ('dflow', to_regprocedure('dflow.suggested_property_for_sku(text)'))
+    ) as target(schema_name, routine)
+    where to_regnamespace(target.schema_name) is not null
+      and not exists (
+        select 1 from pg_proc p
+        where p.oid = target.routine and p.proowner = 'postgres'::regrole
+          and p.prosecdef and p.proisstrict and p.provolatile = 's'
+          and p.proconfig = array['search_path=pg_catalog, pg_temp']
+          and pg_get_function_result(p.oid) =
+            'TABLE(mg_code text, mg_desc text, file_count bigint, basis text, file_names text[])'
+          and not has_function_privilege('public', p.oid, 'EXECUTE')
+          and not has_function_privilege('anon', p.oid, 'EXECUTE')
+          and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+          and not has_function_privilege('service_role', p.oid, 'EXECUTE')
+          and (
+            target.schema_name = 'dflow'
+            or (
+              has_function_privilege(to_regrole('designflow_prod_backend_runtime'), p.oid, 'EXECUTE')
+              and not has_schema_privilege(to_regrole('designflow_prod_backend_runtime'), 'plm', 'USAGE,CREATE')
+            )
+          )
+      )
+  )
+  and exists (
+    select 1 from pg_proc p
+    where p.oid = to_regprocedure('plm.suggested_property_for_sku(text)')
+      and not p.prosecdef and md5(p.prosrc) = '5a545f4b0e46a3b0b596000216d92163'
+  )
+"""
+
 # #6658: these checks recover historical apply evidence for guarded dynamic DDL.
 # Test the retired name and a valid keeper on the exact, ordered key columns.
 # A missing parent is allowed only for optional environment-specific copies.
