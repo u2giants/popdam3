@@ -1,4 +1,4 @@
-import { exportRange, type ManifestEntry, manifestEntry } from "../_shared/export-pagination.ts";
+import { exportRange, insertRowSQL, type ManifestEntry, manifestEntry } from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *
@@ -57,27 +57,6 @@ function sqlTarget(table: string): string {
   if (table === "licensors") return "core.licensor";
   if (table === "properties") return "core.property";
   return `public.${table}`;
-}
-
-// ── SQL escaping ────────────────────────────────────────────────────
-
-function escapeSQL(val: unknown): string {
-  if (val === null || val === undefined) return "NULL";
-  if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
-  if (typeof val === "number") return String(val);
-  if (typeof val === "object") {
-    if (Array.isArray(val)) {
-      const elements = val.map((v) => {
-        if (v === null) return "NULL";
-        return `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-      });
-      const literal = `{${elements.join(",")}}`;
-      return `'${literal.replace(/'/g, "''")}'`;
-    }
-    const json = JSON.stringify(val);
-    return `'${json.replace(/'/g, "''")}'::jsonb`;
-  }
-  return `'${String(val).replace(/'/g, "''")}'`;
 }
 
 // ── Auth helper ─────────────────────────────────────────────────────
@@ -184,13 +163,7 @@ corsServe(async (req) => {
     if (rows.length === 0) {
       lines.push(`-- ${table}: no rows in this range`);
     } else {
-      const columns = Object.keys(rows[0]);
-      const colList = columns.map((c) => `"${c}"`).join(", ");
-
-      for (const row of rows) {
-        const values = columns.map((col) => escapeSQL(row[col]));
-        lines.push(`INSERT INTO ${sqlTarget(table)} (${colList}) VALUES (${values.join(", ")});`);
-      }
+      for (const row of rows) lines.push(insertRowSQL(sqlTarget(table), row));
     }
 
     lines.push("");

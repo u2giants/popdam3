@@ -37,3 +37,16 @@ export function manifestEntry(
 export function expectedChunkRows(totalRows: number, chunk: number, chunkSize: number): number {
   return Math.max(0, Math.min(chunkSize, totalRows - chunk * chunkSize));
 }
+
+/**
+ * One restorable INSERT for an exported row. The row travels as JSON and the
+ * target table's own column types decode it (jsonb_populate_record), so a JSON
+ * array lands correctly in both jsonb and Postgres array columns. Naming the
+ * columns on both sides makes an unknown column fail the restore instead of
+ * being silently dropped.
+ */
+export function insertRowSQL(target: string, row: Record<string, unknown>): string {
+  const cols = Object.keys(row).map((c) => `"${c.replace(/"/g, '""')}"`).join(", ");
+  const json = JSON.stringify(row).replace(/'/g, "''");
+  return `INSERT INTO ${target} (${cols}) SELECT ${cols} FROM jsonb_populate_record(NULL::${target}, '${json}'::jsonb);`;
+}
