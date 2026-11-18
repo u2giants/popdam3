@@ -8,7 +8,7 @@ read-when: implementing or planning issue work for issue-1037, or changing how t
 # Plan: typed search by meaning — descriptions and folders, named characters, picture guesses demoted (u2giants/popdam3#1037)
 
 Issue: https://github.com/u2giants/popdam3/issues/1037
-Handoff: [HANDOFF.d/2026-11-17T1834Z-hetz-claude-typed-search-meaning-matching.md](../../HANDOFF.d/2026-11-17T1834Z-hetz-claude-typed-search-meaning-matching.md)
+Handoff: [HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md](../../HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md)
 Parent plan: [plan_vector_consolidation.md](../../plan_vector_consolidation.md) (its STATUS and "Reconciliation" section still govern the embedding worker, alarms and the scorecard; this plan adds one new leg to search and wins only where it says so).
 Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-search-investigation-8d17ef`). Investigation and planning only: **no code, database or configuration was changed.**
 
@@ -16,14 +16,14 @@ Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-se
 
 | Step | State (Nov 17, 2026) | Evidence / artifact |
 |---|---|---|
-| 0. Confirm the text model on `edge-dev`, pick dimensions | 🔄 partial — Nov 17, 2026 | Model present: `D:\models\huggingface\hub\models--Qwen--Qwen3-Embedding-0.6B` on `edge-dev`; card RTX 3060 Ti 8,192 MiB with 4,920 MiB in use at 3:15 PM EST (re-run: `ssh edge-dev nvidia-smi`). Still open: revision hash, output size, load test beside the picture worker, the three similarity numbers |
-| 1. Add the failing searches to the private test set, take BEFORE score | ⬜ open | — |
-| 2. Named-character rule | ⬜ open | — |
-| 3. Text-meaning vectors: storage and queue (shared-db) | ⬜ open | — |
-| 4. Text-meaning vectors: GPU worker lane on `edge-dev` | ⬜ open | — |
-| 5. Query side: embed typed words with the same text model | ⬜ open | — |
-| 6. Search function: add the text-meaning leg, demote picture-only matches | ⬜ open | — |
-| 7. Word forms in the exact-word leg (frame / framed / frames) | ⬜ open | — |
+| 0. Confirm the text model on `edge-dev`, pick dimensions | ✅ done — Nov 17, 2026 | Qwen/Qwen3-Embedding-0.6B @ 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3, 1024 dims, last-token pooling, query prefix; 6,102 MiB with picture worker; sims 0.493 vs 0.286. #1037 comment 6960263298 |
+| 1. Add the failing searches to the private test set, take BEFORE score | ✅ done — Nov 17, 2026 | PR #1044; set version 2026-11-17-1037 (137 cases); BEFORE run 44203103018: PopDAM 128/137. mis-088/mis-092 failed from backend slowness (spelling budget), not code |
+| 2. Named-character rule | ✅ live — Nov 18, 2026 3:30 AM EST | shared-db 20261204003329, 003530, 003633 (perf); popdam3 #1057 (reland, 58f73601). First landing (#1045) caused 503s and was reverted (#1055) |
+| 3. Text-meaning vectors: storage and queue (shared-db) | ✅ done — Nov 17, 2026 | shared-db #6622 (20261204003429, reissue without bulk backfill), health fast #6631 (003532) |
+| 4. Text-meaning vectors: GPU worker lane on `edge-dev` | ✅ done — Nov 18, 2026 12:48 AM EST | #1046 (edge-dev), #1058 (--text-only; second box 916-alien task PopDAM-TextEmbedWorker). 182,726/182,726 embedded. Refresh-on-edit proven only in preview rehearsal |
+| 5. Query side: embed typed words with the same text model | ✅ done — Nov 17, 2026 | #1042, #1047; +~210 ms typical (O2 accepted, #1037 comment) |
+| 6. Search function: add the text-meaning leg, demote picture-only matches | 🔄 shipped, mode OFF — Nov 18, 2026 3:50 AM EST | shared-db 20261204003632, 20261218084103; popdam3 #1051. Mode was on 3:40–3:50 AM; live searches then 503'd under HTS-worker DB load; switched off. Needs a quiet-DB scorecard before mode on |
+| 7. Word forms in the exact-word leg (frame / framed / frames) | 🔄 in progress | shared-db #6674 in merge queue at 4:42 AM EST Nov 18 |
 | 8. AFTER score, live proof, docs, close #1037 | ⬜ open | — |
 
 **A fresh session starts at Step 0.** Steps 1 and 2 need nothing from Step 0 and can run at the same time. Natural context cut points: after Step 2 (first shippable improvement), after Step 5 (all plumbing exists, nothing user-visible changed), after Step 8. Re-read the downstream steps before starting each phase.
