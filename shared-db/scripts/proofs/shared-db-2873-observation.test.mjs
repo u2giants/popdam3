@@ -84,9 +84,9 @@ test('both exact matrices contain the exact prerequisite and tracking-access rel
  const parse=sql=>[...sql.matchAll(/\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(m=>m.slice(1));
  const matrices=await Promise.all(['2873-catalog.sql','2873-role-contract.sql'].map(async name=>parse(await readFile(new URL(name,import.meta.url),'utf8'))));
  for(const rows of matrices){
-  assert.equal(rows.length,473);
+  assert.equal(rows.length,481);
   assert.deepEqual(rows.filter(r=>r[2].startsWith('coldlion.')).sort(),[['designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'],['designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT']]);
-  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,473);
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,481);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.user_roles').sort(),['DELETE','INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_backend_grants','table','dflow_prod.user_roles',priv]));
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.item_detail_upc'),[['designflow_prod_item_master_grants','view','dflow_prod.item_detail_upc','SELECT']]);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.prod_order_milestone_schedule').sort(),['INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule',priv]));
