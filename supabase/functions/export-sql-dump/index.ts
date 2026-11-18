@@ -1,4 +1,4 @@
-import { exportRange } from "../_shared/export-pagination.ts";
+import { exportRange, manifestEntry, type ManifestEntry } from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *
@@ -107,15 +107,22 @@ corsServe(async (req) => {
     // ── MANIFEST ──────────────────────────────────────────────────
     if (action === "manifest") {
       const chunkSize = parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10);
-      const tables: { table: string; rows: number; chunks: number }[] = [];
+      const tables: ManifestEntry[] = [];
 
       for (const table of TABLES_IN_ORDER) {
-        const { count } = await tableSource(db, table).select("*", { count: "exact", head: true });
-        const rows = count ?? 0;
-        tables.push({ table, rows, chunks: rows === 0 ? 0 : Math.ceil(rows / chunkSize) });
+        const { count, error } = await tableSource(db, table).select("*", { count: "exact", head: true });
+        try {
+          tables.push(manifestEntry(table, count, error, chunkSize));
+        } catch (e) {
+          // Never release a manifest that silently drops a table (#1082).
+          return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e), table, complete: false }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
       }
 
-      return new Response(JSON.stringify({ chunkSize, tables, generated: new Date().toISOString() }), {
+      return new Response(JSON.stringify({ chunkSize, tables, complete: true, generated: new Date().toISOString() }), {
         headers: { "Content-Type": "application/json" },
       });
     }
