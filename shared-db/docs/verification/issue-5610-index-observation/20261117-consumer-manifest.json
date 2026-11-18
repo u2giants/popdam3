@@ -7,9 +7,9 @@
     "text_files_searched": 1095,
     "binary_or_non_utf8_excluded": 23,
     "tracked_directory_links_excluded": [],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 117,
-    "matching_paths": 54,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 117,
+    "operator_matching_paths": 54,
     "open_issues_fetched": 15,
     "issue_list_saturated": false,
     "paths_sha256": "a35e57d2756650cb501088917c6d5c778b24554ef721fc29cba26832b3e65b1e"
@@ -22,9 +22,9 @@
     "text_files_searched": 91,
     "binary_or_non_utf8_excluded": 0,
     "tracked_directory_links_excluded": [],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 0,
-    "matching_paths": 0,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 0,
+    "operator_matching_paths": 0,
     "open_issues_fetched": 0,
     "issue_list_saturated": false,
     "paths_sha256": "777f972725d4a8c395b302b07c8405652075d82eb7f51baaa363172080695ad6"
@@ -37,9 +37,9 @@
     "text_files_searched": 235,
     "binary_or_non_utf8_excluded": 12,
     "tracked_directory_links_excluded": [],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 0,
-    "matching_paths": 0,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 0,
+    "operator_matching_paths": 0,
     "open_issues_fetched": 12,
     "issue_list_saturated": false,
     "paths_sha256": "9b1fc7f31a84acd522c01945f0a38cd65e1d904775cc9c6aa152fb24481f9607"
@@ -54,9 +54,9 @@
     "tracked_directory_links_excluded": [
       ".claude/skills/modern-web-guidance"
     ],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 199,
-    "matching_paths": 50,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 199,
+    "operator_matching_paths": 50,
     "open_issues_fetched": 6,
     "issue_list_saturated": false,
     "paths_sha256": "7dec1773ed793d28a0b4cee1b64aa18d4a37c7ff0ce9bd56bf050b504dfdad25"
@@ -69,9 +69,9 @@
     "text_files_searched": 360,
     "binary_or_non_utf8_excluded": 32,
     "tracked_directory_links_excluded": [],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 52,
-    "matching_paths": 14,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 52,
+    "operator_matching_paths": 14,
     "open_issues_fetched": 5,
     "issue_list_saturated": false,
     "paths_sha256": "629a82bcb047a9da33514a8a950a37dabc4a5f30baa4f47011e3504aa9e1c838"
@@ -84,9 +84,9 @@
     "text_files_searched": 431,
     "binary_or_non_utf8_excluded": 5,
     "tracked_directory_links_excluded": [],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 38,
-    "matching_paths": 11,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 38,
+    "operator_matching_paths": 11,
     "open_issues_fetched": 10,
     "issue_list_saturated": false,
     "paths_sha256": "95d409b38be0032cac669026994727510c3876653c3611dea7f425e85d6284c8"
@@ -101,9 +101,9 @@
     "tracked_directory_links_excluded": [
       ".claude/skills/modern-web-guidance"
     ],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 8,
-    "matching_paths": 5,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 8,
+    "operator_matching_paths": 5,
     "open_issues_fetched": 3,
     "issue_list_saturated": false,
     "paths_sha256": "690eb2a4819e565e4391b8a89be16681a2ebc7ed814e89a5f4eab74697167a12"
@@ -118,9 +118,9 @@
     "tracked_directory_links_excluded": [
       ".claude/skills/modern-web-guidance"
     ],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 922,
-    "matching_paths": 175,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 922,
+    "operator_matching_paths": 175,
     "open_issues_fetched": 107,
     "issue_list_saturated": false,
     "paths_sha256": "7af3e12c03ba1c3b2b3859edfcd59ea14c4d205b001a5f8c34c7bfd8922d12bc"
@@ -135,9 +135,9 @@
     "tracked_directory_links_excluded": [
       ".claude/skills/modern-web-guidance"
     ],
-    "search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
-    "matching_lines": 46,
-    "matching_paths": 13,
+    "broad_search_pattern": "directory_path|tag_search_text|text_hash|hts_rag_fold_text|to_tsvector|to_tsquery|plainto_tsquery|websearch_to_tsquery|textSearch|@@|\\btags\\b",
+    "operator_matching_lines": 46,
+    "operator_matching_paths": 13,
     "open_issues_fetched": 5,
     "issue_list_saturated": false,
     "paths_sha256": "b478fcd104534a18a57c063a93ce1bb638d56549dd416f985f899f8df75ef480"
