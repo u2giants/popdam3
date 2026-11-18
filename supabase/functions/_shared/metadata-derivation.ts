@@ -66,7 +66,7 @@ export async function deriveMetadataFromPath(
   const pathParts = relativePath.split("/");
   const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
 
-  // is_licensed is path-authoritative:
+  // is_licensed is the folder fallback; ERP overrides it when it knows the item (#596):
   // - Decor/Character Licensed/** => true
   // - Decor/Generic Decor/**      => false
   const decorIndex = normalizedParts.findIndex((p) => p === "decor");

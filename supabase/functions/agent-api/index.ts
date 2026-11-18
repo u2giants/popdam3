@@ -930,7 +930,7 @@ function buildSkuFields(
       division_code: parsed.division_code,
       division_name: parsed.division_name,
       // NOTE: is_licensed is intentionally EXCLUDED here.
-      // Path-derived is_licensed (from folder structure) is the authoritative source.
+      // ERP decides is_licensed when it knows the item; the folder flag is the fallback (#596).
     }
     : {};
   // Licensing fields come from the authoritative ColdLion item mirror, never
@@ -969,7 +969,7 @@ async function assignToStyleGroup(
     const skuIdx = parts.lastIndexOf(sku);
     const folderPath = skuIdx >= 0 ? parts.slice(0, skuIdx + 1).join("/") : parts.slice(0, -1).join("/");
 
-    // Keep style_groups licensing aligned with path-authoritative rule
+    // Keep style_groups licensing aligned with ERP-first licensing rule (#596)
     const groupFields: Record<string, unknown> = {
       sku,
       folder_path: folderPath,

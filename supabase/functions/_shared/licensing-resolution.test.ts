@@ -33,4 +33,12 @@ describe("resolveAuthoritativeLicensing", () => {
     const r = await resolveAuthoritativeLicensing(null as never, true, wrongDivision, maps({ licensor_code: "MV", property_code: "SP" }));
     expect(r).toMatchObject({ is_licensed: true, licensor_id: "marvel", property_id: "spidey" });
   });
+
+  it("marks an ERP item outside the licensed divisions as unlicensed, not unresolved", async () => {
+    const m = maps({ licensor_code: "MV", property_code: "SP" });
+    m.erpByStyleAndDivision = new Map([["EH001|SKU1", { division_code: "EH001", licensor_code: "MV", property_code: "SP" }]]);
+    m.erpByStyle = new Map([["SKU1", { division_code: "EH001", licensor_code: "MV", property_code: "SP" }]]);
+    const r = await resolveAuthoritativeLicensing(null as never, true, parsed("SKU1"), m);
+    expect(r).toMatchObject({ is_licensed: false, licensor_id: null, unresolved_licensor: false });
+  });
 });

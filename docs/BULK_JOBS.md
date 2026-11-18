@@ -47,7 +47,7 @@ Image-tagging prompts cache only successful static instruction and character-cat
 | `reconcile-style-group-stats` | style-groups | style_groups | manual / auto-queued after rebuild |
 | `cleanup-mega-group-tags` | style-groups | asset_tags, asset_characters, assets | manual |
 | `relink-orphaned-assets` | style-groups | assets (style_group_id) | manual |
-| `reprocess-metadata` | metadata | assets (licensor_id, property_id, is_licensed, workflow_status, SKU fields) | manual |
+| `reprocess-metadata` | metadata | assets (licensor_id, property_id, is_licensed (ERP first, folder fallback), workflow_status, SKU fields) | manual |
 | `backfill-sku-names` | metadata | assets, style_groups (licensor/property codes) | manual |
 | `erp-enrichment` | erp | assets, style_groups (ERP codes) | manual |
 | `erp-classify` | erp | product_category_predictions | manual |

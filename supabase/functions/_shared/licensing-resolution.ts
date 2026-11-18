@@ -167,7 +167,8 @@ export async function resolveAuthoritativeLicensing(
   if (!erp) return isLicensed ? emptyResolution("sku_not_in_coldlion_item_mirror", true) : emptyResolution(null, false);
   if (!erp.licensor_code) return { ...emptyResolution(null, false), is_licensed: false };
   if (!erp.division_code || !["CW001", "SP001"].includes(erp.division_code)) {
-    return emptyResolution("coldlion_item_is_not_in_a_licensed_division", true);
+    // ERP knows the item and files it outside the licensed divisions: not licensed.
+    return { ...emptyResolution(null, false), is_licensed: false };
   }
 
   const licensorSourceId = coldLionSourceId(erp.division_code, "05", erp.licensor_code);
