@@ -10,7 +10,7 @@ Issue: https://github.com/u2giants/popdam3/issues/660
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
 Written 2026-11-04 by Claude (plan only; no implementation started).
 
-Predecessor handoff for the feature itself: [`HANDOFF.d/2026-11-02T2005Z-hetz-zcode-grid-find-stepper-live-proof.md`](../../HANDOFF.d/2026-11-02T2005Z-hetz-zcode-grid-find-stepper-live-proof.md) (feature #658, closed; PR #659 merged as `0348c973`).
+Predecessor handoff for the feature itself: [`HANDOFF.d/2026-11-02T2005Z-hetz-zcode-grid-find-stepper-live-proof.md`](https://github.com/u2giants/popdam3/blob/84aba2a9860d1407c02f085ce3a73bd18e8864cb/HANDOFF.d/2026-11-02T2005Z-hetz-zcode-grid-find-stepper-live-proof.md) (retired 2026-11-18) (feature #658, closed; PR #659 merged as `0348c973`).
 
 ## STATUS
 
