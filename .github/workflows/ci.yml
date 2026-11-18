@@ -46,6 +46,12 @@ jobs:
       - name: Install windows-agent dependencies
         run: npm ci --prefix apps/windows-agent
 
+      # Tests that import the TIFF optimizer load @popdam/path-filters/dist,
+      # built the same way publish-windows-agent.yml builds it.
+      - name: Build path-filters package
+        working-directory: packages/path-filters
+        run: npx -y -p typescript@5 tsc
+
       - name: Test windows-agent
         run: npm test --prefix apps/windows-agent
 

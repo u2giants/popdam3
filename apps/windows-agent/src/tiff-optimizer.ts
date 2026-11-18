@@ -347,7 +347,8 @@ export async function compressTiff(
   try {
     let compressedVia = "sharp";
     try {
-      await sharp(filePath)
+      // pages: -1 loads every page so multipage TIFFs are written back whole (#1077).
+      await sharp(filePath, { pages: -1 })
         .tiff({ compression: "deflate", predictor: "horizontal" })
         .toFile(tempPath);
     } catch (sharpErr) {
@@ -369,7 +370,7 @@ export async function compressTiff(
       try {
         await execFileAsync(
           IM_EXE,
-          ["convert", `${filePath}[0]`, "-compress", "zip", tempPath],
+          ["convert", filePath, "-compress", "zip", tempPath],
           { timeout: 120_000 },
         );
         compressedVia = "imagemagick";
@@ -386,6 +387,22 @@ export async function compressTiff(
     }
 
     logger.debug(`TIFF compressed via ${compressedVia}`, { filePath, jobId });
+
+    // Never swap in a result that lost pages of the original artwork (#1077).
+    const pageCheck = await verifyTiffPagesPreserved(filePath, tempPath);
+    if (!pageCheck.ok) {
+      await unlink(tempPath).catch(() => {});
+      logger.error("Compressed TIFF does not preserve original pages — original kept", {
+        filePath, jobId, compressedVia, ...pageCheck,
+      });
+      return {
+        success: false,
+        error: `Compressed TIFF failed page verification (${pageCheck.reason}); original left untouched`,
+        timestamp_restore_status: "skipped",
+        mtime_restored: false,
+        creation_time_restored: false,
+      };
+    }
 
     const newStat = await stat(tempPath);
     const newSize = newStat.size;
@@ -406,6 +423,42 @@ export async function compressTiff(
       mtime_restored: false,
       creation_time_restored: false,
     };
+  }
+}
+
+/**
+ * Confirm a compressed TIFF keeps every page of the original with the same
+ * dimensions and pixel content (decoded raw pixels compared page by page).
+ */
+export async function verifyTiffPagesPreserved(
+  originalPath: string,
+  compressedPath: string,
+): Promise<{ ok: boolean; reason?: string; originalPages?: number; compressedPages?: number }> {
+  try {
+    const [origMeta, newMeta] = await Promise.all([
+      sharp(originalPath).metadata(),
+      sharp(compressedPath).metadata(),
+    ]);
+    const originalPages = origMeta.pages ?? 1;
+    const compressedPages = newMeta.pages ?? 1;
+    if (originalPages !== compressedPages) {
+      return { ok: false, reason: `page count ${compressedPages} != original ${originalPages}`, originalPages, compressedPages };
+    }
+    for (let page = 0; page < originalPages; page++) {
+      const [a, b] = await Promise.all([
+        sharp(originalPath, { page }).raw().toBuffer({ resolveWithObject: true }),
+        sharp(compressedPath, { page }).raw().toBuffer({ resolveWithObject: true }),
+      ]);
+      if (a.info.width !== b.info.width || a.info.height !== b.info.height || a.info.channels !== b.info.channels) {
+        return { ok: false, reason: `page ${page + 1} dimensions/channels differ`, originalPages, compressedPages };
+      }
+      if (!a.data.equals(b.data)) {
+        return { ok: false, reason: `page ${page + 1} pixel content differs`, originalPages, compressedPages };
+      }
+    }
+    return { ok: true, originalPages, compressedPages };
+  } catch (e) {
+    return { ok: false, reason: `verification error: ${(e as Error).message}` };
   }
 }
 
