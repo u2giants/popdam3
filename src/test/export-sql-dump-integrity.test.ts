@@ -1,6 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { expectedChunkRows, insertRowSQL, manifestEntry } from "../../supabase/functions/_shared/export-pagination";
+import {
+  afterCursorFilter,
+  clampChunkSize,
+  decodeCursor,
+  encodeCursor,
+  expectedChunkRows,
+  insertRowSQL,
+  MAX_CHUNK,
+  manifestEntry,
+  parseCutoff,
+  snapshotColumn,
+} from "../../supabase/functions/_shared/export-pagination";
 
 describe("SQL dump manifest (#1082)", () => {
   it("refuses to report a failed count as an empty table", () => {
@@ -46,5 +57,68 @@ describe("SQL dump row encoding (#1085 restore proof)", () => {
     expect(sql).toBe(
       `INSERT INTO public.erp_sync_runs ("id", "error_samples") SELECT "id", "error_samples" FROM jsonb_populate_record(NULL::public.erp_sync_runs, '{"id":"x","error_samples":[{"m":"it''s"}]}'::jsonb);`,
     );
+  });
+});
+
+describe("SQL dump under live ingestion (#1132) and large chunks (#1096)", () => {
+  const src = readFileSync("supabase/functions/export-sql-dump/index.ts", "utf8");
+  const ps = readFileSync("migration/download-sql-dump.ps1", "utf8");
+
+  it("clamps chunk size the same way in manifest and chunk modes", () => {
+    expect(clampChunkSize(20000)).toBe(MAX_CHUNK);
+    expect(clampChunkSize(5000)).toBe(5000);
+    expect(() => clampChunkSize(0)).toThrow();
+    expect(src.match(/clampChunkSize\(/g)?.length).toBe(2);
+  });
+
+  it("freezes ingestion tables at the manifest cutoff", () => {
+    for (const t of ["assets", "render_queue", "asset_tags"]) expect(snapshotColumn(t)).toBe("created_at");
+    expect(snapshotColumn("asset_characters")).toBeNull();
+    expect(src).toMatch(/countQuery\.lte\(col, cutoff\)/);
+    expect(src).toMatch(/query\.lte\(col, cutoff\)/);
+    expect(src).toMatch(/chunkSize, cutoff, tables, complete: true/);
+    expect(parseCutoff("2026-11-18T12:00:00Z")).toBe("2026-11-18T12:00:00.000Z");
+    expect(() => parseCutoff("nope")).toThrow();
+  });
+
+  it("round-trips keyset cursors including composite keys", () => {
+    const c = encodeCursor("asset_characters", { asset_id: "a", character_id: "b", x: 1 });
+    expect(decodeCursor("asset_characters", c)).toEqual(["a", "b"]);
+    expect(afterCursorFilter("asset_characters", ["a", "b"])).toBe(
+      'asset_id.gt."a",and(asset_id.eq."a",character_id.gt."b")',
+    );
+    expect(afterCursorFilter("assets", ['x"y'])).toBe('id.gt."x\\"y"');
+    expect(() => decodeCursor("assets", c)).toThrow(/Invalid cursor/);
+  });
+
+  it("every frozen row exported exactly once while ingestion inserts mid-run", () => {
+    const rand = () => String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+    const table: { id: string; created_at: string }[] = [];
+    for (let i = 0; i < 2500; i++) table.push({ id: `${rand()}-${i}`, created_at: "2026-01-01T00:00:00.000Z" });
+    const cutoff = "2026-06-01T00:00:00.000Z";
+    const frozen = table.map((r) => r.id).sort();
+    const size = 1000;
+    const got: string[] = [];
+    let cursor: string | null = null;
+    for (let n = 0; n < Math.ceil(frozen.length / size); n++) {
+      for (let k = 0; k < 50; k++) table.push({ id: `${rand()}-n${n}-${k}`, created_at: "2026-11-18T00:00:00.000Z" });
+      const key = cursor ? decodeCursor("assets", cursor)[0] : null;
+      const rows = table
+        .filter((r) => r.created_at <= cutoff && (key === null || r.id > key))
+        .sort((a, b) => (a.id < b.id ? -1 : 1))
+        .slice(0, size);
+      expect(rows.length).toBe(expectedChunkRows(frozen.length, n, size));
+      got.push(...rows.map((r) => r.id));
+      cursor = encodeCursor("assets", rows[rows.length - 1]);
+    }
+    expect(got).toEqual(frozen);
+  });
+
+  it("downloader pins the cutoff and follows the server cursor", () => {
+    expect(ps).toMatch(/if \(-not \$manifest\.cutoff\) \{ Fail-Run/);
+    expect(ps).toMatch(/&cutoff=\$Cutoff\$afterParam/);
+    expect(ps).toMatch(/\$cursor = "\$\(\$resp\.Headers\['X-Next-Cursor'\]\)"/);
+    expect(src).toMatch(/"X-Next-Cursor": nextCursor/);
+    expect(src).not.toMatch(/\.range\(/);
   });
 });
