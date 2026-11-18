@@ -38,7 +38,7 @@ Thumbnails are NOT stored in Supabase Storage. They are uploaded directly by the
 
 The full URL is stored in `assets.thumbnail_url`. The UI always loads thumbnails from this URL — it never proxies through Supabase.
 
-**Secrets:** `DO_SPACES_KEY` and `DO_SPACES_SECRET` are stored only in the agent's local `.env` file on the NAS. They are never stored in `admin_config` and are never returned by any API.
+**Credentials:** PopDAM stores `DO_SPACES_KEY` and `DO_SPACES_SECRET` in restricted `admin_config` entries. Authenticated agent heartbeats deliver the pair to registered bridge and Windows agents. The worker and edge cleanup functions read the entries directly. Agents can also use local environment values as a fallback.
 
 ---
 
@@ -241,7 +241,7 @@ See `docs/ADMIN_OPERATIONS.md` for the complete route reference.
 **Key routes:**
 - `POST /agent/register` — first-time registration with raw key
 - `POST /agent/bootstrap` — pairing-code based first-time registration
-- `POST /agent/heartbeat` — liveness signal + counter update. Returns full config payload including scanning roots, resource limits, DigitalOcean Spaces config (non-secret fields), scan commands, and update requests.
+- `POST /agent/heartbeat` — liveness signal + counter update. Returns full config payload including scanning roots, resource limits, DigitalOcean Spaces settings and credentials, scan commands, and update requests.
 - `POST /agent/ingest` — ingest or update a single asset (idempotent)
 - `POST /agent/scan-progress` — report scan session progress
 - `POST /agent/queue-render` — queue a file for Windows Render Agent
