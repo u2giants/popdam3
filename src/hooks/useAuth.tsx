@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { externalSupabase } from "@/lib/external-supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -44,7 +45,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await externalSupabase.auth.signOut();
+    // Server sign-out can fail (network, expired token, outage). On a shared
+    // workstation the local session must still be destroyed, and the user must
+    // be told the server-side revocation did not complete (#1088).
+    let serverFailed = false;
+    try {
+      const { error } = await externalSupabase.auth.signOut();
+      if (error) serverFailed = true;
+    } catch {
+      serverFailed = true;
+    }
+    if (serverFailed) {
+      try {
+        await externalSupabase.auth.signOut({ scope: "local" });
+      } catch {
+        // fall through: React state below is cleared regardless
+      }
+      toast.warning(
+        "Signed out on this device, but the server could not confirm sign-out. Other sessions may stay active until they expire.",
+      );
+    }
+    setSession(null);
+    setUser(null);
     // Drop every cached query so the next sign-in on this tab never sees the
     // previous user's data (roles, filters, checkouts, current-user).
     queryClient.clear();
