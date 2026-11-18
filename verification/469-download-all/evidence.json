@@ -36,8 +36,8 @@
     "tokens_generated": 2,
     "batch_url_format": "popdam://checkout-batch?tokens=<t1>,<t2>",
     "tokens": [
-      "c734f92aac2293d821fa185bb2a13fce",
-      "97042fb07662145114780135c683e583"
+      "[REDACTED_TOKEN_1]",
+      "[REDACTED_TOKEN_2]"
     ],
     "helper_log_entries": [
       "17:37:44 UTC - Deep link received: popdam://checkout-batch/?tokens=[REDACTED]",
