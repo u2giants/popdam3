@@ -1,0 +1,159 @@
+{
+  "record": "recovery-checks-2026-11-18",
+  "issues": ["u2giants/popdam3#229", "u2giants/popdam3#469"],
+  "date": "2026-11-18",
+  "timezone": "America/New_York",
+  "context": {
+    "missed_run": "2026-11-15 8:33 PM EST scheduled one-shot checks (no output)",
+    "recovery_window": "2026-11-18 ~11:20 AM - 12:00 PM EST",
+    "worktree": "D:/repos/popdam3-worktrees/wt-recovery",
+    "branch": "proof/recovery-checks",
+    "task_gate": {
+      "class": "production",
+      "checks": [
+        "check --before production --acknowledge (rich-pdf-extract trigger) - allowed by owner authorization",
+        "check --before production --acknowledge (NAS fixture removal) - allowed by owner authorization",
+        "check --before database --acknowledge (fixture row deletes) - allowed by owner authorization"
+      ],
+      "acknowledge_text": "Recovering the 2026-11-15 scheduled checks for u2giants/popdam3 #229 and #469 under a scoped parent-agent delegation (trigger rich-pdf-extract to retry the seeded failure fixture after DeepSeek provider recovery; remove the recorded _ai_test_681 NAS fixture files and fixture rows exactly as recorded in the 2026-11-15 evidence files; comment on the issues; commit evidence; open a PR to main). No schema changes, no credential changes, no scan triggering, no real design files touched."
+    },
+    "secrets_handling": "SUPABASE_SECRET_KEY and SUPABASE_ACCESS_TOKEN only via 1Password op_run env injection; DeepSeek health call key via op_run env injection; no secret values printed"
+  },
+  "item_1_issue_229_ordinary_ingest": {
+    "verdict": "ingest proven; 0-errors counter confirmation not recoverable; box NOT ticked",
+    "bridge": {
+      "id": "synology-bridge-1",
+      "status": "online",
+      "version": "1.16.26",
+      "build_sha": "487af8868596694a96c2d2e5ac7818569ea8d6d2",
+      "last_error": null,
+      "marker": {"Decor": "ok"},
+      "scan_roots_readable": true,
+      "mount_root_exists": true,
+      "read_at_est": "2026-11-18 11:20 AM EST"
+    },
+    "restored_copy_asset": {
+      "id": "416586df-eba9-4488-9824-a8b91b86e11d",
+      "filename": "XA12SP_PACKAGING (restored 2026-09-30).ai",
+      "created_at_est": "2026-11-15 21:35:08 PM EST",
+      "file_size": 2438951,
+      "thumbnail_url_present": true,
+      "thumbnail_error": null
+    },
+    "counters_read_2026_11_18_1121_est": {
+      "session_id": "9aee7246-7e33-4fcb-95e2-bd6b774193c5",
+      "pass_state": "running (ingest phase since 2026-11-17 11:32 PM EST)",
+      "files_checked": 164338,
+      "files_total_encountered": 434713,
+      "candidates_found": 164338,
+      "updated_existing": 13869,
+      "ingested_new": 0,
+      "moved_detected": 0,
+      "errors": 17,
+      "roots_invalid": 0,
+      "roots_unreadable": 0,
+      "files_stat_failed": 0,
+      "dirs_skipped_excluded": 52464,
+      "dirs_skipped_permission": 0,
+      "rejected_wrong_type": 228971,
+      "rejected_junk_file": 27277,
+      "skipped_before_min_date": 3226,
+      "rejected_ai_has_pdf_sibling": 14180,
+      "unresolved_licensor": 2130,
+      "unresolved_property": 2130
+    },
+    "counter_history_note": "rolling 60-entry window (~30 min at heartbeat cadence); Nov 15-17 completed-pass snapshots aged out; SCAN_PROGRESS is a single row overwritten by the running pass; no per-scan history table exists",
+    "processing_queue_failed_since_2026_11_15": 0,
+    "error_cause_note": "17 per-file processing exceptions in the current pass; causes not retained on any readable surface; docker log inspection blocked (sudo password required; documented privileged-credential mismatch)"
+  },
+  "item_2_issue_469_fixtures": {
+    "probe_1_filename_gate": {
+      "verdict": "clean - box ticked",
+      "scan": "2026-11-15 ~6:38 PM EST auto-scan, bridge build 487af886",
+      "ingested": [
+        {"rel": "Decor/Generic Decor/Unused/_ai_test_681/a/#469probe.psd", "asset_id": "4823df3f-7ffd-46bc-8aaf-1be0c8dcf9a8", "created_at_est": "2026-11-15 21:36:23.45 PM EST", "file_size": 75},
+        {"rel": "Decor/Generic Decor/Unused/_ai_test_681/a/$469probe.psd", "asset_id": "3899f321-5b0f-48d2-9b01-c9c8b43f7328", "created_at_est": "2026-11-15 21:36:23.72 PM EST", "file_size": 75},
+        {"rel": "Decor/Generic Decor/Unused/_ai_test_681/a/@469probe.psd", "asset_id": "b0b1029b-217e-461d-ba71-f72d602a123f", "created_at_est": "2026-11-15 21:36:24.71 PM EST", "file_size": 75}
+      ],
+      "negative_control": {"rel": "Decor/Generic Decor/Unused/_ai_test_681/#469probe-skip/inner.psd", "asset_rows": 0, "expected": "skipped by shouldSkipFolder"}
+    },
+    "probe_2_ai_sentinel_cap": {
+      "verdict": "clean - box ticked",
+      "asset": {"rel": "Decor/Generic Decor/Unused/_ai_test_681/a/469probe-big.ai", "asset_id": "37fc028f-eb48-4d73-aefe-49d9d5a2f0a5", "created_at_est": "2026-11-15 21:36:24.70 PM EST", "file_size": 16999996},
+      "scanner_ai_ignores_rows_for_469probe": 0,
+      "thumbnail_error": "deferred_to_windows_agent",
+      "thumbnail_url": null,
+      "interpretation": "over-cap read refused before mupdf (SENTINEL_READ_LIMIT_BYTES 16 MiB), text filler never classified no_pdf_compat; bridge healthy"
+    }
+  },
+  "item_3_issue_469_chip": {
+    "verdict": "counters recovered; UI chip read deferred to next scan; box NOT ticked",
+    "skipped_before_min_date_in_scan_progress": 3226,
+    "rejected_subfolder_in_scan_progress": 0,
+    "read_at_est": "2026-11-18 11:21 AM EST (running session 9aee7246-...)",
+    "chip_surface": "LibraryTopBar.tsx:946 reads scanProgress.counters.skipped_before_min_date via parseCounters (src/hooks/useAgentStatus.ts)",
+    "deferral_reason": "box target is an admin UI chip read during a live scan; today's ~6:38 PM EST auto-scan is ~7h outside this session's window"
+  },
+  "item_4_issue_469_rich_pdf_retry": {
+    "verdict": "NOT proven - provider healthy, worker key invalid; box NOT ticked",
+    "provider_health_check": {
+      "at_est": "2026-11-18 ~11:35 AM EST",
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "result": "HTTP 200, model deepseek-flash (alias), reply OK",
+      "key_scope": "reviewer-scope DeepSeek key via 1Password op_run injection (benign one-token completion)"
+    },
+    "retry_attempt": {
+      "triggered_at_est": "2026-11-18 11:36:31 AM EST",
+      "method": "admin-api update-bulk-op, op_key=rich-pdf-extract, status=running, cursor=0 (recorded observation step)",
+      "auto_stopped_at_est": "2026-11-18 11:36:54 AM EST",
+      "op_result": "Auto-stopped: Failure rate 84% (90 failed out of 107 processed), interruption_reason_code=repeated_failure, scanned=200, skipped=17, processed=0, failed=90",
+      "same_signature_as": "2026-11-15 run"
+    },
+    "root_cause": {
+      "error": "HTTP 401: Authentication Fails, Your api key: ****80f9 is invalid",
+      "type": "authentication_error",
+      "source": "persisted parse_error rows written by the worker (dam.pdf_rich_extraction)",
+      "diagnosis": "Railway worker DEEPSEEK_API_KEY is invalid; Nov 15 'provider outage' explained by the same 401; provider itself is healthy",
+      "related_finding": "1Password item 'ai provider api keys openai deepseek chatgpt qwen' field 'deepseek' is EMPTY (injects 0 bytes); live worker value exists only in the Railway worker env"
+    },
+    "fixture_state_before_cleanup": {
+      "asset_id": "a4690000-4690-4000-8000-000000000001",
+      "offset_in_pdf_text_samples_order_by_asset_id": 18814,
+      "total_pdf_text_samples_rows": 28535,
+      "reached_by_run": false,
+      "parse_error": "probe-induced failure for 469 retry verification",
+      "extracted_at": "2026-11-14T18:21:29.750622-05:00 (seeded; unchanged)",
+      "note": "run dies in the first 200-row window on the failing front rows; cursor never advances past them"
+    },
+    "to_prove_leg_2": "restore a valid DeepSeek key in the Railway worker env (and fill the empty 1Password deepseek field), rerun rich-pdf-extract, observe parse_error cleared on a seeded failure row"
+  },
+  "item_5_cleanup": {
+    "done_at_est": "2026-11-18 ~11:42 AM EST",
+    "nas_files_removed": [
+      "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/a/#469probe.psd",
+      "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/a/$469probe.psd",
+      "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/a/@469probe.psd",
+      "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/a/469probe-big.ai",
+      "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/#469probe-skip/inner.psd"
+    ],
+    "nas_folder_removed": "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/#469probe-skip (after removing the NAS-generated root-owned @eaDir inside it)",
+    "left_in_place": "/volume1/mac/Decor/Generic Decor/Unused/_ai_test_681/a/ai-test-681-moved-file.pdf (pre-existing, not ours)",
+    "db_rows_deleted": [
+      "dam.pdf_rich_extraction WHERE asset_id='a4690000-4690-4000-8000-000000000001'",
+      "pdf_text_samples WHERE asset_id='a4690000-4690-4000-8000-000000000001'",
+      "assets WHERE id IN (a4690000-4690-4000-8000-000000000001, 4823df3f-7ffd-46bc-8aaf-1be0c8dcf9a8, 3899f321-5b0f-48d2-9b01-c9c8b43f7328, b0b1029b-217e-461d-ba71-f72d602a123f, 37fc028f-eb48-4d73-aefe-49d9d5a2f0a5)"
+    ],
+    "verification_reads": {
+      "assets_matching_469probe_or_toytest": 0,
+      "pdf_text_samples_for_a4690000": 0,
+      "dam.pdf_rich_extraction_for_a4690000": 0
+    },
+    "method": "exact recorded commands (NAS rm via SSH edgesynology1; DB deletes via Supabase Management API SQL)",
+    "note": "per cleanup scope the rich-pdf retry fixture is gone; a new toytest failure row must be seeded when the worker key is fixed"
+  },
+  "residual": [
+    "#229 ordinary-ingest box: needs a completed-pass counters read on build 487af886 showing errors=0 (or owner acceptance of the asset-row proof)",
+    "#469 parseCounters chip: needs one admin UI chip read during a live scan that skips pre-min-date files (next scan window)",
+    "#469 rich-pdf Leg 2: blocked on a valid DEEPSEEK_API_KEY in the Railway worker env (401 ****80f9) and the empty 1Password deepseek field"
+  ]
+}
