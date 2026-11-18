@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  clearTableSQL,
   afterCursorFilter,
   clampChunkSize,
   decodeCursor,
@@ -120,5 +121,16 @@ describe("SQL dump under live ingestion (#1132) and large chunks (#1096)", () =>
     expect(ps).toMatch(/\$cursor = "\$\(\$resp\.Headers\['X-Next-Cursor'\]\)"/);
     expect(src).toMatch(/"X-Next-Cursor": nextCursor/);
     expect(src).not.toMatch(/\.range\(/);
+  });
+});
+
+describe("SQL dump restore never cascades into shared tables (#1134)", () => {
+  it("deletes PopDAM tables, upserts core master data, no TRUNCATE CASCADE", () => {
+    const src = readFileSync("supabase/functions/export-sql-dump/index.ts", "utf8");
+    expect(src).not.toMatch(/TRUNCATE/);
+    expect(clearTableSQL("public.assets")).toBe("DELETE FROM public.assets;");
+    expect(clearTableSQL("core.licensor")).toBeNull();
+    expect(insertRowSQL("core.licensor", { id: "x", name: "n" })).toMatch(/ON CONFLICT \("id"\) DO UPDATE SET "name" = EXCLUDED\."name";$/);
+    expect(insertRowSQL("public.assets", { id: "x" })).toMatch(/jsonb\);$/);
   });
 });

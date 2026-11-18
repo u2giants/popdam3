@@ -46,9 +46,25 @@ export function expectedChunkRows(totalRows: number, chunk: number, chunkSize: n
  * being silently dropped.
  */
 export function insertRowSQL(target: string, row: Record<string, unknown>): string {
-  const cols = Object.keys(row).map((c) => `"${c.replace(/"/g, '""')}"`).join(", ");
+  const names = Object.keys(row).map((c) => `"${c.replace(/"/g, '""')}"`);
+  const cols = names.join(", ");
   const json = JSON.stringify(row).replace(/'/g, "''");
-  return `INSERT INTO ${target} (${cols}) SELECT ${cols} FROM jsonb_populate_record(NULL::${target}, '${json}'::jsonb);`;
+  const base = `INSERT INTO ${target} (${cols}) SELECT ${cols} FROM jsonb_populate_record(NULL::${target}, '${json}'::jsonb)`;
+  if (!target.startsWith("core.")) return `${base};`;
+  // Shared master data: update in place, never delete (#1134).
+  const sets = names.filter((n) => n !== '"id"').map((n) => `${n} = EXCLUDED.${n}`).join(", ");
+  return `${base} ON CONFLICT ("id") DO ${sets ? `UPDATE SET ${sets}` : "NOTHING"};`;
+}
+
+/**
+ * Statement that clears a table before its first chunk is restored (#1134).
+ * Shared core master data is never wiped: its rows are upserted instead.
+ * PopDAM tables use DELETE under session_replication_role=replica, which
+ * never cascades into other applications' tables (TRUNCATE ... CASCADE
+ * reached the append-only plm tables and was refused).
+ */
+export function clearTableSQL(target: string): string | null {
+  return target.startsWith("core.") ? null : `DELETE FROM ${target};`;
 }
 
 /** Largest chunk the exporter serves; the manifest must use the same value (#1096). */

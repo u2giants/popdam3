@@ -3,6 +3,7 @@ import {
   clampChunkSize,
   decodeCursor,
   encodeCursor,
+  clearTableSQL,
   insertRowSQL,
   type ManifestEntry,
   manifestEntry,
@@ -195,8 +196,9 @@ corsServe(async (req) => {
     lines.push("SET session_replication_role = 'replica';");
     lines.push("");
 
-    if (includeTruncate) {
-      lines.push(`TRUNCATE TABLE ${sqlTarget(table)} CASCADE;`);
+    const clear = includeTruncate ? clearTableSQL(sqlTarget(table)) : null;
+    if (clear) {
+      lines.push(clear);
       lines.push("");
     }
 
