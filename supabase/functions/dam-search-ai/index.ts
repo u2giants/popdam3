@@ -17,10 +17,10 @@ import { type BatchEmbedOutcome, createQueryEmbedder, type EmbedWithText } from 
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
 import {
   buildNameIndex,
-  EMPTY_NAME_INDEX,
   hasNamedScope,
   namedCharacterScope,
-  type NameIndex,
+  namedSearchPhrases,
+  type NamedScope,
   pickScopeKeys,
   withNamedScope,
 } from "../_shared/named-characters.ts";
@@ -37,13 +37,7 @@ export const SEARCH_TEXT_LEG_MODE_KEY = "SEARCH_TEXT_LEG_MODE";
 export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
-/**
- * A cold isolate waits this long for character names; past it the search runs without the rule.
- * 1.5 s was too short on production (Nov 17, 2026: ~750 ms per backend round trip), so the first
- * search of a fresh isolate silently skipped the rule and showed other characters.
- */
-const NAME_INDEX_BUDGET_MS = 6000;
-/** Licensor names feed the licensor scope and the character collision rule (#1037). */
+const NAME_SCOPE_TIMEOUT_MS = 1500;
 const LICENSOR_READ_TIMEOUT_MS = 3000;
 const PRODUCT_WORDS = [
   "canvas",
@@ -159,69 +153,34 @@ function licensorNames(): Promise<LicensorName[]> {
   return value;
 }
 
-/** Every row of a core/public table, pages read in parallel (~15k characters). */
-async function loadRows(schema: "core" | "public", table: string, columns: string, order: string, signal: AbortSignal) {
-  const pageSize = 1000;
-  const client = () => schema === "core" ? serviceClient().schema("core") : serviceClient();
-  const { count, error: countError } = await client().from(table).select(order, { count: "exact", head: true }).abortSignal(signal);
-  if (countError) throw new Error(countError.message);
-  const pages = await Promise.all(Array.from({ length: Math.ceil((count ?? 0) / pageSize) }, async (_, page) => {
-    const from = page * pageSize;
-    const { data, error } = await client().from(table).select(columns).order(order).range(from, from + pageSize - 1).abortSignal(signal);
-    if (error) throw new Error(error.message);
-    return (data ?? []) as Record<string, unknown>[];
-  }));
-  return pages.flat();
+function namedRows<K extends string>(rows: unknown, fields: readonly K[]): rows is Array<Record<K, string>> {
+  return Array.isArray(rows) && rows.every((row: unknown) =>
+    row !== null && typeof row === "object" &&
+    fields.every((field) => typeof (row as Record<string, unknown>)[field] === "string")
+  );
 }
 
-const pairs = (rows: Record<string, unknown>[], a: string, b: string) =>
-  rows.flatMap((row) => typeof row[a] === "string" && typeof row[b] === "string" ? [[row[a] as string, row[b] as string] as const] : []);
-
-/** Test hook: forget cached character names. */
-export function resetNameIndexCacheForTests() {
-  nameIndexCache = null;
-}
-let nameIndexCache: { expires: number; value: Promise<NameIndex> } | null = null;
-/**
- * Character, alias, legacy character, property and characters-per-property rows for the
- * named-character rule (#1037), cached hourly. Fails open to an empty index: a failed read
- * only skips the rule for that search, like the licensor scope (#892).
- */
-function nameIndex(): Promise<NameIndex> {
-  if (nameIndexCache && nameIndexCache.expires > Date.now()) return nameIndexCache.value;
-  const value = (async () => {
-    const signal = AbortSignal.timeout(20_000);
-    const [characters, aliases, legacy, properties, links, licensors] = await Promise.all([
-      loadRows("core", "character", "id,name", "id", signal),
-      loadRows("core", "character_alias", "character_id,alias", "id", signal),
-      loadRows("public", "characters", "id,name", "id", signal),
-      loadRows("core", "property", "id,name", "id", signal),
-      loadRows("core", "property_character_associations_current", "property_id,character_id", "character_id", signal),
-      licensorNames(),
-    ]);
-    const index = buildNameIndex({
-      characters: pairs(characters, "id", "name").map(([id, name]) => ({ id, name })),
-      aliases: pairs(aliases, "character_id", "alias").map(([characterId, alias]) => ({ characterId, alias })),
-      legacyCharacters: pairs(legacy, "id", "name").map(([id, name]) => ({ id, name })),
-      properties: pairs(properties, "id", "name").map(([id, name]) => ({ id, name })),
-      propertyCharacters: pairs(links, "property_id", "character_id").map(([propertyId, characterId]) => ({ propertyId, characterId })),
-      licensorNames: licensors.map(({ name }) => name),
-      productWords: PRODUCT_WORDS,
-    });
-    if (index.names.size === 0) nameIndexCache = null;
-    return index;
-  })().catch((error) => {
-    console.error("character names read failed; searching without the named-character rule", error instanceof Error ? error.message : error);
-    nameIndexCache = null;
-    return EMPTY_NAME_INDEX;
-  });
-  nameIndexCache = { expires: Date.now() + VOCABULARY_TTL_MS, value };
-  return value;
-}
-
-/** The index if it is ready within the budget; a cold load keeps going for the next search. */
-function nameIndexWithin(ms: number): Promise<NameIndex> {
-  return Promise.race([nameIndex(), new Promise<NameIndex>((resolve) => setTimeout(() => resolve(EMPTY_NAME_INDEX), ms))]);
+/** A required lookup for typed names. Null means unavailable, while {} is a valid unscoped search. */
+async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal: AbortSignal): Promise<NamedScope | null> {
+  const phrases = namedSearchPhrases(texts);
+  if (!phrases.length) return {};
+  const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(NAME_SCOPE_TIMEOUT_MS)]);
+  try {
+    const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: phrases }).abortSignal(signal);
+    if (error || signal.aborted || !data || typeof data !== "object") return null;
+    const { characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames } = data as Record<string, unknown>;
+    if (
+      !namedRows(characters, ["id", "name"]) || !namedRows(aliases, ["characterId", "alias"]) ||
+      !namedRows(legacyCharacters, ["id", "name"]) || !namedRows(properties, ["id", "name"]) ||
+      !namedRows(propertyCharacters, ["propertyId", "characterId"]) ||
+      !Array.isArray(licensorNames) || !licensorNames.every((name) => typeof name === "string")
+    ) return null;
+    return namedCharacterScope(texts, buildNameIndex({
+      characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames, productWords: PRODUCT_WORDS,
+    }));
+  } catch {
+    return null;
+  }
 }
 
 /** PopSG licensor/property name vectors (scripts/popsg-name-vectors.mjs), cached hourly. */
@@ -649,7 +608,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           if (textLeg.on) return queryEmbedder.embedAllWithText(semanticTexts);
           return queryEmbedder.embedAll(semanticTexts).then((vectors) => ({ vectors, textVectors: new Map() }));
         };
-        const [embedded, floorConfig, licensors, names] = await timer.time(
+        const [embedded, floorConfig, licensors, namedScope] = await timer.time(
           "prepare",
           Promise.all([
             timer.time("embed", embedCall()),
@@ -658,7 +617,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               ? Promise.resolve({ data: null, error: null })
               : timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
             usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
-            codeSearch ? Promise.resolve(EMPTY_NAME_INDEX) : timer.time("names", nameIndexWithin(NAME_INDEX_BUDGET_MS)),
+            codeSearch ? Promise.resolve({}) : timer.time("names", () => loadNamedScope([query, spelling.corrected], requestSignal)),
           ]),
         );
         // A search that names a licensor keeps a picture-only match only when it belongs to that
@@ -666,7 +625,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         const semanticLicensorIds = namedLicensorIds([query, spelling.corrected], licensors);
         // Owner D1 (#1037): a search that names a character shows only products that contain it,
         // from every leg; one that names a property scopes picture-only matches to it.
-        const namedScope = namedCharacterScope([query, spelling.corrected], names);
+        if (!namedScope) {
+          console.error("DAM named search scope unavailable");
+          return err("Search unavailable", 503);
+        }
         const embeddings = embedded?.vectors ?? null;
         const embedding = embeddings?.get(query) ?? null;
         // Fail open: a config read failure must not take search down; it only

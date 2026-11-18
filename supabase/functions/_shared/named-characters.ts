@@ -57,12 +57,23 @@ const MAX_TEXT_LENGTH = 500;
 
 export const normalizeName = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-export const EMPTY_NAME_INDEX: NameIndex = {
-  names: new Map(),
-  maxWords: 0,
-  propertyCharacters: new Map(),
-  characterProperties: new Map(),
-};
+function searchWords(text: string): string[] {
+  return normalizeName(text.slice(0, MAX_TEXT_LENGTH)).split(" ").filter(Boolean);
+}
+
+/** The only name keys the typed text or its spelling correction can match. */
+export function namedSearchPhrases(texts: ReadonlyArray<string | null | undefined>): string[] {
+  const phrases = new Set<string>();
+  for (const text of texts) {
+    const words = searchWords(text ?? "");
+    for (let start = 0; start < words.length; start++) {
+      for (let end = start + 1; end <= Math.min(words.length, start + MAX_NAME_WORDS); end++) {
+        phrases.add(words.slice(start, end).join(" "));
+      }
+    }
+  }
+  return [...phrases];
+}
 
 export function buildNameIndex(input: NameIndexInput): NameIndex {
   const productWords = new Set([...input.productWords].map(normalizeName));
@@ -108,7 +119,7 @@ type Match = { start: number; end: number; name: string; entry: NameEntry };
 
 /** Every known name on word boundaries; a name inside a longer matched name is dropped. */
 function matchNames(text: string, index: NameIndex): Match[] {
-  const words = normalizeName(text.slice(0, MAX_TEXT_LENGTH)).split(" ").filter(Boolean);
+  const words = searchWords(text);
   const matches: Match[] = [];
   for (let start = 0; start < words.length; start++) {
     for (let end = start + 1; end <= Math.min(words.length, start + index.maxWords); end++) {

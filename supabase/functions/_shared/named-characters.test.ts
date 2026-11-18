@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNameIndex, namedCharacterScope, type NameIndexInput, pickScopeKeys, withNamedScope } from "./named-characters.ts";
+import { buildNameIndex, namedCharacterScope, namedSearchPhrases, type NameIndexInput, pickScopeKeys, withNamedScope } from "./named-characters.ts";
 
 const base: NameIndexInput = {
   characters: [
@@ -32,6 +32,24 @@ const base: NameIndexInput = {
   productWords: ["frame", "mat", "rug"],
 };
 const index = buildNameIndex(base);
+
+describe("namedSearchPhrases", () => {
+  it("keeps the same ASCII word boundaries as the name matcher", () => {
+    expect(namedSearchPhrases(["AİB K-café", "ai b", null])).toEqual([
+      "ai", "ai b", "ai b k", "ai b k caf", "b", "b k", "b k caf", "k", "k caf", "caf",
+    ]);
+    expect(namedSearchPhrases([" ? ", null])).toEqual([]);
+  });
+
+  it("limits each input to the same initial 500 characters and eight-word phrases", () => {
+    const source = Array.from({ length: 250 }, (_, index) => String.fromCharCode(97 + index % 26)).join(" ");
+    const keys = namedSearchPhrases([`${source} outsideboundary`, "q a b c d e f g h"]);
+    expect(keys).not.toContain("outsideboundary");
+    expect(keys).toContain("q a b c d e f g");
+    expect(keys).not.toContain("q a b c d e f g h");
+    expect(keys.length).toBeLessThanOrEqual(3944);
+  });
+});
 
 describe("namedCharacterScope (#1037)", () => {
   it("matches a whole name and returns every row with that name", () => {

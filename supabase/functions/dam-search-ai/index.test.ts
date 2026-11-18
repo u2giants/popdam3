@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   corrected: null as string | null,
   rpc: vi.fn(),
   formatRpc: vi.fn(),
+  namesRpc: vi.fn(),
   authenticate: vi.fn(),
   licensors: [] as { id: string; name: string }[],
   aliases: [] as { licensor_id: string; alias: string }[],
@@ -53,7 +54,9 @@ vi.mock("../_shared/http.ts", () => ({
 vi.mock("../_shared/supabase-js.ts", () => ({ createClient: () => ({ rpc: state.rpc }) }));
 vi.mock("../_shared/service-client.ts", () => ({
   serviceClient: () => ({
-    rpc: (name: string, args: unknown) => ({ abortSignal: (signal: AbortSignal) => state.formatRpc(name, args, signal) }),
+    rpc: (name: string, args: unknown) => ({
+      abortSignal: (signal: AbortSignal) => (name === "get_dam_search_named_rows" ? state.namesRpc : state.formatRpc)(name, args, signal),
+    }),
     schema: () => ({ from: tableQuery }),
     from: tableQuery,
   }),
@@ -66,7 +69,7 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   addNameToVocabulary: vi.fn(),
   checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
 }));
-const { resetLicensorCacheForTests, resetNameIndexCacheForTests } = await import("./index.ts");
+const { resetLicensorCacheForTests } = await import("./index.ts");
 // Answers both text-embed endpoints like the real service: batch requests get
 // one vector per requested text, single-text requests get one vector.
 const embedFetch = () =>
@@ -96,7 +99,6 @@ describe("DAM search embedding availability", () => {
     state.aliases.length = 0;
     for (const rows of [state.characters, state.characterAliases, state.legacyCharacters, state.properties, state.links]) rows.length = 0;
     resetLicensorCacheForTests();
-    resetNameIndexCacheForTests();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
     state.config.length = 0;
     state.configError = null;
@@ -105,6 +107,17 @@ describe("DAM search embedding availability", () => {
     state.corrected = null;
     state.authenticate.mockResolvedValue({ ok: true, via: "user", userId: "viewer" });
     state.formatRpc.mockReset().mockResolvedValue({ data: false, error: null });
+    state.namesRpc.mockReset().mockImplementation(async () => ({
+      data: {
+        characters: state.characters,
+        aliases: state.characterAliases.map(({ character_id, alias }) => ({ characterId: character_id, alias })),
+        legacyCharacters: state.legacyCharacters,
+        properties: state.properties,
+        propertyCharacters: state.links.map(({ property_id, character_id }) => ({ propertyId: property_id, characterId: character_id })),
+        licensorNames: [...state.licensors.map(({ name }) => name), ...state.aliases.map(({ alias }) => alias)],
+      },
+      error: null,
+    }));
     state.rpc.mockReset().mockImplementation(async (name: string) => ({
       data: name.startsWith("dam_search_semantic_anchor") ? 0.5 : [],
       error: null,
@@ -118,6 +131,42 @@ describe("DAM search embedding availability", () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "Search unavailable" });
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("asks for the typed and corrected phrases once and preserves an alias match", async () => {
+    state.corrected = "Beryl rug";
+    state.characterAliases.push({ character_id: "beryl", alias: "Beryl" });
+    vi.stubGlobal("fetch", embedFetch());
+    expect((await search("Berl rug")).status).toBe(200);
+    expect(state.namesRpc).toHaveBeenCalledExactlyOnceWith("get_dam_search_named_rows", {
+      p_keys: ["berl", "berl rug", "rug", "beryl", "beryl rug"],
+    }, expect.any(AbortSignal));
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({
+      p_filters: expect.objectContaining({ requiredCharacterIds: ["beryl"], requiredCharacterNames: ["beryl"] }),
+    }));
+  });
+
+  it.each([
+    { data: null, error: { code: "57014" } },
+    { data: { characters: [] }, error: null },
+    { data: { characters: [{ id: "beryl", name: null }], aliases: [], legacyCharacters: [], properties: [], propertyCharacters: [], licensorNames: [] }, error: null },
+  ])("returns Retry without a ranked call when required name data is unavailable", async (reply) => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.namesRpc.mockResolvedValue(reply);
+    const response = await search("Beryl frame");
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "Search unavailable" });
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns Retry when the name lookup reaches its deadline", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.namesRpc.mockImplementation((_name, _args, signal: AbortSignal) => new Promise((resolve) => {
+      signal.addEventListener("abort", () => resolve({ data: null, error: { code: "57014" } }), { once: true });
+    }));
+    const response = await search("Beryl frame");
+    expect(response.status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();
   });
 
@@ -141,6 +190,7 @@ describe("DAM search embedding availability", () => {
       const response = await search(`keyword only ${kind}`);
       expect(response.status).toBe(200);
       expect(fetch).not.toHaveBeenCalled();
+      if (state.productCode) expect(state.namesRpc).not.toHaveBeenCalled();
       expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
     });
   }
