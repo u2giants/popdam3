@@ -5134,6 +5134,7 @@ export type Database = {
         }[]
       }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
+      get_dam_search_named_rows: { Args: { p_keys: string[] }; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
         Returns: {
