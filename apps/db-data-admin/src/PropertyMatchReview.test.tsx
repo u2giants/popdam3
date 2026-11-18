@@ -266,6 +266,30 @@ describe('PropertyMatchReview', () => {
     expect(alert).not.toHaveTextContent('The review queue could not be loaded.')
   })
 
+  it('does not claim the queue is clear when loading fails', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })
+    render(<PropertyMatchReview client={clientOf(rpc)} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/57014/)
+    expect(screen.getByText(/review queue did not load/)).toBeInTheDocument()
+    expect(screen.queryByText('Nothing is waiting for a decision.')).not.toBeInTheDocument()
+  })
+
+  it('says a search that hides every row is not the same as an empty queue', async () => {
+    render(<PropertyMatchReview client={clientOf(queueOnce([row()]))} />)
+    await screen.findByRole('heading', { name: 'Muppets' })
+    fireEvent.change(screen.getByPlaceholderText('Search property matches'), { target: { value: 'zzz-no-match' } })
+    expect(screen.getByText('No property matches fit this search.')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing is waiting for a decision.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/did not load/)).not.toBeInTheDocument()
+  })
+
+  it('says the queue is genuinely empty when there is nothing to review', async () => {
+    render(<PropertyMatchReview client={clientOf(queueOnce([]))} />)
+    expect(await screen.findByText('Nothing is waiting for a decision.')).toBeInTheDocument()
+    expect(screen.queryByText(/did not load/)).not.toBeInTheDocument()
+    expect(screen.queryByText('No property matches fit this search.')).not.toBeInTheDocument()
+  })
+
   it('keeps the review queue on screen when the OPA picker is refused', async () => {
     render(<PropertyMatchReview client={clientWithQueueButNoOptions([row()])} />)
     expect(await screen.findByRole('heading', { name: 'Muppets' })).toBeInTheDocument()
