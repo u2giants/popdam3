@@ -126,10 +126,14 @@ export function createFullTextSearchHelpers(spec: FullTextSearchSpec) {
       const result = await promise;
       // Don't cache a failed lookup: a transient timeout must not pin the UI to
       // the degraded ILIKE fallback for the full cache TTL.
-      if (result === undefined) searchIdCache.delete(cacheKey);
+      if (result === undefined && searchIdCache.get(cacheKey)?.promise === promise) {
+        searchIdCache.delete(cacheKey);
+      }
       return result;
     } catch (error) {
-      searchIdCache.delete(cacheKey);
+      if (searchIdCache.get(cacheKey)?.promise === promise) {
+        searchIdCache.delete(cacheKey);
+      }
       throw error;
     }
   }
@@ -148,5 +152,5 @@ export function createFullTextSearchHelpers(spec: FullTextSearchSpec) {
     return { ids, fallback };
   }
 
-  return { buildSearchFilter, buildFallbackFilter, shouldFallbackFromRpc, fetchFullTextIds, resolveSearch };
+  return { buildSearchFilter, buildFallbackFilter, shouldFallbackFromRpc, fetchFullTextIds, resolveSearch, clearSearchIdCache: () => searchIdCache.clear() };
 }

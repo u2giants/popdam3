@@ -19,8 +19,8 @@ vi.mock("@/lib/dam-search", async (original) => ({
   getSearchMode: mocks.mode,
 }));
 
-import { clearAssetRankedListCache, resetLibrarySearchCaches, useAssets } from "@/hooks/useAssets";
-import { clearStyleGroupRankedListCache, useStyleGroups } from "@/hooks/useStyleGroups";
+import { clearAssetSearchCaches, resetLibrarySearchCaches, useAssets } from "@/hooks/useAssets";
+import { clearStyleGroupSearchCaches, useStyleGroups } from "@/hooks/useStyleGroups";
 import { defaultFilters } from "@/types/assets";
 
 interface RecordedRequest {
@@ -95,8 +95,8 @@ function pageIdsOf(result: { assets?: { id: string }[]; groups?: { id: string }[
 
 beforeEach(() => {
   vi.clearAllMocks();
-  clearAssetRankedListCache();
-  clearStyleGroupRankedListCache();
+  clearAssetSearchCaches();
+  clearStyleGroupSearchCaches();
   mocks.mode.mockResolvedValue("keyword");
 });
 
@@ -151,33 +151,46 @@ describe("relevance-sorted asset pages", () => {
 
 describe("library refresh", () => {
   it("drops the cached ranked lists so a refresh re-reads matches (#839)", async () => {
+    const assetFullText = [{ asset_id: "a1" }, { asset_id: "a2" }];
+    const groupFullText = [{ style_group_id: "g1" }, { style_group_id: "g2" }];
     const { requests } = installClient({
-      assetFullText: [{ asset_id: "a1" }],
-      assetIds: [{ id: "a1" }],
-      assetRows: [{ id: "a1", filename: "only.psd" }],
-      groupFullText: [{ style_group_id: "g1" }],
-      groupIds: [{ id: "g1" }],
-      groupRows: [{ id: "g1", sku: "A", asset_count: 1 }],
+      assetFullText,
+      assetIds: [{ id: "a2" }, { id: "a1" }],
+      assetRows: [{ id: "a1" }, { id: "a2" }],
+      groupFullText,
+      groupIds: [{ id: "g2" }, { id: "g1" }],
+      groupRows: [{ id: "g1" }, { id: "g2" }],
     });
-    const assetIdReads = () => requests.filter((r) => r.url.endsWith("/assets") && r.params.get("select") === "id");
-    const groupIdReads = () => requests.filter((r) => r.url.endsWith("/style_groups") && r.params.get("select") === "id");
+    const fullTextReads = (rpc: string) => requests.filter((r) => r.url.endsWith(`/rpc/${rpc}`));
+    const idReads = (table: string) => requests.filter((r) => r.url.endsWith(`/${table}`) && r.params.get("select") === "id");
+    const pageReads = (table: string) => requests.filter((r) => r.url.endsWith(`/${table}`) && r.params.get("select") !== "id");
     const runAssets = () => (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
       .queryFn({ signal: new AbortController().signal });
     const runGroups = () => (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
       .queryFn({ signal: new AbortController().signal });
 
+    expect(pageIdsOf(await runAssets())).toEqual(["a1", "a2"]);
+    expect(pageIdsOf(await runGroups())).toEqual(["g1", "g2"]);
     await runAssets();
     await runGroups();
-    await runAssets();
-    await runGroups();
-    expect(assetIdReads()).toHaveLength(1);
-    expect(groupIdReads()).toHaveLength(1);
+    expect(fullTextReads("search_assets_full_text")).toHaveLength(1);
+    expect(fullTextReads("search_style_groups_full_text")).toHaveLength(1);
+    expect(idReads("assets")).toHaveLength(1);
+    expect(idReads("style_groups")).toHaveLength(1);
+    expect(pageReads("assets")).toHaveLength(2);
+    expect(pageReads("style_groups")).toHaveLength(2);
 
+    assetFullText.reverse();
+    groupFullText.reverse();
     resetLibrarySearchCaches();
-    await runAssets();
-    await runGroups();
-    expect(assetIdReads()).toHaveLength(2);
-    expect(groupIdReads()).toHaveLength(2);
+    expect(pageIdsOf(await runAssets())).toEqual(["a2", "a1"]);
+    expect(pageIdsOf(await runGroups())).toEqual(["g2", "g1"]);
+    expect(fullTextReads("search_assets_full_text")).toHaveLength(2);
+    expect(fullTextReads("search_style_groups_full_text")).toHaveLength(2);
+    expect(idReads("assets")).toHaveLength(2);
+    expect(idReads("style_groups")).toHaveLength(2);
+    expect(pageReads("assets")).toHaveLength(3);
+    expect(pageReads("style_groups")).toHaveLength(3);
   });
 });
 

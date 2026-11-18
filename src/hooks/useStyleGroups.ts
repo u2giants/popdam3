@@ -56,8 +56,9 @@ const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
 const styleGroupRankedListCache = new Map<string, RankedListCacheEntry>();
 
-/** Test/refresh hook: drop every cached ranked-filtered list. */
-export function clearStyleGroupRankedListCache(): void {
+/** Test/refresh hook: drop cached keyword matches and ranked-filtered lists. */
+export function clearStyleGroupSearchCaches(): void {
+  styleGroupSearch.clearSearchIdCache();
   styleGroupRankedListCache.clear();
 }
 
@@ -176,7 +177,9 @@ async function fetchRankedFilteredStyleGroupIds(options: {
     return await promise;
   } catch (error) {
     // A failed (or aborted) lookup must not pin the UI to a stale list.
-    styleGroupRankedListCache.delete(cacheKey);
+    if (styleGroupRankedListCache.get(cacheKey)?.promise === promise) {
+      styleGroupRankedListCache.delete(cacheKey);
+    }
     throw error;
   }
 }

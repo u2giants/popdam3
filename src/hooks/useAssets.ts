@@ -7,27 +7,28 @@ import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 import { type DamDocumentType, invalidateSearchMode, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 import { createFullTextSearchHelpers, setRankedListCacheEntry, type RankedListCacheEntry } from "@/lib/full-text-search";
-import { clearStyleGroupRankedListCache } from "@/hooks/useStyleGroups";
+import { clearStyleGroupSearchCaches } from "@/hooks/useStyleGroups";
 
 const PAGE_SIZE = 200;
 const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
 const assetRankedListCache = new Map<string, RankedListCacheEntry>();
 
-/** Test/refresh hook: drop every cached ranked-filtered list. */
-export function clearAssetRankedListCache(): void {
+/** Test/refresh hook: drop cached keyword matches and ranked-filtered lists. */
+export function clearAssetSearchCaches(): void {
+  assetSearch.clearSearchIdCache();
   assetRankedListCache.clear();
 }
 
 /**
- * Library Refresh (issue #839): drop the cached search mode and both ranked
- * relevance lists so a refresh re-reads matches instead of serving a list that
- * can be up to 30 s old.
+ * Library Refresh (issue #839): drop the cached search mode, keyword matches,
+ * and both ranked relevance lists so the current tab re-reads matches.
+ * The library’s Retry button uses the same reset.
  */
 export function resetLibrarySearchCaches(): void {
   invalidateSearchMode();
-  clearAssetRankedListCache();
-  clearStyleGroupRankedListCache();
+  clearAssetSearchCaches();
+  clearStyleGroupSearchCaches();
 }
 
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */
@@ -333,7 +334,9 @@ async function fetchRankedFilteredAssetIds(options: {
     return await promise;
   } catch (error) {
     // A failed (or aborted) lookup must not pin the UI to a stale list.
-    assetRankedListCache.delete(cacheKey);
+    if (assetRankedListCache.get(cacheKey)?.promise === promise) {
+      assetRankedListCache.delete(cacheKey);
+    }
     throw error;
   }
 }

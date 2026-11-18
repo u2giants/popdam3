@@ -4,14 +4,18 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 const search = vi.hoisted(() => vi.fn());
 const countsRpc = vi.hoisted(() => vi.fn());
+const readGroupIds = vi.hoisted(() => vi.fn());
 const mode = vi.hoisted(() => ({ value: 'hybrid' }));
 vi.mock('@/integrations/supabase/client', () => {
-  const chain = (data: unknown) => {
+  const chain = (data: unknown, table?: string) => {
     const response = Promise.resolve({ data, error: null, count: 0 });
-    const builder: unknown = new Proxy({}, { get: (_target, key) => key === 'then' ? response.then.bind(response) : () => builder });
+    const builder: unknown = new Proxy({}, { get: (_target, key) => key === 'then' ? response.then.bind(response) : (columns: unknown) => {
+      if (key === 'select' && table === 'style_groups' && columns === 'id') readGroupIds();
+      return builder;
+    } });
     return builder;
   };
-  return { supabase: { from: () => chain([]), rpc: (name: string, args: unknown) => {
+  return { supabase: { from: (table: string) => chain([], table), rpc: (name: string, args: unknown) => {
     countsRpc(name, args);
     return chain(name === 'get_filter_counts' ? { fileType: { ai: 31 }, status: {}, workflowStatus: {}, stage: {}, isLicensed: { true: 31, false: 0 } } : []);
   } } };
@@ -96,6 +100,23 @@ it('reuses actual visible search facets, preserves initial counts and clears una
   await waitFor(()=>expect(screen.getByTestId('facets')).toHaveTextContent('"ai":9'));
   expect(search).toHaveBeenCalledTimes(1);expect(countsRpc).not.toHaveBeenCalled();client.clear();
 });
+it('re-reads keyword matches and filtered group IDs when Refresh is clicked', async () => {
+  mode.value = 'keyword';
+  readGroupIds.mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), { target: { value: 'refresh keyword' } });
+  const keywordReads = () => countsRpc.mock.calls.filter(([name]) => name === 'search_style_groups_full_text');
+
+  await waitFor(() => expect(readGroupIds).toHaveBeenCalledTimes(1));
+  expect(keywordReads()).toHaveLength(1);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+  await waitFor(() => expect(readGroupIds).toHaveBeenCalledTimes(2));
+  expect(keywordReads()).toHaveLength(2);
+  client.clear();
+});
+
 it('retains the existing separate keyword-search count path',async()=>{
   mode.value='keyword';const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
   render(<QueryClientProvider client={client}><LibraryPage /></QueryClientProvider>);
