@@ -95,6 +95,29 @@ import { workIssuesFromRows, openIssueNumbersFromRows, memoizePrFiles, closedCla
 // `claude-chat-<uuid>@<machine>` (the claim path) and `Claude chat <uuid> on <machine>`
 // (the GitHub signature form). Both name one UUID and one machine; nothing else
 // is treated as equal, so an alias, a different UUID or machine never matches.
+const CLAUDE_OWNER_FORMS = [/^claude-chat-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@([A-Za-z0-9][A-Za-z0-9._-]{0,119})$/, /^Claude chat ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) on ([A-Za-z0-9][A-Za-z0-9._-]{0,119})$/]
+function claudeOwnerKey(label) { for (const re of CLAUDE_OWNER_FORMS) { const m = re.exec(String(label ?? '')); if (m) return `${m[1]}@${m[2]}` } return null }
+// The GitHub signature spelling for a Claude owner label, or null for any other owner.
+function claudeSignature(label) { const key = claudeOwnerKey(label); if (!key) return null; const at = key.indexOf('@'); return `Claude chat ${key.slice(0, at)} on ${key.slice(at + 1)}` }
+export function sameOwnerLabel(onRecord, supplied) {
+  const a = String(onRecord ?? ''), b = String(supplied ?? '')
+  if (!a || !b) return false
+  if (a === b) return true
+  const ka = claudeOwnerKey(a), kb = claudeOwnerKey(b)
+  return ka !== null && ka === kb
+}
+export function parkComment({ claim, lease, pr }) {
+  return [
+    `Parked: claim #${claim} was released with \`--release-claim --park\`. This pull request is closed, not deleted; branch \`${lease.branch}\` is kept.`,
+    '',
+    'To resume:',
+    `1. Reopen pull request #${pr}.`,
+    `2. Re-claim the same objects (${(lease.objects ?? []).join(', ') || 'see the released claim'}) with a new claim.`,
+    `3. Migration version ${lease.version} stays permanently reserved and is never reused; pick a new version and rename the migration.`,
+    '',
+    `Posted by ${claudeSignature(lease.owner) ?? lease.owner} (owner of claim #${claim}) via manage-migration-coordination --park`,
+  ].join('\n')
+}
 export { workIssuesFromRows, openIssueNumbersFromRows, memoizePrFiles, closedClaimAuthoredOnMain, RELINQUISH_ONLY_LEASE_FIELDS, wrongOwnerMessage, renewalIssueScope, claimCoversObject, addedMigrationVersions, parseVersionPrMap, assertMergeCommitInMainHistory, completeWork }
 import { readExclusiveLease, assertExclusive, assertNoPromotionFreeze, freezeTolerantMerge, acquireExclusive, releaseExclusive, recoverExclusive, acquirePromotionFreeze, releasePromotionFreeze } from './lib/lanes/exclusive-locks.mjs'
 export { readExclusiveLease, assertExclusive }
@@ -1984,9 +2007,10 @@ export function assertAbandonmentEvidence(options, lease, blocker, io) {
 
 
 
-// Author check-in receipt helpers. The check-in writer (checkInAuthor) is
-// retired with the migration author lease (popcre/ai-devops#2172), but
-// check-migration-pr-lease.mjs still validates historical check-in receipts.
+// Author check-in receipt helpers. The check-in writer is `--check-in-author`
+// (restored with the claim-release flags; it was gone while the author-lane
+// entrypoint was retired, so no protected action could present a current
+// check-in). check-migration-pr-lease.mjs validates these receipts.
 export const AUTHOR_CHECKIN_MESSAGE='db-coordination author-checkin '
 export function authorCheckinRef(claim,body){const lease=parseAuthorLease(body);return `refs/db-author-checkins/${claim}-${lease.version}-${sha256(body).slice(0,24)}`}
 export function validateAuthorCheckin(record,claim,now=new Date(),{pr,headSha}={}){
@@ -2217,6 +2241,14 @@ function parseArgs(argv) {
     else if (['--preflight-input','--evidence-bundle','--prior-evidence-bundle','--prior-preflight-record','--integration-facts','--changed-files-file','--delivery-preflight-record'].includes(a)) { out[a.slice(2).replace(/-([a-z])/g, (_,c)=>c.toUpperCase())] = next(i); i++ }
     else if (a === '--reviewer-preflight') out.reviewerPreflight = true
     else if (a === '--cleanup-stale') out.cleanup = true
+    else if (a === '--release-claim') out.releaseClaim = Number(next(i++))
+    else if (a === '--confirm-finished') out.confirmFinished = true
+    else if (a === '--park') out.park = true
+    else if (a === '--retire') out.retire = next(i++)
+    else if (a === '--preservation') out.preservation = next(i++)
+    else if (a === '--successor-issue') out.successorIssue = Number(next(i++))
+    else if (a === '--stop-author') out.stopAuthor = true
+    else if (a === '--check-in-author') out.checkInAuthor = true
     else if (a === '--recover-completed-claim') out.recoverCompletedClaim = Number(next(i++))
     else if (a === '--recovery-review-issue') out.recoveryReviewIssue = Number(next(i++))
     else if (a === '--recovery-review-pr') out.recoveryReviewPr = Number(next(i++))
@@ -2244,6 +2276,13 @@ function parseArgs(argv) {
     else if (a === '--lease-hours') { out.leaseHours = Number(next(i)); i++ }
     else throw new LaneError(`unknown argument: ${a}`)
   }
+  // Modifiers of --release-claim. A modifier that silently did nothing would be
+  // worse than a refusal: it would read as a release the flags never performed.
+  if (out.park && out.releaseClaim === undefined) throw new LaneError('--park only applies to --release-claim')
+  if (out.retire !== undefined && out.releaseClaim === undefined) throw new LaneError('--retire only applies to --release-claim')
+  if (out.confirmFinished && out.releaseClaim === undefined) throw new LaneError('--confirm-finished only applies to --release-claim')
+  if (out.preservation !== undefined && out.retire === undefined) throw new LaneError('--preservation only applies to --release-claim with --retire')
+  if (out.successorIssue !== undefined && out.retire === undefined) throw new LaneError('--successor-issue only applies to --release-claim with --retire')
   return out
 }
 
@@ -2251,12 +2290,12 @@ export function main(argv, now = new Date(), io = githubIo) {
   try {
     const o = parseArgs(argv)
     if(String(process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING??'').trim())io=withMergedPrIssueBinding(io,process.env.SHARED_DB_MERGED_PR_ISSUE_BINDING)
-    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','reviewerPreflight','deliveryPreflight','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','checkPromotionFreeze','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','recoverCompletedClaim','cleanup','audit']
+    const primaryKeys=['proposeTrain','validateTrain','authorizeTrain','dispatchTrain','closeTrain','verifyTrainDispatch','authorizeRepositoryMaintenanceStatus','resolveAdmittedIssueForPr','outcomeStatus','advanceOutcome','repairOutcomeHistory','completeOutcome','recoverMutex','reconcileFlow','abandonmentAudit','preparePreviewDispatch','repairPreviewReady','terminalizeHistoricalPreviewReady','flowAudit','reviewerPreflight','deliveryPreflight','acquireExclusive','releaseExclusive','acquirePromotionFreeze','releasePromotionFreeze','checkPromotionFreeze','returnIssue','queueAudit','assertExclusive','recoverExclusive','completeWork','setScopeStatus','recoverCompletedClaim','releaseClaim','stopAuthor','checkInAuthor','cleanup','audit']
     const selectedPrimary=primaryKeys.filter((key)=>Object.prototype.hasOwnProperty.call(o,key))
     const hasAdmission=Object.prototype.hasOwnProperty.call(o,'admitIssue')
     if(selectedPrimary.length>1)throw new LaneError(`choose exactly one primary operation; received ${selectedPrimary.join(', ')}`)
     if(hasAdmission&&(!Number.isInteger(o.admitIssue)||o.admitIssue<=0))throw new LaneError('--admit-issue requires a positive issue number')
-    const numericPrimary=new Set(['resolveAdmittedIssueForPr','outcomeStatus','repairOutcomeHistory','completeOutcome','preparePreviewDispatch','returnIssue'])
+    const numericPrimary=new Set(['resolveAdmittedIssueForPr','outcomeStatus','repairOutcomeHistory','completeOutcome','preparePreviewDispatch','returnIssue','releaseClaim'])
     if(selectedPrimary.length===1&&numericPrimary.has(selectedPrimary[0])&&(!Number.isInteger(o[selectedPrimary[0]])||o[selectedPrimary[0]]<=0))throw new LaneError(`--${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)} requires a positive number`)
     const admissionCombined=new Set(['preparePreviewDispatch','acquireExclusive','advanceOutcome'])
     if(hasAdmission&&selectedPrimary.length===1&&!admissionCombined.has(selectedPrimary[0]))throw new LaneError(`--admit-issue cannot be combined with --${selectedPrimary[0].replace(/[A-Z]/g,(value)=>`-${value.toLowerCase()}`)}`)
@@ -2611,6 +2650,177 @@ export function main(argv, now = new Date(), io = githubIo) {
       }))
       console.log(JSON.stringify(result,null,2));return 0
     }
+    // --release-claim. The ONLY way to free an expired claim's objects without
+    // an expiry sweep: the cleanup report names this command, and every close
+    // reason it can write states the mechanism that actually ran (#2448).
+    if (o.releaseClaim) {
+      if (!o.confirmFinished || !o.owner) throw new LaneError('--release-claim requires exact --owner and --confirm-finished')
+      const result = withAuthorMutex('claim-release', io, o, (ownerSha) => {
+        const fresh = io.openClaims(), claim = fresh.find((x) => String(x.number) === String(o.releaseClaim))
+        if (!claim) throw new LaneError(`claim #${o.releaseClaim} is not open`)
+        const lease = parseAuthorLease(claim.body, now)
+        if (!sameOwnerLabel(lease.owner, o.owner)) throw new LaneError(wrongOwnerMessage({ claim: o.releaseClaim, onRecord: lease.owner, supplied: o.owner, command: laneCommand(['--release-claim', String(o.releaseClaim), '--owner', JSON.stringify(String(lease.owner ?? '')), '--confirm-finished']) }))
+        const branchPulls = (io.openPulls?.() ?? io.prSources()).filter((pr) => (pr.head?.ref ?? pr.branch) === lease.branch)
+        // --park: a stuck session frees its claim without losing work. The open
+        // pull request is CLOSED (never deleted, branch kept) with a resume note,
+        // then the ordinary release runs. Owner, mutex and claim checks above are
+        // unchanged; park never combines with terminal retirement.
+        if (branchPulls.length && !o.park) throw new LaneError(`claim branch ${lease.branch} still has an open pull request; add --park to close it (reopenable, branch kept) and release`)
+        if (o.park && o.retire) throw new LaneError('--park cannot be combined with --retire')
+        if (o.park && branchPulls.length) {
+          if (typeof io.closePull !== 'function') throw new LaneError('--park requires a pull-request close capability')
+          for (const pr of branchPulls) {
+            requireOwnedRef(MUTEX_REF, ownerSha, io)
+            io.closePull(Number(pr.number), parkComment({ claim: Number(claim.number), lease, pr: Number(pr.number) }))
+          }
+        }
+        // #2301 Step 3 -- TERMINAL RETIREMENT.
+        //
+        // ORDERING IS THE WHOLE GUARANTEE: the tombstone is created BEFORE the
+        // issue is closed. Closing first and writing the ref second leaves a
+        // window in which the claim is closed with no terminal record, and that
+        // is precisely the state a reopen resurrects -- closed work that nothing
+        // marks as over. Create-first fails safe in the other direction instead:
+        // a tombstone with a still-open claim refuses every mutation and is
+        // repaired by re-running the identical command, which is idempotent.
+        //
+        // Retirement is OPT-IN. Without --retire this stays an ordinary release,
+        // unchanged, because an ordinary release frees capacity and says nothing
+        // about whether the work is finished.
+        if (o.retire) {
+          if (lease.legacy) throw new LaneError('a legacy claim cannot be terminally retired; reconcile its lease first')
+          if (!RETIREMENT_DECISIONS.includes(o.retire)) throw new LaneError(`--retire decision must be one of ${RETIREMENT_DECISIONS.join(', ')}`)
+          if (!WORKTREE_STATES.includes(o.worktreeState)) throw new LaneError(`--retire requires --worktree-state to be one of ${WORKTREE_STATES.join(', ')}`)
+          if (!o.pr || !o.headSha) throw new LaneError('--retire requires the exact --pr and --head-sha the retired work reached')
+          if (!o.evidence) throw new LaneError('--retire requires --evidence naming where the retirement decision is recorded')
+          const record = {
+            schema_version: RETIREMENT_SCHEMA_VERSION,
+            claim: Number(claim.number),
+            pr: Number(o.pr),
+            head_sha: String(o.headSha).toLowerCase(),
+            branch: lease.branch,
+            version: lease.version,
+            worktree: lease.worktree,
+            worktree_state: o.worktreeState,
+            decision: o.retire,
+            evidence: o.evidence,
+            successor_issue: Number.isInteger(o.successorIssue) && o.successorIssue > 0 ? o.successorIssue : null,
+            created_at: now.toISOString(),
+          }
+          if (RETIREMENT_PRESERVATION_STATES.includes(record.worktree_state)) {
+            // #3675: unmerged work is preserved first (a dereferenceable git
+            // object in this repository), and the allocator-assigned AI
+            // reviewer's durable exact-head APPROVE must exist for the retired
+            // PR head. Both are proven here, never typed in as prose.
+            if (!o.preservation) throw new LaneError(`--retire from a ${record.worktree_state} worktree requires --preservation artifact:<rescue commit or patch object>`)
+            const preservation = validateImmutableArtifactReference(o.preservation, '--preservation')
+            if (!/^artifact:[0-9a-f]{40,64}$/i.test(preservation)) throw new LaneError('--preservation must be an immutable object hash this repository can dereference')
+            let resolved
+            try { resolved = typeof io.verifyArtifact === 'function' ? io.verifyArtifact(preservation) : null } catch (error) { throw new LaneError(`preservation artifact verification is ambiguous: ${error.message}`) }
+            if (!resolved) throw new LaneError(`preservation artifact ${preservation} cannot be dereferenced`)
+            let verdicts
+            try { verdicts = assertDurableReviewApproval(claimWorkIssue(claim), record.pr, record.head_sha, io, { includeArchived: true }) }
+            catch (error) { throw new LaneError(`--retire from a ${record.worktree_state} worktree requires the allocator-assigned AI reviewer APPROVE for pull request #${record.pr} at ${record.head_sha}: ${error.message}`) }
+            const approve = (verdicts ?? []).find((row) => row.verdict === 'APPROVE')
+            // #3806: the validated verdict object itself, never a re-read of its live name,
+            // which an archived verdict no longer has.
+            const approveSha = approve ? String(approve.sha ?? '').toLowerCase() : ''
+            if (!/^[0-9a-f]{40}$/.test(approveSha)) throw new LaneError(`no dereferenceable durable APPROVE verdict for pull request #${record.pr} at ${record.head_sha}`)
+            record.preservation = preservation
+            record.review_approval = `artifact:${approveSha}`
+          }
+          requireOwnedRef(MUTEX_REF, ownerSha, io)
+          const tombstone = createRetirementTombstone(record, io)
+          requireOwnedRef(MUTEX_REF, ownerSha, io)
+          io.closeClaim(claim.number, RETIREMENT_CLOSE_REASON)
+          return { claim: Number(claim.number), version: lease.version, retired: true, ref: tombstone.ref, sha: tombstone.sha, idempotent: tombstone.idempotent }
+        }
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        io.closeClaim(claim.number, CLAIM_CLOSE_REASONS.explicitRelease)
+        return { claim: Number(claim.number), version: lease.version, retired: false }
+      })
+      console.log(JSON.stringify(result, null, 2))
+      return 0
+    }
+    // --stop-author. The author stops on a preserved clean exact source head and
+    // relinquishes author capacity. Clock expiry never frees capacity; only this
+    // explicit relinquished fence does. The claim stays open and keeps protecting
+    // its objects and its permanently reserved migration version.
+    if (o.stopAuthor) {
+      const request = { claim: Number(o.claimNumber), issue: Number(o.issue), pr: Number(o.pr), headSha: String(o.headSha ?? ''), owner: String(o.owner ?? ''), branch: String(o.branch ?? ''), worktree: String(o.worktree ?? '') }
+      if (![request.issue, request.claim, request.pr].every((n) => Number.isSafeInteger(n) && n > 0) || !/^[0-9a-f]{40}$/.test(request.headSha) || !request.owner || !request.branch || !request.worktree) throw new LaneError('stop-author requires exact claim, issue, source PR/head and owner custody')
+      const authority = claimFirstAuthority(io, request.owner)
+      if (!authority?.live || authority.calling_task !== authority.task) throw new LaneError('stop-author must execute in the actual owner session (claim-first session identity; no marker)')
+      const result = withAuthorMutex('author-capacity-relinquish', io, o, (ownerSha) => {
+        const claim = io.getIssue(request.claim), lease = parseAuthorLease(claim?.body ?? '', now)
+        if (claim?.state !== 'open' || workstreamKey(claim.title) !== `#${request.issue}` || lease.legacy || !sameOwnerLabel(lease.owner, request.owner) || lease.branch !== request.branch || lease.worktree !== request.worktree || lease.relinquishmentMetadataLegacy) throw new LaneError('stop-author claim identity or custody differs')
+        assertClaimNotRetired(lease.version, 'stopped', io)
+        if (observedWorktreeState(request.worktree, io) !== 'clean' || typeof io.localClean !== 'function' || !io.localClean(request.worktree) || typeof io.localHead !== 'function' || io.localHead(request.worktree) !== request.headSha || typeof io.localBranch !== 'function' || io.localBranch(request.worktree) !== request.branch) throw new LaneError('stop-author requires preserved clean exact source custody')
+        const artifact = `artifact:${request.headSha}`
+        if (lease.capacityState === 'relinquished') {
+          if (lease.blockedOn !== artifact || lease.recoveryArtifact !== artifact || lease.worktreeState !== 'clean') throw new LaneError('stop-author cannot replace a different relinquishment blocker or recovery')
+          return { claim: request.claim, version: lease.version, capacityState: 'relinquished', blockedOn: artifact, worktreeState: 'clean', recoveryArtifact: artifact, idempotent: true }
+        }
+        const pr = io.getPr(request.pr)
+        if (pr?.head?.sha !== request.headSha || pr?.head?.ref !== request.branch || !(pr.state === 'open' || pr.merged === true || pr.merged_at)) throw new LaneError('stop-author source PR identity differs')
+        const reservation = io.readRef('refs/db-claims/' + lease.version)
+        if (!/^[0-9a-f]{40}$/.test(String(reservation)) || !io.getCommit(reservation)) throw new LaneError('stop-author permanent reservation is unreadable')
+        const expected = replaceCapacityState(claim.body, 'relinquished', artifact, 'clean', artifact)
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        io.updateIssue(request.claim, { body: expected })
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        const after = io.getIssue(request.claim), afterLease = parseAuthorLease(after?.body ?? '', now)
+        if (after?.body !== expected || afterLease.capacityState !== 'relinquished' || afterLease.blockedOn !== artifact || afterLease.worktreeState !== 'clean' || afterLease.recoveryArtifact !== artifact) throw new LaneError('stopped-author capacity readback failed')
+        publishCapacityEvents({ workIssue: request.issue, claim: request.claim, eventTypes: ['author_capacity_relinquished', 'issue_blocked'], actor: request.owner, detail: artifact }, now, io)
+        return { claim: request.claim, version: lease.version, capacityState: 'relinquished', blockedOn: artifact, worktreeState: 'clean', recoveryArtifact: artifact, idempotent: false }
+      })
+      console.log(JSON.stringify(result, null, 2))
+      return 0
+    }
+    // --check-in-author. The author is still working: the lease expiry moves
+    // forward and a durable check-in receipt is written. check-migration-pr-lease
+    // validates exactly these receipts before a protected action, so without this
+    // writer no protected action could ever present a current check-in.
+    if (o.checkInAuthor) {
+      const request = { claim: Number(o.claimNumber), issue: Number(o.issue), pr: Number(o.pr), headSha: String(o.headSha ?? ''), owner: String(o.owner ?? ''), branch: String(o.branch ?? ''), worktree: String(o.worktree ?? ''), leaseHours: o.leaseHours ?? MAX_AUTHOR_LEASE_HOURS }
+      if (![request.issue, request.claim, request.pr].every((n) => Number.isSafeInteger(n) && n > 0) || !/^[0-9a-f]{40}$/.test(request.headSha) || !request.owner || !request.branch || !request.worktree) throw new LaneError('author check-in requires exact claim, issue, source PR/head and owner custody')
+      if (!Number.isFinite(request.leaseHours) || request.leaseHours <= 0 || request.leaseHours > MAX_AUTHOR_LEASE_HOURS) throw new LaneError(`check-in lease hours must be greater than 0 and no more than ${MAX_AUTHOR_LEASE_HOURS}`)
+      const authority = claimFirstAuthority(io, request.owner)
+      if (!authority?.live || authority.calling_task !== authority.task) throw new LaneError('author check-in must execute in the actual current owner session (claim-first session identity; no marker)')
+      const result = withAuthorMutex('claim-lease-renewal', io, o, (ownerSha) => {
+        const claim = io.getIssue(request.claim), lease = parseAuthorLease(claim?.body ?? '', now)
+        if (claim?.state !== 'open' || lease.legacy || !sameOwnerLabel(lease.owner, request.owner) || lease.branch !== request.branch || lease.worktree !== request.worktree) throw new LaneError('author check-in refuses stopped, foreign or legacy execution')
+        if (lease.capacityState !== 'active' || !lease.capacityActive) throw new LaneError('author check-in refuses stopped, foreign or legacy execution')
+        assertClaimNotRetired(lease.version, 'checked in', io)
+        const pr = io.getPr(request.pr)
+        if (pr?.head?.sha !== request.headSha || pr?.head?.ref !== request.branch || !(pr.state === 'open' || pr.merged === true || pr.merged_at)) throw new LaneError('author check-in source PR identity differs')
+        const reservation = io.readRef('refs/db-claims/' + lease.version)
+        if (!/^[0-9a-f]{40}$/.test(String(reservation)) || !io.getCommit(reservation)) throw new LaneError('author check-in permanent reservation is unreadable')
+        const expiresAt = new Date(now.valueOf() + request.leaseHours * 3600000)
+        const expected = replaceLeaseExpiry(claim.body, expiresAt)
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        io.updateIssue(request.claim, { body: expected })
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        const after = io.getIssue(request.claim), afterLease = parseAuthorLease(after?.body ?? '', now)
+        if (after?.body !== expected || !afterLease.active || afterLease.expiresAt.valueOf() !== expiresAt.valueOf()) throw new LaneError('author check-in renewal readback failed')
+        const record = { schema_version: 1, kind: 'author-checkin', human_identity_authenticated: false, claim: request.claim, issue: request.issue, pr: request.pr, head_sha: request.headSha, owner: afterLease.owner, branch: request.branch, worktree: request.worktree, version: afterLease.version, body_sha256: sha256(after.body), expires_at: expiresAt.toISOString(), author_session: authority.task, checked_in_at: now.toISOString() }
+        validateAuthorCheckin(record, { number: request.claim, body: after.body }, now, { pr: request.pr, headSha: request.headSha })
+        const ref = authorCheckinRef(request.claim, after.body)
+        requireOwnedRef(MUTEX_REF, ownerSha, io)
+        let receiptSha = io.readRef(ref), idempotent = false
+        if (receiptSha) {
+          if (io.getCommit(receiptSha)?.message !== AUTHOR_CHECKIN_MESSAGE + JSON.stringify(record)) throw new LaneError('existing confirmation differs')
+          idempotent = true
+        } else {
+          receiptSha = io.makeOwnerCommit(AUTHOR_CHECKIN_MESSAGE + JSON.stringify(record))
+          if (!io.createRef(ref, receiptSha)) throw new LaneError('create-only author confirmation refused')
+        }
+        if (readRefAfterWrite(ref, receiptSha, io) !== receiptSha) throw new LaneError('author confirmation readback failed')
+        return { claim: request.claim, version: afterLease.version, expiresAt: expiresAt.toISOString(), checkinRef: ref, sha: receiptSha, checkedInAt: now.toISOString(), nextCheckinMinutes: AUTHOR_CHECKIN_INTERVAL_MINUTES, idempotent }
+      })
+      console.log(JSON.stringify(result, null, 2))
+      return 0
+    }
     if (o.cleanup) {
       const { stale } = assertLaneAvailable(claims, [], now)
       console.log(`${stale.length} expired claim(s) remain locked. Release each explicitly with --release-claim, exact --owner, and --confirm-finished.`); return stale.length ? 2 : 0
@@ -2629,7 +2839,7 @@ export function main(argv, now = new Date(), io = githubIo) {
       for(const row of reopened)console.error(`RETIRED-REOPENED #${row.claim}: version ${row.version} was terminally retired (${row.decision}) and this claim is open again; it can never be resumed, renewed, expanded, or merged${row.successorIssue?`. Successor work is issue #${row.successorIssue}`:'. A successor needs a fresh claim, branch, worktree and migration version'}`)
       return malformed.length||reopened.length ? 2 : 0
     }
-    throw new LaneError('choose --admit-issue, --audit, --queue-audit, --abandonment-audit, --outcome-status, --repair-outcome-history, --complete-outcome, --return-issue, --cleanup-stale, or an exclusive-lane command')
+    throw new LaneError('choose --admit-issue, --audit, --queue-audit, --abandonment-audit, --outcome-status, --repair-outcome-history, --complete-outcome, --return-issue, --release-claim, --stop-author, --check-in-author, --cleanup-stale, or an exclusive-lane command')
   } catch (error) {
     console.error(`::error::REFUSED: ${error.message}`)
     try {

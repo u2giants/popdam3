@@ -254,7 +254,9 @@ function releaseIo({ closeThrows = false, refs, commits } = {}) {
   const io = fakeIo({ refs, commits })
   const events = []
   io.deleteRef = (ref) => { io.calls.deleteRef++; events.push(`delete:${ref}`); io.refs.delete(ref); return true }
-  io.openClaims = () => [{ number: 4101, body: claimBody(LEASE) }]
+  // The title names one work issue so the dirty-retirement path reaches the
+  // APPROVE gate instead of refusing on an unreadable claim title.
+  io.openClaims = () => [{ number: 4101, title: 'CLAIM: #4100 frozen schema', body: claimBody(LEASE) }]
   io.openPulls = () => []
   io.prSources = () => []
   io.closeClaim = (number, reason) => { events.push(`close:${number}`); if (closeThrows) throw new LaneError('GitHub refused the close'); io.closed = { number, reason } }
@@ -266,15 +268,46 @@ function releaseIo({ closeThrows = false, refs, commits } = {}) {
 
 const RETIRE_ARGV = ['--release-claim', '4101', '--owner', 'a', '--confirm-finished', '--retire', 'abandoned-worktree', '--pr', '4102', '--head-sha', HEAD, '--worktree-state', 'absent', '--evidence', 'https://github.com/u2giants/shared-db/issues/4101#issuecomment-1']
 
+// Run a CLI argv and return the exit code plus every refusal message main()
+// printed. Every refusal assertion below matches on the SPECIFIC message: a bare
+// `exit != 0` is satisfied by a parse error, which is exactly how these tests
+// passed while --release-claim did not exist at all.
+function refuse(argv, io) {
+  const messages = [], originalError = console.error, originalLog = console.log
+  console.error = (...args) => messages.push(args.join(' '))
+  console.log = () => {}
+  let exit
+  try { exit = main(argv, NOW, io) } finally { console.error = originalError; console.log = originalLog }
+  return { exit, messages, stderr: messages.join('\n') }
+}
+
 
 
 test('#2301 retirement refuses without the exact PR, head SHA and worktree state it records', () => {
+  const expected = {
+    '--pr': /--retire requires the exact --pr and --head-sha/,
+    '--head-sha': /--retire requires the exact --pr and --head-sha/,
+    '--worktree-state': /--retire requires --worktree-state/,
+  }
   for (const drop of ['--pr', '--head-sha', '--worktree-state']) {
     const argv = [...RETIRE_ARGV]
     argv.splice(argv.indexOf(drop), 2)
     resetRetirementSnapshot()
-    assert.notEqual(main(argv, NOW, releaseIo()), 0, `retirement must refuse without ${drop}`)
+    const { exit, stderr } = refuse(argv, releaseIo())
+    assert.equal(exit, 2, `retirement must refuse without ${drop}`)
+    assert.match(stderr, expected[drop], `refusal without ${drop} must name the missing binding, got: ${stderr}`)
   }
+})
+
+test('#2301 a parse error can never satisfy the retirement refusals', () => {
+  // The exact shape that used to make the test above pass: an argv whose flags
+  // were unknown to parseArgs. It fails too, but with "unknown argument", and no
+  // assertion above may accept that.
+  resetRetirementSnapshot()
+  const { exit, stderr } = refuse([...RETIRE_ARGV, '--definitely-not-a-flag'], releaseIo())
+  assert.equal(exit, 2)
+  assert.match(stderr, /unknown argument: --definitely-not-a-flag/)
+  assert.doesNotMatch(stderr, /--retire requires/, 'a parse error must not read as a retirement-specific refusal')
 })
 
 
@@ -292,8 +325,12 @@ test('#2301 an open claim on a live version is never reported as reopened', () =
 
 test('#2301 the mutex is not left held after a retirement', () => {
   const io = releaseIo()
-  main(RETIRE_ARGV, NOW, io)
+  const { exit, stderr } = refuse(RETIRE_ARGV, io)
+  assert.equal(exit, 0, `retirement must succeed through the CLI, got: ${stderr}`)
   assert.equal(io.refs.get(MUTEX_REF) ?? null, null)
+  assert.ok(io.refs.has(retiredClaimRef(VERSION)), 'the retirement tombstone must exist')
+  assert.equal(io.closed?.number, 4101)
+  assert.equal(io.closed?.reason, RETIREMENT_CLOSE_REASON)
 })
 
 test('#2301 a retirement audit costs ONE bounded ref listing, not one call per claim', () => {
@@ -335,7 +372,9 @@ test('#3675 --owner-decision and --review-approval are refused by name at the co
   for (const flag of ['--owner-decision', '--review-approval']) {
     resetRetirementSnapshot()
     const io = releaseIo()
-    assert.notEqual(main([...DIRTY_ARGV, flag, 'artifact:' + 'd'.repeat(40)], NOW, io), 0)
+    const { exit, stderr } = refuse([...DIRTY_ARGV, flag, 'artifact:' + 'd'.repeat(40)], io)
+    assert.equal(exit, 2)
+    assert.match(stderr, new RegExp(`${flag} is retired \\(#3675, owner ruling 2026-09-28: never ask a human to approve\\)`), `the refusal must name ${flag} as retired, got: ${stderr}`)
     assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
   }
 })
@@ -343,22 +382,30 @@ test('#3675 --owner-decision and --review-approval are refused by name at the co
 test('#3675 a dirty retirement refuses without a dereferenceable preservation artifact and writes nothing', () => {
   resetRetirementSnapshot()
   let io = releaseIo()
-  assert.notEqual(main(DIRTY_ARGV, NOW, io), 0, 'missing --preservation must refuse')
+  let run = refuse(DIRTY_ARGV, io)
+  assert.equal(run.exit, 2, 'missing --preservation must refuse')
+  assert.match(run.stderr, /--retire from a dirty worktree requires --preservation/)
   assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
   resetRetirementSnapshot()
   io = releaseIo(); io.verifyArtifact = () => null
-  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'e'.repeat(40)], NOW, io), 0, 'an undereferenceable artifact must refuse')
+  run = refuse([...DIRTY_ARGV, '--preservation', 'artifact:' + 'e'.repeat(40)], io)
+  assert.equal(run.exit, 2, 'an undereferenceable artifact must refuse')
+  assert.match(run.stderr, /preservation artifact .* cannot be dereferenced/)
   assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
   resetRetirementSnapshot()
   io = releaseIo(); io.verifyArtifact = () => ({ kind: 'git-object' })
-  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:https://example.com/x'], NOW, io), 0, 'an https preservation reference cannot be dereferenced and must refuse')
+  run = refuse([...DIRTY_ARGV, '--preservation', 'artifact:https://example.com/x'], io)
+  assert.equal(run.exit, 2, 'an https preservation reference cannot be dereferenced and must refuse')
+  assert.match(run.stderr, /--preservation must be an immutable object hash/)
   assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
 })
 
 test('#3675 a dirty retirement with preservation still refuses without the durable exact-head AI reviewer APPROVE', () => {
   resetRetirementSnapshot()
   const io = releaseIo(); io.verifyArtifact = () => ({ kind: 'git-object' })
-  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], NOW, io), 0)
+  const { exit, stderr } = refuse([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], io)
+  assert.equal(exit, 2)
+  assert.match(stderr, /requires the allocator-assigned AI reviewer APPROVE/)
   assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined, 'no tombstone without the durable APPROVE')
   assert.equal(io.closed, undefined)
 })
@@ -386,7 +433,9 @@ function approvedDirtyIo({ verdictIssue = 4100 } = {}) {
 test('#3675 an APPROVE filed under the claim number instead of the work issue does not satisfy retirement', () => {
   resetRetirementSnapshot()
   const { io } = approvedDirtyIo({ verdictIssue: 4101 })
-  assert.notEqual(main([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], NOW, io), 0)
+  const { exit, stderr } = refuse([...DIRTY_ARGV, '--preservation', 'artifact:' + 'f'.repeat(40)], io)
+  assert.equal(exit, 2)
+  assert.match(stderr, /requires the allocator-assigned AI reviewer APPROVE/)
   assert.equal(io.refs.get(retiredClaimRef(VERSION)), undefined)
 })
 

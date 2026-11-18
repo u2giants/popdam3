@@ -21,6 +21,7 @@ import { canonicalReviewerAllowlist, REVIEWER_FALLBACK_PROVIDERS, orderedReviewe
 import { inheritReviewerAllowlist, isReviewerAllowlistSuperset, sameReviewerAllowlist } from './manage-migration-coordination.mjs'
 import { parseAssignmentRef } from './manage-migration-coordination.mjs'
 import { setScopeStatus, wrongOwnerMessage } from './manage-migration-coordination.mjs'
+import { RETIREMENT_CLOSE_REASON, sameOwnerLabel, parkComment, authorCheckinRef, AUTHOR_CHECKIN_MESSAGE, retiredClaimRef } from './manage-migration-coordination.mjs'
 import { readyRecord, persistInitialReady } from './db-flow/reconcile.mjs'
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs'
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -522,6 +523,193 @@ function memoryIo() {
     getCommit:()=>({message:'db-coordination author-acquisition request-1',committer:{date:'2026-08-14T19:55:00Z'}}),
   }
 }
+
+// ---------------------------------------------------------------------------
+// The cleanup message's claim-release flags: --release-claim, --confirm-finished,
+// --park, --stop-author, --check-in-author (plus the --retire modifier). Every
+// refusal below asserts the SPECIFIC message, because a bare non-zero exit is
+// also what an unknown-argument parse error produces -- the exact hole these
+// flags fell through when the cleanup message promised them and parseArgs threw.
+// ---------------------------------------------------------------------------
+const CL_HEAD='a'.repeat(40),CL_VERSION='20260814170219',CL_RES='b'.repeat(40)
+
+function claimIo(){
+  const io=memoryIo()
+  const issues=new Map(),commits=new Map()
+  let seq=0
+  issues.set(4101,{number:4101,state:'open',title:'CLAIM: #2110 frozen schema',body:claimBody({version:CL_VERSION,objects:['table core.x'],owner:'author-1',branch:'codex/2110-old',worktree:'C:/wt/old',expiresAt:new Date('2026-08-14T20:30:00Z')})})
+  io.getIssue=(n)=>structuredClone(issues.get(Number(n)))
+  io.updateIssue=(n,{body:text})=>{issues.get(Number(n)).body=text}
+  io.openClaims=()=>[structuredClone(issues.get(4101))]
+  io.getPr=()=>({number:4102,state:'open',head:{sha:CL_HEAD,ref:'codex/2110-old'}})
+  io.localWorktreeState=()=>({state:'clean'})
+  io.localClean=()=>true
+  io.localHead=()=>CL_HEAD
+  io.localBranch=()=>'codex/2110-old'
+  io.makeOwnerCommit=(message)=>{const sha=`cl-${++seq}`;commits.set(sha,{message});return sha}
+  io.getCommit=(sha)=>commits.get(sha)??{message:'db-coordination permanent version reservation'}
+  io.refs.set(`refs/db-claims/${CL_VERSION}`,CL_RES)
+  io.commentIssue=()=>{}
+  io.closeClaim=(number,reason)=>{io.closed={number,reason}}
+  io.resolveSessionAuthority=({claimOwner}={})=>{
+    const task='author-1'
+    if(claimOwner!==undefined&&String(claimOwner)!==task)return {live:false,state:'claim-owner-mismatch',task:String(claimOwner),calling_task:task,reason:'mismatch'}
+    return {live:true,state:'declared',task,calling_task:task,reason:null}
+  }
+  return io
+}
+
+function runClaimCli(argv,io){
+  const messages=[],originalError=console.error,originalLog=console.log
+  console.error=(...args)=>messages.push(args.join(' '))
+  console.log=()=>{}
+  let exit
+  try{exit=main(argv,NOW,io)}finally{console.error=originalError;console.log=originalLog}
+  return {exit,stderr:messages.join('\n')}
+}
+
+const STOP_ARGV=['--stop-author','--claim-number','4101','--issue','2110','--pr','4102','--head-sha',CL_HEAD,'--owner','author-1','--branch','codex/2110-old','--worktree','C:/wt/old']
+const CHECKIN_ARGV=['--check-in-author','--claim-number','4101','--issue','2110','--pr','4102','--head-sha',CL_HEAD,'--owner','author-1','--branch','codex/2110-old','--worktree','C:/wt/old']
+
+test('the cleanup message flags parse: --release-claim requires exact --owner and --confirm-finished',()=>{
+  let out=runClaimCli(['--release-claim','4101','--owner','author-1'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--release-claim requires exact --owner and --confirm-finished/)
+  out=runClaimCli(['--release-claim','4101','--confirm-finished'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--release-claim requires exact --owner and --confirm-finished/)
+})
+
+test('an explicit release closes the claim with its own stated cause and frees the mutex',()=>{
+  const io=claimIo()
+  const out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished'],io)
+  assert.equal(out.exit,0,out.stderr)
+  assert.equal(io.closed?.reason,CLAIM_CLOSE_REASONS.explicitRelease)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('a wrong-owner release refuses and names the owner on record',()=>{
+  const io=claimIo()
+  const out=runClaimCli(['--release-claim','4101','--owner','intruder','--confirm-finished'],io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/belongs to a different owner: the owner on record is "author-1"/)
+  assert.equal(io.closed,undefined)
+})
+
+test('--release-claim refuses while the claim branch still has an open pull request and names --park',()=>{
+  const io=claimIo()
+  io.openPulls=()=>[{number:4102,head:{ref:'codex/2110-old'}}]
+  const out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished'],io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/add --park to close it/)
+  assert.equal(io.closed,undefined)
+})
+
+test('--park closes the open pull request with a resume note, then releases the claim',()=>{
+  const io=claimIo()
+  const closed=[]
+  io.openPulls=()=>[{number:4102,head:{ref:'codex/2110-old'}}]
+  io.closePull=(number,comment)=>closed.push({number,comment})
+  const out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished','--park'],io)
+  assert.equal(out.exit,0,out.stderr)
+  assert.equal(closed.length,1)
+  assert.equal(closed[0].number,4102)
+  assert.match(closed[0].comment,/Parked: claim #4101 was released with `--release-claim --park`/)
+  assert.match(closed[0].comment,/Migration version 20260814170219 stays permanently reserved/)
+  assert.equal(io.closed?.reason,CLAIM_CLOSE_REASONS.explicitRelease)
+})
+
+test('--park and --confirm-finished never apply without --release-claim, and park cannot combine with --retire',()=>{
+  let out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished','--park','--retire','abandoned-worktree'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--park cannot be combined with --retire/)
+  out=runClaimCli(['--park'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--park only applies to --release-claim/)
+  out=runClaimCli(['--confirm-finished'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--confirm-finished only applies to --release-claim/)
+  out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished','--retire','gave-up','--pr','4102','--head-sha',CL_HEAD,'--worktree-state','absent','--evidence','x'],claimIo())
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/--retire decision must be one of/)
+})
+
+test('--release-claim --retire writes the terminal tombstone and closes with the retirement cause',()=>{
+  const io=claimIo()
+  const out=runClaimCli(['--release-claim','4101','--owner','author-1','--confirm-finished','--retire','abandoned-worktree','--pr','4102','--head-sha',CL_HEAD,'--worktree-state','absent','--evidence','https://github.test/issues/4101#issuecomment-1'],io)
+  assert.equal(out.exit,0,out.stderr)
+  assert.ok(io.refs.has(retiredClaimRef(CL_VERSION)),'the terminal tombstone must exist')
+  assert.equal(io.closed?.reason,RETIREMENT_CLOSE_REASON)
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('--stop-author relinquishes author capacity on a preserved clean exact source head',()=>{
+  const io=claimIo()
+  const events=[]
+  io.commentIssue=(issue,body)=>events.push({issue,body})
+  const out=runClaimCli(STOP_ARGV,io)
+  assert.equal(out.exit,0,out.stderr)
+  const lease=parseAuthorLease(io.getIssue(4101).body,NOW)
+  assert.equal(lease.capacityState,'relinquished')
+  assert.equal(lease.blockedOn,`artifact:${CL_HEAD}`)
+  assert.equal(lease.worktreeState,'clean')
+  assert.equal(lease.recoveryArtifact,`artifact:${CL_HEAD}`)
+  assert.ok(events.some((e)=>/author_capacity_relinquished/.test(e.body)),'the capacity transition must be published')
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('--stop-author refuses without preserved clean exact source custody',()=>{
+  const io=claimIo()
+  io.localWorktreeState=()=>({state:'dirty'})
+  const out=runClaimCli(STOP_ARGV,io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/stop-author requires preserved clean exact source custody/)
+})
+
+test('--stop-author refuses a foreign claim identity and a foreign session',()=>{
+  let io=claimIo()
+  // The session check runs first; let it pass for the intruder so the refusal
+  // below is the identity one, not the session one.
+  io.resolveSessionAuthority=({claimOwner}={})=>({live:true,state:'declared',task:String(claimOwner??'author-1'),calling_task:String(claimOwner??'author-1'),reason:null})
+  let out=runClaimCli(STOP_ARGV.map((x)=>(x==='author-1'?'intruder':x)),io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/stop-author claim identity or custody differs/)
+  io=claimIo()
+  io.resolveSessionAuthority=()=>({live:false,state:'none',task:null,calling_task:'',reason:'SHARED_DB_SESSION_ID is not set'})
+  out=runClaimCli(STOP_ARGV,io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/stop-author must execute in the actual owner session/)
+})
+
+test('--check-in-author renews the lease expiry and writes a durable check-in receipt',()=>{
+  const io=claimIo()
+  const before=parseAuthorLease(io.getIssue(4101).body,NOW).expiresAt
+  const out=runClaimCli(CHECKIN_ARGV,io)
+  assert.equal(out.exit,0,out.stderr)
+  const after=parseAuthorLease(io.getIssue(4101).body,NOW)
+  assert.ok(after.expiresAt.valueOf()>before.valueOf(),'the lease expiry must move forward')
+  const receipts=[...io.refs.keys()].filter((r)=>r.startsWith('refs/db-author-checkins/'))
+  assert.equal(receipts.length,1,'a durable check-in receipt must exist')
+  assert.match(io.getCommit(io.refs.get(receipts[0])).message,new RegExp(`^${AUTHOR_CHECKIN_MESSAGE}`))
+  assert.equal(io.refs.has(MUTEX_REF),false)
+})
+
+test('--check-in-author refuses a relinquished claim, a foreign session, and an over-long lease',()=>{
+  const io=claimIo()
+  assert.equal(runClaimCli(STOP_ARGV,io).exit,0)
+  let out=runClaimCli(CHECKIN_ARGV,io)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/author check-in refuses stopped, foreign or legacy execution/)
+  let fresh=claimIo()
+  fresh.resolveSessionAuthority=()=>({live:false,state:'none',task:null,calling_task:'',reason:'unset'})
+  out=runClaimCli(CHECKIN_ARGV,fresh)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/author check-in must execute in the actual current owner session/)
+  fresh=claimIo()
+  out=runClaimCli([...CHECKIN_ARGV,'--lease-hours','2'],fresh)
+  assert.equal(out.exit,2)
+  assert.match(out.stderr,/check-in lease hours must be greater than 0 and no more than 1/)
+})
 
 // A VERDICT IS AN ARTIFACT (issue #2075). Every lane decision now proves "a
 // verdict exists for this head" from the create-only durable ref, so a fixture
