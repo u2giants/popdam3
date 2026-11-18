@@ -1,0 +1,128 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "deepseek key fix + rich-pdf failed-row retry live proof",
+  "date": "2026-11-18",
+  "timezone": "America/New_York",
+  "task_gates": {
+    "class": "production",
+    "base": "98ed424bc0e5",
+    "checks": [
+      "check --before infrastructure — allowed by owner authorization",
+      "check --before deploy — allowed by owner authorization",
+      "check --before database — allowed by owner authorization",
+      "check --before production — allowed by owner authorization"
+    ],
+    "acknowledge_text": "Fix the popdam3 worker DEEPSEEK_API_KEY (Railway worker env + 1Password deepseek field) and redo the #469 rich-pdf retry live proof, delegated by parent agent: provision a valid DeepSeek key to the Railway worker env and redeploy, store the key in the 1Password provider-keys item, seed one toytest-class fixture failure row, run rich-pdf-extract, verify parse_error clears on the fixture, clean up fixture rows, comment on #469, commit evidence and open a PR. No schema changes, no real design files touched."
+  },
+  "key_search": {
+    "searched": [
+      "1Password vibe_coding vault item lookup 'deepseek' (2 items)",
+      "ai-deepseek / ai-deepseek-agent managed key reference (C:/repos/ai-devops/config/mcp.env.example)",
+      "Railway worker env readback (comparison only)"
+    ],
+    "empty_field_confirmed": {
+      "item": "ai provider api keys openai deepseek chatgpt qwen (3onekcbg3dxnazpnt36d4yzfcq)",
+      "field": "deepseek (s5dmhabk34iazogaf3drcufzka)",
+      "read_bytes": 0,
+      "note": "matches 2026-11-18 recovery finding; field was empty before this pass"
+    },
+    "valid_key_found": {
+      "item": "deepseek API key for reviewer only (sgiugicww2yop7didws4q2r2ka)",
+      "field": "credential",
+      "bytes": 35,
+      "live_probe": "2026-11-18 ~12:17 PM EST POST https://api.deepseek.com/chat/completions -> HTTP 200 (model deepseek-flash)",
+      "fp_op_read_sha256_16": "c9f8745cf6376698",
+      "fp_raw_value_sha256_16": "e5fd6dec8b65dcd0",
+      "is_managed_reference": "op://vibe_coding/deepseek API key for reviewer only/credential (ai-devops config/mcp.env.example DEEPSEEK_API_KEY)"
+    }
+  },
+  "provisioning": {
+    "onepassword_fill": {
+      "target": "op://vibe_coding/ai provider api keys openai deepseek chatgpt qwen/deepseek",
+      "method": "op item edit --template with value via op_run env injection + 0600 template file (values only through pipes/protected files)",
+      "verify": "target op read | sha256sum = c9f8745cf6376698 (identical to source); 36 bytes through op read",
+      "item_version_after": 19
+    },
+    "railway": {
+      "access_restored": "railway login via owner's browser session (OAuth consent auto-completed; CLI 'Signed in as u2giants@gmail.com'). The three 1Password 'Railway API' tokens remain dead (Not Authorized) — same gap as plan_credential_rotation_20261027 / issue #551.",
+      "service": "popdam3 (f777713f-d0f8-4f9b-9685-37c9090c98ef)",
+      "environment": "production (70aef28e-b9f8-4aa6-b902-c9a06aec08d5)",
+      "project": "8645c5fe-ae60-413e-8464-508456c65365",
+      "mutation": "variableUpsert(input: {name: DEEPSEEK_API_KEY, value: <35-byte key>, skipDeploys: false}) -> true",
+      "readback": "DEEPSEEK_API_KEY bytes=35 fp=e5fd6dec8b65dcd0 (matches source)",
+      "previous_value": "invalid key masked ****80f9 (HTTP 401 Authentication Fails) per recovery-checks-2026-11-18",
+      "redeploy": {
+        "deployment_id": "1653e2ce-0605-4c2e-ad70-2bb101b70219",
+        "created_est": "2026-11-18 12:18:18 PM",
+        "status": "SUCCESS",
+        "worker_heartbeat": {"sha": "c40a4f6bfdd1bdc51c5f60ffcdd11ccbcfbdc783", "status": "running", "updated_at": "2026-11-18T17:21:00.344Z"}
+      }
+    }
+  },
+  "fixture": {
+    "class": "toytest-class fixture PDF (DB rows only)",
+    "asset_id": "00004690-4690-4000-8000-000000000001",
+    "asset_id_note": "deliberate change from 2026-11-15 fixture a4690000-...: that id sorted at offset 18,814 of 28,535 pdf_text_samples rows and the run never reached it; this id sorts at the front so the scan window reaches it",
+    "filename": "toytest_tech_pack_469probe.pdf",
+    "relative_path": "Decor/Generic Decor/Unused/_ai_test_681/toytest_tech_pack_469probe.pdf",
+    "text_sample": "TECH PACK TEST toytest fixture for issue 469 rich-pdf retry probe. Harmless test data. Safe to delete. Materials: MDF canvas. Dimensions: 12x8 inches.",
+    "text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0",
+    "text_sha_matches_2026_11_15": true,
+    "rows_created": [
+      "public.assets (id, filename, relative_path, file_type=pdf, quick_hash, modified_at, is_deleted=false)",
+      "public.pdf_text_samples (asset_id, filename, relative_path, extraction_method=embedded_text, extracted_text 150 chars, char_count=150)",
+      "dam.pdf_rich_extraction via public.upsert_pdf_rich_extraction (p_parse_error='probe-induced failure for 469 retry verification', p_data={}, p_source_text_sha256=ba621d0e...)"
+    ],
+    "no_real_design_files_touched": true
+  },
+  "leg1_failure_recording": {
+    "status": "proven (re-confirmed this pass)",
+    "pre_run_state": {
+      "parse_error": "probe-induced failure for 469 retry verification",
+      "source_text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0",
+      "extracted_at": "2026-11-17 11:21:12.047934-05 (seeded 25h before probe; cooldown 24h elapsed)"
+    },
+    "hash_not_marked_done": "get_pdf_rich_extraction_hashes returns the row with parse_error non-null; shouldExtractRichPdf returns true via cooldown path (same text hash, failure row aged >= 24h)",
+    "code_ref": "apps/worker/src/handlers/rich-pdf.ts:175-186 (shouldExtractRichPdf)"
+  },
+  "leg2_retry_after_cooldown": {
+    "status": "PROVEN",
+    "cooldown_seeded": true,
+    "seed_method": "Supabase Management API SQL: UPDATE dam.pdf_rich_extraction SET extracted_at = now() - interval '25 hours' WHERE asset_id = '00004690-...'",
+    "retry_triggered": {
+      "at_est": "2026-11-18 12:22 PM",
+      "method": "admin-api update-bulk-op, op_key=rich-pdf-extract, op_state={status:running, cursor:0} (HTTP 200)",
+      "worker_pickup": "immediate"
+    },
+    "retry_observed": true,
+    "observed_at_est": "2026-11-18 12:23:23 PM",
+    "post_run_state": {
+      "parse_error": null,
+      "extracted_at": "2026-11-18 12:23:23.502139-05",
+      "model": "deepseek-flash",
+      "source_text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0 (unchanged — cooldown retry, not changed-text retry)"
+    },
+    "interpretation": "same-text-hash saved failure retried after the 24h cooldown; successful extraction cleared parse_error to null; the worker's own DEEPSEEK_API_KEY authenticated (model deepseek-flash)"
+  },
+  "cleanup": {
+    "done_at_est": "2026-11-18 ~12:25 PM",
+    "db_rows_deleted": [
+      "dam.pdf_rich_extraction WHERE asset_id='00004690-4690-4000-8000-000000000001'",
+      "public.pdf_text_samples WHERE asset_id='00004690-4690-4000-8000-000000000001'",
+      "public.assets WHERE id='00004690-4690-4000-8000-000000000001'"
+    ],
+    "verification_reads": {"assets": 0, "texts": 0, "rich": 0},
+    "op_left": "rich-pdf-extract set interrupted / user_stop at ~12:25 PM EST after the proof (bounds continued DeepSeek spend on the wider backlog; cursor persisted, backlog claimable by a normal resume)",
+    "no_nas_files_placed": true
+  },
+  "disclosed_writes": [
+    "1Password item 'ai provider api keys openai deepseek chatgpt qwen' field 'deepseek' filled (was empty) with the reviewer-scope DeepSeek key",
+    "Railway service popdam3 env DEEPSEEK_API_KEY replaced (was invalid ****80f9) + worker redeployed (deployment 1653e2ce SUCCESS)",
+    "rich-pdf-extract run 12:22-12:25 PM EST: normal extraction output on pending production rows plus the fixture retry; op row left interrupted/user_stop",
+    "Fixture rows created and deleted (0 remain)"
+  ],
+  "live_proof_checkbox": {
+    "rich_pdf_failed_extraction_not_permanently_marked_done": "fixed (PRs #5627 / #779; contract test #6424)",
+    "live_proof": "PROVEN 2026-11-18 12:23 PM EST — saved failure row (parse_error non-null, extracted_at 25h old) retried by rich-pdf-extract after the 24h cooldown; success cleared parse_error to null (model deepseek-flash)"
+  }
+}
