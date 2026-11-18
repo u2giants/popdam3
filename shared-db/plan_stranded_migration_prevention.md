@@ -8,9 +8,9 @@ Handoff: [HANDOFF.d/20261117T1545Z-edge-dev3-claude-stranded-migration-preventio
 | Step | State | Evidence |
 |---|---|---|
 | A. Refuse pre-merge preview apply of high-risk migrations | ✅ merged | PR #6585 → commit `4a022243`; live proof run `44149841592` (dispatch claim_pr=6598, preset `20261204000300`): step refused in validate, preview job skipped, nothing applied |
-| B. Park immediately on a permanent producer-mismatch refusal | ✅ merged | PR #6586 (merged). Live park not observed in this session; covered by `PermanentRefusalTests` (replay test only) |
+| B. Park immediately on a permanent producer-mismatch refusal | ✅ merged, live-proven | PR #6586 (merged). Live proof 2026-11-18 5:31 PM EST: merged detector run read-only against the real logs of PR #6433's failed runs `44093787649` and `44098049834` (both permanent); negative control `44149841592` not permanent. Proof: https://github.com/popcre/shared-db/issues/6574#issuecomment-6993579415 |
 | C. Merge-time check for migrations the catalog verifier cannot read | ✅ merged | PR #6588 → commit `249527aa`; check ran on its PR in run `44144185872` (advisory workflow `migration-catalog-readable.yml`, not required) |
-| D. Live proof + docs | 🟡 in review | Doc line PR #6598 (auto-merge queued). Live proof A: run `44149841592`. Live proof C: run `44144185872`. Live proof B: no real park observed; replay test only |
+| D. Live proof + docs | ✅ merged, live-proven | Doc line PR #6598 (merged). Live proof A: run `44149841592`. Live proof C: run `44144185872`. Live proof B: https://github.com/popcre/shared-db/issues/6574#issuecomment-6993579415 |
 
 **A fresh session starts at Step A.** Steps A, B, C touch different files and may be done in any order, but land each as its own PR. Nothing is blocked on Albert.
 
