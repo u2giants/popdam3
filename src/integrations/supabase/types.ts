@@ -4536,6 +4536,23 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      claim_dam_search_text_embedding_documents: {
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker_id?: string
+        }
+        Returns: {
+          attempt: number
+          document_type: string
+          entity_id: string
+          input_sha256: string
+          input_text: string
+          lease_expires_at: string
+          lease_token: string
+          model: string
+        }[]
+      }
       claim_jobs: {
         Args: { p_agent_id: string; p_batch_size?: number }
         Returns: {
@@ -4666,6 +4683,10 @@ export type Database = {
               tags_deleted: number
             }[]
           }
+      clear_dam_buy_sheet_import: {
+        Args: { p_apply?: boolean; p_import_id?: string }
+        Returns: Json
+      }
       clear_style_group_batch: {
         Args: { p_batch_size?: number; p_last_id?: string }
         Returns: {
@@ -4775,8 +4796,17 @@ export type Database = {
         Returns: undefined
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
+      dam_search_name_queries: { Args: { p_names: Json }; Returns: unknown[] }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
+        Returns: number
+      }
+      dam_search_semantic_anchor_named: {
+        Args: {
+          p_document_types?: string[]
+          p_filters?: Json
+          p_query_embedding: string
+        }
         Returns: number
       }
       dam_search_semantic_anchor_scoped: {
@@ -4798,6 +4828,7 @@ export type Database = {
           score: number
         }[]
       }
+      dam_search_uuid_list: { Args: { p_ids: Json }; Returns: string[] }
       dam_sweep_default_visible_flags: {
         Args: { p_limit?: number }
         Returns: number
@@ -5080,6 +5111,21 @@ export type Database = {
           total_exec_ms: number
         }[]
       }
+      get_dam_search_text_embedding_status: {
+        Args: never
+        Returns: {
+          current_model_documents: number
+          embedded_documents: number
+          errored_documents: number
+          exhausted_documents: number
+          last_embedded_at: string
+          leased_documents: number
+          model: string
+          oldest_pending_enqueued_at: string
+          pending_documents: number
+          total_documents: number
+        }[]
+      }
       get_dam_style_group_asset_count: {
         Args: {
           p_fallback_terms?: string[]
@@ -5215,6 +5261,7 @@ export type Database = {
           p_file_name: string
           p_file_sha256: string
           p_lines: Json
+          p_master_skus?: Json
           p_order_numbers?: Json
           p_raw_sheet: Json
         }
@@ -5262,6 +5309,17 @@ export type Database = {
           p_document_type: string
           p_entity_id: string
           p_error: string
+          p_lease_token: string
+        }
+        Returns: boolean
+      }
+      mark_dam_search_text_embedding_error: {
+        Args: {
+          p_category?: string
+          p_document_type: string
+          p_entity_id: string
+          p_error: string
+          p_input_sha256: string
           p_lease_token: string
         }
         Returns: boolean
@@ -5922,6 +5980,17 @@ export type Database = {
           p_embedding_model?: string
           p_entity_id: string
           p_lease_token: string
+        }
+        Returns: boolean
+      }
+      upsert_dam_search_text_embedding: {
+        Args: {
+          p_document_type: string
+          p_embedding: unknown
+          p_entity_id: string
+          p_input_sha256: string
+          p_lease_token: string
+          p_model: string
         }
         Returns: boolean
       }
