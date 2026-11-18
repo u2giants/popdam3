@@ -1,0 +1,64 @@
+{
+  "name": "18b-pgss-rebuild-family",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 200) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, rows, wal_records, wal_fpi, wal_bytes from extensions.pg_stat_statements where query ilike '%refresh_style_guide_matviews%' or query ilike '%refresh_style_group_counts%' or query ilike '%clear_style_group%' or query ilike '%rebuild_style_group%' or query ilike '%style_group_counts%' order by calls desc limit 40",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "693367342154916556",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_last_asset_id\", \"p_batch_size\", \"p_changed_since\" FROM json_to_record(pgrst_payload.json_dat",
+      "calls": 6745,
+      "mean_ms": "1207.0",
+      "rows": 6745,
+      "wal_records": 13831697,
+      "wal_fpi": 1594607,
+      "wal_bytes": "9940154614"
+    },
+    {
+      "queryid": "7327558641138002573",
+      "role_name": "postgres",
+      "query_head": "select public.queue_nightly_rebuild_style_groups()",
+      "calls": 1653,
+      "mean_ms": "141.2",
+      "rows": 1653,
+      "wal_records": 23555,
+      "wal_fpi": 1319,
+      "wal_bytes": "22155428"
+    },
+    {
+      "queryid": "4823001052977070422",
+      "role_name": "postgres",
+      "query_head": "select public.refresh_style_guide_matviews_job()",
+      "calls": 275,
+      "mean_ms": "5138.7",
+      "rows": 275,
+      "wal_records": 214822,
+      "wal_fpi": 33202,
+      "wal_bytes": "109971637"
+    },
+    {
+      "queryid": "-6903331260665435137",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_run_id\", \"p_search_batch_size\", \"p_step\" FROM json_to_record(pgrst_payload.json_data) AS _(\"",
+      "calls": 6,
+      "mean_ms": "12.4",
+      "rows": 6,
+      "wal_records": 12,
+      "wal_fpi": 0,
+      "wal_bytes": "3528"
+    },
+    {
+      "queryid": "-495380011283648974",
+      "role_name": "supabase_read_only_user",
+      "query_head": "select count(*) as clear_style_group_batch_entries\n         from extensions.pg_stat_statements\n         where query ilike $1\n\n-- source: POST /v1/projects/:ref/database/query\n-- user: pat:8463633\n-- d",
+      "calls": 3,
+      "mean_ms": "940.0",
+      "rows": 3,
+      "wal_records": 0,
+      "wal_fpi": 0,
+      "wal_bytes": "0"
+    }
+  ],
+  "error": null
+}

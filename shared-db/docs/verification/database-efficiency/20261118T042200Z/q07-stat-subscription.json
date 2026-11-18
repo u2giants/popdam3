@@ -1,0 +1,8 @@
+{
+  "name": "07-stat-subscription",
+  "sql": "select * from pg_stat_subscription",
+  "http_status": 201,
+  "ok": true,
+  "rows": [],
+  "error": null
+}

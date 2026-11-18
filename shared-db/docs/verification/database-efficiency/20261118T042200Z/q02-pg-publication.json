@@ -1,0 +1,29 @@
+{
+  "name": "02-pg-publication",
+  "sql": "select pubname, pubowner::regrole::text as pubowner, puballtables, pubinsert, pubupdate, pubdelete, pubtruncate, pubviaroot from pg_publication order by pubname",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pubname": "supabase_realtime",
+      "pubowner": "postgres",
+      "puballtables": false,
+      "pubinsert": true,
+      "pubupdate": true,
+      "pubdelete": true,
+      "pubtruncate": true,
+      "pubviaroot": false
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "pubowner": "supabase_admin",
+      "puballtables": false,
+      "pubinsert": true,
+      "pubupdate": true,
+      "pubdelete": true,
+      "pubtruncate": true,
+      "pubviaroot": false
+    }
+  ],
+  "error": null
+}

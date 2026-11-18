@@ -1,0 +1,185 @@
+{
+  "name": "20-cron-job",
+  "sql": "select jobid, schedule, command, nodename, nodeport, database, username, active, jobname from cron.job order by jobid",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "jobid": 2,
+      "schedule": "0 3 * * *",
+      "command": "\n    DELETE FROM public.render_queue\n    WHERE status IN ('completed', 'failed')\n      AND created_at < NOW() - INTERVAL '30 days';\n  ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "purge-render-queue-old-rows"
+    },
+    {
+      "jobid": 3,
+      "schedule": "15 3 * * *",
+      "command": "\n    DELETE FROM public.style_guide_render_queue\n    WHERE status IN ('completed', 'failed')\n      AND created_at < NOW() - INTERVAL '30 days';\n  ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "purge-sg-render-queue-old-rows"
+    },
+    {
+      "jobid": 5,
+      "schedule": "0 2 * * *",
+      "command": "\n    INSERT INTO public.admin_config (key, value, updated_at)\n    VALUES (\n      'STYLE_GUIDE_CRAWL_REQUEST',\n      jsonb_build_object(\n        'request_id',   gen_random_uuid()::text,\n        'status',       'pending',\n        'requested_at', now()::text,\n        'requested_by', 'pg_cron'\n      ),\n      now()\n    )\n    ON CONFLICT (key) DO UPDATE\n      SET value      = EXCLUDED.value,\n          updated_at = EXCLUDED.updated_at;\n  ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "nightly-sg-crawl"
+    },
+    {
+      "jobid": 9,
+      "schedule": "7 * * * *",
+      "command": "set local statement_timeout = '10min'; select public.refresh_style_guide_matviews_job()",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "refresh-style-guide-matviews"
+    },
+    {
+      "jobid": 10,
+      "schedule": "30 4 * * *",
+      "command": " select public.refresh_sku_human_description() ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "refresh-sku-human-description"
+    },
+    {
+      "jobid": 11,
+      "schedule": "*/10 * * * *",
+      "command": " select public.queue_nightly_rebuild_style_groups() ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "nightly-rebuild-style-groups"
+    },
+    {
+      "jobid": 12,
+      "schedule": "*/15 * * * *",
+      "command": "set local statement_timeout = '10min'; select public.refresh_style_guide_library_default_snapshot()",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "refresh-style-guide-library-default-snapshot"
+    },
+    {
+      "jobid": 13,
+      "schedule": "4-59/10 * * * *",
+      "command": " select public.prewarm_style_guide_search() ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "prewarm-style-guide-search"
+    },
+    {
+      "jobid": 14,
+      "schedule": "17 3 * * *",
+      "command": " select dam.image_embed_purge_jobs() ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "purge-image-embed-jobs"
+    },
+    {
+      "jobid": 16,
+      "schedule": "50 5 * * *",
+      "command": " select public.sync_new_items_into_style_tracker() ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "nightly-style-tracker-item-autoflow"
+    },
+    {
+      "jobid": 17,
+      "schedule": "30 4 * * *",
+      "command": "call public.resolve_sku_style_guide_links_run() /* shared-db:20261106171924 */",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "resolve-sku-style-guide-links-nightly"
+    },
+    {
+      "jobid": 18,
+      "schedule": "0 8 * * 0",
+      "command": " select coldlion.rotate_change_log(false) ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "coldlion-change-log-rotation"
+    },
+    {
+      "jobid": 19,
+      "schedule": "* * * * *",
+      "command": "call public.dam_sweep_default_visible_flags_batched(5000)",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "dam-default-visible-flag-sweep"
+    },
+    {
+      "jobid": 22,
+      "schedule": "15 8 * * 0",
+      "command": " select hts_rag.prune_ruling_ingest_jobs(false) ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "hts-rag-ingest-jobs-retention"
+    },
+    {
+      "jobid": 25,
+      "schedule": "30 3 * * *",
+      "command": "DELETE FROM public.asset_path_history WHERE detected_at < NOW() - INTERVAL '400 days';",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "purge-asset-path-history-old-rows"
+    },
+    {
+      "jobid": 28,
+      "schedule": "30 15 * * *",
+      "command": " select plm.sync_core_licensor_from_coldlion(true); select plm.sync_core_property_from_coldlion(true) ",
+      "nodename": "localhost",
+      "nodeport": 5432,
+      "database": "postgres",
+      "username": "postgres",
+      "active": true,
+      "jobname": "coldlion-core-property-sync"
+    }
+  ],
+  "error": null
+}

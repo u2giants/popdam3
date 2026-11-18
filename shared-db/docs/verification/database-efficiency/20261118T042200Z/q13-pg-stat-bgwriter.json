@@ -1,0 +1,15 @@
+{
+  "name": "13-pg-stat-bgwriter",
+  "sql": "select * from pg_stat_bgwriter",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "buffers_clean": 37571937,
+      "maxwritten_clean": 204898,
+      "buffers_alloc": 261180969,
+      "stats_reset": "2026-11-06 11:20:19.869905-05"
+    }
+  ],
+  "error": null
+}

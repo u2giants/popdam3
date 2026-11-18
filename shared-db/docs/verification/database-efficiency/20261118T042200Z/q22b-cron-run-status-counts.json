@@ -1,0 +1,252 @@
+{
+  "name": "22b-cron-run-status-counts",
+  "sql": "select r.jobid, j.jobname, r.status, count(*) as runs, min(r.start_time) as first_start, max(r.start_time) as last_start, round(avg(extract(epoch from (r.end_time - r.start_time)))::numeric, 1) as avg_duration_s from cron.job_run_details r left join cron.job j on j.jobid = r.jobid where r.start_time > now() - interval '14 days' group by r.jobid, j.jobname, r.status order by r.jobid, r.status",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "jobid": 2,
+      "jobname": "purge-render-queue-old-rows",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-04 22:00:00.063389-05",
+      "last_start": "2026-11-17 22:00:00.297418-05",
+      "avg_duration_s": "0.0"
+    },
+    {
+      "jobid": 3,
+      "jobname": "purge-sg-render-queue-old-rows",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-04 22:15:00.636442-05",
+      "last_start": "2026-11-17 22:15:00.167841-05",
+      "avg_duration_s": "0.0"
+    },
+    {
+      "jobid": 4,
+      "jobname": null,
+      "status": "succeeded",
+      "runs": 7,
+      "first_start": "2026-11-04 22:30:00.829215-05",
+      "last_start": "2026-11-10 22:30:00.074111-05",
+      "avg_duration_s": "0.9"
+    },
+    {
+      "jobid": 5,
+      "jobname": "nightly-sg-crawl",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-04 21:00:00.152751-05",
+      "last_start": "2026-11-17 21:00:00.060446-05",
+      "avg_duration_s": "0.0"
+    },
+    {
+      "jobid": 9,
+      "jobname": "refresh-style-guide-matviews",
+      "status": "failed",
+      "runs": 17,
+      "first_start": "2026-11-04 16:07:00.027013-05",
+      "last_start": "2026-11-05 12:07:00.042724-05",
+      "avg_duration_s": "120.0"
+    },
+    {
+      "jobid": 9,
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 319,
+      "first_start": "2026-11-03 23:07:00.030192-05",
+      "last_start": "2026-11-17 22:07:00.210023-05",
+      "avg_duration_s": "7.5"
+    },
+    {
+      "jobid": 10,
+      "jobname": "refresh-sku-human-description",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-03 23:30:00.114485-05",
+      "last_start": "2026-11-16 23:30:00.063677-05",
+      "avg_duration_s": "5.1"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "failed",
+      "runs": 39,
+      "first_start": "2026-11-05 05:50:00.044677-05",
+      "last_start": "2026-11-05 12:10:00.310182-05",
+      "avg_duration_s": "113.2"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 1976,
+      "first_start": "2026-11-03 23:00:00.054253-05",
+      "last_start": "2026-11-17 22:50:00.174567-05",
+      "avg_duration_s": "0.2"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "failed",
+      "runs": 72,
+      "first_start": "2026-11-03 23:30:00.10014-05",
+      "last_start": "2026-11-05 16:45:00.05723-05",
+      "avg_duration_s": "117.3"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 1271,
+      "first_start": "2026-11-03 23:00:00.059828-05",
+      "last_start": "2026-11-17 22:45:00.183754-05",
+      "avg_duration_s": "12.1"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "status": "failed",
+      "runs": 7,
+      "first_start": "2026-11-05 00:45:00.001496-05",
+      "last_start": "2026-11-05 08:40:00.000047-05",
+      "avg_duration_s": "53.0"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 3023,
+      "first_start": "2026-11-03 22:55:00.036818-05",
+      "last_start": "2026-11-17 22:44:00.133313-05",
+      "avg_duration_s": "5.0"
+    },
+    {
+      "jobid": 14,
+      "jobname": "purge-image-embed-jobs",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-04 22:17:00.26934-05",
+      "last_start": "2026-11-17 22:17:00.112363-05",
+      "avg_duration_s": "0.2"
+    },
+    {
+      "jobid": 16,
+      "jobname": "nightly-style-tracker-item-autoflow",
+      "status": "succeeded",
+      "runs": 14,
+      "first_start": "2026-11-04 00:50:00.183355-05",
+      "last_start": "2026-11-17 00:50:00.037635-05",
+      "avg_duration_s": "12.0"
+    },
+    {
+      "jobid": 17,
+      "jobname": "resolve-sku-style-guide-links-nightly",
+      "status": "failed",
+      "runs": 3,
+      "first_start": "2026-11-03 23:30:00.104858-05",
+      "last_start": "2026-11-05 23:30:00.105385-05",
+      "avg_duration_s": "120.0"
+    },
+    {
+      "jobid": 17,
+      "jobname": "resolve-sku-style-guide-links-nightly",
+      "status": "succeeded",
+      "runs": 11,
+      "first_start": "2026-11-06 23:30:00.092333-05",
+      "last_start": "2026-11-16 23:30:00.06704-05",
+      "avg_duration_s": "23.6"
+    },
+    {
+      "jobid": 18,
+      "jobname": "coldlion-change-log-rotation",
+      "status": "succeeded",
+      "runs": 2,
+      "first_start": "2026-11-08 03:00:00.111871-05",
+      "last_start": "2026-11-15 03:00:00.070712-05",
+      "avg_duration_s": "42.3"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 16872,
+      "first_start": "2026-11-06 05:40:00.057579-05",
+      "last_start": "2026-11-17 22:53:00.162597-05",
+      "avg_duration_s": "0.5"
+    },
+    {
+      "jobid": 21,
+      "jobname": null,
+      "status": "failed",
+      "runs": 7,
+      "first_start": "2026-11-06 10:25:00.039815-05",
+      "last_start": "2026-11-06 10:55:00.058855-05",
+      "avg_duration_s": "120.0"
+    },
+    {
+      "jobid": 21,
+      "jobname": null,
+      "status": "succeeded",
+      "runs": 1,
+      "first_start": "2026-11-06 11:00:00.122374-05",
+      "last_start": "2026-11-06 11:00:00.122374-05",
+      "avg_duration_s": "38.3"
+    },
+    {
+      "jobid": 22,
+      "jobname": "hts-rag-ingest-jobs-retention",
+      "status": "succeeded",
+      "runs": 2,
+      "first_start": "2026-11-08 03:15:00.090777-05",
+      "last_start": "2026-11-15 03:15:00.032471-05",
+      "avg_duration_s": "0.2"
+    },
+    {
+      "jobid": 23,
+      "jobname": null,
+      "status": "succeeded",
+      "runs": 1,
+      "first_start": "2026-11-06 22:00:00.132542-05",
+      "last_start": "2026-11-06 22:00:00.132542-05",
+      "avg_duration_s": "48.6"
+    },
+    {
+      "jobid": 24,
+      "jobname": null,
+      "status": "succeeded",
+      "runs": 1,
+      "first_start": "2026-11-07 16:15:00.048833-05",
+      "last_start": "2026-11-07 16:15:00.048833-05",
+      "avg_duration_s": "25.7"
+    },
+    {
+      "jobid": 25,
+      "jobname": "purge-asset-path-history-old-rows",
+      "status": "succeeded",
+      "runs": 7,
+      "first_start": "2026-11-11 22:30:00.083858-05",
+      "last_start": "2026-11-17 22:30:00.2116-05",
+      "avg_duration_s": "0.3"
+    },
+    {
+      "jobid": 26,
+      "jobname": null,
+      "status": "succeeded",
+      "runs": 3,
+      "first_start": "2026-11-13 10:30:00.066515-05",
+      "last_start": "2026-11-15 10:30:00.0377-05",
+      "avg_duration_s": "0.1"
+    },
+    {
+      "jobid": 28,
+      "jobname": "coldlion-core-property-sync",
+      "status": "succeeded",
+      "runs": 2,
+      "first_start": "2026-11-16 10:30:00.048559-05",
+      "last_start": "2026-11-17 10:30:00.065554-05",
+      "avg_duration_s": "0.3"
+    }
+  ],
+  "error": null
+}

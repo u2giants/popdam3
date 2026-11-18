@@ -1,0 +1,209 @@
+{
+  "name": "43-pgss-other-top",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 300) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, wal_bytes from extensions.pg_stat_statements where query not ilike '%hts_rag%' and query not ilike '%rebuild_style_group%' and query not ilike '%refresh_style_guide%' and query not ilike '%clear_style_group%' order by wal_bytes::numeric desc nulls last limit 25",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "-5753757789977632690",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_asset_id\", \"p_source\", \"p_model\", \"p_tags\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_asset_id\" uuid, \"p_source\" text, \"p_model\" text, \"p_tags\" jsonb) LIMIT $4) pgrst_body ,",
+      "calls": 124883,
+      "mean_ms": "198.9",
+      "wal_bytes": "44289629761"
+    },
+    {
+      "queryid": "-6692293795927846673",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_op_key\", \"p_op_state\", \"p_only_if_status\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_op_key\" text, \"p_op_state\" jsonb, \"p_only_if_status\" text) LIMIT $4) pgrst_body , LATERA",
+      "calls": 28670,
+      "mean_ms": "110.4",
+      "wal_bytes": "22193158718"
+    },
+    {
+      "queryid": "7380896407316294000",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (INSERT INTO \"public\".\"style_guide_files\"(\"basename_no_ext\", \"crawl_run_id\", \"directory_path\", \"file_extension\", \"filename\", \"has_talent_likeness\", \"is_active\", \"last_seen_at\", \"modified_at\", \"normalized_name\", \"normalized_style_guide_folder\", \"property_folder\", \"relative_path\",",
+      "calls": 13298,
+      "mean_ms": "264.9",
+      "wal_bytes": "15789530631"
+    },
+    {
+      "queryid": "6456284020993328791",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"last_seen_at\" = \"pgrst_body\".\"last_seen_at\", \"property_name\" = \"pgrst_body\".\"property_name\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"last_seen_at\", \"property_name\" FROM json_to_record(pgrst_payload.json_data) AS _(\"last_seen_at",
+      "calls": 49241,
+      "mean_ms": "47.4",
+      "wal_bytes": "6909624974"
+    },
+    {
+      "queryid": "-4888725953699531659",
+      "role_name": "dam_image_embed_login",
+      "query_head": "select public.upsert_dam_search_text_embedding($1, $2, $3, $4, $5::extensions.halfvec, $6)",
+      "calls": 128895,
+      "mean_ms": "66.4",
+      "wal_bytes": "6448713139"
+    },
+    {
+      "queryid": "6198424913178270339",
+      "role_name": "postgres",
+      "query_head": "select * from plm.import_item_master_data($1::jsonb)",
+      "calls": 34,
+      "mean_ms": "50142.4",
+      "wal_bytes": "4525071834"
+    },
+    {
+      "queryid": "-6163793804568660475",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_run_id\", \"p_rows\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_run_id\" uuid, \"p_rows\" jsonb) LIMIT $4) pgrst_body , LATERAL \"public\".\"upsert_style_guide_crawl_files\"(\"p_run_id\" := pgrs",
+      "calls": 18635,
+      "mean_ms": "129.3",
+      "wal_bytes": "4469511284"
+    },
+    {
+      "queryid": "-2475889178140590116",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (INSERT INTO \"public\".\"asset_licensor_characters\"(\"asset_id\", \"character_id\", \"model\", \"source\", \"tagged_at\") SELECT \"pgrst_body\".\"asset_id\", \"pgrst_body\".\"character_id\", \"pgrst_body\".\"model\", \"pgrst_body\".\"source\", \"pgrst_body\".\"tagged_at\" FROM (SELECT $1 AS json_data) pgrst_pa",
+      "calls": 54372,
+      "mean_ms": "40.4",
+      "wal_bytes": "3504249529"
+    },
+    {
+      "queryid": "3151171879197386378",
+      "role_name": "postgres",
+      "query_head": "with c as (select a.id, j from assets a, lateral public.infer_path_attrs(a.relative_path) j where a.relative_path like $1 and (a.program is distinct from j->>$2 or a.customer is distinct from j->>$3 or a.stage is distinct from j->>$4) limit $5),\nu as (update assets a set program=c.j->>$6, customer=c",
+      "calls": 18,
+      "mean_ms": "67801.4",
+      "wal_bytes": "3440030452"
+    },
+    {
+      "queryid": "-6769478898784675180",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (DELETE FROM \"public\".\"asset_characters\"  WHERE  \"public\".\"asset_characters\".\"asset_id\" = $1 RETURNING $2) SELECT $3 AS total_result_set, pg_catalog.count(_postgrest_t) AS page_total, array[]::text[] AS header, $4::text AS body, nullif(current_setting($5, $6), $7) AS response_he",
+      "calls": 124882,
+      "mean_ms": "19.2",
+      "wal_bytes": "3434405939"
+    },
+    {
+      "queryid": "5389441147969368731",
+      "role_name": "dam_image_embed_login",
+      "query_head": "select dam.complete_image_embed_job($1, $2::extensions.halfvec(768), $3::extensions.halfvec(768), $4, $5, $6)",
+      "calls": 30374,
+      "mean_ms": "88.0",
+      "wal_bytes": "3310374566"
+    },
+    {
+      "queryid": "-3663748985833333239",
+      "role_name": "postgres",
+      "query_head": "call public.dam_sweep_default_visible_flags_batched($1)",
+      "calls": 16543,
+      "mean_ms": "391.9",
+      "wal_bytes": "2648251638"
+    },
+    {
+      "queryid": "-4304378031524677348",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"content_type\" = \"pgrst_body\".\"content_type\", \"cover_description\" = \"pgrst_body\".\"cover_description\", \"design_style",
+      "calls": 29795,
+      "mean_ms": "23.1",
+      "wal_bytes": "2463177013"
+    },
+    {
+      "queryid": "2613447306623245679",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"style_groups\" SET \"division_code\" = \"pgrst_body\".\"division_code\", \"division_name\" = \"pgrst_body\".\"division_name\", \"mg01_code\" = \"pgrst_body\".\"mg01_code\", \"mg01_name\" = \"pgrst_body\".\"mg01_name\", \"mg02_code\" = \"pgrst_body\".\"mg02_code\", \"mg02_name\" = \"pgrst_body\".",
+      "calls": 43873,
+      "mean_ms": "29.8",
+      "wal_bytes": "2075930516"
+    },
+    {
+      "queryid": "-5808401927640945785",
+      "role_name": "dam_image_embed_login",
+      "query_head": "select public.upsert_dam_search_embedding($1, $2, $3, $4, $5::extensions.vector, $6)",
+      "calls": 33162,
+      "mean_ms": "35.2",
+      "wal_bytes": "1858586450"
+    },
+    {
+      "queryid": "-3019703091017380260",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (INSERT INTO \"public\".\"assets\"(\"file_created_at\", \"file_size\", \"file_type\", \"filename\", \"height\", \"is_licensed\", \"last_seen_at\", \"licensor_code\", \"licensor_id\", \"licensor_name\", \"modified_at\", \"property_code\", \"property_id\", \"property_name\", \"quick_hash\", \"quick_hash_version\", \"",
+      "calls": 20921,
+      "mean_ms": "24.7",
+      "wal_bytes": "1524979402"
+    },
+    {
+      "queryid": "-6408571764798647371",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"thumbnail_error\" = \"pgrst_body\".\"thumbnail_error\", \"thumbnail_url\" = \"pgrst_body\".\"thumbnail_url\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"thumbnail_error\", \"thumbnail_url\" FROM json_to_record(pgrst_payload.json_data) AS _(\"thu",
+      "calls": 30455,
+      "mean_ms": "17.7",
+      "wal_bytes": "1211898069"
+    },
+    {
+      "queryid": "7803770924401940493",
+      "role_name": "postgres",
+      "query_head": "with c as (select a.id, j from assets a, lateral public.infer_path_attrs(a.relative_path) j where a.relative_path like $1 and (a.program is distinct from j->>$2 or a.customer is distinct from j->>$3 or a.stage is distinct from j->>$4) limit $5),\nu as (update assets a set program=c.j->>$6, customer=c",
+      "calls": 6,
+      "mean_ms": "85481.4",
+      "wal_bytes": "1151931949"
+    },
+    {
+      "queryid": "-9066702125383713686",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"cover_description\" = \"pgrst_body\".\"cover_description\", \"design_style\" = \"pgrst_body\".\"design_style\", \"scene_description\" = \"pgrst_body\".\"scene_descripti",
+      "calls": 10236,
+      "mean_ms": "25.9",
+      "wal_bytes": "932031550"
+    },
+    {
+      "queryid": "6812761708967041595",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"style_group_id\" = \"pgrst_body\".\"style_group_id\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"style_group_id\" FROM json_to_record(pgrst_payload.json_data) AS _(\"style_group_id\" uuid) ) pgrst_body  WHERE  \"public\".\"assets\".\"id\" = $2 ",
+      "calls": 11380,
+      "mean_ms": "55.2",
+      "wal_bytes": "861816141"
+    },
+    {
+      "queryid": "-4373852459090003401",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT \"pgrst_call\".* FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_cursor\", \"p_batch_size\", \"p_sub\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_cursor\" uuid, \"p_batch_size\" integer, \"p_sub\" text) LIMIT $4) pgrst_body , LATERAL \"public\".\"reconcile_sty",
+      "calls": 6270,
+      "mean_ms": "189.1",
+      "wal_bytes": "837010603"
+    },
+    {
+      "queryid": "-1577899453088379820",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"design_style\" = \"pgrst_body\".\"design_style\", \"scene_description\" = \"pgrst_body\".\"scene_description\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL",
+      "calls": 11221,
+      "mean_ms": "21.6",
+      "wal_bytes": "811338451"
+    },
+    {
+      "queryid": "-640555994218644254",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"asset_type\" = \"pgrst_body\".\"asset_type\", \"content_type\" = \"pgrst_body\".\"content_type\", \"cover_description\" = \"pgrs",
+      "calls": 8859,
+      "mean_ms": "29.3",
+      "wal_bytes": "721206582"
+    },
+    {
+      "queryid": "827915973685301255",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"last_seen_at\" = \"pgrst_body\".\"last_seen_at\", \"property_code\" = \"pgrst_body\".\"property_code\", \"property_id\" = \"pgrst_body\".\"property_id\", \"property_name\" = \"pgrst_body\".\"property_name\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"la",
+      "calls": 5177,
+      "mean_ms": "65.6",
+      "wal_bytes": "715772730"
+    },
+    {
+      "queryid": "-5047519692933708811",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (INSERT INTO \"public\".\"admin_config\"(\"key\", \"updated_at\", \"value\") SELECT \"pgrst_body\".\"key\", \"pgrst_body\".\"updated_at\", \"pgrst_body\".\"value\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"key\", \"updated_at\", \"value\" FROM json_to_record(pgrst_payload.json_data) AS",
+      "calls": 556489,
+      "mean_ms": "34.9",
+      "wal_bytes": "702885462"
+    }
+  ],
+  "error": null
+}

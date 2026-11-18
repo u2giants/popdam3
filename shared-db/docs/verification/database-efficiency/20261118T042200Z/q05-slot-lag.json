@@ -1,0 +1,33 @@
+{
+  "name": "05-slot-lag",
+  "sql": "select slot_name, plugin, slot_type, active, restart_lsn::text as restart_lsn, confirmed_flush_lsn::text as confirmed_flush_lsn, pg_current_wal_lsn()::text as current_wal_lsn, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) as retained_bytes_from_restart, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) as lag_bytes_from_confirmed, wal_status from pg_replication_slots order by slot_name",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "slot_name": "supabase_realtime_messages_replication_slot_2_163_0_a640b93",
+      "plugin": "pgoutput",
+      "slot_type": "logical",
+      "active": true,
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E44C8E31",
+      "current_wal_lsn": "3D9/E44CBD80",
+      "retained_bytes_from_restart": "148341680",
+      "lag_bytes_from_confirmed": "12111",
+      "wal_status": "reserved"
+    },
+    {
+      "slot_name": "supabase_realtime_replication_slot_2_163_0_a640b93",
+      "plugin": "wal2json",
+      "slot_type": "logical",
+      "active": true,
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E415F220",
+      "current_wal_lsn": "3D9/E44CBD80",
+      "retained_bytes_from_restart": "148341680",
+      "lag_bytes_from_confirmed": "3591008",
+      "wal_status": "reserved"
+    }
+  ],
+  "error": null
+}

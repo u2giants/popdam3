@@ -1,0 +1,12 @@
+{
+  "name": "28-wal-segments",
+  "sql": "select count(*) as wal_segment_files from pg_ls_waldir()",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "wal_segment_files": 65
+    }
+  ],
+  "error": null
+}

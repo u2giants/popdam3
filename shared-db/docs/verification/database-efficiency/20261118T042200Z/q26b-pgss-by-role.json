@@ -1,0 +1,123 @@
+{
+  "name": "26b-pgss-by-role",
+  "sql": "select userid::regrole::text as role_name, count(*) as entries, sum(calls) as calls, sum(wal_bytes) as wal_bytes from extensions.pg_stat_statements group by 1 order by sum(wal_bytes)::numeric desc nulls last",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "role_name": "service_role",
+      "entries": 696,
+      "calls": "40208103",
+      "wal_bytes": "133945726005"
+    },
+    {
+      "role_name": "designflow_hts_alsand_worker",
+      "entries": 526,
+      "calls": "14239508",
+      "wal_bytes": "94300183828"
+    },
+    {
+      "role_name": "postgres",
+      "entries": 1146,
+      "calls": "759387",
+      "wal_bytes": "12999630176"
+    },
+    {
+      "role_name": "dam_image_embed_login",
+      "entries": 18,
+      "calls": "5289998",
+      "wal_bytes": "12313288719"
+    },
+    {
+      "role_name": "authenticated",
+      "entries": 137,
+      "calls": "2190413",
+      "wal_bytes": "449964782"
+    },
+    {
+      "role_name": "supabase_read_only_user",
+      "entries": 304,
+      "calls": "28420",
+      "wal_bytes": "101550317"
+    },
+    {
+      "role_name": "designflow_prod_backend_runtime",
+      "entries": 1559,
+      "calls": "382785",
+      "wal_bytes": "98398870"
+    },
+    {
+      "role_name": "supabase_admin",
+      "entries": 78,
+      "calls": "2208636",
+      "wal_bytes": "47602994"
+    },
+    {
+      "role_name": "supabase_auth_admin",
+      "entries": 32,
+      "calls": "401601",
+      "wal_bytes": "45898607"
+    },
+    {
+      "role_name": "authenticator",
+      "entries": 18,
+      "calls": "38483",
+      "wal_bytes": "1609277"
+    },
+    {
+      "role_name": "designflow_prod_tracking_runtime",
+      "entries": 186,
+      "calls": "23688",
+      "wal_bytes": "1337401"
+    },
+    {
+      "role_name": "pgbouncer",
+      "entries": 2,
+      "calls": "211377",
+      "wal_bytes": "63308"
+    },
+    {
+      "role_name": "oracle_directory_reader",
+      "entries": 4,
+      "calls": "2791",
+      "wal_bytes": "33530"
+    },
+    {
+      "role_name": "designflow_hts_prod_worker",
+      "entries": 34,
+      "calls": "258619",
+      "wal_bytes": "16634"
+    },
+    {
+      "role_name": "designflow_hts_alsand_runtime",
+      "entries": 5,
+      "calls": "70",
+      "wal_bytes": "0"
+    },
+    {
+      "role_name": "designflow_prod_item_master_runtime",
+      "entries": 10,
+      "calls": "20",
+      "wal_bytes": "0"
+    },
+    {
+      "role_name": "designflow_hts_evaluation_reader",
+      "entries": 3,
+      "calls": "6",
+      "wal_bytes": "0"
+    },
+    {
+      "role_name": "designflow_hts_prod_runtime",
+      "entries": 5,
+      "calls": "7",
+      "wal_bytes": "0"
+    },
+    {
+      "role_name": "supabase_storage_admin",
+      "entries": 5,
+      "calls": "63",
+      "wal_bytes": "0"
+    }
+  ],
+  "error": null
+}

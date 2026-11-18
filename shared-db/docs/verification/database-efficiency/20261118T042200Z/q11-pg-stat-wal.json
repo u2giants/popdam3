@@ -1,0 +1,20 @@
+{
+  "name": "11-pg-stat-wal",
+  "sql": "select * from pg_stat_wal",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "wal_records": 385078339,
+      "wal_fpi": 68879896,
+      "wal_bytes": "313065385725",
+      "wal_buffers_full": 5541,
+      "wal_write": 3572949,
+      "wal_sync": 3566892,
+      "wal_write_time": 0,
+      "wal_sync_time": 0,
+      "stats_reset": "2026-11-06 11:20:19.869905-05"
+    }
+  ],
+  "error": null
+}

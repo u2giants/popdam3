@@ -1,0 +1,49 @@
+{
+  "name": "30-realtime-all-tables",
+  "sql": "select table_schema, table_name from information_schema.tables where table_schema in ('realtime','_realtime') order by table_schema, table_name",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "table_schema": "realtime",
+      "table_name": "messages"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_15"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_16"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_17"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_18"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_19"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_20"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "messages_2026_11_21"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "schema_migrations"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription"
+    }
+  ],
+  "error": null
+}

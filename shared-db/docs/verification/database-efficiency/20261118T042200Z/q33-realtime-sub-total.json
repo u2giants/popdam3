@@ -1,0 +1,16 @@
+{
+  "name": "33-realtime-sub-total",
+  "sql": "select count(*) as channel_rows, count(distinct subscription_id) as distinct_subscriptions, count(distinct entity) as distinct_entities, min(created_at) as oldest_created_at, max(created_at) as newest_created_at from realtime.subscription",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "channel_rows": 10,
+      "distinct_subscriptions": 10,
+      "distinct_entities": 2,
+      "oldest_created_at": "2026-11-17 22:09:47.7348",
+      "newest_created_at": "2026-11-17 22:42:01.575294"
+    }
+  ],
+  "error": null
+}

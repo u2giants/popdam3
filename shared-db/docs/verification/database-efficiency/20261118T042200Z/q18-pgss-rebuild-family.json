@@ -1,0 +1,10 @@
+{
+  "name": "18-pgss-rebuild-family",
+  "sql": "select queryid, role, left(query, 200) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, rows, wal_records, wal_fpi, wal_bytes from extensions.pg_stat_statements where query ilike '%refresh_style_guide_matviews%' or query ilike '%refresh_style_group_counts%' or query ilike '%clear_style_group%' or query ilike '%rebuild_style_group%' or query ilike '%style_group_counts%' order by calls desc limit 40",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"role\" does not exist\nLINE 1: select queryid, role, left(query, 200) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, rows, wal_records, wal_fpi, wal_bytes from extensions.pg_stat_statements where query ilike '%refresh_style_guide_matviews%' or query ilike '%refresh_style_group_counts%' or query ilike '%clear_style_group%' or query ilike '%rebuild_style_group%' or query ilike '%style_group_counts%' order by calls desc limit 40\n                        ^\nHINT:  Perhaps you meant to reference the column \"pg_stat_statements.rows\".\n"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "name": "01-wal-settings",
+  "sql": "select name, setting, unit, source from pg_settings where name in ('wal_level','max_wal_size','min_wal_size','max_slot_wal_keep_size','max_replication_slots','max_wal_senders','wal_compression','wal_log_hints','track_commit_timestamp','shared_preload_libraries','autovacuum','log_autovacuum_min_duration') or name like '%logical%' order by name",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "name": "autovacuum",
+      "setting": "on",
+      "unit": null,
+      "source": "default"
+    },
+    {
+      "name": "debug_logical_replication_streaming",
+      "setting": "buffered",
+      "unit": null,
+      "source": "default"
+    },
+    {
+      "name": "log_autovacuum_min_duration",
+      "setting": "600000",
+      "unit": "ms",
+      "source": "default"
+    },
+    {
+      "name": "logical_decoding_work_mem",
+      "setting": "65536",
+      "unit": "kB",
+      "source": "default"
+    },
+    {
+      "name": "max_logical_replication_workers",
+      "setting": "4",
+      "unit": null,
+      "source": "default"
+    },
+    {
+      "name": "max_replication_slots",
+      "setting": "10",
+      "unit": null,
+      "source": "configuration file"
+    },
+    {
+      "name": "max_slot_wal_keep_size",
+      "setting": "2048",
+      "unit": "MB",
+      "source": "configuration file"
+    },
+    {
+      "name": "max_wal_senders",
+      "setting": "10",
+      "unit": null,
+      "source": "configuration file"
+    },
+    {
+      "name": "max_wal_size",
+      "setting": "4096",
+      "unit": "MB",
+      "source": "configuration file"
+    },
+    {
+      "name": "min_wal_size",
+      "setting": "1024",
+      "unit": "MB",
+      "source": "configuration file"
+    },
+    {
+      "name": "shared_preload_libraries",
+      "setting": "pg_stat_statements, pgaudit, plpgsql, plpgsql_check, pg_cron, pg_net, pgsodium, auto_explain, pg_tle, plan_filter, supabase_vault",
+      "unit": null,
+      "source": "configuration file"
+    },
+    {
+      "name": "track_commit_timestamp",
+      "setting": "off",
+      "unit": null,
+      "source": "default"
+    },
+    {
+      "name": "wal_compression",
+      "setting": "zstd",
+      "unit": null,
+      "source": "configuration file"
+    },
+    {
+      "name": "wal_level",
+      "setting": "logical",
+      "unit": null,
+      "source": "configuration file"
+    },
+    {
+      "name": "wal_log_hints",
+      "setting": "off",
+      "unit": null,
+      "source": "default"
+    }
+  ],
+  "error": null
+}

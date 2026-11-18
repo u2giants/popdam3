@@ -1,0 +1,26 @@
+{
+  "name": "06-stat-replication",
+  "sql": "select pid, usesysid::regrole::text as usename, application_name, client_addr::text as client_addr, state, sent_lsn::text as sent_lsn, write_lsn::text as write_lsn, flush_lsn::text as flush_lsn, replay_lsn::text as replay_lsn, pg_wal_lsn_diff(pg_current_wal_lsn(), sent_lsn) as lag_bytes_sent, write_lag, flush_lag, replay_lag, sync_priority, sync_state from pg_stat_replication",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pid": 1342570,
+      "usename": "supabase_admin",
+      "application_name": "realtime_replication_connection",
+      "client_addr": "2600:1f18:67fc:ac00:1769:41f3:2b55:b51d/128",
+      "state": "streaming",
+      "sent_lsn": "3D9/E462E910",
+      "write_lsn": "3D9/E462E911",
+      "flush_lsn": "3D9/E462E911",
+      "replay_lsn": "3D9/E462E911",
+      "lag_bytes_sent": "0",
+      "write_lag": "00:00:00.001651",
+      "flush_lag": "00:00:00.001651",
+      "replay_lag": "00:00:00.001651",
+      "sync_priority": 0,
+      "sync_state": "async"
+    }
+  ],
+  "error": null
+}

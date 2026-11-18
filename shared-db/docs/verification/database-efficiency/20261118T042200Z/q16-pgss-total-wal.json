@@ -1,0 +1,16 @@
+{
+  "name": "16-pgss-total-wal",
+  "sql": "select count(*) as pgss_entries, sum(calls) as sum_calls, sum(wal_bytes) as sum_wal_bytes, sum(wal_records) as sum_wal_records, sum(wal_fpi) as sum_wal_fpi from extensions.pg_stat_statements",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pgss_entries": 4753,
+      "sum_calls": "66234289",
+      "sum_wal_bytes": "254114997602",
+      "sum_wal_records": "310108927",
+      "sum_wal_fpi": "55332297"
+    }
+  ],
+  "error": null
+}

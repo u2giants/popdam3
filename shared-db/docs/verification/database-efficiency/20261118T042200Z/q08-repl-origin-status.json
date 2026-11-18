@@ -1,0 +1,10 @@
+{
+  "name": "08-repl-origin-status",
+  "sql": "select * from pg_replication_origin_status",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42501: permission denied for function pg_show_replication_origin_status\n"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "25b-matview-state",
+  "sql": "select schemaname, matviewname, ispopulated from pg_matviews order by schemaname, matviewname",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "schemaname": "hts_rag",
+      "matviewname": "hts_rag_fault_lines",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "hts_rag",
+      "matviewname": "hts_rag_fault_lines_any_type",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "hts_rag",
+      "matviewname": "hts_rag_type_code6_stats",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "hts_rag",
+      "matviewname": "hts_rag_type_heading_stats",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "public",
+      "matviewname": "style_guide_file_groups",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "public",
+      "matviewname": "style_guide_folders",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "public",
+      "matviewname": "style_guide_library_default_guides",
+      "ispopulated": true
+    },
+    {
+      "schemaname": "public",
+      "matviewname": "style_guide_library_default_summary",
+      "ispopulated": true
+    }
+  ],
+  "error": null
+}

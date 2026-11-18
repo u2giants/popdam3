@@ -1,0 +1,14 @@
+{
+  "name": "44-wal-delta-since-step3",
+  "sql": "select (select wal_bytes from pg_stat_wal) as pgstatwal_now_bytes, (select sum(wal_bytes) from extensions.pg_stat_statements) as pgss_now_bytes, now() as now_utc",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pgstatwal_now_bytes": "313794872168",
+      "pgss_now_bytes": "254830611109",
+      "now_utc": "2026-11-17 23:04:43.327089-05"
+    }
+  ],
+  "error": null
+}

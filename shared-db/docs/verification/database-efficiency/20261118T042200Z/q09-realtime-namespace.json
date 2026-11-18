@@ -1,0 +1,12 @@
+{
+  "name": "09-realtime-namespace",
+  "sql": "select nspname from pg_namespace where nspname in ('realtime','_realtime','supabase_realtime','pgmq')",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "nspname": "realtime"
+    }
+  ],
+  "error": null
+}

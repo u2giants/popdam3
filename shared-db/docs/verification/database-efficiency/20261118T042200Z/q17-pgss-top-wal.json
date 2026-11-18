@@ -1,0 +1,10 @@
+{
+  "name": "17-pgss-top-wal",
+  "sql": "select queryid, role, left(query, 180) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, round(total_exec_time::numeric, 0) as total_ms, rows, wal_records, wal_fpi, wal_bytes from extensions.pg_stat_statements order by wal_bytes::numeric desc nulls last limit 40",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"role\" does not exist\nLINE 1: select queryid, role, left(query, 180) as query_head, calls, round(mean_exec_time::numeric, 1) as mean_ms, round(total_exec_time::numeric, 0) as total_ms, rows, wal_records, wal_fpi, wal_bytes from extensions.pg_stat_statements order by wal_bytes::numeric desc nulls last limit 40\n                        ^\nHINT:  Perhaps you meant to reference the column \"pg_stat_statements.rows\".\n"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "12-pg-stat-checkpointer",
+  "sql": "select * from pg_stat_checkpointer",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "num_timed": 3299,
+      "num_requested": 12,
+      "restartpoints_timed": 0,
+      "restartpoints_req": 0,
+      "restartpoints_done": 0,
+      "write_time": 667062537,
+      "sync_time": 125603,
+      "buffers_written": 28138288,
+      "stats_reset": "2026-11-06 11:20:19.869905-05"
+    }
+  ],
+  "error": null
+}

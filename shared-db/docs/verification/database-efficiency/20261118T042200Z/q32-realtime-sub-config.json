@@ -1,0 +1,25 @@
+{
+  "name": "32-realtime-sub-config",
+  "sql": "select entity::text as entity, action_filter, claims_role::text as claims_role, count(*) as subscriptions, min(created_at) as oldest_created_at, max(created_at) as newest_created_at from realtime.subscription group by 1,2,3 order by 4 desc",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "entity": "admin_config",
+      "action_filter": "*",
+      "claims_role": "authenticated",
+      "subscriptions": 6,
+      "oldest_created_at": "2026-11-17 22:09:47.739993",
+      "newest_created_at": "2026-11-17 22:42:01.575294"
+    },
+    {
+      "entity": "agent_registrations",
+      "action_filter": "*",
+      "claims_role": "authenticated",
+      "subscriptions": 4,
+      "oldest_created_at": "2026-11-17 22:09:47.7348",
+      "newest_created_at": "2026-11-17 22:12:21.469365"
+    }
+  ],
+  "error": null
+}

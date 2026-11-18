@@ -1,0 +1,10 @@
+{
+  "name": "22-cron-run-status-counts",
+  "sql": "select jobid, jobname, status, count(*) as runs, min(start_time) as first_start, max(start_time) as last_start, round(avg(extract(epoch from (end_time - start_time)))::numeric, 1) as avg_duration_s from cron.job_run_details where start_time > now() - interval '14 days' group by jobid, jobname, status order by jobid, status",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"jobname\" does not exist\nLINE 1: select jobid, jobname, status, count(*) as runs, min(start_time) as first_start, max(start_time) as last_start, round(avg(extract(epoch from (end_time - start_time)))::numeric, 1) as avg_duration_s from cron.job_run_details where start_time > now() - interval '14 days' group by jobid, jobname, status order by jobid, status\n                      ^\n"
+  }
+}

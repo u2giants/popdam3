@@ -1,0 +1,114 @@
+{
+  "name": "52-asset-tag-family",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 160) as query_head, calls, wal_bytes from extensions.pg_stat_statements where query ilike '%asset_character%' or query ilike '%asset_licensor%' or query ilike '%p_tags%' or (query ilike '%assets%' and query ilike '%update%') order by wal_bytes::numeric desc nulls last limit 15",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "-5753757789977632690",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_asset_id\", \"p_source\", \"p_model\", \"p_tags\" ",
+      "calls": 124883,
+      "wal_bytes": "44289629761"
+    },
+    {
+      "queryid": "6456284020993328791",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"last_seen_at\" = \"pgrst_body\".\"last_seen_at\", \"property_name\" = \"pgrst_body\".\"property_name\" FROM (SELECT $1 ",
+      "calls": 49241,
+      "wal_bytes": "6909624974"
+    },
+    {
+      "queryid": "-2475889178140590116",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (INSERT INTO \"public\".\"asset_licensor_characters\"(\"asset_id\", \"character_id\", \"model\", \"source\", \"tagged_at\") SELECT \"pgrst_body\".\"asset_id",
+      "calls": 54372,
+      "wal_bytes": "3504249529"
+    },
+    {
+      "queryid": "3151171879197386378",
+      "role_name": "postgres",
+      "query_head": "with c as (select a.id, j from assets a, lateral public.infer_path_attrs(a.relative_path) j where a.relative_path like $1 and (a.program is distinct from j->>$2",
+      "calls": 18,
+      "wal_bytes": "3440030452"
+    },
+    {
+      "queryid": "-6769478898784675180",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (DELETE FROM \"public\".\"asset_characters\"  WHERE  \"public\".\"asset_characters\".\"asset_id\" = $1 RETURNING $2) SELECT $3 AS total_result_set, p",
+      "calls": 124882,
+      "wal_bytes": "3434405939"
+    },
+    {
+      "queryid": "-4304378031524677348",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgr",
+      "calls": 29795,
+      "wal_bytes": "2463177013"
+    },
+    {
+      "queryid": "-6408571764798647371",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"thumbnail_error\" = \"pgrst_body\".\"thumbnail_error\", \"thumbnail_url\" = \"pgrst_body\".\"thumbnail_url\" FROM (SELE",
+      "calls": 30455,
+      "wal_bytes": "1211898069"
+    },
+    {
+      "queryid": "7803770924401940493",
+      "role_name": "postgres",
+      "query_head": "with c as (select a.id, j from assets a, lateral public.infer_path_attrs(a.relative_path) j where a.relative_path like $1 and (a.program is distinct from j->>$2",
+      "calls": 6,
+      "wal_bytes": "1151931949"
+    },
+    {
+      "queryid": "-9066702125383713686",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"cover_descri",
+      "calls": 10236,
+      "wal_bytes": "932031550"
+    },
+    {
+      "queryid": "6812761708967041595",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"style_group_id\" = \"pgrst_body\".\"style_group_id\" FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT",
+      "calls": 11380,
+      "wal_bytes": "861816141"
+    },
+    {
+      "queryid": "-1577899453088379820",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_tagged_at\" = \"pgrst_body\".\"ai_tagged_at\", \"design_style",
+      "calls": 11221,
+      "wal_bytes": "811338451"
+    },
+    {
+      "queryid": "-640555994218644254",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgr",
+      "calls": 8859,
+      "wal_bytes": "721206582"
+    },
+    {
+      "queryid": "827915973685301255",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"last_seen_at\" = \"pgrst_body\".\"last_seen_at\", \"property_code\" = \"pgrst_body\".\"property_code\", \"property_id\" =",
+      "calls": 5177,
+      "wal_bytes": "715772730"
+    },
+    {
+      "queryid": "6430535887002143036",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgr",
+      "calls": 4781,
+      "wal_bytes": "504323153"
+    },
+    {
+      "queryid": "-7484128831795557172",
+      "role_name": "service_role",
+      "query_head": "WITH pgrst_source AS (UPDATE \"public\".\"assets\" SET \"ai_description\" = \"pgrst_body\".\"ai_description\", \"ai_model\" = \"pgrst_body\".\"ai_model\", \"ai_tagged_at\" = \"pgr",
+      "calls": 5775,
+      "wal_bytes": "502808010"
+    }
+  ],
+  "error": null
+}

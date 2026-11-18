@@ -1,0 +1,27 @@
+{
+  "name": "14-pg-stat-database",
+  "sql": "select datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit, tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted, conflicts, temp_files, temp_bytes, deadlocks, stats_reset from pg_stat_database where datname = current_database()",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "datname": "postgres",
+      "numbackends": 46,
+      "xact_commit": 29253390,
+      "xact_rollback": 2124640,
+      "blks_read": 622448743,
+      "blks_hit": 30671197945,
+      "tup_returned": 58738328092,
+      "tup_fetched": 12396136848,
+      "tup_inserted": 40134901,
+      "tup_updated": 14090520,
+      "tup_deleted": 21699820,
+      "conflicts": 0,
+      "temp_files": 34475,
+      "temp_bytes": 1153343784126,
+      "deadlocks": 1,
+      "stats_reset": null
+    }
+  ],
+  "error": null
+}

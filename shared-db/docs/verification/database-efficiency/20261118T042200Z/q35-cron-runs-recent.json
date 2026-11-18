@@ -1,0 +1,1009 @@
+{
+  "name": "35-cron-runs-recent",
+  "sql": "select r.jobid, j.jobname, j.schedule, r.status, r.start_time, r.end_time, round(extract(epoch from (r.end_time - r.start_time))::numeric, 1) as duration_s, left(r.return_message, 100) as return_head from cron.job_run_details r left join cron.job j on j.jobid = r.jobid where r.start_time > now() - interval '7 days' order by r.start_time desc limit 100",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:56:00.155065-05",
+      "end_time": "2026-11-17 22:56:00.337763-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:55:00.164805-05",
+      "end_time": "2026-11-17 22:55:00.410141-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:54:00.168369-05",
+      "end_time": "2026-11-17 22:54:10.036585-05",
+      "duration_s": "9.9",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:54:00.16444-05",
+      "end_time": "2026-11-17 22:54:00.502505-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:53:00.162597-05",
+      "end_time": "2026-11-17 22:53:00.336232-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:52:00.126734-05",
+      "end_time": "2026-11-17 22:52:00.364703-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:51:00.145574-05",
+      "end_time": "2026-11-17 22:51:00.300008-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:50:00.178646-05",
+      "end_time": "2026-11-17 22:50:00.319367-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:50:00.174567-05",
+      "end_time": "2026-11-17 22:50:00.535623-05",
+      "duration_s": "0.4",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:49:00.167737-05",
+      "end_time": "2026-11-17 22:49:00.305664-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:48:00.128192-05",
+      "end_time": "2026-11-17 22:48:00.361774-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:47:00.15258-05",
+      "end_time": "2026-11-17 22:47:00.453468-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:46:00.145627-05",
+      "end_time": "2026-11-17 22:46:00.464617-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:45:00.19357-05",
+      "end_time": "2026-11-17 22:45:00.423064-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "schedule": "*/15 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:45:00.183754-05",
+      "end_time": "2026-11-17 22:52:47.238983-05",
+      "duration_s": "467.1",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:44:00.147054-05",
+      "end_time": "2026-11-17 22:44:00.373915-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:44:00.133313-05",
+      "end_time": "2026-11-17 22:44:15.401465-05",
+      "duration_s": "15.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:43:00.188556-05",
+      "end_time": "2026-11-17 22:43:00.376759-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:42:00.127118-05",
+      "end_time": "2026-11-17 22:42:00.271953-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:41:00.151416-05",
+      "end_time": "2026-11-17 22:41:00.318059-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:40:00.189873-05",
+      "end_time": "2026-11-17 22:40:00.427584-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:40:00.167007-05",
+      "end_time": "2026-11-17 22:40:00.494357-05",
+      "duration_s": "0.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:39:00.111408-05",
+      "end_time": "2026-11-17 22:39:00.333821-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:38:00.165018-05",
+      "end_time": "2026-11-17 22:38:00.428235-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:37:00.140066-05",
+      "end_time": "2026-11-17 22:37:00.371669-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:36:00.186523-05",
+      "end_time": "2026-11-17 22:36:00.450457-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:35:00.176036-05",
+      "end_time": "2026-11-17 22:35:00.374448-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:34:00.168942-05",
+      "end_time": "2026-11-17 22:34:00.330317-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:34:00.14864-05",
+      "end_time": "2026-11-17 22:34:15.503631-05",
+      "duration_s": "15.4",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:33:00.14237-05",
+      "end_time": "2026-11-17 22:33:00.45501-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:32:00.111605-05",
+      "end_time": "2026-11-17 22:32:00.243646-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:31:00.103435-05",
+      "end_time": "2026-11-17 22:31:00.377796-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 25,
+      "jobname": "purge-asset-path-history-old-rows",
+      "schedule": "30 3 * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:30:00.2116-05",
+      "end_time": "2026-11-17 22:30:00.682198-05",
+      "duration_s": "0.5",
+      "return_head": "DELETE 0"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:30:00.194034-05",
+      "end_time": "2026-11-17 22:30:00.324919-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "schedule": "*/15 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:30:00.188567-05",
+      "end_time": "2026-11-17 22:38:33.630803-05",
+      "duration_s": "513.4",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:30:00.16821-05",
+      "end_time": "2026-11-17 22:30:00.470096-05",
+      "duration_s": "0.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:29:00.13904-05",
+      "end_time": "2026-11-17 22:29:00.307666-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:28:00.165103-05",
+      "end_time": "2026-11-17 22:28:00.313609-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:27:00.098437-05",
+      "end_time": "2026-11-17 22:27:00.212407-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:26:00.117278-05",
+      "end_time": "2026-11-17 22:26:00.259741-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:25:00.102555-05",
+      "end_time": "2026-11-17 22:25:00.229072-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:24:00.12369-05",
+      "end_time": "2026-11-17 22:24:00.291411-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:24:00.11925-05",
+      "end_time": "2026-11-17 22:24:06.399933-05",
+      "duration_s": "6.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:23:00.096448-05",
+      "end_time": "2026-11-17 22:23:00.188434-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:22:00.138615-05",
+      "end_time": "2026-11-17 22:22:00.252643-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:21:00.120526-05",
+      "end_time": "2026-11-17 22:21:00.206796-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:20:00.152499-05",
+      "end_time": "2026-11-17 22:20:00.308387-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:20:00.114455-05",
+      "end_time": "2026-11-17 22:20:00.450555-05",
+      "duration_s": "0.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:19:00.098859-05",
+      "end_time": "2026-11-17 22:19:00.195502-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:18:00.103466-05",
+      "end_time": "2026-11-17 22:18:00.200156-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:17:00.117027-05",
+      "end_time": "2026-11-17 22:17:00.241904-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 14,
+      "jobname": "purge-image-embed-jobs",
+      "schedule": "17 3 * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:17:00.112363-05",
+      "end_time": "2026-11-17 22:17:01.197201-05",
+      "duration_s": "1.1",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:16:00.130841-05",
+      "end_time": "2026-11-17 22:16:00.274394-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 3,
+      "jobname": "purge-sg-render-queue-old-rows",
+      "schedule": "15 3 * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:15:00.167841-05",
+      "end_time": "2026-11-17 22:15:00.23691-05",
+      "duration_s": "0.1",
+      "return_head": "DELETE 0"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:15:00.157912-05",
+      "end_time": "2026-11-17 22:15:00.294562-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "schedule": "*/15 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:15:00.150576-05",
+      "end_time": "2026-11-17 22:20:19.397391-05",
+      "duration_s": "319.2",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:14:00.14376-05",
+      "end_time": "2026-11-17 22:14:07.081525-05",
+      "duration_s": "6.9",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:14:00.136559-05",
+      "end_time": "2026-11-17 22:14:00.256899-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:13:00.094806-05",
+      "end_time": "2026-11-17 22:13:00.206881-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:12:00.113458-05",
+      "end_time": "2026-11-17 22:12:00.238058-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:11:00.101846-05",
+      "end_time": "2026-11-17 22:11:00.199461-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:10:00.12054-05",
+      "end_time": "2026-11-17 22:10:00.213427-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:10:00.117845-05",
+      "end_time": "2026-11-17 22:10:00.365432-05",
+      "duration_s": "0.2",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:09:00.174404-05",
+      "end_time": "2026-11-17 22:09:00.510861-05",
+      "duration_s": "0.3",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:08:00.167034-05",
+      "end_time": "2026-11-17 22:08:00.356902-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 9,
+      "jobname": "refresh-style-guide-matviews",
+      "schedule": "7 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:07:00.210023-05",
+      "end_time": "2026-11-17 22:07:00.766466-05",
+      "duration_s": "0.6",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:07:00.19355-05",
+      "end_time": "2026-11-17 22:07:00.37834-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:06:00.127146-05",
+      "end_time": "2026-11-17 22:06:00.261068-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:05:00.155285-05",
+      "end_time": "2026-11-17 22:05:00.319584-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:04:00.225658-05",
+      "end_time": "2026-11-17 22:04:09.636937-05",
+      "duration_s": "9.4",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:04:00.213783-05",
+      "end_time": "2026-11-17 22:04:00.400082-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:03:00.170551-05",
+      "end_time": "2026-11-17 22:03:00.350417-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:02:00.157013-05",
+      "end_time": "2026-11-17 22:02:00.343439-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:01:00.217807-05",
+      "end_time": "2026-11-17 22:01:00.435268-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 2,
+      "jobname": "purge-render-queue-old-rows",
+      "schedule": "0 3 * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:00:00.297418-05",
+      "end_time": "2026-11-17 22:00:00.402472-05",
+      "duration_s": "0.1",
+      "return_head": "DELETE 0"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:00:00.292955-05",
+      "end_time": "2026-11-17 22:00:00.459086-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:00:00.253502-05",
+      "end_time": "2026-11-17 22:00:00.715716-05",
+      "duration_s": "0.5",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "schedule": "*/15 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 22:00:00.248073-05",
+      "end_time": "2026-11-17 22:00:00.352446-05",
+      "duration_s": "0.1",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:59:00.17798-05",
+      "end_time": "2026-11-17 21:59:00.365431-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:58:00.158741-05",
+      "end_time": "2026-11-17 21:58:00.323093-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:57:00.203044-05",
+      "end_time": "2026-11-17 21:57:00.383703-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:56:00.16493-05",
+      "end_time": "2026-11-17 21:56:00.372383-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:55:00.183016-05",
+      "end_time": "2026-11-17 21:55:00.382035-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:54:00.198937-05",
+      "end_time": "2026-11-17 21:54:00.417527-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:54:00.173641-05",
+      "end_time": "2026-11-17 21:54:15.391005-05",
+      "duration_s": "15.2",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:53:00.1551-05",
+      "end_time": "2026-11-17 21:53:00.348037-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:52:00.142438-05",
+      "end_time": "2026-11-17 21:52:00.320594-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:51:00.140618-05",
+      "end_time": "2026-11-17 21:51:00.341455-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:50:00.176703-05",
+      "end_time": "2026-11-17 21:50:00.310112-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 11,
+      "jobname": "nightly-rebuild-style-groups",
+      "schedule": "*/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:50:00.167217-05",
+      "end_time": "2026-11-17 21:50:00.49253-05",
+      "duration_s": "0.3",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:49:00.131064-05",
+      "end_time": "2026-11-17 21:49:00.355524-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:48:00.129523-05",
+      "end_time": "2026-11-17 21:48:00.313699-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:47:00.186444-05",
+      "end_time": "2026-11-17 21:47:00.392799-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:46:00.184496-05",
+      "end_time": "2026-11-17 21:46:00.351736-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:45:00.176322-05",
+      "end_time": "2026-11-17 21:45:00.337325-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 12,
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "schedule": "*/15 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:45:00.147059-05",
+      "end_time": "2026-11-17 21:45:00.236487-05",
+      "duration_s": "0.1",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:44:00.194759-05",
+      "end_time": "2026-11-17 21:44:00.305581-05",
+      "duration_s": "0.1",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 13,
+      "jobname": "prewarm-style-guide-search",
+      "schedule": "4-59/10 * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:44:00.1809-05",
+      "end_time": "2026-11-17 21:44:10.42441-05",
+      "duration_s": "10.2",
+      "return_head": "1 row"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:43:00.152492-05",
+      "end_time": "2026-11-17 21:43:00.313689-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    },
+    {
+      "jobid": 19,
+      "jobname": "dam-default-visible-flag-sweep",
+      "schedule": "* * * * *",
+      "status": "succeeded",
+      "start_time": "2026-11-17 21:42:00.158572-05",
+      "end_time": "2026-11-17 21:42:00.355952-05",
+      "duration_s": "0.2",
+      "return_head": "CALL"
+    }
+  ],
+  "error": null
+}

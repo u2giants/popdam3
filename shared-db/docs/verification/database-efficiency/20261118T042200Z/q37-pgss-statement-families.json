@@ -1,0 +1,57 @@
+{
+  "name": "37-pgss-statement-families",
+  "sql": "select case when query ilike '%rebuild_style_group%' or query ilike '%refresh_style_group_counts%' then 'rebuild_style_groups' when query ilike '%refresh_style_guide_matviews%' then 'refresh_style_guide_matviews' when query ilike '%clear_style_group%' then 'clear_style_group' when query ilike '%claim_sg_search_embedding%' or query ilike '%search_dam_documents%' then 'search_sync_embed' when query ilike '%vacuum%' or query ilike 'ANALYZE%' then 'vacuum_analyze' else 'other' end as family, count(*) as entries, sum(calls) as calls, sum(wal_bytes) as wal_bytes, sum(wal_records) as wal_records, sum(wal_fpi) as wal_fpi from extensions.pg_stat_statements group by 1 order by sum(wal_bytes)::numeric desc nulls last",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "family": "other",
+      "entries": 4748,
+      "calls": "65642310",
+      "wal_bytes": "244211850353",
+      "wal_records": "296196251",
+      "wal_fpi": "53705470"
+    },
+    {
+      "family": "rebuild_style_groups",
+      "entries": 2,
+      "calls": "8398",
+      "wal_bytes": "9962310042",
+      "wal_records": "13855252",
+      "wal_fpi": "1595926"
+    },
+    {
+      "family": "search_sync_embed",
+      "entries": 21,
+      "calls": "601970",
+      "wal_bytes": "198981577",
+      "wal_records": "113764",
+      "wal_fpi": "66001"
+    },
+    {
+      "family": "refresh_style_guide_matviews",
+      "entries": 2,
+      "calls": "281",
+      "wal_bytes": "109975165",
+      "wal_records": "214834",
+      "wal_fpi": "33202"
+    },
+    {
+      "family": "vacuum_analyze",
+      "entries": 2,
+      "calls": "4",
+      "wal_bytes": "1458666",
+      "wal_records": "679",
+      "wal_fpi": "536"
+    },
+    {
+      "family": "clear_style_group",
+      "entries": 1,
+      "calls": "3",
+      "wal_bytes": "0",
+      "wal_records": "0",
+      "wal_fpi": "0"
+    }
+  ],
+  "error": null
+}

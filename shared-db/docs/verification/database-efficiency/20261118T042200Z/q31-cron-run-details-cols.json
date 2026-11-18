@@ -1,0 +1,123 @@
+{
+  "name": "31-cron-run-details-cols",
+  "sql": "select table_schema, table_name, column_name, data_type from information_schema.columns where table_schema = 'cron' order by table_name, ordinal_position",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "jobid",
+      "data_type": "bigint"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "schedule",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "command",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "nodename",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "nodeport",
+      "data_type": "integer"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "database",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "username",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "active",
+      "data_type": "boolean"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job",
+      "column_name": "jobname",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "jobid",
+      "data_type": "bigint"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "runid",
+      "data_type": "bigint"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "job_pid",
+      "data_type": "integer"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "database",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "username",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "command",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "status",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "return_message",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "start_time",
+      "data_type": "timestamp with time zone"
+    },
+    {
+      "table_schema": "cron",
+      "table_name": "job_run_details",
+      "column_name": "end_time",
+      "data_type": "timestamp with time zone"
+    }
+  ],
+  "error": null
+}

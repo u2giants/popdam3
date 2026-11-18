@@ -1,0 +1,18 @@
+{
+  "name": "00-identity",
+  "sql": "select current_user as api_role, current_database() as db, (select setting from pg_settings where name='server_version') as server_version, (select setting from pg_settings where name='server_version_num') as server_version_num, now() as captured_at_utc, pg_current_wal_lsn()::text as current_wal_lsn, pg_walfile_name(pg_current_wal_lsn()) as current_wal_file",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "api_role": "supabase_read_only_user",
+      "db": "postgres",
+      "server_version": "17.11",
+      "server_version_num": "170011",
+      "captured_at_utc": "2026-11-17 22:48:41.556512-05",
+      "current_wal_lsn": "3D9/E44144E0",
+      "current_wal_file": "00000001000003D9000000E4"
+    }
+  ],
+  "error": null
+}

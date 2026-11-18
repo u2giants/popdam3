@@ -1,0 +1,33 @@
+{
+  "name": "27-slot-wal-retain-detail",
+  "sql": "select slot_name, plugin, active, wal_status, restart_lsn::text, confirmed_flush_lsn::text, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) as retained_pretty, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) as retained_bytes, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) as lag_pretty, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) as lag_bytes from pg_replication_slots",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "slot_name": "supabase_realtime_replication_slot_2_163_0_a640b93",
+      "plugin": "wal2json",
+      "active": true,
+      "wal_status": "reserved",
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E480C280",
+      "retained_pretty": "149 MB",
+      "retained_bytes": "156495512",
+      "lag_pretty": "4633 kB",
+      "lag_bytes": "4744680"
+    },
+    {
+      "slot_name": "supabase_realtime_messages_replication_slot_2_163_0_a640b93",
+      "plugin": "pgoutput",
+      "active": true,
+      "wal_status": "reserved",
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E4C92869",
+      "retained_pretty": "149 MB",
+      "retained_bytes": "156495512",
+      "lag_pretty": "-1 bytes",
+      "lag_bytes": "-1"
+    }
+  ],
+  "error": null
+}

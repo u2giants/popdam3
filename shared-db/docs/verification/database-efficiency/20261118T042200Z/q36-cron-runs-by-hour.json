@@ -1,0 +1,849 @@
+{
+  "name": "36-cron-runs-by-hour",
+  "sql": "select date_trunc('hour', r.start_time) as hour_utc, j.jobname, r.status, count(*) as runs, round(sum(extract(epoch from (r.end_time - r.start_time)))::numeric, 1) as total_duration_s from cron.job_run_details r left join cron.job j on j.jobid = r.jobid where r.start_time > now() - interval '7 days' group by 1,2,3 order by 1 desc, 2 limit 120",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 57,
+      "total_duration_s": "10.3"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.0"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "63.1"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "purge-asset-path-history-old-rows",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.5"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "purge-image-embed-jobs",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "1.1"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "purge-render-queue-old-rows",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "purge-sg-render-queue-old-rows",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "1299.8"
+    },
+    {
+      "hour_utc": "2026-11-17 22:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.6"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "8.7"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.9"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "nightly-sg-crawl",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "56.5"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 21:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 20:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "11.7"
+    },
+    {
+      "hour_utc": "2026-11-17 20:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.5"
+    },
+    {
+      "hour_utc": "2026-11-17 20:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "66.1"
+    },
+    {
+      "hour_utc": "2026-11-17 20:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 20:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "1.0"
+    },
+    {
+      "hour_utc": "2026-11-17 19:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "4.0"
+    },
+    {
+      "hour_utc": "2026-11-17 19:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.5"
+    },
+    {
+      "hour_utc": "2026-11-17 19:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "39.0"
+    },
+    {
+      "hour_utc": "2026-11-17 19:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 19:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 18:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "5.7"
+    },
+    {
+      "hour_utc": "2026-11-17 18:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.6"
+    },
+    {
+      "hour_utc": "2026-11-17 18:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "35.7"
+    },
+    {
+      "hour_utc": "2026-11-17 18:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 18:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.4"
+    },
+    {
+      "hour_utc": "2026-11-17 17:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "8.9"
+    },
+    {
+      "hour_utc": "2026-11-17 17:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.0"
+    },
+    {
+      "hour_utc": "2026-11-17 17:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "39.1"
+    },
+    {
+      "hour_utc": "2026-11-17 17:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 17:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "424.5"
+    },
+    {
+      "hour_utc": "2026-11-17 16:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "12.6"
+    },
+    {
+      "hour_utc": "2026-11-17 16:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.3"
+    },
+    {
+      "hour_utc": "2026-11-17 16:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "61.3"
+    },
+    {
+      "hour_utc": "2026-11-17 16:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.4"
+    },
+    {
+      "hour_utc": "2026-11-17 16:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.5"
+    },
+    {
+      "hour_utc": "2026-11-17 15:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "9.4"
+    },
+    {
+      "hour_utc": "2026-11-17 15:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.2"
+    },
+    {
+      "hour_utc": "2026-11-17 15:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "45.3"
+    },
+    {
+      "hour_utc": "2026-11-17 15:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 15:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 14:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "5.5"
+    },
+    {
+      "hour_utc": "2026-11-17 14:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.8"
+    },
+    {
+      "hour_utc": "2026-11-17 14:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "37.5"
+    },
+    {
+      "hour_utc": "2026-11-17 14:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 14:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.4"
+    },
+    {
+      "hour_utc": "2026-11-17 13:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "4.0"
+    },
+    {
+      "hour_utc": "2026-11-17 13:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.5"
+    },
+    {
+      "hour_utc": "2026-11-17 13:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "35.3"
+    },
+    {
+      "hour_utc": "2026-11-17 13:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 13:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 12:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "2.9"
+    },
+    {
+      "hour_utc": "2026-11-17 12:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.1"
+    },
+    {
+      "hour_utc": "2026-11-17 12:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "28.2"
+    },
+    {
+      "hour_utc": "2026-11-17 12:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 12:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 11:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.9"
+    },
+    {
+      "hour_utc": "2026-11-17 11:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.4"
+    },
+    {
+      "hour_utc": "2026-11-17 11:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "19.9"
+    },
+    {
+      "hour_utc": "2026-11-17 11:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 11:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "13.8"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "coldlion-core-property-sync",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.5"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "2.3"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "20.9"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 10:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 09:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.9"
+    },
+    {
+      "hour_utc": "2026-11-17 09:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 09:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "21.0"
+    },
+    {
+      "hour_utc": "2026-11-17 09:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 09:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 08:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "1.8"
+    },
+    {
+      "hour_utc": "2026-11-17 08:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 08:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "21.8"
+    },
+    {
+      "hour_utc": "2026-11-17 08:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 08:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 07:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "1.1"
+    },
+    {
+      "hour_utc": "2026-11-17 07:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.3"
+    },
+    {
+      "hour_utc": "2026-11-17 07:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "8.0"
+    },
+    {
+      "hour_utc": "2026-11-17 07:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 07:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 06:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.7"
+    },
+    {
+      "hour_utc": "2026-11-17 06:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.4"
+    },
+    {
+      "hour_utc": "2026-11-17 06:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.2"
+    },
+    {
+      "hour_utc": "2026-11-17 06:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 06:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 05:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.6"
+    },
+    {
+      "hour_utc": "2026-11-17 05:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 05:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.3"
+    },
+    {
+      "hour_utc": "2026-11-17 05:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 05:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 04:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.6"
+    },
+    {
+      "hour_utc": "2026-11-17 04:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 04:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "2.4"
+    },
+    {
+      "hour_utc": "2026-11-17 04:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 04:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "23.4"
+    },
+    {
+      "hour_utc": "2026-11-17 03:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.7"
+    },
+    {
+      "hour_utc": "2026-11-17 03:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 03:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "1.2"
+    },
+    {
+      "hour_utc": "2026-11-17 03:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 03:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 02:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.6"
+    },
+    {
+      "hour_utc": "2026-11-17 02:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 02:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "6.4"
+    },
+    {
+      "hour_utc": "2026-11-17 02:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 02:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.1"
+    },
+    {
+      "hour_utc": "2026-11-17 01:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "1.0"
+    },
+    {
+      "hour_utc": "2026-11-17 01:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "9.3"
+    },
+    {
+      "hour_utc": "2026-11-17 01:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "21.4"
+    },
+    {
+      "hour_utc": "2026-11-17 01:00:00-05",
+      "jobname": "refresh-style-guide-library-default-snapshot",
+      "status": "succeeded",
+      "runs": 4,
+      "total_duration_s": "0.0"
+    },
+    {
+      "hour_utc": "2026-11-17 01:00:00-05",
+      "jobname": "refresh-style-guide-matviews",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 00:00:00-05",
+      "jobname": "dam-default-visible-flag-sweep",
+      "status": "succeeded",
+      "runs": 60,
+      "total_duration_s": "0.6"
+    },
+    {
+      "hour_utc": "2026-11-17 00:00:00-05",
+      "jobname": "nightly-rebuild-style-groups",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "0.2"
+    },
+    {
+      "hour_utc": "2026-11-17 00:00:00-05",
+      "jobname": "nightly-style-tracker-item-autoflow",
+      "status": "succeeded",
+      "runs": 1,
+      "total_duration_s": "4.4"
+    },
+    {
+      "hour_utc": "2026-11-17 00:00:00-05",
+      "jobname": "prewarm-style-guide-search",
+      "status": "succeeded",
+      "runs": 6,
+      "total_duration_s": "23.0"
+    }
+  ],
+  "error": null
+}

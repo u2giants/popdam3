@@ -1,0 +1,97 @@
+{
+  "name": "41-pgss-families-v2",
+  "sql": "select case\n      when query ilike '%hts_rag%' then 'hts_rag_ingest_worker'\n      when query ilike '%rebuild_style_group%' then 'rebuild_style_groups_rpc'\n      when query ilike '%queue_nightly_rebuild_style_groups%' then 'rebuild_queue_cron'\n      when query ilike '%refresh_style_guide_matviews%' or query ilike '%refresh_style_guide_library_default_snapshot%' then 'projection_matview_refresh'\n      when query ilike '%clear_style_group%' then 'clear_style_group'\n      when query ilike '%realtime.messages%' or query ilike '%realtime\\.messages%' then 'realtime_messages_writes'\n      when query ilike '%upsert_dam_search_text_embedding%' or query ilike '%claim_sg_search_embedding%' or query ilike '%search_dam_documents%' then 'search_sync_embed'\n      when query ilike '%style_guide_files%' or query ilike '%style_guide_render%' then 'style_guide_crawl_import'\n      when query ilike '%image_embed%' then 'image_embed_jobs'\n      when query ilike '%import_item_master%' then 'plm_item_import'\n      when query ilike '%vacuum%' or query ilike 'ANALYZE%' then 'explicit_vacuum_analyze'\n      else 'other_application' end as family,\n      count(*) as entries, sum(calls) as calls,\n      sum(wal_bytes) as wal_bytes, sum(wal_records) as wal_records, sum(wal_fpi) as wal_fpi\n    from extensions.pg_stat_statements\n    group by 1 order by sum(wal_bytes)::numeric desc nulls last",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "family": "other_application",
+      "entries": 4161,
+      "calls": "50532040",
+      "wal_bytes": "119977778570",
+      "wal_records": "146960676",
+      "wal_fpi": "24352864"
+    },
+    {
+      "family": "hts_rag_ingest_worker",
+      "entries": 546,
+      "calls": "13836117",
+      "wal_bytes": "94300420994",
+      "wal_records": "94753293",
+      "wal_fpi": "24694856"
+    },
+    {
+      "family": "style_guide_crawl_import",
+      "entries": 15,
+      "calls": "265793",
+      "wal_bytes": "15827594385",
+      "wal_records": "38621029",
+      "wal_fpi": "2374838"
+    },
+    {
+      "family": "rebuild_style_groups_rpc",
+      "entries": 2,
+      "calls": "8399",
+      "wal_bytes": "9962310042",
+      "wal_records": "13855252",
+      "wal_fpi": "1595926"
+    },
+    {
+      "family": "search_sync_embed",
+      "entries": 27,
+      "calls": "730540",
+      "wal_bytes": "6621132870",
+      "wal_records": "4694578",
+      "wal_fpi": "1065322"
+    },
+    {
+      "family": "plm_item_import",
+      "entries": 1,
+      "calls": "34",
+      "wal_bytes": "4525071834",
+      "wal_records": "9718817",
+      "wal_fpi": "772335"
+    },
+    {
+      "family": "image_embed_jobs",
+      "entries": 21,
+      "calls": "896095",
+      "wal_bytes": "3377055416",
+      "wal_records": "1647989",
+      "wal_fpi": "538714"
+    },
+    {
+      "family": "projection_matview_refresh",
+      "entries": 3,
+      "calls": "1384",
+      "wal_bytes": "198480057",
+      "wal_records": "333661",
+      "wal_fpi": "59609"
+    },
+    {
+      "family": "explicit_vacuum_analyze",
+      "entries": 2,
+      "calls": "4",
+      "wal_bytes": "1458666",
+      "wal_records": "679",
+      "wal_fpi": "536"
+    },
+    {
+      "family": "realtime_messages_writes",
+      "entries": 3,
+      "calls": "3",
+      "wal_bytes": "136432",
+      "wal_records": "639",
+      "wal_fpi": "73"
+    },
+    {
+      "family": "clear_style_group",
+      "entries": 1,
+      "calls": "3",
+      "wal_bytes": "0",
+      "wal_records": "0",
+      "wal_fpi": "0"
+    }
+  ],
+  "error": null
+}

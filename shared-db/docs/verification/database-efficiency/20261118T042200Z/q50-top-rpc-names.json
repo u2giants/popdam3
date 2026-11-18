@@ -1,0 +1,41 @@
+{
+  "name": "50-top-rpc-names",
+  "sql": "select queryid, userid::regrole::text as role_name, calls, wal_bytes, substring(query from 'LATERAL [^,]*') as lateral_head, substring(query from '\"[a-z_]+\"\\(\"[a-z_]') as fn_guess from extensions.pg_stat_statements where queryid::text in ('-5753757789977632690','-6692293795927846673') or query ilike '%p_op_key%' or (query ilike '%p_tags%' and query ilike '%p_asset_id%') order by wal_bytes::numeric desc limit 6",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "-5753757789977632690",
+      "role_name": "service_role",
+      "calls": 124883,
+      "wal_bytes": "44289629761",
+      "lateral_head": "LATERAL (SELECT \"p_asset_id\"",
+      "fn_guess": "\"replace_asset_ai_tag_result\"(\"p"
+    },
+    {
+      "queryid": "-6692293795927846673",
+      "role_name": "service_role",
+      "calls": 28670,
+      "wal_bytes": "22193158718",
+      "lateral_head": "LATERAL (SELECT \"p_op_key\"",
+      "fn_guess": "\"update_bulk_operation\"(\"p"
+    },
+    {
+      "queryid": "7100427086613721883",
+      "role_name": "service_role",
+      "calls": 36,
+      "wal_bytes": "27949808",
+      "lateral_head": "LATERAL (SELECT \"p_op_key\"",
+      "fn_guess": "\"update_bulk_operation\"(\"p"
+    },
+    {
+      "queryid": "6544014369996688062",
+      "role_name": "service_role",
+      "calls": 9,
+      "wal_bytes": "7238439",
+      "lateral_head": "LATERAL (SELECT \"p_op_key\"",
+      "fn_guess": "\"update_bulk_operation\"(\"p"
+    }
+  ],
+  "error": null
+}

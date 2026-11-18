@@ -1,0 +1,13 @@
+{
+  "name": "15-pgss-info",
+  "sql": "select stats_reset, dealloc from extensions.pg_stat_statements_info",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "stats_reset": "2026-11-06 11:20:19.263334-05",
+      "dealloc": 77
+    }
+  ],
+  "error": null
+}

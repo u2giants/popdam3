@@ -1,0 +1,16 @@
+{
+  "name": "55-pgstatwal-final",
+  "sql": "select pg_current_wal_lsn()::text as current_wal_lsn, wal_bytes, wal_records, wal_fpi, stats_reset from pg_stat_wal",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "current_wal_lsn": "3DA/31DA4568",
+      "wal_bytes": "314359336170",
+      "wal_records": 386073806,
+      "wal_fpi": 69127480,
+      "stats_reset": "2026-11-06 11:20:19.869905-05"
+    }
+  ],
+  "error": null
+}

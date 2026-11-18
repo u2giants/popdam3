@@ -1,0 +1,10 @@
+{
+  "name": "10-realtime-subscription",
+  "sql": "select count(*) as channel_rows, count(distinct entity) as distinct_entities, min(inserted_at) as oldest_inserted_at, max(inserted_at) as newest_inserted_at from realtime.subscription",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"inserted_at\" does not exist\nLINE 1: select count(*) as channel_rows, count(distinct entity) as distinct_entities, min(inserted_at) as oldest_inserted_at, max(inserted_at) as newest_inserted_at from realtime.subscription\n                                                                                          ^\n"
+  }
+}

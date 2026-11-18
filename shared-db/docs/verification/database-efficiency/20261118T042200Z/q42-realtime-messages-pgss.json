@@ -1,0 +1,33 @@
+{
+  "name": "42-realtime-messages-pgss",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 200) as query_head, calls, rows, wal_bytes from extensions.pg_stat_statements where query ilike '%messages%' and (query ilike '%insert%' or query ilike '%realtime%') order by wal_bytes::numeric desc nulls last limit 15",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "6858686671914970031",
+      "role_name": "supabase_admin",
+      "query_head": "CREATE TABLE IF NOT EXISTS realtime.messages_2026_11_21\nPARTITION OF realtime.messages\nFOR VALUES FROM ('2026-11-21') TO ('2026-11-22')",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "98052"
+    },
+    {
+      "queryid": "5230853578739555582",
+      "role_name": "supabase_admin",
+      "query_head": "DROP TABLE IF EXISTS realtime.messages_2026_11_14",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "34268"
+    },
+    {
+      "queryid": "-5236434552273511279",
+      "role_name": "supabase_admin",
+      "query_head": "ALTER TABLE realtime.messages_2026_11_21 OWNER TO supabase_realtime_admin",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "4112"
+    }
+  ],
+  "error": null
+}

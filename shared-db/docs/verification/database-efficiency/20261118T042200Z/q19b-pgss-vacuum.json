@@ -1,0 +1,23 @@
+{
+  "name": "19b-pgss-vacuum",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 160) as query_head, calls, wal_bytes from extensions.pg_stat_statements where query ilike '%vacuum%' or query ilike '%autovacuum%' or query ilike 'ANALYZE%' order by wal_bytes::numeric desc nulls last limit 20",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "8916484900815930025",
+      "role_name": "postgres",
+      "query_head": "select pg_relation_size($1)::bigint as heap_bytes,\n (select coalesce(sum(pg_column_size(a.*)),$2) + count(*)*$3 from public.assets a)::bigint as live_bytes,\n (s",
+      "calls": 3,
+      "wal_bytes": "1457935"
+    },
+    {
+      "queryid": "531061774553361776",
+      "role_name": "supabase_read_only_user",
+      "query_head": "select schemaname, relname, n_tup_ins, n_tup_upd, n_tup_del, n_live_tup, n_dead_tup, vacuum_count, autovacuum_count, analyze_count, autoanalyze_count, last_auto",
+      "calls": 1,
+      "wal_bytes": "731"
+    }
+  ],
+  "error": null
+}

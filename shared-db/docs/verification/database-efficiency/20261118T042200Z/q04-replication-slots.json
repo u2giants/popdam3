@@ -1,0 +1,41 @@
+{
+  "name": "04-replication-slots",
+  "sql": "select slot_name, plugin, slot_type, database, temporary, active, active_pid, restart_lsn::text as restart_lsn, confirmed_flush_lsn::text as confirmed_flush_lsn, wal_status, safe_wal_size, two_phase, conflicting, catalog_xmin::text as catalog_xmin from pg_replication_slots order by slot_name",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "slot_name": "supabase_realtime_messages_replication_slot_2_163_0_a640b93",
+      "plugin": "pgoutput",
+      "slot_type": "logical",
+      "database": "postgres",
+      "temporary": true,
+      "active": true,
+      "active_pid": 1342570,
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E44A1F41",
+      "wal_status": "reserved",
+      "safe_wal_size": 2008408064,
+      "two_phase": false,
+      "conflicting": false,
+      "catalog_xmin": "46030109"
+    },
+    {
+      "slot_name": "supabase_realtime_replication_slot_2_163_0_a640b93",
+      "plugin": "wal2json",
+      "slot_type": "logical",
+      "database": "postgres",
+      "temporary": true,
+      "active": true,
+      "active_pid": 1342552,
+      "restart_lsn": "3D9/DB7539D0",
+      "confirmed_flush_lsn": "3D9/E415F220",
+      "wal_status": "reserved",
+      "safe_wal_size": 2008408064,
+      "two_phase": false,
+      "conflicting": false,
+      "catalog_xmin": "46030109"
+    }
+  ],
+  "error": null
+}

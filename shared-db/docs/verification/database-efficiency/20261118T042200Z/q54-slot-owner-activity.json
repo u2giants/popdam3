@@ -1,0 +1,27 @@
+{
+  "name": "54-slot-owner-activity",
+  "sql": "select a.pid, a.usename, a.application_name, a.state, a.backend_start, a.state_change, left(a.query, 80) as query_head from pg_stat_activity a where a.pid in (select active_pid from pg_replication_slots where active_pid is not null)",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pid": 1342552,
+      "usename": "supabase_admin",
+      "application_name": "realtime_rls",
+      "state": "active",
+      "backend_start": "2026-11-15 19:00:25.137763-05",
+      "state_change": "2026-11-17 23:16:44.156561-05",
+      "query_head": "SELECT wal->>'type' as type,\n       wal->>'schema' as schema,\n       wal->>'tabl"
+    },
+    {
+      "pid": 1342570,
+      "usename": "supabase_admin",
+      "application_name": "realtime_replication_connection",
+      "state": "active",
+      "backend_start": "2026-11-15 19:00:44.399111-05",
+      "state_change": "2026-11-15 19:00:44.501836-05",
+      "query_head": "START_REPLICATION SLOT supabase_realtime_messages_replication_slot_2_163_0_a640b"
+    }
+  ],
+  "error": null
+}

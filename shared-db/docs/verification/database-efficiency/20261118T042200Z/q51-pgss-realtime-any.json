@@ -1,0 +1,137 @@
+{
+  "name": "51-pgss-realtime-any",
+  "sql": "select queryid, userid::regrole::text as role_name, left(query, 160) as query_head, calls, rows, wal_bytes from extensions.pg_stat_statements where query ilike '%realtime%' order by wal_bytes::numeric desc nulls last limit 20",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "queryid": "876857883004864586",
+      "role_name": "supabase_admin",
+      "query_head": "with candidates as (\n        select\n        pub.schemaname,\n        pub.tablename\n        from\n        pg_publication_tables pub\n        where\n        pub.pubna",
+      "calls": 3077,
+      "rows": 3033,
+      "wal_bytes": "6735176"
+    },
+    {
+      "queryid": "-5328243483857702721",
+      "role_name": "supabase_admin",
+      "query_head": "SELECT wal->>$5 as type,\n       wal->>$6 as schema,\n       wal->>$7 as table,\n       COALESCE(wal->>$8, $9) as columns,\n       COALESCE(wal->>$10, $11) as recor",
+      "calls": 2048909,
+      "rows": 2237008,
+      "wal_bytes": "4880065"
+    },
+    {
+      "queryid": "4913309655235484890",
+      "role_name": "supabase_admin",
+      "query_head": "with candidates as (\n        select\n        pub.schemaname,\n        pub.tablename\n        from\n        pg_publication_tables pub\n        where\n        pub.pubna",
+      "calls": 757,
+      "rows": 608,
+      "wal_bytes": "1436771"
+    },
+    {
+      "queryid": "3582852971293568051",
+      "role_name": "supabase_admin",
+      "query_head": "delete from realtime.subscription where subscription_id = ANY($1::uuid[])",
+      "calls": 822,
+      "rows": 2083,
+      "wal_bytes": "931156"
+    },
+    {
+      "queryid": "6858686671914970031",
+      "role_name": "supabase_admin",
+      "query_head": "CREATE TABLE IF NOT EXISTS realtime.messages_2026_11_21\nPARTITION OF realtime.messages\nFOR VALUES FROM ('2026-11-21') TO ('2026-11-22')",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "98052"
+    },
+    {
+      "queryid": "4221115887800068290",
+      "role_name": "supabase_admin",
+      "query_head": "with candidates as (\n        select\n        pub.schemaname,\n        pub.tablename\n        from\n        pg_publication_tables pub\n        where\n        pub.pubna",
+      "calls": 52,
+      "rows": 48,
+      "wal_bytes": "94542"
+    },
+    {
+      "queryid": "5230853578739555582",
+      "role_name": "supabase_admin",
+      "query_head": "DROP TABLE IF EXISTS realtime.messages_2026_11_14",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "34268"
+    },
+    {
+      "queryid": "2184496935720580806",
+      "role_name": "supabase_admin",
+      "query_head": "with candidates as (\n        select\n        pub.schemaname,\n        pub.tablename\n        from\n        pg_publication_tables pub\n        where\n        pub.pubna",
+      "calls": 12,
+      "rows": 11,
+      "wal_bytes": "24668"
+    },
+    {
+      "queryid": "2299371969737593667",
+      "role_name": "supabase_admin",
+      "query_head": "INSERT INTO \"realtime\".\"schema_migrations\" (\"version\",\"inserted_at\") VALUES ($1,$2)",
+      "calls": 6,
+      "rows": 6,
+      "wal_bytes": "5353"
+    },
+    {
+      "queryid": "-2676342541856419017",
+      "role_name": "supabase_admin",
+      "query_head": "do $$\n        begin\n          if exists (\n            select 1\n            from pg_tables\n            where schemaname = 'realtime'\n              and tablename ",
+      "calls": 3,
+      "rows": 0,
+      "wal_bytes": "4666"
+    },
+    {
+      "queryid": "-5236434552273511279",
+      "role_name": "supabase_admin",
+      "query_head": "ALTER TABLE realtime.messages_2026_11_21 OWNER TO supabase_realtime_admin",
+      "calls": 1,
+      "rows": 0,
+      "wal_bytes": "4112"
+    },
+    {
+      "queryid": "-8228641520943282929",
+      "role_name": "supabase_read_only_user",
+      "query_head": "select entity::text as entity, action_filter, claims_role::text as claims_role, count(*) as subscriptions, min(created_at) as oldest_created_at, max(created_at)",
+      "calls": 1,
+      "rows": 2,
+      "wal_bytes": "0"
+    },
+    {
+      "queryid": "-3116808926228102515",
+      "role_name": "supabase_admin",
+      "query_head": "SELECT count(*)::int FROM realtime.schema_migrations",
+      "calls": 3,
+      "rows": 3,
+      "wal_bytes": "0"
+    },
+    {
+      "queryid": "-6245076194334515011",
+      "role_name": "supabase_admin",
+      "query_head": "LOCK TABLE \"realtime\".\"schema_migrations\" IN SHARE UPDATE EXCLUSIVE MODE",
+      "calls": 8,
+      "rows": 0,
+      "wal_bytes": "0"
+    },
+    {
+      "queryid": "6817833270090946836",
+      "role_name": "supabase_read_only_user",
+      "query_head": "select count(*) as channel_rows, count(distinct subscription_id) as distinct_subscriptions, count(distinct entity) as distinct_entities, min(created_at) as olde",
+      "calls": 1,
+      "rows": 1,
+      "wal_bytes": "0"
+    },
+    {
+      "queryid": "-8350728716232354411",
+      "role_name": "supabase_admin",
+      "query_head": "SELECT s0.\"version\" FROM \"realtime\".\"schema_migrations\" AS s0",
+      "calls": 8,
+      "rows": 748,
+      "wal_bytes": "0"
+    }
+  ],
+  "error": null
+}

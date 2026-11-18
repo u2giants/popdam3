@@ -1,0 +1,10 @@
+{
+  "name": "26-pgss-write-role-family",
+  "sql": "select role, count(*) as entries, sum(calls) as calls, sum(wal_bytes) as wal_bytes from extensions.pg_stat_statements group by role order by sum(wal_bytes)::numeric desc nulls last",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"role\" does not exist\nLINE 1: select role, count(*) as entries, sum(calls) as calls, sum(wal_bytes) as wal_bytes from extensions.pg_stat_statements group by role order by sum(wal_bytes)::numeric desc nulls last\n               ^\nHINT:  Perhaps you meant to reference the column \"pg_stat_statements.rows\".\n"
+  }
+}

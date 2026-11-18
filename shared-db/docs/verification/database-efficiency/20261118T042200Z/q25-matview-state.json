@@ -1,0 +1,10 @@
+{
+  "name": "25-matview-state",
+  "sql": "select schemaname, matviewname, is_populated from pg_matviews order by schemaname, matviewname",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"is_populated\" does not exist\nLINE 1: select schemaname, matviewname, is_populated from pg_matviews order by schemaname, matviewname\n                                        ^\nHINT:  Perhaps you meant to reference the column \"pg_matviews.ispopulated\".\n"
+  }
+}

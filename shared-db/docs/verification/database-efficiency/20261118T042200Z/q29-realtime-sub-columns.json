@@ -1,0 +1,63 @@
+{
+  "name": "29-realtime-sub-columns",
+  "sql": "select table_schema, table_name, column_name, data_type from information_schema.columns where table_schema = 'realtime' and table_name = 'subscription' order by ordinal_position",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "id",
+      "data_type": "bigint"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "subscription_id",
+      "data_type": "uuid"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "entity",
+      "data_type": "regclass"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "filters",
+      "data_type": "ARRAY"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "claims",
+      "data_type": "jsonb"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "claims_role",
+      "data_type": "regrole"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "action_filter",
+      "data_type": "text"
+    },
+    {
+      "table_schema": "realtime",
+      "table_name": "subscription",
+      "column_name": "selected_columns",
+      "data_type": "ARRAY"
+    }
+  ],
+  "error": null
+}

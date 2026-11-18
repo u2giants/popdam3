@@ -1,0 +1,163 @@
+{
+  "name": "23-stat-activity-long-xact",
+  "sql": "select pid, usename, application_name, state, xact_start, now() - xact_start as xact_age, wait_event_type, wait_event, left(query, 100) as query_head from pg_stat_activity where xact_start is not null and state <> 'idle' order by xact_start limit 25",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pid": 1686195,
+      "usename": "postgres",
+      "application_name": "pg_cron",
+      "state": "active",
+      "xact_start": "2026-11-17 22:45:00.184584-05",
+      "xact_age": "00:03:49.411983",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "set local statement_timeout = '10min'; select public.refresh_style_guide_library_default_snapshot()"
+    },
+    {
+      "pid": 1673375,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:42.091749-05",
+      "xact_age": "00:00:07.504818",
+      "wait_event_type": "IO",
+      "wait_event": "DataFileRead",
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('wool women''s coat', null, 448, null, 5)"
+    },
+    {
+      "pid": 1671423,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:46.853647-05",
+      "xact_age": "00:00:02.74292",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('glass christmas ornament', null, 471, null"
+    },
+    {
+      "pid": 1683912,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:46.859231-05",
+      "xact_age": "00:00:02.737336",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('rubber-plastic sandal', null, 448, null, 5"
+    },
+    {
+      "pid": 1673312,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:47.02415-05",
+      "xact_age": "00:00:02.572417",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('rubber plastic sandal', null, 468, null, 5"
+    },
+    {
+      "pid": 1683915,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:47.760551-05",
+      "xact_age": "00:00:01.836016",
+      "wait_event_type": "IO",
+      "wait_event": "DataFileRead",
+      "query_head": "select ruling_number from hts_rag.hts_rag_nearest_products('[-0.000868797,0.00200844,0.00163269,-0.0"
+    },
+    {
+      "pid": 1675479,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:47.80137-05",
+      "xact_age": "00:00:01.795197",
+      "wait_event_type": "IO",
+      "wait_event": "DataFileRead",
+      "query_head": "select ruling_number from hts_rag.hts_rag_nearest_products('[0.0193939,0.0588074,-0.0525513,-0.02003"
+    },
+    {
+      "pid": 1683914,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:48.586016-05",
+      "xact_age": "00:00:01.010551",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('unspecified wearing apparel', null, 448, n"
+    },
+    {
+      "pid": 1673316,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.227193-05",
+      "xact_age": "00:00:00.369374",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('chloronitrobenzene chemical', null, 448, n"
+    },
+    {
+      "pid": 1644368,
+      "usename": "dam_image_embed_login",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.510439-05",
+      "xact_age": "00:00:00.086128",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select public.upsert_dam_search_text_embedding($1, $2, $3, $4, $5::extensions.halfvec, $6)"
+    },
+    {
+      "pid": 1677655,
+      "usename": "dam_image_embed_login",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.576118-05",
+      "xact_age": "00:00:00.020449",
+      "wait_event_type": "IO",
+      "wait_event": "DataFileRead",
+      "query_head": "select public.upsert_dam_search_text_embedding($1, $2, $3, $4, $5::extensions.halfvec, $6)"
+    },
+    {
+      "pid": 1673315,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.59538-05",
+      "xact_age": "00:00:00.001187",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('bromonitrobenzene chemical', null, 448, nu"
+    },
+    {
+      "pid": 1686406,
+      "usename": "supabase_read_only_user",
+      "application_name": "mgmt-api",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.596567-05",
+      "xact_age": "00:00:00",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select pid, usename, application_name, state, xact_start, now() - xact_start as xact_age, wait_event"
+    },
+    {
+      "pid": 1673319,
+      "usename": "designflow_hts_alsand_worker",
+      "application_name": "Supavisor",
+      "state": "active",
+      "xact_start": "2026-11-17 22:48:49.613394-05",
+      "xact_age": "-00:00:00.016827",
+      "wait_event_type": null,
+      "wait_event": null,
+      "query_head": "select ruling_number from hts_rag.hts_rag_search_rulings('polyester costume set', null, 1140, null, "
+    }
+  ],
+  "error": null
+}

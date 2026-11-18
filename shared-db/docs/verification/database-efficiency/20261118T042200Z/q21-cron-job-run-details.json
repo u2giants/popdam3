@@ -1,0 +1,10 @@
+{
+  "name": "21-cron-job-run-details",
+  "sql": "select jobid, jobname, status, return_message, start_time, end_time, (extract(epoch from (end_time - start_time))) as duration_s from cron.job_run_details where start_time > now() - interval '14 days' order by start_time desc limit 120",
+  "http_status": 400,
+  "ok": false,
+  "rows": null,
+  "error": {
+    "message": "Failed to run sql query: ERROR:  42703: column \"jobname\" does not exist\nLINE 1: select jobid, jobname, status, return_message, start_time, end_time, (extract(epoch from (end_time - start_time))) as duration_s from cron.job_run_details where start_time > now() - interval '14 days' order by start_time desc limit 120\n                      ^\n"
+  }
+}

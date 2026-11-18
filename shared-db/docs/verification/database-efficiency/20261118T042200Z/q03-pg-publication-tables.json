@@ -1,0 +1,129 @@
+{
+  "name": "03-pg-publication-tables",
+  "sql": "select pubname, schemaname, tablename, (select string_agg(a, ',' order by a) from unnest(pt.attnames) a) as attnames from pg_publication_tables pt order by pubname, schemaname, tablename",
+  "http_status": 201,
+  "ok": true,
+  "rows": [
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "core",
+      "tablename": "contact",
+      "attnames": "created_at,email,first_name,full_name,id,last_name,metadata,phone,status,title,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "core",
+      "tablename": "contact_company",
+      "attnames": "company_id,contact_id,contact_type,crm_department_id,ended_at,id,is_primary,metadata,relationship_type,scope,started_at,title"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "department",
+      "attnames": "category,company_id,created_at,division,id,is_active,metadata,name,primary_contact_id,salesperson_profile_id,secondary_salesperson_profile_id,sort_order,status,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "email_message",
+      "attnames": "body_preview,body_storage_ref,company_id,contact_id,created_at,department_id,detected_po_numbers,detected_so_numbers,direction,external_id,external_source,id,mailbox_owner_profile_id,metadata,opportunity_id,outlook_message_id,received_at,recipients,routing_method,routing_status,sender,sent_at,status,subject,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "ingested_domain",
+      "attnames": "created_at,customer_id,display_name,domain,email_count,first_seen_at,id,last_seen_at,last_sender,metadata,sample_subject,status,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "meeting_note",
+      "attnames": "action_items,body,company_id,contact_id,created_at,created_by_profile_id,department_id,external_id,external_source,fireflies_transcript_id,id,meeting_at,metadata,opportunity_id,participants,source,title,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "note",
+      "attnames": "action_items,body,company_id,contact_id,created_at,created_by_profile_id,department_id,fireflies_transcript_id,id,opportunity_id,source,title,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "opportunity",
+      "attnames": "ai_state,ai_summary,close_date,company_id,contact_id,created_at,customer_incoterms,department_id,directive_source,division,estimated_value,external_id,external_source,factory_id,factory_incoterms,hard_delivery_date,id,import_po_number,licensed,metadata,name,origin_country,owner_profile_id,probability,production_order_id,production_po_number,program_type,project_id,requires_new_pricing,sales_order_number,sample_approval_method,sample_required,season_year,stage,status,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "crm",
+      "tablename": "task",
+      "attnames": "assignee_profile_id,body,company_id,contact_id,created_at,department_id,due_at,id,opportunity_id,status,title,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "public",
+      "tablename": "admin_config",
+      "attnames": "key,updated_at,updated_by,value"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "public",
+      "tablename": "agent_registrations",
+      "attnames": "agent_key_hash,agent_name,agent_type,created_at,id,last_heartbeat,metadata"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "public",
+      "tablename": "render_queue",
+      "attnames": "asset_id,attempts,claimed_at,claimed_by,completed_at,created_at,error_message,id,lease_expires_at,status"
+    },
+    {
+      "pubname": "supabase_realtime",
+      "schemaname": "public",
+      "tablename": "style_tracker_rows",
+      "attnames": "commissioned,concept_status,created_at,customer,customer_id,customer_sku,default_vendor,description,designer,discontinued,group_id,id,imported_at,license_status,licensor,notes,pre_production_status,production_status,row_data,royalty,sku,source_row_number,source_sheet,source_workbook_id,tracker_type,upc,updated_at,updated_by"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_15",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_16",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_17",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_18",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_19",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_20",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    },
+    {
+      "pubname": "supabase_realtime_messages_publication",
+      "schemaname": "realtime",
+      "tablename": "messages_2026_11_21",
+      "attnames": "binary_payload,event,expires_at,extension,id,inserted_at,payload,private,skip_broadcast,topic,updated_at"
+    }
+  ],
+  "error": null
+}
