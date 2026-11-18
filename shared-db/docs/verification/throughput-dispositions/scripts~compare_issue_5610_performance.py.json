@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "scripts/compare_issue_5610_performance.py",
+  "sites": [
+    {
+      "site": "scripts/compare_issue_5610_performance.py:75",
+      "semantic_key": "scripts/compare_issue_5610_performance.py:34ac757203a1afafd7f7e64806b0486a697da7d18f1613a75aff22aceaf69aca:context-04030a350e65dca840221628bc4fc08d2df2b019dd4c0ddb86b2c2913272708a",
+      "line_sha256": "34ac757203a1afafd7f7e64806b0486a697da7d18f1613a75aff22aceaf69aca",
+      "disposition": "excluded",
+      "reason": "Rejects an invalid local observation record before computing any deltas. It reports no database object or migration history as absent."
+    },
+    {
+      "site": "scripts/compare_issue_5610_performance.py:89",
+      "semantic_key": "scripts/compare_issue_5610_performance.py:d8f6d1a0bd3b3e895ad632290300c20b684e3feaacf088b83ec0d445c6c33747:context-da4c45f5001531541c98e9800275ba14b9964883a4fcc79a14c4bae4360d9d71",
+      "line_sha256": "d8f6d1a0bd3b3e895ad632290300c20b684e3feaacf088b83ec0d445c6c33747",
+      "disposition": "excluded",
+      "reason": "Refuses an incomplete statement observation when visibility or retention changes. It makes no schema or migration-history assertion."
+    }
+  ]
+}
