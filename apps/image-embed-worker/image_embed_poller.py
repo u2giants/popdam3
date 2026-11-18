@@ -473,12 +473,26 @@ class Poller:
             log(event="query_error", job=str(job_id), error=str(exc)[:160])
 
     # -- index lane ---------------------------------------------------------------
+    def index_limit_reached(self) -> bool:
+        return bool(self.args.limit) and self.done + self.failed >= self.args.limit
+
+    def index_claim_size(self) -> int:
+        """Batch size capped by the remaining --limit budget, so a bounded run
+        never claims (and processes) more jobs than it was allowed (#1098)."""
+        if not self.args.limit:
+            return self.args.batch
+        return max(0, min(self.args.batch, self.args.limit - (self.done + self.failed)))
+
     def claim_index_jobs(self):
+        size = self.index_claim_size()
+        if size <= 0:
+            return []
+
         def _q(c):
             with c.cursor() as cur:
                 cur.execute(
                     "select id, asset_id from dam.claim_image_embed_jobs(%s, %s, %s, %s)",
-                    ("index", self.args.batch, self.args.worker_id, self.args.lease_seconds),
+                    ("index", size, self.args.worker_id, self.args.lease_seconds),
                 )
                 return cur.fetchall()
         return self._run(_q)
@@ -551,9 +565,6 @@ class Poller:
                               complete_job(c, j, d, s, self.args.stamp, cr, u))
                     self.conn.commit()
                     self.done += 1
-
-        if self.args.limit and self.done + self.failed >= self.args.limit:
-            raise StopIteration
 
     # -- search-document lane (public.dam_search_documents, popdam3 #646) --------
     # Claim/upsert/mark-error go through the documented public RPCs only; no
@@ -849,6 +860,9 @@ class Poller:
                             rate = self.done / max(time.time() - self.t0, 1e-6)
                             log(event="index_batch", done=self.done, failed=self.failed,
                                 rate=round(rate, 2))
+                            if self.index_limit_reached():
+                                log(event="limit_reached", done=self.done, failed=self.failed)
+                                raise StopIteration
                 else:
                     self.enabled_cache = (False, 0.0)  # force re-check next tick
                 if not self.args.no_search_lane and time.time() >= self.search_cooldown_until \
@@ -936,7 +950,7 @@ class Poller:
                     text_idle = 0 if status == "claimed" else text_idle + 1
                     if status == "empty":
                         time.sleep(config.TEXT_POLL_S)
-            while True:
+            while not self.index_limit_reached():
                 jobs = self.claim_index_jobs()
                 if not jobs:
                     idle += 1
@@ -951,7 +965,7 @@ class Poller:
                 self.process_index_batch(jobs)
                 rate = self.done / max(time.time() - self.t0, 1e-6)
                 log(event="index_batch", done=self.done, failed=self.failed, rate=round(rate, 2))
-                if self.args.limit and self.done + self.failed >= self.args.limit:
+                if self.index_limit_reached():
                     log(event="limit_reached", done=self.done, failed=self.failed)
                     break
         finally:
