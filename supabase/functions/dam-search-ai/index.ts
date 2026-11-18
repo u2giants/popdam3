@@ -11,10 +11,19 @@ import { getPopSGQueryEmbedding, nameExpansion, type NameVectors, zeroResultFall
 import { hasCatalogCodeFormat } from "../_shared/catalog-code-format.ts";
 import { withSearchRequestBudget } from "../_shared/search-request-budget.ts";
 import { isProductCodeSearch } from "../_shared/product-code.ts";
-import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup } from "../_shared/search-spelling.ts";
+import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup, VOCABULARY_BUDGET_MS } from "../_shared/search-spelling.ts";
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 import { type BatchEmbedOutcome, createQueryEmbedder, type EmbedWithText } from "../_shared/query-embed-batch.ts";
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
+import {
+  buildNameIndex,
+  EMPTY_NAME_INDEX,
+  hasNamedScope,
+  namedCharacterScope,
+  type NameIndex,
+  pickScopeKeys,
+  withNamedScope,
+} from "../_shared/named-characters.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -28,6 +37,8 @@ export const SEARCH_TEXT_LEG_MODE_KEY = "SEARCH_TEXT_LEG_MODE";
 export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
+/** A cold isolate waits this long for character names; past it the search runs without the rule. */
+const NAME_INDEX_BUDGET_MS = 1500;
 const PRODUCT_WORDS = [
   "canvas",
   "hamper",
@@ -142,6 +153,71 @@ function licensorNames(): Promise<LicensorName[]> {
   return value;
 }
 
+/** Every row of a core/public table, pages read in parallel (~15k characters). */
+async function loadRows(schema: "core" | "public", table: string, columns: string, order: string, signal: AbortSignal) {
+  const pageSize = 1000;
+  const client = () => schema === "core" ? serviceClient().schema("core") : serviceClient();
+  const { count, error: countError } = await client().from(table).select(order, { count: "exact", head: true }).abortSignal(signal);
+  if (countError) throw new Error(countError.message);
+  const pages = await Promise.all(Array.from({ length: Math.ceil((count ?? 0) / pageSize) }, async (_, page) => {
+    const from = page * pageSize;
+    const { data, error } = await client().from(table).select(columns).order(order).range(from, from + pageSize - 1).abortSignal(signal);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Record<string, unknown>[];
+  }));
+  return pages.flat();
+}
+
+const pairs = (rows: Record<string, unknown>[], a: string, b: string) =>
+  rows.flatMap((row) => typeof row[a] === "string" && typeof row[b] === "string" ? [[row[a] as string, row[b] as string] as const] : []);
+
+/** Test hook: forget cached character names. */
+export function resetNameIndexCacheForTests() {
+  nameIndexCache = null;
+}
+let nameIndexCache: { expires: number; value: Promise<NameIndex> } | null = null;
+/**
+ * Character, alias, legacy character, property and characters-per-property rows for the
+ * named-character rule (#1037), cached hourly. Fails open to an empty index: a failed read
+ * only skips the rule for that search, like the licensor scope (#892).
+ */
+function nameIndex(): Promise<NameIndex> {
+  if (nameIndexCache && nameIndexCache.expires > Date.now()) return nameIndexCache.value;
+  const value = (async () => {
+    const signal = AbortSignal.timeout(20_000);
+    const [characters, aliases, legacy, properties, links, licensors] = await Promise.all([
+      loadRows("core", "character", "id,name", "id", signal),
+      loadRows("core", "character_alias", "character_id,alias", "id", signal),
+      loadRows("public", "characters", "id,name", "id", signal),
+      loadRows("core", "property", "id,name", "id", signal),
+      loadRows("core", "property_character_associations_current", "property_id,character_id", "character_id", signal),
+      licensorNames(),
+    ]);
+    const index = buildNameIndex({
+      characters: pairs(characters, "id", "name").map(([id, name]) => ({ id, name })),
+      aliases: pairs(aliases, "character_id", "alias").map(([characterId, alias]) => ({ characterId, alias })),
+      legacyCharacters: pairs(legacy, "id", "name").map(([id, name]) => ({ id, name })),
+      properties: pairs(properties, "id", "name").map(([id, name]) => ({ id, name })),
+      propertyCharacters: pairs(links, "property_id", "character_id").map(([propertyId, characterId]) => ({ propertyId, characterId })),
+      licensorNames: licensors.map(({ name }) => name),
+      productWords: PRODUCT_WORDS,
+    });
+    if (index.names.size === 0) nameIndexCache = null;
+    return index;
+  })().catch((error) => {
+    console.error("character names read failed; searching without the named-character rule", error instanceof Error ? error.message : error);
+    nameIndexCache = null;
+    return EMPTY_NAME_INDEX;
+  });
+  nameIndexCache = { expires: Date.now() + VOCABULARY_TTL_MS, value };
+  return value;
+}
+
+/** The index if it is ready within the budget; a cold load keeps going for the next search. */
+function nameIndexWithin(ms: number): Promise<NameIndex> {
+  return Promise.race([nameIndex(), new Promise<NameIndex>((resolve) => setTimeout(() => resolve(EMPTY_NAME_INDEX), ms))]);
+}
+
 /** PopSG licensor/property name vectors (scripts/popsg-name-vectors.mjs), cached hourly. */
 let nameVectorCache: { expires: number; value: Promise<NameVectors | null> } | null = null;
 function popsgNameVectors(): Promise<NameVectors | null> {
@@ -164,7 +240,7 @@ const spellingLookup: SpellingLookup = {
     const words = (async () => {
       const vocabulary = new Map<string, number>();
       PRODUCT_WORDS.forEach((word) => vocabulary.set(word, 1_000_000));
-      for (const name of await spellingNames(AbortSignal.timeout(1500))) {
+      for (const name of await spellingNames(AbortSignal.timeout(VOCABULARY_BUDGET_MS))) {
         // Canonical names have equal authority; core.character has no usage_count.
         addNameToVocabulary(vocabulary, name, 1_000_000);
         knownFullNames.add(normalizeName(name));
@@ -573,18 +649,22 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           if (textLeg.on) return queryEmbedder.embedAllWithText(semanticTexts);
           return queryEmbedder.embedAll(semanticTexts).then((vectors) => ({ vectors, textVectors: new Map() }));
         };
-        const [embedded, floorConfig, licensors] = await timer.time(
+        const [embedded, floorConfig, licensors, names] = await timer.time(
           "prepare",
           Promise.all([
             timer.time("embed", embedCall()),
             // Server-side only: callers cannot override the admin-configured floor.
             timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
             usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
+            codeSearch ? Promise.resolve(EMPTY_NAME_INDEX) : timer.time("names", nameIndexWithin(NAME_INDEX_BUDGET_MS)),
           ]),
         );
         // A search that names a licensor keeps a picture-only match only when it belongs to that
         // licensor: pictures match the product's look, not whose artwork it is (#892).
         const semanticLicensorIds = namedLicensorIds([query, spelling.corrected], licensors);
+        // Owner D1 (#1037): a search that names a character shows only products that contain it,
+        // from every leg; one that names a property scopes picture-only matches to it.
+        const namedScope = namedCharacterScope([query, spelling.corrected], names);
         const embeddings = embedded?.vectors ?? null;
         const embedding = embeddings?.get(query) ?? null;
         // Fail open: a config read failure must not take search down; it only
@@ -650,12 +730,23 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
             // floor past every picture-only match it keeps (popcre/shared-db#6024).
             const scope = withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, true);
             const scopedIds = Array.isArray(scope.semanticLicensorIds) ? scope.semanticLicensorIds : [];
-            const anchorRpc = scopedIds.length ? "dam_search_semantic_anchor_scoped" : "dam_search_semantic_anchor";
+            // A named character or property anchors on the best picture inside the same scope
+            // the search applies (#1037), for the same reason.
+            const named = withNamedScope(scope, namedScope, true);
+            const anchorRpc = hasNamedScope(named)
+              ? "dam_search_semantic_anchor_named"
+              : scopedIds.length
+              ? "dam_search_semantic_anchor_scoped"
+              : "dam_search_semantic_anchor";
             const anchorCall = () =>
               auth.client.rpc(anchorRpc, {
                 p_query_embedding: variantEmbedding,
                 p_document_types: documentTypes,
-                ...(scopedIds.length ? { p_licensor_ids: scopedIds } : {}),
+                ...(anchorRpc === "dam_search_semantic_anchor_named"
+                  ? { p_filters: pickScopeKeys(named) }
+                  : scopedIds.length
+                  ? { p_licensor_ids: scopedIds }
+                  : {}),
               });
             let anchor = await timer.time("anchor_rpc", anchorCall);
             if (anchor.error) {
@@ -671,7 +762,11 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           const invoke = () =>
             auth.client.rpc("search_dam_documents", {
               p_query: variant,
-              p_filters: withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, variantEmbedding !== null),
+              p_filters: withNamedScope(
+                withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, variantEmbedding !== null),
+                namedScope,
+                variantEmbedding !== null,
+              ),
               p_limit: limit,
               p_offset: offset,
               p_document_types: documentTypes,

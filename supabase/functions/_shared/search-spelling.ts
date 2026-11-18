@@ -14,6 +14,13 @@ export const RARE_WORD_DOCS = 3;
 export const SPELLING_LOOKUP_CONCURRENCY = 4;
 export const SPELLING_MAX_WORDS = 16;
 export const SPELLING_BUDGET_MS = 1500;
+/**
+ * The vocabulary is loaded once per isolate (then cached hourly) and gets its own, longer
+ * budget: when every backend round trip is slow (Nov 17, 2026: single-row reads at ~750 ms
+ * against ~160 ms on Nov 13), loading it and counting a misspelled word inside ONE 1.5 s budget
+ * failed, and the search silently ran as typed ("batmn" found almost nothing).
+ */
+export const VOCABULARY_BUDGET_MS = 4000;
 const MIN_CORRECTABLE_LENGTH = 5;
 
 export interface SpellingLookup {
@@ -98,19 +105,24 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
   // truncate the query or infer meaningfulness from a partial word sample.
   if (unique.length > SPELLING_MAX_WORDS) return { corrected: null, meaningful: true };
   const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout>;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error("Spelling budget exceeded"));
-    }, SPELLING_BUDGET_MS);
-  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = (ms: number) =>
+    new Promise<never>((_, reject) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error("Spelling budget exceeded"));
+      }, ms);
+    });
   try {
     // The vocabulary decides meaning and correction for known words, so their
     // corpus counts are never consulted. Counting them anyway cost 0.5-2.3 s
     // per broad name search ("disney", "marvel": frequent lexemes in
     // dam_search_keys), on the critical path before the query embedding.
-    const vocabulary = await Promise.race([lookup.vocabulary(controller.signal), deadline]);
+    const vocabulary = await Promise.race([lookup.vocabulary(controller.signal), budget(VOCABULARY_BUDGET_MS)]);
+    // Corpus counts get the ordinary budget, started once the vocabulary is in hand.
+    const deadline = budget(SPELLING_BUDGET_MS);
+    deadline.catch(() => {});
     const counts = new Map<string, number>();
     const needsCount = unique.filter((word) => !vocabulary.has(word));
     for (const word of unique) {
@@ -154,7 +166,7 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
     console.error("spelling check failed; searching as typed", error instanceof Error ? error.message : error);
     return { corrected: null, meaningful: true };
   } finally {
-    clearTimeout(timer!);
+    clearTimeout(timer);
     controller.abort();
   }
 }
