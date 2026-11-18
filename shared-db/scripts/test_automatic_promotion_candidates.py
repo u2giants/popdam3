@@ -3205,3 +3205,59 @@ class SelfScheduledRecheck(unittest.TestCase):
                 self.assertEqual(fh.read(), "recheck=true\n")
         finally:
             os.unlink(path)
+
+
+class OrphanedFindingRetry(unittest.TestCase):
+    """#6701: a finding the fixer parked keeps holding its merged PR; the
+    trigger retries the fixer on it once after ORPHAN_RETRY_AFTER."""
+
+    now = m._time("2026-11-18T16:00:00Z")
+
+    def entry(self, labels, merged="2026-11-18T03:00:00Z", state="open", **extra):
+        finding = {"number": 6651, "state": state, "created_at": "2026-11-18T03:30:00Z",
+                   "labels": [{"name": "review-finding"}] + [{"name": l} for l in labels]}
+        return {"number": 6650, "versions": ["20261218031754"], "merged_at": merged,
+                "findings": [finding], **extra}
+
+    def test_selects_parked_findings_held_past_the_window(self):
+        for label in ("fixer-deferred", "fixer-failed"):
+            got = m.orphaned_findings([self.entry([label])], self.now)
+            self.assertEqual([(pr, f["number"]) for pr, f in got], [(6650, 6651)])
+
+    def test_ignores_young_active_closed_and_non_review_holds(self):
+        self.assertEqual(m.orphaned_findings([self.entry(["fixer-deferred"], merged="2026-11-18T13:00:00Z")], self.now), [])
+        young = self.entry(["fixer-deferred"])
+        young["findings"][0]["created_at"] = "2026-11-18T13:00:00Z"
+        self.assertEqual(m.orphaned_findings([young], self.now), [])
+        self.assertEqual(m.orphaned_findings([self.entry([])], self.now), [])
+        self.assertEqual(m.orphaned_findings([self.entry(["fixer-done"])], self.now), [])
+        self.assertEqual(m.orphaned_findings([self.entry(["fixer-deferred"], state="closed")], self.now), [])
+        self.assertEqual(m.orphaned_findings([self.entry(["fixer-deferred"], exhausted=3)], self.now), [])
+
+    def test_retry_writes_note_removes_label_and_dispatches_once(self):
+        writes = []
+        with mock.patch.object(m, "gh", return_value=[[]]), \
+                mock.patch.object(m, "gh_write", side_effect=lambda *a: writes.append(a) or (True, "ok")):
+            lines = m.retry_orphaned_findings("o/r", [self.entry(["fixer-deferred"])], self.now)
+        self.assertEqual(lines, ["finding #6651 (holds PR #6650): fixer re-dispatched"])
+        self.assertEqual(writes[0][1], "repos/o/r/issues/6651/comments")
+        self.assertIn(m.ORPHAN_RETRY_MARKER, writes[0][2]["body"])
+        self.assertEqual(writes[1][:2], ("DELETE", "repos/o/r/issues/6651/labels/fixer-deferred"))
+        self.assertEqual(writes[2], ("POST", "repos/o/r/actions/workflows/review-fixer.yml/dispatches",
+                                     {"ref": "main", "inputs[issue]": "6651"}))
+
+    def test_second_retry_is_refused_and_reported(self):
+        with mock.patch.object(m, "gh", return_value=[[{"body": m.ORPHAN_RETRY_MARKER}]]), \
+                mock.patch.object(m, "gh_write") as write:
+            lines = m.retry_orphaned_findings("o/r", [self.entry(["fixer-failed"])], self.now)
+        write.assert_not_called()
+        self.assertIn("needs a disposition", lines[0])
+
+    def test_dry_run_and_unreadable_comments_write_nothing(self):
+        with mock.patch.object(m, "gh", return_value=[[]]), mock.patch.object(m, "gh_write") as write:
+            self.assertIn("would retry", m.retry_orphaned_findings("o/r", [self.entry(["fixer-deferred"])], self.now, dry_run=True)[0])
+        write.assert_not_called()
+        with mock.patch.object(m, "gh", side_effect=subprocess.CalledProcessError(1, "gh")), \
+                mock.patch.object(m, "gh_write") as write:
+            self.assertIn("not retried", m.retry_orphaned_findings("o/r", [self.entry(["fixer-deferred"])], self.now)[0])
+        write.assert_not_called()

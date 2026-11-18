@@ -940,6 +940,79 @@ def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     return lines
 
 
+# #6701: a finding the fixer parked (deferred to a claim owner, or failed) is
+# never picked up again, yet it keeps holding its merged PR out of production.
+# The hold is the owner's rule and stays; what was missing is an owner for the
+# parked finding. Once a merged PR has been held this long by one, the trigger
+# retries the fixer on it exactly once (the blocker -- a claim, a flaky agent
+# run -- has usually cleared after the merge), leaving a marked note on the
+# finding so the retry is visible and never repeats.
+ORPHAN_RETRY_AFTER = timedelta(hours=4)
+FIXER_TERMINAL_LABELS = ("fixer-deferred", "fixer-failed")
+ORPHAN_RETRY_MARKER = "<!-- promotion-orphan-retry:v1 -->"
+
+
+def _label_names(issue: dict[str, Any]) -> set[str]:
+    return {l.get("name") if isinstance(l, dict) else l for l in issue.get("labels") or []}
+
+
+def orphaned_findings(skipped: list[dict[str, Any]], now: datetime) -> list[tuple[int, dict[str, Any]]]:
+    """(source PR, finding) pairs to retry: open findings in a fixer terminal
+    state holding a merged PR for longer than ORPHAN_RETRY_AFTER. Each finding
+    once, even when it names several held PRs."""
+    found, seen = [], set()
+    for entry in skipped:
+        if entry.get("exhausted") or entry.get("refunds") or entry.get("pending_dependencies"):
+            continue
+        if now - hold_since(entry) <= ORPHAN_RETRY_AFTER:
+            continue
+        for finding in entry.get("findings") or []:
+            number = finding.get("number")
+            if (finding.get("state") == "open" and number not in seen
+                    and _label_names(finding) & set(FIXER_TERMINAL_LABELS)):
+                seen.add(number)
+                found.append((entry["number"], finding))
+    return found
+
+
+def retry_orphaned_findings(repo: str, skipped: list[dict[str, Any]], now: datetime,
+                            dry_run: bool = False) -> list[str]:
+    """Retry the fixer once on each orphaned finding. Returns one line per
+    finding. Never raises; a refused write is reported and the hold stands."""
+    lines = []
+    for pr, finding in orphaned_findings(skipped, now):
+        n = finding["number"]
+        try:
+            pages = gh("--paginate", "--slurp", f"repos/{repo}/issues/{n}/comments?per_page=100") or []
+            if any(ORPHAN_RETRY_MARKER in (c.get("body") or "") for page in pages for c in page):
+                lines.append(f"finding #{n} (holds PR #{pr}): fixer already retried once; needs a disposition")
+                continue
+        except Exception as exc:  # noqa: BLE001 -- unreadable comments: do not retry blind
+            lines.append(f"finding #{n} (holds PR #{pr}): comments unreadable ({exc}); not retried")
+            continue
+        if dry_run:
+            lines.append(f"finding #{n} (holds PR #{pr}): would retry the fixer")
+            continue
+        opened = finding.get("created_at")
+        hours = int((now - _time(opened)).total_seconds() // 3600) if opened else 0
+        parked = ", ".join(sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS)))
+        body = (f"{ORPHAN_RETRY_MARKER}\nThis open finding holds merged PR #{pr} out of production "
+                f"and the automatic fixer parked it ({parked}; finding open {hours}h). Retrying the "
+                f"fixer once now. If it parks again, this finding needs a disposition (fix forward, "
+                f"or close with reasons) for the release to proceed.\n\n" + _footer())
+        ok, msg = gh_write("POST", f"repos/{repo}/issues/{n}/comments", {"body": body})
+        if not ok:
+            lines.append(f"finding #{n} (holds PR #{pr}): retry note refused ({msg}); not retried")
+            continue
+        for label in sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS)):
+            gh_write("DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
+        ok, msg = gh_write("POST", f"repos/{repo}/actions/workflows/review-fixer.yml/dispatches",
+                           {"ref": "main", "inputs[issue]": str(n)})
+        lines.append(f"finding #{n} (holds PR #{pr}): fixer re-dispatched" if ok
+                     else f"finding #{n} (holds PR #{pr}): fixer dispatch refused ({msg})")
+    return lines
+
+
 def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
     """The blocking findings for this PR; True (held, findings unknown) when the
     query fails, so an unreadable hold never promotes."""
@@ -1200,6 +1273,12 @@ def main(now: datetime | None = None) -> int:
               f"{', '.join(f'#{n}' for n in sorted(claimed_elsewhere))})")
     for line in alerts:
         print(f"::error title=Production release held over 30 minutes::{line}")
+    try:
+        orphan_lines = retry_orphaned_findings(repo, skipped, now, dry_run=args.dry_run)
+    except Exception as exc:  # noqa: BLE001 -- contained like the reconciler
+        orphan_lines = [f"orphan retry defect: {type(exc).__name__}: {exc}"]
+    for line in orphan_lines:
+        print(f"::warning title=Parked review finding holds production::{line}")
     # Plan R1/R7 (#6561): mark stranded PRs on the PRs themselves, over every
     # candidate. Contained: a reconciler defect never changes the exit code.
     # merged_migration_prs raises on incomplete discovery, so reaching here
