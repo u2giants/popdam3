@@ -6,6 +6,22 @@
 begin;
 set local search_path=pg_catalog,public,extensions;
 
+-- The historical alias-table migration also seeds a production licensor that the
+-- disposable replay does not have. Supply its lookup columns when that replay
+-- rolls the migration back. This fixture and its grant roll back with the test.
+do $alias_fixture$
+begin
+  if to_regclass('core.licensor_alias') is null then
+    create table core.licensor_alias (
+      licensor_id uuid not null references core.licensor(id),
+      alias text not null,
+      source_system text
+    );
+    grant select on core.licensor_alias to service_role;
+  end if;
+end;
+$alias_fixture$;
+
 do $test$
 declare
   lic uuid; prop uuid; ch1 uuid; ch2 uuid; leg_lic uuid := gen_random_uuid(); leg_prop uuid := gen_random_uuid();
@@ -16,6 +32,8 @@ declare
   eh extensions.vector := (array[0.70710677,0.70710677]::real[] || array_fill(0::real, array[766]))::extensions.vector;
   f jsonb; ids uuid[]; n bigint; probe bigint; s real; s0 real; raised boolean;
   scope_sets record;
+  lookup jsonb; invalid_keys text[];
+  unicode_character uuid;
 begin
   insert into plm.licensing_write_authorization (
     backend_pid, transaction_id, target_table, write_kind, plan_id, plan_hash,
@@ -42,6 +60,51 @@ begin
   insert into public.licensors(id,name,external_id) values(leg_lic,'ZQ1037 Legacy Licensor','zq1037-l-'||txid_current());
   insert into public.properties(id,licensor_id,name,external_id) values(leg_prop,leg_lic,'ZQ1037 Legacy Property','zq1037-p-'||txid_current());
   insert into public.characters(id,property_id,name,external_id) values(lc1,leg_prop,'ZQ1037 Legacy Character','zq1037-c-'||txid_current());
+
+  -- The cold-path lookup passes only relevant names and links to the existing matcher.
+  insert into core.character (licensor_id, name)
+  values (lic, U&'ZQ1037 A\0130B \212A') returning id into unicode_character;
+  insert into core.character_alias (character_id, licensor_id, alias, source_system)
+  values (ch1, lic, U&'ZQ1037 \00C1lias \212A', 'manual');
+  insert into core.licensor_alias (licensor_id, alias, source_system)
+  values (lic, 'ZQ1037 Studio!', 'manual');
+  insert into core.property_character_source_edge(property_id,character_id,licensor_id,source_system,source_id,evidence_kind)
+  values (prop,ch1,lic,'synthetic-A','dam-named-search-lookup','direct_source_assertion');
+  insert into core.property_character_associations(property_id,character_id) values (prop,ch1);
+
+  lookup := public.get_dam_search_named_rows(array[
+    'zq1037 ai b k', 'zq1037 lias k', 'zq1037 legacy character', 'zq1037 property', 'zq1037 studio', 'zq1037 licensor'
+  ]);
+  if not (lookup @> jsonb_build_object(
+    'characters', jsonb_build_array(jsonb_build_object('id', unicode_character)),
+    'aliases', jsonb_build_array(jsonb_build_object('characterId', ch1)),
+    'legacyCharacters', jsonb_build_array(jsonb_build_object('id', lc1)),
+    'properties', jsonb_build_array(jsonb_build_object('id', prop)),
+    'propertyCharacters', jsonb_build_array(jsonb_build_object('propertyId', prop, 'characterId', ch1)),
+    'licensorNames', jsonb_build_array('ZQ1037 Studio!', 'ZQ1037 Licensor')
+  )) or jsonb_array_length(lookup->'characters') is distinct from 1 then
+    raise exception 'PopDAM lookup changed normalization or returned unrelated canonical or alias rows';
+  end if;
+  if public.get_dam_search_named_rows(array['unmatchablezq1037']) is distinct from
+    '{"characters":[],"aliases":[],"legacyCharacters":[],"properties":[],"propertyCharacters":[],"licensorNames":[]}'::jsonb then
+    raise exception 'PopDAM name lookup must return a complete empty object for a term with no match';
+  end if;
+  for invalid_keys in select keys from (values (null::text[]), (array_fill('zq'::text, array[4001])),
+      (array['a b c d e f g h i']), (array[repeat('z', 501)]), (array['UPPER']), (array[null]::text[]), (array[['a'],['b']])) v(keys)
+  loop
+    begin
+      perform public.get_dam_search_named_rows(invalid_keys);
+      raise exception 'PopDAM name lookup did not reject invalid or over-budget input';
+    exception when invalid_parameter_value then
+      null;
+    end;
+  end loop;
+  if has_function_privilege('anon', 'public.get_dam_search_named_rows(text[])', 'execute')
+     or has_function_privilege('authenticated', 'public.get_dam_search_named_rows(text[])', 'execute')
+     or not has_function_privilege('service_role', 'public.get_dam_search_named_rows(text[])', 'execute')
+     or exists (select 1 from pg_proc where oid = 'public.get_dam_search_named_rows(text[])'::regprocedure and prosecdef) then
+    raise exception 'PopDAM name lookup is restricted to the existing service role without definer privileges';
+  end if;
 
   insert into public.style_groups (sku, folder_path, licensor_id) values ('ZQ1037A', '/zq1037/a', lic) returning id into g1;
   insert into public.style_groups (sku, folder_path, licensor_id) values ('ZQ1037B', '/zq1037/b', lic) returning id into g2;
@@ -264,4 +327,14 @@ begin
   end if;
 end;
 $test$;
+
+set local role service_role;
+do $lookup_as_service$
+begin
+  if jsonb_array_length(public.get_dam_search_named_rows(array['zq1037 property'])->'propertyCharacters') is distinct from 1 then
+    raise exception 'Service role cannot read the matched property associations';
+  end if;
+end;
+$lookup_as_service$;
+reset role;
 rollback;
