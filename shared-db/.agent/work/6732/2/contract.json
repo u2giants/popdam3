@@ -1,0 +1,44 @@
+{
+  "schema_version": 2,
+  "work_issue": 6732,
+  "work_type": "repo-maintenance",
+  "route": "repo-maintenance",
+  "goal": "Honor only an explicit optional alter in the verified absent production schema during DesignFlow sandbox dependency preflight",
+  "base_sha": "49b5bdd4ca5069be4b209fa907fcb02112f8f3ea",
+  "dispatcher": "Posted by Codex chat (01a1efe0) on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/6732-sandbox-optional-preflight",
+  "worktree": "/tmp/264-sandbox-preflight.k47vWt",
+  "allowed_paths": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_sandbox_dependency_catalog.py"
+  ],
+  "file_writes": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_sandbox_dependency_catalog.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "prohibited_actions": [
+    "Retain mandatory dependency checks and production and preview behavior",
+    "Preserve the merged migration body, object claim and existing collision controls"
+  ],
+  "required_checks": [
+    "python3 -m unittest discover -s scripts -p test_sandbox_dependency_catalog.py",
+    "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+    "python3 -m unittest discover -s scripts -p test_sandbox_migration_preflight.py",
+    "git diff --check"
+  ],
+  "assumptions": [
+    "The existing sandbox conditioner authorizes the absent dflow_prod schema only"
+  ],
+  "stop_conditions": [
+    "Stop if the branch would change a migration, database target, workflow approval or another PR’s scope"
+  ],
+  "generation": 2,
+  "evidence_parent": {
+    "work_issue": 6732,
+    "generation": 1,
+    "contract_sha256": "afe5e66830b4bb16e7181978280a3260147d8db01959bb30722e989d8818285f"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_issue": 6732,
+  "pr": 6741,
+  "outcome": "ready-for-merge",
+  "migration_versions": [],
+  "contract_ref": "refs/db-contracts/6732/2",
+  "contract_sha256": "639e6187e9c8022cbe22345419bc6ee58d233199e8be53b2fa8409f02b89a890",
+  "base_sha": "49b5bdd4ca5069be4b209fa907fcb02112f8f3ea",
+  "head_sha": "8cfc625166d528bee8f0b0c10c6153c85a024625",
+  "files_changed": [
+    "scripts/production_migration_guard.py",
+    "scripts/test_sandbox_dependency_catalog.py"
+  ],
+  "db_reads": [],
+  "db_writes": [],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_sandbox_dependency_catalog.py",
+      "exit_code": 0,
+      "evidence": "10 tests passed, including exact absent sandbox schema evidence, mandatory references and safe preview/production defaults."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_production_migration_guard.py",
+      "exit_code": 0,
+      "evidence": "320 tests passed."
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_sandbox_migration_preflight.py",
+      "exit_code": 0,
+      "evidence": "36 tests passed."
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "evidence": "Two scoped implementation files, whitespace checks passed."
+    }
+  ],
+  "assumptions_resolved": [
+    "The existing conditioner covers dflow_prod only. Both sandbox dependency entry points use the same explicitly proven schema presence, with all other checks retained."
+  ],
+  "stop_conditions_hit": []
+}
