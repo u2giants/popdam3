@@ -64,6 +64,9 @@ export function PropertyMatchReview({ client }: Props) {
         const message = cause instanceof Error ? cause.message : ''
         if (/permission|licensing|access/i.test(message)) setDenied(true)
         else {
+          // Drop rows from any earlier load: after a failed refresh they are
+          // stale, and showing them would present an unknown queue as current.
+          setRows([]); setChosen({}); setRequestIds({})
           setQueueFailed(true)
           setError(message || 'The review queue could not be loaded.')
         }
@@ -241,6 +244,6 @@ export function PropertyMatchReview({ client }: Props) {
           ? <p className="muted">No property matches fit this search.</p>
           : <p className="muted">Nothing is waiting for a decision.</p>)}
     </div>
-    <footer className="grid-footer"><span>{visible.length} of {rows.length} awaiting a decision</span></footer>
+    <footer className="grid-footer"><span>{queueFailed ? 'Queue not loaded' : `${visible.length} of ${rows.length} awaiting a decision`}</span></footer>
   </section>
 }
