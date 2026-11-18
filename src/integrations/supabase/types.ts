@@ -4263,6 +4263,22 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_file_groups_snapshot: {
+        Row: {
+          directory_path: string | null
+          file_count: number | null
+          group_key: string | null
+          latest_modified_at: string | null
+          licensor_name: string | null
+          property_folder: string | null
+          root_label: string | null
+          sample_thumbnail_url: string | null
+          style_guide_folder: string | null
+          style_guide_name: string | null
+          total_size_bytes: number | null
+        }
+        Relationships: []
+      }
       style_guide_file_tags_display: {
         Row: {
           confidence: number | null
@@ -4286,6 +4302,13 @@ export type Database = {
         ]
       }
       style_guide_folders: {
+        Row: {
+          licensor_name: string | null
+          property_folder: string | null
+        }
+        Relationships: []
+      }
+      style_guide_folders_snapshot: {
         Row: {
           licensor_name: string | null
           property_folder: string | null
@@ -4797,6 +4820,10 @@ export type Database = {
       }
       dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       dam_search_name_queries: { Args: { p_names: Json }; Returns: unknown[] }
+      dam_search_named_scope: {
+        Args: { p_filters: Json }
+        Returns: Record<string, unknown>
+      }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
@@ -5715,9 +5742,12 @@ export type Database = {
           p_limit: number
           p_min_rank?: number
           p_min_semantic_score?: number
+          p_min_text_score?: number
           p_offset: number
           p_query: string
           p_query_embedding?: string
+          p_query_text_embedding?: unknown
+          p_text_score_margin?: number
         }
         Returns: {
           asset_id: string
@@ -5729,6 +5759,7 @@ export type Database = {
           rank: number
           semantic_rank: number
           style_group_id: string
+          text_rank: number
           total_count: number
         }[]
       }
