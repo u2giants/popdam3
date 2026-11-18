@@ -1,4 +1,4 @@
-import { exportOrderColumns } from "./export-pagination.ts";
+import { cutoffAllowsNull, exportCutoffColumn, exportOrderColumns } from "./export-pagination.ts";
 import type { createClient } from "./supabase-js.ts";
 
 /**
@@ -18,4 +18,12 @@ export function orderedTableSource(db: ReturnType<typeof createClient>, table: s
   let query = tableSource(db, table).select("*");
   for (const column of exportOrderColumns(table)) query = query.order(column, { ascending: true });
   return query;
+}
+
+/** Restrict a query to rows that existed at the export cutoff (#1132). */
+// deno-lint-ignore no-explicit-any
+export function applyCutoff<Q extends { lte: any; or: any }>(query: Q, table: string, cutoff: string): Q {
+  const col = exportCutoffColumn(table);
+  if (!col) return query;
+  return cutoffAllowsNull(table) ? query.or(`${col}.is.null,${col}.lte."${cutoff}"`) : query.lte(col, cutoff);
 }

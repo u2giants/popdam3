@@ -1,6 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { expectedChunkRows, insertRowSQL, manifestEntry } from "../../supabase/functions/_shared/export-pagination";
+import {
+  clearTableSQL,
+  decodeCursor,
+  encodeCursor,
+  expectedChunkRows,
+  exportCutoffColumn,
+  insertRowSQL,
+  keysetFilter,
+  manifestEntry,
+} from "../../supabase/functions/_shared/export-pagination";
 
 describe("SQL dump manifest (#1082)", () => {
   it("refuses to report a failed count as an empty table", () => {
@@ -46,5 +55,36 @@ describe("SQL dump row encoding (#1085 restore proof)", () => {
     expect(sql).toBe(
       `INSERT INTO public.erp_sync_runs ("id", "error_samples") SELECT "id", "error_samples" FROM jsonb_populate_record(NULL::public.erp_sync_runs, '{"id":"x","error_samples":[{"m":"it''s"}]}'::jsonb);`,
     );
+  });
+});
+
+describe("SQL dump consistent snapshot and key paging (#1132, #1133)", () => {
+  const src = readFileSync("supabase/functions/export-sql-dump/index.ts", "utf8");
+  const ps = readFileSync("migration/download-sql-dump.ps1", "utf8");
+  it("fixes every count and chunk at the manifest cutoff", () => {
+    expect(exportCutoffColumn("assets")).toBe("created_at");
+    expect(exportCutoffColumn("asset_path_history")).toBe("detected_at");
+    expect(src).toMatch(/cutoff, tables, complete: true/);
+    expect(src.match(/applyCutoff\(/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(ps).toMatch(/cutoff=\$CutoffParam/);
+  });
+  it("pages by key, never by OFFSET", () => {
+    expect(src).not.toMatch(/\.range\(/);
+    expect(keysetFilter("assets", ["a"])).toBe("id.gt.a");
+    expect(keysetFilter("asset_characters", ["a", "c"])).toBe("asset_id.gt.a,and(asset_id.eq.a,character_id.gt.c)");
+    const id = "0b9d7c1e-1111-4222-8333-444455556666";
+    expect(decodeCursor("assets", encodeCursor([id]))).toEqual([id]);
+    expect(() => decodeCursor("assets", encodeCursor(["x),or(id.gt.0"]))).toThrow();
+    expect(ps).toMatch(/X-Next-After/);
+  });
+});
+
+describe("SQL dump restore never cascades into shared tables (#1134)", () => {
+  it("deletes PopDAM tables, upserts core master data, no TRUNCATE CASCADE", () => {
+    const src = readFileSync("supabase/functions/export-sql-dump/index.ts", "utf8");
+    expect(src).not.toMatch(/TRUNCATE/);
+    expect(clearTableSQL("public.assets")).toBe("DELETE FROM public.assets;");
+    expect(clearTableSQL("core.licensor")).toBeNull();
+    expect(insertRowSQL("core.licensor", { id: "x", name: "n" })).toMatch(/ON CONFLICT \("id"\) DO UPDATE SET "name" = EXCLUDED\."name";$/);
   });
 });

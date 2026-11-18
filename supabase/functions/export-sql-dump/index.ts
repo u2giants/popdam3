@@ -1,10 +1,23 @@
-import { exportRange, insertRowSQL, type ManifestEntry, manifestEntry } from "../_shared/export-pagination.ts";
+import {
+  clearTableSQL,
+  decodeCursor,
+  encodeCursor,
+  insertRowSQL,
+  keysetFilter,
+  lastKey,
+  type ManifestEntry,
+  manifestEntry,
+} from "../_shared/export-pagination.ts";
 /**
  * Chunked SQL data exporter for migration from Lovable Cloud.
  *
  * Two modes:
- *   GET ?action=manifest   → JSON with table names + row counts
- *   GET ?table=X&offset=Y  → SQL file with INSERT batch for that chunk
+ *   GET ?action=manifest   → JSON with table names, row counts and a cutoff
+ *   GET ?table=X&cutoff=T&chunk=N[&after=CURSOR] → SQL file for that chunk
+ *
+ * Every count and chunk is fixed at the manifest's cutoff time, so rows added
+ * while the export runs are left out consistently (#1132). Chunks page by key
+ * (after=CURSOR from the previous chunk's X-Next-After), not OFFSET (#1133).
  *
  * Each chunk is a self-contained transaction:
  *   BEGIN;
@@ -23,7 +36,7 @@ import { exportRange, insertRowSQL, type ManifestEntry, manifestEntry } from "..
 import { createClient } from "../_shared/supabase-js.ts";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
-import { orderedTableSource, tableSource } from "../_shared/export-tables.ts";
+import { applyCutoff, orderedTableSource, tableSource } from "../_shared/export-tables.ts";
 
 // Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
@@ -87,9 +100,14 @@ corsServe(async (req) => {
     if (action === "manifest") {
       const chunkSize = parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10);
       const tables: ManifestEntry[] = [];
+      const cutoff = new Date().toISOString();
 
       for (const table of TABLES_IN_ORDER) {
-        const { count, error } = await tableSource(db, table).select("*", { count: "exact", head: true });
+        const { count, error } = await applyCutoff(
+          tableSource(db, table).select("*", { count: "exact", head: true }),
+          table,
+          cutoff,
+        );
         try {
           tables.push(manifestEntry(table, count, error, chunkSize));
         } catch (e) {
@@ -101,7 +119,7 @@ corsServe(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ chunkSize, tables, complete: true, generated: new Date().toISOString() }), {
+      return new Response(JSON.stringify({ chunkSize, cutoff, tables, complete: true, generated: new Date().toISOString() }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -115,23 +133,37 @@ corsServe(async (req) => {
       );
     }
 
-    const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+    const chunkIndex = parseInt(url.searchParams.get("chunk") ?? "0", 10);
     const chunkSize = Math.min(
       parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10),
       10000,
     );
-    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(chunkSize) || chunkSize < 1) {
-      return new Response(JSON.stringify({ error: "Invalid offset or chunk_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    const cutoff = url.searchParams.get("cutoff") ?? "";
+    if (!Number.isSafeInteger(chunkIndex) || chunkIndex < 0 || !Number.isSafeInteger(chunkSize) || chunkSize < 1) {
+      return new Response(JSON.stringify({ error: "Invalid chunk or chunk_size" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
-    const includeTruncate = url.searchParams.get("truncate") === "true" && offset === 0;
+    if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(cutoff)) {
+      return new Response(JSON.stringify({ error: "Provide cutoff from the manifest" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    let after;
+    try {
+      after = decodeCursor(table, url.searchParams.get("after"));
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid after cursor" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    if ((chunkIndex === 0) !== (after === null)) {
+      return new Response(JSON.stringify({ error: "after is required for every chunk but the first" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    const includeTruncate = url.searchParams.get("truncate") === "true" && chunkIndex === 0;
 
-    // Fetch rows in PostgREST pages
+    // Fetch rows in PostgREST pages, by key rather than OFFSET (#1133)
     const rows: Record<string, unknown>[] = [];
-    let pgOffset = offset;
+    let cursor = after;
     while (rows.length < chunkSize) {
       const requested = Math.min(POSTGREST_PAGE, chunkSize - rows.length);
-      const { data: page, error } = await orderedTableSource(db, table)
-        .range(...exportRange(pgOffset, chunkSize - rows.length, POSTGREST_PAGE));
+      let query = applyCutoff(orderedTableSource(db, table), table, cutoff);
+      if (cursor) query = query.or(keysetFilter(table, cursor));
+      const { data: page, error } = await query.limit(requested);
 
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {
@@ -141,22 +173,22 @@ corsServe(async (req) => {
       }
       if (!page || page.length === 0) break;
       for (const r of page) rows.push(r as Record<string, unknown>);
+      cursor = lastKey(table, rows[rows.length - 1]);
       if (page.length < requested) break;
-      pgOffset += requested;
     }
 
     // Build SQL
     const lines: string[] = [];
-    const chunkIndex = Math.floor(offset / chunkSize);
-    lines.push(`-- PopDAM data export: ${table} chunk ${chunkIndex} (offset ${offset}, limit ${chunkSize})`);
+    lines.push(`-- PopDAM data export: ${table} chunk ${chunkIndex} (limit ${chunkSize}, cutoff ${cutoff})`);
     lines.push(`-- Generated: ${new Date().toISOString()}`);
     lines.push("");
     lines.push("BEGIN;");
     lines.push("SET session_replication_role = 'replica';");
     lines.push("");
 
-    if (includeTruncate) {
-      lines.push(`TRUNCATE TABLE ${sqlTarget(table)} CASCADE;`);
+    const clear = includeTruncate ? clearTableSQL(sqlTarget(table)) : null;
+    if (clear) {
+      lines.push(clear);
       lines.push("");
     }
 
@@ -179,8 +211,9 @@ corsServe(async (req) => {
         "Content-Type": "text/sql; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "X-Table": table,
-        "X-Offset": String(offset),
+        "X-Chunk": String(chunkIndex),
         "X-Rows-In-Chunk": String(rows.length),
+        "X-Next-After": cursor ? encodeCursor(cursor) : "",
       },
     });
   } catch (err) {

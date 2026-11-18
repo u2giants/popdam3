@@ -58,6 +58,10 @@ $manifest = $manifestResp.Content | ConvertFrom-Json
 # A manifest without complete=true may have dropped a table whose count failed (#1082)
 if ($manifest.complete -ne $true) { Fail-Run "manifest is not marked complete" }
 if ([int]$manifest.chunkSize -ne $ChunkSize) { Fail-Run "manifest chunk size $($manifest.chunkSize) != $ChunkSize" }
+# Every chunk is fixed at this cutoff so rows added during the run are left out (#1132)
+$Cutoff = [string]$manifest.cutoff
+if (-not $Cutoff) { Fail-Run "manifest has no cutoff" }
+$CutoffParam = [uri]::EscapeDataString($Cutoff)
 
 Write-Host ""
 Write-Host "━━━ Export Manifest ━━━" -ForegroundColor Green
@@ -83,16 +87,18 @@ $downloadedFiles = @()
 foreach ($t in $manifest.tables) {
     if ($t.rows -eq 0) { continue }
 
+    $after = ""
     for ($chunk = 0; $chunk -lt $t.chunks; $chunk++) {
-        $offset = $chunk * $ChunkSize
-        $expectedRows = [Math]::Min($ChunkSize, $t.rows - $offset)
+        $expectedRows = [Math]::Min($ChunkSize, $t.rows - $chunk * $ChunkSize)
         $fileIndex++
         $paddedIndex = "{0:D3}" -f $fileIndex
         $fileName = "${paddedIndex}_$($t.table)_chunk${chunk}.sql"
         $filePath = Join-Path $RunDir $fileName
 
         $truncateParam = if ($chunk -eq 0 -and $IncludeTruncate -eq "true") { "&truncate=true" } else { "" }
-        $chunkUrl = "$SupabaseUrl/functions/v1/export-sql-dump?table=$($t.table)&offset=$offset&chunk_size=$ChunkSize$truncateParam"
+        # Key-based paging: each chunk resumes after the previous chunk's last row (#1133)
+        $afterParam = if ($after) { "&after=$after" } else { "" }
+        $chunkUrl = "$SupabaseUrl/functions/v1/export-sql-dump?table=$($t.table)&chunk=$chunk&chunk_size=$ChunkSize&cutoff=$CutoffParam$afterParam$truncateParam"
 
         Write-Host ("  [{0}/{1}] {2}..." -f $fileIndex, $totalChunks, $fileName) -ForegroundColor Gray -NoNewline
 
@@ -105,6 +111,8 @@ foreach ($t in $manifest.tables) {
         $rowsInChunk = [int]("$($resp.Headers['X-Rows-In-Chunk'])")
         if ($rowsInChunk -ne $expectedRows) { Fail-Run "$fileName has $rowsInChunk rows, expected $expectedRows" }
         if (-not $resp.Content.TrimEnd().EndsWith("COMMIT;")) { Fail-Run "$fileName is truncated (no COMMIT)" }
+        $after = [string]("$($resp.Headers['X-Next-After'])")
+        if ($chunk -lt $t.chunks - 1 -and -not $after) { Fail-Run "$fileName returned no X-Next-After cursor" }
         $resp.Content | Out-File -FilePath $filePath -Encoding UTF8 -NoNewline
         Write-Host " $rowsInChunk rows" -ForegroundColor Green
         $downloadedFiles += $fileName
