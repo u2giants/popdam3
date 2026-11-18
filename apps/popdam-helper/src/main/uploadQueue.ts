@@ -11,6 +11,7 @@ import { log } from "./logger";
 import { loadToken } from "./credentials";
 import { uploadFile } from "./synologyClient";
 import { completeCheckin, redriveComplete } from "./damClient";
+import { confirmedCheckinStatus } from "./checkinConfirmation";
 import { sha256File, quickHashFile } from "./hash";
 import { getConfig } from "./config";
 import { copySnapshotToManagedPath } from "./fileOps";
@@ -195,8 +196,11 @@ async function processJob(job: StoredJob): Promise<void> {
       source_version: job.seafileObjId ?? null,
     });
 
+    // Only drop the job (and its retry) once the server confirms a durable save;
+    // an unconfirmed response throws into the retry path below.
+    const confirmed = confirmedCheckinStatus(result);
     removeJob(checkoutId);
-    if (result.status === "verifying") {
+    if (confirmed === "verifying") {
       // Upload landed on Synology, but the lock is held until the bridge agent
       // confirms the fully-synced file is intact. Don't mark it complete here.
       verifyingCallback?.(checkoutId);
