@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { warning: mocks.warning } }));
 vi.mock("@/lib/external-supabase", () => ({
+  AUTH_STORAGE_KEY: "sb-popdam-auth-token",
   externalSupabase: {
     auth: {
       signOut: mocks.signOut,
@@ -61,11 +62,15 @@ describe("signOut (#1088)", () => {
 
   it("clears local state and warns even when every sign-out call throws", async () => {
     mocks.signOut.mockRejectedValue(new Error("network"));
+    localStorage.setItem("sb-popdam-auth-token", "{\"access_token\":\"x\"}");
+    localStorage.setItem("sb-popdam-auth-token-code-verifier", "v");
     const { result } = setup();
     await waitFor(() => expect(result.current.user).not.toBeNull());
     await act(() => result.current.signOut());
     expect(result.current.user).toBeNull();
     expect(result.current.session).toBeNull();
+    expect(localStorage.getItem("sb-popdam-auth-token")).toBeNull();
+    expect(localStorage.getItem("sb-popdam-auth-token-code-verifier")).toBeNull();
     expect(mocks.warning).toHaveBeenCalledTimes(1);
   });
 });
