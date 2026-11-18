@@ -128,13 +128,23 @@ This is required because duplicate-copy move detection needs scan-wide context. 
 
 Because discovery materializes the full candidate list, memory use scales with candidate count. The bridge logs `Scan memory checkpoint` records at scan start, discovery completion, `check-changed` preflight, and ingest completion. Monitor `max_rss_mb` from real-world scans before changing this flow; if peak RSS approaches the lowest shipped memory cap, prefer either storing only minimal candidate fields or a two-pass streaming scan that trades memory for a second metadata walk.
 
-### 3.3 Checkpoint Rule
-- Checkpoints are for **discovery-phase resume only**.
-- A checkpoint may record the last completed top-level directory while walking the filesystem.
-- A new scan MUST NOT resume from a checkpoint saved by a different `session_id`; discard it and start fresh.
-- Before ingest starts, the bridge MUST clear the checkpoint. If clearing fails after retry, the scan MUST fail instead of ingesting after a checkpoint that could cause the next run to skip already-discovered-but-not-ingested paths.
-- Once ingest begins, a crash/restart should restart discovery from the beginning, then `check-changed` will skip unchanged rows safely.
+### 3.3 No-resume rule (bridge 1.16.27, #1117)
+- A scan never resumes from a checkpoint. Discovered files live in memory until the walk ends, so a restarted bridge has lost them; resuming skipped the earlier folders and still reported success.
+- The bridge saves no checkpoint and clears any leftover `SCAN_CHECKPOINT` at scan start. A crash or restart reruns discovery from the beginning; `check-changed` then skips unchanged rows.
 - If ingest fails mid-run, stop or retry; never mark the scan successful with skipped changed files.
+
+### 3.4 Change-check failure rule (bridge 1.16.27, #1117)
+- A failed `check-changed` call MUST NOT be read as "every file changed". That fallback reprocessed the whole library for about two days after four slow minutes on 2026-11-17.
+- The bridge retries the failing 500-file chunk after 30 s, 1, 2, 5 and 10 minutes (on top of the transport's own retries). If it still fails the scan ends `failed` and the next scheduled scan starts clean.
+- When a changed file's `quick_hash` equals the one on record, the bridge reuses the stored thumbnail name (`check-changed.existing_thumbnails`) instead of a new random one, so the record's address is not rewritten and no orphan is left in storage.
+
+### 3.5 End-of-scan reconciliation (bridge 1.16.27, #1117)
+After ingest of a complete scan the bridge pages `list-live-asset-paths`, checks on disk every live record under the scan roots that the walk did not see, and sends real `ENOENT` paths to `retire-missing-assets` (soft delete, history marker `retired-missing-from-nas`). A file that returns at the same path revives its record on the next ingest. Nothing is retired when a scan root lists empty before or after the check, when the skipped-folder list was cut short, or when more than 20% of the live records under the roots (and more than 200) are missing — that last case also counts as a scan error. Records under a folder the walk could not read, records with an open checkout, and paths that differ from a seen file only by letter case or Unicode form are left alone. The count is reported as `retired_missing`.
+
+### 3.6 Scan outcome and history (#1117)
+- `completed_with_errors` means at least one real error. Unresolved licensor/property results alone end the scan `completed_with_warnings`.
+- Every finished run is appended to `admin_config.SCAN_HISTORY` (newest first, last 200) with start, finish, duration, status and counters.
+- `complete-sibling-scan` deletes finished `sibling_scan_request_*` rows older than one day.
 
 ---
 

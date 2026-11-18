@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ScanCounters } from "./useAgentStatus";
 
-export type ScanProgressStatus = "idle" | "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "stale";
+export type ScanProgressStatus = "idle" | "queued" | "running" | "completed" | "completed_with_warnings" | "completed_with_errors" | "failed" | "stale";
 
 export interface ScanProgress {
   status: ScanProgressStatus;
@@ -19,7 +19,7 @@ const STALE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 
 const DEFAULT_PROGRESS: ScanProgress = { status: "idle" };
 
-const TERMINAL_REQUEST_STATUSES = new Set(["completed", "completed_with_errors", "failed"]);
+const TERMINAL_REQUEST_STATUSES = new Set(["completed", "completed_with_warnings", "completed_with_errors", "failed"]);
 
 function parseScanProgress(
   raw: unknown,

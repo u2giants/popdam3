@@ -71,7 +71,14 @@ import {
 } from "../_shared/sg-crawl-state.ts";
 import { failExhaustedSgRenderJobs, persistSgRenderCompletion, SG_RENDER_MAX_ATTEMPTS } from "../_shared/sg-render-completion.ts";
 import { assignStyleGroup, STYLE_GROUP_ASSIGNMENT_COLUMNS, unassignStyleGroup } from "../_shared/style-group-assignment.ts";
-import { AI_INHERITANCE_COLUMNS, inheritedAiFields, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
+import { AI_INHERITANCE_COLUMNS, inheritedAiFields, isRevivableRetirement, RETIRED_MISSING_MARKER, RETIRED_STALE_MARKER, staleRetirementRefusal } from "../_shared/stale-asset-retirement.ts";
+import {
+  appendScanHistory,
+  buildScanHistoryEntry,
+  isExpiredSiblingScanRow,
+  SCAN_HISTORY_KEY,
+  TERMINAL_SCAN_STATUSES,
+} from "../_shared/scan-history.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
 import { pickWindowsNasPassword } from "../_shared/windows-nas-password.ts";
 import {
@@ -1237,8 +1244,9 @@ async function handleIngest(
       }
     }
 
-    // A file back at the path of a record retired as stale is live again. Other
-    // soft deletes (purges, duplicates) stay deleted.
+    // A file back at the path of a record retired as stale, or retired because
+    // the file had vanished from the NAS, is live again. Other soft deletes
+    // (purges, duplicates) stay deleted.
     let revive = false;
     if (existingByPath.is_deleted) {
       const { data: lastHistory } = await db
@@ -1248,7 +1256,7 @@ async function handleIngest(
         .order("detected_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      revive = lastHistory?.new_relative_path?.startsWith(RETIRED_STALE_MARKER) ?? false;
+      revive = isRevivableRetirement(lastHistory?.new_relative_path);
     }
 
     const updateFields: Record<string, unknown> = {
@@ -1434,6 +1442,99 @@ async function handleRetireStaleAsset(body: Record<string, unknown>) {
   return json({ ok: true, retired: true });
 }
 
+// ── Route: list-live-asset-paths ────────────────────────────────────
+//
+// End-of-scan reconciliation (#1117): the bridge pages through every live
+// record and checks the ones its disk walk did not see.
+
+const LIVE_PATH_PAGE_SIZE = 1000;
+
+async function handleListLiveAssetPaths(body: Record<string, unknown>) {
+  const afterId = optionalString(body, "after_id");
+  const db = serviceClient();
+  let query = db
+    .from("assets")
+    .select("id, relative_path")
+    .eq("is_deleted", false)
+    .order("id", { ascending: true })
+    .limit(LIVE_PATH_PAGE_SIZE);
+  if (afterId) query = query.gt("id", afterId);
+  const { data, error } = await query;
+  if (error) return err(error.message, 500);
+  const rows = data ?? [];
+  return json({
+    ok: true,
+    assets: rows,
+    next_after_id: rows.length === LIVE_PATH_PAGE_SIZE ? rows[rows.length - 1].id : null,
+  });
+}
+
+// ── Route: retire-missing-assets ────────────────────────────────────
+//
+// The bridge calls this only after a complete scan, with the scan roots
+// readable, for records whose file returned ENOENT (#1117). Soft delete only:
+// a file that returns at the same path revives the record on its next ingest.
+
+const RETIRE_MISSING_MAX_BATCH = 100;
+
+async function handleRetireMissingAssets(body: Record<string, unknown>) {
+  const items = body.assets;
+  if (!Array.isArray(items) || items.length === 0) return err("assets must be a non-empty array");
+  if (items.length > RETIRE_MISSING_MAX_BATCH) return err(`assets exceeds maximum batch size of ${RETIRE_MISSING_MAX_BATCH}`);
+  const wanted = new Map<string, string>();
+  for (const item of items as Array<Record<string, unknown>>) {
+    if (typeof item?.asset_id !== "string" || typeof item?.confirmed_absent_path !== "string") {
+      return err("each asset needs asset_id and confirmed_absent_path");
+    }
+    wanted.set(item.asset_id, item.confirmed_absent_path);
+  }
+  const ids = [...wanted.keys()];
+  const db = serviceClient();
+
+  const { data: rows, error: readError } = await db
+    .from("assets")
+    .select("id, relative_path, is_deleted")
+    .in("id", ids);
+  if (readError) return err(readError.message, 500);
+
+  const { data: checkouts, error: checkoutError } = await db
+    .from("asset_checkouts")
+    .select("asset_id")
+    .in("asset_id", ids)
+    .is("checked_in_at", null);
+  if (checkoutError) return err(checkoutError.message, 500);
+  const checkedOut = new Set((checkouts ?? []).map((c: { asset_id: string }) => c.asset_id));
+
+  const skipped: Record<string, number> = {};
+  const skip = (reason: string) => { skipped[reason] = (skipped[reason] ?? 0) + 1; };
+  const retireIds: string[] = [];
+  const history: Array<Record<string, unknown>> = [];
+  const found = new Set<string>();
+  for (const row of (rows ?? []) as Array<{ id: string; relative_path: string; is_deleted: boolean | null }>) {
+    found.add(row.id);
+    if (row.is_deleted) { skip("not_live"); continue; }
+    if (row.relative_path !== wanted.get(row.id)) { skip("path_changed_since_check"); continue; }
+    if (checkedOut.has(row.id)) { skip("open_checkout"); continue; }
+    retireIds.push(row.id);
+    history.push({ asset_id: row.id, old_relative_path: row.relative_path, new_relative_path: RETIRED_MISSING_MARKER });
+  }
+  for (const id of ids) if (!found.has(id)) skip("not_found");
+
+  if (retireIds.length > 0) {
+    // History first: without the marker a returning file could not revive the record.
+    const { error: historyError } = await db.from("asset_path_history").insert(history);
+    if (historyError) return err(historyError.message, 500);
+    const { error: retireError } = await db
+      .from("assets")
+      .update({ is_deleted: true })
+      .in("id", retireIds)
+      .eq("is_deleted", false);
+    if (retireError) return err(retireError.message, 500);
+  }
+  console.log(`[retire-missing-assets] retired ${retireIds.length}, skipped ${JSON.stringify(skipped)}`);
+  return json({ ok: true, retired: retireIds.length, skipped });
+}
+
 // ── Route: update-asset ─────────────────────────────────────────────
 
 const ALLOWED_UPDATE_FIELDS = [
@@ -1566,7 +1667,7 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
   // ── Guard: never regress a terminal status back to "running" ──
   // Fire-and-forget "running" updates from the agent can arrive after
   // the final "completed/failed" call due to HTTP pipelining races.
-  const TERMINAL_STATUSES = new Set(["completed", "completed_with_errors", "failed"]);
+  const TERMINAL_STATUSES = TERMINAL_SCAN_STATUSES;
   if (status === "running") {
     try {
       const { data: existing } = await db2.from("admin_config").select("value").eq("key", "SCAN_PROGRESS").maybeSingle();
@@ -1591,6 +1692,16 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
   };
   const scanError = status === "failed" ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined)) : undefined;
   if (scanError) progressValue.error = scanError;
+  // Keep the first-seen time for this session so finished runs record a duration.
+  let startedAt: string = progressValue.updated_at as string;
+  try {
+    const { data: existing } = await db.from("admin_config").select("value").eq("key", "SCAN_PROGRESS").maybeSingle();
+    const prev = existing?.value as Record<string, unknown> | undefined;
+    if (prev && prev.session_id === sessionId && typeof prev.started_at === "string") startedAt = prev.started_at;
+  } catch (_e) {
+    // A missing start time only costs the duration figure.
+  }
+  progressValue.started_at = startedAt;
   // Include skipped_dirs if present in this update
   if (skippedDirs && skippedDirs.length > 0) {
     progressValue.skipped_dirs = skippedDirs;
@@ -1618,7 +1729,20 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
   if (error) return err(error.message, 500);
 
   // When scan completes or fails, also update SCAN_REQUEST if session matches
-  if (status === "completed" || status === "completed_with_errors" || status === "failed") {
+  if (TERMINAL_STATUSES.has(status)) {
+    // Run history is telemetry: a failure here must not fail the final report.
+    try {
+      const { data: historyRow } = await db.from("admin_config").select("value").eq("key", SCAN_HISTORY_KEY).maybeSingle();
+      const entry = buildScanHistoryEntry(sessionId, status, startedAt, progressValue.updated_at as string, counters, scanError);
+      await db.from("admin_config").upsert({
+        key: SCAN_HISTORY_KEY,
+        value: appendScanHistory(historyRow?.value, entry),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "key" });
+    } catch (e) {
+      console.warn("[scan-progress] failed to record scan history", (e as Error).message);
+    }
+
     const { data: reqRow } = await db
       .from("admin_config")
       .select("value")
@@ -2259,6 +2383,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const existingContentIdentities: Array<{ relative_path: string; filename: string; quick_hash: string }> = [];
   // Files that are unchanged and require Windows render retry
   const needsRender: string[] = [];
+  // Changed-on-disk files that already have a thumbnail: when the content hash
+  // turns out equal the bridge reuses the stored name instead of orphaning it.
+  const existingThumbnails: Array<{ relative_path: string; quick_hash: string; thumbnail_url: string }> = [];
   const PERMANENT_THUMB_ERRORS = ["no_preview_or_render_failed"];
 
   for (const file of files) {
@@ -2277,6 +2404,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
 
     if (incomingMod !== existingMod || incomingSize !== (existing.file_size ?? 0)) {
       changed.push(rp);
+      if (existing.quick_hash && existing.thumbnail_url) {
+        existingThumbnails.push({ relative_path: rp, quick_hash: existing.quick_hash, thumbnail_url: existing.thumbnail_url });
+      }
       continue;
     }
 
@@ -2331,7 +2461,13 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     }
   }
 
-  return json({ ok: true, changed, needs_thumbnail: needsThumbnail, existing_content_identities: existingContentIdentities });
+  return json({
+    ok: true,
+    changed,
+    needs_thumbnail: needsThumbnail,
+    existing_content_identities: existingContentIdentities,
+    existing_thumbnails: existingThumbnails,
+  });
 }
 
 // ── Route: save-checkpoint ───────────────────────────────────────────
@@ -3114,6 +3250,27 @@ async function handleCompleteSiblingScan(body: Record<string, unknown>) {
     .eq("key", configKey);
 
   if (updErr) return err(updErr.message, 500);
+
+  // Finished requests are only a 10-minute result cache; nothing else removed
+  // them, so they piled up for months (#1117). Sweep old ones here.
+  try {
+    const { data: oldRows } = await db
+      .from("admin_config")
+      .select("key, value, updated_at")
+      .like("key", "sibling_scan_request_%")
+      .order("updated_at", { ascending: true })
+      .limit(500);
+    const nowMs = Date.now();
+    const expired = (oldRows ?? [])
+      .filter((r: { key: string; value: unknown; updated_at: string }) => r.key !== configKey && isExpiredSiblingScanRow(r.value, r.updated_at, nowMs))
+      .map((r: { key: string }) => r.key);
+    if (expired.length > 0) {
+      await db.from("admin_config").delete().in("key", expired);
+      console.log(`[complete-sibling-scan] Removed ${expired.length} finished request rows`);
+    }
+  } catch (e) {
+    console.warn("[complete-sibling-scan] cleanup failed", (e as Error).message);
+  }
 
   console.log(`[complete-sibling-scan] Request ${requestId}: ${status}, ${images.length} images`);
   return json({ ok: true });
@@ -5078,6 +5235,10 @@ corsServe(async (req: Request) => {
         const r = await reportResult(serviceClient(), RESTORE_REQUEST_KEY, RESTORE_RESULT_KEY, body);
         return json(r.body, r.status);
       }
+      case "list-live-asset-paths":
+        return await handleListLiveAssetPaths(body);
+      case "retire-missing-assets":
+        return await handleRetireMissingAssets(body);
       case "check-changed":
         return await handleCheckChanged(body);
       case "save-checkpoint":

@@ -85,6 +85,7 @@ export interface Counters {
   rejected_ai_has_pdf_sibling: number;
   unresolved_licensor: number;
   unresolved_property: number;
+  retired_missing: number;
 }
 
 export interface WindowsRenderPolicy {
@@ -215,7 +216,7 @@ export async function retireStaleAsset(assetId: string, survivingAssetId: string
 
 export async function scanProgress(
   sessionId: string,
-  status: "running" | "completed" | "completed_with_errors" | "failed",
+  status: "running" | "completed" | "completed_with_warnings" | "completed_with_errors" | "failed",
   counters: Counters,
   currentPath?: string,
   skippedDirs?: string[],
@@ -280,15 +281,40 @@ export interface CheckChangedResult {
     filename: string;
     quick_hash: string;
   }>;
+  existing_thumbnails: Array<{
+    relative_path: string;
+    quick_hash: string;
+    thumbnail_url: string;
+  }>;
 }
 
 export async function checkChanged(files: CheckChangedFile[]): Promise<CheckChangedResult> {
-  const data = await callApi("check-changed", { files });
+  // The lookup covers up to 500 paths; give a slow database room before retrying.
+  const data = await callApi("check-changed", { files }, 120_000);
   return {
     changed: (data.changed as string[]) || [],
     needs_thumbnail: (data.needs_thumbnail as string[]) || [],
     existing_content_identities: (data.existing_content_identities as CheckChangedResult["existing_content_identities"]) || [],
+    existing_thumbnails: (data.existing_thumbnails as CheckChangedResult["existing_thumbnails"]) || [],
   };
+}
+
+export async function listLiveAssetPaths(afterId: string | null): Promise<{
+  assets: Array<{ id: string; relative_path: string }>;
+  next_after_id: string | null;
+}> {
+  const data = await callApi("list-live-asset-paths", afterId ? { after_id: afterId } : {}, 120_000);
+  return {
+    assets: (data.assets as Array<{ id: string; relative_path: string }>) || [],
+    next_after_id: (data.next_after_id as string | null) ?? null,
+  };
+}
+
+export async function retireMissingAssets(
+  assets: Array<{ asset_id: string; confirmed_absent_path: string }>,
+): Promise<{ retired: number }> {
+  const data = await callApi("retire-missing-assets", { assets }, 120_000);
+  return { retired: Number(data.retired ?? 0) };
 }
 
 export interface ScanCheckpoint {

@@ -66,7 +66,7 @@ export function LiveScanMonitor() {
 
   // Store last completed/failed scan
   useEffect(() => {
-    if (scanProgress.status === "completed" || scanProgress.status === "failed") {
+    if (scanProgress.status.startsWith("completed") || scanProgress.status === "failed") {
       setLastCompleted(scanProgress);
     }
   }, [scanProgress.status]);
@@ -113,6 +113,7 @@ export function LiveScanMonitor() {
               isRunning && "bg-[hsl(var(--success))] animate-pulse",
               isStale && "bg-[hsl(var(--warning))]",
               scanProgress.status === "completed" && "bg-[hsl(var(--success))]",
+              (scanProgress.status === "completed_with_warnings" || scanProgress.status === "completed_with_errors") && "bg-[hsl(var(--warning))]",
               scanProgress.status === "failed" && "bg-destructive",
               scanProgress.status === "idle" && "bg-muted-foreground/40",
             )}
@@ -121,6 +122,8 @@ export function LiveScanMonitor() {
             {isRunning && "Scanning"}
             {isStale && "Scan appears stuck"}
             {scanProgress.status === "completed" && "Last scan completed"}
+            {scanProgress.status === "completed_with_warnings" && "Last scan completed with warnings"}
+            {scanProgress.status === "completed_with_errors" && "Last scan completed with errors"}
             {scanProgress.status === "failed" && "Last scan failed"}
             {scanProgress.status === "idle" && "No scan in progress"}
           </span>

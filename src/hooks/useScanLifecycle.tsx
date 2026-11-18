@@ -46,7 +46,7 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
     }
 
     // Scan completed
-    if (curr === "completed" || curr === "completed_with_errors" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
+    if (curr === "completed" || curr === "completed_with_warnings" || curr === "completed_with_errors" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
       setScanTriggered(false);
       const c = scanProgress.counters;
       let summary = "";
@@ -57,6 +57,11 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
         if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
         if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
         if (c.errors && curr === "completed_with_errors") parts.push(`${c.errors} errors`);
+        if (c.retired_missing) parts.push(`${c.retired_missing} removed (file deleted)`);
+        if (curr === "completed_with_warnings") {
+          const unresolved = (c.unresolved_licensor ?? 0) + (c.unresolved_property ?? 0);
+          if (unresolved) parts.push(`${unresolved} without licensing`);
+        }
         summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
 
         if (curr === "completed_with_errors") {
