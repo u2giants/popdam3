@@ -17,7 +17,10 @@ cluster.
 - `search_tsv` is a stored generated `tsvector` column indexed with GIN.
 - `title`, `path`, `customer`, and `program` have trigram indexes for substring
   searches such as SKU prefixes (`3fz`).
-- `embedding vector(384)` is reserved for Supabase `gte-small` embeddings.
+- The old `embedding vector(384)` (`gte-small`) column is retired; nothing in
+  search reads it. Meaning vectors live in separate tables: SigLIP2 picture
+  vectors (768) and Qwen3-Embedding-0.6B text-meaning vectors (1024,
+  `dam.search_text_vectors`, #1037).
 - `search_dam_documents(...)` supports keyword-only search now and hybrid
   keyword + semantic search when a query embedding is supplied.
 - The legacy RPCs `search_assets_full_text(...)` and
@@ -32,8 +35,10 @@ cluster.
   HNSW indexes, so it is a guardrail rather than the whole answer.
 - `vector`: pgvector storage and HNSW index support for optional semantic
   search.
-- Supabase Edge AI: `supabase/functions/dam-search-ai` uses native `gte-small`
-  embeddings for batch embedding and semantic search tests.
+- Query vectors come from `apps/text-embed` (`TEXT_EMBED_URL`), which returns
+  both SigLIP2 and Qwen3 text-meaning vectors; `dam-search-ai` no longer uses
+  Supabase Edge AI `gte-small`. The text-meaning leg is switched by
+  `admin_config.SEARCH_TEXT_LEG_MODE` (`on`/`off`, instant, no deploy).
 
 ## Useful Checks
 
