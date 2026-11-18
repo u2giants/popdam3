@@ -160,6 +160,36 @@ export async function mirrorInstallers(
 let inFlight: Promise<void> | null = null;
 let nextAttemptAt = 0;
 
+export type LatestUpsert = (row: {
+  key: string;
+  value: SeaDriveLatest;
+  updated_at: string;
+}) => PromiseLike<{ error: { message: string } | null }>;
+
+/**
+ * Persist the latest SeaDrive entry. A rejected write is logged with the
+ * version that is still published, and false is returned so the caller never
+ * claims the new version was recorded (#1100).
+ */
+export async function recordLatest(
+  upsert: LatestUpsert,
+  value: SeaDriveLatest,
+  existing: SeaDriveLatest | null,
+  now: string,
+): Promise<boolean> {
+  const { error } = await upsert({ key: STORE_KEY, value, updated_at: now });
+  if (error) {
+    logger.error("seadrive-mirror: failed to record latest; previous entry still published", {
+      attempted_version: value.version,
+      published_version: existing?.version ?? null,
+      published_mirrored: existing?.mirrored ?? null,
+      error: error.message,
+    });
+    return false;
+  }
+  return true;
+}
+
 export function maybeMirrorSeaDrive(): Promise<void> {
   if (inFlight) return Promise.resolve();
   if (Date.now() < nextAttemptAt) return Promise.resolve();
@@ -192,10 +222,16 @@ async function runMirror(): Promise<void> {
     const alreadyCurrent = existing?.version === parsed.version && existing?.mirrored;
     if (alreadyCurrent) {
       // Same version already mirrored — just bump checked_at.
-      await db().from("admin_config").upsert(
+      const { error: bumpErr } = await db().from("admin_config").upsert(
         { key: STORE_KEY, value: { ...existing, checked_at: now }, updated_at: now },
         { onConflict: "key" },
       );
+      if (bumpErr) {
+        logger.error("seadrive-mirror: failed to update checked_at", {
+          version: parsed.version,
+          error: bumpErr.message,
+        });
+      }
       return;
     }
 
@@ -226,10 +262,13 @@ async function runMirror(): Promise<void> {
       mirrored,
       checked_at: now,
     };
-    await db().from("admin_config").upsert(
-      { key: STORE_KEY, value, updated_at: now },
-      { onConflict: "key" },
+    const saved = await recordLatest(
+      (row) => db().from("admin_config").upsert(row, { onConflict: "key" }),
+      value,
+      existing ?? null,
+      now,
     );
+    if (!saved) return;
     logger.info("seadrive-mirror: recorded latest", { version: parsed.version, mirrored });
   } catch (e) {
     logger.error("seadrive-mirror: unexpected error", {
