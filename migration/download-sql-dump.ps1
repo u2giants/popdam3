@@ -18,11 +18,13 @@
 
 # ── CONFIGURATION ────────────────────────────────────────────────────
 $SupabaseUrl  = "https://qsllyeztdwjgirsysgai.supabase.co"
-$AuthToken    = "PASTE_YOUR_JWT_HERE"
+$AuthToken    = if ($env:POPDAM_EXPORT_JWT) { $env:POPDAM_EXPORT_JWT } else { "PASTE_YOUR_JWT_HERE" }
 $OutputDir    = ".\dump"
 $ChunkSize    = 5000
 # Set to "true" to include TRUNCATE on first chunk of each table
 $IncludeTruncate = "true"
+# Attempts per chunk before the run is declared incomplete
+$MaxAttempts  = 4
 
 # ── SCRIPT ───────────────────────────────────────────────────────────
 
@@ -60,8 +62,12 @@ if ($manifest.complete -ne $true) { Fail-Run "manifest is not marked complete" }
 # The server clamps chunk size; a mismatch would misplace chunk boundaries (#1096)
 if ([int]$manifest.chunkSize -ne $ChunkSize) { Fail-Run "manifest chunk size $($manifest.chunkSize) != $ChunkSize" }
 # Every chunk is frozen at the manifest's cutoff so live ingestion cannot change counts (#1132)
-if (-not $manifest.cutoff) { Fail-Run "manifest has no snapshot cutoff" }
-$Cutoff = [uri]::EscapeDataString([string]$manifest.cutoff)
+# Read the cutoff verbatim: ConvertFrom-Json turns it into a DateTime whose
+# string form drops milliseconds, so chunks would filter at a different
+# instant than the manifest counted (#1132).
+$cutoffMatch = [regex]::Match($manifestResp.Content, '"cutoff"\s*:\s*"([^"]+)"')
+if (-not $cutoffMatch.Success) { Fail-Run "manifest has no snapshot cutoff" }
+$Cutoff = [uri]::EscapeDataString($cutoffMatch.Groups[1].Value)
 
 Write-Host ""
 Write-Host "━━━ Export Manifest ━━━" -ForegroundColor Green
@@ -103,15 +109,30 @@ foreach ($t in $manifest.tables) {
 
         Write-Host ("  [{0}/{1}] {2}..." -f $fileIndex, $totalChunks, $fileName) -ForegroundColor Gray -NoNewline
 
-        try {
-            $resp = Invoke-WebRequest -Uri $chunkUrl -Headers $Headers -Method GET -TimeoutSec 120 -ErrorAction Stop
-        } catch {
-            Write-Host " FAILED" -ForegroundColor Red
-            Fail-Run "$fileName download failed: $_"
+        # A chunk is idempotent for a fixed cursor, so a transfer cut in transit
+        # is retried; the SHA-256 header proves the body arrived whole (#1132).
+        $problem = $null
+        for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+            $problem = $null
+            try {
+                $resp = Invoke-WebRequest -Uri $chunkUrl -Headers $Headers -Method GET -TimeoutSec 120 -ErrorAction Stop
+            } catch {
+                $problem = "download failed: $_"
+            }
+            if (-not $problem) {
+                $rowsInChunk = [int]("$($resp.Headers['X-Rows-In-Chunk'])")
+                $expectedSha = "$($resp.Headers['X-Content-SHA256'])"
+                $actualSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($resp.Content))).ToLowerInvariant()
+                if (-not $expectedSha) { $problem = "has no X-Content-SHA256 header" }
+                elseif ($actualSha -ne $expectedSha) { $problem = "is truncated or corrupted (SHA-256 mismatch)" }
+                elseif (-not $resp.Content.TrimEnd().EndsWith("COMMIT;")) { $problem = "is truncated (no COMMIT)" }
+                elseif ($rowsInChunk -ne $expectedRows) { $problem = "has $rowsInChunk rows, expected $expectedRows" }
+            }
+            if (-not $problem) { break }
+            Write-Host " retry $attempt ($problem)" -ForegroundColor Yellow -NoNewline
+            Start-Sleep -Seconds (5 * $attempt)
         }
-        $rowsInChunk = [int]("$($resp.Headers['X-Rows-In-Chunk'])")
-        if ($rowsInChunk -ne $expectedRows) { Fail-Run "$fileName has $rowsInChunk rows, expected $expectedRows" }
-        if (-not $resp.Content.TrimEnd().EndsWith("COMMIT;")) { Fail-Run "$fileName is truncated (no COMMIT)" }
+        if ($problem) { Write-Host " FAILED" -ForegroundColor Red; Fail-Run "$fileName $problem" }
         $cursor = "$($resp.Headers['X-Next-Cursor'])"
         if (-not $cursor) { Fail-Run "$fileName returned no next cursor" }
         $resp.Content | Out-File -FilePath $filePath -Encoding UTF8 -NoNewline

@@ -40,9 +40,10 @@ describe("SQL dump download validation (#1083-#1085)", () => {
   });
   it("aborts on any failed, short, or truncated chunk", () => {
     expect(ps).toMatch(/manifest\.complete -ne \$true\) \{ Fail-Run/);
-    expect(ps).toMatch(/rowsInChunk -ne \$expectedRows\) \{ Fail-Run/);
-    expect(ps).toMatch(/EndsWith\("COMMIT;"\)\) \{ Fail-Run/);
-    expect(ps).toMatch(/Fail-Run "\$fileName download failed/);
+    expect(ps).toMatch(/rowsInChunk -ne \$expectedRows\) \{ \$problem =/);
+    expect(ps).toMatch(/EndsWith\("COMMIT;"\)\) \{ \$problem =/);
+    expect(ps).toMatch(/\$problem = "download failed/);
+    expect(ps).toMatch(/if \(\$problem\) \{ Write-Host " FAILED" -ForegroundColor Red; Fail-Run "\$fileName \$problem" \}/);
   });
   it("uses a fresh run folder and restores only the validated list", () => {
     expect(ps).toMatch(/\$RunDir\s+= Join-Path \$OutputDir \$RunStamp/);
@@ -116,11 +117,28 @@ describe("SQL dump under live ingestion (#1132) and large chunks (#1096)", () =>
   });
 
   it("downloader pins the cutoff and follows the server cursor", () => {
-    expect(ps).toMatch(/if \(-not \$manifest\.cutoff\) \{ Fail-Run/);
+    expect(ps).toMatch(/if \(-not \$cutoffMatch\.Success\) \{ Fail-Run/);
+    // ConvertFrom-Json would turn the ISO cutoff into a DateTime and drop milliseconds (#1132)
+    expect(ps).not.toMatch(/\$manifest\.cutoff/);
     expect(ps).toMatch(/&cutoff=\$Cutoff\$afterParam/);
     expect(ps).toMatch(/\$cursor = "\$\(\$resp\.Headers\['X-Next-Cursor'\]\)"/);
     expect(src).toMatch(/"X-Next-Cursor": nextCursor/);
     expect(src).not.toMatch(/\.range\(/);
+  });
+
+  it("cutoff regex keeps the exact manifest instant, milliseconds included", () => {
+    const m = /"cutoff"\s*:\s*"([^"]+)"/.exec(JSON.stringify({ chunkSize: 5000, cutoff: "2026-11-18T20:52:52.481Z" }));
+    expect(m?.[1]).toBe("2026-11-18T20:52:52.481Z");
+    expect(ps).toContain(String.raw`'"cutoff"\s*:\s*"([^"]+)"'`);
+  });
+
+  it("chunk bodies carry a SHA-256 and the downloader retries cut transfers (#1132)", () => {
+    expect(src).toMatch(/crypto\.subtle\.digest\("SHA-256", body\)/);
+    expect(src).toMatch(/"X-Content-SHA256": sha256/);
+    expect(src).toMatch(/"Content-Length": String\(body\.byteLength\)/);
+    expect(ps).toMatch(/\$actualSha -ne \$expectedSha\) \{ \$problem =/);
+    expect(ps).toMatch(/for \(\$attempt = 1; \$attempt -le \$MaxAttempts/);
+    expect(ps).toMatch(/\$MaxAttempts\s+= 4/);
   });
 });
 
