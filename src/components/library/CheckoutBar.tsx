@@ -1,4 +1,4 @@
-import { Download, Upload, Trash2, Lock, Loader2 } from "lucide-react";
+import { Download, Upload, Trash2, Lock, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAssetCheckout } from "@/hooks/useAssetCheckout";
 
@@ -7,14 +7,44 @@ interface CheckoutBarProps {
 }
 
 export default function CheckoutBar({ assetId }: CheckoutBarProps) {
-  const { checkout, currentUser, checkoutBusy, handleCheckout, handleCheckin, handleDiscard } =
-    useAssetCheckout(assetId);
+  const {
+    checkout,
+    checkoutStatus,
+    refetchCheckout,
+    currentUser,
+    checkoutBusy,
+    handleCheckout,
+    handleCheckin,
+    handleDiscard,
+  } = useAssetCheckout(assetId);
 
   if (!assetId) return null;
 
+  if (checkoutStatus === "error" && !checkout) {
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-1 shrink-0 text-xs text-destructive"
+        title="Checkout status could not be loaded. Click to retry."
+        onClick={() => refetchCheckout()}
+      >
+        <AlertTriangle className="h-3 w-3 shrink-0" />
+        <span>Status unavailable</span>
+      </button>
+    );
+  }
+
+  if (checkoutStatus === "loading") {
+    return (
+      <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground" title="Loading checkout status">
+        <Loader2 className="h-3 w-3 animate-spin" />
+      </div>
+    );
+  }
+
   if (checkout) {
     const profile = (checkout as any).profiles;
-    const checkedOutByMe = currentUser && profile?.email === currentUser.email;
+    const checkedOutByMe = !!currentUser && !!checkout.user_id && checkout.user_id === currentUser.id;
     const checkerName = profile?.full_name ?? profile?.email ?? "another user";
     const since = new Date(checkout.checked_out_at).toLocaleTimeString([], {
       hour: "2-digit",

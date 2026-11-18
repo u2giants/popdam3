@@ -6,19 +6,26 @@ import { toast } from "sonner";
 export function useAssetCheckout(assetId: string | null | undefined) {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
 
-  const { data: checkout, refetch: refetchCheckout } = useQuery({
+  const {
+    data: checkout,
+    refetch: refetchCheckout,
+    isPending: checkoutPending,
+    isError: checkoutError,
+  } = useQuery({
     queryKey: ["asset-checkout", assetId],
     enabled: !!assetId,
     queryFn: async () => {
       // NOTE: asset_checkouts.user_id references auth.users, not public.profiles,
       // so PostgREST cannot embed profiles(...) directly (it 400s). Fetch the
       // checkout first, then resolve the owner's profile by user_id separately.
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("asset_checkouts")
         .select("id, status, checked_out_at, user_id")
         .eq("asset_id", assetId!)
         .in("status", ["active", "checkin_queued", "uploading", "verifying"])
         .maybeSingle();
+      // A failed lookup must surface as an error, never as "not checked out".
+      if (error) throw error;
       if (!data) return null;
 
       let profiles: { full_name: string | null; email: string | null } | null = null;
@@ -28,6 +35,7 @@ export function useAssetCheckout(assetId: string | null | undefined) {
           .select("full_name, email")
           .eq("user_id", data.user_id)
           .maybeSingle();
+        // Profile is display-only; ownership is decided by user_id.
         profiles = profile ?? null;
       }
       return { ...data, profiles };
@@ -105,5 +113,8 @@ export function useAssetCheckout(assetId: string | null | undefined) {
     }
   }
 
-  return { checkout, currentUser, checkoutBusy, handleCheckout, handleCheckin, handleDiscard };
+  const checkoutStatus: "loading" | "error" | "ready" =
+    checkoutError ? "error" : checkoutPending ? "loading" : "ready";
+
+  return { checkout, checkoutStatus, refetchCheckout, currentUser, checkoutBusy, handleCheckout, handleCheckin, handleDiscard };
 }
