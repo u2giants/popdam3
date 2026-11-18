@@ -687,3 +687,58 @@ test('POSITIVE CONTROL #6258: gate-read docs data, gate code, workflows, config 
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 })
+
+// #6493: production run 44187977315 was refused when main edited the 5609 live
+// probe and added a docs file only that probe's comment named.
+test('#6493: production accepts an edited or added live-proof probe and docs it alone names', () => {
+  const { repo } = makeRepo()
+  try {
+    const sha = commitFiles(repo, { 'supabase/migrations/20261026150931_a.sql': 'select 1;\n', '.github/live-proofs/5609.sql': 'select 1;\n' }, 'base')
+    const tip = commitFiles(repo, {
+      '.github/live-proofs/5609.sql': '-- docs/verification/issue-5609-trigger-acceptance/5609-third-failed-window.sql\nselect 2;\n',
+      '.github/live-proofs/6000.sql': 'select 3;\n',
+      'docs/verification/issue-5609-trigger-acceptance/5609-third-failed-window.sql': 'select 0;\n',
+      'docs/verification/issue-5609-trigger-acceptance/20261117-current-diagnosis.md': 'x\n',
+      'scripts/test_assets_trigger_acceptance_probe.py': 'x = 1\n',
+    }, '44187977315 shape')
+    assert.equal(classify(repo, sha, tip).ok, false, 'the default lane is unchanged')
+    assert.equal(prod(repo, sha, tip).ok, true, prod(repo, sha, tip).reason)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})
+
+test('POSITIVE CONTROL #6493: deleted, renamed or nested probes, docs named by gate code, and gate code still refuse', () => {
+  const { repo } = makeRepo()
+  try {
+    const sha = commitFiles(repo, {
+      '.github/live-proofs/5609.sql': 'select 1;\n',
+      'scripts/gate.mjs': "readFileSync('docs/verification/gate-read-evidence/x.sql')\n",
+    }, 'base')
+    const cases = [
+      [['rm', '-q', '.github/live-proofs/5609.sql'], null],
+      [['mv', '.github/live-proofs/5609.sql', '.github/live-proofs/5610.sql'], null],
+      [null, { '.github/live-proofs/nested/x.sql': 'select 1;\n' }],
+      [null, { '.github/live-proofs/x.yml': 'x\n' }],
+      [null, { '.github/live-proofs.sql': 'x\n' }],
+      [null, { 'docs/verification/gate-read-evidence/x.sql': 'select 1;\n' }],
+      [null, { '.github/workflows/shared-supabase-migrations.yml': 'x\n' }],
+      [null, { 'scripts/check-main-tip-freshness.mjs': 'x\n' }],
+      [null, { 'supabase/tests/x.sql': 'select 1;\n' }],
+      [null, { 'stray.sql': 'select 1;\n' }],
+      [null, { '.github/live-proofs/5609.sql': 'select 2;\n', 'scripts/gate.mjs': 'x\n' }],
+    ]
+    for (const [gitArgs, files] of cases) {
+      git(repo, ['checkout', '-q', sha])
+      let tip
+      if (gitArgs) {
+        git(repo, gitArgs)
+        git(repo, ['commit', '-qam', gitArgs.join(' ')])
+        tip = git(repo, ['rev-parse', 'HEAD']).trim()
+      } else tip = commitFiles(repo, files, Object.keys(files).join(' '))
+      assert.equal(prod(repo, sha, tip).ok, false, `${JSON.stringify(gitArgs ?? files)} must refuse`)
+    }
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})

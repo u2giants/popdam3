@@ -257,6 +257,7 @@ export function classifyMainTip({ mainSha, tipSha, cwd, gitRunner = git, product
   if (production) {
     try { appended = laterAppendedMigrationPaths({ mainSha, tipSha, paths, cwd, gitRunner }) } catch { appended = new Set() }
     try { for (const path of addedUnreferencedDocPaths({ mainSha, tipSha, paths, cwd, gitRunner })) appended.add(path) } catch { /* refuse as before */ }
+    try { for (const path of liveProofProbePaths({ mainSha, tipSha, paths, cwd, gitRunner })) appended.add(path) } catch { /* refuse as before */ }
   }
   const blocking = paths.filter((path) => !inert(path) && !appended.has(path)).sort()
   if (blocking.length > 0) {
@@ -329,7 +330,7 @@ export function addedUnreferencedDocPaths({ mainSha, tipSha, paths, cwd, gitRunn
     names.push(`${escapeRegex(stem)}([^/]|$)`)
     let hits
     try {
-      hits = gitRunner(['grep', '-l', '-E', '-e', names.join('|'), tipSha, '--', '.', ':(exclude)docs', ':(exclude)*.md', ':(exclude)*.markdown', ':(exclude)*.test.mjs', ':(exclude)*/test_*.py'], { cwd })
+      hits = gitRunner(['grep', '-l', '-E', '-e', names.join('|'), tipSha, '--', '.', ':(exclude)docs', ':(exclude).github/live-proofs', ':(exclude)*.md', ':(exclude)*.markdown', ':(exclude)*.test.mjs', ':(exclude)*/test_*.py'], { cwd })
     } catch (error) {
       if (error?.status !== 1) throw error
       hits = ''
@@ -337,6 +338,20 @@ export function addedUnreferencedDocPaths({ mainSha, tipSha, paths, cwd, gitRunn
     if (hits.trim() === '') tolerated.add(path)
   }
   return tolerated
+}
+
+// LIVE-PROOF PROBES (#6493). Production run 44187977315 was refused because main
+// gained an edited `.github/live-proofs/5609.sql` and a docs file that only that
+// probe's comment named. Probes are run by the separate live-proof workflow; no
+// step of the production jobs in shared-supabase-migrations.yml, nor any script
+// they call, reads, globs, lints or hashes `.github/live-proofs/`. So, production
+// only, a top-level `.github/live-proofs/<name>.sql` that was ADDED or MODIFIED
+// (git-proven) rides along. Deleted, renamed, nested or non-.sql paths refuse.
+// The docs reference search above skips these probes for the same reason.
+const LIVE_PROOF_PATH = /^\.github\/live-proofs\/[A-Za-z0-9][A-Za-z0-9_-]*\.sql$/
+export function liveProofProbePaths({ mainSha, tipSha, paths, cwd, gitRunner = git }) {
+  const kept = new Set(nulPaths(gitRunner(['diff', '--name-only', '--no-renames', '--diff-filter=AM', '-z', mainSha, tipSha], { cwd })))
+  return new Set(paths.filter((path) => kept.has(path) && LIVE_PROOF_PATH.test(path)))
 }
 
 const MIGRATION_PATH = /^supabase\/migrations\/(\d{14})_[^/]+\.sql$/
