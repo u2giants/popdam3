@@ -38,11 +38,14 @@ export function PropertyMatchReview({ client }: Props) {
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [denied, setDenied] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
+  // True when the queue itself failed to load. An empty list then means "unknown",
+  // never "nothing is waiting", so the screen must not claim the queue is clear.
+  const [queueFailed, setQueueFailed] = useState(false)
   const [search, setSearch] = useState('')
   const [saved, setSaved] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null); setOptionsError(null); setDenied(false); setUnavailable(false)
+    setLoading(true); setError(null); setOptionsError(null); setDenied(false); setUnavailable(false); setQueueFailed(false)
     try {
       // The queue is the screen; the full OPA picker is supporting vocabulary.
       // Load them separately so a picker failure can never erase a valid queue.
@@ -60,7 +63,10 @@ export function PropertyMatchReview({ client }: Props) {
       else {
         const message = cause instanceof Error ? cause.message : ''
         if (/permission|licensing|access/i.test(message)) setDenied(true)
-        else setError(message || 'The review queue could not be loaded.')
+        else {
+          setQueueFailed(true)
+          setError(message || 'The review queue could not be loaded.')
+        }
       }
     } finally { setLoading(false) }
   }, [client])
@@ -229,7 +235,11 @@ export function PropertyMatchReview({ client }: Props) {
         </article>
       })}
       {loading && <div className="grid-loading">Loading…</div>}
-      {!loading && visible.length === 0 && <p className="muted">Nothing is waiting for a decision.</p>}
+      {!loading && visible.length === 0 && (queueFailed
+        ? <p className="muted">The review queue did not load, so nothing is shown as waiting. Use refresh to try again.</p>
+        : rows.length > 0
+          ? <p className="muted">No property matches fit this search.</p>
+          : <p className="muted">Nothing is waiting for a decision.</p>)}
     </div>
     <footer className="grid-footer"><span>{visible.length} of {rows.length} awaiting a decision</span></footer>
   </section>
