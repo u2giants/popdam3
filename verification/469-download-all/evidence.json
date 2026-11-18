@@ -1,0 +1,74 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "Download all (StyleGroupDetailPanel) batch checkout live proof",
+  "date": "2026-11-18",
+  "timezone": "America/New_York",
+  "task_gate": {
+    "class": "ui-live-workflow",
+    "base": "8c5f26c92b03",
+    "checks": [
+      "check --before production — refused (protected class, recorded verbatim)",
+      "check --before deploy — allowed"
+    ]
+  },
+  "toytest_style_group": {
+    "sku": "QAZ4692601",
+    "style_group_id": "b4692601-7ace-4b39-b75e-274f3e8f8a33",
+    "folder_path": "Decor/Generic Decor/Unused/_ai_test_681/QAZ4692601",
+    "assets": [
+      {
+        "id": "59416dfd-136e-5c4f-b0fb-c2db487c66b9",
+        "filename": "469-toytest-checkout-art-a.psd",
+        "file_size": 232,
+        "quick_hash": "03e37ca68fe579f6949be4fc7e05c51efd8cb4a7fdc436000c6847f51f10ea95",
+        "relative_path": "Decor/Generic Decor/Unused/_ai_test_681/QAZ4692601/469-toytest-checkout-art-a.psd"
+      },
+      {
+        "id": "78d15273-6243-5339-be9e-00028989fb18",
+        "filename": "469-toytest-checkout-art-b.psd",
+        "file_size": 232,
+        "quick_hash": "7bd183e1cbbe9c90845aae0d37e2ae1b1cd29dfc9830b9a7306726021e32d382",
+        "relative_path": "Decor/Generic Decor/Unused/_ai_test_681/QAZ4692601/469-toytest-checkout-art-b.psd"
+      }
+    ]
+  },
+  "batch_checkout": {
+    "tokens_generated": 2,
+    "batch_url_format": "popdam://checkout-batch?tokens=<t1>,<t2>",
+    "tokens": [
+      "c734f92aac2293d821fa185bb2a13fce",
+      "97042fb07662145114780135c683e583"
+    ],
+    "helper_log_entries": [
+      "17:37:44 UTC - Deep link received: popdam://checkout-batch/?tokens=[REDACTED]",
+      "17:37:45 UTC - Copying 469-toytest-checkout-art-a.psd -> C:\\POP-DAM-Workspace\\CheckedOut\\1a66c2a1-...\\",
+      "17:37:47 UTC - Copying 469-toytest-checkout-art-b.psd -> C:\\POP-DAM-Workspace\\CheckedOut\\da713606-...\\"
+    ],
+    "workspace_checkouts": [
+      {
+        "checkout_id": "1a66c2a1-2b44-4840-9baf-bbe02d3477e2",
+        "asset_id": "59416dfd-136e-5c4f-b0fb-c2db487c66b9",
+        "filename": "469-toytest-checkout-art-a.psd",
+        "source_hash": "03e37ca68fe579f6949be4fc7e05c51efd8cb4a7fdc436000c6847f51f10ea95",
+        "file_size": 232
+      },
+      {
+        "checkout_id": "da713606-b4a6-4ddd-a48a-06c70f95574c",
+        "asset_id": "78d15273-6243-5339-be9e-00028989fb18",
+        "filename": "469-toytest-checkout-art-b.psd",
+        "source_hash": "7bd183e1cbbe9c90845aae0d37e2ae1b1cd29dfc9830b9a7306726021e32d382",
+        "file_size": 232
+      }
+    ]
+  },
+  "containment": {
+    "workspace_root": "C:\\POP-DAM-Workspace\\CheckedOut",
+    "files_outside_workspace": 0,
+    "guard": "safePathSegment + joinWithinRoot (same as #229)",
+    "result": "PASS - all files inside workspace"
+  },
+  "cleanup": {
+    "removed": ["1a66c2a1-2b44-4840-9baf-bbe02d3477e2", "da713606-b4a6-4ddd-a48a-06c70f95574c"],
+    "left_in_place": ["0dbdba1d-9797-4366-9b3b-23d96ab4d008 (belongs to #229 proof)"]
+  }
+}
