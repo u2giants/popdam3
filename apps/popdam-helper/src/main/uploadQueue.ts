@@ -6,7 +6,8 @@
 
 import { app } from "electron";
 import { join, dirname } from "path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync } from "fs";
+import { readQueueFile, writeQueueFile } from "./queueStore";
 import { log } from "./logger";
 import { loadToken } from "./credentials";
 import { uploadFile } from "./synologyClient";
@@ -34,7 +35,13 @@ let failedCallback: ((checkoutId: string, message: string) => void) | null = nul
 
 export function initQueue(): void {
   queuePath = join(app.getPath("userData"), "upload-queue.json");
-  recoverStaleJobs();
+  try {
+    recoverStaleJobs();
+  } catch (err) {
+    // Unreadable queue: leave the file untouched for recovery rather than
+    // crashing startup or replacing it with an empty list.
+    log.error(`Upload queue could not be read at startup: ${String(err)}`);
+  }
 }
 
 /**
@@ -85,16 +92,13 @@ export function setFailedCallback(cb: (checkoutId: string, message: string) => v
 // ── Persistence helpers ───────────────────────────────────────────────────────
 
 function readJobs(): StoredJob[] {
-  try {
-    return JSON.parse(readFileSync(queuePath, "utf-8"));
-  } catch {
-    return [];
-  }
+  // Throws when the queue is unreadable with no usable backup, so a damaged
+  // queue is never mistaken for an empty one and overwritten.
+  return readQueueFile<StoredJob>(queuePath, (m) => log.warn(m));
 }
 
 function writeJobs(jobs: StoredJob[]): void {
-  mkdirSync(dirname(queuePath), { recursive: true });
-  writeFileSync(queuePath, JSON.stringify(jobs, null, 2), "utf-8");
+  writeQueueFile(queuePath, jobs);
 }
 
 // ── Enqueue ───────────────────────────────────────────────────────────────────
