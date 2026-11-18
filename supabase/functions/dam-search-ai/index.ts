@@ -37,8 +37,14 @@ export const SEARCH_TEXT_LEG_MODE_KEY = "SEARCH_TEXT_LEG_MODE";
 export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
-/** A cold isolate waits this long for character names; past it the search runs without the rule. */
-const NAME_INDEX_BUDGET_MS = 1500;
+/**
+ * A cold isolate waits this long for character names; past it the search runs without the rule.
+ * 1.5 s was too short on production (Nov 17, 2026: ~750 ms per backend round trip), so the first
+ * search of a fresh isolate silently skipped the rule and showed other characters.
+ */
+const NAME_INDEX_BUDGET_MS = 6000;
+/** Licensor names feed the licensor scope and the character collision rule (#1037). */
+const LICENSOR_READ_TIMEOUT_MS = 3000;
 const PRODUCT_WORDS = [
   "canvas",
   "hamper",
@@ -130,8 +136,8 @@ function licensorNames(): Promise<LicensorName[]> {
     // Recorded aliases ("Peanuts" for "Peanuts Worldwide") name a licensor too (#897).
     const core = serviceClient().schema("core");
     const [licensors, aliases] = await Promise.all([
-      core.from("licensor").select("id,name").abortSignal(AbortSignal.timeout(1000)),
-      core.from("licensor_alias").select("licensor_id,alias").abortSignal(AbortSignal.timeout(1000)),
+      core.from("licensor").select("id,name").abortSignal(AbortSignal.timeout(LICENSOR_READ_TIMEOUT_MS)),
+      core.from("licensor_alias").select("licensor_id,alias").abortSignal(AbortSignal.timeout(LICENSOR_READ_TIMEOUT_MS)),
     ]);
     if (licensors.error) throw new Error(licensors.error.message);
     const rows = (data: unknown, idKey: string, nameKey: string) =>
