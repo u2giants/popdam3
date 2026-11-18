@@ -13,13 +13,15 @@
  */
 
 import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
+import { runCheckChangedPreflight, reusableThumbnailId } from "./check-changed-preflight.js";
+import { reconcileMissingFiles } from "./missing-file-reconciliation.js";
 import { config } from "./config.js";
 import { logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";
 import { exec } from "node:child_process";
-import { stat, readFile, writeFile, mkdir } from "node:fs/promises";
+import { stat, readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { setIngestionRules, validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
@@ -141,6 +143,7 @@ const counters: api.Counters = {
   rejected_ai_has_pdf_sibling: 0,
   unresolved_licensor: 0,
   unresolved_property: 0,
+  retired_missing: 0,
 };
 
 function resetCounters() {
@@ -164,6 +167,7 @@ function resetCounters() {
   counters.rejected_ai_has_pdf_sibling = 0;
   counters.unresolved_licensor = 0;
   counters.unresolved_property = 0;
+  counters.retired_missing = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
@@ -828,7 +832,7 @@ async function processThumbnail(
  */
 async function safeScanProgress(
   sessionId: string,
-  status: "running" | "completed" | "completed_with_errors" | "failed",
+  status: "running" | "completed" | "completed_with_warnings" | "completed_with_errors" | "failed",
   currentCounters: api.Counters,
   message?: string,
   dirs?: string[],
@@ -878,48 +882,15 @@ async function runScan(providedSessionId?: string) {
   resetCounters();
   const sessionId = providedSessionId || randomUUID();
   const effectiveRoots = getEffectiveScanRoots();
-  let resumeFromDir: string | undefined;
-
-  // ── Check for resumable checkpoint ──
-  try {
-    const checkpoint = await api.getCheckpoint();
-    if (checkpoint && checkpoint.last_completed_dir) {
-      const ageMs = Date.now() - new Date(checkpoint.saved_at).getTime();
-      const isDifferentSession = checkpoint.session_id !== sessionId;
-
-      if (isDifferentSession) {
-        // Checkpoint belongs to a different scan session. Never resume from it.
-        //
-        // A different-session checkpoint is typically left over from a previous scan
-        // that completed but whose clearCheckpoint call failed (network error). If we
-        // resumed from it, the new scan would skip every directory up to
-        // last_completed_dir — often ALL directories — reporting "no new assets."
-        //
-        // Resume only applies to the SAME session (agent crashed mid-scan and the
-        // same session_id was re-requested).
-        logger.warn("Discarding checkpoint from different session — starting fresh scan", {
-          checkpointSession: checkpoint.session_id,
-          currentSession: sessionId,
-          savedAt: checkpoint.saved_at,
-          ageHours: Math.round(ageMs / 3_600_000),
-        });
-        await api.clearCheckpoint().catch((e) =>
-          logger.warn("Failed to clear different-session checkpoint", { error: (e as Error).message })
-        );
-      } else {
-        // Same session = agent crashed mid-scan and was restarted with the same session_id.
-        // Resume from where it left off.
-        logger.info("Found checkpoint for current session, resuming scan", {
-          lastCompletedDir: checkpoint.last_completed_dir,
-          savedAt: checkpoint.saved_at,
-          ageHours: Math.round(ageMs / 3_600_000),
-        });
-        resumeFromDir = checkpoint.last_completed_dir;
-      }
-    }
-  } catch (e) {
-    logger.warn("Failed to fetch checkpoint, starting fresh", { error: (e as Error).message });
-  }
+  // A scan never resumes from a checkpoint (#1117). Discovered files are held
+  // in memory until the walk ends, so a restarted bridge has lost everything
+  // found before the checkpoint; resuming skipped those folders and still
+  // reported success. Any leftover checkpoint is cleared and the walk starts
+  // from the beginning.
+  const resumeFromDir: string | undefined = undefined;
+  await api.clearCheckpoint().catch((e) =>
+    logger.warn("Failed to clear leftover scan checkpoint", { error: (e as Error).message })
+  );
 
   logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
   scanContentIdentitySeen = new Set();
@@ -946,7 +917,6 @@ async function runScan(providedSessionId?: string) {
     // Collect files first so duplicate-copy detection can see the whole scan
     // before any hash-based move detection runs.
     const scanCandidates: FileCandidate[] = [];
-    let currentTopLevelDir: string | null = null;
 
     // Reset skipped directories for this scan (module-level so ingest progress can access)
     skippedDirs = [];
@@ -954,44 +924,10 @@ async function runScan(providedSessionId?: string) {
     // Throttled progress reporter for directory walking
     let lastProgressAt = 0;
     const PROGRESS_INTERVAL_MS = 2000;
-    // Track files processed for periodic checkpointing (every 500 files)
-    let lastCheckpointFileCount = 0;
-    const CHECKPOINT_FILE_INTERVAL = 500;
 
     const callbacks: ScanCallbacks = {
       shouldAbort: () => abortRequested,
       onDir: (dirPath) => {
-        // Track top-level subdirectory transitions for checkpointing
-        for (const root of effectiveRoots) {
-          if (dirPath.startsWith(root) && dirPath !== root) {
-            const subPath = dirPath.slice(root.length).replace(/^\//, "");
-            const topLevel = subPath.split("/")[0];
-            if (topLevel) {
-              const topLevelFull = root + "/" + topLevel;
-              if (topLevelFull !== currentTopLevelDir && currentTopLevelDir !== null) {
-                // We've moved to a new top-level dir — checkpoint the completed one
-                api.saveCheckpoint(sessionId, currentTopLevelDir).catch((e) =>
-                  logger.warn("Failed to save checkpoint", { error: (e as Error).message })
-                );
-                lastCheckpointFileCount = counters.files_checked;
-              }
-              currentTopLevelDir = topLevelFull;
-            }
-            break;
-          }
-        }
-
-        // Periodic checkpoint every 500 files, regardless of directory boundaries
-        if (
-          currentTopLevelDir &&
-          counters.files_checked - lastCheckpointFileCount >= CHECKPOINT_FILE_INTERVAL
-        ) {
-          api.saveCheckpoint(sessionId, currentTopLevelDir).catch((e) =>
-            logger.warn("Failed to save periodic checkpoint", { error: (e as Error).message })
-          );
-          lastCheckpointFileCount = counters.files_checked;
-        }
-
         const now = Date.now();
         if (now - lastProgressAt >= PROGRESS_INTERVAL_MS) {
           lastProgressAt = now;
@@ -1043,16 +979,6 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
-    // The directory walk is complete. From this point on, a crash should restart
-    // from the beginning rather than resume past files that may not have been
-    // ingested yet.
-    const checkpointCleared = await clearScanCheckpointWithRetry("before ingest phase");
-    if (!checkpointCleared) {
-      counters.errors++;
-      await safeScanProgress(sessionId, "failed", counters, "Failed to clear scan checkpoint before ingest", skippedDirs);
-      return;
-    }
-
     setActivity(`scan:ingest (${scanCandidates.length} candidates)`);
     await processScanCandidates(scanCandidates, sessionId);
     logScanMemory("ingest_complete", {
@@ -1068,10 +994,15 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
+    await reconcileCatalogWithDisk(scanCandidates, effectiveRoots);
+
     // Missing licensing is a visible data-quality problem, not a successful
-    // silent fallback.
+    // silent fallback — but it is a warning, kept apart from real failures so
+    // "completed with errors" means something went wrong (#1117).
     const hasUnresolvedLicensing = counters.unresolved_licensor > 0 || counters.unresolved_property > 0;
-    const finalStatus = counters.errors > 0 || hasUnresolvedLicensing ? "completed_with_errors" : "completed";
+    const finalStatus = counters.errors > 0
+      ? "completed_with_errors"
+      : hasUnresolvedLicensing ? "completed_with_warnings" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
     await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
     await clearScanCheckpointWithRetry("after successful scan");
@@ -1089,6 +1020,8 @@ async function runScan(providedSessionId?: string) {
 
 }
 
+let existingThumbnailByPath = new Map<string, { quick_hash: string; thumbnail_url: string }>();
+
 async function clearScanCheckpointWithRetry(context: string): Promise<boolean> {
   try {
     await api.clearCheckpoint();
@@ -1101,6 +1034,39 @@ async function clearScanCheckpointWithRetry(context: string): Promise<boolean> {
       });
       return false;
     });
+  }
+}
+
+/**
+ * Retires records whose file is gone from the NAS (#1117). Runs only after a
+ * complete scan; any doubt leaves the catalog untouched.
+ */
+async function reconcileCatalogWithDisk(candidates: FileCandidate[], scanRoots: string[]) {
+  setActivity("scan:reconcile");
+  try {
+    const result = await reconcileMissingFiles({
+      mountRoot: (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, ""),
+      scanRoots,
+      seenPaths: new Set(candidates.map((f) => f.relativePath)),
+      skippedDirs,
+      skippedDirsTruncated: skippedDirs.length >= MAX_SKIPPED_DIRS,
+    }, {
+      listLivePaths: api.listLiveAssetPaths,
+      retire: api.retireMissingAssets,
+      stat,
+      readdir,
+      shouldAbort: () => abortRequested,
+    });
+    counters.retired_missing = result.retired;
+    if (result.refused) {
+      logger.warn("Missing-file reconciliation retired nothing", { ...result });
+      if (result.refused === "too_many_missing") counters.errors++;
+    } else {
+      logger.info("Missing-file reconciliation complete", { ...result });
+    }
+  } catch (e) {
+    counters.errors++;
+    logger.error("Missing-file reconciliation failed; catalog left as is", { error: (e as Error).message });
   }
 }
 
@@ -1118,32 +1084,20 @@ async function processScanCandidates(candidates: FileCandidate[], sessionId: str
     check_payload: checkPayload.length,
   });
 
-  let changedSet: Set<string>;
-  let needsThumbnailSet: Set<string>;
-  try {
-    // Server caps check-changed at 500 files per request.
-    const CHECK_CHUNK_SIZE = 500;
-    const allChanged: string[] = [];
-    const allNeedsThumbnail: string[] = [];
-    const existingIdentities: api.CheckChangedResult["existing_content_identities"] = [];
-    for (let ci = 0; ci < checkPayload.length; ci += CHECK_CHUNK_SIZE) {
-      const chunk = checkPayload.slice(ci, ci + CHECK_CHUNK_SIZE);
-      const result = await api.checkChanged(chunk);
-      allChanged.push(...result.changed);
-      allNeedsThumbnail.push(...result.needs_thumbnail);
-      existingIdentities.push(...result.existing_content_identities);
-    }
-    for (const identity of existingIdentities) {
-      scanContentIdentitySeen.add(`${identity.quick_hash}\0${identity.filename}`);
-    }
-    changedSet = new Set(allChanged);
-    needsThumbnailSet = new Set(allNeedsThumbnail);
-  } catch (e) {
-    // If check-changed fails, fall back to processing everything
-    logger.warn("check-changed failed, processing entire scan", { error: (e as Error).message });
-    changedSet = new Set(candidates.map((f) => f.relativePath));
-    needsThumbnailSet = new Set();
+  // A failed change check never widens to "everything changed" (#1117): the
+  // chunk is retried, and if it still fails the scan fails here.
+  const preflight = await runCheckChangedPreflight(checkPayload, {
+    checkChanged: api.checkChanged,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    warn: (message, details) => logger.warn(message, details),
+    shouldAbort: () => abortRequested,
+  });
+  for (const identity of preflight.existing_content_identities) {
+    scanContentIdentitySeen.add(`${identity.quick_hash}\0${identity.filename}`);
   }
+  existingThumbnailByPath = new Map(preflight.existing_thumbnails.map((t) => [t.relative_path, t]));
+  const changedSet = new Set(preflight.changed);
+  const needsThumbnailSet = new Set(preflight.needs_thumbnail);
   logScanMemory("preflight_complete", {
     sessionId,
     candidates: candidates.length,
@@ -1266,7 +1220,8 @@ async function processFile(file: FileCandidate) {
     if (deferDecision.defer) {
       thumb = { thumbnailError: "deferred_to_windows_agent" };
     } else {
-      const tempId = randomUUID();
+      // Same content as on record: keep the stored thumbnail name (#1117).
+      const tempId = reusableThumbnailId(existingThumbnailByPath.get(file.relativePath), quick_hash) ?? randomUUID();
       thumb = await processThumbnail(file, tempId);
     }
 

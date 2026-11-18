@@ -22,6 +22,9 @@ export interface ScanCounters {
   noop_unchanged?: number;
   rejected_subfolder?: number;
   skipped_before_min_date?: number;
+  retired_missing?: number;
+  unresolved_licensor?: number;
+  unresolved_property?: number;
 }
 
 export interface AgentRecord {
@@ -77,6 +80,9 @@ function parseCounters(raw: unknown): ScanCounters | null {
     noop_unchanged: Number(r.noop_unchanged ?? 0),
     rejected_subfolder: Number(r.rejected_subfolder ?? 0),
     skipped_before_min_date: Number(r.skipped_before_min_date ?? 0),
+    retired_missing: Number(r.retired_missing ?? 0),
+    unresolved_licensor: Number(r.unresolved_licensor ?? 0),
+    unresolved_property: Number(r.unresolved_property ?? 0),
   };
 }
 

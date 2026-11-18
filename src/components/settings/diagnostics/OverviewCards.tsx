@@ -131,7 +131,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
 
   const status = progress.status || "idle";
   const isRunning = status === "running" || status === "scanning";
-  const isCompleted = status === "completed" || status === "done";
+  const isCompleted = status === "completed" || status === "completed_with_warnings" || status === "done";
   const isCompletedWithErrors = status === "completed_with_errors";
   const isFailed = status === "failed" || status === "error";
   const counters = progress.counters;
@@ -158,7 +158,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
             variant={isRunning ? "default" : isCompleted ? "secondary" : isFailed ? "destructive" : "outline"}
             className={isCompletedWithErrors ? "border-[hsl(var(--warning))] text-[hsl(var(--warning))]" : "ml-1"}
           >
-            {isCompletedWithErrors ? "completed with errors" : status}
+            {isCompletedWithErrors ? "completed with errors" : status === "completed_with_warnings" ? "completed with warnings" : status}
           </Badge>
         </CardTitle>
       </CardHeader>

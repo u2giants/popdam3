@@ -144,7 +144,9 @@ Response:
 Important:
 - The server caps each request at 500 files; bridge agents chunk full-scan preflight calls.
 - Bridge agents must preserve `existing_content_identities` across chunks for the whole scan, not per chunk.
-- If `check-changed` fails, the bridge may process all candidates, but duplicate-copy detection is weaker because unchanged existing identities are unavailable.
+- `existing_thumbnails` — changed paths that already have a thumbnail, as `{ relative_path, quick_hash, thumbnail_url }`, so identical content keeps its stored thumbnail name.
+- If `check-changed` fails, the bridge retries that chunk and then fails the scan; it never processes all candidates (#1117, `docs/WORKER_LOGIC.md` §3.4).
+- `list-live-asset-paths` (`after_id`) and `retire-missing-assets` (`assets: [{ asset_id, confirmed_absent_path }]`, max 100) serve end-of-scan reconciliation (`docs/WORKER_LOGIC.md` §3.5).
 
 ### POST /agent/scan-progress
 

@@ -6,6 +6,19 @@
 
 export const RETIRED_STALE_MARKER = "retired-stale-duplicate:";
 
+/**
+ * History marker for a record retired because its file is gone from the NAS
+ * and no copy was found elsewhere (#1117). Like the stale marker, a file that
+ * comes back at the same path revives the record.
+ */
+export const RETIRED_MISSING_MARKER = "retired-missing-from-nas";
+
+/** True when the last history entry is a retirement that a returning file undoes. */
+export function isRevivableRetirement(lastNewRelativePath: string | null | undefined): boolean {
+  if (!lastNewRelativePath) return false;
+  return lastNewRelativePath.startsWith(RETIRED_STALE_MARKER) || lastNewRelativePath === RETIRED_MISSING_MARKER;
+}
+
 export interface RetirementIdentity {
   id: string;
   filename: string | null;
