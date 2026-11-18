@@ -152,7 +152,10 @@ corsServe(async (req) => {
       const after = url.searchParams.get("after");
       afterKey = after ? decodeCursor(table, after) : null;
     } catch (e) {
-      return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }), { status: 400, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     if (!Number.isSafeInteger(offset) || offset < 0) {
       return new Response(JSON.stringify({ error: "Invalid offset" }), { status: 400, headers: { "Content-Type": "application/json" } });
