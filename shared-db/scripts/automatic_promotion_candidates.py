@@ -48,7 +48,7 @@ from typing import Any
 
 import review_finding_hold
 from migration_derivation import declared_bases
-from production_migration_guard import FOREIGN_TARGET_MIGRATIONS, HARD_BLOCKED
+from production_migration_guard import FOREIGN_TARGET_MIGRATIONS, HARD_BLOCKED, RETIRED_VERSIONS
 
 ACTIVATED_AT = "2026-10-29T23:00:00Z"
 WORKFLOW = "shared-supabase-migrations.yml"
@@ -255,6 +255,10 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
             # A preserved retired original must never be re-dispatched by the
             # automatic queue after its review finding is resolved.
             and m.group(1) not in HARD_BLOCKED
+            # A RETIRED_VERSIONS original (retire-and-reissue) is refused by the
+            # production guard; dispatching it only burns preview attempts until
+            # MAX_ATTEMPTS parks it (#5932: PR #6451 / 20261218025935, 2026-11-18).
+            and m.group(1) not in RETIRED_VERSIONS
             # A version later deleted from main can never apply: the workflow
             # refuses it as unknown until MAX_ATTEMPTS alerts, again on every
             # new main commit (#5558: PR #5548, replaced by PR #5552).

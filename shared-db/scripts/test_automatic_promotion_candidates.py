@@ -1002,6 +1002,14 @@ class CanonicalDependencyResolution(unittest.TestCase):
         with mock.patch.object(m, "gh", side_effect=[[pulls], *files]):
             return m.merged_migration_prs("o/r")
 
+    def test_retired_original_is_never_dispatched(self):
+        # #5932: PR #6451's retired 20261218025935 (reissued as 20261218043336)
+        # was dispatched three times and failed preview each time.
+        self.assertIn("20261218025935", m.RETIRED_VERSIONS)
+        self.assertNotIn("20261218025935", m.HARD_BLOCKED)
+        found = self.discover_real(["20261218025935"])
+        self.assertEqual(found, [])
+
     def test_real_byte_pinned_non_ledger_source_does_not_invent_a_base(self):
         from pathlib import Path
         from migration_derivation import IMMUTABLE_NON_LEDGER_SOURCE_SHA256
@@ -1020,7 +1028,7 @@ class CanonicalDependencyResolution(unittest.TestCase):
         self.assertIsNone(parse_declaration(path.read_text(), version))
         # This historical overlay is now retired; isolate canonical dependency
         # discovery from the separately tested production retirement filter.
-        with mock.patch.object(m, "HARD_BLOCKED", m.HARD_BLOCKED - {version}):
+        with mock.patch.object(m, "HARD_BLOCKED", m.HARD_BLOCKED - {version}),              mock.patch.object(m, "RETIRED_VERSIONS", m.RETIRED_VERSIONS - {version}):
             base, child = self.discover_real(["20260905104802", version])
         self.assertEqual(child["production_dependencies"], {"20260905104802": base["number"]})
 
