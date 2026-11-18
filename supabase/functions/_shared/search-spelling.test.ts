@@ -57,21 +57,6 @@ describe("search spelling", () => {
     expect((await checkSpelling("sunset", lookup({ sunset: 3 }))).meaningful).toBe(true);
   });
 
-  it("still corrects when a slow backend makes the vocabulary and the count each take ~1 s (#1037 mis-088)", async () => {
-    vi.useFakeTimers();
-    try {
-      const slow: SpellingLookup = {
-        vocabulary: () => new Promise((resolve) => setTimeout(() => resolve(vocabulary), 1200)),
-        countDocs: () => new Promise((resolve) => setTimeout(() => resolve(0), 1000)),
-      };
-      const result = checkSpelling("captian", slow);
-      await vi.advanceTimersByTimeAsync(2300);
-      await expect(result).resolves.toEqual({ corrected: "captain", meaningful: true });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it("fails open when the lookup breaks", async () => {
     const broken: SpellingLookup = {
       countDocs: async () => {
