@@ -45,6 +45,11 @@ In progress:
 
 Not started: Step 8 (AFTER score, screenshots, docs, close); alarm drill; refresh-on-edit live proof.
 
+### Update Nov 18, 9:51 AM EST (wrap-up)
+- Step 7 follow-ups merged: shared-db #6676, #6678, #6680 (#6680 merged 9:44 AM EST after two stuck checks were retriggered). Production apply of #6680 was still pending at wrap-up; the sub-agent's report will not reach a new session, so verify it in `supabase_migrations.schema_migrations` yourself and check the word-form backfill finished.
+- DB load still 16 active `designflow_hts_alsand_worker` connections at 9:21 AM EST; raised as https://github.com/popcre/shared-db/issues/6685 (ask: cap that role's connections). Step 2 gate now = that issue resolved or load <= 4.
+- `SEARCH_TEXT_LEG_MODE` still `off`.
+
 ## 4. What did NOT work
 
 - **One-shot queue backfill** of 183k rows (shared-db #6606): rolled back in production at the 2-minute statement limit. Reissued with in-claim seeding (#6622). Any migration touching big tables must be batched.
