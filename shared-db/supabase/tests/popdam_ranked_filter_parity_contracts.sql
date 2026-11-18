@@ -4,7 +4,7 @@ do $$
 declare v_filter text; v_search text; v_counts text; v_helper text; v_scan_zone text;
 begin
   select pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure) into v_filter;
-  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)'::regprocedure) into v_search;
+  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'::regprocedure) into v_search;
   select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure) into v_counts;
   -- #4508 (20261029161104): the ranked search's per-asset parity predicates
   -- moved into the planner-opaque helper dam_asset_matches_filters (its
@@ -46,7 +46,8 @@ begin
      -- #5053: exact_docs is the third pre-pagination consumer of the helper
      -- (summary probe, page EXISTS, exact_docs EXISTS ... LIMIT 1).
      or (length(v_search) - length(replace(v_search, 'dam_asset_matches_filters', '')))
-        / length('dam_asset_matches_filters') <> 3
+        / length('dam_asset_matches_filters') <> 4
+     -- popdam3#1037 Step 6: justified_visible (picture-demotion count) is the fourth.
      or position('dam_asset_matches_filters' in v_search)
         > position('page as materialized' in lower(v_search))
      or position(reverse('dam_asset_matches_filters') in reverse(v_search))
@@ -83,7 +84,7 @@ begin
   if has_function_privilege('anon','public.filter_effective_assets(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.get_effective_filter_counts(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.dam_asset_matches_filters(uuid, boolean, timestamptz, timestamptz, text, uuid, uuid, uuid, uuid, uuid, uuid, uuid, public.file_type, text, text[], public.asset_status, public.workflow_status, text, boolean, public.asset_type, public.art_source, text, text, text, text, text, jsonb, timestamptz)','EXECUTE')
-     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real)','EXECUTE') then
+     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
     raise exception 'anon gained access to a DAM filter contract';
   end if;
 end;
