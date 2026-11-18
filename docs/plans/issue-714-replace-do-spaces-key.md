@@ -14,26 +14,26 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 | # | Step | State | Evidence / notes |
 |---|------|-------|------------------|
-| 0 | Confirm the exposure class (rotate, not redact) | ⬜ open | Reasoning in §6; decision LOCKED in §8 |
-| 1 | Obtain a DigitalOcean API token or signed-in console session | ⬜ open | **Blocked** — none exists (§6, §13). Record `Blocked —` on #714 if still true |
-| 2 | Create the new Spaces access key pair in DO | ⬜ open | |
-| 3 | Store the new pair in 1Password (same item, new fields; keep the old pair until step 8) | ⬜ open | |
-| 4 | Write the new pair into `admin_config` via the admin-api `set-config` route | ⬜ open | |
-| 5 | Confirm each consumer picked it up (edge functions, Railway worker, bridge, Windows agent) | ⬜ open | |
-| 6 | Live proof: thumbnail upload and delete with the new key | ⬜ open | `- [ ] live proof` on #714 |
-| 7 | Revoke the old key pair in DO; prove the old key is refused | ⬜ open | |
-| 8 | Archive the old values in 1Password; delete `fix_admin_config_secret_rotation.md`; fix `docs/INFRASTRUCTURE.md:34` | ⬜ open | |
+| 0 | Confirm the exposure class | ✅ done | The previous credential was exposed outside the host and required replacement. |
+| 1 | Obtain a replacement credential | ✅ done | The owner saved the corrected credential in 1Password. |
+| 2 | Verify the corrected Spaces credential | ✅ done | Signed requests succeeded from two network routes. The verified access key ID differed from the live ID. |
+| 3 | Verify the replacement in the existing 1Password item | ✅ done | The saved pair was verified privately before and after the cutover. |
+| 4 | Apply the replacement through PopDAM Settings | ✅ done | November 18, 2026, 1:07:16 PM EST. The access key ID and secret were updated together and matched 1Password. |
+| 5 | Verify consumer pickup | 🔄 partial | The bridge and Windows agents reloaded their storage credentials after the save. The worker and edge cleanup read live configuration. |
+| 6 | Verify upload and delete | 🔄 partial | A disposable object was uploaded, read, deleted and verified absent. A fresh thumbnail from the ordinary application workflow remains open on #714. |
+| 7 | Verify that Spaces rejects the exposed credential | ✅ done | Spaces rejected the exposed pair before and after the cutover. No provider deletion was needed. |
+| 8 | Retire the old rotation tracking note and correct the storage documentation | ⬜ open | After the live checks pass. |
 | 9 | Close #714 (and the DO row of #213 if still open) with evidence | ⬜ open | |
 
-Where a fresh session starts: **Step 1.** Everything after it is mechanical; step 1 is the only thing that has blocked this since 2026-10-07.
+Where a fresh session starts: **Step 6.** The replacement is live and both agents reloaded it. Verify a fresh thumbnail through the ordinary application workflow before retiring the tracking note and closing #714.
 
 ---
 
 ## 1. The ultimate goal
 
-The company's picture library (PopDAM / PopSG thumbnails, renders, mirrored installer downloads) lives in one DigitalOcean Spaces bucket called `popdam`. For roughly four months in 2026 the key that can read, write and delete everything in that bucket was readable by any signed-in user of any POP app, and (until 2026-10-07) by anyone on the internet who could call an unauthenticated agent route. Every other secret from that exposure has been replaced. This one has not. **When this plan is done, the key that was exposed no longer works anywhere, a new key that was never exposed does the same job, and thumbnails still upload and delete normally.**
+The company's picture library (PopDAM / PopSG thumbnails, renders, mirrored installer downloads) lives in one DigitalOcean Spaces bucket called `popdam`. For roughly four months in 2026 the key that can read, write and delete everything in that bucket was readable by any signed-in user of any POP app, and (until 2026-10-07) by anyone on the internet who could call an unauthenticated agent route. This was the last exposed secret awaiting rotation. The goal is a working replacement, a rejected prior secret, and normal thumbnail upload and deletion.
 
-If a step conflicts with this goal, the goal wins — stop and flag it. In particular: never leave the system with *no* working key (thumbnails would stop), and never revoke the old key before the new one is proven to work end to end.
+A same-ID secret regeneration makes the prior secret unusable immediately. Apply the regenerated secret promptly and verify the live upload and delete paths.
 
 ## 2. What this application is
 
@@ -69,15 +69,15 @@ Nothing in code needs to change for the rotation itself. Every consumer reads th
 | Railway worker SeaDrive mirror (weekly upload) | `admin_config` rows | `apps/worker/src/handlers/seadrive-mirror.ts:11,57-65`; `apps/worker/src/config.ts` has **no** Spaces env var (grep empty) |
 | Settings UI (admin edits the pair) | admin-api `get-config`/`set-config` | `src/components/settings/worker-management/SpacesAndFolders.tsx:20-48`; handler `supabase/functions/admin-api/index.ts:352` `handleSetConfig` |
 
-Correction to carry forward: HANDOFF.d/2026-10-07 §3 says "Railway worker env + three edge functions secrets" must be updated. That is wrong on main today — there is no Railway env var and no edge-function secret for Spaces; the only runtime store is `admin_config`. Also `docs/INFRASTRUCTURE.md:34` claims the keys "are never stored in admin_config and are never returned by any API" — false; fix it in step 8.
+The worker and edge cleanup code use `admin_config` as their runtime credential source. The older handoff described separate worker and edge secrets. The current design is documented in [Infrastructure](../INFRASTRUCTURE.md#digitalocean-spaces-thumbnail-storage).
 
 Related file state: `fix_admin_config_secret_rotation.md` (repo root) is the July handoff; PR #713 (merged Nov 4, 5:12 PM EST) updated its status line to say only the DO pair remains. Deleting the file belongs to this plan's step 8, after rotation.
 
 ## 6. Key findings and root cause
 
 1. **Exposure class — this value was published off this computer.** It was readable by every authenticated user of the shared Supabase project for months and sat in an unauthenticated API response until 2026-10-07. The owner ruling of 2026-10-27 ("if the keys were not published outside of this computer then no need to rotate, just redact") does **not** apply; the standing rule "a value published off this computer is compromised; the AI rotates it itself" does.
-2. **Blocker is credential access, not code.** DigitalOcean Spaces keys are created only in the DO control panel or via the DO API (`doctl` / REST) with a personal access token. On hetz: `doctl` is not installed (`which doctl` empty), 1Password vault `vibe_coding` has no DigitalOcean account login or API token (item titles matching "digitalocean"/"spaces": the popdam Spaces item itself, a backrest note, and DesignFlow's sfo3 item — none holds a DO account credential; verified by listing field labels only), and #714 records DO is signed out in all three connected browsers.
-3. The 1Password item "DigitalOcean Spaces - popdam bucket (nyc3) [PopDAM shared-supabase]" has fields `DO_SPACES_KEY (access key id)`, `DO_SPACES_SECRET (secret access key)`, `region`, `bucket`, two notes. It was last updated 2026-07-24 (pre-rotation backup).
+2. **Provider access was the original blocker.** The owner supplied a corrected pair through 1Password. Preflight showed that its access key ID differed from the production ID. DigitalOcean documents access-key management in its control panel and immediate invalidation when regenerating a secret against the same access key ID. [DigitalOcean Spaces access documentation](https://docs.digitalocean.com/products/spaces/how-to/manage-access/#regenerate-a-secret-key)
+3. The 1Password item "DigitalOcean Spaces - popdam bucket (nyc3) [PopDAM shared-supabase]" has fields `DO_SPACES_KEY (access key id)`, `DO_SPACES_SECRET (secret access key)`, `region`, `bucket`, two notes. The previous version was recorded in July 2026.
 4. `admin_config.SPACES_CONFIG` (bucket/region/endpoint/public_base_url) is **not** a secret and does not change.
 5. The bucket is used for writes by agents (thumbnails), deletes by edge functions, and a weekly worker upload; a wrong key breaks thumbnail generation within one heartbeat interval (5–30 s), so proof must be immediate after step 4.
 
@@ -85,43 +85,38 @@ Related file state: `fix_admin_config_secret_rotation.md` (repo root) is the Jul
 
 - **Redact instead of rotate** — rejected (§6 item 1): exposure left this computer.
 - **Ask Albert to log in to DigitalOcean / create a token / create the key** — forbidden by standing rules ("never ask Albert to type, click, or create a credential"). The correct report is `Blocked —` with the exact missing authority named (§13).
-- **Create the key via a browser session** — only possible if a connected browser becomes signed in to DO. Not currently true; re-check at the start of each attempt (step 1b) because this is reversible and cheap.
+- **Assume a same-ID rotation** was rejected after comparing the working pair with the live setting.
 - **Move the key to env vars first, then rotate** — rejected: doubles the change surface and does nothing about the exposed value. Rotation must not wait on the placement migration (`fix_admin_config_secret_rotation.md` "Gotchas").
 - **Rotate by editing `admin_config` with SQL** — rejected: production DB is read-only by default; the supported write path is the admin-api `set-config` route (same thing the Settings page uses), which also keeps `updated_at` and audit behaviour consistent.
-- **Revoke the old key first to force the issue** — rejected: breaks thumbnails with no replacement (goal §1).
+- **Delete the existing access key** would disable the regenerated secret as well.
 
 ## 8. Design decisions
 
 | Decision | State | Reasoning |
 |---|---|---|
 | Rotate, do not redact | LOCKED (2026-11-04) | §6 item 1 |
-| New key is a *new* DO Spaces access key pair on the same DO account/project; bucket, region, CDN unchanged | LOCKED | Avoids URL migration (AGENTS.md:253) |
+| Keep the bucket, region and CDN | Scope | Verify the correct access key ID before applying any configuration change. |
 | Single write path: admin-api `set-config` with the admin tester login | LOCKED | §7 |
-| Old pair stays live until live proof passes, then revoked the same session | LOCKED | §1 |
-| 1Password: update the existing item's two key fields; move the old values into a clearly labelled "old (revoked YYYY-MM-DD)" field pair or the notes until revocation is proven, then delete them | OPEN (implementer's call; either is acceptable, `secrets-to-1password` skill decides format) | |
-| Where a future DO API token is stored if obtained | LOCKED: vault `vibe_coding`, new item titled `DigitalOcean API token - POP Creations account (PopDAM Spaces)` | `secrets-to-1password` skill; never in repo/env files |
+| The exposed pair cannot be used for rollback | Verified | DigitalOcean rejected the exposed pair before and after the production cutover. |
+| Verify the replacement in the existing 1Password item | Done | Both production values match the stored pair. |
 
 ## 9. The plan
 
 Declare the task class before starting: `ai-task-gates` with classes `production` (writes to `admin_config` through the admin API) and `private-tooling`. Load `secrets-to-1password` before touching 1Password. Run every command from the repo worktree; scratch under `$TMPDIR` (note: `op_run` cannot see the Claude scratchpad; use `$TMPDIR`, memory `project_audit_backlog_2026_10_21`).
 
-### Step 1 — Establish DO access (the gate)
-1a. Check 1Password again for a DO personal access token or DO account login: list item titles in `vibe_coding` and grep for `digitalocean`/`doctl`/` DO `. Print titles only.
-1b. Check whether any connected browser (Claude-in-Chrome or the built-in browser) is signed in at `https://cloud.digitalocean.com/` — load the matching browser skill first; navigate and read the page text; a signed-in session shows the project dashboard, a signed-out one shows the login form. Do not type credentials.
-1c. If neither exists: post on #714 (signed with `$AI_GH_SIGNATURE`) a `Blocked —` note: "DigitalOcean Spaces key cannot be created: no DO API token in 1Password `vibe_coding`, no signed-in DO browser session on hetz, `doctl` not installed. Needs a DigitalOcean personal access token (scope: read+write for Spaces keys) stored in `vibe_coding` or a signed-in DO console session." Stop the plan here; leave STATUS row 1 open. Reporting this is the correct outcome, not a failure.
-1d. If a token exists: install `doctl` into `$TMPDIR` (download the Linux amd64 release tarball from GitHub `digitalocean/doctl` into its own empty directory, verify the checksum from the release page, run it by absolute path — do not replace OS binaries) and authenticate it through `op run`/`op_run` so the token never appears in output.
-Gate: `doctl account get` returns the account (or the browser shows the DO dashboard).
+### Step 1 — Establish provider authority
+The owner reported saving the replacement through 1Password after using the DigitalOcean control panel. Verify the stored pair before changing PopDAM.
 
-### Step 2 — Create the new Spaces key pair
-With `doctl`: `doctl spaces keys create popdam-$(date +%Y%m%d)` (or the equivalent in the console under API → Spaces Keys) with full access to bucket `popdam` only if the account supports per-bucket grants; otherwise account-wide, as today. Capture the output into a file under `$TMPDIR` with mode 600; never echo it. Gate: `doctl spaces keys list` shows two keys: the March 2026 one and the new one.
+### Step 2 — Verify the corrected Spaces credential
+Signed checks against the bucket succeeded from two network routes. The working access key ID differed from the one in production.
 
-### Step 3 — Save the new pair to 1Password
-Edit item "DigitalOcean Spaces - popdam bucket (nyc3) [PopDAM shared-supabase]" in `vibe_coding`: new values in `DO_SPACES_KEY (access key id)` / `DO_SPACES_SECRET (secret access key)`; preserve the old pair as per §8 (labelled old, with date). Add a note line: "Rotated YYYY-MM-DD h:mm AM/PM EST per popdam3#714; old key revoked <time> (fill in at step 7)". Gate: `op item get <title> --format json | python3 -I -c '…print labels only…'` shows the new/old labels; no values printed.
+### Step 3 — Verify the replacement in 1Password
+Use the existing Spaces item in `vibe_coding`. Confirm the corrected pair works against the intended bucket and check whether its access key ID matches live PopDAM before updating it. Report only the verification outcome.
 
-### Step 4 — Write the new pair into `admin_config`
-Sign in to the admin API as the PopDAM admin tester (1Password `vibe_coding`, admin item named in memory `project_popsg_tester_login`; read `docs/1password.md` for the `op run` pattern). Call `POST https://qsllyeztdwjgirsysgai.supabase.co/functions/v1/admin-api` with action `set-config`, `entries: { DO_SPACES_KEY, DO_SPACES_SECRET }` (shape per `SpacesAndFolders.tsx:45-48`; server handler `admin-api/index.ts:352`). Run through `op run` with the values as env references so nothing is printed. Gate: read-only SQL `select key, updated_at from admin_config where key in ('DO_SPACES_KEY','DO_SPACES_SECRET')` shows today's timestamp; the key column (a non-secret access-key id) matches the new id's first 4 chars.
+### Step 4 — Apply the replacement secret through PopDAM Settings
+Use the PopDAM administrator Settings write path. Update `DO_SPACES_SECRET` if the verified access key ID matches, or update both credential fields together if it differs. Use the protected vault injection described in [1Password](../1password.md). Verify the live configuration matches the vault without exposing either value.
 
-### Step 5 — Confirm every consumer uses the new pair
+### Step 5 — Confirm every consumer uses the replacement secret
 - Agents: next heartbeat delivers it (`agent-api/index.ts:750`). Gate: `agent_registrations.last_heartbeat` for `synology-bridge-1` and `windows-render-agent` advances past the step-4 timestamp, and a thumbnail generated after that time has a `thumbnail_url` under `cdn.designflow.app`/`popdam.nyc3…` that returns HTTP 200.
 - Edge delete path: handled by step 6.
 - Worker: `seadrive-mirror` runs weekly; no action, but it reads `admin_config` live (`seadrive-mirror.ts:57`). Gate: none now; note it in the close-out.
@@ -133,12 +128,12 @@ Sign in to the admin API as the PopDAM admin tester (1Password `vibe_coding`, ad
 - Delete: run the admin action that calls `deleteSpacesObjects` on a disposable object (the AI-sentinel cleanup handler, `ai-sentinel-handlers.ts:168`, or the duplicate cleanup handler) against a test object, or — safer — upload a throwaway object with the new key using the AWS SigV4 CLI (`aws s3 --endpoint-url https://nyc3.digitaloceanspaces.com`) and delete it with the same key. Gate: the object returns 404 afterwards.
 - Post both proofs on #714 and tick `- [x] live proof`.
 
-### Step 7 — Revoke the old pair
-`doctl spaces keys delete <old-key-id>` (or console). Gate: an upload attempt with the old key (through the SigV4 CLI, values via `op run`) returns 403; a thumbnail generated after revocation still succeeds (repeat step 6 upload once).
+### Step 7 — Verify exposed-credential rejection
+The exposed pair must be refused while the replacement succeeds. Use a read-only request against the same bucket and record the result without retaining the old credential.
 
 ### Step 8 — Cleanup
 - 1Password: remove the old values (keep the dated note).
-- Branch `claude/714-do-spaces-key-rotated` from `main`; delete `fix_admin_config_secret_rotation.md` (all 8 done); fix `docs/INFRASTRUCTURE.md:34` to say the pair is stored in `admin_config` (admin-only read policy since shared-db PR #204) and delivered to agents by heartbeat; update root `fix_admin_config_secret_rotation.md` with a one-line "DO Spaces done YYYY-MM-DD, see #714" (the #213 handoff it superseded was retired 2026-11-11). Open a PR, wait with `bin/ai-pr-wait <pr>` in the background, merge.
+- Once the replacement is proven live and the old secret is rejected, retire the root `fix_admin_config_secret_rotation.md` in a pull request to `main`. Record the outcome on #714 and in this plan's STATUS. The #213 handoff it superseded was retired on November 11, 2026.
 - Gate: PR merged; `git ls-files fix_admin_config_secret_rotation.md` on `main` is empty.
 
 ### Step 9 — Close
@@ -153,10 +148,10 @@ No application code changes, so no new unit tests. Keep green: root `npm run lin
 - Branch policy: feature branch + PR to `main`; never push to `main`. The AI merges (Albert does not).
 - No DB schema change here; `admin_config` value writes go through the admin API only (production is read-only by default; SQL used only to read `updated_at`).
 - Secrets: 1Password `vibe_coding` only; never print values; `op_run` cannot read the Claude scratchpad — use `$TMPDIR`; serialize 1Password access.
-- Never ask Albert to log in, create a token, or click. If step 1 fails, report `Blocked —` naming the exact missing authority.
+- Record any provider access blocker on #714.
 - Times in EST from `TZ=America/New_York date`.
 - Reviews are advisory and never gate this. No human approval is requested.
-- The old key must outlive the proof (§1). Revocation is destructive: the only "recovery" is the new key already working, so step 6 must precede step 7.
+- A same-ID regeneration invalidates the previous secret immediately. Restore service with the regenerated secret through the approved Settings path.
 - Agent heartbeat interval 5–30 s; a wrong value breaks thumbnails almost immediately — do step 4 and step 6 back to back.
 - Do not confuse this account with DesignFlow's DO Spaces (`sfo3`).
 - Deploy workflow trap (HANDOFF.d/2026-10-07 §4): `deploy-supabase.yml` diffs `HEAD~1`; irrelevant here because no edge code changes.
@@ -166,20 +161,19 @@ No application code changes, so no new unit tests. Keep green: root `npm run lin
 - Machine hetz; repo worktree for this branch; `gh` authenticated as `u2giants`; `op` CLI 2.41.1 with a `vibe_coding` service account; Supabase MCP `execute_sql` resolves to the live Virginia project (`get_project_url` → `https://qsllyeztdwjgirsysgai.supabase.co`, verified 2026-11-04 4:45 PM EST) — read-only use only.
 - Admin tester login: 1Password `vibe_coding`, PopDAM admin tester item (memory `project_popsg_tester_login`).
 - Spaces item: `vibe_coding` → "DigitalOcean Spaces - popdam bucket (nyc3) [PopDAM shared-supabase]".
-- DO API token: does not exist yet (step 1).
 - Browsers: Claude-in-Chrome / built-in browser via their skills; DO console at `https://cloud.digitalocean.com`.
 - Nothing to serve locally.
 
 ## 13. Definition of done, risks, open questions
 
-Done when: new key in DO, `admin_config` updated today, both live proofs posted on #714, old key revoked and proven refused, 1Password updated, step-8 PR merged to `main`, `fix_admin_config_secret_rotation.md` gone, #714 closed with EST timestamps.
+Done when the new secret is stored in 1Password and applied to PopDAM, thumbnail uploads and cleanup are proven live, the old secret is refused, and the documentation pull request merges. Record the evidence on #714 before closing it.
 
-Risks: wrong value written → thumbnails fail within seconds; rollback = re-run step 4 with the old pair (still valid until step 7). Account-wide key revocation could affect a non-PopDAM consumer if any exists — `doctl spaces keys list` before step 7 and grep this repo plus the DesignFlow repos for the old key id (not the secret) to confirm none.
+Risks: a bad or stale secret can stop thumbnail uploads. Confirm the replacement works before saving it and verify pickup by each consumer.
 
-Open: whether a DO token can be obtained at all without Albert. That is the single `Blocked —` item; the plan is otherwise fully specified.
+Open: verify a fresh thumbnail through the ordinary workflow and complete the documentation closeout.
 
 ## Self-audit
 
-1. Could a brand-new session execute this without asking anything? Yes — §5 names every consumer with file:line, §9 gives each step's command shape, inputs and gate, §12 names every credential by vault + title. The only stop is the authority gap in step 1, and §9 step 1c says exactly what to post and where.
+1. A fresh session starts from STATUS and uses the source map in §5, verification steps in §9, and access references in §12.
 2. Does it carry every piece of background and what was ruled out? Yes — §3 and §6 record both exposure events and the fingerprint check, §5 corrects the stale "Railway env / edge secrets" claim, §7 lists the six rejected routes including the owner-ruling misread.
 3. Is the goal clear enough to judge a wrong step? Yes — §1 states the business outcome and the two invariants (never zero working keys; never revoke before proof), which decide every ordering question in §9.
