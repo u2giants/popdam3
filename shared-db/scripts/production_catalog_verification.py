@@ -322,6 +322,19 @@ CREATE_EXTENSION_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 CREATE_EXTENSION_HEAD_RE = re.compile(r"^\s*create\s+extension\b", re.IGNORECASE)
+# Issue #6747: `drop schema [if exists] <name>[, ...] [cascade|restrict]` names
+# pg_namespace rows that must be ABSENT afterwards (PR #6303 dropped
+# dflow_prod_old and the verifier refused it for naming no catalog object).
+# Only plain or double-quoted lowercase identifiers are read (they are
+# interpolated into the catalog query); anything else is noted, never guessed.
+_SCHEMA_IDENT = r'(?:"[a-z_][a-z0-9_$]*"|[a-z_][a-z0-9_$]*)'
+DROP_SCHEMA_RE = re.compile(
+    rf'^\s*drop\s+schema\s+(?:if\s+exists\s+)?'
+    rf'({_SCHEMA_IDENT}(?:\s*,\s*{_SCHEMA_IDENT})*)'
+    rf'(?:\s+(?:cascade|restrict))?\s*$',
+    re.DOTALL,
+)
+DROP_SCHEMA_HEAD_RE = re.compile(r"^\s*drop\s+schema\b", re.IGNORECASE)
 COMMENT_RELATION_RE = re.compile(
     rf"^\s*comment\s+on\s+(?:table|view|materialized\s+view|foreign\s+table)\s+{QUALIFIED}\s+is\b"
 )
@@ -2055,6 +2068,7 @@ class Targets:
         change_types: set[str] | None = None,
         extensions: set[str] | None = None,
         column_types: set[tuple[str, str, str, str]] | None = None,
+        dropped_schemas: set[str] | None = None,
     ) -> None:
         # ORDER IS LOAD-BEARING and must be the order the statements appear in,
         # not sorted: a batch may `grant` a privilege and then `revoke` it, and
@@ -2080,6 +2094,8 @@ class Targets:
         self.seeded = sorted(seeded)
         self.indexes = sorted(indexes or set())
         self.extensions = sorted(extensions or set())
+        # Schemas a `drop schema` removed: each must be ABSENT afterwards.
+        self.dropped_schemas = sorted(dropped_schemas or set())
         # (schema, table, column, expected format_type) -- catalog names, case kept.
         self.column_types = sorted(column_types or set())
         self.schema_renames = sorted(schema_renames or set())
@@ -2130,6 +2146,7 @@ class Targets:
             or self.function_settings
             or self.extensions
             or self.column_types
+            or self.dropped_schemas
         )
 
     def as_dict(self) -> dict[str, list[str]]:
@@ -2152,6 +2169,7 @@ class Targets:
                 for family, signature, setting, action in self.function_settings
             ],
             "extensions": self.extensions,
+            "dropped_schemas": self.dropped_schemas,
             "column_types": [f"{s}.{t}.{c}|{ty}" for s, t, c, ty in self.column_types],
             "privilege_assertions": [e.describe() for e in self.privileges],
             "unassertable_statements": self.notes,
@@ -3249,6 +3267,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
     settings: dict[tuple[str, str | None, str], tuple[str, str | None, str, str]] = {}
     batch_statements: list[str] = []
     extensions: set[str] = set()
+    dropped_schemas: set[str] = set()
     column_types: dict[tuple[str, str, str], str] = {}
 
     for version in allowlist:
@@ -3284,6 +3303,18 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
             for m in ALTER_COLUMN_TYPE_RAW_RE.finditer(_strip_sql_comments(raw))
         }
         for statement in split_statements(text):
+            if match := DROP_SCHEMA_RE.match(statement):
+                for name in match.group(1).split(","):
+                    dropped_schemas.add(name.strip().strip('"'))
+                change_types.add("drop schema")
+                continue
+            if DROP_SCHEMA_HEAD_RE.match(statement):
+                change_types.add("drop schema")
+                notes.append(
+                    f"{version}: DROP SCHEMA was not safely parseable and was not "
+                    f"silently accepted: `{statement.strip()[:240]}`"
+                )
+                continue
             if match := CREATE_EXTENSION_RE.match(statement):
                 name = match.group(1) or match.group(2).lower()
                 extensions.add(name)
@@ -3537,6 +3568,7 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
         schema_comments=verified_schema_comments,
         change_types=change_types,
         extensions=extensions,
+        dropped_schemas=dropped_schemas,
     )
 
 
@@ -3668,6 +3700,7 @@ def build_catalog_sql(targets: Targets) -> str:
         sorted(
             {name for source, destination, _ in targets.schema_renames for name in (source, destination)}
             | {name for name, _ in targets.schema_comments}
+            | set(targets.dropped_schemas)
         )
     )
     extension_names = _sql_array(targets.extensions)
@@ -4809,6 +4842,26 @@ def render_report(
             )
             if not present:
                 failures.append(f"extension {name}: must be installed (pg_extension)")
+        add("")
+
+    if targets.dropped_schemas:
+        add("## Dropped schemas (`pg_namespace`)")
+        add("")
+        add("| schema | absent |")
+        add("| --- | --- |")
+        dropped_rows = {
+            str(row.get("name")): row for row in (data.get("schemas") or [])
+            if isinstance(row, dict)
+        }
+        for name in targets.dropped_schemas:
+            row = dropped_rows.get(name)
+            # A missing probe row is NOT proof of absence: fail closed.
+            absent = row is not None and row.get("exists") is False
+            add(f"| `{name}` | {absent} |")
+            if not absent:
+                failures.append(
+                    f"schema {name}: must be absent after DROP SCHEMA (pg_namespace)"
+                )
         add("")
 
     add("## Schema rename assertions (`pg_namespace`)")
