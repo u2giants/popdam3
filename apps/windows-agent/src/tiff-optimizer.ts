@@ -476,8 +476,7 @@ async function handleTestMode(
 ): Promise<TiffJobResult> {
   const bigPath = path.join(dir, `${base}_big${ext}`);
 
-  await rename(filePath, bigPath);
-  await rename(tempPath, filePath);
+  await swapInCompressed(filePath, bigPath, tempPath);
 
   // Restore timestamps on BOTH files
   const compressedRestore = await restoreTimestamps(filePath, timestamps, jobId);
@@ -564,26 +563,9 @@ async function handleProcessMode(
 
   const backupPath = filePath + ".popdam_backup";
 
-  // Create backup
-  await rename(filePath, backupPath);
-
-  // Verify backup exists before proceeding
-  try {
-    await stat(backupPath);
-  } catch {
-    // Backup creation failed — try to restore
-    await rename(backupPath, filePath).catch(() => {});
-    return {
-      success: false,
-      error: "Backup creation failed — backup file not found after rename",
-      timestamp_restore_status: "skipped",
-      mtime_restored: false,
-      creation_time_restored: false,
-    };
-  }
-
-  // Swap in compressed file
-  await rename(tempPath, filePath);
+  // Create backup + swap in compressed file; a failed swap restores the
+  // original at its expected path before rethrowing (#1086).
+  await swapInCompressed(filePath, backupPath, tempPath);
 
   // Restore timestamps with strict verification
   const restoreResult = await restoreTimestamps(filePath, timestamps, jobId);
@@ -665,6 +647,39 @@ async function handleProcessMode(
 }
 
 // ── Rollback helpers ────────────────────────────────────────────
+
+type RenameFn = (from: string, to: string) => Promise<void>;
+
+/**
+ * Move the original to `backupPath`, then move the compressed temp file into
+ * the original's place. If the second move fails, put the original back at
+ * `filePath` and discard the temp file, then rethrow, so a failed swap never
+ * leaves the artwork missing at its normal location (#1086).
+ */
+export async function swapInCompressed(
+  filePath: string,
+  backupPath: string,
+  tempPath: string,
+  renameFn: RenameFn = rename,
+): Promise<void> {
+  await renameFn(filePath, backupPath);
+  try {
+    await renameFn(tempPath, filePath);
+  } catch (swapErr) {
+    try {
+      await renameFn(backupPath, filePath);
+    } catch (restoreErr) {
+      logger.error("Swap failed AND original restore failed — original remains at backup path", {
+        filePath, backupPath, error: (restoreErr as Error).message,
+      });
+      throw new Error(
+        `Swap failed (${(swapErr as Error).message}) and restoring original failed (${(restoreErr as Error).message}); original is at ${backupPath}`,
+      );
+    }
+    await unlink(tempPath).catch(() => {});
+    throw new Error(`Swap failed, original restored: ${(swapErr as Error).message}`);
+  }
+}
 
 /** Rollback for process mode: put backup back as original */
 async function atomicRollback(
