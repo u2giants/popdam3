@@ -124,10 +124,12 @@ export async function checkSpelling(query: string, lookup: SpellingLookup): Prom
     const deadline = budget(SPELLING_BUDGET_MS);
     deadline.catch(() => {});
     const counts = new Map<string, number>();
-    const needsCount = unique.filter((word) => !vocabulary.has(word));
     for (const word of unique) {
       if (!/^[\p{L}\p{N}]+$/u.test(word)) counts.set(word, RARE_WORD_DOCS);
     }
+    // A word with punctuation ("spider-man") already counts as present and is never corrected, so
+    // it is not counted (#1037: its phrase count took 1.5-8 s and spent the whole budget).
+    const needsCount = unique.filter((word) => !vocabulary.has(word) && !counts.has(word));
     let next = 0;
     const countWorker = async () => {
       while (next < needsCount.length) {

@@ -127,6 +127,13 @@ describe("search spelling", () => {
     expect(result).toEqual({ corrected: null, meaningful: true });
   });
 
+  it("never counts a word with punctuation: it already counts as present (#1037)", async () => {
+    const countDocs = vi.fn(async () => 0);
+    const vocabulary = async () => new Map([["canvas", 1_000_000]]);
+    expect(await checkSpelling("spider-man canvas", { countDocs, vocabulary })).toEqual({ corrected: null, meaningful: true });
+    expect(countDocs).not.toHaveBeenCalled();
+  });
+
   it("skips all optional spelling work for oversized input rather than sampling words", async () => {
     const countDocs = vi.fn();
     const vocabulary = vi.fn();
