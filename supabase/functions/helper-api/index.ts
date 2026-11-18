@@ -427,16 +427,28 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
 
   const db = serviceClient();
 
-  const { data: checkout } = await db
+  const { data: checkout, error: loadErr } = await db
     .from("asset_checkouts")
-    .select("id, asset_id, status, source_hash")
+    .select("id, asset_id, status, source_hash, checkin_hash")
     .eq("id", checkout_id)
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
+  if (loadErr) return err(loadErr.message, 500);
   if (!checkout) return err("Checkout not found", 404);
-  if (!["checkin_queued", "uploading", "verifying"].includes(checkout.status)) {
-    return err(`Checkout is in status '${checkout.status}', cannot complete`);
+
+  const useVerification = source_provider === "seafile" && await isCheckinVerificationEnabled(db);
+
+  // Idempotent retry: the helper keeps its job until this route confirms a
+  // durable save, so a retry after a lost/ambiguous response must succeed when
+  // the same upload was already recorded instead of failing on the new status.
+  const sameUpload = !!final_hash && checkout.checkin_hash === final_hash;
+  if (sameUpload && checkout.status === "verifying" && useVerification) {
+    return json({ ok: true, checkout_id, status: "verifying" });
+  }
+  const alreadyComplete = sameUpload && checkout.status === "complete" && !useVerification;
+  if (!alreadyComplete && !["checkin_queued", "uploading", "verifying"].includes(checkout.status)) {
+    return err(`Checkout is in status '${checkout.status}', cannot complete`, 409);
   }
 
   const now = new Date().toISOString();
@@ -448,9 +460,9 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
   // receipt. The helper's post-upload full hash/size become the EXPECTED values
   // the agent will match against; the asset's quick_hash is NOT updated until the
   // file is confirmed. Synology direct uploads complete immediately as before.
-  if (source_provider === "seafile" && await isCheckinVerificationEnabled(db)) {
+  if (useVerification) {
     const nowMs = Date.now();
-    await db.from("asset_checkouts").update({
+    const { error: verifyErr } = await db.from("asset_checkouts").update({
       status: "verifying",
       checkin_hash: final_hash ?? null, // full content hash (forensic record)
       expected_quick_hash: final_quick_hash ?? null, // what the bridge agent verifies against
@@ -472,29 +484,35 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
       redrive_requested: false,
       resolution: null,
     }).eq("id", checkout_id);
+    if (verifyErr) return err(`Check-in not saved: ${verifyErr.message}`, 500);
 
     return json({ ok: true, checkout_id, status: "verifying" });
   }
 
-  // Update checkout to complete
-  await db.from("asset_checkouts").update({
-    status: "complete",
-    checked_in_at: now,
-    checkin_hash: final_hash ?? null,
-    checkin_size: final_size ?? null,
-    upload_method: upload_method ?? null,
-    synology_upload_user: synology_upload_user ?? null,
-    source_provider: source_provider ?? null,
-    source_version: source_version ?? null,
-  }).eq("id", checkout_id);
-
-  // Update asset quick_hash and file_size if provided.  assets.quick_hash stores
-  // the project quick-hash, not the forensic full SHA-256 kept in checkin_hash.
+  // Update asset quick_hash and file_size FIRST. assets.quick_hash stores the
+  // project quick-hash, not the forensic full SHA-256 kept in checkin_hash.
+  // Writing the asset before releasing the checkout means a failure here leaves
+  // the checkout in a retryable status; the helper keeps its job and retries.
   if (final_quick_hash || final_size) {
     const assetUpdate: Record<string, unknown> = { updated_at: now };
     if (final_quick_hash) assetUpdate.quick_hash = final_quick_hash;
     if (final_size) assetUpdate.file_size = final_size;
-    await db.from("assets").update(assetUpdate).eq("id", checkout.asset_id);
+    const { error: assetErr } = await db.from("assets").update(assetUpdate).eq("id", checkout.asset_id);
+    if (assetErr) return err(`Check-in not saved: ${assetErr.message}`, 500);
+  }
+
+  if (!alreadyComplete) {
+    const { error: completeErr } = await db.from("asset_checkouts").update({
+      status: "complete",
+      checked_in_at: now,
+      checkin_hash: final_hash ?? null,
+      checkin_size: final_size ?? null,
+      upload_method: upload_method ?? null,
+      synology_upload_user: synology_upload_user ?? null,
+      source_provider: source_provider ?? null,
+      source_version: source_version ?? null,
+    }).eq("id", checkout_id);
+    if (completeErr) return err(`Check-in not saved: ${completeErr.message}`, 500);
   }
 
   return json({ ok: true, checkout_id, status: "complete" });
