@@ -12,6 +12,18 @@ export interface ManifestEntry {
   table: string;
   rows: number;
   chunks: number;
+  /** Rows may be deleted mid-export; chunks may come back short, never long (#1132). */
+  volatile: boolean;
+}
+
+/**
+ * Work queues delete finished rows while the system runs, so a live export
+ * can legitimately see fewer rows than the manifest counted (#1132). The
+ * insert-time cutoff still rules out extra rows; every other table must
+ * match its count exactly.
+ */
+export function deletesDuringExport(table: string): boolean {
+  return table === "processing_queue" || table === "render_queue" || table === "tiff_optimization_queue";
 }
 
 /**
@@ -30,7 +42,7 @@ export function manifestEntry(
     throw new Error(`Count missing for ${table}`);
   }
   if (!Number.isSafeInteger(chunkSize) || chunkSize < 1) throw new Error("Invalid chunk_size");
-  return { table, rows: count, chunks: count === 0 ? 0 : Math.ceil(count / chunkSize) };
+  return { table, rows: count, chunks: count === 0 ? 0 : Math.ceil(count / chunkSize), volatile: deletesDuringExport(table) };
 }
 
 /** Rows a given chunk must contain for the download to count as complete (#1084). */

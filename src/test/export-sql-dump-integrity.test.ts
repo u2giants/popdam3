@@ -9,6 +9,7 @@ import {
   expectedChunkRows,
   insertRowSQL,
   MAX_CHUNK,
+  deletesDuringExport,
   manifestEntry,
   parseCutoff,
   snapshotColumn,
@@ -20,7 +21,7 @@ describe("SQL dump manifest (#1082)", () => {
     expect(() => manifestEntry("assets", null, null, 5000)).toThrow(/missing/);
   });
   it("reports a genuinely empty table and counts chunks", () => {
-    expect(manifestEntry("invitations", 0, null, 5000)).toEqual({ table: "invitations", rows: 0, chunks: 0 });
+    expect(manifestEntry("invitations", 0, null, 5000)).toEqual({ table: "invitations", rows: 0, chunks: 0, volatile: false });
     expect(manifestEntry("assets", 10001, null, 5000).chunks).toBe(3);
   });
   it("edge function fails the manifest instead of defaulting count to zero", () => {
@@ -150,5 +151,15 @@ describe("SQL dump restore never cascades into shared tables (#1134)", () => {
     expect(clearTableSQL("core.licensor")).toBeNull();
     expect(insertRowSQL("core.licensor", { id: "x", name: "n" })).toMatch(/ON CONFLICT \("id"\) DO UPDATE SET "name" = EXCLUDED\."name";$/);
     expect(insertRowSQL("public.assets", { id: "x" })).toMatch(/jsonb\);$/);
+  });
+
+  it("queue tables may lose finished rows mid-export, never gain them (#1132)", () => {
+    const ps = readFileSync("migration/download-sql-dump.ps1", "utf8");
+    expect(manifestEntry("render_queue", 1776, null, 5000).volatile).toBe(true);
+    for (const t of ["assets", "asset_tags", "invitations", "licensors"]) expect(deletesDuringExport(t)).toBe(false);
+    expect(ps).toMatch(/if \(\$rowsInChunk -gt \$expectedRows\) \{ \$problem =/);
+    expect(ps).toMatch(/elseif \(\$rowsInChunk -ne \$expectedRows\) \{ \$problem =/);
+    expect(ps).toMatch(/\$expectedFiles -= \(\$t\.chunks - 1 - \$chunk\)/);
+    expect(ps).toMatch(/downloadedFiles\.Count -ne \$expectedFiles\) \{ Fail-Run/);
   });
 });
