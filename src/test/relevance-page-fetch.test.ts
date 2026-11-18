@@ -161,21 +161,23 @@ describe("library refresh", () => {
     });
     const assetIdReads = () => requests.filter((r) => r.url.endsWith("/assets") && r.params.get("select") === "id");
     const groupIdReads = () => requests.filter((r) => r.url.endsWith("/style_groups") && r.params.get("select") === "id");
-    const runAssets = () => (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
-      .queryFn({ signal: new AbortController().signal });
-    const runGroups = () => (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
-      .queryFn({ signal: new AbortController().signal });
 
-    await runAssets();
-    await runGroups();
-    await runAssets();
-    await runGroups();
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
     expect(assetIdReads()).toHaveLength(1);
     expect(groupIdReads()).toHaveLength(1);
 
     resetLibrarySearchCaches();
-    await runAssets();
-    await runGroups();
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
     expect(assetIdReads()).toHaveLength(2);
     expect(groupIdReads()).toHaveLength(2);
   });
