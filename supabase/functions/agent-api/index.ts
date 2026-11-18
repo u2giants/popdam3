@@ -50,6 +50,7 @@ import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts";
+import { scheduleRenderRetries } from "../_shared/render-retry-scheduling.ts";
 import { writeWithRetry } from "../_shared/sg-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
@@ -2458,32 +2459,20 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     }
   }
 
-  if (needsRender.length > 0) {
-    const { data: renderAssets } = await db
-      .from("assets")
-      .select("id")
-      .in("relative_path", needsRender)
-      .eq("is_deleted", false);
-
-    // One SELECT + one INSERT per asset used to run serially here, which is the
-    // agent check-in hot path. Resolve the whole batch in two round trips.
-    const assetIds = (renderAssets ?? []).map((a: { id: string }) => a.id);
-    if (assetIds.length > 0) {
-      const { data: queued } = await db
-        .from("render_queue")
-        .select("asset_id")
-        .in("asset_id", assetIds)
-        .in("status", ["pending", "claimed"]);
-
-      const alreadyQueued = new Set((queued ?? []).map((q: { asset_id: string }) => q.asset_id));
-      const toQueue = assetIds
-        .filter((id: string) => !alreadyQueued.has(id))
-        .map((id: string) => ({ asset_id: id, status: "pending" }));
-
-      if (toQueue.length > 0) {
-        await db.from("render_queue").insert(toQueue);
-      }
-    }
+  // Batched in three round trips (check-in hot path). Lookup/insert failures
+  // are reported, never swallowed: unscheduled files keep no_pdf_compat and
+  // the next scan retries them; pending/claimed jobs are never duplicated.
+  const renderRetry = await scheduleRenderRetries(needsRender, {
+    findAssets: async (paths) =>
+      await db.from("assets").select("id, relative_path").in("relative_path", paths).eq("is_deleted", false),
+    findQueued: async (ids) =>
+      await db.from("render_queue").select("asset_id").in("asset_id", ids).in("status", ["pending", "claimed"]),
+    insertJobs: async (rows) => await db.from("render_queue").insert(rows),
+  });
+  if (renderRetry.error) {
+    console.error(
+      `check-changed: render retry scheduling failed for ${renderRetry.failedPaths.length} file(s): ${renderRetry.error}`,
+    );
   }
 
   return json({
@@ -2492,6 +2481,8 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     needs_thumbnail: needsThumbnail,
     existing_content_identities: existingContentIdentities,
     existing_thumbnails: existingThumbnails,
+    render_retry_failed: renderRetry.failedPaths,
+    render_retry_error: renderRetry.error,
   });
 }
 
