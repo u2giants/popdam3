@@ -9,6 +9,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { CURRENT_APP } from "./app-mode";
 
+export const AUTH_STORAGE_KEY = "sb-popdam-auth-token";
+
 export const externalSupabase = createClient(
   CURRENT_APP.supabaseUrl,
   CURRENT_APP.supabaseAnonKey,
@@ -17,7 +19,7 @@ export const externalSupabase = createClient(
       storage: localStorage,
       persistSession: true,
       autoRefreshToken: true,
-      storageKey: "sb-popdam-auth-token",
+      storageKey: AUTH_STORAGE_KEY,
     },
   },
 );

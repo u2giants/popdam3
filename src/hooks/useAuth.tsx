@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { externalSupabase } from "@/lib/external-supabase";
+import { AUTH_STORAGE_KEY, externalSupabase } from "@/lib/external-supabase";
 import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -56,6 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       serverFailed = true;
     }
     if (serverFailed) {
+      // supabase-js "local" sign-out still calls the server when a session is
+      // stored, so it fails the same way offline. Remove the stored session
+      // first; local sign-out then runs without the network and finishes
+      // in-memory cleanup (stops refresh, emits SIGNED_OUT).
+      for (const suffix of ["", "-code-verifier", "-user"]) {
+        try {
+          localStorage.removeItem(`${AUTH_STORAGE_KEY}${suffix}`);
+        } catch {
+          // storage unavailable: nothing persisted to remove
+        }
+      }
       try {
         await externalSupabase.auth.signOut({ scope: "local" });
       } catch {
