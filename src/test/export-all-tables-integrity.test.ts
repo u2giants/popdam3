@@ -50,15 +50,16 @@ describe("CSV export failure handling (#1097)", () => {
 
 describe("CSV export atomic publish (#1097)", () => {
   it("writes to a temp file and replaces the export only after validation", () => {
+    const tmpWrite = ps.indexOf("StreamWriter($tmpPath");
     const validated = ps.indexOf('if ($totalRows -ne $totalCount) { throw');
-    const tmpWrite = ps.indexOf("-FilePath $tmpPath");
     const publish = ps.indexOf("Publish-File $tmpPath $filePath");
-    expect(validated).toBeGreaterThan(-1);
-    expect(tmpWrite).toBeGreaterThan(validated);
-    expect(publish).toBeGreaterThan(tmpWrite);
+    expect(tmpWrite).toBeGreaterThan(-1);
+    expect(validated).toBeGreaterThan(tmpWrite);
+    expect(publish).toBeGreaterThan(validated);
   });
   it("never writes the final file directly", () => {
     expect(ps).not.toMatch(/Out-File -FilePath \$filePath/);
+    expect(ps).not.toMatch(/StreamWriter\(\$filePath/);
     expect(ps).toMatch(/\[System\.IO\.File\]::Replace\(/);
   });
   it("removes the temp file in a finally block on success or failure", () => {
@@ -77,5 +78,40 @@ describe("export-table edge function reports errors and row counts (#1097)", () 
   it("does not treat a short PostgREST chunk as the end of the table", () => {
     expect(edge).not.toMatch(/chunk\.length < requested/);
     expect(edge).toMatch(/offset \+= chunk\.length/);
+  });
+});
+
+describe("CSV export page sizes fit the edge function (#1143)", () => {
+  const ladder = (ps.match(/\$PageSizeLadder = @\(([^)]*)\)/)?.[1] ?? "").split(",").map((n) => parseInt(n, 10));
+  const perTable = ps.match(/\$TablePageSize = @\{([^}]*)\}/)?.[1] ?? "";
+  const edgeCap = parseInt(edge.match(/"50000", 10\), (\d+)\)/)?.[1] ?? "0", 10);
+
+  it("uses a small page for the wide assets table", () => {
+    const assets = parseInt(perTable.match(/"assets" = (\d+)/)?.[1] ?? "0", 10);
+    expect(assets).toBeGreaterThan(0);
+    expect(assets).toBeLessThanOrEqual(5000);
+    expect(ladder).toContain(assets);
+  });
+  it("has a descending page-size ladder where each size divides the one before", () => {
+    expect(ladder.length).toBeGreaterThan(3);
+    expect(ladder[0]).toBeLessThanOrEqual(edgeCap);
+    for (let i = 1; i < ladder.length; i++) {
+      expect(ladder[i]).toBeLessThan(ladder[i - 1]);
+      expect(ladder[i - 1] % ladder[i]).toBe(0);
+    }
+  });
+  it("retries a WORKER_RESOURCE_LIMIT page with a smaller page instead of failing", () => {
+    expect(ps).toMatch(/WORKER_RESOURCE_LIMIT/);
+    expect(ps).toMatch(/IDLE_TIMEOUT/);
+    expect(ps).toMatch(/\$smaller = Get-SmallerPageSize \$size \$totalRows/);
+    expect(ps).toMatch(/\(\$Offset % \$candidate\) -eq 0/);
+  });
+  it("derives each page from rows received and checks it against the current size", () => {
+    expect(ps).toMatch(/\$page = \[int64\]\(\$totalRows \/ \$size\)/);
+    expect(ps).toMatch(/\[Math\]::Min\(\[int64\]\$size, \$totalCount - \$totalRows\)/);
+  });
+  it("streams pages to disk instead of holding the whole table in memory", () => {
+    expect(ps).not.toMatch(/StringBuilder/);
+    expect(ps).toMatch(/\$writer\.Write\(\$response\.Content\)/);
   });
 });
