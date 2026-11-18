@@ -645,3 +645,75 @@ def test_main_text_only_never_loads_picture_models(monkeypatch, tmp_path):
     monkeypatch.setattr(poller.Poller, "run_text_only", lambda self: 0)
     monkeypatch.setattr(poller.sys, "argv", ["x", "--text-only", "--dsn-file", str(dsn)])
     assert poller.main() == 0
+
+
+def test_drain_limit_one_processes_one_job_and_exits_normally(monkeypatch):
+    """#1098: a bounded drain claims at most the remaining limit and returns 0."""
+    import argparse
+    import threading
+    import uuid
+    args = argparse.Namespace(
+        dsn="postgresql://x", stamp="stamp", worker_id="test-limit",
+        batch=32, lease_seconds=300, search_batch=64, search_lease_seconds=900,
+        no_search_lane=True, idle_exit_polls=1, download_threads=2, limit=1,
+        no_text_lane=True, text_batch=64, text_lease_seconds=600, text_model_path=None,
+    )
+    p = poller.Poller(args, models=None)
+    queue = [(uuid.uuid4(), uuid.uuid4()) for _ in range(3)]
+    claimed_sizes = []
+
+    class _Cur:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def execute(self, sql, params):
+            claimed_sizes.append(params[1])
+
+        def fetchall(self):
+            n = claimed_sizes[-1]
+            out = queue[:n]
+            del queue[:n]
+            return out
+
+    class _Conn:
+        def cursor(self):
+            return _Cur()
+
+        def close(self):
+            pass
+
+    class _HB:
+        stop_flag = threading.Event()
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(p, "connect", lambda: setattr(p, "conn", _Conn()))
+    monkeypatch.setattr(p, "_run", lambda fn: fn(_Conn()))
+    monkeypatch.setattr(poller, "Heartbeat", lambda *a, **k: _HB())
+    processed = []
+
+    def fake_batch(jobs):
+        processed.extend(jobs)
+        p.done += len(jobs)
+
+    monkeypatch.setattr(p, "process_index_batch", fake_batch)
+    assert p.run_drain() == 0
+    assert len(processed) == 1
+    assert claimed_sizes == [1]
+    assert len(queue) == 2
+
+
+def test_index_claim_size_respects_remaining_limit():
+    import argparse
+    p = poller.Poller(argparse.Namespace(batch=32, limit=5, download_threads=1), models=None)
+    assert p.index_claim_size() == 5
+    p.done, p.failed = 3, 1
+    assert p.index_claim_size() == 1
+    p.done = 4
+    assert p.index_claim_size() == 0 and p.index_limit_reached()
+    p.args.limit = 0
+    assert p.index_claim_size() == 32 and not p.index_limit_reached()
