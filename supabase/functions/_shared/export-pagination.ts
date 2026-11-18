@@ -7,3 +7,33 @@ export function exportRange(offset: number, remaining: number, maximum = 1000): 
 export function exportOrderColumns(table: string): string[] {
   return table === "asset_characters" ? ["asset_id", "character_id"] : ["id"];
 }
+
+export interface ManifestEntry {
+  table: string;
+  rows: number;
+  chunks: number;
+}
+
+/**
+ * Build one manifest row from a PostgREST exact count. A failed or missing
+ * count must never be reported as an empty table (#1082): throw instead so
+ * no complete-looking manifest is released.
+ */
+export function manifestEntry(
+  table: string,
+  count: number | null | undefined,
+  error: { message?: string } | null | undefined,
+  chunkSize: number,
+): ManifestEntry {
+  if (error) throw new Error(`Count failed for ${table}: ${error.message ?? "unknown error"}`);
+  if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+    throw new Error(`Count missing for ${table}`);
+  }
+  if (!Number.isSafeInteger(chunkSize) || chunkSize < 1) throw new Error("Invalid chunk_size");
+  return { table, rows: count, chunks: count === 0 ? 0 : Math.ceil(count / chunkSize) };
+}
+
+/** Rows a given chunk must contain for the download to count as complete (#1084). */
+export function expectedChunkRows(totalRows: number, chunk: number, chunkSize: number): number {
+  return Math.max(0, Math.min(chunkSize, totalRows - chunk * chunkSize));
+}
