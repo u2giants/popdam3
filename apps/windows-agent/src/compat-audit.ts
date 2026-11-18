@@ -15,6 +15,7 @@
 
 import sharp from "sharp";
 import { logger } from "./common/logger.js";
+import { CompatPreviewReporter } from "./common/compat-preview-reporter.js";
 import * as api from "./api-client";
 
 // ── Perceptual hash (dHash) ──────────────────────────────────────────────────
@@ -227,7 +228,16 @@ export async function runCompatAuditPreview(): Promise<void> {
   logger.info("Starting compat thumbnail preview (perceptual-hash based, no clearing)");
   let afterId: string | null = null;
   let totalScanned = 0;
-  const allFlagged: api.CompatAuditPreviewFlagged[] = [];
+  let totalFlagged = 0;
+  // Each write carries only the flags found since the previous write (see CompatPreviewReporter).
+  const reporter = new CompatPreviewReporter({
+    progress: (scanned, flagged) => api.updateCompatAuditPreview(scanned, flagged),
+    complete: (scanned, flagged, error) => api.completeCompatAuditPreview(scanned, flagged, error),
+    onProgressError: (error, scanned) =>
+      logger.warn("Compat preview progress write failed; retrying with next batch", {
+        scanned, error: (error as Error).message,
+      }),
+  });
 
   try {
     while (true) {
@@ -240,22 +250,23 @@ export async function runCompatAuditPreview(): Promise<void> {
       totalScanned += assets.length;
       assets.forEach((asset, i) => {
         if (flags[i] && asset.thumbnail_url) {
-          allFlagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
+          reporter.record({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
+          totalFlagged++;
           logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
         }
       });
       // Report once per batch (batches now complete in seconds), not per asset.
-      await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
+      await reporter.reportProgress(totalScanned);
 
       if (assets.length < batch_size) break;
       afterId = assets[assets.length - 1].id;
     }
 
-    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: allFlagged.length });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged);
+    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: totalFlagged });
+    await reporter.finish(totalScanned);
   } catch (e) {
     const msg = (e as Error).message;
     logger.error("Compat thumbnail preview failed", { error: msg, scanned: totalScanned });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged, msg).catch(() => {});
+    await reporter.finish(totalScanned, msg).catch(() => {});
   }
 }

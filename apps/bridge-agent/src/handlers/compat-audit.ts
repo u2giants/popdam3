@@ -2,6 +2,7 @@
 import * as api from "../api-client.js";
 import { logger } from "../common/logger.js";
 import { createCompatAuditWorker, isCompatAlertThumbnail } from "../thumbnailer.js";
+import { CompatPreviewReporter } from "../common/compat-preview-reporter.js";
 
 // ── Compat audit ────────────────────────────────────────────────────────────
 // Reads source AI files for all assets that currently have thumbnail_url set.
@@ -68,7 +69,16 @@ export async function runCompatAuditPreview(): Promise<void> {
   logger.info("Starting compat thumbnail preview (OCR-based, all batches, no clearing)");
   let afterId: string | null = null;
   let totalScanned = 0;
-  const allFlagged: api.CompatAuditPreviewFlagged[] = [];
+  let totalFlagged = 0;
+  // Each write carries only the flags found since the previous write (see CompatPreviewReporter).
+  const reporter = new CompatPreviewReporter({
+    progress: (scanned, flagged) => api.updateCompatAuditPreview(scanned, flagged),
+    complete: (scanned, flagged, error) => api.completeCompatAuditPreview(scanned, flagged, error),
+    onProgressError: (error, scanned) =>
+      logger.warn("Compat preview progress write failed; retrying with next batch", {
+        scanned, error: (error as Error).message,
+      }),
+  });
 
   const worker = await createCompatAuditWorker();
   try {
@@ -81,24 +91,25 @@ export async function runCompatAuditPreview(): Promise<void> {
         if (!asset.thumbnail_url) continue;
         const isPlaceholder = await isCompatAlertThumbnail(asset.thumbnail_url, worker);
         if (isPlaceholder) {
-          allFlagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
+          reporter.record({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
+          totalFlagged++;
           logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
         }
       }
 
       // Report incremental progress after each batch so the UI updates live
-      await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
+      await reporter.reportProgress(totalScanned);
 
       if (assets.length < batch_size) break; // last page
       afterId = assets[assets.length - 1].id;
     }
 
-    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: allFlagged.length });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged);
+    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: totalFlagged });
+    await reporter.finish(totalScanned);
   } catch (e) {
     const msg = (e as Error).message;
     logger.error("Compat thumbnail preview failed", { error: msg, scanned: totalScanned });
-    await api.completeCompatAuditPreview(totalScanned, allFlagged, msg).catch(() => {});
+    await reporter.finish(totalScanned, msg).catch(() => {});
   } finally {
     await worker.terminate();
   }
