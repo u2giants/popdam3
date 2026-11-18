@@ -78,7 +78,23 @@ if (url !== EXPECTED_URL || !key) {
   record("picture indexing worker heartbeat", embedStatus?.workers_fresh === true,
     embedStatus ? `fresh=${embedStatus.workers_fresh}, pending=${embedStatus.pending}` : "status unavailable");
 
-  const operationRows = await rest("admin_config?select=value&key=eq.BULK_OPERATIONS");
+  // Text-meaning indexing lane (#1037). get_search_embedding_health() marks the
+  // dam_text corpus stale when documents are pending and no text vector has been
+  // written for 120 minutes, i.e. the lane on edge-dev has stopped draining.
+  const healthResponse = await request("database rpc/get_search_embedding_health",
+    `${url}/rest/v1/rpc/get_search_embedding_health`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: "{}",
+    });
+  let healthRows = null;
+  if (healthResponse?.ok) { try { healthRows = await healthResponse.json(); } catch { healthRows = null; } }
+  const textLane = Array.isArray(healthRows) ? healthRows.find((row) => row.corpus === "dam_text") : null;
+  record("text-meaning indexing lane", Boolean(textLane) && textLane.stale !== true,
+    textLane ? `stale=${textLane.stale}, pending=${textLane.pending}, errored=${textLane.errored}, ` +
+      `minutes_since_last_write=${textLane.minutes_since_last_write}` : "dam_text health row unavailable");
+
+  const operationRows =await rest("admin_config?select=value&key=eq.BULK_OPERATIONS");
   const operations = operationRows?.[0]?.value || {};
   const recentFailures = Object.entries(operations).filter(([, state]) => {
     const updated = Date.parse(state?.updated_at || "");
