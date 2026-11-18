@@ -61,6 +61,7 @@ import {
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
 import { handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
+import { type CharacterStatsRow, planCharacterStats } from "../_shared/character-stats.ts";
 
 import {
   handleBulkPropagateGroupTags,
@@ -670,22 +671,26 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
     if (!counts || counts.length < PAGE) break;
   }
 
-  const { error: resetErr } = await db.from("characters").update({
-    usage_count: 0,
-    is_priority: false,
-  }).gte("usage_count", 0);
-  if (resetErr) return err(resetErr.message, 500);
+  // Read the current catalog, plan every change, then publish it in ONE
+  // upsert (a single statement, so all-or-nothing). A failure leaves the
+  // previous published counts and priorities intact (#1095).
+  const characters: CharacterStatsRow[] = [];
+  for (let from = 0;; from += PAGE) {
+    const { data, error } = await db
+      .from("characters")
+      .select("id, name, property_id, usage_count, is_priority")
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) return err(error.message, 500);
+    characters.push(...((data ?? []) as CharacterStatsRow[]));
+    if (!data || data.length < PAGE) break;
+  }
 
-  let priorityCount = 0;
-  const entries = [...tally.entries()];
-  for (const [characterId, count] of entries) {
-    const isPriority = count >= threshold;
-    if (isPriority) priorityCount++;
-    const { error: updateErr } = await db.from("characters").update({
-      usage_count: count,
-      is_priority: isPriority,
-    }).eq("id", characterId);
-    if (updateErr) return err(`character ${characterId}: ${updateErr.message}`, 500);
+  const { changed, priorityCount } = planCharacterStats(characters, tally, threshold);
+  if (changed.length > 0) {
+    const { error: upsertErr } = await db.from("characters")
+      .upsert(changed, { onConflict: "id" });
+    if (upsertErr) return err(`character stats publish failed: ${upsertErr.message}`, 500);
   }
 
   return json({
