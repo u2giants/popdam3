@@ -155,6 +155,22 @@ begin
     raise exception 'popdam3#1037 property set: total % ids %', n, ids;
   end if;
 
+  -- Either property list alone still scopes picture-only matches (20261204003530, finding #6609).
+  f := jsonb_build_object('semanticPropertyCharacterIds', jsonb_build_array(ch1));
+  select array_agg(entity_id), min(total_count) into ids, n
+  from public.search_dam_documents('zq1037token', f, 50, 0, null, e0, 0, 0.5);
+  if n <> 4 or not (ids @> array[g1,g2,g3,a8]) then
+    raise exception 'popdam3#1037 lone property characters: total % ids %', n, ids;
+  end if;
+  f := jsonb_build_object('semanticPropertyIds', jsonb_build_array(prop));
+  select array_agg(entity_id), min(total_count) into ids, n
+  from public.search_dam_documents('zq1037token', f, 50, 0, null, e0, 0, 0.5);
+  if n <> 3 or not (ids @> array[g1,g2,g4]) then
+    raise exception 'popdam3#1037 lone property ids: total % ids %', n, ids;
+  end if;
+  s := public.dam_search_semantic_anchor_named(e0, null, jsonb_build_object('semanticPropertyCharacterIds', jsonb_build_array(ch1)));
+  if s is null or s > 0.75 or s < 0.65 then raise exception 'popdam3#1037 lone property-character anchor %', s; end if;
+
   -- Oversized lists fail with a clean invalid-parameter error.
   raised := false;
   begin
