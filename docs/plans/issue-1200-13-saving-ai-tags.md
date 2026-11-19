@@ -13,12 +13,12 @@ read-when: "implementing cleanup 13 on saving ai tags"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both writes already use the same saver; normal failure details and parallel redaction differ. |
+| 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed; apply is called once per attempt and retains both mode-specific error paths. |
+| 3. Verify and land | 🔄 In release review | #1220. Integrated worker build and 540 worker tests passed before mechanical edge formatting. |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 

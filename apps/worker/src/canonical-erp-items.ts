@@ -1,10 +1,6 @@
+import { canonicalItemKey, canonicalItemMatchKey, uniqueCanonicalItemIds, type CanonicalItemIdentity } from "../../../supabase/functions/_shared/canonical-item-identity.js";
+export { canonicalItemKey, canonicalItemMatchKey, uniqueCanonicalItemIds, type CanonicalItemIdentity } from "../../../supabase/functions/_shared/canonical-item-identity.js";
 import type { DB } from "./supabase.js";
-
-export interface CanonicalItemIdentity {
-  source_id: string;
-  source_system: string;
-  division_code: string | null;
-}
 
 export interface CanonicalMgFields {
   mg_category?: string | null;
@@ -39,30 +35,6 @@ export async function canonicalItemIdMap(client: DB, items: CanonicalItemIdentit
 }
 
 /**
- * Maps three-part identities to canonical item IDs. An identity matching more
- * than one canonical item (for example the same number and division under two
- * companies) is ambiguous and is left unresolved rather than guessed.
- */
-export function uniqueCanonicalItemIds(
-  rows: Array<{ id: string; source_system: string; item_number: string; raw?: { divisionCode?: string | null } | null }>,
-): Map<string, string> {
-  const ids = new Map<string, string>();
-  const ambiguous = new Set<string>();
-  for (const row of rows) {
-    const key = canonicalItemKey({ source_system: row.source_system, division_code: row.raw?.divisionCode ?? null, source_id: row.item_number });
-    if (ambiguous.has(key)) continue;
-    const existing = ids.get(key);
-    if (existing !== undefined && existing !== row.id) {
-      ids.delete(key);
-      ambiguous.add(key);
-      continue;
-    }
-    ids.set(key, row.id);
-  }
-  return ids;
-}
-
-/**
  * Picks rows eligible for AI classification. A row whose three-part identity
  * does not resolve to exactly one canonical item is skipped before any AI
  * call: the database would refuse its prediction insert anyway.
@@ -92,14 +64,6 @@ export function selectClassificationCandidates<T extends CanonicalItemIdentity &
  */
 export function resolvedErpItems<T extends CanonicalItemIdentity>(rows: T[], canonicalIds: Map<string, string>): T[] {
   return rows.filter((row) => canonicalIds.has(canonicalItemKey(row)));
-}
-
-export function canonicalItemKey(item: CanonicalItemIdentity): string {
-  return `${item.source_system}|${item.division_code ?? ""}|${item.source_id}`;
-}
-
-export function canonicalItemMatchKey(styleNumber: string | null, divisionCode: string | null): string {
-  return `${divisionCode ?? ""}|${styleNumber ?? ""}`;
 }
 
 export function rawMgFieldsFromCanonical(item: CanonicalMgFields): Record<string, string> {

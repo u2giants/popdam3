@@ -26,16 +26,12 @@ import {
 } from "../openrouter.js";
 import {
   assertProviderSubmissionLeaseBudget,
-  getProviderBatch,
   parseProviderBatchResult,
   prepareProviderBatch,
   providerBatchPageLimit,
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
-  accountFingerprint,
-  isAccountRejection,
-  submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
   type PreparedProviderBatch,
@@ -72,7 +68,7 @@ import {
   validateTagAssetData,
 } from "./ai-tagging-shared.js";
 import { GROUP_SHOT_CHARACTER_ID, customerMatchForms, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
-import { indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { indexBatchResults, nextBatchAction, pollBoundProviderBatch, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 
 const AI_TIMEOUT_MS = 60_000;
 // Last-resort fallback only, used if admin_config.AI_TASK_MODELS is missing.
@@ -769,62 +765,18 @@ async function handleDurableBatchTag(
     };
   }
 
-  // A batch lives in the account that submitted it. When the key differs from
-  // the one it was submitted with, the poll itself decides: the provider still
-  // serving the batch means a same-account rotation (adopt the new
-  // fingerprint); refusing it means another account, so stop visibly
-  // (resumable once the right key is restored).
-  const accountMismatch = submittedAccountMismatch(job, apiKey);
-
-  let record;
-  try {
-    record = await getProviderBatch(batchProvider, apiKey, action.batchId);
-  } catch (error) {
-    if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
-      return {
-        ok: true,
-        done: false,
-        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-        external_job: {
-          ...job,
-          last_checked_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + 10_000).toISOString(),
-        },
-        last_stage: "model_inference",
-      };
-    }
-    // Checked after the new-batch visibility grace: a just-submitted batch may
-    // 404 briefly on either key.
-    if (accountMismatch && isAccountRejection(error)) {
-      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
-    }
-    if (isTransientProviderPollError(error)) {
-      // Keep the same saved provider job ID and poll it again later; a
-      // temporary outage must never turn a live batch into a failure.
-      const failures = (job.transient_poll_failures ?? 0) + 1;
-      return {
-        ok: true,
-        done: false,
-        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-        external_job: {
-          ...job,
-          transient_poll_failures: failures,
-          last_checked_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
-        },
-        last_stage: "model_inference",
-      };
-    }
-    throw error;
+  const poll = await pollBoundProviderBatch(batchProvider, apiKey, job, action.batchId);
+  if (poll.type === "credential_changed") {
+    return { ok: false, done: false, error: poll.error, error_code: "credential_changed", external_job: poll.job };
   }
-  if (accountMismatch) job.account_fingerprint = accountFingerprint(apiKey);
-  if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
+  if (poll.type === "deferred") {
     return {
       ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-      external_job: { ...job, transient_poll_failures: undefined, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
+      external_job: poll.job,
       last_stage: "model_inference",
     };
   }
+  const { record } = poll;
   if (record.status !== "completed") {
     // A failed/cancelled/expired provider batch will never produce results.
     // Record every unapplied item as a per-item failure and finish the job, so
@@ -1040,6 +992,27 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   const providerOverride = buildProviderPin(providerPin);
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
+  const describeTagApplyFailure = (model: string, error: unknown): string => {
+    const stage = error instanceof AssetTagApplyError ? error.stage
+      : error instanceof CharacterReferenceValidationError ? "character_reference"
+      : error instanceof CharacterCatalogDependencyError ? "character_catalog"
+      : "validation";
+
+    if (parallelModel) {
+      const code = error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError
+        ? error.code
+        : "unknown";
+      logger.warn("ai-tag: parallel save failed", { assetId, model, stage, code });
+      return error instanceof AssetTagApplyError
+        ? `Parallel tagging save failed at ${error.stage} (${error.code})`
+        : "Parallel tagging result validation failed";
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
+    return `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}`;
+  };
+
   const attemptTag = async (model: string): Promise<AttemptResult> => {
     const apiKey = await getAiTaggingApiKey(model);
     if (!apiKey) {
@@ -1058,17 +1031,6 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
-        if (parallelModel) {
-          try {
-            const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
-            return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
-          }
-          catch (error) {
-            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : error instanceof CharacterReferenceValidationError ? "character_reference" : error instanceof CharacterCatalogDependencyError ? "character_catalog" : "validation", code: error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError ? error.code : "unknown"});
-            return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
-          }
-        }
-
         // Shared save path: tags and character links are written first and the
         // asset is marked "tagged" LAST, so a failed tag write never leaves an
         // asset flagged tagged with no tags (which ai-tag-untagged would skip
@@ -1077,13 +1039,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
           return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
         } catch (error) {
-          const stage = error instanceof AssetTagApplyError ? error.stage
-            : error instanceof CharacterReferenceValidationError ? "character_reference"
-            : error instanceof CharacterCatalogDependencyError ? "character_catalog"
-            : "validation";
-          const message = error instanceof Error ? error.message : String(error);
-          logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
-          return { outcome: "failed", error: `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}` };
+          return { outcome: "failed", error: describeTagApplyFailure(model, error) };
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

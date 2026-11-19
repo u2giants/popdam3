@@ -28,6 +28,8 @@ COPY vendor/changed-fields.js /supabase/functions/_shared/changed-fields.js
 COPY vendor/changed-fields.d.ts /supabase/functions/_shared/changed-fields.d.ts
 COPY vendor/operation-policy.js /supabase/functions/_shared/operation-policy.js
 COPY vendor/operation-policy.d.ts /supabase/functions/_shared/operation-policy.d.ts
+COPY vendor/canonical-item-identity.js /supabase/functions/_shared/canonical-item-identity.js
+COPY vendor/canonical-item-identity.d.ts /supabase/functions/_shared/canonical-item-identity.d.ts
 RUN npm run build
 
 # Remove devDependencies

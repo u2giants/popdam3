@@ -1,3 +1,11 @@
+import {
+  accountFingerprint,
+  getProviderBatch,
+  isAccountRejection,
+  submittedAccountMismatch,
+  type DurableBatchProvider,
+  type ProviderBatchRecord,
+} from "../batch-provider.js";
 import type { OpenRouterBatchJobState } from "../types.js";
 import { ProviderPollTransportError } from "../batch-submission-error.js";
 
@@ -113,6 +121,55 @@ export const MAX_PROVIDER_RETRY_DELAY_MS = 5 * 60 * 1000;
 export function transientPollDelayMs(consecutiveFailures: number): number {
   const exponent = Math.max(0, Math.min(consecutiveFailures, 10));
   return Math.min(30_000 * 2 ** exponent, MAX_PROVIDER_RETRY_DELAY_MS);
+}
+
+type BoundProviderPoll =
+  | { type: "ready"; record: ProviderBatchRecord }
+  | { type: "deferred"; job: OpenRouterBatchJobState }
+  | { type: "credential_changed"; error: string; job: OpenRouterBatchJobState };
+
+export async function pollBoundProviderBatch(
+  provider: DurableBatchProvider,
+  apiKey: string,
+  job: OpenRouterBatchJobState,
+  batchId: string,
+): Promise<BoundProviderPoll> {
+  const accountMismatch = submittedAccountMismatch(job, apiKey);
+  let record: ProviderBatchRecord;
+  try {
+    record = await getProviderBatch(provider, apiKey, batchId);
+  } catch (error) {
+    // New batches can briefly be invisible, even with the original key.
+    if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
+      return { type: "deferred", job: schedulePoll(job, 10_000) };
+    }
+    if (accountMismatch && isAccountRejection(error)) {
+      return { type: "credential_changed", error: accountMismatch, job: { ...job, lease_token: job.lease_token } };
+    }
+    if (isTransientProviderPollError(error)) {
+      const failures = (job.transient_poll_failures ?? 0) + 1;
+      return {
+        type: "deferred",
+        job: schedulePoll({ ...job, transient_poll_failures: failures }, transientPollDelayMs(failures - 1)),
+      };
+    }
+    throw error;
+  }
+
+  // A successful poll proves the new key can reach the original account.
+  if (accountMismatch) job.account_fingerprint = accountFingerprint(apiKey);
+  if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
+    return { type: "deferred", job: schedulePoll({ ...job, transient_poll_failures: undefined }, 10_000) };
+  }
+  return { type: "ready", record };
+}
+
+function schedulePoll(job: OpenRouterBatchJobState, delayMs: number): OpenRouterBatchJobState {
+  return {
+    ...job,
+    last_checked_at: new Date().toISOString(),
+    next_poll_at: new Date(Date.now() + delayMs).toISOString(),
+  };
 }
 
 /**

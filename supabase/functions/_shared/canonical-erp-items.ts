@@ -1,13 +1,9 @@
+import { type CanonicalItemIdentity, uniqueCanonicalItemIds } from "./canonical-item-identity.js";
+export { type CanonicalItemIdentity, canonicalItemKey, canonicalItemMatchKey, uniqueCanonicalItemIds } from "./canonical-item-identity.js";
 import type { ServiceClient } from "./service-client.ts";
 
 export const CANONICAL_ITEM_SCHEMA = "api";
 export const CANONICAL_ITEM_VIEW = "plm_item_list";
-
-export interface CanonicalItemIdentity {
-  source_id: string;
-  source_system: string;
-  division_code: string | null;
-}
 
 export interface CanonicalMgFields {
   mg_category?: string | null;
@@ -35,38 +31,6 @@ export async function canonicalItemIdMap(db: ServiceClient, items: CanonicalItem
   });
   if (error) throw new Error(`Failed to resolve canonical item IDs: ${error.message}`);
   return uniqueCanonicalItemIds(Array.isArray(data) ? data : []);
-}
-
-/**
- * Maps three-part identities to canonical item IDs. An identity matching more
- * than one canonical item (for example the same number and division under two
- * companies) is ambiguous and is left unresolved rather than guessed.
- */
-export function uniqueCanonicalItemIds(
-  rows: Array<{ id: string; source_system: string; item_number: string; raw?: { divisionCode?: string | null } | null }>,
-): Map<string, string> {
-  const ids = new Map<string, string>();
-  const ambiguous = new Set<string>();
-  for (const row of rows) {
-    const key = canonicalItemKey({ source_system: row.source_system, division_code: row.raw?.divisionCode ?? null, source_id: row.item_number });
-    if (ambiguous.has(key)) continue;
-    const existing = ids.get(key);
-    if (existing !== undefined && existing !== row.id) {
-      ids.delete(key);
-      ambiguous.add(key);
-      continue;
-    }
-    ids.set(key, row.id);
-  }
-  return ids;
-}
-
-export function canonicalItemKey(item: CanonicalItemIdentity): string {
-  return `${item.source_system}|${item.division_code ?? ""}|${item.source_id}`;
-}
-
-export function canonicalItemMatchKey(styleNumber: string | null, divisionCode: string | null): string {
-  return `${divisionCode ?? ""}|${styleNumber ?? ""}`;
 }
 
 export function canonicalItemKeySql(alias = "e"): string {
