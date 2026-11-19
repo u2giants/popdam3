@@ -37,6 +37,7 @@ import { runAiSentinelScan } from "./ai-sentinel-scanner.js";
 import { verifyPendingCheckins } from "./checkin-verifier.js";
 import { SkuSerialQueue, skuFromRelativePath } from "./sku-serial-queue.js";
 import { dispatchCommands } from "./commands/dispatch.js";
+import { createCoalescedReporter } from "./coalesced-progress.js";
 import { createBridgeCommandHandlers } from "./commands/heartbeat-commands.js";
 import { runCompatAudit, runCompatAuditPreview } from "./handlers/compat-audit.js";
 import { processSiblingScanRequests } from "./handlers/sibling-scan.js";
@@ -839,6 +840,8 @@ async function safeScanProgress(
   dirs?: string[],
 ) {
   try {
+    // A late "running" update must not land after the final status.
+    if (status !== "running") await runningProgress.idle();
     await api.scanProgress(sessionId, status, currentCounters, message, dirs);
   } catch (e) {
     logger.warn("Failed to report scan progress (non-fatal)", {
@@ -932,7 +935,7 @@ async function runScan(providedSessionId?: string) {
         const now = Date.now();
         if (now - lastProgressAt >= PROGRESS_INTERVAL_MS) {
           lastProgressAt = now;
-          api.scanProgress(sessionId, "running", counters, dirPath, skippedDirs).catch(() => {});
+          runningProgress.report({ sessionId, currentPath: dirPath });
         }
       },
       onSkippedDir: (dirPath, _reason) => {
@@ -1071,6 +1074,11 @@ async function reconcileCatalogWithDisk(candidates: FileCandidate[], scanRoots: 
   }
 }
 
+/** Fire-and-forget "running" progress, one request at a time (#1186). */
+const runningProgress = createCoalescedReporter<{ sessionId: string; currentPath?: string }>(
+  ({ sessionId, currentPath }) => api.scanProgress(sessionId, "running", { ...counters }, currentPath, skippedDirs),
+);
+
 async function processScanCandidates(candidates: FileCandidate[], sessionId: string) {
   styleGroupQueue = new SkuSerialQueue();
   // ── Change detection: ask cloud which files actually need processing ──
@@ -1124,7 +1132,7 @@ async function processScanCandidates(candidates: FileCandidate[], sessionId: str
   const allToProcess = [...filesToProcess, ...thumbRetryFiles];
   if (allToProcess.length === 0) {
     // Report progress even if nothing to process — fire-and-forget, never kill the scan
-    api.scanProgress(sessionId, "running", counters, candidates[candidates.length - 1]?.relativePath, skippedDirs).catch(() => {});
+    runningProgress.report({ sessionId, currentPath: candidates[candidates.length - 1]?.relativePath });
     return;
   }
 
@@ -1138,7 +1146,7 @@ async function processScanCandidates(candidates: FileCandidate[], sessionId: str
     i += concurrency;
 
     // Report progress — fire-and-forget, never kill the scan
-    api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath, skippedDirs).catch(() => {});
+    runningProgress.report({ sessionId, currentPath: allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath });
   }
 }
 
