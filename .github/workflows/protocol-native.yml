@@ -65,7 +65,7 @@ jobs:
             }
             $control = Join-Path $scratch 'Independent Explorer control'
             $direct = Join-Path $scratch 'Direct fixture (spaces)'
-            $registered = Join-Path $scratch ("Registered fixture (spaces) & 20% + # caf" + [char]0x00E9)
+            $registered = Join-Path $scratch ("Registered fixture (spaces) & literal %20 + # caf" + [char]0x00E9)
             $parent = Join-Path $scratch 'File parent fallback'
             New-Item -ItemType Directory -Path $control, $direct, $registered, $parent | Out-Null
             $file = Join-Path $parent 'Readme.txt'
@@ -80,37 +80,22 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Registry installation failed' }
             $registeredCommand = (Get-Item -LiteralPath "$registration\shell\open\command").GetValue('')
             if ($registeredCommand -cne ('"{0}\System32\wscript.exe" "C:\PopDAM\popdam-open.js" "%1"' -f $env:SystemRoot)) { throw 'Registry did not install the expected native receiver' }
-            $originalLauncher = Get-Content -Raw -LiteralPath $launcher
-            $witnessPath = Join-Path $installed 'protocol-witness.txt'
-            @'
-          var fso = new ActiveXObject("Scripting.FileSystemObject");
-          var out = fso.CreateTextFile("C:\\PopDAM\\protocol-witness.txt", true, true);
-          out.WriteLine(WScript.Arguments.length);
-          for (var i = 0; i < WScript.Arguments.length; ++i) out.WriteLine(WScript.Arguments.Item(i));
-          out.Close();
-          '@ | Set-Content -LiteralPath $launcher -Encoding ascii
-            $richUri = New-PopDamUri $registered
-            Start-Process $richUri
-            for ($attempt = 0; $attempt -lt 14 -and !(Test-Path -LiteralPath $witnessPath); $attempt++) {
-              Start-Sleep -Milliseconds 500
-            }
-            if (Test-Path -LiteralPath $witnessPath) {
-              $observed = @(Get-Content -LiteralPath $witnessPath)
-              Write-Host "Synthetic ShellExecute input: $richUri"
-              Write-Host "Synthetic registered launcher arguments: $($observed -join ' | ')"
-            } else {
-              Write-Host "Registered launcher did not receive synthetic ShellExecute input"
-              Write-Host "WSH process after dispatch: $(Get-Process wscript -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)"
-            }
-            Set-Content -LiteralPath $launcher -Value $originalLauncher -Encoding ascii
-            $standard = Join-Path $scratch 'Registered folder (spaces)'
-            New-Item -ItemType Directory -Path $standard | Out-Null
-            Start-Process (New-PopDamUri $standard)
-            Assert-ExplorerTarget $standard
             Start-Process (New-PopDamUri $registered)
             Assert-ExplorerTarget $registered
             Start-Process (New-PopDamUri $file)
             Assert-ExplorerTarget $parent
+            Remove-Item -LiteralPath $registration -Recurse -Force
+            $downloadsPage = Get-Content -Raw -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'src/pages/DownloadsPage.tsx')
+            $match = [regex]::Match($downloadsPage, 'const winStep2 = `([^`]+)`;')
+            if (!$match.Success) { throw 'Missing Windows Downloads registration step' }
+            $uiStep = $match.Groups[1].Value.Replace('\\','\')
+            [scriptblock]::Create($uiStep).InvokeReturnAsIs() | Out-Null
+            $value = (Get-Item -LiteralPath $registration).GetValue('URL Protocol', $null)
+            if ($null -eq $value -or $value -cne '') { throw 'Downloads registration missed the protocol value' }
+            $pageTarget = Join-Path $scratch 'Downloads setup fixture (spaces)'
+            New-Item -ItemType Directory -Path $pageTarget | Out-Null
+            Start-Process (New-PopDamUri $pageTarget)
+            Assert-ExplorerTarget $pageTarget
           } finally {
             if (Test-Path -LiteralPath $registration) { Remove-Item -LiteralPath $registration -Recurse -Force }
             if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Recurse -Force }
