@@ -213,6 +213,17 @@ to use the stable category code, not the display label.
 
 **Q TBD storage — Settled, owner ruling by Albert Hazan on 2026-08-18.** `Q TBD storage` is a real Product Type and its category is **Storage**. This replaces the earlier statement that a twentieth Product Type existed in every division with an **Unknown** category; that statement was wrong on both counts. `MerchGroup_Rework.xlsx` carries only the other nineteen, so the workbook still needs updating by the business to match the ruling. Until it does, **this recorded ruling is the authority for `Q`, not the workbook.**
 
+### MG02 → MG03 parent-child tree — Settled, owner ruling by Albert Hazan, 2026-11-19
+
+- **MG03 is a child of one specific MG02**, which is itself a child of one MG01. A code is valid for an item only if it is listed under that item's exact MG01 > MG02. Being active in the same Division and `mgCategory` is not enough.
+- **MG03 is not always a material.** Depending on the branch, it can be a material (MDF, Glass), an embellishment (Foil, Glitter), or a finer sub-type (Vintage alarm). Call it the Product Sub-Sub-Type, not "material".
+- **When nothing under the MG02 fits, propose a new MG03 under that exact MG01 > MG02.** Don't force the nearest existing child. If the code already exists in the same Division and category, propose linking it under the MG02 rather than creating a duplicate.
+- **Frame material is not coded on framed prints.** A framed print (MG01 B Framed > MG02 R1 Print) codes the print and any embellishment, not what the frame is made of.
+- **We do not make canvas clocks.** A canvas whose description says "with clock" is canvas wall art with a clock in the picture (A Stretched/Box > A2 Canvas), not an MG01 M Clock.
+- **ColdLion is the only place merchandise groups change.** POP never writes MG codes, the tree or item active status in DesignFlow or the shared database. Every change goes to JamieLynn as a sheet, and she makes it in ColdLion; DesignFlow only pulls. (Owner ruling, repeated 2026-11-18.)
+
+**Where the tree lives (implementation evidence, not authority).** ColdLion's `/merchGroupDetails` feed has no parent field; each row carries only Division, type, `mgCategory` and code. The tree is in DesignFlow's copy, `dflow_prod."merchGroup".parent_id` (MG03 → MG02 → MG01). Some codes there differ from ColdLion's (on 2026-11-19, "Emb Greyboard" was `Q5` in the copy and `Q` in ColdLion). So take which children are allowed from the tree, and take the code from ColdLion's live read. Whether ColdLion holds the same tree internally is **Unknown**; confirm with JamieLynn before treating the copy as complete.
+
 ### Division scope of a Product Type
 
 **Settled — verified against the live taxonomy on 2026-08-18.** The nineteen workbook Product Types each exist once in each of the three current divisions `CW001`, `EH001` and `SP001`. `Q TBD storage` exists in `CW001` only.
