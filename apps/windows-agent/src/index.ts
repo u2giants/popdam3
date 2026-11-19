@@ -85,6 +85,16 @@ let healthStatus: HealthStatus = {
   lastPreflightAt: null,
 };
 
+function canStartAuxiliaryClaim(alreadyRunning: boolean): boolean {
+  const paused = maintenancePausesClaims(
+    activeJobs,
+    claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork,
+    isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText ||
+      isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating,
+  );
+  return !paused && configReceived && healthStatus.healthy && !alreadyRunning;
+}
+
 const PREFLIGHT_RECHECK_MS = 60_000; // Re-check every 60s if unhealthy
 
 // ── Cloud config overrides (updated from heartbeat) ─────────────
@@ -946,7 +956,7 @@ function startTiffScanChecker() {
   const TIFF_SCAN_CHECK_MS = 30_000;
 
   const loop = async () => {
-    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (!canStartAuxiliaryClaim(tiffScanRunning)) {
       setTimeout(loop, TIFF_SCAN_CHECK_MS);
       return;
     }
@@ -1067,7 +1077,7 @@ function startTiffPolling() {
   const TIFF_POLL_MS = 5_000;
 
   const loop = async () => {
-    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (!canStartAuxiliaryClaim(tiffScanRunning)) {
       setTimeout(loop, TIFF_POLL_MS);
       return;
     }
@@ -1178,7 +1188,7 @@ function startTiffReinspectPolling() {
   const REINSPECT_POLL_MS = 7_000;
 
   const loop = async () => {
-    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || tiffScanRunning) {
+    if (!canStartAuxiliaryClaim(tiffScanRunning)) {
       setTimeout(loop, REINSPECT_POLL_MS);
       return;
     }
@@ -1280,7 +1290,7 @@ function startHygieneScanChecker() {
   const CHECK_MS = 30_000;
 
   const loop = async () => {
-    if (maintenancePausesClaims(activeJobs, claimAccounting.inFlight + heartbeatDelivery.inFlight + auxiliaryWork, isBackfillingPdfText || isBackfillingSgPdfText || isSamplingPdfText || isRunningCompatAudit || isRunningCompatAuditPreview || getUpdateState().updating) || !configReceived || !healthStatus.healthy || hygieneScanRunning) {
+    if (!canStartAuxiliaryClaim(hygieneScanRunning)) {
       setTimeout(loop, CHECK_MS);
       return;
     }

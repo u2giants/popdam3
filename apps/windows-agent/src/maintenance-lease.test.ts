@@ -69,10 +69,13 @@ test('actual TIFF and hygiene loops pause claims and count HTTP before await thr
  const {readFileSync}=await import('node:fs');const vm=await import('node:vm');
  const ts=await import('typescript');
  const source=readFileSync(new URL('./index.ts',import.meta.url),'utf8');
+ const parsed=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
+ function functionSource(name: string): string {
+  return parsed.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name)!.getText(parsed);
+ }
+ const guard=functionSource('canStartAuxiliaryClaim');
  for(const name of ['startTiffScanChecker','startTiffPolling','startTiffReinspectPolling','startHygieneScanChecker']) {
-  const parsed=ts.createSourceFile('index.ts',source,ts.ScriptTarget.Latest,true);
-  const declaration=parsed.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text===name)!;
-  const body=declaration.getText(parsed);
+  const body=functionSource(name);
   const callbacks:Array<()=>Promise<void>>=[];let paused=true;let finish!:(value:unknown)=>void;let claims=0;
   const context:any={auxiliaryWork:0,activeJobs:0,claimAccounting:{inFlight:0},heartbeatDelivery:{inFlight:0},
    isBackfillingPdfText:false,isBackfillingSgPdfText:false,isSamplingPdfText:false,isRunningCompatAudit:false,isRunningCompatAuditPreview:false,
@@ -80,9 +83,19 @@ test('actual TIFF and hygiene loops pause claims and count HTTP before await thr
    agentId:'test',logger:{info:()=>{},debug:()=>{},error:()=>{}},
    maintenancePausesClaims:()=>paused,setTimeout:(fn:()=>Promise<void>)=>callbacks.push(fn),
    api:{callApi:()=>{claims++;return new Promise(resolve=>{finish=resolve})}}};
-  vm.runInNewContext(ts.transpileModule(body+`\n${name}();`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+  vm.runInNewContext(ts.transpileModule(guard+'\n'+body+`\n${name}();`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
   await callbacks.shift()!();assert.equal(claims,0,name+' refuses new claim while paused');
-  paused=false;const running=callbacks.shift()!();
+  paused=false;
+  context.healthStatus.healthy=false;
+  await callbacks.shift()!();assert.equal(claims,0,name+' skips while unhealthy');
+  context.healthStatus.healthy=true;context.configReceived=false;
+  await callbacks.shift()!();assert.equal(claims,0,name+' skips before configuration');
+  context.configReceived=true;
+  const busyFlag=name==='startHygieneScanChecker'?'hygieneScanRunning':'tiffScanRunning';
+  context[busyFlag]=true;
+  await callbacks.shift()!();assert.equal(claims,0,name+' skips while its busy flag is set');
+  context[busyFlag]=false;
+  const running=callbacks.shift()!();
   assert.equal(claims,1);assert.equal(context.auxiliaryWork,1,name+' counts before HTTP await');
   paused=true;assert.equal(inspectMaintenanceLease(request,1000,0,context.auxiliaryWork,false).idle,false);
   finish({request:null,jobs:[]});await running;
