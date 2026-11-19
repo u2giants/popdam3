@@ -76,6 +76,19 @@ class CollisionTests(unittest.TestCase):
             [("relation", "app.t"), ("relation", "app.t_idx"), ("function", "app.g"), ("type", "app.kind")],
         )
 
+    def test_rename_frees_the_old_name(self) -> None:
+        sql = (
+            "alter materialized view public.sgf rename to sgf_snapshot;\n"
+            "create view public.sgf as select 1;\n"
+            "create view public.other as select 1;\n"
+            "alter table app.later rename to later_old;\n"
+        )
+        self.assertEqual(sp.created_names(sql), [("relation", "public.other")])
+
+    def test_rename_after_create_does_not_hide_it(self) -> None:
+        sql = "create table app.t (id int);\nalter table app.t rename to t2;\n"
+        self.assertEqual(sp.created_names(sql), [("relation", "app.t")])
+
     def test_added_columns_policies_and_triggers_are_probed(self) -> None:
         sql = (
             "alter table app.user_notification add column if not exists created_at timestamptz;\n"

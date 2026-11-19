@@ -111,6 +111,11 @@ DROP_RE = re.compile(
     r"(?:concurrently\s+)?(?:if\s+exists\s+)?" + IDENT
 )
 
+RENAME_RE = re.compile(
+    r"\balter\s+(?:materialized\s+view|view|table|sequence|index)\s+(?:if\s+exists\s+)?(?:only\s+)?"
+    + IDENT + r"\s+rename\s+to\s+" + NAME
+)
+
 
 class Refusal(Exception):
     pass
@@ -189,6 +194,8 @@ def created_names(raw: str) -> list[tuple[str, str]]:
     for m in TRIGGER_RE.finditer(text):
         events.append((m.start(), "trigger", f"{m.group(2)}.{m.group(3)}.{m.group(1)}"))
     drops = [(m.start(), f"{m.group(1)}.{m.group(2)}") for m in DROP_RE.finditer(text)]
+    # Renaming a relation away frees its old name just as a drop does (#6472).
+    drops += [(m.start(), f"{m.group(1)}.{m.group(2)}") for m in RENAME_RE.finditer(text)]
     drops += [
         (m.start(), f"{m.group(2)}.{m.group(3)}.{m.group(1)}")
         for m in re.finditer(r"\bdrop\s+(?:policy|trigger)\s+(?:if\s+exists\s+)?" + NAME + r"\s+on\s+" + IDENT, text)
