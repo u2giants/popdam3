@@ -26,6 +26,8 @@ COPY vendor/tag-style-group-contract.js /supabase/functions/_shared/tag-style-gr
 COPY vendor/tag-style-group-contract.d.ts /supabase/functions/_shared/tag-style-group-contract.d.ts
 COPY vendor/changed-fields.js /supabase/functions/_shared/changed-fields.js
 COPY vendor/changed-fields.d.ts /supabase/functions/_shared/changed-fields.d.ts
+COPY vendor/operation-policy.js /supabase/functions/_shared/operation-policy.js
+COPY vendor/operation-policy.d.ts /supabase/functions/_shared/operation-policy.d.ts
 RUN npm run build
 
 # Remove devDependencies

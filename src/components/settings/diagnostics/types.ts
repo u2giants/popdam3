@@ -1,3 +1,4 @@
+export { OP_LANES, OP_CONFLICTS, getOperationLane as getLane } from "../../../../supabase/functions/_shared/operation-policy.js";
 import type { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Shared types for DiagnosticsTab sub-components ──
@@ -82,58 +83,6 @@ export const OP_NAMES: Record<string, string> = {
   "embed-dam-search": "Embed DAM Search",
   "sg-embed-search": "Embed PopSG Search",
   "rebuild-image-vectors": "Rebuild Image Vectors",
-};
-
-// Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
-// in OP_CONFLICTS below. Keep this in sync with the backend definition in
-// supabase/functions/_shared/operation-constants.ts.
-export const OP_LANES: Record<string, string> = {
-  "ai-tag-untagged": "ai-tagging",
-  "ai-tag-all": "ai-tagging",
-  "ai-tag-groups": "ai-tagging",
-  "ai-tag-parallel": "ai-parallel",
-  "ai-tag-group-profiles": "ai-tagging",
-  "ai-tag-bakeoff": "ai-tagging",
-  "rebuild-style-groups": "style-groups",
-  "reconcile-style-group-stats": "style-groups",
-  "reprocess-metadata": "metadata",
-  "backfill-sku-names": "metadata",
-  "erp-enrichment": "erp",
-  "erp-classify": "erp",
-  "shorten-item-descriptions": "item-descriptions",
-  "propagate-group-tags": "style-groups",
-  "refresh-group-metadata": "style-groups",
-  "cleanup-mega-group-tags": "style-groups",
-  "relink-orphaned-assets": "style-groups",
-  "rich-pdf-extract": "rich-pdf",
-  "tag-popsg-files": "popsg-tags",
-  "embed-dam-search": "search-index",
-  "sg-embed-search": "search-index",
-  "rebuild-image-vectors": "embed",
-};
-
-export function getLane(opKey: string): string {
-  return OP_LANES[opKey] ?? opKey;
-}
-
-// Cross-lane conflict map — mirrors backend OP_CONFLICTS.
-// If op A lists op B, they cannot run (or be queued) at the same time.
-// Entries are symmetric: if A blocks B then B also blocks A.
-export const OP_CONFLICTS: Record<string, readonly string[]> = {
-  "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
-  "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
-  "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
-  "backfill-sku-names":   ["erp-enrichment"],
-  "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
-  "rich-pdf-extract":     ["rebuild-style-groups"],
-  "rebuild-image-vectors": ["ai-tag-all"],
 };
 
 export const REASON_LABELS: Record<string, string> = {
