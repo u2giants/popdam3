@@ -24,6 +24,8 @@ import * as api from "./api-client";
 import { uploadPdfPage } from "./uploader";
 import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 import { callPdfAiVision } from "./common/pdf-ai-vision.js";
+import { runPdfSampleBatch, type FileProgressEntry, type PdfSampleAsset, type PdfTextSampleResult } from "./common/pdf-sample-batch.js";
+export type { PdfSampleAsset, PdfTextSampleResult } from "./common/pdf-sample-batch.js";
 
 // OTA-safe: mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
 // a full installer run, not OTA dist updates. Load them lazily inside the function.
@@ -38,12 +40,6 @@ function tryRequire(mod: string): any | null {
   } catch {
     return null;
   }
-}
-
-export interface PdfSampleAsset {
-  id: string;
-  relative_path: string;
-  filename: string;
 }
 
 export interface AiModelDef {
@@ -68,30 +64,8 @@ export interface AiConfig {
   directPdfVision?: (page: Buffer) => Promise<string>;
 }
 
-export interface PdfTextSampleResult {
-  asset_id: string;
-  filename: string;
-  relative_path: string;
-  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision" | "skipped";
-  extracted_text: string | null;
-  ocr_engine?: string | null;
-  page_count: number | null;
-  char_count: number;
-  extraction_error: string | null;
-  thumbnail_url?: string;
-  skip_reason?: string;
-}
-
 export const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 export function exceedsPdfSizeLimit(size: number): boolean { return size > PDF_SIZE_LIMIT_BYTES; }
-
-interface FileProgressEntry {
-  filename: string;
-  status: "success" | "failed";
-  method: string;
-  chars: number;
-  error?: string;
-}
 
 // ── AI vision call ────────────────────────────────────────────────────────────
 
@@ -323,52 +297,19 @@ export async function runPdfTextSample(
 
   logger.info("PDF text sample: starting", { count: assets.length, mountRoot });
 
-  const results: PdfTextSampleResult[] = [];
-  const fileResults: FileProgressEntry[] = [];
-
-  // Report initial pickup
-  await reportProgress(0, assets.length, null, "starting", []);
-
-  for (let i = 0; i < assets.length; i++) {
-    const asset = assets[i];
-    let fullPath = asset.relative_path;
-
-    try {
-      fullPath = resolveUnderRoot(mountRoot, asset.relative_path);
-      const result = await processSinglePdf(asset, fullPath, aiConfig, i, assets.length, fileResults);
-      results.push(result);
-      fileResults.push({
+  await runPdfSampleBatch(assets, {
+    resolvePath: (relativePath) => resolveUnderRoot(mountRoot, relativePath),
+    process: (asset, fullPath, index, previous) => processSinglePdf(asset, fullPath, aiConfig, index, assets.length, previous),
+    progress: reportProgress,
+    complete: api.completePdfTextSample,
+    describeResult: (asset, result) => {
+      return {
         filename: asset.filename,
         status: result.extraction_method === "failed" ? "failed" : "success",
         method: result.extraction_method,
         chars: result.char_count,
         error: result.extraction_error ?? undefined,
-      });
-    } catch (e) {
-      const errMsg = (e as Error).message;
-      logger.warn("PDF text sample: extraction failed", {
-        filename: asset.filename, path: fullPath, error: errMsg,
-      });
-      results.push({
-        asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-        extraction_method: "failed", extracted_text: null,
-        page_count: null, char_count: 0, extraction_error: errMsg.slice(0, 500),
-      });
-      fileResults.push({
-        filename: asset.filename, status: "failed", method: "failed", chars: 0, error: errMsg.slice(0, 200),
-      });
-    }
-
-    // Report progress after each file
-    await reportProgress(i + 1, assets.length, null, "done", fileResults);
-  }
-
-  try {
-    await api.completePdfTextSample(results);
-    logger.info("PDF text sample: completed", { total: results.length });
-  } catch (e) {
-    logger.error("PDF text sample: failed to submit results", { error: (e as Error).message });
-    // Report the error so UI shows it
-    await reportProgress(results.length, assets.length, null, "done", fileResults, (e as Error).message);
-  }
+      };
+    },
+  });
 }
