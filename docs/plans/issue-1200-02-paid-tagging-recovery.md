@@ -15,8 +15,8 @@ read-when: "implementing cleanup 02 on paid tagging recovery"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both durable callers poll the saved batch ID and keep their own terminal writes. |
 | 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed. Eight artwork scenarios and group recovery matched the original saved ID, lease, grace, outages, account rotation and terminal outcomes with zero provider submissions in replay. |
-| 3. Verify and land | 🔄 In release review | #1220. Integrated worker build and 540 worker tests passed before mechanical edge formatting. |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | The integrated worker passed 540 checks. Production worker reported 612da3ee at 1:47 PM EST. Live saved artwork and group batch IDs were absent at inspection. **Next** — Codex PopDAM release owner must follow one existing paid file batch and one existing group batch across polls to save without submitting a duplicate. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

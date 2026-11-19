@@ -15,8 +15,8 @@ read-when: "implementing cleanup 15 on administration grid filters"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. The four grids retain their own filter state, debounce and editing rules. |
 | 2. Make the scoped change | ✅ implemented | 160 unit tests, 11 offline browser cases and build passed. The existing timed and interaction cases remain unchanged; separate fixture evidence is needed for full live acceptance. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1217](https://github.com/u2giants/popdam3/pull/1217) at `102910f1`. Implementation checks passed. |
+| 4. Accept in use | ✅ verified | Production workflow run 44591102698 succeeded. The live application reported content-equivalent revision 35a766ed. Customer, Product Depth and Property Status no-match filters rendered zero cells. An isolated scraped group moved to 0/70 by text and 69/70 by selection. Distinct menus and independent selection state worked across all four grids. Existing offline browser coverage checked edit restrictions. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

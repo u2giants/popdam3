@@ -15,8 +15,8 @@ read-when: "implementing cleanup 19 on downloadable protocol installers"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | All three removed copies matched the served source files byte for byte. No tracked packaging, scripts or docs consumed the old repository paths. Shell validation passed. Public artifacts and download URLs are unchanged. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1211](https://github.com/u2giants/popdam3/pull/1211) at `e4b58a92`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | All three public installer bytes matched source on both live hosts at 7b7eb676. The shell installer parsed cleanly, and no tracked consumer required the retired duplicate source paths. **Next** — Codex desktop QA owner must open a controlled artwork URL with the published launchers on the supported native systems. |
 
 Albert authorized implementation and release of this item. See #1200 for release and live evidence.
 

@@ -15,8 +15,8 @@ read-when: "implementing cleanup 08 on ranked search cache"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Asset and group caches use the same key construction but separate stores and caller-specific loaders. |
 | 2. Make the scoped change | ✅ implemented | 18 actual-query fixture cases passed before and after. Coalescing, cache expiry, rejection/retry and independent refresh matched. Build and 1215 root tests passed, with an unrelated opt-in skip. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1219](https://github.com/u2giants/popdam3/pull/1219) at `35a766ed`. Implementation checks passed. |
+| 4. Accept in use | ✅ verified | Both sites served release 35a766ed. Repeated production search returned 11 files and one distinct group for the same known product code. The first six file hits and group result retained their ordering across view changes. Local tests proved shared pending requests and independent refresh. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

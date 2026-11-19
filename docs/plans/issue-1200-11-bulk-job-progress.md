@@ -15,8 +15,8 @@ read-when: "implementing cleanup 11 on bulk-job progress"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Reducer and result-message bodies are preserved byte for byte, including selected values and accounting. |
 | 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed. Direct fixtures covered unknown operations, aliases, zero and omitted counts, 100/200 sample caps and exact versus inherited rebuild counters. |
-| 3. Verify and land | 🔄 In release review | #1220. Integrated worker build and 540 worker tests passed before mechanical edge formatting. |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | Production worker reported 612da3ee fresh at 1:47 PM EST. Exact formatting, alias, zero/omitted and sample cap comparisons passed offline. No fresh two-operation progress trace was observed. **Next** — Codex worker release owner must capture progress and terminal receipts for two normal post-release operations and compare them to the replay. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

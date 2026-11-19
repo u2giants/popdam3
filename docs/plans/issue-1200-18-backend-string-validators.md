@@ -15,8 +15,8 @@ read-when: "implementing cleanup 18 on backend string validators"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | Both public import paths preserve exact missing, numeric, blank and padded outcomes. All 16 added cases passed. The root suite passed 1,215 tests before the new cases, with one unrelated credential-dependent skip. Focused Deno checks passed. Full entry point Deno checks reproduce the same 22 baseline diagnostics. Installed admin and agent route proof is pending. |
-| 3. Verify and land | 🔄 CI verified before formatter; focused behavior retested after formatter | #1206. The formatter only moved the re-export by one line. |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1206](https://github.com/u2giants/popdam3/pull/1206) at `9550e11b`. Implementation checks passed. |
+| 4. Accept in use | ✅ verified | Edge deployment run 44591473524 includes the validator changes. Admin test login verified missing, blank and padded strings (200) and exact numeric error (500). Existing Windows agent authenticated against the live route and reproduced the same four cases and exact numeric error. The original error codes are intentionally preserved. |
 
 Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 

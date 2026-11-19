@@ -15,8 +15,8 @@ read-when: "implementing cleanup 17 on production filter rule tests"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | 25 focused checks and the frontend build passed. Root suite passed 1215 tests with one unrelated opt-in skip. Blank, category-only and unrelated filters still take the base path. Tag, licensor and property take the effective path. Rollback switch retained. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1210](https://github.com/u2giants/popdam3/pull/1210) at `7b7eb676`. Implementation checks passed. |
+| 4. Accept in use | ✅ verified | Both sites served 7b7eb676. The released PopDAM library returned 153,900 base files, 42 for a tag, 35,730 for a licensor, and 8,137 with a property. Local production-hook fixtures proved each routing choice and correlated live gateway aggregate logs saw both routes. |
 
 Albert authorized implementation and release of this item. See #1200 for release and live evidence.
 
