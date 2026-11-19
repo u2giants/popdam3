@@ -978,7 +978,7 @@ def orphaned_findings(skipped: list[dict[str, Any]], now: datetime) -> list[tupl
             if (finding.get("state") == "open" and number not in seen
                     and _label_names(finding) & set(FIXER_TERMINAL_LABELS)):
                 seen.add(number)
-                found.append((entry["number"], finding))
+                found.append((entry["number"], {**finding, "_held_since": hold_since(entry)}))
     return found
 
 
@@ -988,36 +988,53 @@ def retry_orphaned_findings(repo: str, skipped: list[dict[str, Any]], now: datet
     finding. Never raises; a refused write is reported and the hold stands."""
     lines = []
     for pr, finding in orphaned_findings(skipped, now):
-        n = finding["number"]
         try:
-            pages = gh("--paginate", "--slurp", f"repos/{repo}/issues/{n}/comments?per_page=100") or []
-            if any(ORPHAN_RETRY_MARKER in (c.get("body") or "") for page in pages for c in page):
-                lines.append(f"finding #{n} (holds PR #{pr}): fixer already retried once; needs a disposition")
-                continue
-        except Exception as exc:  # noqa: BLE001 -- unreadable comments: do not retry blind
-            lines.append(f"finding #{n} (holds PR #{pr}): comments unreadable ({exc}); not retried")
-            continue
-        if dry_run:
-            lines.append(f"finding #{n} (holds PR #{pr}): would retry the fixer")
-            continue
-        opened = finding.get("created_at")
-        hours = int((now - _time(opened)).total_seconds() // 3600) if opened else 0
-        parked = ", ".join(sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS)))
-        body = (f"{ORPHAN_RETRY_MARKER}\nThis open finding holds merged PR #{pr} out of production "
-                f"and the automatic fixer parked it ({parked}; finding open {hours}h). Retrying the "
-                f"fixer once now. If it parks again, this finding needs a disposition (fix forward, "
-                f"or close with reasons) for the release to proceed.\n\n" + _footer())
-        ok, msg = gh_write("POST", f"repos/{repo}/issues/{n}/comments", {"body": body})
-        if not ok:
-            lines.append(f"finding #{n} (holds PR #{pr}): retry note refused ({msg}); not retried")
-            continue
-        for label in sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS)):
-            gh_write("DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
-        ok, msg = gh_write("POST", f"repos/{repo}/actions/workflows/review-fixer.yml/dispatches",
-                           {"ref": "main", "inputs[issue]": str(n)})
-        lines.append(f"finding #{n} (holds PR #{pr}): fixer re-dispatched" if ok
-                     else f"finding #{n} (holds PR #{pr}): fixer dispatch refused ({msg})")
+            lines.append(_retry_one(repo, pr, finding, now, dry_run))
+        except Exception as exc:  # noqa: BLE001 -- one malformed finding must not stop the rest
+            lines.append(f"finding #{finding.get('number')} (holds PR #{pr}): retry defect "
+                         f"({type(exc).__name__}: {exc}); not retried")
     return lines
+
+
+def _retry_one(repo: str, pr: int, finding: dict[str, Any], now: datetime, dry_run: bool) -> str:
+    n = finding["number"]
+    try:
+        pages = gh("--paginate", "--slurp", f"repos/{repo}/issues/{n}/comments?per_page=100") or []
+        if any(ORPHAN_RETRY_MARKER in (c.get("body") or "") for page in pages for c in page):
+            return f"finding #{n} (holds PR #{pr}): fixer already retried once; needs a disposition"
+    except Exception as exc:  # noqa: BLE001 -- unreadable comments: do not retry blind
+        return f"finding #{n} (holds PR #{pr}): comments unreadable ({exc}); not retried"
+    if dry_run:
+        return f"finding #{n} (holds PR #{pr}): would retry the fixer"
+    parked = sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS))
+    # Held time is measured from the hold start, the same clock overdue_holds uses.
+    held = finding.get("_held_since")
+    hours = int((now - held).total_seconds() // 3600) if held else 0
+    body = (f"{ORPHAN_RETRY_MARKER}\nThis open finding holds merged PR #{pr} out of production "
+            f"and the automatic fixer parked it ({', '.join(parked)}; held {hours}h). Retrying the "
+            f"fixer once now. If it parks again, this finding needs a disposition (fix forward, "
+            f"or close with reasons) for the release to proceed.\n\n" + _footer())
+    # The marker note is the once-only guard, so it is written first; a later
+    # refused step is reported on the finding itself instead of retried.
+    ok, msg = gh_write("POST", f"repos/{repo}/issues/{n}/comments", {"body": body})
+    if not ok:
+        return f"finding #{n} (holds PR #{pr}): retry note refused ({msg}); not retried"
+    failures = []
+    for label in parked:
+        ok, msg = gh_write("DELETE", f"repos/{repo}/issues/{n}/labels/{label}")
+        if not ok:
+            failures.append(f"label {label} not removed ({msg})")
+    ok, msg = gh_write("POST", f"repos/{repo}/actions/workflows/review-fixer.yml/dispatches",
+                       {"ref": "main", "inputs[issue]": str(n)})
+    if not ok:
+        failures.append(f"fixer dispatch refused ({msg})")
+    if not failures:
+        return f"finding #{n} (holds PR #{pr}): fixer re-dispatched"
+    gh_write("POST", f"repos/{repo}/issues/{n}/comments", {"body": (
+        "The fixer retry above did not complete: " + "; ".join(failures) + ". It will not be "
+        "retried automatically; this finding needs a disposition (fix forward, or close with "
+        "reasons) for the release to proceed.\n\n" + _footer())})
+    return f"finding #{n} (holds PR #{pr}): retry incomplete: " + "; ".join(failures)
 
 
 def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:

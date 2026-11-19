@@ -3296,6 +3296,29 @@ class OrphanedFindingRetry(unittest.TestCase):
         write.assert_not_called()
         self.assertIn("needs a disposition", lines[0])
 
+    def test_refused_steps_are_reported_on_the_finding(self):
+        writes = []
+        def write(*a):
+            writes.append(a)
+            return (False, "403") if a[0] == "DELETE" or "dispatches" in a[1] else (True, "ok")
+        with mock.patch.object(m, "gh", return_value=[[]]), mock.patch.object(m, "gh_write", side_effect=write):
+            lines = m.retry_orphaned_findings("o/r", [self.entry(["fixer-deferred"])], self.now)
+        self.assertIn("retry incomplete", lines[0])
+        self.assertIn("label fixer-deferred not removed", lines[0])
+        self.assertIn("fixer dispatch refused", lines[0])
+        self.assertIn("did not complete", writes[-1][2]["body"])
+        self.assertIn("held 12h", writes[0][2]["body"])
+
+    def test_one_malformed_finding_does_not_stop_the_rest(self):
+        bad, good = self.entry(["fixer-deferred"]), self.entry(["fixer-deferred"])
+        good["number"], good["findings"][0]["number"] = 6660, 6661
+        del bad["findings"][0]["number"]
+        with mock.patch.object(m, "gh", return_value=[[]]), \
+                mock.patch.object(m, "gh_write", return_value=(True, "ok")):
+            lines = m.retry_orphaned_findings("o/r", [bad, good], self.now)
+        self.assertEqual(len(lines), 2)
+        self.assertIn("fixer re-dispatched", lines[1])
+
     def test_dry_run_and_unreadable_comments_write_nothing(self):
         with mock.patch.object(m, "gh", return_value=[[]]), mock.patch.object(m, "gh_write") as write:
             self.assertIn("would retry", m.retry_orphaned_findings("o/r", [self.entry(["fixer-deferred"])], self.now, dry_run=True)[0])
