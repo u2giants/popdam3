@@ -363,9 +363,17 @@ jobs:
           set -euo pipefail
           git fetch origin main
           tip="$(git rev-parse origin/main)"
+          # Same content rule as the first gate: refuse only if main stopped descending
+          # from GITHUB_SHA or changed a DB Data Admin input (run 44427001348).
+          inputs=(apps/db-data-admin scripts/db-data-admin .github/workflows/db-data-admin.yml)
           if [ "${GITHUB_SHA}" != "${tip}" ]; then
-            echo "::error::main moved to ${tip} after the first gate. Refusing to attach the domain or deploy stale ${GITHUB_SHA}. Re-dispatch from current main."
-            exit 1
+            if ! git merge-base --is-ancestor "${GITHUB_SHA}" "${tip}" \
+              || ! git diff --quiet "${GITHUB_SHA}" "${tip}" -- "${inputs[@]}"; then
+              echo "::error::main moved to ${tip} with DB Data Admin input changes (or diverged) after the first gate. Refusing to attach the domain or deploy stale ${GITHUB_SHA}. Re-dispatch from current main."
+              git diff --stat "${GITHUB_SHA}" "${tip}" -- "${inputs[@]}" || true
+              exit 1
+            fi
+            echo "::notice::main moved to ${tip}, but no DB Data Admin input changed since ${GITHUB_SHA}; still current."
           fi
 
       - name: Attach the exact domain and the immutable sha image tag
