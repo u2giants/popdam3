@@ -70,8 +70,15 @@ begin
   if v_src !~ 'least\(coalesce\(p_batch_size, 500\), 500\)' then
     raise exception '2792 contract 2: per-call write cap is not 500';
   end if;
-  if pg_get_functiondef('public.preview_stale_sg_files(text,uuid,numeric)'::regprocedure) !~ 'and f\.is_active;' then
-    raise exception '2792 contract 2: preview no longer restricts its count to active rows';
+  -- #3458: the preview counts only the active-files side table (no per-row
+  -- heap recheck of style_guide_files), and that table must stay active-only.
+  if pg_get_functiondef('public.preview_stale_sg_files(text,uuid,numeric)'::regprocedure) ~ 'join public\.style_guide_files' then
+    raise exception '3458 contract: preview rejoins style_guide_files (heap-bound after an ingest)';
+  end if;
+  if exists (select 1 from public.style_guide_file_crawl_seen s
+               join public.style_guide_files f on f.id = s.style_guide_file_id
+              where not f.is_active) then
+    raise exception '3458 contract: crawl_seen holds a row for an inactive file';
   end if;
   if v_src !~ 'limit v_need' then
     raise exception '2792 contract 2: later batches no longer bound the run-active guard probe';
