@@ -6,6 +6,7 @@ const url = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const failures = [];
 const checks = [];
+const warmups = [];
 
 function record(name, ok, detail) {
   checks.push({ name, ok, detail });
@@ -39,6 +40,30 @@ if (url !== EXPECTED_URL || !key) {
   record("production target", false, "expected production Supabase URL and injected service-role key");
 } else {
   record("production target", true, "Virginia production project");
+  // Search keepalive (#1196): the first typed search after an idle stretch pays a
+  // database buffer-cache miss (search RPC cold 2-10x its warm cost) plus a
+  // cold-isolate spelling load — 2.7-6.3 s measured versus 1.1-2.0 s warm. These
+  // runs keep the dam-search-ai isolates and the Postgres search working set warm.
+  // NOT health checks: a slow warmup is the very cost being hidden, so they never
+  // fail the canary — only their timing is reported.
+  for (const query of ["frame", "canvas", "print"]) {
+    const started = Date.now();
+    try {
+      const response = await fetch(`${url}/functions/v1/dam-search-ai`, {
+        method: "POST",
+        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "search", query, limit: 50, offset: 0,
+          filters: {}, min_rank: 0, document_types: ["style_group"],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      await response.text();
+      warmups.push({ query, status: response.status, ms: Date.now() - started });
+    } catch (error) {
+      warmups.push({ query, error: error instanceof Error ? error.message : String(error), ms: Date.now() - started });
+    }
+  }
   await request("DAM frontend", "https://dam.designflow.app/");
   await request("PopSG frontend", "https://sg.designflow.app/");
 
@@ -105,7 +130,7 @@ if (url !== EXPECTED_URL || !key) {
     recentFailures.length ? recentFailures.join(", ") : "none in the last 20 minutes");
 }
 
-const report = { ok: failures.length === 0, checked_at: new Date().toISOString(), failures, checks };
+const report = { ok: failures.length === 0, checked_at: new Date().toISOString(), failures, checks, warmups };
 await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
 console.log(report.ok ? "Production canary passed" : `Production canary failed: ${failures.join("; ")}`);
 if (!report.ok) process.exitCode = 1;

@@ -584,6 +584,11 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       await (async () => {
         const query = typeof body.query === "string" ? body.query.trim() : "";
         if (!query) return err("Missing query", 400);
+        // Start the spelling-vocabulary load now so it overlaps the catalog checks
+        // and embed instead of serializing inside this search's spelling step. On a
+        // cold isolate that load is 0.5-1.3 s of the first search's wall time (#1196).
+        // The load is per-isolate cached; a failure only costs this search's spelling.
+        void spellingLookup.vocabulary().catch(() => {});
         const limit = Math.min(200, Math.max(1, Math.trunc(Number(body.limit) || 50)));
         const offset = Math.min(10_000, Math.max(0, Math.trunc(Number(body.offset) || 0)));
         const minRank = Number.isFinite(Number(body.min_rank)) ? Math.min(1, Math.max(0, Number(body.min_rank))) : 0;
