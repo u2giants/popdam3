@@ -137,11 +137,6 @@ export function needsEffectiveScope(filters: AssetFilters): boolean {
   return Boolean(filters.tagFilter || filters.licensorId || filters.propertyId);
 }
 
-/** The routing rule itself, independent of whether the contract is enabled yet. */
-export function wouldNeedEffectiveScope(filters: AssetFilters): boolean {
-  return Boolean(filters.tagFilter || filters.licensorId || filters.propertyId);
-}
-
 function supportedProductCategories(categories: string[]): string[] {
   return categories.map((category) => category.trim())
     .filter((category) => buildProductCategoryOrFilter([category], "relative_path"));

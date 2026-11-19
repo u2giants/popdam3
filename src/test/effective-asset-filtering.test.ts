@@ -28,7 +28,6 @@ import {
   buildEffectiveFilterPayload,
   buildAssetCountQuery,
   needsEffectiveScope,
-  wouldNeedEffectiveScope,
   useAssets,
   useAssetCount,
   useFilterCounts,
@@ -283,28 +282,27 @@ describe("narrow exact counts preserve the library scope", () => {
 
 describe("which filters are group-owned", () => {
   it("recognises a tag filter as group-owned", () => {
-    expect(wouldNeedEffectiveScope(filters({ tagFilter: "drinkware" }))).toBe(true);
+    expect(needsEffectiveScope(filters({ tagFilter: "drinkware" }))).toBe(true);
   });
 
   it("recognises licensor and property filters as group-owned", () => {
-    expect(wouldNeedEffectiveScope(filters({ licensorId: "l1" }))).toBe(true);
-    expect(wouldNeedEffectiveScope(filters({ propertyId: "p1" }))).toBe(true);
-  });
-
-  it("leaves every other filter on the existing indexed path", () => {
-    expect(wouldNeedEffectiveScope(filters())).toBe(false);
-    expect(wouldNeedEffectiveScope(filters({ search: "mug", fileType: ["psd"], stage: ["dev"] }))).toBe(false);
-    expect(wouldNeedEffectiveScope(filters({ contentType: ["product_photo"], isLicensed: true }))).toBe(false);
-  });
-});
-
-describe("the qualified contract routes group-owned filters", () => {
-  it("routes group-owned filters through filter_effective_assets", () => {
-    expect(needsEffectiveScope(filters({ tagFilter: "drinkware" }))).toBe(true);
     expect(needsEffectiveScope(filters({ licensorId: "l1" }))).toBe(true);
     expect(needsEffectiveScope(filters({ propertyId: "p1" }))).toBe(true);
   });
 
+  it("uses base scope for category alone and effective scope with a group-owned filter", () => {
+    expect(needsEffectiveScope(filters({ productCategory: ["Wall"] }))).toBe(false);
+    expect(needsEffectiveScope(filters({ productCategory: ["Wall"], tagFilter: "blue" }))).toBe(true);
+  });
+
+  it("leaves every other filter on the existing indexed path", () => {
+    expect(needsEffectiveScope(filters())).toBe(false);
+    expect(needsEffectiveScope(filters({ search: "mug", fileType: ["psd"], stage: ["dev"] }))).toBe(false);
+    expect(needsEffectiveScope(filters({ contentType: ["product_photo"], isLicensed: true }))).toBe(false);
+  });
+});
+
+describe("the qualified contract routes group-owned filters", () => {
   it("names the blocking issue next to the switch, so it cannot be flipped blind", async () => {
     const fs = await import("node:fs/promises");
     const source = await fs.readFile("src/hooks/useAssets.ts", "utf8");
