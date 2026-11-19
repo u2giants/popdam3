@@ -609,7 +609,11 @@ def test_text_only_runs_only_the_text_lane(monkeypatch):
     p, _calls, _ = _text_poller(monkeypatch)
     p.args.text_only = True
     monkeypatch.setattr(p, "connect", lambda: None)
-    monkeypatch.setattr(poller.time, "sleep", lambda s: None)
+    clock = [1000]
+    monkeypatch.setattr(poller.time, "time", lambda: clock[0])
+    def advance_clock(seconds):
+        clock[0] += seconds
+    monkeypatch.setattr(poller.time, "sleep", advance_clock)
     monkeypatch.setattr(poller.Heartbeat, "start", lambda self: pytest.fail("heartbeat started"))
     for name in ("claim_query_job", "claim_index_jobs", "claim_search_docs", "claim_sg_docs",
                  "embed_enabled"):
