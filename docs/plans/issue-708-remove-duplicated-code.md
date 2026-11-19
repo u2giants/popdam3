@@ -235,3 +235,5 @@ Open questions: none business-meaning. Engineering OPEN items are in §8.
 1. **Could a brand-new session execute this without asking anything?** Yes: §5 gives every duplicate with file:line and the measured drift, §9 gives per-step edits, imports and gates, §10 names every test, §12 lists access, and the STATUS line says what must be merged first.
 2. **Does it carry every piece of background and what was ruled out?** Yes: §6 records the cache-key bug, the lease-bound reason `meta-direct` is Windows-only, and why four agent modules are two programs rather than drift; §7 lists six rejected approaches with reasons; §8 marks locked vs open.
 3. **Is the goal clear enough to steer by?** Yes: §1 says "one implementation, no behaviour change", and gives the tie-break rule (keep the behaviour of the most-used screen and write it down) for when consolidation forces a choice.
+
+The [November 19 cleanup plan directory](../../HANDOFF.d/2026-11-19T1750Z-edge-dev3-codex-cleanup-plans.md) lists 20 separately selectable plans. Read the selected plan’s STATUS first.
