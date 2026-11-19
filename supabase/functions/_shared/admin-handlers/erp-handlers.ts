@@ -8,7 +8,48 @@
 
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
-import { canonicalItemIdMap, canonicalItemKey, canonicalItemMatchKey, canonicalItems } from "../canonical-erp-items.ts";
+import { canonicalItemIdMap, canonicalItemKey, canonicalItemMatchKey } from "../canonical-erp-items.ts";
+
+type ErpPreviewCandidate = {
+  source_id: string;
+  style_number: string;
+  item_description: string | null;
+  mg_category: string | null;
+  mg01_code: string | null;
+  mg02_code: string | null;
+  mg03_code: string | null;
+  size_code: string | null;
+  licensor_code: string | null;
+  property_code: string | null;
+  division_code: string | null;
+};
+
+// Match api.plm_item_list's ColdLion fields and preview ordering without its
+// legacy UUID ranking or prepack projection. Resolve canonical IDs separately
+// so the shortlist never hides duplicates outside the candidate limit.
+const ERP_PREVIEW_CANDIDATES_SQL = `SELECT
+  candidate.item_number AS source_id,
+  candidate.item_number AS style_number,
+  candidate.description AS item_description,
+  candidate.mg_category,
+  candidate.raw ->> 'merchGroup01' AS mg01_code,
+  candidate.raw ->> 'merchGroup02' AS mg02_code,
+  candidate.raw ->> 'merchGroup03' AS mg03_code,
+  candidate.raw ->> 'sizeRangeCode' AS size_code,
+  licensor.code AS licensor_code,
+  property.code AS property_code,
+  candidate.raw ->> 'divisionCode' AS division_code
+FROM (
+  SELECT item_number, description, raw, licensor_id, property_id,
+         raw ->> 'mGCategory' AS mg_category
+  FROM plm.item
+  WHERE source_system = 'coldlion' AND item_number IS NOT NULL AND item_number <> ''
+  ORDER BY mg_category ASC NULLS LAST, item_number ASC
+  LIMIT 300
+) candidate
+LEFT JOIN core.licensor licensor ON licensor.id = candidate.licensor_id
+LEFT JOIN core.property property ON property.id = candidate.property_id
+ORDER BY candidate.mg_category ASC NULLS LAST, candidate.item_number ASC`;
 
 // ── Route: apply-erp-enrichment ─────────────────────────────────────
 
@@ -26,27 +67,31 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const db = serviceClient();
 
   // Fetch a candidate batch of ERP items, then filter to those with matching assets
-  const { data: candidates, error: candidateErr } = await canonicalItems(db)
-    .select(
-      "id, source_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
-    )
-    .not("style_number", "is", null)
-    .neq("style_number", "")
-    .order("mg_category", { ascending: true, nullsFirst: false })
-    .order("source_id", { ascending: true })
-    .limit(300);
+  const { data: candidateRows, error: candidateErr } = await db.rpc("execute_readonly_query", {
+    query_text: ERP_PREVIEW_CANDIDATES_SQL,
+  });
 
-  if (candidateErr) return err(candidateErr.message, 500);
+  if (candidateErr || !Array.isArray(candidateRows)) {
+    console.error("ERP preview candidate read failed", { code: candidateErr?.code });
+    return err("Could not load ERP preview candidates", 500);
+  }
 
-  const candidateSkus = (candidates ?? []).map((c) => c.style_number).filter(Boolean) as string[];
+  const candidates = candidateRows as ErpPreviewCandidate[];
+  const candidateSkus = candidates.map((c) => c.style_number).filter(Boolean);
   const { data: matchedAssets } = await db
     .from("assets")
     .select("sku, division_code")
     .in("sku", candidateSkus.length > 0 ? candidateSkus : ["__none__"])
     .eq("is_deleted", false);
   const matchedSkuSet = new Set((matchedAssets ?? []).map((a) => canonicalItemMatchKey(a.sku, a.division_code)));
-  const matchedItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(canonicalItemMatchKey(c.style_number, c.division_code)));
-  const canonicalIds = await canonicalItemIdMap(db, matchedItems.map((c) => ({ ...c, source_system: "coldlion" })));
+  const matchedItems = candidates.filter((c) => c.style_number && matchedSkuSet.has(canonicalItemMatchKey(c.style_number, c.division_code)));
+  let canonicalIds: Map<string, string>;
+  try {
+    canonicalIds = await canonicalItemIdMap(db, matchedItems.map((c) => ({ ...c, source_system: "coldlion" })));
+  } catch {
+    console.error("ERP preview canonical identity read failed");
+    return err("Could not resolve ERP preview item identities", 500);
+  }
   // Mirror the worker: ambiguous identities are skipped by apply, so the
   // preview must not count or sample them either.
   const erpItems = matchedItems

@@ -21,6 +21,10 @@ vi.mock("../service-client.ts", () => {
         rows = rows.filter((row) => row[column] === value);
         return query;
       },
+      is: (column: string, value: unknown) => {
+        rows = rows.filter((row) => row[column] === value);
+        return query;
+      },
       in: (column: string, values: unknown[]) => {
         fixture.calls.push({ table, column, value: values });
         rows = rows.filter((row) => values.includes(row[column]));
@@ -65,6 +69,16 @@ beforeEach(() => {
   fixture.rpc.mockImplementation(async (fn: string, params: { query_text?: string }) => {
     const sql = params?.query_text ?? "";
     if (fn !== "execute_readonly_query" || !sql.includes("FROM plm.item")) return { data: [], error: null };
+    if (sql.includes("LIMIT 300")) {
+      const rows = fixture.tables["api.plm_item_list"]
+        .filter((row) => row.source_system === "coldlion" && row.style_number != null && row.style_number !== "")
+        .sort((a, b) => {
+          if (a.mg_category === null && b.mg_category !== null) return 1;
+          if (b.mg_category === null && a.mg_category !== null) return -1;
+          return (a.mg_category ?? "").localeCompare(b.mg_category ?? "") || a.source_id.localeCompare(b.source_id);
+        });
+      return { data: rows.slice(0, 300), error: null };
+    }
     const inList = sql.match(/IN \(([^)]*)\)/)?.[1] ?? "";
     const values = [...inList.matchAll(/'([^']*)'/g)].map((m) => m[1]);
     const byId = /WHERE id IN/.test(sql);
@@ -133,6 +147,59 @@ beforeEach(() => {
 });
 
 describe("canonical ERP handler behavior", () => {
+  it("shortlists the first 300 ColdLion rows by category (nulls last) and source ID before matching assets", async () => {
+    fixture.tables["api.plm_item_list"] = [
+      { source_id: "A-NULL", style_number: "A-NULL", source_system: "coldlion", mg_category: null },
+      { source_id: "A-FOREIGN", style_number: "A-FOREIGN", source_system: "other", mg_category: "A" },
+      { source_id: "", style_number: "", source_system: "coldlion", mg_category: "A" },
+      { source_id: null, style_number: null, source_system: "coldlion", mg_category: "A" },
+      ...Array.from({ length: 300 }, (_, index) => {
+        const sku = "SKU-" + String(300 - index).padStart(3, "0");
+        return { source_id: sku, style_number: sku, source_system: "coldlion", mg_category: "B" };
+      }),
+      { source_id: "Z-EARLY", style_number: "Z-EARLY", source_system: "coldlion", mg_category: "A" },
+    ];
+    fixture.tables.assets = [
+      { sku: "Z-EARLY", division_code: null, is_deleted: false },
+      { sku: "SKU-299", division_code: null, is_deleted: false },
+      { sku: "SKU-300", division_code: null, is_deleted: false },
+      { sku: "A-NULL", division_code: null, is_deleted: false },
+    ];
+    fixture.tables["plm.item"] = fixture.tables.assets.map(({ sku }) => ({
+      id: sku,
+      source_system: "coldlion",
+      item_number: sku,
+      raw: {},
+    }));
+
+    const response = await handleApplyErpEnrichment({ mode: "dry-run" });
+    expect(response.status).toBe(200);
+    expect(fixture.rpc).toHaveBeenNthCalledWith(1, "execute_readonly_query", {
+      query_text: expect.stringMatching(
+        /FROM plm\.item\s+WHERE source_system = 'coldlion' AND item_number IS NOT NULL AND item_number <> ''\s+ORDER BY mg_category ASC NULLS LAST, item_number ASC\s+LIMIT 300/,
+      ),
+    });
+    const body = await response.json();
+    expect(body.assets_to_update).toBe(2);
+    expect(body.sample_updates.map((row: any) => row.sku)).toEqual(["Z-EARLY", "SKU-299"]);
+  });
+
+  it("returns a sanitized error when the candidate query fails before any matching", async () => {
+    fixture.rpc.mockResolvedValueOnce({ data: null, error: { code: "57014", message: "SQL with internal details" } });
+    const response = await handleApplyErpEnrichment({ mode: "dry-run" });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Could not load ERP preview candidates" });
+    expect(fixture.calls).toEqual([]);
+  });
+
+  it("returns a sanitized error when canonical identity resolution fails", async () => {
+    fixture.rpc.mockImplementationOnce(async () => ({ data: fixture.tables["api.plm_item_list"], error: null }));
+    fixture.rpc.mockResolvedValueOnce({ data: null, error: { code: "57014", message: "SQL with internal details" } });
+    const response = await handleApplyErpEnrichment({ mode: "dry-run" });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Could not resolve ERP preview item identities" });
+  });
+
   it("uses the migrated prediction identity for enrichment and keeps divisions separate", async () => {
     const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
     expect(body.sample_updates).toHaveLength(1);
@@ -152,6 +219,11 @@ describe("canonical ERP handler behavior", () => {
       source_system: "coldlion",
       item_number: "SAME",
       description: "Other company",
+      raw: { divisionCode: "CW001" },
+    }, {
+      id: "canonical-cw-third-company",
+      source_system: "coldlion",
+      item_number: "SAME",
       raw: { divisionCode: "CW001" },
     });
     const body = await (await handleApplyErpEnrichment({ mode: "dry-run" })).json();
