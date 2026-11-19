@@ -1,3 +1,4 @@
+import { conflictsFor, getOperationLane } from "../../../supabase/functions/_shared/operation-policy.js";
 import { synchronizeMetaReservations, observePausedMetaResponse, MetaCapabilityRejectionError } from "./meta-model-api.js";
 import { getMetaApiKey } from "./provider-api-key.js";
 import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
@@ -421,64 +422,18 @@ async function recordStyleGroupTerminalOutcome(
   await alertTerminalFailure(run);
 }
 
-// Lane isolation — operations in the same lane are mutually exclusive
-const OP_LANES: Record<string, string> = {
-  "ai-tag-untagged": "ai-tagging",
-  "ai-tag-all": "ai-tagging",
-  "ai-tag-groups": "ai-tagging",
-  "ai-tag-parallel": "ai-parallel",
-  "ai-tag-group-profiles": "ai-tagging",
-  "ai-tag-bakeoff": "ai-tagging",
-  "rebuild-style-groups": "style-groups",
-  "reconcile-style-group-stats": "style-groups",
-  "reprocess-metadata": "metadata",
-  "backfill-sku-names": "metadata",
-  "erp-enrichment": "erp",
-  "erp-classify": "erp",
-  "shorten-item-descriptions": "item-descriptions",
-  "propagate-group-tags": "style-groups",
-  "refresh-group-metadata": "style-groups",
-  "cleanup-mega-group-tags": "style-groups",
-  "relink-orphaned-assets": "style-groups",
-  "tag-popsg-files": "popsg-tags",
-  "rich-pdf-extract": "rich-pdf",
-  "embed-dam-search": "search-index",
-  "rebuild-image-vectors": "embed",
-};
-
-// Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
-// Root cause: speculative-insert index locks on asset_tags B-tree index when both ai-tag and
-// propagate-group-tags INSERT the same (asset_id, tag) pair. SKIP LOCKED only fixes UPDATE
-// locks, not INSERT index locks. Must be kept in sync with:
-//   supabase/functions/_shared/operation-constants.ts  (backend enforcement)
-//   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
-const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged":      ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-all":           ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata", "rebuild-image-vectors"],
-  "ai-tag-groups":        ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-parallel":        ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "ai-tag-group-profiles": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "refresh-group-metadata"],
-  "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
-  "rich-pdf-extract":     ["rebuild-style-groups"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
-  "backfill-sku-names":   ["erp-enrichment"],
-  "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
-  "rebuild-image-vectors": ["ai-tag-all"],
-};
-
 export function runningTagConflict(opKey: string, running: Iterable<string>): boolean {
   const normalized = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
   const keys = [...running];
   return (normalized === "ai-tag-parallel" && keys.some(key => key.startsWith("ai-tag-single-"))) ||
-    (OP_CONFLICTS[normalized] ?? []).some(key => keys.includes(key));
+    conflictsFor(opKey).some(key => keys.includes(key));
 }
 
-function getLane(opKey: string): string {
+export function getLane(opKey: string): string {
   if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
-  return OP_LANES[opKey] ?? opKey;
+  // Keep the worker's existing PopSG queue and resume lane.
+  if (opKey === "sg-embed-search") return opKey;
+  return getOperationLane(opKey);
 }
 
 function detectStaleRun(op: OpState): boolean {

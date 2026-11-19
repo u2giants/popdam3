@@ -1,9 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildResultMessage, classifyError, interruptionReason, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, qualifyRebuildRowCounts, rebuildCursorReceipt, scopeSingleAssetTag } from "./operation-loop.js";
+import { buildResultMessage, classifyError, getLane, interruptionReason, runningTagConflict, isProtectedExternalJob, mergeProgress, nextAutoResumeAt, normalizeBatchError, qualifyRebuildRowCounts, rebuildCursorReceipt, scopeSingleAssetTag } from "./operation-loop.js";
 import { hashCursorCheckpoint } from "./handlers/style-groups.js";
 import type { OpState } from "./types.js";
+
+test("DAM and PopSG remain independently schedulable in either worker order", () => {
+  for (const [next, running] of [
+    ["embed-dam-search", "sg-embed-search"],
+    ["sg-embed-search", "embed-dam-search"],
+  ]) {
+    assert.notEqual(getLane(next), getLane(running));
+    assert.equal(runningTagConflict(next, [running]), false);
+  }
+});
+
+test("worker preserves unknown and single-asset tagging lanes and conflicts", () => {
+  assert.equal(getLane("future-operation"), "future-operation");
+  assert.equal(getLane("ai-tag-single-fixture"), "ai-tagging");
+  assert.equal(runningTagConflict("ai-tag-single-fixture", ["ai-tag-parallel"]), true);
+  assert.equal(runningTagConflict("ai-tag-parallel", ["ai-tag-single-fixture"]), true);
+});
 
 const ASSET_ID = "123e4567-e89b-42d3-a456-426614174000";
 
