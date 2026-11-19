@@ -858,6 +858,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 19: replays nine production migrations (hts_rag embeddings and code6 stats, dam text vectors and health, gated style-guide views, dam search word forms and named lookup) with grants to absent production service logins made conditional. Source excludes shared preview and production.",
     },
+    "20261223000000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 20: replaces batch 19 and replays sixteen production migrations (hts_rag embeddings and stats, dam text vectors and health, the full search_dam_documents chain, gated style-guide views, word forms, named lookup) with grants to absent production service logins omitted. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():

@@ -63,6 +63,10 @@ VERSION_RE = re.compile(r"^\d{14}$")
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261220000000": (
+        "issue #6472: sandbox catch-up batch 19 skipped links of the search_dam_documents chain and its "
+        "apply failed and rolled back (run 44441411258). Superseded by batch 20, 20261223000000."
+    ),
     "20261009191951": (
         "issue #3869: this migration moves the sandbox's 2026-09-29 coldlion table copy "
         "aside and must run in ONE transaction with the canonical landing migrations and the "
