@@ -80,7 +80,7 @@ Use an isolated worktree and the repository task gates, then a reviewed diff and
 
 Read AGENTS.md and use docs/INDEX.md to locate the component and deployment instructions. GitHub access was verified for planning. Release, test-account and runtime access must be checked on the execution host. Use existing authorized test identities via the documented 1Password references in the vibe_coding vault. Fixtures need no production secrets. Do not include credential values in evidence.
 
-- Supabase edge functions for the shared Virginia project qsllyeztdwjgirsysgai. From the repository root in a separate shell: npm ci && npm test; run deno check on each affected edge entry point and run its matching Deno tests.
+- Supabase edge functions for the shared Virginia project qsllyeztdwjgirsysgai. From the repository root in a separate shell: npm ci && npm test; run deno check on each affected edge entry point and run its matching tests with their declared runner (the canonical ERP tests use Vitest).
 
 ## 13. Done, risks and rollback
 

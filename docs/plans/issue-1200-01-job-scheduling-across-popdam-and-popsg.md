@@ -81,7 +81,7 @@ Read AGENTS.md and use docs/INDEX.md to locate the component and deployment inst
 
 - Railway background worker. From the repository root in a separate shell: cd apps/worker && npm ci && npm test && npm run build.
 - React web interface on Coolify at https://dam.designflow.app and https://sg.designflow.app. From the repository root in a separate shell: npm ci && npm test && npm run build.
-- Supabase edge functions for the shared Virginia project qsllyeztdwjgirsysgai. From the repository root in a separate shell: npm ci && npm test; run deno check on each affected edge entry point and run its matching Deno tests.
+- Supabase edge functions for the shared Virginia project qsllyeztdwjgirsysgai. From the repository root in a separate shell: npm ci && npm test; run deno check on each affected edge entry point and run its matching tests with their declared runner (the canonical ERP tests use Vitest).
 
 ## 13. Done, risks and rollback
 

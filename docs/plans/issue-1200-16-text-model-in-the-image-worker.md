@@ -70,7 +70,7 @@ Add named parameterized cases to the closest existing test suite for the §5 pro
 | empty document | keeps current blank handling | text-model-in-the-image-worker_case_1 |
 | first lazy load | loads once on demand | text-model-in-the-image-worker_case_2 |
 | idle unload and reload | retains stamp and dtype | text-model-in-the-image-worker_case_3 |
-| padded document compared with query input | preserves document prefix and padding behavior | text-model-in-the-image-worker_case_4 |
+| padded document compared with query input | preserves unprefixed document inputs and existing padding | text-model-in-the-image-worker_case_4 |
 
 ## 11. Constraints
 
