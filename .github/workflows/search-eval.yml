@@ -9,6 +9,11 @@ on:
         required: true
         type: string
 
+# Runs share the same production search service regardless of branch or label.
+concurrency:
+  group: popdam-production-search-scorecard
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
