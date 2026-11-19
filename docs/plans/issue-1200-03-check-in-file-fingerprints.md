@@ -13,12 +13,12 @@ read-when: "implementing cleanup 03 on check-in file fingerprints"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. Old receipts hash both samples over the overlap range and use V1. |
+| 2. Make the scoped change | ✅ implemented | Six file sizes match legacy hashes in built Helper and isolated Bridge image; missing files and injected read failures match. Helper typecheck/build and 95 Bridge tests passed. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 
