@@ -13,12 +13,12 @@ read-when: "implementing cleanup 08 on ranked search cache"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. Asset and group caches use the same key construction but separate stores and caller-specific loaders. |
+| 2. Make the scoped change | ✅ implemented | 18 actual-query fixture cases passed before and after. Coalescing, cache expiry, rejection/retry and independent refresh matched. Build and 1215 root tests passed, with an unrelated opt-in skip. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 

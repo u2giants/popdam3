@@ -4,7 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 import { buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
-import { createFullTextSearchHelpers, setRankedListCacheEntry, type RankedListCacheEntry } from "@/lib/full-text-search";
+import { createFullTextSearchHelpers, getOrLoadRankedIds, type RankedListCacheEntry } from "@/lib/full-text-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters, FacetCounts } from "@/types/assets";
@@ -156,11 +156,7 @@ async function fetchRankedFilteredStyleGroupIds(options: {
   fallbackSearchFilter: string | null;
 }): Promise<string[]> {
   const { filters, minDate, searchMode, searchTerm, fullTextGroupIds, fallbackSearchFilter } = options;
-  const cacheKey = `${searchMode}\u0000${searchTerm}\u0000${minDate}\u0000${JSON.stringify(filters)}`;
-  const cached = styleGroupRankedListCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.promise;
-
-  const promise = (async () => {
+  return getOrLoadRankedIds(styleGroupRankedListCache, [searchMode, searchTerm, minDate, JSON.stringify(filters)], async () => {
     let query: any = supabase.from("style_groups").select("id");
     // Visibility date filter — use latest_file_date (max modified_at of member files)
     query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
@@ -168,17 +164,7 @@ async function fetchRankedFilteredStyleGroupIds(options: {
     const { data, error } = await query;
     if (error) throw error;
     return sortByRank((data ?? []) as { id: string }[], fullTextGroupIds, (row) => row.id).map((row) => row.id);
-  })();
-
-  setRankedListCacheEntry(styleGroupRankedListCache, cacheKey, promise);
-
-  try {
-    return await promise;
-  } catch (error) {
-    // A failed (or aborted) lookup must not pin the UI to a stale list.
-    styleGroupRankedListCache.delete(cacheKey);
-    throw error;
-  }
+  });
 }
 
 export function useStyleGroups(
