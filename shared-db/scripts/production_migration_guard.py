@@ -889,6 +889,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 24: replays the remaining production dam search word forms, named lookup, style-guide grants, visibility pretest, licensor submission identifiers and preview side-table count; no pg_cron on the sandbox, so the word-form backfill runs inline. Source excludes shared preview and production.",
     },
+    "20261225000000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 25: replays production's three dam word-form backfill migrations (084303, 084403, 084604) without scheduling the pg_cron job the sandbox lacks. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
