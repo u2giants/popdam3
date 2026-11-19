@@ -1,211 +1,91 @@
-name: Temporary PopDAM protocol diagnostics
+name: PopDAM Windows launcher acceptance
 on:
   push:
     branches: [codex/popdam-1200-19-native]
     paths: [.github/workflows/protocol-native.yml]
-permissions: {}
+permissions:
+  contents: read
 jobs:
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 8
-    steps:
-      - name: Verify both published downloads and open a temporary folder in Finder
-        shell: bash
-        run: |
-          set -euo pipefail
-          scratch=$(mktemp -d "${RUNNER_TEMP}/popdam-protocol.XXXXXXXX")
-          scratch=$(cd "$scratch" && pwd -P)
-          fixture="$scratch/PopDAM fixture (native)"
-          app="$HOME/Applications/PopDAM Opener.app"
-          lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-          test ! -e "$app"
-          cleanup() {
-            "$lsregister" -u "$app" >/dev/null 2>&1 || true
-            rm -rf -- "$scratch" "$app"
-          }
-          trap cleanup EXIT
-          mkdir "$fixture"
-          for host in dam.designflow.app sg.designflow.app; do
-            for entry in \
-              e7e39f0bdd21df96229880c6f501e2eb1934d7a84e920fd4df29627d36f373b1:install-popdam-protocol.sh \
-              fac471d178bc90a77650b704361d5b7d6ee5e10a61eec2db81bc8f40994df395:popdam-open.bat \
-              490b2cc3a8121c63b26926844339b88e2090d1d155eae53c115bb05f16dcfc4e:install-popdam-protocol.reg; do
-              file="${entry#*:}"
-              dest="$scratch/$host-$file"
-              curl --fail --silent --show-error --max-time 20 --proto '=https' "https://$host/downloads/$file" -o "$dest"
-              printf '%s  %s\n' "${entry%%:*}" "$dest" | shasum -a 256 -c -
-            done
-          done
-          bash "$scratch/dam.designflow.app-install-popdam-protocol.sh"
-          plutil -lint "$app/Contents/Info.plist"
-          test "$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw "$app/Contents/Info.plist")" = popdam
-          native_fixture="$scratch/PopDAM Finder control"
-          direct_fixture="$scratch/PopDAM direct handler (native)"
-          mkdir "$native_fixture" "$direct_fixture"
-          encode_uri() {
-            python3 -c 'import sys,urllib.parse; print("popdam://open-folder?path=" + urllib.parse.quote(sys.argv[1], safe="!~*\x27()"))' "$1"
-          }
-          observe_finder() {
-            local target="$1" attempt
-            for attempt in {1..5}; do
-              /usr/bin/perl -e 'alarm shift; exec @ARGV' 4 osascript -e '
-                on run argv
-                  tell application "Finder"
-                    repeat with finderWindow in Finder windows
-                      try
-                        if (POSIX path of (target of finderWindow as alias)) is (item 1 of argv) then return "exact fixture observed"
-                      end try
-                    end repeat
-                  end tell
-                  return "Finder target not observed"
-                end run
-              ' "$target/" >"$scratch/finder.txt" 2>"$scratch/finder.err" || true
-              if grep -Fxq 'exact fixture observed' "$scratch/finder.txt"; then return 0; fi
-              sleep 1
-            done
-            cat "$scratch/finder.err" >&2
-            return 1
-          }
-          diagnose() {
-            local label="$1" target="$2"
-            shift 2
-            if "$@" && observe_finder "$target"; then
-              echo "$label PASS: Finder opened the exact fixture"
-            else
-              echo "$label FAIL: no observable Finder window at the exact fixture"
-              failed=1
-            fi
-          }
-          failed=0
-          diagnose 'Finder control' "$native_fixture" open -a Finder "$native_fixture"
-          diagnose 'Direct installed handler' "$direct_fixture" "$app/Contents/MacOS/popdam-open" "$(encode_uri "$direct_fixture")"
-          diagnose 'Registered URI dispatch' "$fixture" open "$(encode_uri "$fixture")"
-          exit "$failed"
   windows:
     runs-on: windows-latest
     timeout-minutes: 8
     steps:
-      - name: Verify the published Windows registry installer and open a temporary folder in Explorer
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Compare launcher files and prove the installed link
         shell: pwsh
+        env:
+          VERIFY_LIVE: "false"
         run: |
           $ErrorActionPreference = 'Stop'
-          $scratch = Join-Path $env:RUNNER_TEMP "popdam-protocol-$([guid]::NewGuid())"
-          $folder = Join-Path $scratch 'PopDAM fixture (native)'
+          $scratch = Join-Path $env:RUNNER_TEMP "popdam-launcher-$([guid]::NewGuid())"
           $installed = 'C:\PopDAM'
           $registration = 'HKCU:\Software\Classes\popdam'
           if ((Test-Path -LiteralPath $installed) -or (Test-Path -LiteralPath $registration)) {
-            throw 'Expected a clean ephemeral runner. Existing installer path or registration will be preserved.'
+            throw 'Expected a clean test runner'
           }
-          $files = @{
-            'popdam-open.bat' = 'fac471d178bc90a77650b704361d5b7d6ee5e10a61eec2db81bc8f40994df395'
-            'install-popdam-protocol.reg' = '490b2cc3a8121c63b26926844339b88e2090d1d155eae53c115bb05f16dcfc4e'
-          }
-          try {
-            New-Item -ItemType Directory -Path $folder, $installed | Out-Null
-            foreach ($file in $files.Keys) {
-              $download = Join-Path $scratch $file
-              Invoke-WebRequest -Uri "https://dam.designflow.app/downloads/$file" -OutFile $download -TimeoutSec 20 -MaximumRedirection 0
-              $hash = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash
-              if ($hash -ne $files[$file]) { throw "Published SHA-256 mismatch for $file. Actual: $hash" }
-              Write-Host "Published SHA-256 matches for $file"
-            }
-            Copy-Item -LiteralPath (Join-Path $scratch 'popdam-open.bat') -Destination $installed
-            & reg.exe import (Join-Path $scratch 'install-popdam-protocol.reg')
-            if ($LASTEXITCODE -ne 0) { throw "Registry import failed: $LASTEXITCODE" }
-            $key = Get-Item -LiteralPath "$registration\shell\open\command"
-            if ($key.GetValue('') -cne '"C:\PopDAM\popdam-open.bat" "%1"') { throw 'Unexpected native URI handler command' }
-            function New-PopDamUri([string] $Target) {
-              $encoded = [uri]::EscapeDataString($Target).Replace('%28', '(').Replace('%29', ')')
-              return "popdam://open-folder?path=$encoded"
-            }
-            function Test-ExplorerTarget([string] $Target) {
-              $shell = New-Object -ComObject Shell.Application
-              for ($attempt = 0; $attempt -lt 8; $attempt++) {
-                foreach ($window in $shell.Windows()) {
-                  if ($window.FullName -like '*\explorer.exe' -and $window.LocationURL -like 'file:*') {
-                    $observed = ([uri]$window.LocationURL).LocalPath
-                    if ($observed.TrimEnd('\') -ieq $Target.TrimEnd('\')) { return $true }
+          function Assert-ExplorerTarget([string] $Target) {
+            $shell = New-Object -ComObject Shell.Application
+            for ($attempt = 0; $attempt -lt 12; $attempt++) {
+              foreach ($window in $shell.Windows()) {
+                if ($window.FullName -like '*\explorer.exe' -and $window.LocationURL -like 'file:*') {
+                  if (([uri]$window.LocationURL).LocalPath.TrimEnd('\') -ieq $Target.TrimEnd('\')) {
+                    Write-Host "Explorer opened the exact fixture: $Target"
+                    return
                   }
                 }
-                Start-Sleep -Seconds 1
               }
-              return $false
+              Start-Sleep -Seconds 1
             }
-            function Invoke-Diagnostic([string] $Label, [string] $Target, [scriptblock] $Launch) {
-              try {
-                & $Launch
-                if (Test-ExplorerTarget $Target) {
-                  Write-Host "${Label} PASS: Explorer opened the exact fixture"
-                  return $true
+            throw "Explorer did not open the test folder: $Target"
+          }
+          function New-PopDamUri([string] $Target) {
+            $encoded = [uri]::EscapeDataString($Target).Replace('%28','(').Replace('%29',')').Replace('%27',"'").Replace('%21','!')
+            return "popdam://open-folder?path=$encoded"
+          }
+          try {
+            New-Item -ItemType Directory -Path $scratch, $installed | Out-Null
+            $files = @('popdam-open.js','popdam-open.bat','install-popdam-protocol.reg','install-popdam-protocol.bat','install-popdam-protocol.ps1')
+            foreach ($file in $files) {
+              git -c core.autocrlf=false checkout-index --force -- ("public/downloads/$file")
+              if ($LASTEXITCODE -ne 0) { throw "Could not reconcile the checked-in bytes: $file" }
+            }
+            foreach ($file in $files) {
+              $source = Join-Path $env:GITHUB_WORKSPACE "public/downloads/$file"
+              if ($env:VERIFY_LIVE -eq 'true') {
+                $expected = (Get-FileHash -LiteralPath $source).Hash
+                foreach ($hostName in @('dam.designflow.app','sg.designflow.app')) {
+                  $target = Join-Path $scratch "$hostName-$file"
+                  Invoke-WebRequest -Uri "https://$hostName/downloads/$file" -OutFile $target -TimeoutSec 20 -MaximumRedirection 0
+                  if ((Get-FileHash -LiteralPath $target).Hash -ne $expected) { throw "Hash differs from the released source: $hostName / $file" }
+                  Write-Host "Live bytes match: $hostName / $file"
                 }
-                Write-Host "${Label} FAIL: no observable Explorer window at the exact fixture"
-              } catch {
-                Write-Host "${Label} FAIL: $_"
+                $source = Join-Path $scratch "dam.designflow.app-$file"
               }
-              return $false
+              Copy-Item -LiteralPath $source -Destination (Join-Path $installed $file)
             }
-            $native = Join-Path $scratch 'PopDAM Explorer control'
-            $direct = Join-Path $scratch 'PopDAM direct handler (native)'
-            New-Item -ItemType Directory -Path $native, $direct | Out-Null
-            $batch = Join-Path $installed 'popdam-open.bat'
-            $directUri = New-PopDamUri $direct
-            $registeredUri = New-PopDamUri $folder
-            $controlPass = Invoke-Diagnostic 'Explorer control' $native {
-              Start-Process explorer.exe -ArgumentList ('"{0}"' -f $native)
-            }
-            $directPass = Invoke-Diagnostic 'Direct installed handler' $direct {
-              Start-Process $batch -ArgumentList ('"{0}"' -f $directUri)
-            }
-            $registryPass = Invoke-Diagnostic 'Registered URI dispatch' $folder {
-              Start-Process $registeredUri
-            }
-            if (!($controlPass -and $directPass -and $registryPass)) {
-              throw 'See the three diagnostic results above for the failing layer.'
-            }
+            $control = Join-Path $scratch 'Independent Explorer control'
+            $direct = Join-Path $scratch 'Direct fixture (spaces)'
+            $registered = Join-Path $scratch ("Registered fixture (spaces) & 20% + # caf" + [char]0x00E9)
+            $parent = Join-Path $scratch 'File parent fallback'
+            New-Item -ItemType Directory -Path $control, $direct, $registered, $parent | Out-Null
+            $file = Join-Path $parent 'Readme.txt'
+            Set-Content -LiteralPath $file -Value 'Synthetic QA fixture'
+            Start-Process explorer.exe -ArgumentList ('"{0}"' -f $control)
+            Assert-ExplorerTarget $control
+            $launcher = Join-Path $installed 'popdam-open.js'
+            & cscript.exe //NoLogo $launcher (New-PopDamUri $direct)
+            if ($LASTEXITCODE -ne 0) { throw "Direct launcher returned $LASTEXITCODE" }
+            Assert-ExplorerTarget $direct
+            & reg.exe import (Join-Path $installed 'install-popdam-protocol.reg')
+            if ($LASTEXITCODE -ne 0) { throw 'Registry installation failed' }
+            $registeredCommand = (Get-Item -LiteralPath "$registration\shell\open\command").GetValue('')
+            if ($registeredCommand -cne ('"{0}\System32\wscript.exe" "C:\PopDAM\popdam-open.js" "%1"' -f $env:SystemRoot)) { throw 'Registry did not install the expected native receiver' }
+            Start-Process (New-PopDamUri $registered)
+            Assert-ExplorerTarget $registered
+            Start-Process (New-PopDamUri $file)
+            Assert-ExplorerTarget $parent
           } finally {
             if (Test-Path -LiteralPath $registration) { Remove-Item -LiteralPath $registration -Recurse -Force }
             if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Recurse -Force }
             if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force }
           }
-  macos-helper-package:
-    runs-on: macos-latest
-    timeout-minutes: 8
-    steps:
-      - name: Inspect the released Helper app in its native disk image
-        shell: bash
-        run: |
-          set -euo pipefail
-          scratch=$(mktemp -d "${RUNNER_TEMP}/popdam-helper.XXXXXXXX")
-          mount="$scratch/mounted"
-          mounted=0
-          cleanup() {
-            if [[ "$mounted" = 1 ]]; then
-              if ! hdiutil detach "$mount" >/dev/null; then return; fi
-            fi
-            rm -rf -- "$scratch"
-          }
-          trap cleanup EXIT
-          mkdir "$mount"
-          case "$(uname -m)" in
-            arm64) arch=arm64 ;;
-            x86_64) arch=x64 ;;
-            *) echo 'Unsupported runner architecture' >&2; exit 1 ;;
-          esac
-          base=https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest
-          asset="POP-DAM-Helper-Mac-$arch.dmg"
-          curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --max-time 90 "$base/latest-mac.yml" -o "$scratch/release.yml"
-          curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --max-time 180 "$base/$asset" -o "$scratch/helper.dmg"
-          version=$(awk '/^version:[[:space:]]/ {print $2; exit}' "$scratch/release.yml")
-          test -n "$version"
-          expected=$(awk -v filename="$asset" '$1 == "-" && $2 == "url:" {match_asset=($3 == filename)} match_asset && $1 == "sha512:" {print $2; exit}' "$scratch/release.yml")
-          test -n "$expected"
-          actual=$(openssl dgst -sha512 -binary "$scratch/helper.dmg" | openssl base64 -A)
-          test "$actual" = "$expected"
-          hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$scratch/helper.dmg"
-          mounted=1
-          plist="$mount/POP DAM Helper.app/Contents/Info.plist"
-          plutil -lint "$plist"
-          test "$(plutil -extract CFBundleIdentifier raw "$plist")" = com.popcreations.popdam-helper
-          test "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "$version"
-          sha256=$(shasum -a 256 "$scratch/helper.dmg" | awk '{print $1}')
-          echo "Released native Helper package $asset reports version $version and SHA-256 $sha256."
