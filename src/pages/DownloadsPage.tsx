@@ -79,9 +79,9 @@ export default function DownloadsPage() {
   const seaMac = seadrive?.mac_url ?? SEADRIVE_FALLBACK;
   const seaWin = seadrive?.win_url ?? SEADRIVE_FALLBACK;
 
-  const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; @('@echo off','setlocal','powershell -NoProfile -Command "$u=$args[0];$raw=$u -replace ''^popdam://open-folder\\?path='','''';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe $p" -- "%~1"') | Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Encoding ASCII; Write-Host '[OK] Created C:\\PopDAM\\popdam-open.bat'`;
+  const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri 'https://dam.designflow.app/downloads/popdam-open.js' -OutFile 'C:\\PopDAM\\popdam-open.js' -ErrorAction Stop; Write-Host '[OK] Downloaded C:\\PopDAM\\popdam-open.js'`;
 
-  const winStep2 = `New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; New-Item -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value '' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value '"C:\\PopDAM\\popdam-open.bat" "%1"'; Write-Host '[OK] Protocol handler registered'`;
+  const winStep2 = `New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; New-Item -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value '' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value ('"{0}\\System32\\wscript.exe" "C:\\PopDAM\\popdam-open.js" "%1"' -f $env:SystemRoot); Write-Host '[OK] Protocol handler registered'`;
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
@@ -315,13 +315,13 @@ export default function DownloadsPage() {
                 <Badge variant="secondary">Windows</Badge>
               </div>
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Open <strong>Command Prompt</strong> or <strong>Windows Terminal</strong></li>
-                <li>Paste <strong>Step 1</strong> → press Enter (creates the handler script)</li>
+                <li>Open <strong>PowerShell</strong></li>
+                <li>Paste <strong>Step 1</strong> → press Enter (downloads the published launcher)</li>
                 <li>Paste <strong>Step 2</strong> → press Enter (registers the protocol)</li>
                 <li>Restart your browser</li>
               </ol>
               <CopyBlock
-                label="Step 1 — Create handler script"
+                label="Step 1 — Download the Windows launcher"
                 text={winStep1}
               />
               <CopyBlock
