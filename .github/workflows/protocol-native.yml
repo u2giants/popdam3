@@ -49,14 +49,17 @@ jobs:
           try {
             New-Item -ItemType Directory -Path $scratch, $installed | Out-Null
             $files = @('popdam-open.js','popdam-open.bat','install-popdam-protocol.reg','install-popdam-protocol.bat','install-popdam-protocol.ps1')
-            foreach ($file in $files) {
-              git -c core.autocrlf=false checkout-index --force -- ("public/downloads/$file")
-              if ($LASTEXITCODE -ne 0) { throw "Could not reconcile the checked-in bytes: $file" }
+            $releaseHashes = @{
+              'popdam-open.js' = '15e515a7ac13fa81458b9f9e0f0ed7931ab64e7c559672f24186d91cf778aa08'
+              'popdam-open.bat' = 'a220441d651a3aecc4e931645be125e2feb34aa375b40121880318aeed986dad'
+              'install-popdam-protocol.reg' = 'ee661929fb97eff7c33a0baff4f0ed0aeae478ec8387a20633b930bd8bd44ee0'
+              'install-popdam-protocol.bat' = '297d9c57b2a028fea8fe6b4cba4b5a32efc88ff56fc623e52b8426aacca30b1a'
+              'install-popdam-protocol.ps1' = 'b9ba2cfa6c57dc0f4252ab8b49d09850312aac99c17b57e1f1837110fa16a4bd'
             }
             foreach ($file in $files) {
               $source = Join-Path $env:GITHUB_WORKSPACE "public/downloads/$file"
               if ($env:VERIFY_LIVE -eq 'true') {
-                $expected = (Get-FileHash -LiteralPath $source).Hash
+                $expected = $releaseHashes[$file]
                 foreach ($hostName in @('dam.designflow.app','sg.designflow.app')) {
                   $target = Join-Path $scratch "$hostName-$file"
                   Invoke-WebRequest -Uri "https://$hostName/downloads/$file" -OutFile $target -TimeoutSec 20 -MaximumRedirection 0
