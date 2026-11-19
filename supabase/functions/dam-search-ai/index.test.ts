@@ -490,7 +490,7 @@ describe("DAM search embedding availability", () => {
       const args = searchCalls()[0][1] as Record<string, unknown>;
       expect((args.p_query_text_embedding as number[]).length).toBe(1024);
       expect(args.p_min_text_score).toBe(0.45);
-      expect(args.p_text_score_margin).toBe(0.05);
+      expect(args.p_text_score_margin).toBe(0.08);
     });
 
     it("mode on with the text vector missing returns 503 before any search", async () => {
@@ -567,5 +567,19 @@ describe("DAM search embedding availability", () => {
       expect(response.status).toBe(200);
       for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
     });
+  });
+});
+
+describe("textLegSettings floor overrides (#1037)", () => {
+  it("reads valid overrides and ignores missing or out-of-range ones", async () => {
+    const { textLegSettings } = await import("./index.ts");
+    const rows = (extra: { key: string; value: unknown }[]) => ({
+      data: [{ key: "SEARCH_TEXT_LEG_MODE", value: "on" }, { key: "SEARCH_TEXT_EMBEDDING_MODEL", value: "m" }, ...extra],
+    });
+    expect(textLegSettings(rows([]))).toMatchObject({ minScore: 0.45, margin: 0.08 });
+    expect(textLegSettings(rows([{ key: "SEARCH_TEXT_MIN_SCORE", value: 0.5 }, { key: "SEARCH_TEXT_SCORE_MARGIN", value: "0.07" }])))
+      .toMatchObject({ minScore: 0.5, margin: 0.07 });
+    expect(textLegSettings(rows([{ key: "SEARCH_TEXT_MIN_SCORE", value: 2 }, { key: "SEARCH_TEXT_SCORE_MARGIN", value: null }])))
+      .toMatchObject({ minScore: 0.45, margin: 0.08 });
   });
 });
