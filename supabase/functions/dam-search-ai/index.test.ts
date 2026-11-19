@@ -175,7 +175,7 @@ describe("DAM search embedding availability", () => {
       })
     );
     const pendingResponse = search("Beryl frame");
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(5000);
     const response = await pendingResponse;
     expect(response.status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();

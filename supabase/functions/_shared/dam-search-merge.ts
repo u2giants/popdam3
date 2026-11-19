@@ -63,15 +63,10 @@ export function mergeSearchPages(pages: SearchPage[]): SearchPage {
       });
     }
   }
-  // Picture match leads: greatest(keyword, semantic + 0.35*keyword).
-  // Exact-title keyword stays 1.0+ so SKU search still wins on identifiers.
-  const pictureLeadRank = (hit: SearchHit) => {
-    const kw = hit.keyword_rank ?? 0;
-    const sem = hit.semantic_rank ?? 0;
-    return Math.max(kw, sem + 0.35 * kw);
-  };
+  // search_dam_documents' own rank is the order (#1037): it already blends the keyword,
+  // picture and text-meaning legs. Recomputing a picture-lead blend here dropped the
+  // text-meaning score and put a planter above the framed Marie products.
   const results = [...byKey.values()]
-    .map((hit) => ({ ...hit, rank: pictureLeadRank(hit) }))
     .sort(
       (a, b) => (b.rank ?? 0) - (a.rank ?? 0) || a.document_type.localeCompare(b.document_type) || a.entity_id.localeCompare(b.entity_id),
     );
