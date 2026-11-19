@@ -16,7 +16,7 @@ read-when: "implementing cleanup 09 on check-in retry records"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both callers serialize the existing destination and retained snapshot; the initial record omits isRedrive. |
 | 2. Make the scoped change | ✅ implemented | Helper typecheck and build passed. First check-in and re-drive keep their current snapshot, destination, provider, addedAt and retry semantics. |
 | 3. Verify and land | ✅ merged | [#1218](https://github.com/u2giants/popdam3/pull/1218) at `afc06d55`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Helper Windows/macOS artifacts published in run 44589511025. The real local queue, check-in and re-drive entry points matched persisted records, retry supersession and missing snapshots in all provider variants. **Next** — Codex desktop QA owner must use a controlled native failure and re-drive on installed Windows and macOS Helpers, confirming the original file and destination. |
+| 4. Accept in use | ⬜ live proof open | Two Windows 11 development workstations respond. A native runner validated the Mac 1.4.18 package in [native diagnostics](https://github.com/u2giants/popdam3/actions/runs/44602512605). **Next** — Codex desktop QA owner should reserve a Mac and a Seafile fixture with one scoped retry, then confirm the snapshot, destination and supersession on both native installs. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

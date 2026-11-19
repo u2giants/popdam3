@@ -16,7 +16,7 @@ read-when: "implementing cleanup 12 on pdf sampling on both agents"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Bridge includes skip reason in progress while Windows reports it on the result only. |
 | 2. Make the scoped change | ✅ implemented | Six platform replays matched progress ordering, 25-item reporting, skip details and final-submit failure. Bridge 95 and Windows 171 tests and builds passed; native launcher check requires Windows. |
 | 3. Verify and land | ✅ merged | [#1218](https://github.com/u2giants/popdam3/pull/1218) at `afc06d55`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | NAS bridge 1.16.33 and Windows 0.17.0.218 both reported the exact afc06d55 build at 1:47 PM EST. Mixed platform samples and failure replay matched offline. **Next** — Codex agent QA owner must select a controlled small document set and capture installed Windows and NAS sampling, including platform skip descriptions and progress. |
+| 4. Accept in use | ⬜ live proof open | The public action accepts exact bounded asset IDs. Its request does not expose a bridge override and the current Windows-first route has no supported independent NAS trigger. No disposable documents were present. **Next** — Codex agent QA owner should reserve a synthetic set, then verify Windows first and the NAS at a naturally eligible bridge window without changing routing. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

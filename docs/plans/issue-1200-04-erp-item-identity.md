@@ -16,7 +16,7 @@ read-when: "implementing cleanup 04 on erp item identity"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both loaders keep their separate data access and share the same identity algorithm. |
 | 2. Make the scoped change | ✅ implemented | Eight fixture assertions per adapter passed before and after, including duplicate and ambiguous IDs, null division and distinct sources. Worker build, isolated image and 537 tests passed. Edge suite 28/28; Deno entry points reproduce only inherited diagnostics. |
 | 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Worker reported 612da3ee at 1:47 PM EST and edge deployment run 44591473524 passed. No new normal ERP application receipt identifying the same item was available in the inspected operation state. **Next** — Codex PopDAM release owner must compare one completed worker and one completed edge resolution of the same controlled item and one ambiguous item. |
+| 4. Accept in use | ⬜ live proof open | The deployed worker dry run processed two bounded canonical rows at 2:50 PM EST, updating zero assets and groups. The deployed edge preview timed out before returning its candidates. **Next** — Codex ERP release owner should resolve the edge preview timeout, then compare deployed worker and edge decisions for an agreed unambiguous and ambiguous match. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
