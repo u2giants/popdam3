@@ -3770,6 +3770,7 @@ select jsonb_build_object(
     select jsonb_agg(jsonb_build_object(
       'schema', t.schema_name, 'table', t.table_name, 'column', t.column_name,
       'expected', t.expected,
+      'schema_exists', n.oid is not null,
       'actual', case when a.attnum is null then null
         else format_type(a.atttypid, a.atttypmod) end
     ) order by t.schema_name, t.table_name, t.column_name)
@@ -4446,6 +4447,7 @@ def render_report(
     behavior_results: object = None,
     behavior_error: str | None = None,
     reviewed_no_durable: list[str] | None = None,
+    tolerate_absent_schemas: bool = False,
 ) -> tuple[str, list[str]]:
     """Render the Markdown artifact and return the HARD FAILURES it found.
 
@@ -4967,7 +4969,12 @@ def render_report(
             seen_columns.add(key)  # type: ignore[arg-type]
             label = ".".join(str(x) for x in key)
             add(f"| `{label}` | `{row.get('expected')}` | `{row.get('actual') or 'ABSENT'}` |")
-            if row.get("actual") is None:
+            if row.get("actual") is None and row.get("schema_exists") is False and tolerate_absent_schemas:
+                # Issue #6720: a non-production ledger (the DesignFlow sandbox)
+                # need not carry every schema; the migration conditions those
+                # statements out. Record it; production still fails.
+                add(f"| `{label}` | schema `{key[0]}` absent on this target: recorded, not required | |")
+            elif row.get("actual") is None:
                 failures.append(f"{label}: column is absent")
             elif row.get("actual") != expected_columns.get(key):  # type: ignore[arg-type]
                 failures.append(
@@ -5241,6 +5248,7 @@ def verify(
         behavior_results=behavior_results,
         behavior_error=behavior_error,
         reviewed_no_durable=reviewed_no_durable,
+        tolerate_absent_schemas=ledger_name != "production",
     )
     (output_dir / "production-catalog-verification.md").write_text(
         markdown, encoding="utf-8"
