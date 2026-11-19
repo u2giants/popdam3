@@ -312,6 +312,18 @@ else
         echo "Guard B historical restoration: exact governed version $version is allowed to sort before main."
         continue
       fi
+      # #6798: reservation order is not merge order. A reserved version that was
+      # overtaken in the queue is accepted only when no newer main migration
+      # writes any object it writes; see scripts/guard-b-reserved-inversion.mjs.
+      if [[ -n "$base_versions_file" && -s "$base_versions_file" ]]; then
+        newer_versions_file="$(mktemp)"
+        awk -v v="$version" '$0 > v' "$base_versions_file" > "$newer_versions_file"
+        if node "$source_dir/scripts/guard-b-reserved-inversion.mjs" "$migration_dir/$name" "$migration_dir" "$newer_versions_file"; then
+          rm -f "$newer_versions_file"
+          continue
+        fi
+        rm -f "$newer_versions_file"
+      fi
       backdated+="  $name"$'\n'
     fi
   done < "$migration_names_file"

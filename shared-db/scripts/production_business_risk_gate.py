@@ -3904,6 +3904,8 @@ PREVIEW_PRODUCER_PATHS += (
     # protected static check cannot be changed independently of the PR head.
     "scripts/check-expected-count-patterns.mjs",
     "scripts/check-migration-verify-cost.mjs",
+    # #6798: check-sql.sh Guard B runs it for reserved inversions.
+    "scripts/guard-b-reserved-inversion.mjs",
 )
 
 # THE SINGLE SIDECAR DECLARATION REGISTRY (#3028, popcre/ai-devops#401 Step 5).
