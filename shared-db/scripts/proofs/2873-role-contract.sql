@@ -400,6 +400,12 @@ insert into t2873_expected values
  ('designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'),
  ('designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT'),
  ('designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT'),
+ -- #6171/#6860: ColdLion merch-group event journal, direct on the backend and
+ -- data-sync runtimes (UPDATE is column-scoped and absent from relacl; no DELETE).
+ ('designflow_prod_backend_runtime','table','coldlion.merch_group_event_log','SELECT'),
+ ('designflow_prod_backend_runtime','table','coldlion.merch_group_event_log','INSERT'),
+ ('designflow_prod_data_sync_runtime','table','coldlion.merch_group_event_log','SELECT'),
+ ('designflow_prod_data_sync_runtime','table','coldlion.merch_group_event_log','INSERT'),
  -- #4646: milestone persistence, no DELETE or identity sequence grant.
  ('designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule','SELECT'),
  ('designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule','INSERT'),
@@ -551,7 +557,7 @@ begin
        or (v_role = 'designflow_prod_tracking_runtime' and not has_schema_privilege(v_role,'plm','USAGE')))
     then raise exception '#2873: % plm schema boundary wrong', v_role; end if;
     if has_schema_privilege(v_role,'coldlion','CREATE')
-       or (v_role in ('designflow_prod_tracking_runtime','designflow_prod_backend_runtime')) <> has_schema_privilege(v_role,'coldlion','USAGE')
+       or (v_role in ('designflow_prod_tracking_runtime','designflow_prod_backend_runtime','designflow_prod_data_sync_runtime')) <> has_schema_privilege(v_role,'coldlion','USAGE')
     then raise exception '#2873: % coldlion schema boundary wrong', v_role; end if;
     if to_regnamespace('hts_rag') is not null and has_schema_privilege(v_role,'hts_rag','USAGE') then raise exception '#2873: % reaches hts_rag', v_role; end if;
     if pg_has_role(v_role,'anon','USAGE') or pg_has_role(v_role,'authenticated','USAGE') or pg_has_role(v_role,'service_role','USAGE')
