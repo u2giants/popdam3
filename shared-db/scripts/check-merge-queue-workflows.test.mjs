@@ -512,6 +512,24 @@ test('the production run ends its promotion freeze even when the apply job is sk
   assert.ok(job.indexOf(checkout) < job.indexOf(backstop), 'the checkout must precede the release that needs it')
 })
 
+// #6805 follow-up: the selector's backstop freeze, armed before every
+// post-merge preview, must end with a preview run that dispatched nothing, and
+// only that owner's freeze may be released there.
+test('a failed post-merge preview releases only the selector backstop freeze', () => {
+  const text = readWorkflow('shared-supabase-migrations.yml')
+  const job = jobBlockByName(text, 'Nudge the production queue')
+  const release = stepBlock(job, 'Release the selector backstop freeze when this preview run dispatched no production apply')
+  assert.ok(release, 'the failed-preview backstop release is missing from the notify job')
+  const gate = /^ {8}if: always\(\) && inputs\.target == 'preview' && \(inputs\.merged_preview_source_pr != '' \|\| inputs\.merged_preview_source_pr_map != ''\) && needs\.automatic-production-promotion\.result != 'success'$/m
+  assert.match(release, gate)
+  assert.match(release, /continue-on-error: true/)
+  assert.match(release, /--release-promotion-freeze --owner automatic-promotion-backstop$/m)
+  assert.ok(!/--pr\b/.test(release), 'keying the release on the PR could end a qualification-owned freeze')
+  const checkout = stepBlock(job, 'Check out the coordination CLI for the failed-preview backstop freeze release')
+  assert.ok(checkout && job.indexOf(checkout) < job.indexOf(release), 'the release needs its checkout first')
+  assert.match(checkout, gate)
+})
+
 // #5937 behavior 2 / review finding #5958 Finding 1. The freeze check in
 // merge-queue-gate.yml is advisory — that gate is not a required context (lean
 // required checks, 2026-10-30), so a refusal there never stopped a group from
