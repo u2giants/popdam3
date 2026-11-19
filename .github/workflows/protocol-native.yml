@@ -14,7 +14,7 @@ jobs:
       - name: Compare launcher files and prove the installed link
         shell: pwsh
         env:
-          VERIFY_LIVE: "false"
+          VERIFY_LIVE: "true"
         run: |
           $ErrorActionPreference = 'Stop'
           $scratch = Join-Path $env:RUNNER_TEMP "popdam-launcher-$([guid]::NewGuid())"
