@@ -895,6 +895,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 25: replays production's three dam word-form backfill migrations (084303, 084403, 084604) without scheduling the pg_cron job the sandbox lacks. Source excludes shared preview and production.",
     },
+    "20261225010000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 26: replays production's 20261222100000 and 20261224120000 search_dam_documents changes. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
