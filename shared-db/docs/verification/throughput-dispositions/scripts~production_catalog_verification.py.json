@@ -345,6 +345,14 @@
       "disposition": "excluded",
       "reason": "Docstring (#6716) describing the case-folding bug; it executes nothing and asserts nothing about the database.",
       "legacy_semantic_key": "scripts/production_catalog_verification.py:44d66f517521a7ca77d44f33d48fc5b6a83f0aa9cc5b627ce7c8cdfc0e0b9eca:1"
+    },
+    {
+      "site": "scripts/production_catalog_verification.py:4860",
+      "semantic_key": "scripts/production_catalog_verification.py:51639349dcf2fe7de86a309cb98f9b04984ba122ea9a02d4be764d78231ec270:context-8bffc11fd745d84e762a7aed3900e754aead9b82a1d4b1c51ac74c1284baf14f",
+      "line_sha256": "51639349dcf2fe7de86a309cb98f9b04984ba122ea9a02d4be764d78231ec270",
+      "disposition": "excluded",
+      "reason": "Code comment (#6747) stating that a missing schema probe row is not proof of absence, so the DROP SCHEMA check fails closed; it executes nothing and asserts nothing about the database.",
+      "legacy_semantic_key": "scripts/production_catalog_verification.py:51639349dcf2fe7de86a309cb98f9b04984ba122ea9a02d4be764d78231ec270:1"
     }
   ]
 }
