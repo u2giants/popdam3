@@ -1405,10 +1405,10 @@ CATALOG_CONTRACTS = {
 (select count(*) from core.character_alias a
   where a.character_id='c80171c3-cd42-4d61-9a98-177e83ce0917'::uuid
     and a.alias='Pooh' and a.source_system='popdam3#1037'
-    and a.normalized_alias=core.normalize_popsg_property_observation('Pooh')
+    and a.normalized_alias='pooh'
     and a.evidence_notes='Common short name used in PopDAM search (shared-db #6781)')=1
 and (select count(*) from core.character_alias a
-  where a.normalized_alias=core.normalize_popsg_property_observation('Pooh'))=1
+  where a.normalized_alias='pooh')=1
 """,
     # Issue #6735: admin role editor create; exact column INSERT, no DELETE.
     "dflow_prod_role_create_insert_v1": r"""
