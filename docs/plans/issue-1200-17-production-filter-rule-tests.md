@@ -13,12 +13,12 @@ read-when: "implementing cleanup 17 on production filter rule tests"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
+| 2. Make the scoped change | ✅ implemented | 25 focused checks and the frontend build passed. Root suite passed 1215 tests with one unrelated opt-in skip. Blank, category-only and unrelated filters still take the base path. Tag, licensor and property take the effective path. Rollback switch retained. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized implementation and release of this item. See #1200 for release and live evidence.
 
 ## 1. Ultimate goal
 
@@ -68,8 +68,8 @@ Add named parameterized cases to the closest existing test suite for the §5 pro
 | Input or hostile condition | Required observation | Proposed test name |
 |---|---|---|
 | blank filters | keeps base scope | production-filter-rule-tests_case_1 |
-| one licensor/property/category/tag filter | switches to effective scope | production-filter-rule-tests_case_2 |
-| unrelated filter | keeps base scope | production-filter-rule-tests_case_3 |
+| one licensor, property or tag filter | switches to effective scope | production-filter-rule-tests_case_2 |
+| unrelated or category-only filter | keeps base scope | production-filter-rule-tests_case_3 |
 | combined filters | returns same decision as baseline | production-filter-rule-tests_case_4 |
 
 ## 11. Constraints
