@@ -8,7 +8,7 @@ read-when: adding or using property nicknames, short names, or licensor-submissi
 # Plan: four names for each property, kept in one place
 
 Written 2026-11-13 1:40 PM EST on edge-dev3 by Claude (session 1785fa70-1752-4243-8bec-73fee4b3d368).
-Handoff registering this plan: [../HANDOFF.d/2026-11-13T1840Z-edge-dev3-claude-property-name-fields.md](../HANDOFF.d/2026-11-13T1840Z-edge-dev3-claude-property-name-fields.md)
+Handoff registering this plan: `HANDOFF.d/2026-11-13T1840Z-edge-dev3-claude-property-name-fields.md` (retired 2026-11-19, issue 6269 closed with live proof; text in git history)
 
 ## STATUS (read first — do not re-derive or re-plan)
 

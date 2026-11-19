@@ -1,7 +1,7 @@
 # Implementation Plan: Prevent stranded migrations
 
 Issue: [popcre/shared-db#6574](https://github.com/popcre/shared-db/issues/6574) (claim-first there).
-Handoff: [HANDOFF.d/20261117T1545Z-edge-dev3-claude-stranded-migration-prevention-plan.md](HANDOFF.d/20261117T1545Z-edge-dev3-claude-stranded-migration-prevention-plan.md)
+Handoff: `HANDOFF.d/20261117T1545Z-edge-dev3-claude-stranded-migration-prevention-plan.md` (retired 2026-11-19, issue 6574 closed; text in git history)
 
 ## STATUS
 
