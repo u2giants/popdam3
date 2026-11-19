@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { longPath, matchMangledFile, matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
+import { type SmbFs, resolveExistingSmbPath, longPath, matchMangledFile, matchSmbName, normalizeSmbName, splitSmbRoot } from "./smb-resolve";
 
 describe("normalizeSmbName", () => {
   it("maps catia private-use quotes to ASCII", () => {
@@ -89,5 +89,49 @@ describe("longPath", () => {
   it("leaves paths alone off Windows and when already prefixed", () => {
     assert.equal(longPath("Z:\\a.ai", "linux"), "Z:\\a.ai");
     assert.equal(longPath("\\\\?\\Z:\\a.ai", "win32"), "\\\\?\\Z:\\a.ai");
+  });
+});
+
+describe("resolveExistingSmbPath with mangled folders", () => {
+  // Models edgesynology1: folders `10"`, `12"`, `14"` listed only as 8.3 names.
+  const exp = { size: 2916917, mtimeMs: 1_699_000_000_000 };
+  const tree: Record<string, { dir: boolean; size?: number; mtimeMs?: number }> = {
+    "Z:\\E": { dir: true },
+    "Z:\\E\\1736GU~Y": { dir: true },
+    "Z:\\E\\17N5OA~K": { dir: true },
+    "Z:\\E\\18R430~O": { dir: true },
+    "Z:\\E\\17N5OA~K\\PQK": { dir: true },
+    "Z:\\E\\17N5OA~K\\PQK\\PQK mockup.jpg": { dir: false, ...exp },
+    "Z:\\E\\18R430~O\\OTHER": { dir: true },
+  };
+  const fs: SmbFs = {
+    exists: (p) => p in tree,
+    list: (p) => {
+      if (!(p in tree)) throw new Error("ENOENT");
+      return Object.keys(tree)
+        .filter((k) => k.startsWith(p + "\\") && !k.slice(p.length + 1).includes("\\"))
+        .map((k) => k.slice(p.length + 1));
+    },
+    stat: (p) => {
+      const n = tree[p];
+      if (!n) throw new Error("ENOENT");
+      return { size: n.size ?? 0, mtimeMs: n.mtimeMs ?? 0, isDirectory: n.dir };
+    },
+  };
+  const wanted = "Z:\\E\\12\uF022\\PQK\\PQK mockup.jpg";
+
+  it("finds the file through the one mangled folder that contains the rest of the path", () => {
+    assert.equal(resolveExistingSmbPath(wanted, exp, fs), "Z:\\E\\17N5OA~K\\PQK\\PQK mockup.jpg");
+  });
+
+  it("refuses when two mangled folders both contain the rest of the path", () => {
+    const dup = { ...tree, "Z:\\E\\1736GU~Y\\PQK": { dir: true }, "Z:\\E\\1736GU~Y\\PQK\\PQK mockup.jpg": { dir: false, ...exp } };
+    const fs2: SmbFs = { ...fs, exists: (p) => p in dup, list: (p) => Object.keys(dup).filter((k) => k.startsWith(p + "\\") && !k.slice(p.length + 1).includes("\\")).map((k) => k.slice(p.length + 1)), stat: (p) => ({ size: dup[p]?.size ?? 0, mtimeMs: dup[p]?.mtimeMs ?? 0, isDirectory: !!dup[p]?.dir }) };
+    assert.equal(resolveExistingSmbPath(wanted, exp, fs2), wanted);
+  });
+
+  it("returns the input unchanged when no mangled folder holds the file", () => {
+    const missing = "Z:\\E\\12\uF022\\NOPE\\x.jpg";
+    assert.equal(resolveExistingSmbPath(missing, exp, fs), missing);
   });
 });
