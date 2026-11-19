@@ -13,12 +13,12 @@ read-when: "implementing cleanup 12 on pdf sampling on both agents"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. Bridge includes skip reason in progress while Windows reports it on the result only. |
+| 2. Make the scoped change | ✅ implemented | Six platform replays matched progress ordering, 25-item reporting, skip details and final-submit failure. Bridge 95 and Windows 171 tests and builds passed; native launcher check requires Windows. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 

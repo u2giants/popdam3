@@ -28,12 +28,8 @@ import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { indraPython, ocrPngWithIndra } from "./common/indra-ocr.js";
 import { callPdfAiVision } from "./common/pdf-ai-vision.js";
-
-export interface PdfSampleAsset {
-  id: string;
-  relative_path: string;
-  filename: string;
-}
+import { runPdfSampleBatch, type FileProgressEntry, type PdfSampleAsset, type PdfTextSampleResult } from "./common/pdf-sample-batch.js";
+export type { PdfSampleAsset, PdfTextSampleResult } from "./common/pdf-sample-batch.js";
 
 export interface AiModelDef {
   id: string;
@@ -54,29 +50,6 @@ export interface AiConfig {
 
 /** Maximum PDF file size to load into memory (100 MB). Larger files are skipped. */
 const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
-
-export interface PdfTextSampleResult {
-  asset_id: string;
-  filename: string;
-  relative_path: string;
-  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision" | "skipped";
-  extracted_text: string | null;
-  ocr_engine?: string | null;
-  page_count: number | null;
-  char_count: number;
-  extraction_error: string | null;
-  thumbnail_url?: string;
-  /** Set when a file was intentionally skipped rather than failing */
-  skip_reason?: string;
-}
-
-interface FileProgressEntry {
-  filename: string;
-  status: "success" | "failed";
-  method: string;
-  chars: number;
-  error?: string;
-}
 
 // ── AI vision call (provider-agnostic, resolved from model catalog) ──────────
 
@@ -341,20 +314,12 @@ export async function runPdfTextSample(
 
   logger.info("PDF text sample: starting", { count: assets.length, mountRoot });
 
-  const results: PdfTextSampleResult[] = [];
-  const fileResults: FileProgressEntry[] = [];
-
-  // Report initial pickup
-  await reportProgress(0, assets.length, null, "starting", []);
-
-  for (let i = 0; i < assets.length; i++) {
-    const asset = assets[i];
-    let fullPath = asset.relative_path;
-
-    try {
-      fullPath = resolveUnderRoot(mountRoot, asset.relative_path);
-      const result = await processSinglePdf(asset, fullPath, aiConfig, i, assets.length, fileResults);
-      results.push(result);
+  await runPdfSampleBatch(assets, {
+    resolvePath: (relativePath) => resolveUnderRoot(mountRoot, relativePath),
+    process: (asset, fullPath, index, previous) => processSinglePdf(asset, fullPath, aiConfig, index, assets.length, previous),
+    progress: reportProgress,
+    complete: api.completePdfTextSample,
+    describeResult: (asset, result) => {
       if (result.extraction_method === "skipped") {
         logger.warn("PDF text sample: file skipped — admin alert", {
           filename: asset.filename,
@@ -362,37 +327,13 @@ export async function runPdfTextSample(
           skip_reason: result.skip_reason,
         });
       }
-      fileResults.push({
+      return {
         filename: asset.filename,
         status: result.extraction_method === "failed" ? "failed" : "success",
         method: result.extraction_method,
         chars: result.char_count,
         error: result.skip_reason ?? result.extraction_error ?? undefined,
-      });
-    } catch (e) {
-      const errMsg = (e as Error).message;
-      logger.warn("PDF text sample: extraction failed", {
-        filename: asset.filename, path: fullPath, error: errMsg,
-      });
-      results.push({
-        asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-        extraction_method: "failed", extracted_text: null,
-        page_count: null, char_count: 0, extraction_error: errMsg.slice(0, 500),
-      });
-      fileResults.push({
-        filename: asset.filename, status: "failed", method: "failed", chars: 0, error: errMsg.slice(0, 200),
-      });
-    }
-
-    // Report progress after each file
-    await reportProgress(i + 1, assets.length, null, "done", fileResults);
-  }
-
-  try {
-    await api.completePdfTextSample(results);
-    logger.info("PDF text sample: completed", { total: results.length });
-  } catch (e) {
-    logger.error("PDF text sample: failed to submit results", { error: (e as Error).message });
-    await reportProgress(results.length, assets.length, null, "done", fileResults, (e as Error).message);
-  }
+      };
+    },
+  });
 }

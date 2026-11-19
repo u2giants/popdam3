@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "out/main",
-    "rootDir": ".",
+    "rootDir": "../..",
     "baseUrl": ".",
     "types": ["node"],
     "paths": {
@@ -17,5 +17,5 @@
     }
   },
   "exclude": ["src/**/*.vitest.ts", "src/**/*.test.ts"],
-  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/shared/**/*"]
+  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "../../packages/agent-common/src/quick-hash-v1.ts"]
 }

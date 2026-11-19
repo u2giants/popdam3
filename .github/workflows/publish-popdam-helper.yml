@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/popdam-helper/**"
+      - "packages/agent-common/src/quick-hash-v1.ts"
       - ".github/workflows/publish-popdam-helper.yml"
   workflow_dispatch:
 

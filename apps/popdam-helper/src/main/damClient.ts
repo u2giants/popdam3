@@ -1,3 +1,4 @@
+import type { UploadInstructions } from "@shared/types";
 /**
  * HTTP client for the helper-api edge function.
  * All requests are authenticated with the user's Supabase access token.
@@ -135,14 +136,7 @@ export async function prepareCheckin(params: {
 }): Promise<{
   ok: boolean;
   checkout_id: string;
-  upload_instructions: {
-    method: string;
-    synology_url: string | null;
-    synology_port: string;
-    relative_path: string;
-    filename: string;
-    temp_suffix: string;
-  };
+  upload_instructions: UploadInstructions;
 }> {
   return post("/checkouts/prepare-checkin", params);
 }
@@ -167,14 +161,7 @@ export async function discardCheckout(checkout_id: string): Promise<{ ok: boolea
 export async function redrive(checkout_id: string): Promise<{
   ok: boolean;
   checkout_id: string;
-  upload_instructions: {
-    method: string;
-    synology_url: string | null;
-    synology_port: string;
-    relative_path: string;
-    filename: string;
-    temp_suffix: string;
-  };
+  upload_instructions: UploadInstructions;
 }> {
   return post("/checkouts/redrive", { checkout_id });
 }
