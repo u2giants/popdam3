@@ -50,7 +50,6 @@ import { talentLikenessFromFilename } from "../_shared/talent-likeness.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts";
-import { scheduleRenderRetries } from "../_shared/render-retry-scheduling.ts";
 import { writeWithRetry } from "../_shared/sg-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
@@ -2408,8 +2407,6 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   // Existing unchanged rows seed the bridge agent's per-scan content identity
   // set, so duplicate copies later in traversal can bypass hash move detection.
   const existingContentIdentities: Array<{ relative_path: string; filename: string; quick_hash: string }> = [];
-  // Files that are unchanged and require Windows render retry
-  const needsRender: string[] = [];
   // Changed-on-disk files that already have a thumbnail: when the content hash
   // turns out equal the bridge reuses the stored name instead of orphaning it.
   const existingThumbnails: Array<{ relative_path: string; quick_hash: string; thumbnail_url: string }> = [];
@@ -2445,33 +2442,16 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       });
     }
 
+    // Unchanged file with a retryable thumbnail failure (including
+    // no_pdf_compat): the bridge reprocesses it, applies its skip rules, and
+    // queues the Windows render itself (#1094: the only render scheduling path).
     if (
       !existing.thumbnail_url &&
       existing.thumbnail_error &&
       !PERMANENT_THUMB_ERRORS.includes(existing.thumbnail_error)
     ) {
-      // Unchanged file but has a retryable thumbnail failure — retry it
       needsThumbnail.push(rp);
-    } else if (
-      !existing.thumbnail_url &&
-      existing.thumbnail_error === "no_pdf_compat"
-    ) {
-      needsRender.push(rp);
     }
-  }
-
-  // Batched in three round trips (check-in hot path). Lookup/insert failures
-  // are reported, never swallowed: unscheduled files keep no_pdf_compat and
-  // the next scan retries them; pending/claimed jobs are never duplicated.
-  const renderRetry = await scheduleRenderRetries(needsRender, {
-    findAssets: async (paths) => await db.from("assets").select("id, relative_path").in("relative_path", paths).eq("is_deleted", false),
-    findQueued: async (ids) => await db.from("render_queue").select("asset_id").in("asset_id", ids).in("status", ["pending", "claimed"]),
-    insertJobs: async (rows) => await db.from("render_queue").insert(rows),
-  });
-  if (renderRetry.error) {
-    console.error(
-      `check-changed: render retry scheduling failed for ${renderRetry.failedPaths.length} file(s): ${renderRetry.error}`,
-    );
   }
 
   return json({
@@ -2480,8 +2460,6 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     needs_thumbnail: needsThumbnail,
     existing_content_identities: existingContentIdentities,
     existing_thumbnails: existingThumbnails,
-    render_retry_failed: renderRetry.failedPaths,
-    render_retry_error: renderRetry.error,
   });
 }
 
