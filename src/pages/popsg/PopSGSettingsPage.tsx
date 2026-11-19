@@ -1333,7 +1333,7 @@ export default function PopSGSettingsPage() {
         {/* ── Users tab ── */}
         <TabsContent value="users" className="space-y-4">
           <UsersSection />
-          <InvitationSection />
+          <InvitationSection defaultApp="styleguides" />
         </TabsContent>
       </Tabs>
     </div>

@@ -28,7 +28,7 @@ import { AgentThroughputChart } from "./settings/AgentThroughputChart";
 import { HelperPasswordCard } from "./settings/HelperPasswordCard";
 import { PairingCodesSection, PathTesterSection } from "./settings/PairingAndPaths";
 import { SettingsSearch, SubTabBar, TipTab } from "./settings/SettingsNav";
-import { InvitationSection, UsersSection } from "./settings/UsersAndInvitations";
+import { InvitationSection, UsersSection } from "@/components/settings/UsersTab";
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -100,7 +100,7 @@ export default function SettingsPage() {
         <TabsContent value="general" className="space-y-4">
           <HelperPasswordCard />
           <UsersSection />
-          <InvitationSection />
+          <InvitationSection defaultApp="popdam" />
         </TabsContent>
 
         {/* ── Storage ── */}
