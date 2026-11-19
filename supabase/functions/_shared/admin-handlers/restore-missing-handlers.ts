@@ -69,9 +69,7 @@ export async function handleRestoreMissingAssets(body: Record<string, unknown>) 
       skip("surviving_copy");
       continue;
     }
-    const triple = row.filename && row.file_size && row.quick_hash
-      ? `${row.filename}\0${row.file_size}\0${row.quick_hash}`
-      : null;
+    const triple = row.filename && row.file_size && row.quick_hash ? `${row.filename}\0${row.file_size}\0${row.quick_hash}` : null;
     if (triple) {
       if (seenTriples.has(triple)) {
         skip("duplicate_in_request");

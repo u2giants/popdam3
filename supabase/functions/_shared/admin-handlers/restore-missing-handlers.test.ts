@@ -19,13 +19,36 @@ function makeDb(state: { assets: Row[]; history: Row[] }) {
       const match = () => rows().filter((r) => filters.every((f) => f(r)));
       const api: Row = {
         select: () => api,
-        insert: (insertRows: Row[]) => { op = "insert"; payload = insertRows; return api; },
-        update: (patch: Row) => { op = "update"; payload = patch; return api; },
-        delete: () => { op = "delete"; return api; },
-        eq: (col: string, val: unknown) => { filters.push((r) => r[col] === val); return api; },
-        neq: (col: string, val: unknown) => { filters.push((r) => r[col] !== val); return api; },
-        in: (col: string, vals: unknown[]) => { filters.push((r) => vals.includes(r[col])); return api; },
-        limit: (n: number) => { cap = n; return api; },
+        insert: (insertRows: Row[]) => {
+          op = "insert";
+          payload = insertRows;
+          return api;
+        },
+        update: (patch: Row) => {
+          op = "update";
+          payload = patch;
+          return api;
+        },
+        delete: () => {
+          op = "delete";
+          return api;
+        },
+        eq: (col: string, val: unknown) => {
+          filters.push((r) => r[col] === val);
+          return api;
+        },
+        neq: (col: string, val: unknown) => {
+          filters.push((r) => r[col] !== val);
+          return api;
+        },
+        in: (col: string, vals: unknown[]) => {
+          filters.push((r) => vals.includes(r[col]));
+          return api;
+        },
+        limit: (n: number) => {
+          cap = n;
+          return api;
+        },
         then: (resolve: (v: unknown) => unknown) => {
           let result: unknown;
           if (op === "select") result = { data: match().slice(0, cap).map((r) => ({ ...r })), error: null };
@@ -64,7 +87,13 @@ async function run(state: { assets: Row[]; history: Row[] }, assetIds: string[])
 }
 
 const hidden = (id: string, path: string, extra: Row = {}) => ({
-  id, relative_path: path, filename: "a.pdf", file_size: 10, quick_hash: "h", is_deleted: true, ...extra,
+  id,
+  relative_path: path,
+  filename: "a.pdf",
+  file_size: 10,
+  quick_hash: "h",
+  is_deleted: true,
+  ...extra,
 });
 const marker = (id: string) => ({ id: `m-${id}`, asset_id: id, new_relative_path: "retired-missing-from-nas" });
 
