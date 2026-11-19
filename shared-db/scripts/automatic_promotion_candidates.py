@@ -75,7 +75,14 @@ PROMOTE_BY_RE = re.compile(r"^--\s*promote-by:\s*(\S+)\s*$", re.MULTILINE | re.I
 # change, the selector freezes merges for BACKSTOP_FREEZE_TTL_MINUTES before
 # re-dispatching, so the rehearsal can finish against an unmoving main.
 BACKSTOP_AFTER_STALE = 2
-BACKSTOP_FREEZE_TTL_MINUTES = 15
+# Covers the merge-queue drain wait plus the preview rehearsal until production
+# qualification takes the freeze over for the same PR (#6800).
+BACKSTOP_FREEZE_TTL_MINUTES = 40
+# #6800: a merge group validated BEFORE the freeze was set still lands after it
+# (the freeze is checked once, when the group starts). So after freezing, wait
+# for the queue to drain before reading the main SHA the rehearsal pins.
+QUEUE_DRAIN_TIMEOUT_SECONDS = 15 * 60
+QUEUE_DRAIN_POLL_SECONDS = 20
 BACKSTOP_FREEZE_OWNER = "automatic-promotion-backstop"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -1237,8 +1244,11 @@ def main(now: datetime | None = None) -> int:
             break
         if args.dry_run:
             break
-        if pr.get("stale_streak", 0) >= BACKSTOP_AFTER_STALE:
-            backstop_freeze(pr)
+        # #6800: freeze on EVERY dispatch, not only after repeated main-moved
+        # refusals. With merges every few minutes the backstop alone let every
+        # attempt be overtaken, so preview + production never finished.
+        if backstop_freeze(pr):
+            wait_for_merge_queue_drain(repo)
         # Selection takes minutes and main can move meanwhile; dispatching the
         # SHA read at start makes the preview refuse ("requires the exact current
         # main SHA"), re-arming the backstop freeze forever. Re-read main now,
@@ -1352,14 +1362,49 @@ def main(now: datetime | None = None) -> int:
     return 0
 
 
+def merge_queue_entries(repo: str) -> int:
+    owner, name = repo.split("/", 1)
+    query = ("query($o:String!,$n:String!){repository(owner:$o,name:$n){"
+             "mergeQueue(branch:\"main\"){entries(first:50){totalCount}}}}")
+    data = gh("graphql", "-f", f"query={query}", "-f", f"o={owner}", "-f", f"n={name}")
+    queue = (((data or {}).get("data") or {}).get("repository") or {}).get("mergeQueue")
+    return int(((queue or {}).get("entries") or {}).get("totalCount") or 0)
+
+
+def wait_for_merge_queue_drain(repo: str, timeout: float | None = None, poll: float | None = None,
+                               entries=None, sleep=time.sleep, clock=time.monotonic) -> bool:
+    """#6800: hold the dispatch until no merge-queue entry can still land.
+    Groups started after the freeze are refused by the required freeze check
+    and ejected; groups validated before it land or fail. Bounded: on timeout or
+    a query error it proceeds, and the exact-main gates still refuse a moved
+    main exactly as before (the selector re-dispatches against the new tip)."""
+    timeout = QUEUE_DRAIN_TIMEOUT_SECONDS if timeout is None else timeout
+    poll = QUEUE_DRAIN_POLL_SECONDS if poll is None else poll
+    entries = entries or (lambda: merge_queue_entries(repo))
+    deadline = clock() + timeout
+    while True:
+        try:
+            count = entries()
+        except Exception as error:  # noqa: BLE001 - fail-open; gates downstream stay exact
+            print(f"::warning::merge-queue drain check failed ({error}); dispatching anyway")
+            return False
+        if count == 0:
+            print("freeze: merge queue drained; main is stable for the rehearsal")
+            return True
+        if clock() >= deadline:
+            print(f"::warning::merge queue still holds {count} entr(ies) after {int(timeout)} s; dispatching anyway")
+            return False
+        print(f"freeze: waiting for {count} merge-queue entr(ies) validated before the freeze")
+        sleep(poll)
+
+
 def backstop_freeze(pr: dict[str, Any]) -> bool:
-    """#5937 backstop: freeze merges for BACKSTOP_FREEZE_TTL_MINUTES before
-    re-dispatching a change main movement refused BACKSTOP_AFTER_STALE times in
-    a row. The merge-queue gate refuses non-tolerant groups while it is live;
+    """#5937/#6800: freeze merges for BACKSTOP_FREEZE_TTL_MINUTES before every
+    dispatch. The merge-queue gate refuses non-tolerant groups while it is live;
     production qualification takes it over for this PR and the production
     job's always() cleanup releases it, else the TTL does. Failure to freeze
     (e.g. another PR's freeze is live) is a warning: dispatch still proceeds."""
-    print(f"backstop: PR #{pr['number']} refused for main movement {pr['stale_streak']} times in a row; "
+    print(f"freeze: PR #{pr['number']} (main-moved refusals in a row: {pr.get('stale_streak', 0)}); "
           f"freezing merges for {BACKSTOP_FREEZE_TTL_MINUTES} minutes")
     result = subprocess.run(
         ["node", os.path.join(HERE, "manage-migration-coordination.mjs"), "--acquire-promotion-freeze",

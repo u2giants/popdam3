@@ -151,7 +151,7 @@ class PromotionStarvationFixes(unittest.TestCase):
         self.assertNotIn("stale_streak", broken)
         two = m.decide([self.urgent], runs, lambda n: [], stale=lambda r: r["id"] >= 1)[1]
         self.assertEqual(two["stale_streak"], m.BACKSTOP_AFTER_STALE)
-        self.assertEqual(m.BACKSTOP_FREEZE_TTL_MINUTES, 15)
+        self.assertEqual(m.BACKSTOP_FREEZE_TTL_MINUTES, 40)
 
 
 class StaleMainRefusalDetector(unittest.TestCase):
@@ -2889,7 +2889,9 @@ class DispatchUsesFreshMain(unittest.TestCase):
         m.workflow_runs = lambda repo, **_: []
         m.production_ledger = lambda: None
         m.merged_migration_prs = lambda repo: [pr]
-        m.backstop_freeze = lambda p: calls.append("freeze")
+        m.backstop_freeze = lambda p: calls.append("freeze") or True
+        saved_drain = m.wait_for_merge_queue_drain
+        m.wait_for_merge_queue_drain = lambda repo: calls.append("drain") or True
         m.dispatch = lambda repo, p, sha, runs=None: calls.append(sha)
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x"], "o/r"
         try:
@@ -2897,15 +2899,56 @@ class DispatchUsesFreshMain(unittest.TestCase):
                  mock.patch.object(m, "prune_claims", lambda *a: None), \
                  mock.patch.object(m, "claim_dispatch", lambda *a: True):
                 self.assertEqual(m.main(datetime(2026, 11, 15, 22, 0, tzinfo=timezone.utc)), 0)
-            self.assertEqual(calls, ["freeze", "new"])
+            self.assertEqual(calls, ["freeze", "drain", "new"])
         finally:
             (m.gh, m.decide, m.workflow_runs, m.production_ledger, m.merged_migration_prs,
              m.backstop_freeze, m.dispatch, sys.argv) = saved[:8]
+            m.wait_for_merge_queue_drain = saved_drain
             if saved[8] is None:
                 os.environ.pop("GITHUB_REPOSITORY", None)
             else:
                 os.environ["GITHUB_REPOSITORY"] = saved[8]
 
+
+
+class MergeQueueDrain(unittest.TestCase):
+    """#6800: a group validated before the freeze must land before main is read."""
+
+    def test_waits_until_queue_empty(self):
+        counts, slept = iter([2, 1, 0]), []
+        self.assertTrue(m.wait_for_merge_queue_drain("o/r", timeout=600, poll=1, entries=lambda: next(counts),
+                                                     sleep=slept.append, clock=lambda: 0))
+        self.assertEqual(slept, [1, 1])
+
+    def test_times_out_and_proceeds(self):
+        t = iter([0, 5, 11])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(m.wait_for_merge_queue_drain("o/r", timeout=10, poll=1, entries=lambda: 1,
+                                                          sleep=lambda s: None, clock=lambda: next(t)))
+
+    def test_query_error_fails_open(self):
+        def boom():
+            raise RuntimeError("api")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(m.wait_for_merge_queue_drain("o/r", entries=boom, sleep=lambda s: None))
+
+    def test_freeze_on_first_dispatch_even_with_no_stale_streak(self):
+        pr = {"number": 1, "merged_at": "2026-11-15T17:23:00Z", "versions": ["20261115172333"]}
+        calls = []
+        with mock.patch.object(m, "gh", lambda path: {"sha": "s"}), \
+             mock.patch.object(m, "decide", lambda *a, **k: ("dispatch", pr, "ok")), \
+             mock.patch.object(m, "workflow_runs", lambda repo, **_: []), \
+             mock.patch.object(m, "production_ledger", lambda: None), \
+             mock.patch.object(m, "merged_migration_prs", lambda repo: [pr]), \
+             mock.patch.object(m, "backstop_freeze", lambda p: calls.append("freeze") or True), \
+             mock.patch.object(m, "wait_for_merge_queue_drain", lambda repo: calls.append("drain") or True), \
+             mock.patch.object(m, "dispatch", lambda repo, p, sha, runs=None: calls.append(sha)), \
+             mock.patch.object(m, "prune_claims", lambda *a: None), \
+             mock.patch.object(m, "claim_dispatch", lambda *a: True), \
+             mock.patch.object(sys, "argv", ["x"]), mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(m.main(datetime(2026, 11, 15, 22, 0, tzinfo=timezone.utc)), 0)
+        self.assertEqual(calls, ["freeze", "drain", "s"])
 
 
 class SelectorRunCache(unittest.TestCase):
