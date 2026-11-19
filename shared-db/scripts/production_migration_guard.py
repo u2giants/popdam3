@@ -852,6 +852,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6356",
         "note": "Sandbox catch-up batch 18: production's current definitions and EXECUTE grants for seven functions changed on 2026-11-16. Source excludes shared preview and production.",
     },
+    "20261220000000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 19: replays nine production migrations (hts_rag embeddings and code6 stats, dam text vectors and health, gated style-guide views, dam search word forms and named lookup) with grants to absent production service logins made conditional. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():

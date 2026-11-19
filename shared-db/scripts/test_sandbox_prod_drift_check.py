@@ -26,6 +26,10 @@ class Drift(unittest.TestCase):
         out = d.compare(prod, snap(), {"ignore_schemas": ["dam"], "ignore_patterns": ["relation:plm.skip_*"]})
         self.assertEqual(out, {"missing relation": ["plm.keep"]})
 
+    def test_temp_schemas_are_not_structure(self):
+        prod = snap(relation={"pg_temp_28.cases": "r", "plm.keep": "r"}, function={"pg_toast_temp_3.f()": "h"})
+        self.assertEqual(d.compare(prod, snap(), {}), {"missing relation": ["plm.keep"]})
+
     def test_dflow_prod_maps_to_sandbox_dflow(self):
         self.assertTrue(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES dflow.users(id)'))
         self.assertFalse(d.same_definition('FOREIGN KEY (x) REFERENCES dflow_prod.users(id)', 'FOREIGN KEY (x) REFERENCES app.users(id)'))

@@ -69,6 +69,9 @@ def snapshot(ref: str, token: str, query=read_only_query) -> dict[str, dict[str,
 
 def allowed(kind: str, key: str, allowlist: dict) -> bool:
     schema = key.split(".", 1)[0]
+    # A session's temporary schema (pg_temp_N, pg_toast_temp_N) is transient, never structure (#6472).
+    if schema.startswith(("pg_temp", "pg_toast_temp")):
+        return True
     if schema in allowlist.get("ignore_schemas", []):
         return True
     full = f"{kind}:{key}"
