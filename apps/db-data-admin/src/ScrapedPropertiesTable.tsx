@@ -1,7 +1,7 @@
-import { RevoGrid, Template, type ColumnRegular } from '@revolist/react-datagrid'
+import { RevoGrid, type ColumnRegular } from '@revolist/react-datagrid'
 import { RefreshCw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FilterHeader } from './FilterHeader'
+import { buildFilterHeaderColumns, getGridDistinctValues } from './grid-filter-columns'
 import {
   groupScrapedInventory,
   loadScrapedInventory,
@@ -9,7 +9,7 @@ import {
   type ScrapedInventoryKind,
   type ScrapedInventoryRow,
 } from './lib/data-admin'
-import { getDistinctColumnValues, rowMatchesFilters } from './lib/grid-filters'
+import { rowMatchesFilters } from './lib/grid-filters'
 import { scrapedInventoryColumns } from './scraped-properties-columns'
 
 type Props = { client: ApiClient }
@@ -35,23 +35,16 @@ function InventorySection({
 }) {
   const [filters, setTextFilters] = useState<Record<string, string>>({})
   const [setFilters, setSetFilters] = useState<Record<string, ReadonlySet<string> | null>>({})
-  const distinctValues = useMemo(() => Object.fromEntries(columns.map(column => {
-    const prop = String(column.prop)
-    return [prop, getDistinctColumnValues(rows, prop)]
-  })), [columns, rows])
-  const gridColumns = useMemo(() => columns.map(column => ({
-    ...column,
-    readonly: true,
-    columnTemplate: Template(FilterHeader, {
-      filters,
-      onFilter: (prop: string, value: string) => setTextFilters(current => ({ ...current, [prop]: value })),
-      setFilters,
-      onSetFilter: (prop: string, selected: Set<string> | null) => setSetFilters(current => ({ ...current, [prop]: selected })),
-      distinctValues,
-      scope: id,
-      key: `${id}-${String(column.prop)}`,
-    }),
-  })), [columns, distinctValues, filters, id, setFilters])
+  const distinctValues = useMemo(() => getGridDistinctValues(columns, rows), [columns, rows])
+
+  const gridColumns = useMemo(() => buildFilterHeaderColumns(columns, {
+    filters,
+    onFilter: (prop, value) => setTextFilters(current => ({ ...current, [prop]: value })),
+    setFilters,
+    onSetFilter: (prop, selected) => setSetFilters(current => ({ ...current, [prop]: selected })),
+    distinctValues,
+    scope: id,
+  }), [columns, distinctValues, filters, id, setFilters])
   const visibleRows = useMemo(() => rows.filter(row => rowMatchesFilters(row, filters, setFilters)), [filters, rows, setFilters])
 
   return <section className="scraped-inventory-section" aria-labelledby={id}>

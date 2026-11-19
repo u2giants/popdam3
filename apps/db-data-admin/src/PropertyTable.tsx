@@ -1,9 +1,9 @@
-import { RevoGrid, Template, type ColumnRegular } from '@revolist/react-datagrid'
+import { RevoGrid, type ColumnRegular } from '@revolist/react-datagrid'
 import { RefreshCw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FilterHeader } from './FilterHeader'
+import { buildFilterHeaderColumns, getGridDistinctValues } from './grid-filter-columns'
 import { loadLicensorTree, setPropertyStatus, type ApiClient, type LoadedTree, type PropertyStatus, type PropertyStatusResult } from './lib/data-admin'
-import { getDistinctColumnValues, rowMatchesFilters } from './lib/grid-filters'
+import { rowMatchesFilters } from './lib/grid-filters'
 import { flattenProperties, type PropertyRow } from './lib/property-rows'
 import { PropertyStatusDialog } from './PropertyStatusDialog'
 
@@ -87,29 +87,17 @@ export function PropertyTable({ client }: Props) {
     setSetFiltersState(current => ({ ...current, [prop]: selected }))
   }, [])
 
-  const distinctValues = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const column of propertyColumns) {
-      const prop = String(column.prop)
-      map[prop] = getDistinctColumnValues(rows, prop)
-    }
-    return map
-  }, [rows])
+  const distinctValues = useMemo(() => getGridDistinctValues(propertyColumns, rows), [rows])
 
   const columns = useMemo(
-    () => propertyColumns.map(column => ({
-      ...column,
-      readonly: true,
-      columnTemplate: Template(FilterHeader, {
-        filters,
-        onFilter: updateFilter,
-        setFilters: setFiltersState,
-        onSetFilter: updateSetFilter,
-        distinctValues,
-        scope: 'property',
-        key: `property-${String(column.prop)}`,
-      }),
-    })),
+    () => buildFilterHeaderColumns(propertyColumns, {
+      filters,
+      onFilter: updateFilter,
+      setFilters: setFiltersState,
+      onSetFilter: updateSetFilter,
+      distinctValues,
+      scope: 'property',
+    }),
     [distinctValues, filters, setFiltersState, updateFilter, updateSetFilter],
   )
 

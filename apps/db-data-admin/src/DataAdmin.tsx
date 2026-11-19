@@ -1,10 +1,9 @@
-import { Editor, RevoGrid, Template, type BeforeRangeSaveDataDetails, type BeforeSaveDataDetails, type ColumnRegular, type Editors, type EditorType } from '@revolist/react-datagrid'
+import { Editor, RevoGrid, type BeforeRangeSaveDataDetails, type BeforeSaveDataDetails, type ColumnRegular, type Editors, type EditorType } from '@revolist/react-datagrid'
 import { Check, ChevronRight, GitMerge, History, LogOut, Pencil, RefreshCw, Search, Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { executeMerge, initialQuery, loadAllRows, loadAudit, loadDetail, loadGridState, loadRows, previewMerge, probeAccess, saveGridState, searchMergeCandidates, updateRecord, type AdminRow, type ApiClient, type AuditEvent, type EntityKind, type MergeResult, type QueryState, type UpdateInput } from './lib/data-admin'
 import {
   getCellDisplayValue,
-  getDistinctColumnValues,
   rowMatchesFilters,
 } from './lib/grid-filters'
 import { RecordEditor } from './RecordEditor'
@@ -15,6 +14,7 @@ import { PropertyMatchReview } from './PropertyMatchReview'
 import { ScrapedPropertiesTable } from './ScrapedPropertiesTable'
 import { INLINE_EDITABLE_PROPS, INLINE_EDIT_REASON, INLINE_UNDO_REASON, saveInlineRow } from './lib/inline-edit'
 import { FilterHeader, type HeaderProps } from './FilterHeader'
+import { buildFilterHeaderColumns, getGridDistinctValues } from './grid-filter-columns'
 
 // Re-exported so existing imports (and tests) can keep reaching these here.
 export { FilterHeader }
@@ -169,31 +169,17 @@ export function DataAdmin({ client, email, environmentLabel, onSignOut }: Props)
     setSetFiltersState(current => ({ ...current, [prop]: selected }))
   }, [])
 
-  const distinctValues = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const column of baseColumns) {
-      const prop = String(column.prop)
-      map[prop] = getDistinctColumnValues(rows, prop)
-    }
-    return map
-  }, [rows])
+  const distinctValues = useMemo(() => getGridDistinctValues(baseColumns, rows), [rows])
 
   const columns = useMemo(
-    () => baseColumns
-      .filter(column => kind === 'customer' || column.prop !== 'plm_display')
-      .map(column => ({
-        ...column,
-        readonly: !INLINE_EDITABLE_PROPS.has(String(column.prop)),
-        columnTemplate: Template(FilterHeader, {
-          filters,
-          onFilter: updateFilter,
-          setFilters: setFiltersState,
-          onSetFilter: updateSetFilter,
-          distinctValues,
-          scope: kind,
-          key: `${kind}-${String(column.prop)}`,
-        }),
-      })),
+    () => buildFilterHeaderColumns(baseColumns.filter(column => kind === 'customer' || column.prop !== 'plm_display'), {
+      filters,
+      onFilter: updateFilter,
+      setFilters: setFiltersState,
+      onSetFilter: updateSetFilter,
+      distinctValues,
+      scope: kind,
+    }, column => !INLINE_EDITABLE_PROPS.has(String(column.prop))),
     [distinctValues, filters, kind, setFiltersState, updateFilter, updateSetFilter],
   )
 

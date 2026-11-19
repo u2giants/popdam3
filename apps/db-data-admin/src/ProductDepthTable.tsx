@@ -15,12 +15,12 @@
 // There is no delete path, by design. Deactivating keeps the value visible on
 // items that already hold it and simply stops offering it for new selections.
 
-import { RevoGrid, Template, type ColumnRegular } from '@revolist/react-datagrid'
+import { RevoGrid, type ColumnRegular } from '@revolist/react-datagrid'
 import { Ban, Check, Plus, RefreshCw, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FilterHeader } from './FilterHeader'
+import { buildFilterHeaderColumns, getGridDistinctValues } from './grid-filter-columns'
 import type { ApiClient } from './lib/data-admin'
-import { getDistinctColumnValues, rowMatchesFilters } from './lib/grid-filters'
+import { rowMatchesFilters } from './lib/grid-filters'
 import {
   createProductDepth,
   describeMutationFailure,
@@ -98,29 +98,17 @@ export function ProductDepthTable({ client }: Props) {
     setSetFiltersState(current => ({ ...current, [prop]: next }))
   }, [])
 
-  const distinctValues = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const column of depthColumns) {
-      const prop = String(column.prop)
-      map[prop] = getDistinctColumnValues(rows, prop)
-    }
-    return map
-  }, [rows])
+  const distinctValues = useMemo(() => getGridDistinctValues(depthColumns, rows), [rows])
 
   const columns = useMemo(
-    () => depthColumns.map(column => ({
-      ...column,
-      readonly: true,
-      columnTemplate: Template(FilterHeader, {
-        filters,
-        onFilter: updateFilter,
-        setFilters: setFiltersState,
-        onSetFilter: updateSetFilter,
-        distinctValues,
-        scope: 'product-depth',
-        key: `product-depth-${String(column.prop)}`,
-      }),
-    })),
+    () => buildFilterHeaderColumns(depthColumns, {
+      filters,
+      onFilter: updateFilter,
+      setFilters: setFiltersState,
+      onSetFilter: updateSetFilter,
+      distinctValues,
+      scope: 'product-depth',
+    }),
     [distinctValues, filters, setFiltersState, updateFilter, updateSetFilter],
   )
 
