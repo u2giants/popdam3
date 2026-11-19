@@ -992,6 +992,27 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   const providerOverride = buildProviderPin(providerPin);
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
+  const describeTagApplyFailure = (model: string, error: unknown): string => {
+    const stage = error instanceof AssetTagApplyError ? error.stage
+      : error instanceof CharacterReferenceValidationError ? "character_reference"
+      : error instanceof CharacterCatalogDependencyError ? "character_catalog"
+      : "validation";
+
+    if (parallelModel) {
+      const code = error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError
+        ? error.code
+        : "unknown";
+      logger.warn("ai-tag: parallel save failed", { assetId, model, stage, code });
+      return error instanceof AssetTagApplyError
+        ? `Parallel tagging save failed at ${error.stage} (${error.code})`
+        : "Parallel tagging result validation failed";
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
+    return `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}`;
+  };
+
   const attemptTag = async (model: string): Promise<AttemptResult> => {
     const apiKey = await getAiTaggingApiKey(model);
     if (!apiKey) {
@@ -1010,17 +1031,6 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
-        if (parallelModel) {
-          try {
-            const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
-            return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
-          }
-          catch (error) {
-            logger.warn("ai-tag: parallel save failed", {assetId, model, stage: error instanceof AssetTagApplyError ? error.stage : error instanceof CharacterReferenceValidationError ? "character_reference" : error instanceof CharacterCatalogDependencyError ? "character_catalog" : "validation", code: error instanceof AssetTagApplyError || error instanceof CharacterCatalogDependencyError ? error.code : "unknown"});
-            return { outcome: "failed", error: error instanceof AssetTagApplyError ? `Parallel tagging save failed at ${error.stage} (${error.code})` : "Parallel tagging result validation failed" };
-          }
-        }
-
         // Shared save path: tags and character links are written first and the
         // asset is marked "tagged" LAST, so a failed tag write never leaves an
         // asset flagged tagged with no tags (which ai-tag-untagged would skip
@@ -1029,13 +1039,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           const applied = await applyBatchTagResult(assetId, tagData, model, client, characterCatalogIds);
           return { outcome: "tagged", fileSourcesFailed: applied.fileSourcesFailed };
         } catch (error) {
-          const stage = error instanceof AssetTagApplyError ? error.stage
-            : error instanceof CharacterReferenceValidationError ? "character_reference"
-            : error instanceof CharacterCatalogDependencyError ? "character_catalog"
-            : "validation";
-          const message = error instanceof Error ? error.message : String(error);
-          logger.error("ai-tag: save failed", { assetId, model, stage, error: message.slice(0, 300) });
-          return { outcome: "failed", error: `Tagging save failed at ${stage}: ${humanizeError(message).slice(0, 300)}` };
+          return { outcome: "failed", error: describeTagApplyFailure(model, error) };
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
