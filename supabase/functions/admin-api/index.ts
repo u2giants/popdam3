@@ -75,6 +75,7 @@ import { handleApplyErpEnrichment } from "../_shared/admin-handlers/erp-handlers
 import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
 
 import { handlePurgeExcludedSubfolderAssets, handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
+import { handleRestoreMissingAssets } from "../_shared/admin-handlers/restore-missing-handlers.ts";
 
 import {
   handleErpEnrichmentStats,
@@ -2138,6 +2139,10 @@ corsServe(async (req: Request) => {
         return await handlePurgeOldAssets(body);
       case "purge-excluded-subfolder-assets":
         return await handlePurgeExcludedSubfolderAssets();
+
+      // ── Restore wrongly hidden missing-file records (#1198) ──
+      case "restore-missing-assets":
+        return await handleRestoreMissingAssets(body);
 
       // ── ERP (from erp-handlers.ts + erp-browse-handlers.ts) ──
       case "erp-enrichment-stats":
