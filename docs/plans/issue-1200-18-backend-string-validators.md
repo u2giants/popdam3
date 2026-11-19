@@ -13,12 +13,12 @@ read-when: "implementing cleanup 18 on backend string validators"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
+| 2. Make the scoped change | ✅ implemented | Both public import paths preserve exact missing, numeric, blank and padded outcomes. All 16 added cases passed. The root suite passed 1,215 tests before the new cases, with one unrelated credential-dependent skip. Focused Deno checks passed. Full entry point Deno checks reproduce the same 22 baseline diagnostics. Installed admin and agent route proof is pending. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 
 ## 1. Ultimate goal
 
