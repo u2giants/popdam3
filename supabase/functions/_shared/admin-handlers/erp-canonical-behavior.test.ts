@@ -166,7 +166,10 @@ describe("canonical ERP handler behavior", () => {
       { sku: "A-NULL", division_code: null, is_deleted: false },
     ];
     fixture.tables["plm.item"] = fixture.tables.assets.map(({ sku }) => ({
-      id: sku, source_system: "coldlion", item_number: sku, raw: {},
+      id: sku,
+      source_system: "coldlion",
+      item_number: sku,
+      raw: {},
     }));
 
     const response = await handleApplyErpEnrichment({ mode: "dry-run" });
