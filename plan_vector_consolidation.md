@@ -39,7 +39,7 @@ issue say so.
 
 **Step 5 continuation:** restore observable ordinary-viewer readiness, verify canonical spelling/known-code/semantic/error-and-Retry behavior, then run the identical two AFTER partitions serially with fresh source-bound checkpoints. Do not restart BEFORE or close #725/the whole gate from source delivery.
 
-**November 17, 2026 addition:** typed PopDAM search has no meaning matching on description text; the plan for a text-meaning leg, the named-character rule and demoting picture-only matches is [docs/plans/issue-1037-typed-search-meaning-matching.md](docs/plans/issue-1037-typed-search-meaning-matching.md) (#1037, nothing built). It adds a second vector table and worker lane; this plan's worker, alarm and scorecard rules still apply to it.
+**November 17, 2026 addition:** typed PopDAM search has no meaning matching on description text; the plan for a text-meaning leg, the named-character rule and demoting picture-only matches is [docs/plans/issue-1037-typed-search-meaning-matching.md](docs/plans/issue-1037-typed-search-meaning-matching.md) (#1037, live since Nov 18–19, 2026: AFTER score 137/137, p95 2.0 s). It adds a second vector table and worker lane; this plan's worker, alarm and scorecard rules still apply to it.
 
 **Fresh session starts with provider readiness and custody**, then Step 1, after reading "Reconciliation" below and the [November 5 coordinator closeout](https://github.com/u2giants/popdam3/blob/main/HANDOFF.d/2026-11-05T1900Z-hetz-codex-coordinator-closeout.md). Re-read the downstream phase before starting each one.
 
