@@ -156,7 +156,7 @@ Request:
 - `session_id`
 - `status` — `running` | `completed` | `completed_with_errors` | `failed`
 - `counters` + `current_path` (optional)
-- `error` — required for `status = "failed"` from current bridge agents. Older agents may omit it; `agent-api` must synthesize a useful counter-based fallback before writing `SCAN_PROGRESS` / `SCAN_REQUEST`.
+- `error` — required for `status = "failed"` from current bridge agents. Older agents may omit it; `agent-api` must synthesize a useful counter-based fallback before writing `SCAN_PROGRESS` / `SCAN_REQUEST`. For `completed_with_errors` the bridge also sends `error` with a short summary of the per-file failures, which `agent-api` keeps in the `SCAN_HISTORY` entry (#1195).
 
 Important:
 - Failed scan records must be actionable. Do not write a terminal `failed` state that only says "unknown" or omits the cause.
