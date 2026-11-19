@@ -7,14 +7,14 @@ read-when: checking #6457 revoke-candidate dispositions or the contract-test KEE
 
 # #6457 revoke-candidate disposition table — 2026-11-17 (final)
 
-**Migration:** `20261218062459` (Guard B re-date of the authored `20261218035022` — pure `git mv`, SQL unchanged) · **Claim:** #6652 (closed)
+**Migration:** `20261225010205` (reissue; earlier `20261218062459` — Guard B re-date of the authored `20261218035022` — is retired, never applied) · **Claim:** #6652 (closed)
 
 ## Summary
 
 | disposition | count |
 |---|---|
-| revoke | **37** |
-| keep | **69** |
+| revoke | **36** |
+| keep | **70** |
 | total | **106 unique names / 107 signatures** |
 
 ## Method
