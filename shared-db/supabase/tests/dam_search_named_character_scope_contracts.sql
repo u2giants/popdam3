@@ -32,6 +32,8 @@ declare
   eh extensions.vector := (array[0.70710677,0.70710677]::real[] || array_fill(0::real, array[766]))::extensions.vector;
   f jsonb; ids uuid[]; n bigint; probe bigint; s real; s0 real; raised boolean;
   scope_sets record;
+  grouped_scope_sets record;
+  full_scope_sets record;
   lookup jsonb; invalid_keys text[];
   unicode_character uuid;
 begin
@@ -269,6 +271,30 @@ begin
     raise exception 'popdam3#1037 property scope sets: %', scope_sets;
   end if;
 
+  -- Both ungrouped sets contain a genuine match. Only a group-only caller
+  -- may discard them, and the original interface must still return them.
+  f := jsonb_build_object('requiredCharacterIds', jsonb_build_array(ch1),
+                          'semanticPropertyCharacterIds', jsonb_build_array(ch1));
+  select * into strict scope_sets from public.dam_search_named_scope(f);
+  select * into strict grouped_scope_sets from public.dam_search_named_scope(f, false);
+  select * into strict full_scope_sets from public.dam_search_named_scope(f, true);
+  if not coalesce(a8 = any(scope_sets.character_assets), false)
+     or not coalesce(a8 = any(scope_sets.property_assets), false)
+     or grouped_scope_sets.character_groups is distinct from scope_sets.character_groups
+     or grouped_scope_sets.property_groups is distinct from scope_sets.property_groups
+     or grouped_scope_sets.character_assets is not null
+     or grouped_scope_sets.property_assets is not null
+     or to_jsonb(full_scope_sets) is distinct from to_jsonb(scope_sets) then
+    raise exception 'popdam3#1037 group-only scope changed existing group or file coverage';
+  end if;
+
+  s0 := public.dam_search_semantic_anchor(e0, array['style_group']);
+  s := public.dam_search_semantic_anchor_named(e0, array['style_group'],
+         jsonb_build_object('requiredCharacterIds', jsonb_build_array(gen_random_uuid())));
+  if s is distinct from s0 then
+    raise exception 'popdam3#1037 unmatched grouped scope did not fall back to the unscoped anchor';
+  end if;
+
   foreach f in array array[
     jsonb_build_object('requiredCharacterIds', to_jsonb(array_fill(ch1, array[1001]))),
     jsonb_build_object('requiredCharacterNames', to_jsonb(array_fill('ZQMarietta'::text, array[51])))
@@ -322,7 +348,10 @@ begin
      or has_function_privilege('anon', 'public.dam_search_uuid_list(jsonb)', 'execute')
      or has_function_privilege('authenticated', 'public.dam_search_name_queries(jsonb)', 'execute')
      or has_function_privilege('anon', 'public.dam_search_named_scope(jsonb)', 'execute')
-     or has_function_privilege('authenticated', 'public.dam_search_named_scope(jsonb)', 'execute') then
+     or has_function_privilege('authenticated', 'public.dam_search_named_scope(jsonb)', 'execute')
+     or has_function_privilege('anon', 'public.dam_search_named_scope(jsonb,boolean)', 'execute')
+     or has_function_privilege('authenticated', 'public.dam_search_named_scope(jsonb,boolean)', 'execute')
+     or not has_function_privilege('service_role', 'public.dam_search_named_scope(jsonb,boolean)', 'execute') then
     raise exception 'popdam3#1037 grants too wide';
   end if;
 end;
