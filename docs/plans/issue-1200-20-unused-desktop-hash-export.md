@@ -13,12 +13,12 @@ read-when: "implementing cleanup 20 on unused desktop hash export"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
+| 2. Make the scoped change | ✅ implemented | No public entry point or consumer uses the buffer hash. Real upload queue replay preserved both hash values and payloads for empty, short and long files. Typecheck, build and packaged Linux entry resolution passed. Both Helper version stamps advance to 1.4.17 for native release and installed verification. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 
 ## 1. Ultimate goal
 

@@ -48,7 +48,3 @@ export async function quickHashFile(filePath: string): Promise<string> {
   }
   return hash.digest("hex");
 }
-
-export function sha256Buffer(buf: Buffer): string {
-  return createHash("sha256").update(buf).digest("hex");
-}
