@@ -15,7 +15,7 @@ read-when: "implementing cleanup 04 on erp item identity"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both loaders keep their separate data access and share the same identity algorithm. |
 | 2. Make the scoped change | ✅ implemented | Eight fixture assertions per adapter passed before and after, including duplicate and ambiguous IDs, null division and distinct sources. Worker build, isolated image and 537 tests passed. Edge suite 28/28; Deno entry points reproduce only inherited diagnostics. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
+| 3. Verify and land | 🔄 In release review | #1220. Integrated worker build and 540 worker tests passed before mechanical edge formatting. |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
