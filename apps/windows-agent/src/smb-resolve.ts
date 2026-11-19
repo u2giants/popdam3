@@ -98,43 +98,74 @@ export function splitSmbRoot(windowsPath: string): { root: string; segments: str
   return { root, segments: windowsPath.slice(root.length).split("\\").filter((p) => p.length > 0) };
 }
 
+/** File-system calls the resolver needs; injectable so tests can model an SMB listing. */
+export interface SmbFs {
+  exists(p: string): boolean;
+  list(p: string): string[];
+  stat(p: string): { size: number; mtimeMs: number; isDirectory: boolean };
+}
+
+const realFs: SmbFs = {
+  exists: (p) => existsSync(longPath(p)),
+  list: (p) => readdirSync(longPath(p)),
+  stat: (p) => {
+    const st = statSync(longPath(p));
+    return { size: st.size, mtimeMs: st.mtimeMs, isDirectory: st.isDirectory() };
+  },
+};
+
+/** Upper bound on mangled folder candidates probed for one segment. */
+const MAX_MANGLED_DIR_CANDIDATES = 64;
+
+/**
+ * Resolve `segments[i..]` under `cur`. Returns the full listed path, or null.
+ *
+ * Without catia, Samba shows a folder whose name has a forbidden character (e.g.
+ * `12"`) only as an 8.3 name such as `1736GU~Y`. A folder has no size to match, so
+ * each mangled folder is probed: it is accepted only when exactly one of them
+ * contains the rest of the path.
+ */
+function resolveFrom(fs: SmbFs, cur: string, segments: string[], i: number, expected?: ExpectedFile): string | null {
+  if (i === segments.length) return cur;
+  const seg = segments[i];
+  const last = i === segments.length - 1;
+  const direct = win.join(cur, seg);
+  if (fs.exists(direct)) return resolveFrom(fs, direct, segments, i + 1, expected);
+  let listed: string[];
+  try {
+    listed = fs.list(cur);
+  } catch {
+    return null;
+  }
+  const named = matchSmbName(seg, listed);
+  if (named) return resolveFrom(fs, win.join(cur, named), segments, i + 1, expected);
+  if (last) {
+    if (!expected) return null;
+    const m = matchMangledFile(seg, listed, (n) => fs.stat(win.join(cur, n)), expected);
+    return m ? win.join(cur, m) : null;
+  }
+  const dirs = listed.filter((n) => {
+    if (!isMangledName(n)) return false;
+    try {
+      return fs.stat(win.join(cur, n)).isDirectory;
+    } catch {
+      return false;
+    }
+  });
+  if (dirs.length === 0 || dirs.length > MAX_MANGLED_DIR_CANDIDATES) return null;
+  const hits = dirs
+    .map((d) => resolveFrom(fs, win.join(cur, d), segments, i + 1, expected))
+    .filter((r): r is string => r !== null);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * Return the path with each segment replaced by the name the share actually lists.
  * Returns the input unchanged when it already exists or when a segment cannot be matched.
  */
-export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedFile): string {
-  if (existsSync(longPath(windowsPath))) return windowsPath;
+export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedFile, fs: SmbFs = realFs): string {
+  if (fs.exists(windowsPath)) return windowsPath;
   const split = splitSmbRoot(windowsPath);
   if (!split) return windowsPath;
-  let cur = split.root;
-  const last = split.segments.length - 1;
-  for (let i = 0; i <= last; i++) {
-    const seg = split.segments[i];
-    const direct = win.join(cur, seg);
-    if (existsSync(longPath(direct))) {
-      cur = direct;
-      continue;
-    }
-    let listed: string[];
-    try {
-      listed = readdirSync(longPath(cur));
-    } catch {
-      return windowsPath;
-    }
-    let match = matchSmbName(seg, listed);
-    if (!match && i === last && expected) {
-      match = matchMangledFile(
-        seg,
-        listed,
-        (n) => {
-          const st = statSync(longPath(win.join(cur, n)));
-          return { size: st.size, mtimeMs: st.mtimeMs };
-        },
-        expected,
-      );
-    }
-    if (!match) return windowsPath;
-    cur = win.join(cur, match);
-  }
-  return cur;
+  return resolveFrom(fs, split.root, split.segments, 0, expected) ?? windowsPath;
 }
