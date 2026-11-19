@@ -19,6 +19,7 @@ import {
   buildNameIndex,
   hasNamedScope,
   namedCharacterScope,
+  namedLookupKeys,
   type NamedScope,
   namedSearchPhrases,
   pickScopeKeys,
@@ -35,6 +36,15 @@ const SIGLIP2_DIM = 768;
 const TEXT_MEANING_DIM = 1024;
 export const SEARCH_TEXT_LEG_MODE_KEY = "SEARCH_TEXT_LEG_MODE";
 export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
+/**
+ * Text-meaning floor (#1037 O3, tuned on the scorecard Nov 18, 2026). Below 0.45 the model does not
+ * know the words: a name it never saw ("groot") scored 0.42 against unrelated products and
+ * outranked every exact match. A 0.05 margin under the best in-scope score keeps products that say
+ * every typed word ("pooh sign", 0.62-0.66) and drops look-alikes of the product word (other
+ * characters' signs, 0.54-0.57) that the database default of 0.10 let in.
+ */
+export const TEXT_MIN_SCORE = 0.45;
+export const TEXT_SCORE_MARGIN = 0.05;
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
 const NAME_SCOPE_TIMEOUT_MS = 1500;
@@ -170,7 +180,10 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
   requestSignal.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(() => controller.abort(), NAME_SCOPE_TIMEOUT_MS);
   try {
-    const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: phrases }).abortSignal(controller.signal);
+    // Names spelled with other spacing ("spider man" for "spiderman") come from the spelling
+    // vocabulary, which checkSpelling has loaded by now; without it only exact spacing matches.
+    const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: namedLookupKeys(phrases, knownFullNames) })
+      .abortSignal(controller.signal);
     if (error || controller.signal.aborted || !data || typeof data !== "object") return null;
     const { characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames } = data as Record<string, unknown>;
     if (
@@ -189,6 +202,7 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
         propertyCharacters,
         licensorNames,
         productWords: PRODUCT_WORDS,
+        knownNames: knownFullNames,
       }),
     );
   } catch {
@@ -756,7 +770,13 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               p_query_embedding: variantEmbedding,
               p_min_rank: minRank,
               p_min_semantic_score: floor,
-              ...(variantTextEmbeddings.get(variant) ? { p_query_text_embedding: variantTextEmbeddings.get(variant) } : {}),
+              ...(variantTextEmbeddings.get(variant)
+                ? {
+                  p_query_text_embedding: variantTextEmbeddings.get(variant),
+                  p_min_text_score: TEXT_MIN_SCORE,
+                  p_text_score_margin: TEXT_SCORE_MARGIN,
+                }
+                : {}),
             });
           let { data, error } = await timer.time("search_rpc", invoke);
           if (error) {

@@ -489,6 +489,8 @@ describe("DAM search embedding availability", () => {
       expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")).toHaveLength(1);
       const args = searchCalls()[0][1] as Record<string, unknown>;
       expect((args.p_query_text_embedding as number[]).length).toBe(1024);
+      expect(args.p_min_text_score).toBe(0.45);
+      expect(args.p_text_score_margin).toBe(0.05);
     });
 
     it("mode on with the text vector missing returns 503 before any search", async () => {
