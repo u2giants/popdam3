@@ -1506,7 +1506,9 @@ async function findSurvivingCopy(
   if (error) throw new Error(error.message);
   return provenSurvivingCopy(
     { ...stale, is_deleted: false },
-    (data ?? []) as Array<{ id: string; filename: string | null; quick_hash: string | null; file_size: number | null; relative_path: string; is_deleted: boolean | null }>,
+    (data ?? []) as Array<
+      { id: string; filename: string | null; quick_hash: string | null; file_size: number | null; relative_path: string; is_deleted: boolean | null }
+    >,
     stale.relative_path,
   );
 }
@@ -1543,7 +1545,14 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const skip = (reason: string) => {
     skipped[reason] = (skipped[reason] ?? 0) + 1;
   };
-  type MissingRow = { id: string; relative_path: string; filename: string | null; file_size: number | null; quick_hash: string | null; is_deleted: boolean | null };
+  type MissingRow = {
+    id: string;
+    relative_path: string;
+    filename: string | null;
+    file_size: number | null;
+    quick_hash: string | null;
+    is_deleted: boolean | null;
+  };
   const eligible: MissingRow[] = [];
   const found = new Set<string>();
   for (const row of (rows ?? []) as MissingRow[]) {
@@ -1611,7 +1620,11 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
     },
   });
   const kept = skipped["no_surviving_copy"] ?? 0;
-  console.log(`[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), skipped ${JSON.stringify(skipped)}${outcome.error ? `, stopped: ${outcome.error}` : ""}`);
+  console.log(
+    `[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), skipped ${JSON.stringify(skipped)}${
+      outcome.error ? `, stopped: ${outcome.error}` : ""
+    }`,
+  );
   // Work done before a failure is reported, not lost: a 500 would make the
   // bridge retry rows already retired and hide the count.
   return json({ ok: true, retired: outcome.retired, kept, skipped, ...(outcome.error ? { partial: true, error: outcome.error } : {}) });
