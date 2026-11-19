@@ -51,6 +51,8 @@ Run `scripts/search-eval/run.mjs --raw <private file>`, then `scripts/search-eva
 applies each case's stored rule and keeps existing labels, then save the output back to the key.
 Store new judgments as a new `version` value inside the key. Keep raw files out of the repo.
 
+Current set (Nov 19, 2026): version `2026-11-19-1037`, 137 PopDAM cases. Reference runs: BEFORE 44203103018 (128/137), AFTER 44499851023 (137/137, p95 2.0 s, text-meaning leg on). PopSG cha-017 fails in both and predates #1037.
+
 ## How the first judgments were made
 
 119 searches were written from real catalog names and judged against each file's catalog fields,

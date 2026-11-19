@@ -14,7 +14,7 @@ Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-se
 
 ## STATUS — read before executing
 
-| Step | State (Nov 17, 2026) | Evidence / artifact |
+| Step | State (Nov 19, 2026) | Evidence / artifact |
 |---|---|---|
 | 0. Confirm the text model on `edge-dev`, pick dimensions | ✅ done — Nov 17, 2026 | Qwen/Qwen3-Embedding-0.6B @ 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3, 1024 dims, last-token pooling, query prefix; 6,102 MiB with picture worker; sims 0.493 vs 0.286. #1037 comment 6960263298 |
 | 1. Add the failing searches to the private test set, take BEFORE score | ✅ done — Nov 17, 2026 | PR #1044; set version 2026-11-17-1037 (137 cases); BEFORE run 44203103018: PopDAM 128/137. mis-088/mis-092 failed from backend slowness (spelling budget), not code |
@@ -22,9 +22,9 @@ Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-se
 | 3. Text-meaning vectors: storage and queue (shared-db) | ✅ done — Nov 17, 2026 | shared-db #6622 (20261204003429, reissue without bulk backfill), health fast #6631 (003532) |
 | 4. Text-meaning vectors: GPU worker lane on `edge-dev` | ✅ done — Nov 18, 2026 12:48 AM EST | #1046 (edge-dev), #1058 (--text-only; second box 916-alien task PopDAM-TextEmbedWorker). 182,726/182,726 embedded. Refresh-on-edit proven only in preview rehearsal |
 | 5. Query side: embed typed words with the same text model | ✅ done — Nov 17, 2026 | #1042, #1047; +~210 ms typical (O2 accepted, #1037 comment) |
-| 6. Search function: add the text-meaning leg, demote picture-only matches | 🔄 shipped, mode OFF — Nov 18, 2026 3:50 AM EST | shared-db 20261204003632, 20261218084103; popdam3 #1051. Mode was on 3:40–3:50 AM; live searches then 503'd under HTS-worker DB load; switched off. Needs a quiet-DB scorecard before mode on |
-| 7. Word forms in the exact-word leg (frame / framed / frames) | 🔄 in progress | shared-db #6674 in merge queue at 4:42 AM EST Nov 18 |
-| 8. AFTER score, live proof, docs, close #1037 | ⬜ open | — |
+| 6. Search function: add the text-meaning leg, demote picture-only matches | ✅ live, mode ON — Nov 18, 2026 8:20 PM EST | shared-db 20261204003632, 20261218084103; popdam3 #1051, #1181, #1183 (min score 0.45, margin admin setting, now 0.0925). Speed: shared-db #6738 (word-form cost), 20261218230700 (filtered-search visibility pretest), spelling budget fix; UI keeps backend order #1185 |
+| 7. Word forms in the exact-word leg (frame / framed / frames) | ✅ live — Nov 18, 2026 10:41 AM EST | shared-db #6674, #6676, #6678, #6680; backfill 182,726 rows. Product-type rank: shared-db 20261222100000, 20261224120000 (#6792, #6813) |
+| 8. AFTER score, live proof, docs, close #1037 | 🔄 AFTER score done — Nov 19, 2026 4:54 AM EST | Run 44499851023: PopDAM 137/137, p95 2.0 s (BEFORE 128/137); set 2026-11-19-1037; Pooh alias shared-db 20261223100000. Left: live screenshots, alarm drill, 24 h drain, close |
 
 **A fresh session starts at Step 0.** Steps 1 and 2 need nothing from Step 0 and can run at the same time. Natural context cut points: after Step 2 (first shippable improvement), after Step 5 (all plumbing exists, nothing user-visible changed), after Step 8. Re-read the downstream steps before starting each phase.
 
