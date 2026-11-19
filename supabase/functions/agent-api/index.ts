@@ -1716,9 +1716,7 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
     current_path: currentPath,
     updated_at: new Date().toISOString(),
   };
-  const scanError = status === "failed"
-    ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined))
-    : reportedError;
+  const scanError = status === "failed" ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined)) : reportedError;
   if (scanError) progressValue.error = scanError;
   // Keep the first-seen time for this session so finished runs record a duration.
   let startedAt: string = progressValue.updated_at as string;
