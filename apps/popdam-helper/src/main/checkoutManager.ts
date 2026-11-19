@@ -26,6 +26,7 @@ import {
   redrive as apiRedrive,
 } from "./damClient";
 import { enqueue } from "./uploadQueue";
+import { makeUploadQueueItem } from "@shared/upload-job";
 import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
 import {
@@ -368,20 +369,7 @@ export async function checkin(checkoutId: string): Promise<void> {
     record.snapshotPath = snap.snapshotPath;
 
     // Enqueue async upload
-    enqueue({
-      checkoutId,
-      snapshotPath: snap.snapshotPath,
-      uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
-      synologyUrl: instructions.upload_instructions.synology_url,
-      synologyPort: instructions.upload_instructions.synology_port,
-      relativePath: instructions.upload_instructions.relative_path,
-      filename: instructions.upload_instructions.filename,
-      tempSuffix: instructions.upload_instructions.temp_suffix,
-      retryCount: 0,
-      addedAt: Date.now(),
-      sourceProvider: record.sourceProvider,
-      seafileObjId: record.seafileObjId,
-    });
+    enqueue(makeUploadQueueItem(record, snap.snapshotPath, instructions.upload_instructions, config.preferredProvider));
 
   } catch (e) {
     updateStatus(checkoutId, "active");
@@ -559,21 +547,7 @@ async function triggerRedrive(rec: CheckoutRecord): Promise<void> {
   try {
     const { upload_instructions: ui } = await apiRedrive(rec.id);
     const config = getConfig();
-    enqueue({
-      checkoutId: rec.id,
-      snapshotPath: rec.snapshotPath,
-      uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
-      synologyUrl: ui.synology_url,
-      synologyPort: ui.synology_port,
-      relativePath: ui.relative_path,
-      filename: ui.filename,
-      tempSuffix: ui.temp_suffix,
-      retryCount: 0,
-      addedAt: Date.now(),
-      sourceProvider: rec.sourceProvider,
-      seafileObjId: rec.seafileObjId,
-      isRedrive: true,
-    });
+    enqueue(makeUploadQueueItem(rec, rec.snapshotPath, ui, config.preferredProvider, true));
     log.info(`Re-driving check-in ${rec.id} (re-uploading snapshot)`);
   } catch (e) {
     log.warn(`Re-drive trigger failed for ${rec.id}:`, (e as Error).message);

@@ -159,6 +159,15 @@ export interface AuthState {
 
 // ─── Upload queue ─────────────────────────────────────────────────────────────
 
+export interface UploadInstructions {
+  method: string;
+  synology_url: string | null;
+  synology_port: string;
+  relative_path: string;
+  filename: string;
+  temp_suffix: string;
+}
+
 export interface UploadJob {
   checkoutId: string;
   snapshotPath: string;
