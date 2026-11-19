@@ -13,40 +13,12 @@ import {
   OP_NAMES as UI_NAMES,
 } from "@/components/settings/diagnostics/types";
 
-/**
- * Operation definitions are intentionally duplicated across the Railway worker,
- * the edge-function backend, and the admin UI. They must never disagree — a
- * split map means the UI lets a user start a job the worker will refuse (or
- * worse, one the worker will run concurrently with a conflicting job).
- */
+import {
+  OP_CONFLICTS as workerConflicts,
+  OP_LANES as workerLanes,
+} from "../../apps/worker/vendor/operation-policy.js";
+
 const workerSource = readFileSync("apps/worker/src/operation-loop.ts", "utf8").replace(/\r\n/g, "\n");
-
-function parseWorkerMap(header: string): Record<string, string[] | string> {
-  const start = workerSource.indexOf(header);
-  expect(start, `${header} must exist in the worker`).toBeGreaterThan(-1);
-  const body = workerSource.slice(start + header.length);
-  const source = body.slice(0, body.indexOf("\n};"));
-  const entries: Record<string, string[] | string> = {};
-
-  // Arrays may be written on one line or reflowed across several by a formatter,
-  // so match across newlines rather than line by line. A line-based parser would
-  // silently skip a reflowed entry and report agreement that was never checked.
-  for (const match of source.matchAll(/"([^"]+)":\s*\[([\s\S]*?)\]/g)) {
-    entries[match[1]] = match[2]
-      .split(",")
-      .map((value) => value.trim().replace(/^"|"$/g, ""))
-      .filter(Boolean);
-  }
-  for (const match of source.matchAll(/"([^"]+)":\s*"([^"]+)"/g)) {
-    if (!(match[1] in entries)) entries[match[1]] = match[2];
-  }
-  return entries;
-}
-
-const workerLanes = parseWorkerMap("const OP_LANES: Record<string, string> = {") as Record<string, string>;
-const workerConflicts = parseWorkerMap(
-  "const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {",
-) as Record<string, string[]>;
 
 describe("operation registry symmetry", () => {
   it("every conflict entry is symmetric in all three registries", () => {
@@ -71,7 +43,7 @@ describe("operation registry symmetry", () => {
     }
   });
 
-  it("the worker agrees with the backend on every operation it dispatches", () => {
+  it("the packaged shared maps agree with the backend", () => {
     for (const key of Object.keys(workerLanes)) {
       if (!(key in BACKEND_LANES)) continue;
       expect(workerLanes[key], `worker lane drift for ${key}`).toBe(BACKEND_LANES[key]);
