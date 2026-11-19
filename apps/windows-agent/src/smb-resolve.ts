@@ -80,8 +80,12 @@ export function matchMangledFile(
   if (!ext) return null;
   const hits = listed.filter((n) => {
     if (!isMangledName(n) || win.extname(n).toLowerCase() !== ext) return false;
-    const st = statOf(n);
-    return st.size === expected.size && Math.abs(st.mtimeMs - expected.mtimeMs) <= 2000;
+    try {
+      const st = statOf(n);
+      return st.size === expected.size && Math.abs(st.mtimeMs - expected.mtimeMs) <= 2000;
+    } catch {
+      return false;
+    }
   });
   return hits.length === 1 ? hits[0] : null;
 }
@@ -114,8 +118,11 @@ const realFs: SmbFs = {
   },
 };
 
-/** Upper bound on mangled folder candidates probed for one segment. */
-const MAX_MANGLED_DIR_CANDIDATES = 64;
+/** Shared across the entire lookup, including nested folder guesses. */
+const MAX_MANGLED_DIR_PROBES = 64;
+
+/** Require an 8.3-shaped alias before guessing an intermediate folder. */
+const MANGLED_DIR_NAME = /^(?=[a-z0-9~]{3,8}(?:\.|$))[a-z0-9]+~(?:[a-z0-9]|[0-9]+)(?:\.[a-z0-9]{1,3})?$/i;
 
 /**
  * Resolve `segments[i..]` under `cur`. Returns the full listed path, or null.
@@ -125,12 +132,19 @@ const MAX_MANGLED_DIR_CANDIDATES = 64;
  * each mangled folder is probed: it is accepted only when exactly one of them
  * contains the rest of the path.
  */
-function resolveFrom(fs: SmbFs, cur: string, segments: string[], i: number, expected?: ExpectedFile): string | null {
+function resolveFrom(
+  fs: SmbFs,
+  cur: string,
+  segments: string[],
+  i: number,
+  budget: { remaining: number },
+  expected?: ExpectedFile,
+): string | null {
   if (i === segments.length) return cur;
   const seg = segments[i];
   const last = i === segments.length - 1;
   const direct = win.join(cur, seg);
-  if (fs.exists(direct)) return resolveFrom(fs, direct, segments, i + 1, expected);
+  if (fs.exists(direct)) return resolveFrom(fs, direct, segments, i + 1, budget, expected);
   let listed: string[];
   try {
     listed = fs.list(cur);
@@ -138,25 +152,30 @@ function resolveFrom(fs: SmbFs, cur: string, segments: string[], i: number, expe
     return null;
   }
   const named = matchSmbName(seg, listed);
-  if (named) return resolveFrom(fs, win.join(cur, named), segments, i + 1, expected);
+  if (named) return resolveFrom(fs, win.join(cur, named), segments, i + 1, budget, expected);
   if (last) {
     if (!expected) return null;
     const m = matchMangledFile(seg, listed, (n) => fs.stat(win.join(cur, n)), expected);
     return m ? win.join(cur, m) : null;
   }
-  const dirs = listed.filter((n) => {
-    if (!isMangledName(n)) return false;
+  let hit: string | null = null;
+  for (const name of listed) {
+    if (!MANGLED_DIR_NAME.test(name)) continue;
+    if (--budget.remaining < 0) return null;
+    const candidate = win.join(cur, name);
+    let resolved: string | null;
     try {
-      return fs.stat(win.join(cur, n)).isDirectory;
+      if (!fs.stat(candidate).isDirectory) continue;
+      resolved = resolveFrom(fs, candidate, segments, i + 1, budget, expected);
     } catch {
-      return false;
+      continue;
     }
-  });
-  if (dirs.length === 0 || dirs.length > MAX_MANGLED_DIR_CANDIDATES) return null;
-  const hits = dirs
-    .map((d) => resolveFrom(fs, win.join(cur, d), segments, i + 1, expected))
-    .filter((r): r is string => r !== null);
-  return hits.length === 1 ? hits[0] : null;
+    if (budget.remaining < 0) return null;
+    if (!resolved) continue;
+    if (hit) return null;
+    hit = resolved;
+  }
+  return hit;
 }
 
 /**
@@ -167,5 +186,5 @@ export function resolveExistingSmbPath(windowsPath: string, expected?: ExpectedF
   if (fs.exists(windowsPath)) return windowsPath;
   const split = splitSmbRoot(windowsPath);
   if (!split) return windowsPath;
-  return resolveFrom(fs, split.root, split.segments, 0, expected) ?? windowsPath;
+  return resolveFrom(fs, split.root, split.segments, 0, { remaining: MAX_MANGLED_DIR_PROBES }, expected) ?? windowsPath;
 }

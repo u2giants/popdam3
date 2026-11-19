@@ -75,6 +75,14 @@ describe("matchMangledFile", () => {
   it("ignores long names that are not mangled", () => {
     assert.equal(matchMangledFile("a.ai", ["normal.ai"], () => exp, exp), null);
   });
+
+  it("skips a disappearing file candidate and checks the next one", () => {
+    const stat = (name: string) => {
+      if (name === "59PKMD~9.AI") throw new Error("ENOENT");
+      return statOf(name);
+    };
+    assert.equal(matchMangledFile("a.ai", ["59PKMD~9.AI", "4TQCYS~A.AI"], stat, exp), "4TQCYS~A.AI");
+  });
 });
 
 describe("longPath", () => {
@@ -133,5 +141,46 @@ describe("resolveExistingSmbPath with mangled folders", () => {
   it("returns the input unchanged when no mangled folder holds the file", () => {
     const missing = "Z:\\E\\12\uF022\\NOPE\\x.jpg";
     assert.equal(resolveExistingSmbPath(missing, exp, fs), missing);
+  });
+
+  it("ignores ordinary tilde folders even when they contain the requested suffix", () => {
+    for (const name of ["my~notes", "~tmp"]) {
+      const candidate = `Z:\\E\\${name}\\PQK`;
+      const fixture: SmbFs = {
+        ...fs,
+        list: () => [name],
+        stat: () => ({ size: 0, mtimeMs: 0, isDirectory: true }),
+        exists: (p) => p === "Z:\\E" || p === candidate || p === candidate + "\\PQK mockup.jpg",
+      };
+      assert.equal(resolveExistingSmbPath(wanted, exp, fixture), wanted);
+    }
+  });
+
+  it("continues to a sibling when probing a guessed folder throws", () => {
+    const fixture: SmbFs = {
+      ...fs,
+      exists: (p) => {
+        if (p.startsWith("Z:\\E\\1736GU~Y\\")) throw new Error("EACCES");
+        return fs.exists(p);
+      },
+    };
+    assert.equal(resolveExistingSmbPath(wanted, exp, fixture), "Z:\\E\\17N5OA~K\\PQK\\PQK mockup.jpg");
+  });
+
+  it("returns the original path when nested guesses exhaust the shared budget after a match", () => {
+    const aliases = Array.from({ length: 8 }, (_, i) => `FOLDER~${i}`);
+    const file = "Z:\\E\\FOLDER~0\\FOLDER~0\\x.jpg";
+    const requested = 'Z:\\E\\12"\\14"\\x.jpg';
+    let probes = 0;
+    const fixture: SmbFs = {
+      exists: (p) => p === "Z:\\E" || p === file,
+      list: (p) => p.split("\\").length <= 3 ? aliases : [],
+      stat: () => {
+        probes++;
+        return { size: 0, mtimeMs: 0, isDirectory: true };
+      },
+    };
+    assert.equal(resolveExistingSmbPath(requested, exp, fixture), requested);
+    assert.equal(probes, 64);
   });
 });
