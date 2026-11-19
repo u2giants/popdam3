@@ -14,7 +14,7 @@ export { err, json, serviceClient };
 
 // ── Input validation helpers ────────────────────────────────────────
 
-export { requireString, optionalString } from "./validators.ts";
+export { optionalString, requireString } from "./validators.ts";
 
 // ── Transient error detection + retry ───────────────────────────────
 
