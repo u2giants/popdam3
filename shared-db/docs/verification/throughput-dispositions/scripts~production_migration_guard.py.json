@@ -325,6 +325,22 @@
       "line_sha256": "fdfe78f561e0970adf88cd6513c2463bfaeb4c96eaa4503d6591df4dd2959876",
       "disposition": "excluded",
       "reason": "HARD_BLOCKED comment text for retired #6301 version 20261113203604 (TOAST false positive): prose, not a call site that infers missing objects."
+    },
+    {
+      "site": "scripts/production_migration_guard.py:492",
+      "semantic_key": "scripts/production_migration_guard.py:daf7148cb631edfdb9ef4faaa1f104e236358f7f432218707c0431ad9276f526:context-6f47129f9de5ecd8b957e80cb1987f1ae237b708518534dfb135f9ce5dca4811",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:daf7148cb631edfdb9ef4faaa1f104e236358f7f432218707c0431ad9276f526:1",
+      "line_sha256": "daf7148cb631edfdb9ef4faaa1f104e236358f7f432218707c0431ad9276f526",
+      "disposition": "excluded",
+      "reason": "Static explanation for retired version 20261225010104, shown only after the version is blocked. This text does not classify absent dependencies or alter the block."
+    },
+    {
+      "site": "scripts/production_migration_guard.py:473",
+      "semantic_key": "scripts/production_migration_guard.py:f78200f7b7d3bdf59388dd86e2f8f4542e161e9538a81e52cc2186c356344709:context-302ee3ed8c59cc2179a529943e65be9ba28ecc9fb4dc09c47d276ac341f3f0bd",
+      "legacy_semantic_key": "scripts/production_migration_guard.py:f78200f7b7d3bdf59388dd86e2f8f4542e161e9538a81e52cc2186c356344709:1",
+      "line_sha256": "f78200f7b7d3bdf59388dd86e2f8f4542e161e9538a81e52cc2186c356344709",
+      "disposition": "excluded",
+      "reason": "Comment explaining the retired CRM contact migration and its preview history. It cannot classify a missing object or affect the migration guard."
     }
   ]
 }
