@@ -16,7 +16,7 @@ read-when: "implementing cleanup 01 on job scheduling across popdam and popsg"
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | All static maps match the baseline. UI blocks both indexing orders, the edge admission route preserves its cross-lane-only guard, and the worker promotes or resumes both orders independently. 539 worker tests, frontend policy tests and isolated worker build passed. Full admin Deno check has a reproduced baseline error. |
 | 3. Verify and land | ✅ merged | [#1209](https://github.com/u2giants/popdam3/pull/1209) at `80df3318`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | UI, edge and Railway released. Railway heartbeat at 1:47 PM EST reported descendant 612da3ee. Both indexing orders and start/resume decisions passed offline; there was no current overlap to observe live. **Next** — Codex PopDAM release owner must capture a natural or bounded authorized indexing pair and both recorded decisions. |
+| 4. Accept in use | ⬜ live proof open | The installed worker promoted and automatically resumed the controlled PopSG coverage job. It completed at 2:47 PM EST with zero claims. The PopDAM report had 242 pending images and may repeat its full status query up to 50 times per turn while backlog remains. **Next** — Codex release owner should use a zero-backlog window to verify both start orders and both resume decisions. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized implementation and release of this item. See #1200 for release and live evidence.
 

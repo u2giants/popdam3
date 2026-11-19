@@ -16,7 +16,7 @@ read-when: "implementing cleanup 03 on check-in file fingerprints"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Old receipts hash both samples over the overlap range and use V1. |
 | 2. Make the scoped change | ✅ implemented | Six file sizes match legacy hashes in built Helper and isolated Bridge image; missing files and injected read failures match. Helper typecheck/build and 95 Bridge tests passed. |
 | 3. Verify and land | ✅ merged | [#1218](https://github.com/u2giants/popdam3/pull/1218) at `afc06d55`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Helper Windows/macOS packages published in run 44589511025. NAS bridge reported 1.16.33 at the exact merged build by 1:47 PM EST. Six legacy V1 hashes matched in the packaged builds offline. **Next** — Codex PopDAM release owner must run a dedicated native Helper check-in on each supported platform, including an old-client receipt, then inspect the installed Bridge verification. |
+| 4. Accept in use | ⬜ live proof open | Two Windows 11 development workstations respond. A Mac arm64 1.4.18 package passed [native diagnostics](https://github.com/u2giants/popdam3/actions/runs/44602512605). No controlled Mac desktop or reversible grouped Seafile record was available. **Next** — Codex desktop QA owner should reserve a Mac with Finder and Seafile plus disposable artwork and verify an old-client and both current check-in receipts against the installed NAS bridge. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

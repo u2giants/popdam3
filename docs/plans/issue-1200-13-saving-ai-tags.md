@@ -16,7 +16,7 @@ read-when: "implementing cleanup 13 on saving ai tags"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both writes already use the same saver; normal failure details and parallel redaction differ. |
 | 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed; apply is called once per attempt and retains both mode-specific error paths. |
 | 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Production worker reported 612da3ee fresh at 1:47 PM EST. Exact mode-specific save paths and installed build are verified. No fresh suitable saved tag outcome in both normal and parallel mode was observed. **Next** — Codex worker release owner must follow ordinary normal and parallel tagging receipts through the installed save path and verify success plus redacted failure evidence. |
+| 4. Accept in use | ⬜ live proof open | No fresh supported normal and parallel saved outcomes were available. The production parallel settings are shared with library-wide tagging. **Next** — Codex worker release owner should obtain two synthetic fixtures with exact cleanup and an isolated scheduler, or observe the next ordinary normal and parallel save plus redacted failure. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

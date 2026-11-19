@@ -16,7 +16,7 @@ read-when: "implementing cleanup 07 on artwork tagging controls"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both panels use the original persisted tagging payload and retain panel-specific invalidations and the completed receipt. |
 | 2. Make the scoped change | ✅ implemented | Two commits separate single-artwork tagging and scoped edits. Typecheck and frontend build passed. Both call paths retain their selected asset and preserve their own invalidations. |
 | 3. Verify and land | ✅ merged | [#1219](https://github.com/u2giants/popdam3/pull/1219) at `35a766ed`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Both detail panels opened on the released frontend. Actual extracted tagging hooks passed eight controlled cases and the waiter suite passed seven, including unmount cancellation. **Next** — Codex PopDAM QA owner must reserve a controlled artwork record and confirm the actual pending and completed receipt plus asset and group tag scope without clearing it. |
+| 4. Accept in use | ⬜ live proof open | Both released detail panels and exact single-asset scope are verified. No disposable grouped artwork was present. Historical QA folders belong to another issue, and the available cleanup would touch other assets. **Next** — Codex QA owner should reserve two synthetic grouped records with an exact intake and rollback, then verify file/group scope and retained completion receipts. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

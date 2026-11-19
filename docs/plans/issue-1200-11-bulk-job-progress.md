@@ -16,7 +16,7 @@ read-when: "implementing cleanup 11 on bulk-job progress"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Reducer and result-message bodies are preserved byte for byte, including selected values and accounting. |
 | 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed. Direct fixtures covered unknown operations, aliases, zero and omitted counts, 100/200 sample caps and exact versus inherited rebuild counters. |
 | 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Production worker reported 612da3ee fresh at 1:47 PM EST. Exact formatting, alias, zero/omitted and sample cap comparisons passed offline. No fresh two-operation progress trace was observed. **Next** — Codex worker release owner must capture progress and terminal receipts for two normal post-release operations and compare them to the replay. |
+| 4. Accept in use | ✅ verified | The released worker completed the controlled PopSG coverage job at 2:47 PM EST with zero claimed and failed and its saved completion message. It completed the controlled two-row ERP dry run at 2:50 PM EST, saving zero asset and group updates and the expected terminal message. Both showed queued-to-running handling. Earlier replay verified the exact sample caps. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

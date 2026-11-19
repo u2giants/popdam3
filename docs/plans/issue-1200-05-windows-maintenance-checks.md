@@ -16,7 +16,7 @@ read-when: "implementing cleanup 05 on windows maintenance checks"
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | Existing TIFF and hygiene polling delays, readiness checks and lease accounting were preserved. The Windows suite passed 171 tests. An existing native launcher test requires Windows. 131,072 before/after comparisons matched. Windows package and installed maintenance proof are pending. |
 | 3. Verify and land | ✅ merged | [#1207](https://github.com/u2giants/popdam3/pull/1207) at `cdc1c343`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | Windows release 0.17.0.217 published in run 44586365409. The installed agent later reported descendant 0.17.0.218 at afc06d55 in a fresh heartbeat, with the original four policies covered by 131,072 local comparisons. **Next** — Codex Windows release owner must observe the next scheduled maintenance lease, demonstrate zero overlapping claims and resume on the installed release. |
+| 4. Accept in use | ⬜ live proof open | The installed Windows host responded. Its maintenance task is on demand only and the idle receipt was absent. **Next** — Codex Windows release owner should observe the next authorized controller maintenance window, correlate the trusted zero-work receipt with the claim history, and confirm work resumes after the lease. See the [tracking issue](https://github.com/u2giants/popdam3/issues/1200) for receipts. |
 
 Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 
