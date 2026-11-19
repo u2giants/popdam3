@@ -69,6 +69,7 @@ GPU-proven backfill script.
 | File | Purpose |
 |------|---------|
 | `image_embed_poller.py` | The service (ported reference + query lane) |
+| `text_embedder.py` | Lazy document text model used by the poller |
 | `config.py` | Poller-side tunable defaults (plan Muse 18) |
 | `requirements.txt` | Pinned to the proven edge-dev environment |
 | `tests/test_image_embed_poller.py` | Border-crop, upload-reject, search and text-lane tests (no GPU needed) |

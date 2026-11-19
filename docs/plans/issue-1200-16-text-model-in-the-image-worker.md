@@ -13,12 +13,12 @@ read-when: "implementing cleanup 16 on text model in the image worker"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. The existing module import, model stamp, dtype and unprefixed document processing are preserved. |
+| 2. Make the scoped change | ✅ implemented | 49 tests passed against documented pins, including empty input, lazy load, idle reload, model stamp and padded document arrays. Clock fixture made the existing cooldown check deterministic. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 
