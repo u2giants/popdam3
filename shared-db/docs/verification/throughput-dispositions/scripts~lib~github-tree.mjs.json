@@ -4,7 +4,7 @@
   "sites": [
     {
       "site": "scripts/lib/github-tree.mjs:9",
-      "semantic_key": "scripts/lib/github-tree.mjs:d42caab78e23b72a16ebeb2b7e70c15a150772c05bf47eabc5cc7a6df6fe078c:context-725a0462ef6665898c7133226a4088dc25545d98d8c2bde00158d38ade074abf",
+      "semantic_key": "scripts/lib/github-tree.mjs:d42caab78e23b72a16ebeb2b7e70c15a150772c05bf47eabc5cc7a6df6fe078c:context-6b2e9fde1f5d827b3491b9cd4149c9a6c6e742e0487e58614dedf867aef089f6",
       "line_sha256": "d42caab78e23b72a16ebeb2b7e70c15a150772c05bf47eabc5cc7a6df6fe078c",
       "disposition": "excluded",
       "reason": "This is an explanatory fail-closed design comment, not a catalog or migration evidence decision.",
