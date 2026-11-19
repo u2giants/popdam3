@@ -28,13 +28,17 @@ jobs:
             for ($attempt = 0; $attempt -lt 12; $attempt++) {
               foreach ($window in $shell.Windows()) {
                 if ($window.FullName -like '*\explorer.exe' -and $window.LocationURL -like 'file:*') {
-                  if (([uri]$window.LocationURL).LocalPath.TrimEnd('\') -ieq $Target.TrimEnd('\')) {
+                  $shellPath = $window.Document.Folder.Self.Path
+                  if ($shellPath -and $shellPath.TrimEnd('\') -ieq $Target.TrimEnd('\')) {
                     Write-Host "Explorer opened the exact fixture: $Target"
                     return
                   }
                 }
               }
               Start-Sleep -Seconds 1
+            }
+            foreach ($window in $shell.Windows()) {
+              Write-Host "Observed Explorer path: $($window.Document.Folder.Self.Path); URL: $($window.LocationURL)"
             }
             throw "Explorer did not open the test folder: $Target"
           }
@@ -80,8 +84,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Registry installation failed' }
             $registeredCommand = (Get-Item -LiteralPath "$registration\shell\open\command").GetValue('')
             if ($registeredCommand -cne ('"{0}\System32\wscript.exe" "C:\PopDAM\popdam-open.js" "%1"' -f $env:SystemRoot)) { throw 'Registry did not install the expected native receiver' }
-            Start-Process (New-PopDamUri $registered)
-            Assert-ExplorerTarget $registered
+            $standard = Join-Path $scratch 'Registered folder (spaces)'
+            New-Item -ItemType Directory -Path $standard | Out-Null
+            Start-Process (New-PopDamUri $standard)
+            Assert-ExplorerTarget $standard
             Start-Process (New-PopDamUri $file)
             Assert-ExplorerTarget $parent
             Remove-Item -LiteralPath $registration -Recurse -Force
@@ -96,6 +102,8 @@ jobs:
             New-Item -ItemType Directory -Path $pageTarget | Out-Null
             Start-Process (New-PopDamUri $pageTarget)
             Assert-ExplorerTarget $pageTarget
+            Start-Process (New-PopDamUri $registered)
+            Assert-ExplorerTarget $registered
           } finally {
             if (Test-Path -LiteralPath $registration) { Remove-Item -LiteralPath $registration -Recurse -Force }
             if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Recurse -Force }
