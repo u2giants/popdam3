@@ -11,8 +11,7 @@ Supersedes v13 (commit 157a1572). Amends step 2d: the console/rescue requirement
 
 ## STATUS
 Restore-source 1Password item names for NAS credentials: see the rotation table
-in `fix_admin_config_secret_rotation.md` (pointer carried from the retired
-2026-10-14 handoff, 2026-10-27).
+in the [historical rotation tracking note](https://github.com/u2giants/popdam3/blob/d097a6a934ae171a14d7dd76bfd8a496320e6fac/fix_admin_config_secret_rotation.md#the-8-credentials-to-rotate-assume-compromised) (pointer carried from the retired October 14, 2026 handoff).
 Not executed. v14 final-check requested on the plan commit; step 2d proven read-only (see #179). No host, vault, or NAS change has happened.
 
 ## Scope

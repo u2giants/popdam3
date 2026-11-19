@@ -1,5 +1,5 @@
 ---
-summary: Always-on HTTP service embedding typed search words with the SigLIP2 text tower (768 numbers, picture search) and Qwen3-Embedding-0.6B (1024 numbers, text-meaning search, #1037).
+summary: Text query embeddings for PopDAM picture search (SigLIP2) and description matching (Qwen3).
 kind: living
 status: current
 read-when: changing the text-embed query service
