@@ -79,11 +79,11 @@ import {
   AI_INHERITANCE_COLUMNS,
   inheritedAiFields,
   isRevivableRetirement,
-  provenSurvivingCopy,
   RETIRED_MISSING_MARKER,
   RETIRED_STALE_MARKER,
   staleRetirementRefusal,
 } from "../_shared/stale-asset-retirement.ts";
+import { findSurvivingCopy } from "../_shared/surviving-copy.ts";
 import { retireMissingInChunks } from "../_shared/retire-missing-chunks.ts";
 import { mergeCompatAuditFlagged } from "../_shared/compat-audit-preview-merge.ts";
 import { appendScanHistory, buildScanHistoryEntry, isExpiredSiblingScanRow, SCAN_HISTORY_KEY, TERMINAL_SCAN_STATUSES } from "../_shared/scan-history.ts";
@@ -1490,32 +1490,6 @@ async function handleListLiveAssetPaths(body: Record<string, unknown>) {
 
 const RETIRE_MISSING_MAX_BATCH = 100;
 const SURVIVOR_LOOKUP_CONCURRENCY = 8;
-
-/** Live record at another path holding the same file, or null when none does. */
-async function findSurvivingCopy(
-  db: ReturnType<typeof serviceClient>,
-  stale: { id: string; relative_path: string; filename: string | null; file_size: number | null; quick_hash: string | null },
-): Promise<{ id: string } | null> {
-  if (!stale.filename || !stale.file_size || !stale.quick_hash) return null;
-  const { data, error } = await db
-    .from("assets")
-    .select("id, filename, quick_hash, file_size, relative_path, is_deleted")
-    .eq("is_deleted", false)
-    .eq("filename", stale.filename)
-    .eq("file_size", stale.file_size)
-    .eq("quick_hash", stale.quick_hash)
-    .neq("id", stale.id)
-    .neq("relative_path", stale.relative_path)
-    .limit(2);
-  if (error) throw new Error(error.message);
-  return provenSurvivingCopy(
-    { ...stale, is_deleted: false },
-    (data ?? []) as Array<
-      { id: string; filename: string | null; quick_hash: string | null; file_size: number | null; relative_path: string; is_deleted: boolean | null }
-    >,
-    stale.relative_path,
-  );
-}
 
 async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const items = body.assets;
