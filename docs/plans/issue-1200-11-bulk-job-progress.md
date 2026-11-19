@@ -13,12 +13,12 @@ read-when: "implementing cleanup 11 on bulk-job progress"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. Reducer and result-message bodies are preserved byte for byte, including selected values and accounting. |
+| 2. Make the scoped change | ✅ implemented | 537 worker tests and build passed. Direct fixtures covered unknown operations, aliases, zero and omitted counts, 100/200 sample caps and exact versus inherited rebuild counters. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 
