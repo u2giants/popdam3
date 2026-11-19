@@ -1,14 +1,14 @@
 ---
-summary: Issue #714 plan: Replace the exposed DigitalOcean Spaces storage key. Read its STATUS first.
+summary: Issue #714 closeout: Storage credentials replaced, old credentials rejected, and new PopDAM and PopSG thumbnails verified.
 kind: plan
-status: open
-read-when: implementing or planning issue work for issue-714
+status: done
+read-when: reviewing the completed Spaces rotation and its production proof
 ---
 
 # Plan: Replace the exposed DigitalOcean Spaces storage key (u2giants/popdam3#714)
 Issue: https://github.com/u2giants/popdam3/issues/714
 Handoff: [HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md](../../HANDOFF.d/2026-11-04T2145Z-hetz-claude-issue-plans.md)
-Written 2026-11-04 by Claude (plan only; no implementation started).
+Originally written November 4, 2026. Production closeout verified November 19, 2026.
 
 ## STATUS
 
@@ -19,13 +19,13 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 | 2 | Verify the corrected Spaces credential | ✅ done | Signed requests succeeded from two network routes. The verified access key ID differed from the live ID. |
 | 3 | Verify the replacement in the existing 1Password item | ✅ done | The saved pair was verified privately before and after the cutover. |
 | 4 | Apply the replacement through PopDAM Settings | ✅ done | November 18, 2026, 1:07:16 PM EST. The access key ID and secret were updated together and matched 1Password. |
-| 5 | Verify consumer pickup | 🔄 partial | The bridge and Windows agents reloaded their storage credentials after the save. The worker and edge cleanup read live configuration. |
-| 6 | Verify upload and delete | 🔄 partial | A disposable object was uploaded, read, deleted and verified absent. A fresh thumbnail from the ordinary application workflow remains open on #714. |
+| 5 | Verify consumer pickup | ✅ done | Bridge and Windows agents reloaded the credentials. The worker and edge cleanup read the live setting, and their separate runtime configuration contained no stored Spaces credential names. |
+| 6 | Verify upload and delete | ✅ done | Disposable write, readback, removal and absence verified November 18. On November 19 at 12:02 PM EST, storage returned 200 for 11 newly written PopDAM thumbnails and one PopSG thumbnail. A signed-in PopDAM viewer also decoded one newly written thumbnail through the app. |
 | 7 | Verify that Spaces rejects the exposed credential | ✅ done | Spaces rejected the exposed pair before and after the cutover. No provider deletion was needed. |
-| 8 | Retire the old rotation tracking note and correct the storage documentation | ⬜ open | After the live checks pass. |
-| 9 | Close #714 (and the DO row of #213 if still open) with evidence | ⬜ open | |
+| 8 | Retire the old rotation tracking note and correct the storage documentation | ✅ done | [Infrastructure correction](https://github.com/u2giants/popdam3/pull/1107) and the tracking-note retirement accompanying this STATUS. |
+| 9 | Close the storage rotation tracker | ✅ done | [Production receipt](https://github.com/u2giants/popdam3/issues/714#issuecomment-6987278909). #714 and #213 are closed. |
 
-Where a fresh session starts: **Step 6.** The replacement is live and both agents reloaded it. Verify a fresh thumbnail through the ordinary application workflow before retiring the tracking note and closing #714.
+The rotation is complete. The fresh ordinary thumbnail checks supplemented the signed storage and credential-reload proofs recorded on #714.
 
 ---
 
@@ -71,7 +71,7 @@ Nothing in code needs to change for the rotation itself. Every consumer reads th
 
 The worker and edge cleanup code use `admin_config` as their runtime credential source. The older handoff described separate worker and edge secrets. The current design is documented in [Infrastructure](../INFRASTRUCTURE.md#digitalocean-spaces-thumbnail-storage).
 
-Related file state: `fix_admin_config_secret_rotation.md` (repo root) is the July handoff; PR #713 (merged Nov 4, 5:12 PM EST) updated its status line to say only the DO pair remains. Deleting the file belongs to this plan's step 8, after rotation.
+The July tracking note was retired after fresh thumbnail verification. Its [historical version](https://github.com/u2giants/popdam3/blob/d097a6a934ae171a14d7dd76bfd8a496320e6fac/fix_admin_config_secret_rotation.md) preserves the original incident and recovery references.
 
 ## 6. Key findings and root cause
 
@@ -170,7 +170,7 @@ Done when the new secret is stored in 1Password and applied to PopDAM, thumbnail
 
 Risks: a bad or stale secret can stop thumbnail uploads. Confirm the replacement works before saving it and verify pickup by each consumer.
 
-Open: verify a fresh thumbnail through the ordinary workflow and complete the documentation closeout.
+Open: none.
 
 ## Self-audit
 

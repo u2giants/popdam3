@@ -8,7 +8,7 @@ read-when: implementing or planning issue work for issue-1037, or changing how t
 # Plan: typed search by meaning — descriptions and folders, named characters, picture guesses demoted (u2giants/popdam3#1037)
 
 Issue: https://github.com/u2giants/popdam3/issues/1037
-Handoff: [HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md](../../HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md)
+Current handoff: [Typed search acceptance](../../HANDOFF.d/2026-11-19T1747Z-hetz-codex-typed-search-acceptance.md). The [prior handoff](../../HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md) covers the initial rollout.
 Parent plan: [plan_vector_consolidation.md](../../plan_vector_consolidation.md) (its STATUS and "Reconciliation" section still govern the embedding worker, alarms and the scorecard; this plan adds one new leg to search and wins only where it says so).
 Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-search-investigation-8d17ef`). Investigation and planning only: **no code, database or configuration was changed.**
 
@@ -24,9 +24,9 @@ Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-se
 | 5. Query side: embed typed words with the same text model | ✅ done — Nov 17, 2026 | #1042, #1047; +~210 ms typical (O2 accepted, #1037 comment) |
 | 6. Search function: add the text-meaning leg, demote picture-only matches | ✅ live, mode ON — Nov 18, 2026 8:20 PM EST | shared-db 20261204003632, 20261218084103; popdam3 #1051, #1181, #1183 (min score 0.45, margin admin setting, now 0.0925). Speed: shared-db #6738 (word-form cost), 20261218230700 (filtered-search visibility pretest), spelling budget fix; UI keeps backend order #1185 |
 | 7. Word forms in the exact-word leg (frame / framed / frames) | ✅ live — Nov 18, 2026 10:41 AM EST | shared-db #6674, #6676, #6678, #6680; backfill 182,726 rows. Product-type rank: shared-db 20261222100000, 20261224120000 (#6792, #6813) |
-| 8. AFTER score, live proof, docs, close #1037 | 🔄 AFTER score done — Nov 19, 2026 4:54 AM EST | Run 44499851023: PopDAM 137/137, p95 2.0 s (BEFORE 128/137); set 2026-11-19-1037; Pooh alias shared-db 20261223100000. Left: live screenshots, alarm drill, 24 h drain, close |
+| 8. AFTER score, live proof, docs, close #1037 | 🔄 acceptance open — November 19, 2026 | [AFTER score](https://github.com/u2giants/popdam3/actions/runs/44499851023): 137/137, p95 2.0 s. [Viewer result](https://github.com/u2giants/popdam3/issues/1037#issuecomment-7005745339): frame case passes, clock case includes unexpected results. [Alarm drill](https://github.com/u2giants/popdam3/issues/1037#issuecomment-7008861370) passed. Remaining: reconcile clock case, prove 24-hour unattended drain, and close. |
 
-**A fresh session starts at Step 0.** Steps 1 and 2 need nothing from Step 0 and can run at the same time. Natural context cut points: after Step 2 (first shippable improvement), after Step 5 (all plumbing exists, nothing user-visible changed), after Step 8. Re-read the downstream steps before starting each phase.
+**Start at Step 8.** The meaning leg is live. Validate the two disputed must-find labels against the asset evidence before changing the scorecard or the search rule. Continue from the current handoff.
 
 ---
 
@@ -299,9 +299,11 @@ shared-db change to `public.search_dam_documents` (new optional parameters, so t
 **Done when all are true**
 
 - [ ] Steps 0–8 gates met and STATUS rows cite run ids, commit SHAs or commands.
-- [ ] `marie frame` on production: all 9 framed Marie products in the first results, no product without the character, lap desk and planter below every framed product (screenshots on #1037).
-- [ ] New scorecard cases pass; original 119 pass; p95 under 3 seconds.
-- [ ] Text lane drains unattended for 24 hours and the canary alarms when it is stopped (drill outside business hours).
+- [x] Viewer frame case passed on production on November 19. All seven verified framed results ranked first and every result matched the character. [Viewer receipt](https://github.com/u2giants/popdam3/issues/1037#issuecomment-7005745339)
+- [ ] The viewer clock case agrees with the confirmed business labels. Two current must-find results conflict with ordinary expected relevance. [Diagnosis](https://github.com/u2giants/popdam3/issues/1037#issuecomment-7006078524)
+- [x] The November 19 scorecard passed all 137 cases at p95 2.0 seconds. A changed label set or implementation needs a fresh run.
+- [x] The text-lane canary opened and cleared its alert after a controlled outage and recovery. [Alarm receipt](https://github.com/u2giants/popdam3/issues/1037#issuecomment-7008861370)
+- [ ] Text lane drains unattended for a continuous 24 hours.
 - [ ] Code merged, CI green, deployed commit verified, docs updated, this plan's STATUS final, handoff file deleted, #1037 closed with live proof.
 
 **Risks and rollback**
