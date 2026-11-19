@@ -3,7 +3,7 @@
 :: Registers the popdam:// URI scheme so "Open Folder" works from the web app.
 ::
 :: Usage: Double-click to run (or right-click → Run as Administrator)
-:: Uses REG ADD commands — no .reg import, no .ps1, no Smart App Control issues.
+:: Uses REG ADD to register the current user.
 
 echo.
 echo === PopDAM Protocol Handler Installer ===
@@ -17,19 +17,19 @@ if not exist "C:\PopDAM" (
     echo [OK] C:\PopDAM\ already exists
 )
 
-:: 2. Check that popdam-open.bat is in place
-if not exist "C:\PopDAM\popdam-open.bat" (
+:: 2. Check that popdam-open.js is in place
+if not exist "C:\PopDAM\popdam-open.js" (
     echo.
-    echo [!] popdam-open.bat not found at C:\PopDAM\popdam-open.bat
+    echo [!] popdam-open.js not found at C:\PopDAM\popdam-open.js
     echo     Download it from PopDAM and place it in C:\PopDAM\
-    echo     The protocol handler will still be registered.
-    echo.
+    pause
+    exit /b 1
 )
 
 :: 3. Register the popdam:// protocol handler
 reg add "HKCU\Software\Classes\popdam" /ve /d "URL:PopDAM Protocol" /f >nul 2>&1
 reg add "HKCU\Software\Classes\popdam" /v "URL Protocol" /d "" /f >nul 2>&1
-reg add "HKCU\Software\Classes\popdam\shell\open\command" /ve /d "\"C:\PopDAM\popdam-open.bat\" \"%%1\"" /f >nul 2>&1
+reg add "HKCU\Software\Classes\popdam\shell\open\command" /ve /d "\"%SystemRoot%\System32\wscript.exe\" \"C:\PopDAM\popdam-open.js\" \"%%1\"" /f >nul 2>&1
 
 if %errorlevel% equ 0 (
     echo [OK] Protocol handler registered: popdam://

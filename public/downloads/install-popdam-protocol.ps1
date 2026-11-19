@@ -2,11 +2,12 @@
 # Registers the popdam:// URI scheme so "Open Folder" works from the web app.
 #
 # Usage: Right-click → "Run with PowerShell"  (or run from admin terminal)
-# No .reg import needed — bypasses Smart App Control restrictions.
+# Registers the handler for the current user.
 
 $ErrorActionPreference = "Stop"
 
-$batPath = "C:\PopDAM\popdam-open.bat"
+$scriptPath = "C:\PopDAM\popdam-open.js"
+$scriptHost = Join-Path $env:SystemRoot "System32\wscript.exe"
 $regRoot = "HKCU:\Software\Classes\popdam"
 
 Write-Host ""
@@ -21,16 +22,16 @@ if (!(Test-Path "C:\PopDAM")) {
     Write-Host "[OK] C:\PopDAM\ already exists" -ForegroundColor Green
 }
 
-# 2. Check that popdam-open.bat is in place
-if (!(Test-Path $batPath)) {
+# 2. Check that popdam-open.js is in place
+if (!(Test-Path $scriptPath)) {
     Write-Host ""
-    Write-Host "[!] popdam-open.bat not found at $batPath" -ForegroundColor Yellow
+    Write-Host "[!] popdam-open.js not found at $scriptPath" -ForegroundColor Yellow
     Write-Host "    Download it from PopDAM → Downloads and place it in C:\PopDAM\" -ForegroundColor Yellow
-    Write-Host "    The protocol handler will still be registered — just add the .bat file later." -ForegroundColor Yellow
-    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
 }
 
-# 3. Register the protocol via reg add (no .reg import = no Smart App Control block)
+# 3. Register the protocol in the current user profile
 try {
     # Create the protocol key
     if (!(Test-Path $regRoot)) {
@@ -44,10 +45,10 @@ try {
     if (!(Test-Path $cmdPath)) {
         New-Item -Path $cmdPath -Force | Out-Null
     }
-    Set-ItemProperty -Path $cmdPath -Name "(Default)" -Value "`"$batPath`" `"%1`""
+    Set-ItemProperty -Path $cmdPath -Name "(Default)" -Value "`"$scriptHost`" `"$scriptPath`" `"%1`""
 
     Write-Host "[OK] Protocol handler registered: popdam://" -ForegroundColor Green
-    Write-Host "     Command: `"$batPath`" `"%1`"" -ForegroundColor Gray
+    Write-Host "     Command: `"$scriptHost`" `"$scriptPath`" `"%1`"" -ForegroundColor Gray
 } catch {
     Write-Host "[ERROR] Failed to register protocol: $_" -ForegroundColor Red
     Write-Host "        Try running this script as Administrator." -ForegroundColor Yellow
