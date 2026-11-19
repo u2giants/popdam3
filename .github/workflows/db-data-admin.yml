@@ -221,7 +221,8 @@ jobs:
   #   1. workflow_dispatch from main, with inputs:
   #        project_ref  == qsllyeztdwjgirsysgai
   #        confirmation == launch-data-designflow-app
-  #   2. the checked-out GITHUB_SHA equals the current tip of origin/main
+  #   2. the checked-out GITHUB_SHA equals the current tip of origin/main, or the
+  #      tip descends from it with no change to DB Data Admin inputs
   #      (checked after checkout, before any exposure);
   #   3. a read-only Supabase evidence query proving the B8 + B9 migration
   #      batches are in the ledger, the Product Depth tables/functions exist,
@@ -286,18 +287,35 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Fail unless the checked-out SHA is the current tip of origin/main
+      - name: Fail unless the checked-out SHA is origin/main or content-equal to its tip
         run: |
           set -euo pipefail
           git fetch origin main
           tip="$(git rev-parse origin/main)"
           echo "origin/main tip: ${tip}"
           echo "GITHUB_SHA:      ${GITHUB_SHA}"
+          # main moves often (shared-db syncs, other merges) during the ~12 minutes of
+          # verify + container, so exact equality made production undeployable
+          # (runs 44423077012, 44423756892). The safety intent is "never deploy stale
+          # code": accept a non-tip SHA only when the tip descends from it AND nothing
+          # that feeds this app's image or deploy changed in between. These are the same
+          # paths that trigger this workflow on push.
+          inputs=(apps/db-data-admin scripts/db-data-admin .github/workflows/db-data-admin.yml)
           if [ "${GITHUB_SHA}" != "${tip}" ]; then
-            echo "::error::GITHUB_SHA (${GITHUB_SHA}) is not the current tip of origin/main (${tip}). Re-dispatch from the latest main commit."
-            exit 1
+            if ! git merge-base --is-ancestor "${GITHUB_SHA}" "${tip}"; then
+              echo "::error::GITHUB_SHA (${GITHUB_SHA}) is not an ancestor of origin/main (${tip}). Re-dispatch from the latest main commit."
+              exit 1
+            fi
+            if ! git diff --quiet "${GITHUB_SHA}" "${tip}" -- "${inputs[@]}"; then
+              echo "::error::origin/main (${tip}) changed DB Data Admin inputs since ${GITHUB_SHA}; this build is stale. Re-dispatch from the latest main commit."
+              git diff --stat "${GITHUB_SHA}" "${tip}" -- "${inputs[@]}"
+              exit 1
+            fi
+            echo "::notice::origin/main advanced to ${tip}, but no DB Data Admin input changed since ${GITHUB_SHA}; this build is current."
           fi
-          echo "ORIGIN_MAIN_SHA=${tip}" >> "$GITHUB_ENV"
+          # The readiness gate compares this to GITHUB_SHA: it records the tip-equivalent commit.
+          echo "ORIGIN_MAIN_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "ORIGIN_MAIN_TIP=${tip}" >> "$GITHUB_ENV"
 
       - name: Gather read-only Supabase evidence (production, read_only query)
         run: |
