@@ -47,12 +47,12 @@ import {
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
-import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
-import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
+import { ScopedTagSections } from "@/components/library/ScopedTagSections";
 import CheckoutBar from "@/components/library/CheckoutBar";
 import OlderCopiesSection from "@/components/library/OlderCopiesSection";
+import { useScopedTagMutation } from "@/hooks/useScopedTagMutation";
 import { useSingleAssetTagging } from "@/hooks/useSingleAssetTagging";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
@@ -335,30 +335,16 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   // ── Scoped metadata (Style Group facts + this file's own facts) ──
   // Group facts are read live through the governed contract; they are never
   // copied onto the asset, so nothing here can contaminate a sibling file.
-  const { call: adminApi } = useAdminApi();
   const { isAdmin } = useIsAdmin();
   const { data: effective, isLoading: effectiveLoading } = useEffectiveAssetTags(asset.id);
-  const [tagBusy, setTagBusy] = useState(false);
-
-  const handleTagAction: ScopedTagAction = async ({ scope, tag, action }) => {
-    setTagBusy(true);
-    try {
-      const payload: Record<string, unknown> = { scope, tag };
-      if (scope === "asset") payload.asset_id = asset.id;
-      else payload.style_group_id = effective?.styleGroupId ?? asset.style_group_id;
-
-      if (action === "add") await adminApi("add-scoped-tag", payload);
-      else if (action === "remove") await adminApi("remove-scoped-tag", payload);
-      else await adminApi("review-scoped-tag", { ...payload, decision: action });
-
-      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", asset.id] });
+  const { tagBusy, handleTagAction } = useScopedTagMutation({
+    assetId: asset.id,
+    styleGroupId: effective?.styleGroupId ?? asset.style_group_id,
+    onSuccess: (assetId) => {
+      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", assetId] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
-    } catch (e: unknown) {
-      toast.error("Could not update tags", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTagBusy(false);
-    }
-  };
+    },
+  });
 
   // ── Paths ─────────────────────────────────────────────────────
   const paths = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, getUserSyncRoot()) : null;

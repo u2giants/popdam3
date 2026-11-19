@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
-import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
+import { ScopedTagSections } from "@/components/library/ScopedTagSections";
 import { X, Copy, Check, Star, Loader2, ChevronLeft, ChevronRight, Sparkles, Clock, HardDrive, Tag, FileText, FolderOpen, Download, ClipboardList, Share2, Layers, Box } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import CheckoutBar from "@/components/library/CheckoutBar";
@@ -24,6 +24,7 @@ import { isLegacyErpItem } from "@/lib/canonical-erp-items";
 import { Constants } from "@/integrations/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useScopedTagMutation } from "@/hooks/useScopedTagMutation";
 import { useSingleAssetTagging } from "@/hooks/useSingleAssetTagging";
 import { CopyInlineButton, formatSize, formatDateValue, Lightbox, SectionLabel, RichProductDetails, DlRow, fileTypeTileClass } from "./style-group-detail/parts";
 import { FindAlternativeImages } from "./style-group-detail/FindAlternativeImages";
@@ -316,29 +317,15 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
   // panel used to mutate assets.tags directly, which bypassed provenance and
   // could silently overwrite a manual fact.
   const { data: effective, isLoading: effectiveLoading } = useEffectiveAssetTags(detailAsset?.id);
-  const [tagBusy, setTagBusy] = useState(false);
-
-  const handleTagAction: ScopedTagAction = async ({ scope, tag, action }) => {
-    if (!detailAsset) return;
-    setTagBusy(true);
-    try {
-      const payload: Record<string, unknown> = { scope, tag };
-      if (scope === "asset") payload.asset_id = detailAsset.id;
-      else payload.style_group_id = group.id;
-
-      if (action === "add") await adminApi("add-scoped-tag", payload);
-      else if (action === "remove") await adminApi("remove-scoped-tag", payload);
-      else await adminApi("review-scoped-tag", { ...payload, decision: action });
-
-      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", detailAsset.id] });
+  const { tagBusy, handleTagAction } = useScopedTagMutation({
+    assetId: detailAsset?.id,
+    styleGroupId: group.id,
+    onSuccess: (assetId) => {
+      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", assetId] });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
-    } catch (e: unknown) {
-      toast.error("Could not update tags", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTagBusy(false);
-    }
-  };
+    },
+  });
 
   // Refreshes the group's own shared facts and its search entry. It deliberately
   // does NOT copy tags between files any more — that is what made a technical
