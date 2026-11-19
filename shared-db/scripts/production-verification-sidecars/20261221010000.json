@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261221010000",
+  "migration_sha256": "f591cc7556ae526400849ceda92a8fb294e272a2e7038e1328a4f5536f10f9c5",
+  "checks": [
+    {
+      "id": "curated_alias_pooh",
+      "kind": "catalog_contract",
+      "contract": "curated_alias_pooh_v1",
+      "expected_count": 1
+    }
+  ]
+}
