@@ -19,7 +19,7 @@ vi.mock("@/lib/dam-search", async (original) => ({
   getSearchMode: mocks.mode,
 }));
 
-import { clearAssetRankedListCache, useAssets } from "@/hooks/useAssets";
+import { clearAssetRankedListCache, resetLibrarySearchCaches, useAssets } from "@/hooks/useAssets";
 import { clearStyleGroupRankedListCache, useStyleGroups } from "@/hooks/useStyleGroups";
 import { defaultFilters } from "@/types/assets";
 
@@ -146,6 +146,40 @@ describe("relevance-sorted asset pages", () => {
     expect(page5.assets).toEqual([]);
     expect(page5.totalCount).toBe(1);
     expect(requests.filter((r) => r.url.endsWith("/assets") && r.params.get("select") === "*")).toHaveLength(0);
+  });
+});
+
+describe("library refresh", () => {
+  it("drops the cached ranked lists so a refresh re-reads matches (#839)", async () => {
+    const { requests } = installClient({
+      assetFullText: [{ asset_id: "a1" }],
+      assetIds: [{ id: "a1" }],
+      assetRows: [{ id: "a1", filename: "only.psd" }],
+      groupFullText: [{ style_group_id: "g1" }],
+      groupIds: [{ id: "g1" }],
+      groupRows: [{ id: "g1", sku: "A", asset_count: 1 }],
+    });
+    const assetIdReads = () => requests.filter((r) => r.url.endsWith("/assets") && r.params.get("select") === "id");
+    const groupIdReads = () => requests.filter((r) => r.url.endsWith("/style_groups") && r.params.get("select") === "id");
+
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    expect(assetIdReads()).toHaveLength(1);
+    expect(groupIdReads()).toHaveLength(1);
+
+    resetLibrarySearchCaches();
+    await (useAssets(searchFilters("mug"), "modified_at", "desc", 0, "2020-01-01", 2) as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    await (useStyleGroups(searchFilters("mug"), "modified_at", "desc", 0, 2, "2020-01-01") as unknown as { queryFn: (c: { signal: AbortSignal }) => Promise<any> })
+      .queryFn({ signal: new AbortController().signal });
+    expect(assetIdReads()).toHaveLength(2);
+    expect(groupIdReads()).toHaveLength(2);
   });
 });
 

@@ -4,9 +4,10 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { type DamDocumentType, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { type DamDocumentType, invalidateSearchMode, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 import { createFullTextSearchHelpers, setRankedListCacheEntry, type RankedListCacheEntry } from "@/lib/full-text-search";
+import { clearStyleGroupRankedListCache } from "@/hooks/useStyleGroups";
 
 const PAGE_SIZE = 200;
 const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
@@ -16,6 +17,17 @@ const assetRankedListCache = new Map<string, RankedListCacheEntry>();
 /** Test/refresh hook: drop every cached ranked-filtered list. */
 export function clearAssetRankedListCache(): void {
   assetRankedListCache.clear();
+}
+
+/**
+ * Library Refresh (issue #839): drop the cached search mode and both ranked
+ * relevance lists so a refresh re-reads matches instead of serving a list that
+ * can be up to 30 s old.
+ */
+export function resetLibrarySearchCaches(): void {
+  invalidateSearchMode();
+  clearAssetRankedListCache();
+  clearStyleGroupRankedListCache();
 }
 
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */

@@ -1,10 +1,10 @@
 import LibrarySearchError from "@/components/library/LibrarySearchError";
 import SearchAccessNotice from "@/components/library/SearchAccessNotice";
-import { invalidateSearchMode, searchAccessStatus } from "@/lib/dam-search";
+import { searchAccessStatus } from "@/lib/dam-search";
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
-import { isDamAccessDenied, useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
+import { isDamAccessDenied, resetLibrarySearchCaches, useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
 import { useDamCustomerFacets } from "@/hooks/useDamCustomers";
 import { defaultFilters, countActiveFilters, hasActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset, CardStyle } from "@/types/assets";
@@ -159,7 +159,7 @@ export default function LibraryPage() {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    invalidateSearchMode();
+    resetLibrarySearchCaches();
     queryClient.invalidateQueries({ queryKey: ["style-groups"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-asset-count"] });
