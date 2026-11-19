@@ -28,16 +28,12 @@ import {
 } from "../openrouter.js";
 import {
   assertProviderSubmissionLeaseBudget,
-  getProviderBatch,
   parseProviderBatchResult,
   prepareProviderBatch,
   providerBatchPageLimit,
   submitPreparedProviderBatch,
   batchJobIdentity,
   getBatchProviderApiKey,
-  accountFingerprint,
-  isAccountRejection,
-  submittedAccountMismatch,
   submittedIdentity,
   type DurableBatchProvider,
   type PreparedProviderBatch,
@@ -67,7 +63,7 @@ import {
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
 import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
-import { ApplyWriteError, clearRequestJob, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, isNewBatchVisibilityDelay, isTransientProviderPollError, nextBatchAction, transientPollDelayMs } from "./ai-tagging-batch-state.js";
+import { ApplyWriteError, clearRequestJob, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, nextBatchAction, pollBoundProviderBatch, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
 const AI_TIMEOUT_MS = 90_000;
@@ -812,58 +808,18 @@ async function handleDurableGroupProfiles(
     };
   }
 
-  // A batch lives in the account that submitted it. When the key differs from
-  // the one it was submitted with, the poll itself decides: the provider still
-  // serving the batch means a same-account rotation (adopt the new
-  // fingerprint); refusing it means another account, so stop visibly
-  // (resumable once the right key is restored).
-  const accountMismatch = submittedAccountMismatch(job, apiKey);
-
-  let record;
-  try {
-    record = await getProviderBatch(batchProvider, apiKey, action.batchId);
-  } catch (error) {
-    if (isNewBatchVisibilityDelay((error as { status?: unknown }).status, job.submitted_at)) {
-      return {
-        ok: true,
-        done: false,
-        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-        external_job: { ...job, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
-        last_stage: "model_inference",
-      };
-    }
-    // Checked after the new-batch visibility grace: a just-submitted batch may
-    // 404 briefly on either key.
-    if (accountMismatch && isAccountRejection(error)) {
-      return { ok: false, done: false, error: accountMismatch, error_code: "credential_changed", external_job: { ...job, lease_token: job.lease_token } };
-    }
-    if (isTransientProviderPollError(error)) {
-      // Keep the same saved provider job ID and poll it again later; a
-      // temporary outage must never turn a live batch into a failure.
-      const failures = (job.transient_poll_failures ?? 0) + 1;
-      return {
-        ok: true,
-        done: false,
-        nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-        external_job: {
-          ...job,
-          transient_poll_failures: failures,
-          last_checked_at: new Date().toISOString(),
-          next_poll_at: new Date(Date.now() + transientPollDelayMs(failures - 1)).toISOString(),
-        },
-        last_stage: "model_inference",
-      };
-    }
-    throw error;
+  const poll = await pollBoundProviderBatch(batchProvider, apiKey, job, action.batchId);
+  if (poll.type === "credential_changed") {
+    return { ok: false, done: false, error: poll.error, error_code: "credential_changed", external_job: poll.job };
   }
-  if (accountMismatch) job.account_fingerprint = accountFingerprint(apiKey);
-  if (!["completed", "failed", "cancelled", "canceled", "expired"].includes(record.status ?? "")) {
+  if (poll.type === "deferred") {
     return {
       ok: true, done: false, nextOffset: job.page_cursor ?? opState.cursor ?? 0,
-      external_job: { ...job, transient_poll_failures: undefined, last_checked_at: new Date().toISOString(), next_poll_at: new Date(Date.now() + 10_000).toISOString() },
+      external_job: poll.job,
       last_stage: "model_inference",
     };
   }
+  const { record } = poll;
   if (record.status !== "completed") {
     // A failed/cancelled/expired provider batch will never produce results.
     // Record every unapplied group as a per-item failure and finish the job, so
