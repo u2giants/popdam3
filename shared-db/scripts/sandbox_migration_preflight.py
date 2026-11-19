@@ -63,6 +63,10 @@ VERSION_RE = re.compile(r"^\d{14}$")
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261223010000": (
+        "issue #6472: sandbox catch-up batch 21 fails 003329's search contract check on the sandbox's default "
+        "search_dam_documents ACL (run 44462336157). Superseded by batch 22, 20261223020000."
+    ),
     "20261223000000": (
         "issue #6472: sandbox catch-up batch 20 would recreate objects batch 19's failed apply already left on "
         "the sandbox (run 44456503857). Superseded by batch 21, 20261223010000."

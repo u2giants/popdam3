@@ -870,6 +870,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 21: replays the remaining production dam search chain, licensor submission identifiers, style-guide grants and preview side-table count, plus one production index without a migration file; grants to absent production service logins omitted. Source excludes shared preview and production.",
     },
+    "20261223020000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 22: batch 21 plus production's explicit EXECUTE grants on the 8-argument search_dam_documents first. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
