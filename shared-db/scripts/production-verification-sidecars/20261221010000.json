@@ -6,7 +6,7 @@
     {
       "id": "curated_alias_pooh",
       "kind": "catalog_contract",
-      "contract": "curated_alias_pooh_v1",
+      "contract": "curated_alias_pooh_v2",
       "expected_count": 1
     }
   ]
