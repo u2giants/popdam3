@@ -1,5 +1,5 @@
-import { uniqueCanonicalItemIds, type CanonicalItemIdentity } from "./canonical-item-identity.js";
-export { canonicalItemKey, canonicalItemMatchKey, uniqueCanonicalItemIds, type CanonicalItemIdentity } from "./canonical-item-identity.js";
+import { type CanonicalItemIdentity, uniqueCanonicalItemIds } from "./canonical-item-identity.js";
+export { type CanonicalItemIdentity, canonicalItemKey, canonicalItemMatchKey, uniqueCanonicalItemIds } from "./canonical-item-identity.js";
 import type { ServiceClient } from "./service-client.ts";
 
 export const CANONICAL_ITEM_SCHEMA = "api";

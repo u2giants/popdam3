@@ -45,9 +45,10 @@ function routerFixture() {
     err: (message: string, status = 400) => Response.json({ error: message }, { status }),
   };
   const source = readFileSync(new URL("../agent-api/index.ts", import.meta.url), "utf8");
-  const compile = (text: string) => ts.transpileModule(text, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText;
+  const compile = (text: string) =>
+    ts.transpileModule(text, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
   const tiffExports = {};
   runInNewContext(compile(readFileSync(new URL("./agent-handlers/tiff.ts", import.meta.url), "utf8")), {
     exports: tiffExports,

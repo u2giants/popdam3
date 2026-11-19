@@ -39,12 +39,12 @@ const SG_INGESTABLE_EXTENSIONS = new Set([
 ]);
 
 import {
-  handleClaimTiffScan,
-  handleReportTiffScan,
   handleClaimTiffJob,
   handleClaimTiffReinspect,
-  handleCompleteTiffReinspect,
+  handleClaimTiffScan,
   handleCompleteTiffJob,
+  handleCompleteTiffReinspect,
+  handleReportTiffScan,
 } from "../_shared/agent-handlers/tiff.ts";
 import { changedFields } from "../_shared/changed-fields.js";
 import { type ParsedSku, parseSku } from "../_shared/sku-parser.ts";
