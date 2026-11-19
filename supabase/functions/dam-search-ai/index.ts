@@ -39,12 +39,16 @@ export const SEARCH_TEXT_EMBEDDING_MODEL_KEY = "SEARCH_TEXT_EMBEDDING_MODEL";
 /**
  * Text-meaning floor (#1037 O3, tuned on the scorecard Nov 18, 2026). Below 0.45 the model does not
  * know the words: a name it never saw ("groot") scored 0.42 against unrelated products and
- * outranked every exact match. A 0.05 margin under the best in-scope score keeps products that say
+ * outranked every exact match. A 0.08 margin under the best in-scope score keeps products that say
  * every typed word ("pooh sign", 0.62-0.66) and drops look-alikes of the product word (other
- * characters' signs, 0.54-0.57) that the database default of 0.10 let in.
+ * characters' signs, 0.54-0.57) that the database default of 0.10 let in; 0.05 starved misspelled
+ * searches, which lean on this leg.
  */
 export const TEXT_MIN_SCORE = 0.45;
-export const TEXT_SCORE_MARGIN = 0.05;
+export const TEXT_SCORE_MARGIN = 0.08;
+/** Optional admin_config overrides (numbers 0-1), so the floor is tuned on the scorecard without a deploy. */
+export const SEARCH_TEXT_MIN_SCORE_KEY = "SEARCH_TEXT_MIN_SCORE";
+export const SEARCH_TEXT_SCORE_MARGIN_KEY = "SEARCH_TEXT_SCORE_MARGIN";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
 const NAME_SCOPE_TIMEOUT_MS = 1500;
@@ -303,7 +307,7 @@ async function authenticateCaller(req: Request) {
  */
 export function textLegSettings(
   result: { data?: { key: string; value: unknown }[] | null; error?: unknown },
-): { on: boolean; model: string | null } | null {
+): { on: boolean; model: string | null; minScore: number; margin: number } | null {
   if (result.error) {
     console.error("SEARCH_TEXT_LEG_MODE read failed; failing closed");
     return null;
@@ -319,7 +323,12 @@ export function textLegSettings(
     console.error("SEARCH_TEXT_LEG_MODE is on but SEARCH_TEXT_EMBEDDING_MODEL is unset");
     return null;
   }
-  return { on, model };
+  const unit = (key: string, fallback: number) => {
+    const raw = unwrapConfigValue(rows.find((row) => row.key === key)?.value);
+    const value = typeof raw === "number" || (typeof raw === "string" && raw.trim()) ? Number(raw) : NaN;
+    return Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+  };
+  return { on, model, minScore: unit(SEARCH_TEXT_MIN_SCORE_KEY, TEXT_MIN_SCORE), margin: unit(SEARCH_TEXT_SCORE_MARGIN_KEY, TEXT_SCORE_MARGIN) };
 }
 
 const queryEmbedder = createQueryEmbedder({
@@ -617,7 +626,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           "text_leg_config",
           Promise.resolve(
             serviceClient().from("admin_config").select("key, value")
-              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY]),
+              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY, SEARCH_TEXT_MIN_SCORE_KEY, SEARCH_TEXT_SCORE_MARGIN_KEY]),
           ).then((result) => result, (error: unknown) => ({ data: null, error })),
         );
         const spelling = codeSearch ? { corrected: null, meaningful: true } : await timer.time("spelling", () => checkSpelling(query, spellingLookup));
@@ -633,7 +642,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // calls (one per variant, or query-then-variants) queue behind each other
         // and pay 1–3 s of tail (#804). One call, one latency draw.
         const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-        const textLeg = textLegConfig ? textLegSettings(await textLegConfig) : { on: false, model: null };
+        const textLeg = textLegConfig ? textLegSettings(await textLegConfig) : { on: false, model: null, minScore: TEXT_MIN_SCORE, margin: TEXT_SCORE_MARGIN };
         if (!textLeg) return err("Search unavailable", 503);
         // Text leg on: the text-meaning vectors ride the SAME batched call (#804: one latency draw).
         const embedCall = (): Promise<EmbedWithText | null> => {
@@ -773,8 +782,8 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               ...(variantTextEmbeddings.get(variant)
                 ? {
                   p_query_text_embedding: variantTextEmbeddings.get(variant),
-                  p_min_text_score: TEXT_MIN_SCORE,
-                  p_text_score_margin: TEXT_SCORE_MARGIN,
+                  p_min_text_score: textLeg.minScore,
+                  p_text_score_margin: textLeg.margin,
                 }
                 : {}),
             });
