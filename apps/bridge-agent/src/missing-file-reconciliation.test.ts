@@ -57,6 +57,33 @@ test("retires only records whose file is gone", async () => {
   assert.equal(result.retired, 1);
 });
 
+test("counts records the cloud keeps because no surviving copy proves a move (#1198)", async () => {
+  const pageSize = 2;
+  const result = await reconcileMissingFiles({
+    mountRoot: "/mnt",
+    scanRoots: ["/mnt/Decor"],
+    seenPaths: new Set(["Decor/a.psd"]),
+    skippedDirs: [],
+    skippedDirsTruncated: false,
+    minMissingAllowance: 10,
+  }, {
+    listLivePaths: async (afterId) => {
+      const all = live("Decor/a.psd", "Decor/b.psd", "Decor/c.psd", "Decor/d.psd");
+      const start = afterId ? all.findIndex((a) => a.id === afterId) + 1 : 0;
+      const assets = all.slice(start, start + pageSize);
+      return { assets, next_after_id: start + pageSize < all.length ? assets[assets.length - 1].id : null };
+    },
+    retire: async (assets) => ({ retired: 0, kept: assets.length }),
+    stat: async (path) => {
+      if (path !== "/mnt/Decor/a.psd") throw enoent();
+    },
+    readdir: async () => ["x"],
+  });
+  assert.equal(result.missing, 3);
+  assert.equal(result.retired, 0);
+  assert.equal(result.kept, 3);
+});
+
 test("keeps a file that exists even though the walk did not list it", async () => {
   const { retired } = await run({
     live: live("Decor/a.psd", "Decor/sub/deep.psd"),

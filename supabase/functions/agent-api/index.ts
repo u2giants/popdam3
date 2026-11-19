@@ -75,6 +75,7 @@ import {
   AI_INHERITANCE_COLUMNS,
   inheritedAiFields,
   isRevivableRetirement,
+  provenSurvivingCopy,
   RETIRED_MISSING_MARKER,
   RETIRED_STALE_MARKER,
   staleRetirementRefusal,
@@ -1475,10 +1476,40 @@ async function handleListLiveAssetPaths(body: Record<string, unknown>) {
 // ── Route: retire-missing-assets ────────────────────────────────────
 //
 // The bridge calls this only after a complete scan, with the scan roots
-// readable, for records whose file returned ENOENT (#1117). Soft delete only:
-// a file that returns at the same path revives the record on its next ingest.
+// readable, for records whose file returned ENOENT (#1117). A record is
+// hidden only when the same file is proven to live at another path: a live
+// record with the same identity (filename, size, quick_hash) whose pair
+// passes staleRetirementRefusal (#1198). A file with no surviving copy keeps
+// its record — artwork deleted from the NAS must not disappear from PopDAM
+// (owner ruling 2026-11-19). Soft delete only: a file that returns at the
+// same path revives the record on its next ingest.
 
 const RETIRE_MISSING_MAX_BATCH = 100;
+const SURVIVOR_LOOKUP_CONCURRENCY = 8;
+
+/** Live record at another path holding the same file, or null when none does. */
+async function findSurvivingCopy(
+  db: ReturnType<typeof serviceClient>,
+  stale: { id: string; relative_path: string; filename: string | null; file_size: number | null; quick_hash: string | null },
+): Promise<{ id: string } | null> {
+  if (!stale.filename || !stale.file_size || !stale.quick_hash) return null;
+  const { data, error } = await db
+    .from("assets")
+    .select("id, filename, quick_hash, file_size, relative_path, is_deleted")
+    .eq("is_deleted", false)
+    .eq("filename", stale.filename)
+    .eq("file_size", stale.file_size)
+    .eq("quick_hash", stale.quick_hash)
+    .neq("id", stale.id)
+    .neq("relative_path", stale.relative_path)
+    .limit(2);
+  if (error) throw new Error(error.message);
+  return provenSurvivingCopy(
+    { ...stale, is_deleted: false },
+    (data ?? []) as Array<{ id: string; filename: string | null; quick_hash: string | null; file_size: number | null; relative_path: string; is_deleted: boolean | null }>,
+    stale.relative_path,
+  );
+}
 
 async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const items = body.assets;
@@ -1496,7 +1527,7 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
 
   const { data: rows, error: readError } = await db
     .from("assets")
-    .select("id, relative_path, is_deleted")
+    .select("id, relative_path, filename, file_size, quick_hash, is_deleted")
     .in("id", ids);
   if (readError) return err(readError.message, 500);
 
@@ -1512,9 +1543,10 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const skip = (reason: string) => {
     skipped[reason] = (skipped[reason] ?? 0) + 1;
   };
-  const retireRows: Array<{ id: string; relative_path: string }> = [];
+  type MissingRow = { id: string; relative_path: string; filename: string | null; file_size: number | null; quick_hash: string | null; is_deleted: boolean | null };
+  const eligible: MissingRow[] = [];
   const found = new Set<string>();
-  for (const row of (rows ?? []) as Array<{ id: string; relative_path: string; is_deleted: boolean | null }>) {
+  for (const row of (rows ?? []) as MissingRow[]) {
     found.add(row.id);
     if (row.is_deleted) {
       skip("not_live");
@@ -1528,9 +1560,32 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
       skip("open_checkout");
       continue;
     }
-    retireRows.push({ id: row.id, relative_path: row.relative_path });
+    eligible.push(row);
   }
   for (const id of ids) if (!found.has(id)) skip("not_found");
+
+  // Proof gate (#1198): hide only records whose file survives at another live
+  // path. Everything else keeps its record and is reported as kept.
+  const retireRows: Array<{ id: string; relative_path: string }> = [];
+  for (let i = 0; i < eligible.length; i += SURVIVOR_LOOKUP_CONCURRENCY) {
+    const chunk = eligible.slice(i, i + SURVIVOR_LOOKUP_CONCURRENCY);
+    const proofs = await Promise.all(chunk.map(async (row) => {
+      try {
+        return await findSurvivingCopy(db, row);
+      } catch (e) {
+        return e as Error;
+      }
+    }));
+    for (let j = 0; j < chunk.length; j++) {
+      const proof = proofs[j];
+      if (proof instanceof Error) return err(proof.message, 500);
+      if (!proof) {
+        skip("no_surviving_copy");
+        continue;
+      }
+      retireRows.push({ id: chunk[j].id, relative_path: chunk[j].relative_path });
+    }
+  }
 
   const outcome = await retireMissingInChunks(retireRows, {
     insertHistory: async (rows) => {
@@ -1555,10 +1610,11 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
       return { error: error?.message };
     },
   });
-  console.log(`[retire-missing-assets] retired ${outcome.retired}, skipped ${JSON.stringify(skipped)}${outcome.error ? `, stopped: ${outcome.error}` : ""}`);
+  const kept = skipped["no_surviving_copy"] ?? 0;
+  console.log(`[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), skipped ${JSON.stringify(skipped)}${outcome.error ? `, stopped: ${outcome.error}` : ""}`);
   // Work done before a failure is reported, not lost: a 500 would make the
   // bridge retry rows already retired and hide the count.
-  return json({ ok: true, retired: outcome.retired, skipped, ...(outcome.error ? { partial: true, error: outcome.error } : {}) });
+  return json({ ok: true, retired: outcome.retired, kept, skipped, ...(outcome.error ? { partial: true, error: outcome.error } : {}) });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────

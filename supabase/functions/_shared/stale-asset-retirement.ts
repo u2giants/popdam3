@@ -44,6 +44,25 @@ export function staleRetirementRefusal(
   return null;
 }
 
+/**
+ * The surviving record that proves a record whose file is gone from the NAS is
+ * a move rather than a deletion (#1198). A record is hidden only when this
+ * returns a survivor; without one the record keeps its place in the catalog
+ * (owner ruling 2026-11-19: artwork deleted from the NAS must not disappear).
+ * The identity match is a hint that collides for template-derived files (#51);
+ * foolproof move identity is a separate step.
+ */
+export function provenSurvivingCopy(
+  stale: RetirementIdentity,
+  survivors: readonly RetirementIdentity[],
+  confirmedAbsentPath: string,
+): RetirementIdentity | null {
+  for (const survivor of survivors) {
+    if (staleRetirementRefusal(stale, survivor, confirmedAbsentPath) === null) return survivor;
+  }
+  return null;
+}
+
 const INHERITED_AI_FIELDS = [
   "ai_description",
   "scene_description",
