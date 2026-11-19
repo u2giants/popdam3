@@ -450,12 +450,45 @@ HARD_BLOCKED = {
     # 183k-row backfill and rolled back; applied to preview only. Superseded by
     # idempotent reissue 20261204003429 (no bulk backfill); never apply original.
     "20261204001000",
+    # #6820 stranded-outside-lane: the CRM audit batch (PR #6818) and its
+    # fix-forward (PR #6836) were applied to preview by local db push BEFORE
+    # merge, so NO dispatched preview run exists for any of these versions
+    # (every #6818/#6836 preview job skipped; the only dispatches, runs
+    # 44532807597/44533994147/44535389768, are refused by the never-reapply
+    # guard). historical_preview_original_run_map has nothing to name, so the
+    # recovery gate's digest proof can never pass. Superseded by the reissue
+    # batch 20261225010104-08; never apply these originals.
+    "20261223010101",
+    "20261223010102",
+    "20261223010103",
+    "20261223010104",
+    "20261223010105",
+    "20261225010001",
+    "20261225010003",
+    "20261225010004",
+    # Same strand, second hop: the first re-issue 20261225010104 (PR #6840)
+    # declared derived-from strands no ledger outside preview holds, so the
+    # automatic production apply refused at the issue #1608 derivation gate
+    # (run 44564769286) and the lane's single derivation_override input cannot
+    # record all three missing bases. Applied to preview (run 44563812884),
+    # never to production. Superseded by from-scratch reissue 20261225010304
+    # (derived-from: none); never apply this version.
+    "20261225010104",
 }
 
 # One authority for versions that must never be applied. The post-batch
 # verifier imports these names from here; pending-status policy must not import
 # that application verifier back into the production guard's execution closure.
 RETIRED_VERSION_REASONS = {
+    "20261225010104": "PR #6840 (first re-issue of the contact clear-field shape): its declared derived-from bases (20261223010101, 20261225010001, 20261225010003) are retired strands no ledger outside preview holds, so the automatic production apply refused at the issue #1608 derivation gate (run 44564769286) and the lane's single derivation_override input cannot record all three missing bases. Applied to preview only (rehearsal run 44563812884); never applied to production. Superseded by from-scratch reissue 20261225010304 with byte-identical executable SQL. Never apply this version.",
+    "20261223010101": "PR #6818 (#6820 claim, popcrm-web #39 contact clear flags): applied to preview by local db push before merge, so no dispatched preview run exists for it and the historical-recovery gate's digest proof can never pass (refused rehearsals runs 44532807597, 44533994147, 44535389768); never applied to production. Its approved 18-argument end state is live via from-scratch reissue 20261225010304. Never apply this original.",
+    "20261223010102": "PR #6818 (#6820 claim, popcrm-web #57 customer counts): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible (refused rehearsals runs 44532807597, 44533994147, 44535389768); never applied to production. Superseded by reissue 20261225010105 carrying the approved one-pass shape of 20261225010004 byte-identically. Never apply this original.",
+    "20261223010103": "PR #6818 (#6820 claim, popcrm-web #68 Fireflies transcript uniqueness + retry table): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible (refused rehearsals runs 44532807597, 44533994147, 44535389768); never applied to production. Superseded by idempotent reissue 20261225010106. Never apply this original.",
+    "20261223010104": "PR #6818 (#6820 claim, popcrm-web #69 atomic ignore-rule skip counter): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible (refused rehearsals runs 44532807597, 44533994147, 44535389768); never applied to production. Superseded by reissue 20261225010107. Never apply this original.",
+    "20261223010105": "PR #6818 (#6820 claim, popcrm-web #40 drawer email page/count RPCs + sender index): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible (refused rehearsals runs 44532807597, 44533994147, 44535389768); never applied to production. Superseded by reissue 20261225010108. Never apply this original.",
+    "20261225010001": "PR #6836 (review finding #6819 fix-forward, contact clear precedence + normalization + counts top-relation): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible; never applied to production. The contact end state is live via from-scratch reissue 20261225010304; the counts end state via reissue 20261225010105. Never apply this original.",
+    "20261225010003": "PR #6836 (drop the ambiguous legacy crm_update_contact overload): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible; never applied to production. Re-performed inside from-scratch reissue 20261225010304, IF EXISTS-safe on preview. Never apply this original.",
+    "20261225010004": "PR #6836 (one-pass crm_customer_counts, review finding #6837): applied to preview by local db push before merge, no dispatched preview run exists, recovery impossible; never applied to production. Superseded by byte-identical reissue 20261225010105. Never apply this original.",
     "20261221010000": "PR #6782 (#6781 Pooh alias): preview apply run 44446439987 abstained by design (parent id differs in preview); never applied anywhere. Reissued as 20261223100000, which resolves the parent by licensor and name. Never apply this original.",
     "20261218062459": "PR #6655 (#6457): review finding #6657 confirmed that the merged revoke set breaks the authenticated ColdLion triage contract (#5004), and November 18, 2026 read-only production ledger verification found no applied row. Preserve this source for audit; never apply it. Deliver separately qualified grants under a fresh version.",
     "20261116013153": "PR #6433 (#6415 revoke anon/authenticated EXECUTE on trigger functions): applied on preview before merge (run 43789639543 at a2311d0); automatic qualification refuses that evidence permanently because the guard differs from merge commit 3b0c25e and the migration is high-risk (runs 44092383652, 44093787649). Never applied to production. Reissued with identical SQL as 20261204000300. Never apply this original.",
