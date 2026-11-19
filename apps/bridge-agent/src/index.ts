@@ -1048,8 +1048,10 @@ async function clearScanCheckpointWithRetry(context: string): Promise<boolean> {
 }
 
 /**
- * Retires records whose file is gone from the NAS (#1117). Runs only after a
- * complete scan; any doubt leaves the catalog untouched.
+ * Reconciles records whose file is gone from the NAS (#1117). Runs only after
+ * a complete scan; any doubt leaves the catalog untouched. A record is hidden
+ * only when the cloud proves the same file lives at another path; confirmed
+ * absences with no surviving copy keep their record (#1198).
  */
 async function reconcileCatalogWithDisk(candidates: FileCandidate[], scanRoots: string[]) {
   setActivity("scan:reconcile");

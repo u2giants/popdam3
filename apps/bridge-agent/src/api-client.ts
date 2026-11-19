@@ -315,9 +315,14 @@ export async function listLiveAssetPaths(afterId: string | null): Promise<{
 
 export async function retireMissingAssets(
   assets: Array<{ asset_id: string; confirmed_absent_path: string }>,
-): Promise<{ retired: number; error?: string }> {
+): Promise<{ retired: number; kept: number; error?: string }> {
   const data = await callApi("retire-missing-assets", { assets }, 120_000);
-  return { retired: Number(data.retired ?? 0), ...(data.partial ? { error: String(data.error ?? "partial retirement") } : {}) };
+  return {
+    retired: Number(data.retired ?? 0),
+    // Records left live because no surviving copy proved the file moved (#1198).
+    kept: Number(data.kept ?? 0),
+    ...(data.partial ? { error: String(data.error ?? "partial retirement") } : {}),
+  };
 }
 
 export interface ScanCheckpoint {

@@ -146,7 +146,7 @@ Important:
 - Bridge agents must preserve `existing_content_identities` across chunks for the whole scan, not per chunk.
 - `existing_thumbnails` — changed paths that already have a thumbnail, as `{ relative_path, quick_hash, thumbnail_url }`, so identical content keeps its stored thumbnail name.
 - If `check-changed` fails, the bridge retries that chunk and then fails the scan; it never processes all candidates (#1117, `docs/WORKER_LOGIC.md` §3.4).
-- `list-live-asset-paths` (`after_id`) and `retire-missing-assets` (`assets: [{ asset_id, confirmed_absent_path }]`, max 100) serve end-of-scan reconciliation (`docs/WORKER_LOGIC.md` §3.5).
+- `list-live-asset-paths` (`after_id`) and `retire-missing-assets` (`assets: [{ asset_id, confirmed_absent_path }]`, max 100) serve end-of-scan reconciliation (`docs/WORKER_LOGIC.md` §3.5). `retire-missing-assets` hides only records whose file is proven to live at another path (live record with the same filename, size and `quick_hash` at a different path) and answers `{ retired, kept, skipped }` — `kept` counts confirmed absences left in place because no surviving copy proved a move (#1198).
 
 ### POST /agent/scan-progress
 

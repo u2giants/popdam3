@@ -18,10 +18,17 @@ needs real work.
 
 Already settled — do NOT re-ask:
 
-- 2026-11-18: records for files confirmed missing from the NAS are hidden
+- ~~2026-11-18: records for files confirmed missing from the NAS are hidden
   (soft-deleted, restorable), not erased. This was the stated requirement of
   issue 1117 part 2 and is live. It was an assumption taken by the session; the
-  owner was told and did not object.
+  owner was told and did not object.~~ **REVERSED by the owner on 2026-11-19,
+  12:27 PM EST** (issue [u2giants/popdam3#1198](https://github.com/u2giants/popdam3/issues/1198)):
+  "artwork deleted from the NAS should not disappear from PopDAM automatically.
+  But there must be a foolproof way to differentiate between 'disappear' and
+  moved. we can't have duplicates." The requirement of issue 1117 part 2 was an
+  assumption this session took, not an owner decision; it is no longer settled.
+  A record whose file is gone now keeps its place unless the same file is
+  proven to live at another path. Work in flight: issue 1198.
 - 2026-11-18: the leftover "sibling request" rows are harmless and may clear on
   their own. The owner was told how to clear them himself (press "Find Sibling
   Files" on any style) and that it is optional.

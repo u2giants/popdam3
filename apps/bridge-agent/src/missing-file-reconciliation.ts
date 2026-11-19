@@ -6,6 +6,13 @@
  * live record under the scanned roots; any record the walk did not see is
  * checked on disk, and only a real ENOENT counts as missing.
  *
+ * A missing record is hidden only when the same file is proven to exist at
+ * another live path (#1198, owner ruling 2026-11-19: artwork deleted from the
+ * NAS must not disappear from PopDAM). The cloud holds that proof — a live
+ * record with the same identity whose pair passes the stale-retirement check —
+ * and reports every record it left in place as `kept`. The bridge sends every
+ * confirmed-absent record; hiding or keeping is the cloud's decision.
+ *
  * Guards, all of which must hold before anything is retired:
  *  - every scan root lists at least one entry, before and after the checks
  *    (an unmounted share shows an empty folder);
@@ -24,7 +31,7 @@ export interface LiveAssetPath {
 
 export interface ReconcileDeps {
   listLivePaths: (afterId: string | null) => Promise<{ assets: LiveAssetPath[]; next_after_id: string | null }>;
-  retire: (assets: Array<{ asset_id: string; confirmed_absent_path: string }>) => Promise<{ retired: number; error?: string }>;
+  retire: (assets: Array<{ asset_id: string; confirmed_absent_path: string }>) => Promise<{ retired: number; kept?: number; error?: string }>;
   stat: (path: string) => Promise<unknown>;
   readdir: (path: string) => Promise<string[]>;
   shouldAbort?: () => boolean;
@@ -50,6 +57,8 @@ export interface ReconcileResult {
   live_under_roots: number;
   missing: number;
   retired: number;
+  /** Confirmed-absent records the cloud left in place: no surviving copy proved a move (#1198). */
+  kept: number;
   refused?: "skipped_dirs" | "root_unreadable" | "too_many_missing" | "aborted" | "retire_failed";
   /** With refused="retire_failed": why the cloud stopped accepting retirements. */
   retire_error?: string;
@@ -70,7 +79,7 @@ async function rootsReadable(roots: string[], readdir: ReconcileDeps["readdir"])
 }
 
 export async function reconcileMissingFiles(options: ReconcileOptions, deps: ReconcileDeps): Promise<ReconcileResult> {
-  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0 };
+  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0, kept: 0 };
   if (options.skippedDirsTruncated) return { ...result, refused: "skipped_dirs" };
   const skipped = options.skippedDirs.map((d) => d.replace(/^\/+|\/+$/g, "")).filter(Boolean);
 
@@ -134,8 +143,9 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
   for (let i = 0; i < missing.length; i += batchSize) {
     if (deps.shouldAbort?.()) return { ...result, refused: "aborted" };
     try {
-      const { retired, error } = await deps.retire(missing.slice(i, i + batchSize));
+      const { retired, kept, error } = await deps.retire(missing.slice(i, i + batchSize));
       result.retired += retired;
+      result.kept += kept ?? 0;
       if (error) return { ...result, refused: "retire_failed", retire_error: error };
     } catch (e) {
       return { ...result, refused: "retire_failed", retire_error: (e as Error).message };
