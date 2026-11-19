@@ -15,8 +15,8 @@ read-when: "implementing cleanup 10 on tiff agent requests"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Six existing dispatch and authentication paths feed the same handler bodies. |
 | 2. Make the scoped change | ✅ implemented | Twelve full mocked before/after routes matched responses and persistence. 54 targeted and 1215 full tests passed with one unrelated opt-in skip; normalized Deno diagnostics match baseline. |
-| 3. Verify and land | 🔄 In release review | #1220. Integrated worker build and 540 worker tests passed before mechanical edge formatting. |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1220](https://github.com/u2giants/popdam3/pull/1220) at `612da3ee`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | Edge release run 44591473524 passed. Authenticated requests from the registered Windows agent returned original exact errors and statuses for missing TIFF completion/reinspection IDs and missing scan files. **Next** — Codex Windows release owner must observe or run a controlled native TIFF scan and claim, then capture ownership and a successful completion report. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

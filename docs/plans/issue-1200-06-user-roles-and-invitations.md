@@ -15,8 +15,8 @@ read-when: "implementing cleanup 06 on user roles and invitations"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. PopDAM defaults to PopDAM and PopSG defaults to PopSG, including for legacy invitations with no app list. |
 | 2. Make the scoped change | ✅ implemented | Three component fixtures proved defaults and reset, role handling, impersonation, resend, revoke and accepted/pending display. Frontend build and 1215 root tests passed, with one unrelated opt-in skip. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1219](https://github.com/u2giants/popdam3/pull/1219) at `35a766ed`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | Both sites served 35a766ed. PopDAM selected PopDAM only and PopSG selected PopSG only. Both live screens showed active users and invitations. Authenticated admin tester access resolved through the protected vault. **Next** — Codex PopDAM QA owner must reserve a disposable role fixture and test-mail recipient, then exercise invitation send, resend, revoke, accept and role change/restoration. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

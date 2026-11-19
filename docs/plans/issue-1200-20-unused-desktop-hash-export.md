@@ -15,8 +15,8 @@ read-when: "implementing cleanup 20 on unused desktop hash export"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Main 9b74161a and before/after fixtures in the implementation PR |
 | 2. Make the scoped change | ✅ implemented | No public entry point or consumer uses the buffer hash. Real upload queue replay preserved both hash values and payloads for empty, short and long files. Typecheck, build and packaged Linux entry resolution passed. Both Helper version stamps advance to 1.4.17 for native release and installed verification. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1205](https://github.com/u2giants/popdam3/pull/1205) at `c10fe833`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | Release 1.4.17 for Windows and macOS published in run 44586349215, and 1.4.18 is a compatible descendant. The packaged entry and upload-queue digest parity were verified locally; no active Helper reported in the 20-minute live device sample. **Next** — Codex desktop QA owner must verify a current version and a controlled production check-in on an installed supported Windows and Mac Helper. |
 
 Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 

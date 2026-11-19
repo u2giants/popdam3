@@ -15,8 +15,8 @@ read-when: "implementing cleanup 09 on check-in retry records"
 |---|---|---|
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. Both callers serialize the existing destination and retained snapshot; the initial record omits isRedrive. |
 | 2. Make the scoped change | ✅ implemented | Helper typecheck and build passed. First check-in and re-drive keep their current snapshot, destination, provider, addedAt and retry semantics. |
-| 3. Verify and land | ⬜ open | Commit, pull request and checks |
-| 4. Accept in use | ⬜ open | Installed revision and observed result |
+| 3. Verify and land | ✅ merged | [#1218](https://github.com/u2giants/popdam3/pull/1218) at `afc06d55`. Implementation checks passed. |
+| 4. Accept in use | ⬜ live proof open | Helper Windows/macOS artifacts published in run 44589511025. The real local queue, check-in and re-drive entry points matched persisted records, retry supersession and missing snapshots in all provider variants. **Next** — Codex desktop QA owner must use a controlled native failure and re-drive on installed Windows and macOS Helpers, confirming the original file and destination. |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
