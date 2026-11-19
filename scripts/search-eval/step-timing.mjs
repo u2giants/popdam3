@@ -4,7 +4,9 @@
 // dam-search-ai Server-Timing header; PopSG steps are the separate calls the
 // live page makes, timed here. Prints aggregate timings only (no results).
 // Env: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SEARCH_EVAL_EMAIL, SEARCH_EVAL_PASSWORD
-// Options: --repeat <n> (default 1), --out <file> (JSON summary)
+// Options: --repeat <n> (default 1, or 2 with --first-hit), --out <file> (JSON summary),
+//          --first-hit (skip the warm-up pass and report each query's first run against
+//          its repeats — the #1196 first-search-after-idle view).
 import { writeFileSync } from "node:fs";
 import { createViewerSession } from "./viewer-session.mjs";
 
@@ -33,7 +35,7 @@ async function clock(steps, name, fn) { const t = now(); try { return await fn()
 
 const samples = { dam: [], sg_guides: [], sg_files: [] };
 
-async function dam(query) {
+async function dam(query, pass = null) {
   const t = now();
   const { timing } = await vp("/functions/v1/dam-search-ai", {
     action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"],
@@ -44,11 +46,11 @@ async function dam(query) {
     if (m) steps[m[1]] = Number(m[2]);
   }
   if (steps.total != null) steps.network_and_platform = steps.end_to_end - steps.total;
-  samples.dam.push(steps);
+  samples.dam.push({ query, pass, steps });
 }
 
 // Same call order as run.mjs sgSearch / the live PopSG page.
-async function sg(query, mode) {
+async function sg(query, mode, pass = null) {
   const steps = {}; const t = now();
   const sem = await clock(steps, "embedding_call", () => vp("/functions/v1/dam-search-ai", { action: "popsg-query-embedding", query: query.trim() }));
   const term = query.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim();
@@ -66,30 +68,45 @@ async function sg(query, mode) {
     ...(vec && typeof sem.min_semantic_score === "number" ? { p_min_semantic_score: sem.min_semantic_score } : {}),
   }));
   steps.end_to_end = now() - t;
-  samples[mode === "guides" ? "sg_guides" : "sg_files"].push(steps);
+  samples[mode === "guides" ? "sg_guides" : "sg_files"].push({ query, pass, steps });
 }
 
 const cfg = await (await fetch(`${url}/rest/v1/admin_config?key=eq.SEARCH_EVAL_SET_V1&select=value`, {
   headers: { apikey: key, Authorization: `Bearer ${await getToken()}` },
 })).json();
 const cases = cfg[0].value.cases;
-for (const w of ["a", "b", "c", "d", "e"]) await dam(`warmup ${w}`).catch(() => {});
-samples.dam.length = 0;
-const repeat = Number(arg("repeat") ?? 1);
+const firstHit = process.argv.includes("--first-hit");
+if (!firstHit) {
+  for (const w of ["a", "b", "c", "d", "e"]) await dam(`warmup ${w}`).catch(() => {});
+  samples.dam.length = 0;
+}
+const repeat = Number(arg("repeat") ?? (firstHit ? 2 : 1));
 let errors = 0;
 for (let r = 0; r < repeat; r++) for (const c of cases) {
-  if (c.dam) await dam(c.query).catch(() => errors++);
-  if (c.sg_guides) await sg(c.query, "guides").catch(() => errors++);
-  if (c.sg_files) await sg(c.query, "files").catch(() => errors++);
+  const pass = firstHit ? (r === 0 ? "first" : "repeat") : null;
+  if (c.dam) await dam(c.query, pass).catch(() => errors++);
+  if (c.sg_guides) await sg(c.query, "guides", pass).catch(() => errors++);
+  if (c.sg_files) await sg(c.query, "files", pass).catch(() => errors++);
 }
 const pct = (xs, p) => { const s = [...xs].sort((a, b) => a - b); return s.length ? Math.round(s[Math.min(s.length - 1, Math.ceil(p * s.length) - 1)]) : null; };
+const rollup = (list) => {
+  const names = [...new Set(list.flatMap((s) => Object.keys(s.steps)))];
+  return {
+    n: list.length,
+    steps: Object.fromEntries(names.map((n) => {
+      const xs = list.map((s) => s.steps[n]).filter((v) => typeof v === "number");
+      return [n, { n: xs.length, p50: pct(xs, 0.5), p95: pct(xs, 0.95) }];
+    })),
+  };
+};
 const summary = { checked_at: new Date().toISOString(), errors, engines: {} };
-for (const [engine, list] of Object.entries(samples)) {
-  const names = [...new Set(list.flatMap((s) => Object.keys(s)))];
-  summary.engines[engine] = { n: list.length, steps: Object.fromEntries(names.map((n) => {
-    const xs = list.map((s) => s[n]).filter((v) => typeof v === "number");
-    return [n, { n: xs.length, p50: pct(xs, 0.5), p95: pct(xs, 0.95) }];
-  })) };
+for (const [engine, list] of Object.entries(samples)) summary.engines[engine] = rollup(list);
+if (firstHit) {
+  // The #1196 view: each query's first run against its repeats, per step.
+  summary.first_hit = {
+    by_pass: Object.fromEntries(["first", "repeat"].map((pass) => [pass, rollup(samples.dam.filter((s) => s.pass === pass))])),
+    runs: samples.dam.map(({ query, pass, steps }) => ({ query, pass, ...steps })),
+  };
 }
 const out = arg("out"); if (out) writeFileSync(out, JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));

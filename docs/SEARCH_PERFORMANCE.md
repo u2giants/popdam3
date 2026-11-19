@@ -63,6 +63,30 @@ latency.
   Supabase Edge AI `gte-small`. The text-meaning leg is switched by
   `admin_config.SEARCH_TEXT_LEG_MODE` (`on`/`off`, instant, no deploy).
 
+## First search after idle (cold cost)
+
+A first typed search is slower than repeats of the same query (#1196: measured
+2.7–6.3 s first versus 1.1–2.0 s warm). Per-step Server-Timing
+(`scripts/search-eval/step-timing.mjs --first-hit`) attributes it to a database
+buffer-cache miss — `search_rpc` and `anchor_rpc` run 2–10× their warm cost on
+the first execution of a query — plus a cold-isolate spelling-vocabulary load
+(0.5–1.3 s). The query-embedding cache miss adds only ~0.15–0.25 s and is not
+the cause.
+
+Mitigations in place:
+
+- The production canary (`scripts/production-canary.mjs`, every 15 minutes) runs
+  a search keepalive ("frame", "canvas", "print") that keeps the edge isolates
+  and the Postgres search working set warm. Keepalive runs are informational and
+  never fail the canary — a slow warm-up is the very cost being hidden.
+- `dam-search-ai` starts the spelling-vocabulary load as soon as a search
+  arrives, so it overlaps the catalog checks and embed instead of serializing
+  inside that search's spelling step.
+
+When first searches regress, measure with `step-timing.mjs --first-hit` (viewer
+tester) and compare `first` vs `repeat` per step: `search_rpc`/`anchor_rpc`
+growth means database cache misses; `spelling` growth means isolate churn.
+
 ## Useful Checks
 
 Search RPC timings:
