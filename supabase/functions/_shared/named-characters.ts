@@ -29,12 +29,20 @@ export type NameIndexInput = {
   licensorNames: ReadonlyArray<string>;
   /** Product words ("frame", "rug"): never a character name, even if a row says so. */
   productWords: Iterable<string>;
+  /**
+   * Every known licensor, property and character name (the spelling vocabulary). Its words tell a
+   * name typed in two parts ("sponge bob" for SpongeBob) from a short name inside it ("Bob").
+   */
+  knownNames?: Iterable<string>;
 };
 
 type NameEntry = { core: Set<string>; legacy: Set<string>; properties: Set<string>; licensor: boolean };
 
 export type NameIndex = {
+  /** Keyed by the name without spaces, so "Spiderman" and "Spider Man" are one name. */
   names: Map<string, NameEntry>;
+  /** Single words of known names ("spongebob"), without spaces. */
+  nameWords: Set<string>;
   maxWords: number;
   propertyCharacters: Map<string, Set<string>>;
   characterProperties: Map<string, Set<string>>;
@@ -56,6 +64,7 @@ const MAX_NAME_WORDS = 8;
 const MAX_TEXT_LENGTH = 500;
 
 export const normalizeName = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const compact = (name: string) => name.replace(/ /g, "");
 
 function searchWords(text: string): string[] {
   return normalizeName(text.slice(0, MAX_TEXT_LENGTH)).split(" ").filter(Boolean);
@@ -75,21 +84,41 @@ export function namedSearchPhrases(texts: ReadonlyArray<string | null | undefine
   return [...phrases];
 }
 
+/** The phrase limit of get_dam_search_named_rows. */
+const MAX_LOOKUP_KEYS = 4000;
+
+/**
+ * Lookup keys for get_dam_search_named_rows: the typed phrases plus every known name spelled with
+ * other spacing ("spider man" for a typed "spiderman"); the lookup itself matches exact spacing.
+ */
+export function namedLookupKeys(phrases: ReadonlyArray<string>, knownNames: Iterable<string>): string[] {
+  const wanted = new Set(phrases.map(compact));
+  const keys = new Set(phrases);
+  for (const raw of knownNames) {
+    if (keys.size >= MAX_LOOKUP_KEYS) break;
+    const name = normalizeName(raw);
+    if (name && name.split(" ").length <= MAX_NAME_WORDS && wanted.has(compact(name))) keys.add(name);
+  }
+  return [...keys];
+}
+
 export function buildNameIndex(input: NameIndexInput): NameIndex {
   const productWords = new Set([...input.productWords].map(normalizeName));
   const names = new Map<string, NameEntry>();
+  const nameWords = new Set<string>();
+  for (const raw of input.knownNames ?? []) for (const word of normalizeName(raw).split(" ")) if (word) nameWords.add(word);
   let maxWords = 0;
   const entry = (raw: string): NameEntry | null => {
     const name = normalizeName(raw);
     if (!name) return null;
     const words = name.split(" ").length;
     if (words > MAX_NAME_WORDS) return null;
-    let found = names.get(name);
+    let found = names.get(compact(name));
     if (!found) {
       found = { core: new Set(), legacy: new Set(), properties: new Set(), licensor: false };
-      names.set(name, found);
-      maxWords = Math.max(maxWords, words);
+      names.set(compact(name), found);
     }
+    maxWords = Math.max(maxWords, words);
     return found;
   };
   const characterName = (raw: string) => {
@@ -112,25 +141,30 @@ export function buildNameIndex(input: NameIndexInput): NameIndex {
     if (!characterProperties.has(characterId)) characterProperties.set(characterId, new Set());
     characterProperties.get(characterId)!.add(propertyId);
   }
-  return { names, maxWords, propertyCharacters, characterProperties };
+  return { names, nameWords, maxWords, propertyCharacters, characterProperties };
 }
 
 type Match = { start: number; end: number; name: string; entry: NameEntry };
 
-/** Every known name on word boundaries; a name inside a longer matched name is dropped. */
+/**
+ * Every known name on word boundaries, whatever its spacing; a name inside a longer matched name is
+ * dropped, and so is one inside typed words that together spell one word of a known name
+ * ("sponge bob" is SpongeBob, not the character Bob).
+ */
 function matchNames(text: string, index: NameIndex): Match[] {
   const words = searchWords(text);
   const matches: Match[] = [];
+  const splitWords: Array<{ start: number; end: number }> = [];
   for (let start = 0; start < words.length; start++) {
-    for (let end = start + 1; end <= Math.min(words.length, start + index.maxWords); end++) {
+    for (let end = start + 1; end <= Math.min(words.length, start + Math.max(index.maxWords, 2)); end++) {
       const name = words.slice(start, end).join(" ");
-      const entry = index.names.get(name);
+      const entry = index.names.get(compact(name));
       if (entry) matches.push({ start, end, name, entry });
+      else if (end - start === 2 && index.nameWords.has(compact(name))) splitWords.push({ start, end });
     }
   }
-  return matches.filter((m) =>
-    !matches.some((other) => other !== m && other.start <= m.start && other.end >= m.end && other.end - other.start > m.end - m.start)
-  );
+  const covers = (other: { start: number; end: number }, m: Match) => other.start <= m.start && other.end >= m.end && other.end - other.start > m.end - m.start;
+  return matches.filter((m) => !matches.some((other) => other !== m && covers(other, m)) && !splitWords.some((w) => covers(w, m)));
 }
 
 /** The scope a search's texts (typed words, spelling correction) name. Empty when none. */

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildNameIndex, namedCharacterScope, namedSearchPhrases, type NameIndexInput, pickScopeKeys, withNamedScope } from "./named-characters.ts";
+import {
+  buildNameIndex,
+  namedCharacterScope,
+  namedLookupKeys,
+  namedSearchPhrases,
+  type NameIndexInput,
+  pickScopeKeys,
+  withNamedScope,
+} from "./named-characters.ts";
 
 const base: NameIndexInput = {
   characters: [
@@ -153,5 +161,27 @@ describe("withNamedScope", () => {
   });
   it("picks only scope keys for the anchor", () => {
     expect(pickScopeKeys({ customer: "x", semanticLicensorIds: ["l"], ...scope })).toEqual({ semanticLicensorIds: ["l"], ...scope });
+  });
+});
+
+describe("name spacing (#1037 AFTER score)", () => {
+  const spaced = buildNameIndex({
+    ...base,
+    characters: [...base.characters, { id: "c-spider-1", name: "Spiderman" }, { id: "c-spider-2", name: "Spider Man" }, { id: "c-bob", name: "Bob" }],
+    properties: [...base.properties, { id: "p-spider", name: "Spider-Man" }],
+    knownNames: ["Spider-Man", "Spiderman", "SpongeBob SquarePants", "Bob"],
+  });
+  it("asks the lookup for every known spacing of a typed name", () => {
+    expect(namedLookupKeys(["spiderman"], ["Spider-Man", "Spiderman", "Bob"]).sort()).toEqual(["spider man", "spiderman"]);
+    expect(namedLookupKeys(["bob"], [])).toEqual(["bob"]);
+  });
+  it("treats names that differ only in spacing as one name, so the property still wins", () => {
+    // Property with no linked character: the rule is skipped, so no character is required.
+    expect(namedCharacterScope(["spiderman"], spaced)).toEqual({});
+    expect(namedCharacterScope(["spider man clock"], spaced)).toEqual({});
+  });
+  it("does not read a short name inside a word typed in two parts", () => {
+    expect(namedCharacterScope(["sponge bob"], spaced)).toEqual({});
+    expect(namedCharacterScope(["bob clock"], spaced)).toEqual({ requiredCharacterIds: ["c-bob"], requiredCharacterNames: ["bob"] });
   });
 });
