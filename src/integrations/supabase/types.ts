@@ -4826,6 +4826,10 @@ export type Database = {
         Args: { p_filters: Json; p_query: string }
         Returns: unknown
       }
+      dam_search_filter_pretest_values: {
+        Args: { p_filters: Json }
+        Returns: Record<string, unknown>
+      }
       dam_search_name_queries: { Args: { p_names: Json }; Returns: unknown[] }
       dam_search_named_scope: {
         Args: { p_filters: Json }
