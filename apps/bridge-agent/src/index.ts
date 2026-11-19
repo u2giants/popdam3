@@ -12,6 +12,7 @@
  * Per PROJECT_BIBLE: outbound HTTPS only, no inbound networking.
  */
 
+import { renderQueueReason, requestRender } from "./render-queue-request.js";
 import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
 import { runCheckChangedPreflight, reusableThumbnailId } from "./check-changed-preflight.js";
 import { reconcileMissingFiles } from "./missing-file-reconciliation.js";
@@ -1288,38 +1289,26 @@ async function processFile(file: FileCandidate) {
 
     // ── Step 4: Queue for Windows render agent ──
     const isNewOrChanged = result.action === "created" || result.action === "updated" || result.action === "moved";
-    const localThumbFailed = !thumb.thumbnailUrl && !!thumb.thumbnailError && thumb.thumbnailError !== "deferred_to_windows_agent";
-
-    const queueReason = (() => {
-      // A) Deferred (primary or shared offload) — queue after successful ingest
-      if (deferDecision.defer && isNewOrChanged) {
-        return deferDecision.reason;
-      }
-
-      // B) Local thumbnail failed — evaluate fallback options
-      if (localThumbFailed) {
-        // blank_render: structurally useless file — never queue for Windows
-        if (thumb.thumbnailError === "blank_render") return null;
-        // B1) New policy: final_fallback_on_local_failure covers both PSD and AI
-        if (policy?.final_fallback_on_local_failure) {
-          return "local_thumb_failed";
-        }
-        // B2) Legacy fallback: AI no_pdf_compat only (backward compat when no policy set)
-        if (thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
-          return "no_pdf_compat";
-        }
-      }
-
-      return null;
-    })();
+    const queueReason = renderQueueReason({
+      defer: !!deferDecision.defer,
+      deferReason: deferDecision.reason ?? null,
+      isNewOrChanged,
+      thumbnailUrl: thumb.thumbnailUrl,
+      thumbnailError: thumb.thumbnailError,
+      fileType: file.fileType,
+      finalFallbackOnLocalFailure: !!policy?.final_fallback_on_local_failure,
+    });
 
     if (queueReason) {
-      try {
-        await api.queueRender(result.asset_id, queueReason);
-        if (deferDecision.defer) pendingRenderJobs++; // local estimate for queue depth guard
-      } catch (e) {
-        logger.warn("Failed to queue render job", { assetId: result.asset_id, reason: queueReason, error: (e as Error).message });
-      }
+      const queued = await requestRender(result.asset_id, file.relativePath, queueReason, {
+        queueRender: api.queueRender,
+        recordError: (message) => {
+          counters.errors++;
+          lastError = message;
+          logger.error("Failed to queue render job", { assetId: result.asset_id, file: file.relativePath, reason: queueReason, error: message });
+        },
+      });
+      if (queued && deferDecision.defer) pendingRenderJobs++; // local estimate for queue depth guard
     }
 
     logger.debug("File processed", {
