@@ -91,7 +91,7 @@ test("refusal: dispatch not from main", () => {
   failsWith(gateCtx({ ref: "refs/heads/develop" }), "refs/heads/main");
 });
 
-test("refusal: checked-out SHA differs from origin/main tip", () => {
+test("refusal: checked-out SHA differs from the SHA approved by the workflow", () => {
   failsWith(gateCtx({ originMainSha: OTHER_SHA }), "origin/main");
 });
 
@@ -182,6 +182,18 @@ test("workflow exports dispatch inputs and ordinary pushes cannot run production
   assert.match(workflow, /\{docker_registry_image_tag: \$t, domains: \$d\}/);
   assert.match(workflow, /Recheck main tip immediately before public exposure/);
   assert.doesNotMatch(workflow, /deploy-production:\s*\n\s*if: github\.event_name == 'push'/);
+});
+
+test("initial production freshness gate checks ancestry and committed inputs before approving the build SHA", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/db-data-admin.yml", import.meta.url), "utf8");
+  const gate = workflow.match(
+    /- name: Fail unless the checked-out SHA is origin\/main or content-equal to its tip\n([\s\S]*?)\n\s*- name:/,
+  );
+  assert.ok(gate, "expected the initial production freshness gate");
+  assert.match(gate[1], /inputs=\(apps\/db-data-admin scripts\/db-data-admin \.github\/workflows\/db-data-admin\.yml\)/);
+  assert.match(gate[1], /if ! git merge-base --is-ancestor "\$\{GITHUB_SHA\}" "\$\{tip\}"; then\n\s*echo [^\n]*\n\s*exit 1/);
+  assert.match(gate[1], /if ! git diff --quiet "\$\{GITHUB_SHA\}" "\$\{tip\}" -- "\$\{inputs\[@\]\}"; then\n\s*echo [^\n]*\n\s*git diff --stat [^\n]*\n\s*exit 1/);
+  assert.match(gate[1], /fi\n\s*#[^\n]*\n\s*echo "ORIGIN_MAIN_SHA=\$\{GITHUB_SHA\}" >> "\$GITHUB_ENV"/);
 });
 
 test("refusal: sslip.io auto-host present after attach", () => {
