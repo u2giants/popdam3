@@ -1421,8 +1421,12 @@ and not has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles
 and not has_table_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','DELETE')
 """,
     "dflow_prod_role_create_insert_id_v1": r"""
-to_regclass('dflow_prod."Roles"') not null
+to_regclass('dflow_prod."Roles"') is not null
 and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','Id','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','Name','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','kind','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','parent_id','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','is_active','INSERT')
 and not has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','app_role_id','INSERT')
 and not has_table_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','DELETE')
 """,
