@@ -45,8 +45,19 @@ function routerFixture() {
     err: (message: string, status = 400) => Response.json({ error: message }, { status }),
   };
   const source = readFileSync(new URL("../agent-api/index.ts", import.meta.url), "utf8");
-  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  runInNewContext(compiled, {
+  const compile = (text: string) => ts.transpileModule(text, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const tiffExports = {};
+  runInNewContext(compile(readFileSync(new URL("./agent-handlers/tiff.ts", import.meta.url), "utf8")), {
+    exports: tiffExports,
+    require(name: string) {
+      if (name.endsWith("/http.ts")) return http;
+      if (name.endsWith("/service-client.ts")) return { serviceClient: () => client };
+      return {};
+    },
+  });
+  runInNewContext(compile(source), {
     exports: {},
     Request,
     Response,
@@ -55,6 +66,7 @@ function routerFixture() {
     Deno: { env: { get: () => undefined } },
     console: { warn() {}, error() {}, log() {} },
     require(name: string) {
+      if (name.endsWith("/agent-handlers/tiff.ts")) return tiffExports;
       if (name.endsWith("/http.ts")) return http;
       if (name.endsWith("/service-client.ts")) return { serviceClient: () => client };
       if (name.endsWith("/crypto.ts")) return { sha256Hex: async (value: string) => hash(value) };
