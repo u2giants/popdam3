@@ -153,6 +153,7 @@ export async function heartbeat(
   lastError?: string,
   versionInfo?: { image_tag?: string; version?: string; build_sha?: string },
   diagnostics?: Record<string, unknown>,
+  logTail?: string[],
 ): Promise<HeartbeatResponse> {
   // Heartbeat runs 4+ parallel DB queries server-side and can hit Supabase cold starts.
   // Use a 60s timeout (vs. 30s for other calls) so slow responses don't abort prematurely
@@ -163,6 +164,7 @@ export async function heartbeat(
     last_error: lastError,
     version_info: versionInfo,
     diagnostics,
+    log_tail: logTail ?? undefined,
   }, 60_000);
   return data as unknown as HeartbeatResponse;
 }
@@ -220,13 +222,14 @@ export async function scanProgress(
   counters: Counters,
   currentPath?: string,
   skippedDirs?: string[],
+  errorDetail?: string,
 ): Promise<void> {
   await callApi("scan-progress", {
     session_id: sessionId,
     status,
     counters,
     current_path: currentPath,
-    ...(status === "failed" && currentPath ? { error: currentPath } : {}),
+    ...(errorDetail ? { error: errorDetail } : status === "failed" && currentPath ? { error: currentPath } : {}),
     ...(skippedDirs && skippedDirs.length > 0 ? { skipped_dirs: skippedDirs } : {}),
   });
 }

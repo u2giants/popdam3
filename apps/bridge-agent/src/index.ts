@@ -13,11 +13,12 @@
  */
 
 import { renderQueueReason, requestRender } from "./render-queue-request.js";
+import { createErrorCollector } from "./scan-error-detail.js";
 import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
 import { runCheckChangedPreflight, reusableThumbnailId } from "./check-changed-preflight.js";
 import { reconcileMissingFiles } from "./missing-file-reconciliation.js";
 import { config } from "./config.js";
-import { logger } from "./common/logger.js";
+import { getLogTail, logger } from "./common/logger.js";
 import * as api from "./api-client.js";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivity, withTimeout } from "./liveness-watchdog.js";
@@ -53,6 +54,8 @@ let isScanning = false;
 let aiIgnoreSet: Set<string> = new Set();
 let abortRequested = false;
 let lastError: string | undefined;
+// Per-file error strings for the final scan report (#1195).
+const fileErrors = createErrorCollector();
 const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
 let isCrawlingStyleGuides = false;
@@ -274,7 +277,7 @@ async function sendHeartbeat() {
     image_tag: imageTag,
     version: packageVersion,
     build_sha: buildSha,
-  }, diagnostics);
+  }, diagnostics, getLogTail(50));
   lastError = undefined;
   livenessWatchdog.noteSuccess();
   logger.debug("Heartbeat sent");
@@ -838,11 +841,12 @@ async function safeScanProgress(
   currentCounters: api.Counters,
   message?: string,
   dirs?: string[],
+  errorDetail?: string,
 ) {
   try {
     // A late "running" update must not land after the final status.
     if (status !== "running") await runningProgress.idle();
-    await api.scanProgress(sessionId, status, currentCounters, message, dirs);
+    await api.scanProgress(sessionId, status, currentCounters, message, dirs, errorDetail);
   } catch (e) {
     logger.warn("Failed to report scan progress (non-fatal)", {
       status,
@@ -883,6 +887,7 @@ async function runScan(providedSessionId?: string) {
   isScanning = true;
   setActivity("scan:walk");
   abortRequested = false;
+  fileErrors.reset();
   resetCounters();
   const sessionId = providedSessionId || randomUUID();
   const effectiveRoots = getEffectiveScanRoots();
@@ -976,6 +981,7 @@ async function runScan(providedSessionId?: string) {
     // §4.3: "0 files checked" is an error (only if not resuming — resumed scans may legitimately have fewer files)
     if (counters.files_checked === 0 && !resumeFromDir) {
       counters.errors++;
+      fileErrors.add("(scan)", "0 files checked");
       const failure = summarizeScanFailure(counters);
       lastError = failure;
       logger.error("Scan completed with 0 files checked — treating as error", { failure });
@@ -1008,7 +1014,7 @@ async function runScan(providedSessionId?: string) {
       ? "completed_with_errors"
       : hasUnresolvedLicensing ? "completed_with_warnings" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
-    await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
+    await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs, fileErrors.summary() || undefined);
     await clearScanCheckpointWithRetry("after successful scan");
   } catch (e) {
     lastError = summarizeScanFailure(counters, { error: e });
@@ -1064,12 +1070,16 @@ async function reconcileCatalogWithDisk(candidates: FileCandidate[], scanRoots: 
     counters.retired_missing = result.retired;
     if (result.refused) {
       logger.warn("Missing-file reconciliation stopped early", { ...result });
-      if (result.refused === "too_many_missing" || result.refused === "retire_failed") counters.errors++;
+      if (result.refused === "too_many_missing" || result.refused === "retire_failed") {
+        counters.errors++;
+        fileErrors.add("(missing-file pass)", `refused: ${result.refused}`);
+      }
     } else {
       logger.info("Missing-file reconciliation complete", { ...result });
     }
   } catch (e) {
     counters.errors++;
+    fileErrors.add("(missing-file pass)", (e as Error).message);
     logger.error("Missing-file reconciliation failed; catalog left as is", { error: (e as Error).message });
   }
 }
@@ -1313,6 +1323,7 @@ async function processFile(file: FileCandidate) {
         recordError: (message) => {
           counters.errors++;
           lastError = message;
+          fileErrors.add(file.relativePath, message);
           logger.error("Failed to queue render job", { assetId: result.asset_id, file: file.relativePath, reason: queueReason, error: message });
         },
       });
@@ -1327,6 +1338,7 @@ async function processFile(file: FileCandidate) {
   } catch (e) {
     counters.errors++;
     lastError = (e as Error).message;
+    fileErrors.add(file.relativePath, lastError);
     logger.error("File processing failed", {
       file: file.relativePath,
       error: lastError,
