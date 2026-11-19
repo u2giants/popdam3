@@ -13,12 +13,12 @@ read-when: "implementing cleanup 06 on user roles and invitations"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. PopDAM defaults to PopDAM and PopSG defaults to PopSG, including for legacy invitations with no app list. |
+| 2. Make the scoped change | ✅ implemented | Three component fixtures proved defaults and reset, role handling, impersonation, resend, revoke and accepted/pending display. Frontend build and 1215 root tests passed, with one unrelated opt-in skip. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 

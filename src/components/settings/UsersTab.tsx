@@ -199,12 +199,12 @@ export function UsersSection() {
   );
 }
 
-export function InvitationSection() {
+export function InvitationSection({ defaultApp }: { defaultApp: "popdam" | "styleguides" }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("user");
-  const [apps, setApps] = useState<string[]>(["styleguides"]);
+  const [apps, setApps] = useState<string[]>([defaultApp]);
   const [resendingId, setResendingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -217,7 +217,7 @@ export function InvitationSection() {
     onSuccess: () => {
       toast.success("Invitation sent");
       setEmail("");
-      setApps(["styleguides"]);
+      setApps([defaultApp]);
       queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     },
     onError: (e) => toast.error(e.message),
@@ -323,7 +323,7 @@ export function InvitationSection() {
         ) : (
           <div className="space-y-1">
             {invitations.map((inv: Record<string, unknown>) => {
-              const invApps = Array.isArray(inv.apps) ? (inv.apps as string[]) : ["styleguides"];
+              const invApps = Array.isArray(inv.apps) ? (inv.apps as string[]) : [defaultApp];
               return (
                 <div key={inv.id as string} className="flex items-center justify-between text-xs py-1 border-b border-border">
                   <div className="flex items-center gap-2 flex-wrap">

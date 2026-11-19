@@ -13,12 +13,12 @@ read-when: "implementing cleanup 14 on popsg render screens"
 
 | Step | State on 2026-11-19 | Evidence to record |
 |---|---|---|
-| 1. Establish current behavior | ⬜ open | Baseline revision and named fixtures |
-| 2. Make the scoped change | ⬜ open | Owned diff and before/after results |
+| 1. Establish current behavior | ✅ established | Before/after comparison on current main. The two PopSG tables remain mounted on the same tab and have unchanged queries, intervals and labels. |
+| 2. Make the scoped change | ✅ implemented | Frontend typecheck and build passed. Both status displays now use the same parsing algorithm and retain their display-specific labels. |
 | 3. Verify and land | ⬜ open | Commit, pull request and checks |
 | 4. Accept in use | ⬜ open | Installed revision and observed result |
 
-Start at step 1 after Albert selects this item. Publication authorizes planning only.
+Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
 ## 1. Ultimate goal
 

@@ -47,13 +47,13 @@ import {
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
-import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useEffectiveAssetTags } from "@/hooks/useEffectiveAssetTags";
-import { ScopedTagSections, type ScopedTagAction } from "@/components/library/ScopedTagSections";
+import { ScopedTagSections } from "@/components/library/ScopedTagSections";
 import CheckoutBar from "@/components/library/CheckoutBar";
 import OlderCopiesSection from "@/components/library/OlderCopiesSection";
-import { useBulkOperationWaiter } from "@/hooks/useBulkOperationWaiter";
+import { useScopedTagMutation } from "@/hooks/useScopedTagMutation";
+import { useSingleAssetTagging } from "@/hooks/useSingleAssetTagging";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
 const FILE_TYPE_COLOR: Record<string, string> = {
@@ -205,7 +205,6 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
-  const [aiTagging, setAiTagging] = useState(false);
   const [pathMode, setPathModeState] = useState<PathMode>(getPreferredPathMode);
   const [syncRoot, setSyncRootState] = useState<string>(getUserSyncRoot() ?? "");
   const [copyingPath, setCopyingPath] = useState(false);
@@ -327,72 +326,25 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   });
 
   // ── AI tag ────────────────────────────────────────────────────
-  const waitForBulkOperation = useBulkOperationWaiter();
-  const handleAiTag = async () => {
-    setAiTagging(true);
-    try {
-      const opKey = `ai-tag-single-${asset.id}`;
-      const now = new Date().toISOString();
-      const { error } = await supabase.rpc("update_bulk_operation", {
-        p_op_key: opKey,
-        p_op_state: {
-          status: "running",
-          cursor: 0,
-          params: { type: "bulk-ai-tag-all", asset_ids: [asset.id], total: 1 },
-          started_at: now,
-          updated_at: now,
-          progress: { tagged: 0, skipped: 0, failed: 0, total: 1 },
-        },
-      });
-      if (error) throw error;
-
-      const outcome = await waitForBulkOperation(opKey);
-      if (outcome.status === "aborted") return; // panel unmounted mid-poll
-      if (outcome.status === "completed") {
-        // Keep the completed operation record. Replacing it with {status:"idle"}
-        // can erase a protected provider-job pointer and is refused by the
-        // restart-safety database contract.
-        queryClient.invalidateQueries({ queryKey: ["assets"] });
-        queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
-        toast("AI tagging complete");
-        return;
-      }
-      if (outcome.status === "failed") throw new Error(outcome.error || "AI tagging failed");
-      toast("AI tagging is still running — check back shortly");
-    } catch (e: any) {
-      toast.error("AI tagging failed", { description: e.message });
-    } finally {
-      setAiTagging(false);
-    }
-  };
+  const { aiTagging, run: tagSingleAsset } = useSingleAssetTagging((assetId) => {
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-tags", assetId] });
+  });
+  const handleAiTag = () => tagSingleAsset(asset.id);
 
   // ── Scoped metadata (Style Group facts + this file's own facts) ──
   // Group facts are read live through the governed contract; they are never
   // copied onto the asset, so nothing here can contaminate a sibling file.
-  const { call: adminApi } = useAdminApi();
   const { isAdmin } = useIsAdmin();
   const { data: effective, isLoading: effectiveLoading } = useEffectiveAssetTags(asset.id);
-  const [tagBusy, setTagBusy] = useState(false);
-
-  const handleTagAction: ScopedTagAction = async ({ scope, tag, action }) => {
-    setTagBusy(true);
-    try {
-      const payload: Record<string, unknown> = { scope, tag };
-      if (scope === "asset") payload.asset_id = asset.id;
-      else payload.style_group_id = effective?.styleGroupId ?? asset.style_group_id;
-
-      if (action === "add") await adminApi("add-scoped-tag", payload);
-      else if (action === "remove") await adminApi("remove-scoped-tag", payload);
-      else await adminApi("review-scoped-tag", { ...payload, decision: action });
-
-      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", asset.id] });
+  const { tagBusy, handleTagAction } = useScopedTagMutation({
+    assetId: asset.id,
+    styleGroupId: effective?.styleGroupId ?? asset.style_group_id,
+    onSuccess: (assetId) => {
+      queryClient.invalidateQueries({ queryKey: ["effective-asset-tags", assetId] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
-    } catch (e: unknown) {
-      toast.error("Could not update tags", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTagBusy(false);
-    }
-  };
+    },
+  });
 
   // ── Paths ─────────────────────────────────────────────────────
   const paths = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, getUserSyncRoot()) : null;

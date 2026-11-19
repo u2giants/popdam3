@@ -6,7 +6,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 import { type DamDocumentType, invalidateSearchMode, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
-import { createFullTextSearchHelpers, setRankedListCacheEntry, type RankedListCacheEntry } from "@/lib/full-text-search";
+import { createFullTextSearchHelpers, getOrLoadRankedIds, type RankedListCacheEntry } from "@/lib/full-text-search";
 import { clearStyleGroupRankedListCache } from "@/hooks/useStyleGroups";
 
 const PAGE_SIZE = 200;
@@ -304,11 +304,7 @@ async function fetchRankedFilteredAssetIds(options: {
   fallbackSearchFilter: string | null;
 }): Promise<string[]> {
   const { filters, minDate, searchMode, searchTerm, fullTextAssetIds, fallbackSearchFilter } = options;
-  const cacheKey = `${searchMode}\u0000${searchTerm}\u0000${minDate}\u0000${JSON.stringify(filters)}`;
-  const cached = assetRankedListCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.promise;
-
-  const promise = (async () => {
+  return getOrLoadRankedIds(assetRankedListCache, [searchMode, searchTerm, minDate, JSON.stringify(filters)], async () => {
     const effectiveScope = needsEffectiveScope(filters);
     let query: any = effectiveScope
       ? supabase
@@ -320,17 +316,7 @@ async function fetchRankedFilteredAssetIds(options: {
     const { data, error } = effectiveScope ? await runEffectiveScopeQuery(() => query) : await query;
     if (error) throw error;
     return sortByRank((data ?? []) as { id: string }[], fullTextAssetIds, (row) => row.id).map((row) => row.id);
-  })();
-
-  setRankedListCacheEntry(assetRankedListCache, cacheKey, promise);
-
-  try {
-    return await promise;
-  } catch (error) {
-    // A failed (or aborted) lookup must not pin the UI to a stale list.
-    assetRankedListCache.delete(cacheKey);
-    throw error;
-  }
+  });
 }
 
 export function useAssets(

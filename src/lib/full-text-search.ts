@@ -37,6 +37,26 @@ export function setRankedListCacheEntry(
   cache.set(key, { expiresAt: now + RANKED_LIST_CACHE_TTL_MS, promise });
 }
 
+export async function getOrLoadRankedIds(
+  cache: Map<string, RankedListCacheEntry>,
+  keyParts: string[],
+  loadIds: () => Promise<string[]>,
+): Promise<string[]> {
+  const key = keyParts.join("\u0000");
+  const cached = cache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+  const promise = loadIds();
+  setRankedListCacheEntry(cache, key, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    // Failed reads should be retried by the next request.
+    cache.delete(key);
+    throw error;
+  }
+}
+
 export interface FullTextSearchSpec {
   /** Document type passed to the shared `fetchSearchIds` helper. */
   documentType: "asset" | "style_group";

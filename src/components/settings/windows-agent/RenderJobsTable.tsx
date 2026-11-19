@@ -1,3 +1,4 @@
+import { parseFailedRenderMethods } from "@/lib/render-failure-methods";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -29,12 +30,7 @@ export function getRenderStatusTooltip(job: Record<string, unknown>): string {
   if (status === "failed") {
     if (!rawError) return "Render failed with no detailed pipeline message.";
     const details = rawError.replace(/^render_failed:\s*/i, "");
-    const failedMethods = details
-      .split("|")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => part.split(":")[0]?.trim().toLowerCase())
-      .filter(Boolean);
+    const failedMethods = parseFailedRenderMethods(details);
 
     if (failedMethods.length === 0) return `Render failed: ${details}`;
 
