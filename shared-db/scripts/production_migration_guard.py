@@ -877,6 +877,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 22: batch 21 plus production's explicit EXECUTE grants on the 8-argument search_dam_documents first. Source excludes shared preview and production.",
     },
+    "20261224000000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 23: drops the sandbox-only 7-argument search_dam_documents, then replays the rest of the production dam search chain and related versions; grants to absent production service logins omitted. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
