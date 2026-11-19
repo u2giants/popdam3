@@ -1,18 +1,19 @@
 // PopDAM's Windows URL handler. Windows Script Host supplies the link as data.
 (function () {
-    var prefix = "popdam://open-folder?path=";
     if (WScript.Arguments.length !== 1) {
         WScript.Quit(1);
     }
 
     var uri = WScript.Arguments.Item(0);
-    if (uri.substring(0, prefix.length).toLowerCase() !== prefix) {
+    // Windows ShellExecute can insert a slash after the URI host.
+    var prefix = /^popdam:\/\/open-folder\/?\?path=/i.exec(uri);
+    if (!prefix) {
         WScript.Quit(1);
     }
 
     var path;
     try {
-        path = decodeURIComponent(uri.substring(prefix.length)).replace(/\//g, "\\");
+        path = decodeURIComponent(uri.substring(prefix[0].length)).replace(/\//g, "\\");
     } catch (error) {
         WScript.Quit(1);
     }

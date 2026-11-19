@@ -81,7 +81,7 @@ export default function DownloadsPage() {
 
   const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; Invoke-WebRequest -UseBasicParsing -Uri 'https://dam.designflow.app/downloads/popdam-open.js' -OutFile 'C:\\PopDAM\\popdam-open.js' -ErrorAction Stop; Write-Host '[OK] Downloaded C:\\PopDAM\\popdam-open.js'`;
 
-  const winStep2 = `New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; New-Item -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value '' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value ('"{0}\\System32\\wscript.exe" "C:\\PopDAM\\popdam-open.js" "%1"' -f $env:SystemRoot); Write-Host '[OK] Protocol handler registered'`;
+  const winStep2 = `New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; New-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -PropertyType String -Value '' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value ('"{0}\\System32\\wscript.exe" "C:\\PopDAM\\popdam-open.js" "%1"' -f $env:SystemRoot); Write-Host '[OK] Protocol handler registered'`;
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
