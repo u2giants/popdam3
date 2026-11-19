@@ -28,6 +28,7 @@ import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
+import { effectiveSortField } from "@/lib/library-sort";
 
 /** Detail-panel resize bounds (desktop only). */
 const DETAIL_MIN_WIDTH = 360;
@@ -37,7 +38,9 @@ const DETAIL_DEFAULT_WIDTH = 408;
 export default function LibraryPage() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<AssetFilters>(defaultFilters);
-  const [sortField, setSortField] = useState<SortField>("modified_at");
+  // Null until the user picks a sort; typed searches then default to Relevance (#1037).
+  const [chosenSortField, setSortField] = useState<SortField | null>(null);
+  const sortField = effectiveSortField(chosenSortField, filters.search);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [libraryMode, setLibraryMode] = useState<LibraryMode>("groups");

@@ -84,13 +84,20 @@ describe("mergeSearchPages rows", () => {
     expect(row.semantic_rank).toBe(0.5);
   });
 
-  it("recomputes rank with the picture-lead blend and sorts by it", () => {
-    const keywordOnly = hit("kw", { keyword_rank: 0.9, semantic_rank: null });
-    const picture = hit("pic", { keyword_rank: 0.1, semantic_rank: 0.9 });
-    const merged = mergeSearchPages([page({ results: [keywordOnly, picture], total_count: 2 })]);
-    // picture: max(0.1, 0.9 + 0.35*0.1) = 0.935 beats keywordOnly 0.9.
-    expect(merged.results[0].entity_id).toBe("pic");
-    expect(merged.results[0].rank).toBeCloseTo(0.935, 5);
-    expect(merged.results[1].entity_id).toBe("kw");
+  it("orders by the search rank, which carries the text-meaning leg (#1037)", () => {
+    // The framed product has no keyword or picture lead but the best blended rank.
+    const planter = hit("planter", { keyword_rank: 0.5, semantic_rank: 0.2, rank: 0.3 });
+    const framed = hit("framed", { keyword_rank: 0.3, semantic_rank: 0.1, rank: 0.7 });
+    const merged = mergeSearchPages([page({ results: [planter, framed], total_count: 2 })]);
+    expect(merged.results.map((r) => r.entity_id)).toEqual(["framed", "planter"]);
+    expect(merged.results[0].rank).toBe(0.7);
+  });
+
+  it("keeps a variant's better rank for a document found by several variants", () => {
+    const merged = mergeSearchPages([
+      page({ results: [hit("a", { rank: 0.2 }), hit("b", { rank: 0.5 })], total_count: 2 }),
+      page({ results: [hit("a", { rank: 0.9 })], total_count: 1 }),
+    ]);
+    expect(merged.results.map((r) => r.entity_id)).toEqual(["a", "b"]);
   });
 });

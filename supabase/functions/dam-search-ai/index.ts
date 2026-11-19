@@ -51,7 +51,9 @@ export const SEARCH_TEXT_MIN_SCORE_KEY = "SEARCH_TEXT_MIN_SCORE";
 export const SEARCH_TEXT_SCORE_MARGIN_KEY = "SEARCH_TEXT_SCORE_MARGIN";
 
 const VOCABULARY_TTL_MS = 60 * 60 * 1000;
-const NAME_SCOPE_TIMEOUT_MS = 1500;
+// Measured live 2026-11-18: under load the name lookup took ~1.5 s and every typed search
+// answered "Search unavailable"; the request budget still bounds the whole search.
+const NAME_SCOPE_TIMEOUT_MS = 5000;
 const LICENSOR_READ_TIMEOUT_MS = 3000;
 const PRODUCT_WORDS = [
   "canvas",
