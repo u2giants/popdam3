@@ -1,0 +1,121 @@
+name: Temporary PopDAM protocol verification
+on:
+  push:
+    branches: [codex/popdam-1200-19-native]
+    paths: [.github/workflows/protocol-native.yml]
+permissions: {}
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify both published downloads and open a temporary folder in Finder
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch=$(mktemp -d "${RUNNER_TEMP}/popdam-protocol.XXXXXXXX")
+          scratch=$(cd "$scratch" && pwd -P)
+          fixture="$scratch/PopDAM fixture (native)"
+          app="$HOME/Applications/PopDAM Opener.app"
+          lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+          test ! -e "$app"
+          cleanup() {
+            "$lsregister" -u "$app" >/dev/null 2>&1 || true
+            rm -rf -- "$scratch" "$app"
+          }
+          trap cleanup EXIT
+          mkdir "$fixture"
+          for host in dam.designflow.app sg.designflow.app; do
+            for entry in \
+              e7e39f0bdd21df96229880c6f501e2eb1934d7a84e920fd4df29627d36f373b1:install-popdam-protocol.sh \
+              fac471d178bc90a77650b704361d5b7d6ee5e10a61eec2db81bc8f40994df395:popdam-open.bat \
+              490b2cc3a8121c63b26926844339b88e2090d1d155eae53c115bb05f16dcfc4e:install-popdam-protocol.reg; do
+              file="${entry#*:}"
+              dest="$scratch/$host-$file"
+              curl --fail --silent --show-error --max-time 20 --proto '=https' "https://$host/downloads/$file" -o "$dest"
+              printf '%s  %s\n' "${entry%%:*}" "$dest" | shasum -a 256 -c -
+            done
+          done
+          bash "$scratch/dam.designflow.app-install-popdam-protocol.sh"
+          plutil -lint "$app/Contents/Info.plist"
+          test "$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw "$app/Contents/Info.plist")" = popdam
+          uri=$(python3 -c 'import sys,urllib.parse; print("popdam://open-folder?path=" + urllib.parse.quote(sys.argv[1], safe="!~*\x27()"))' "$fixture")
+          open "$uri"
+          # Observe the resulting Finder target. A successful Launch Services
+          # request alone says nothing about whether the right folder opened.
+          for attempt in {1..10}; do
+            /usr/bin/perl -e 'alarm shift; exec @ARGV' 4 osascript -e '
+              on run argv
+                tell application "Finder"
+                  repeat with finderWindow in Finder windows
+                    try
+                      if POSIX path of (target of finderWindow as alias) is (item 1 of argv) then return "Finder opened the exact fixture"
+                    end try
+                  end repeat
+                end tell
+                return "Finder target not observed"
+              end run
+            ' "$fixture/" >"$scratch/finder.txt" 2>"$scratch/finder.err" || true
+            if grep -Fx 'Finder opened the exact fixture' "$scratch/finder.txt"; then exit 0; fi
+            sleep 1
+          done
+          cat "$scratch/finder.err" >&2
+          echo '::error::Native popdam:// dispatch did not produce an observable Finder window at the exact fixture.'
+          exit 1
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify the published Windows registry installer and open a temporary folder in Explorer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scratch = Join-Path $env:RUNNER_TEMP "popdam-protocol-$([guid]::NewGuid())"
+          $folder = Join-Path $scratch 'PopDAM fixture (native)'
+          $installed = 'C:\PopDAM'
+          $registration = 'HKCU:\Software\Classes\popdam'
+          if ((Test-Path -LiteralPath $installed) -or (Test-Path -LiteralPath $registration)) {
+            throw 'Expected a clean ephemeral runner. Existing installer path or registration will be preserved.'
+          }
+          $files = @{
+            'popdam-open.bat' = 'fac471d178bc90a77650b704361d5b7d6ee5e10a61eec2db81bc8f40994df395'
+            'install-popdam-protocol.reg' = '490b2cc3a8121c63b26926844339b88e2090d1d155eae53c115bb05f16dcfc4e'
+          }
+          try {
+            New-Item -ItemType Directory -Path $folder, $installed | Out-Null
+            foreach ($file in $files.Keys) {
+              $download = Join-Path $scratch $file
+              Invoke-WebRequest -Uri "https://dam.designflow.app/downloads/$file" -OutFile $download -TimeoutSec 20 -MaximumRedirection 0
+              $hash = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash
+              if ($hash -ne $files[$file]) { throw "Published SHA-256 mismatch for $file. Actual: $hash" }
+              Write-Host "Published SHA-256 matches for $file"
+            }
+            Copy-Item -LiteralPath (Join-Path $scratch 'popdam-open.bat') -Destination $installed
+            & reg.exe import (Join-Path $scratch 'install-popdam-protocol.reg')
+            if ($LASTEXITCODE -ne 0) { throw "Registry import failed: $LASTEXITCODE" }
+            $key = Get-Item -LiteralPath "$registration\shell\open\command"
+            if ($key.GetValue('') -cne '"C:\PopDAM\popdam-open.bat" "%1"') { throw 'Unexpected native URI handler command' }
+            # The test folder uses only characters whose encoding matches between
+            # EscapeDataString and the app's encodeURIComponent after this adjustment.
+            $encoded = [uri]::EscapeDataString($folder).Replace('%28', '(').Replace('%29', ')')
+            $uri = "popdam://open-folder?path=$encoded"
+            Start-Process $uri
+            $shell = New-Object -ComObject Shell.Application
+            for ($attempt = 0; $attempt -lt 15; $attempt++) {
+              foreach ($window in $shell.Windows()) {
+                if ($window.FullName -like '*\explorer.exe' -and $window.LocationURL -like 'file:*') {
+                  $observed = ([uri]$window.LocationURL).LocalPath
+                  if ($observed.TrimEnd('\') -ieq $folder.TrimEnd('\')) {
+                    Write-Host 'Explorer opened the exact fixture'
+                    return
+                  }
+                }
+              }
+              Start-Sleep -Seconds 1
+            }
+            throw 'Native popdam:// dispatch did not produce an observable Explorer window at the exact fixture.'
+          } finally {
+            if (Test-Path -LiteralPath $registration) { Remove-Item -LiteralPath $registration -Recurse -Force }
+            if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Recurse -Force }
+            if (Test-Path -LiteralPath $scratch) { Remove-Item -LiteralPath $scratch -Recurse -Force }
+          }
