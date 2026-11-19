@@ -1,5 +1,5 @@
 import { conflictsFor } from "./operation-policy.js";
-export { OP_LANES, OP_CONFLICTS, conflictsFor as getConflicts, getOperationLane as getLane } from "./operation-policy.js";
+export { conflictsFor as getConflicts, getOperationLane as getLane, OP_CONFLICTS, OP_LANES } from "./operation-policy.js";
 
 /**
  * Shared operation constants for bulk jobs.
