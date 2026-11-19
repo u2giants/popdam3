@@ -16,7 +16,7 @@ read-when: "implementing cleanup 14 on popsg render screens"
 | 1. Establish current behavior | ✅ established | Before/after comparison on current main. The two PopSG tables remain mounted on the same tab and have unchanged queries, intervals and labels. |
 | 2. Make the scoped change | ✅ implemented | Frontend typecheck and build passed. Both status displays now use the same parsing algorithm and retain their display-specific labels. |
 | 3. Verify and land | ✅ merged | [#1219](https://github.com/u2giants/popdam3/pull/1219) at `35a766ed`. Implementation checks passed. |
-| 4. Accept in use | ⬜ live proof open | The released PopSG render tab showed both tables, 3,304 completed jobs and 22 failures, and displayed an expanded saved error. PopDAM displayed completed and failed Windows rows; the existing tooltip wording matched eight offline cases. **Next** — Codex PopDAM QA owner must capture the actual Windows completed and failed hover tooltips from a browser surface with pointer hover support. |
+| 4. Accept in use | ✅ verified | Both hosts served 35a766ed. The PopSG render tab displayed both tables and an expanded saved error. Windows completed and failed badges showed their distinct live tooltips, including “Render succeeded” and “Render failed. Attempted and failed: input file is missing.” |
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 

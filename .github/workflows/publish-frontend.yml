@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "supabase/functions/_shared/operation-policy.js"
+      - "supabase/functions/_shared/operation-policy.d.ts"
       - "public/**"
       - "index.html"
       - "package.json"
