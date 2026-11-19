@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261219003000",
+  "migration_sha256": "a799050caaa197b4f45f21da9af503a96292aa8612c98531e47022155a51dd77",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 6,
+      "line_end": 6,
+      "disposition": "checks",
+      "check_ids": [
+        "dflow_prod_role_create_insert"
+      ],
+      "reason": "The cited verifier-owned contract checks the durable catalog outcomes produced by every dynamic marker in this reviewed range; check IDs: dflow_prod_role_create_insert."
+    }
+  ],
+  "checks": [
+    {
+      "id": "dflow_prod_role_create_insert",
+      "kind": "catalog_contract",
+      "contract": "dflow_prod_role_create_insert_v1",
+      "expected_count": 1
+    }
+  ]
+}

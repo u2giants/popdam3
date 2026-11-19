@@ -1400,6 +1400,16 @@ select (select count(*) from actor_characters)=98
 """
 
 CATALOG_CONTRACTS = {
+    # Issue #6735: admin role editor create; exact column INSERT, no DELETE.
+    "dflow_prod_role_create_insert_v1": r"""
+to_regclass('dflow_prod."Roles"') is not null
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','Name','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','kind','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','parent_id','INSERT')
+and has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','is_active','INSERT')
+and not has_column_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','app_role_id','INSERT')
+and not has_table_privilege('designflow_prod_backend_grants','dflow_prod."Roles"','DELETE')
+""",
     "character_load_20261105074028_active_rows_v1": CHARACTER_LOAD_20261105074028_ACTIVE_ROWS,
     "rls_public_admin_install_v1": RLS_PUBLIC_ADMIN_INSTALL_CONTRACT,
     # Issue2336: selected current/history lifecycle and private physical engine.
