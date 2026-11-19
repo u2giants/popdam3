@@ -63,6 +63,10 @@ VERSION_RE = re.compile(r"^\d{14}$")
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261224000000": (
+        "issue #6472: sandbox catch-up batch 23 committed its first four blocks and then stopped on the sandbox's "
+        "missing pg_cron (run 44483769361). Superseded by batch 24, 20261224010000."
+    ),
     "20261223020000": (
         "issue #6472: sandbox catch-up batch 22 committed 003329 and 003530 and then stopped on the sandbox's extra "
         "7-argument search_dam_documents (run 44467040950). Superseded by batch 23, 20261224000000."

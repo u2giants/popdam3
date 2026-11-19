@@ -883,6 +883,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#6472",
         "note": "Sandbox catch-up batch 23: drops the sandbox-only 7-argument search_dam_documents, then replays the rest of the production dam search chain and related versions; grants to absent production service logins omitted. Source excludes shared preview and production.",
     },
+    "20261224010000": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#6472",
+        "note": "Sandbox catch-up batch 24: replays the remaining production dam search word forms, named lookup, style-guide grants, visibility pretest, licensor submission identifiers and preview side-table count; no pg_cron on the sandbox, so the word-form backfill runs inline. Source excludes shared preview and production.",
+    },
 }
 
 for _version, _entry in FOREIGN_TARGET_MIGRATIONS.items():
