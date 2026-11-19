@@ -352,6 +352,23 @@ export function runGitHubCommand(args, {
   timeoutMs = ghCommandTimeoutMs(),
 } = {}) {
   const mutating = isMutatingCall(args) || input !== undefined
+  // A job may hand its READS a separate App installation token (own hourly
+  // allowance) in DFLOW_GITHUB_READ_TOKEN; writes keep the job's GH_TOKEN. The
+  // back-to-back DesignFlow release observer otherwise spent ~2,500 requests an
+  // hour of the owner's personal allowance (shared-db#6772). Any refusal --
+  // including a 404, which an App without access to a repository also answers
+  // -- is replayed once on GH_TOKEN, so no answer ever depends on the App's reach.
+  const readToken = process.env.DFLOW_GITHUB_READ_TOKEN
+  if (readToken && !mutating && executor === execFileSync && !arguments[1]?.__readTokenTried) {
+    try {
+      return runGitHubCommand(args, { ...(arguments[1] || {}), __readTokenTried: true,
+        executor: (file, argv, options) => execFileSync(file, argv, { ...options, env: { ...process.env, ...(options?.env || {}), GH_TOKEN: readToken } }) })
+    } catch {
+      reportStderr(`gh ${args[0]} ${args[1] || ''}: App read token refused; replaying on GH_TOKEN
+`)
+    }
+    return runGitHubCommand(args, { ...(arguments[1] || {}), __readTokenTried: true })
+  }
   const allowed = mutating && !idempotentWrite ? 1 : Math.max(1, attempts)
   // A request BODY only reaches the child through a piped stdin. An earlier
   // hand-rolled wrapper set stdio:['ignore',...] alongside `input`, so gh sent

@@ -91,22 +91,11 @@ export async function assessRelease({ repository, head, manifest, policy, branch
   return { ...identity, status: 'ready', requirements: proven, catalog_sha256: hash(JSON.stringify(catalog)) };
 }
 
-// Reads go to DFLOW_GITHUB_READ_TOKEN (an App installation token with its own
-// allowance) when the workflow provides one; on the operator credential the
-// back-to-back observer spent ~2,500 requests an hour of the owner's shared
-// GitHub allowance (shared-db#6772). Writes, and any read the App token is
-// refused, still use the operator credential, so no capability changes.
-function isReadOnly(args, input) {
-  return input === undefined && args[0] === 'api' && !args.some((a) => a === '--method' || a === '-X' || a === '-f' || a === '-F' || a === '--field' || a === '--raw-field' || a === '--input');
-}
 function command(args, { input, timeout = 60_000, token } = {}) {
-  const run = (t) => {
-    const executor = t ? ((file, argv, options) => execFileSync(file, argv, { ...options, env: { ...process.env, GH_TOKEN: t } })) : undefined;
-    return runGitHubCommand(args, { executor, input, timeoutMs: timeout, maxBuffer: 20 * 1024 * 1024 });
-  };
-  const readToken = !token && isReadOnly(args, input) ? process.env.DFLOW_GITHUB_READ_TOKEN : undefined;
-  if (readToken) { try { return run(readToken); } catch { /* fall back to the operator credential */ } }
-  try { return run(token); }
+  // Reads without an explicit token use DFLOW_GITHUB_READ_TOKEN inside the
+  // shared transport (shared-db#6772); writes use the operator credential.
+  const executor = token ? ((file, argv, options) => execFileSync(file, argv, { ...options, env: { ...process.env, GH_TOKEN: token } })) : undefined;
+  try { return runGitHubCommand(args, { executor, input, timeoutMs: timeout, maxBuffer: 20 * 1024 * 1024 }); }
   catch { throw Error(`GitHub operation refused or unavailable: ${args[0]}`); }
 }
 function api(endpoint, body, { token } = {}) {
