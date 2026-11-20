@@ -40,6 +40,8 @@ Government tariff schedules, trade-remedy lists, rulings, and country rates can 
 
 Internal precedent search remains suggestion-only until measured comparison proves it safe. Revoked rulings cannot support a recommendation. AI failures, missing evidence, and fallback paths must be visible.
 
+**Settled, November 20, 2026.** Albert authorized saving Luna-only results as accepted internal precedents when verified rulings support the result. A second model vote is unnecessary for this path. An accepted internal precedent remains decision support and does not authorize applying its classification to an item or quote.
+
 ## Implementation and evidence
 
 DesignFlow's [classification reference](https://github.com/popcre/designflow-frontend/blob/develop/docs/ai-classification.md), backend HTS documents, and RFQ implementation files record system behavior and historical data-import choices. They must link here and remain implementation evidence, not a second business-rule source.
