@@ -34,8 +34,9 @@ def issue(number, state="open", reason=None, closed=None, pr=5100):
     }
 
 
-def run(issues, pr=5100):
-    return hold.main(["--pr", str(pr), "--repo", REPO], fetch=lambda _repo, _pr: issues, now=NOW)
+def run(issues, pr=5100, head=None):
+    return hold.main(["--pr", str(pr), "--repo", REPO], fetch=lambda _repo, _pr: issues,
+                     now=NOW, head_reader=lambda _r, _n: head)
 
 
 def job_block(text: str, job: str) -> str:
@@ -243,11 +244,29 @@ class InvalidEvidence(unittest.TestCase):
     def test_stale_open_snapshot_still_holds_even_with_valid_closed_snapshot(self):
         self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
                                   fetch=lambda _r, _p: [self.item, {**self.item, "state": "open"}],
-                                  now=NOW, verify_invalid=lambda *_a: True), 3)
+                                  now=NOW, verify_invalid=lambda *_a: True,
+                                  head_reader=lambda _r, _n: None), 3)
 
     def test_no_evidence_calls_for_unlabelled_findings(self):
         self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO], fetch=lambda _r, _p: [issue(1)],
-                                  now=NOW, verify_invalid=lambda *_a: self.fail("unexpected evidence read")), 3)
+                                  now=NOW, verify_invalid=lambda *_a: self.fail("unexpected evidence read"),
+                                  head_reader=lambda _r, _n: None), 3)
+
+    def test_superseded_head_does_not_hold(self):
+        item = issue(30)
+        item["body"] = f"PR: https://github.com/{REPO}/pull/5100\nHead SHA: `{'a' * 40}`\n"
+        self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
+                                  fetch=lambda _r, _p: [item], now=NOW,
+                                  verify_invalid=lambda *_a: False,
+                                  head_reader=lambda _r, _n: "b" * 40), 0)
+
+    def test_matching_head_still_holds(self):
+        item = issue(31)
+        item["body"] = f"PR: https://github.com/{REPO}/pull/5100\nHead SHA: `{'a' * 40}`\n"
+        self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
+                                  fetch=lambda _r, _p: [item], now=NOW,
+                                  verify_invalid=lambda *_a: False,
+                                  head_reader=lambda _r, _n: "a" * 40), 3)
 
 
 class WorkflowShape(unittest.TestCase):

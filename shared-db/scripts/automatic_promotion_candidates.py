@@ -245,40 +245,65 @@ def merged_migration_prs(repo: str) -> list[dict[str, Any]]:
         fresh_cache[str(pr["number"])] = {"merged_at": merged, "files": [
             {"filename": f.get("filename", ""), "status": f.get("status", "")}
             for page in files for f in page if (f.get("filename") or "").startswith("supabase/migrations/")]}
-        versions = sorted(
-            m.group(1)
-            for page in files for f in page
-            # "renamed" matters as much as "added": a pure version rename (the
-            # documented cure when a change exhausts its automatic attempts)
-            # shows up on the files API as a rename, and the version to promote
-            # is the NEW filename's. Observed 2026-11-06: PR #5830's byte-identical
-            # renames were invisible to the lane, which idled claiming every PR
-            # was in production while the renamed versions sat unpromoted.
-            if f.get("status") in ("added", "renamed") and (m := MIGRATION_RE.match(f.get("filename", "")))
-            # A version registered for another database (#5504: the DesignFlow
-            # sandbox) never reaches production; promoting it would only fail
-            # until MAX_ATTEMPTS parks the lane.
-            and m.group(1) not in FOREIGN_TARGET_MIGRATIONS
-            # A preserved retired original must never be re-dispatched by the
-            # automatic queue after its review finding is resolved.
-            and m.group(1) not in HARD_BLOCKED
-            # A RETIRED_VERSIONS original (retire-and-reissue) is refused by the
-            # production guard; dispatching it only burns preview attempts until
-            # MAX_ATTEMPTS parks it (#5932: PR #6451 / 20261218025935, 2026-11-18).
-            and m.group(1) not in RETIRED_VERSIONS
-            # A version later deleted from main can never apply: the workflow
-            # refuses it as unknown until MAX_ATTEMPTS alerts, again on every
-            # new main commit (#5558: PR #5548, replaced by PR #5552).
-            and version_on_main(m.group(1))
-        )
+        # #6701: log every filtered version. Silent skips made HARD_BLOCKED /
+        # retired originals invisible while the idle message claimed every
+        # merged migration PR was in production.
+        versions: list[str] = []
+        skip_reasons: dict[str, str] = {}
+        for page in files:
+            for f in page:
+                if f.get("status") not in ("added", "renamed"):
+                    continue
+                m = MIGRATION_RE.match(f.get("filename") or "")
+                if not m:
+                    continue
+                version = m.group(1)
+                if version in FOREIGN_TARGET_MIGRATIONS:
+                    reason = "foreign-target"
+                elif version in HARD_BLOCKED:
+                    reason = "hard-blocked retired original"
+                elif version in RETIRED_VERSIONS:
+                    reason = "retired original"
+                elif not version_on_main(version):
+                    reason = "not on main"
+                else:
+                    continue
+                skip_reasons[version] = reason
+                print(f"skip: PR #{pr['number']} version {version} — {reason} (never promote)")
+        for page in files:
+            for f in page:
+                if f.get("status") not in ("added", "renamed"):
+                    continue
+                m = MIGRATION_RE.match(f.get("filename") or "")
+                if not m or m.group(1) in skip_reasons:
+                    continue
+                if m.group(1) not in versions:
+                    versions.append(m.group(1))
+        versions = sorted(versions)
         # Superseded-by-manifest (#5128/#5213): a merged PR whose every added
         # version is a registered preview-ledger orphan (a governed replacement
         # version carries the change in config/preview-ledger-orphan-reconciliations.json)
         # can never be promoted -- its attempt counter would otherwise park the
         # lane forever once MAX_ATTEMPTS failed preview applies accumulate
         # (observed 2026-10-31: PR #5129 vs stranded 20261030125352).
+        had_migration_files = any(
+            (f.get("filename") or "").startswith("supabase/migrations/")
+            and MIGRATION_RE.match(f.get("filename") or "")
+            for page in files for f in page
+        )
         if versions and not all(v in manifest_orphans for v in versions):
             found.append({"number": pr["number"], "merged_at": merged, "versions": versions})
+        elif had_migration_files and skip_reasons and not versions:
+            # Every migration version on this PR is retired, foreign, or no longer on main:
+            # never promote, but keep it visible so the idle claim cannot say
+            # it is in production via this lane.
+            found.append({
+                "number": pr["number"],
+                "merged_at": merged,
+                "versions": [],
+                "never_promote": sorted(skip_reasons),
+                "never_promote_reason": next(iter(skip_reasons.values())),
+            })
     owners = {v: pr["number"] for pr in found for v in pr["versions"]}
     for pr in found:
         bases = set()
@@ -689,14 +714,16 @@ def classify_pr(pr: dict[str, Any], runs: list[dict[str, Any]], held: callable,
                 applied: callable, refused: callable, stale: callable,
                 refunded: callable, live: set[str] | None,
                 dependency_evidence: callable,
-                permanent: callable = lambda run: False) -> tuple[str, dict[str, Any]]:
+                permanent: callable = lambda run: False,
+                now: datetime | None = None) -> tuple[str, dict[str, Any]]:
     """Classify one candidate PR against this pass's evidence; the single source
     of per-PR status shared by decide() and the stranded-PR reconciler
     (plan_promotion_stranding_watch.md R3). `runs` must already be filtered to
     our workflow. Returns (kind, detail):
 
     - ("delivered", {})                            versions already in production
-    - ("held", {"findings": [...]})                blocking review findings
+    - ("never-promote", {"never_promote": [...]})  retired/foreign originals; not in production via this lane
+    - ("held", {"findings": [...]})                blocking review findings (not yet timed out)
     - ("unknown-hold", {"findings": []})           finding read failed; held, findings unknown
     - ("waiting-on-dependency", {"pending_dependencies": {...}})
     - ("parked", {"exhausted": n, "refunds": n, "permanent": bool})
@@ -704,6 +731,12 @@ def classify_pr(pr: dict[str, Any], runs: list[dict[str, Any]], held: callable,
                                                    permanent refusal (#6574)
     - ("dispatchable", {"stale_streak": n})
     """
+    # #6701: retired/foreign originals are never delivered by this lane. Check
+    # before any empty-versions subset logic, which would otherwise treat them
+    # as already delivered.
+    if pr.get("never_promote"):
+        return "never-promote", {"never_promote": pr["never_promote"],
+                                 "never_promote_reason": pr.get("never_promote_reason", "")}
     # #6352: the production ledger is the final word. Versions already applied
     # (by any route) are delivered; retrying them only burns attempts and
     # fails "already applied on preview", parking every later change.
@@ -736,6 +769,18 @@ def classify_pr(pr: dict[str, Any], runs: list[dict[str, Any]], held: callable,
     findings = held(pr["number"])
     if findings:
         if isinstance(findings, list):
+            # #6701: a review-finding hold times out when `now` is supplied
+            # (production always supplies it). Advisory findings are advice
+            # only (owner ruling 2026-10-29); holding a merged PR for hours
+            # with no disposition was a de-facto production gate.
+            if now is not None:
+                since = hold_since({**pr, "findings": findings})
+                age = now - since
+                if age > HOLD_TIMEOUT:
+                    refs = ", ".join(f"#{f.get('number')}" for f in findings)
+                    print(f"skip: PR #{pr['number']} review-finding hold timed out after "
+                          f"{int(age.total_seconds() // 60)} min ({refs}); no longer holding")
+                    return "held-timed-out", {"findings": findings, "hold_timed_out": True}
             return "held", {"findings": findings}
         return "unknown-hold", {"findings": []}
     dependencies = pr.get("production_dependencies", {})
@@ -807,7 +852,8 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
            stale: callable = lambda run: False,
            refunded: callable = lambda run: False,
            live: set[str] | None = None,
-           permanent: callable = lambda run: False) -> tuple[str, dict[str, Any] | None, str]:
+           permanent: callable = lambda run: False,
+           now: datetime | None = None) -> tuple[str, dict[str, Any] | None, str]:
     """Return (action, pr, reason); action is dispatch, wait or idle. Held PRs
     and PRs out of automatic attempts are passed over and appended to `skipped`
     (the latter carry an `exhausted` count instead of `findings`). A PR whose
@@ -824,7 +870,9 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
     a `refunded` run draws from one per-change refund budget (MAX_REFUNDS) since
     the merge — refunds keep a good change alive through other people's
     breakage, and the classified failure that finds the budget empty parks the
-    change ("3 refunds used, now parked", plan §9 2.3)."""
+    change ("3 refunds used, now parked", plan §9 2.3). Never-promote originals
+    (#6701) are counted separately so the idle message never claims they are
+    in production via this lane."""
     runs = [r for r in runs if our_workflow(r)]
     # #5937: deadline first, then merge order (stable for callers' own order).
     prs = sorted(prs, key=candidate_order)
@@ -832,25 +880,37 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
         return "wait", None, "a migration workflow run is queued or in progress"
     passed_over = 0
     out_of_attempts: list[dict[str, Any]] = []
+    never_promote: list[dict[str, Any]] = []
     # #5651: only dependency receipts share reads within this decision pass.
     # The fresh recheck invokes decide again and must read new evidence.
     dependency_evidence = dependency_evidence_reader(applied, refused)
     for pr in prs:
         kind, detail = classify_pr(pr, runs, held, applied, refused, stale, refunded,
-                                   live, dependency_evidence, permanent)
+                                   live, dependency_evidence, permanent, now)
         if kind == "delivered":
             continue
-        if kind in ("held", "unknown-hold"):
+        if kind == "never-promote":
+            never_promote.append({**pr, "findings": [], **detail})
+            if skipped is not None:
+                skipped.append({**pr, "findings": [], **detail})
+            continue
+        if kind == "held-timed-out":
+            # Timed out: no longer blocks promotion, but the findings stay in
+            # `skipped` so adopt_merged_findings can disposition them (#6701).
+            if skipped is not None:
+                skipped.append({**pr, "findings": detail["findings"], "hold_timed_out": True})
+            # fall through to the dispatch path below
+        elif kind in ("held", "unknown-hold"):
             passed_over += 1
             if skipped is not None:
                 skipped.append({**pr, "findings": detail["findings"]})
             continue
-        if kind == "waiting-on-dependency":
+        elif kind == "waiting-on-dependency":
             passed_over += 1
             if skipped is not None:
                 skipped.append({**pr, "pending_dependencies": detail["pending_dependencies"]})
             continue
-        if kind == "parked":
+        elif kind == "parked":
             # Out of automatic attempts or out of refunds: passed over like a held
             # PR, with a loud alert in main(), so one dead PR cannot park every
             # later promotion while still refusing to retry it (#5532).
@@ -861,11 +921,16 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
             if skipped is not None:
                 skipped.append(entry)
             continue
-        if detail["stale_streak"] >= BACKSTOP_AFTER_STALE:
+        if detail.get("stale_streak", 0) >= BACKSTOP_AFTER_STALE:
             pr = {**pr, "stale_streak": detail["stale_streak"]}
         return "dispatch", pr, f"PR #{pr['number']} versions {','.join(pr['versions'])} not yet in production"
+    never_names = ", ".join(
+        f"PR #{e['number']} ({','.join(e.get('never_promote') or [])} never promote)"
+        for e in never_promote) or "none"
     if passed_over:
         base = "every merged migration PR not held by a review finding, production dependency or exhausted automatic attempts is in production"
+        if never_promote:
+            base += f"; never-promote originals excluded: {never_names}"
         if out_of_attempts:
             names = ", ".join(
                 f"PR #{e['number']} (permanent refusal: producer mismatch on a high-risk change -- reissue under a new version)"
@@ -875,6 +940,12 @@ def decide(prs: list[dict[str, Any]], runs: list[dict[str, Any]], held: callable
                 for e in out_of_attempts)
             return "idle", None, f"ENGINEER ACTION REQUIRED: {names} out of automatic attempts at this main commit; {base}"
         return "idle", None, base
+    if never_promote:
+        return "idle", None, (
+            f"{len(never_promote)} merged migration PR(s) skipped as never-promote originals "
+            f"and are NOT in production via this lane: {never_names}. "
+            "Every other merged migration PR since activation is in production."
+        )
     return "idle", None, "every merged migration PR since activation is in production"
 
 
@@ -934,10 +1005,12 @@ def hold_since(entry: dict[str, Any]) -> datetime:
 def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
     """One line per PR held longer than ALERT_AFTER. A PR is held from the later
     of its merge and its oldest blocking finding (unknown findings: the merge).
-    Dependency waits are not review holds; exhausted attempts alert on their own."""
+    Dependency waits, timed-out holds, never-promote originals and exhausted
+    attempts are not review holds for this alert."""
     lines = []
     for pr in skipped:
-        if pr.get("exhausted") or pr.get("refunds") or pr.get("pending_dependencies"):
+        if (pr.get("exhausted") or pr.get("refunds") or pr.get("pending_dependencies")
+                or pr.get("never_promote") or pr.get("hold_timed_out")):
             continue
         since = hold_since(pr)
         if now - since > ALERT_AFTER:
@@ -955,8 +1028,14 @@ def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
 # run -- has usually cleared after the merge), leaving a marked note on the
 # finding so the retry is visible and never repeats.
 ORPHAN_RETRY_AFTER = timedelta(hours=4)
+# #6701: a review-finding hold older than this no longer blocks promotion.
+# The orphan-retry nudge above still runs so parked findings get one fixer
+# attempt; a still-open finding past the timeout is adopted (disposition note)
+# rather than holding production forever.
+HOLD_TIMEOUT = timedelta(hours=4)
 FIXER_TERMINAL_LABELS = ("fixer-deferred", "fixer-failed")
 ORPHAN_RETRY_MARKER = "<!-- promotion-orphan-retry:v1 -->"
+ADOPT_MARKER = "<!-- promotion-adopt-merged:v1 -->"
 
 
 def _label_names(issue: dict[str, Any]) -> set[str]:
@@ -966,10 +1045,12 @@ def _label_names(issue: dict[str, Any]) -> set[str]:
 def orphaned_findings(skipped: list[dict[str, Any]], now: datetime) -> list[tuple[int, dict[str, Any]]]:
     """(source PR, finding) pairs to retry: open findings in a fixer terminal
     state holding a merged PR for longer than ORPHAN_RETRY_AFTER. Each finding
-    once, even when it names several held PRs."""
+    once, even when it names several held PRs. Timed-out and never-promote
+    entries are adopted instead of retried (#6701)."""
     found, seen = [], set()
     for entry in skipped:
-        if entry.get("exhausted") or entry.get("refunds") or entry.get("pending_dependencies"):
+        if (entry.get("exhausted") or entry.get("refunds") or entry.get("pending_dependencies")
+                or entry.get("never_promote") or entry.get("hold_timed_out")):
             continue
         if now - hold_since(entry) <= ORPHAN_RETRY_AFTER:
             continue
@@ -1037,11 +1118,86 @@ def _retry_one(repo: str, pr: int, finding: dict[str, Any], now: datetime, dry_r
     return f"finding #{n} (holds PR #{pr}): retry incomplete: " + "; ".join(failures)
 
 
-def is_held(repo: str, pr: int) -> list[dict[str, Any]] | bool:
+def adopt_merged_findings(repo: str, skipped: list[dict[str, Any]], now: datetime,
+                          dry_run: bool = False) -> list[str]:
+    """#6701: the review-fixer only works open PRs. When a finding on a MERGED
+    PR names a head that is no longer the delivered one, or the hold has timed
+    out past HOLD_TIMEOUT with no disposition, this trigger adopts it: one
+    marked disposition note, then close as not planned. Never raises."""
+    lines: list[str] = []
+    seen: set[int] = set()
+    for entry in skipped:
+        if entry.get("exhausted") or entry.get("refunds") or entry.get("pending_dependencies"):
+            continue
+        if entry.get("never_promote"):
+            continue
+        pr_number = entry.get("number")
+        merged_at = entry.get("merged_at") or ""
+        findings = entry.get("findings") or []
+        if not pr_number or not findings or not merged_at:
+            continue
+        head = review_finding_hold.pull_head_sha(repo, pr_number)
+        for finding in findings:
+            n = finding.get("number")
+            if not n or n in seen or finding.get("state") != "open":
+                continue
+            seen.add(n)
+            finding_head = review_finding_hold.finding_head_sha(finding)
+            superseded = bool(head and finding_head and finding_head != head)
+            held_for = now - hold_since({**entry, "findings": [finding]})
+            timed_out = held_for > HOLD_TIMEOUT or bool(entry.get("hold_timed_out"))
+            if not (superseded or timed_out):
+                continue
+            try:
+                lines.append(_adopt_one(repo, pr_number, finding, now, dry_run,
+                                        superseded=superseded, timed_out=timed_out,
+                                        held_for=held_for))
+            except Exception as exc:  # noqa: BLE001 -- one malformed finding must not stop the rest
+                lines.append(f"finding #{n} (on merged PR #{pr_number}): adopt defect "
+                             f"({type(exc).__name__}: {exc}); not adopted")
+    return lines
+
+
+def _adopt_one(repo: str, pr: int, finding: dict[str, Any], now: datetime, dry_run: bool,
+               *, superseded: bool, timed_out: bool, held_for) -> str:
+    n = finding["number"]
+    pages = gh("--paginate", "--slurp", f"repos/{repo}/issues/{n}/comments?per_page=100") or []
+    if any(ADOPT_MARKER in (c.get("body") or "") for page in pages for c in page):
+        return f"finding #{n} (on merged PR #{pr}): already adopted"
+    reasons = []
+    if superseded:
+        reasons.append("its Head SHA is not the delivered PR head")
+    if timed_out:
+        hours = int(held_for.total_seconds() // 3600)
+        reasons.append(f"the hold timed out after {hours}h with no disposition")
+    if dry_run:
+        return f"finding #{n} (on merged PR #{pr}): would adopt ({'; '.join(reasons)})"
+    body = (
+        f"{ADOPT_MARKER}\nAdopted by the automatic production trigger for merged PR "
+        f"#{pr}: {' and '.join(reasons)}. Advisory review findings never gate "
+        "promotion (owner ruling 2026-10-29); this note dispositions the finding "
+        "so it no longer holds the lane. Close as not planned unless a real "
+        "defect still needs a fix-forward under a new version.\n\n" + _footer()
+    )
+    ok, msg = gh_write("POST", f"repos/{repo}/issues/{n}/comments", {"body": body})
+    if not ok:
+        return f"finding #{n} (on merged PR #{pr}): adopt note refused ({msg})"
+    ok, msg = gh_write("PATCH", f"repos/{repo}/issues/{n}",
+                       {"state": "closed", "state_reason": "not_planned"})
+    if not ok:
+        return f"finding #{n} (on merged PR #{pr}): adopt note posted, close refused ({msg})"
+    return f"finding #{n} (on merged PR #{pr}): adopted and closed ({'; '.join(reasons)})"
+
+
+def is_held(repo: str, pr: int, head: str | None = None) -> list[dict[str, Any]] | bool:
     """The blocking findings for this PR; True (held, findings unknown) when the
-    query fails, so an unreadable hold never promotes."""
+    query fails, so an unreadable hold never promotes. `head` is the PR's
+    current head: findings reviewed against a superseded head do not hold (#6701)."""
+    if head is None:
+        head = review_finding_hold.pull_head_sha(repo, pr)
     try:
-        found = review_finding_hold.blocking_findings(review_finding_hold.gh_issues(repo, pr), repo, pr)
+        found = review_finding_hold.blocking_findings(
+            review_finding_hold.gh_issues(repo, pr), repo, pr, pr_head=head)
     except (subprocess.CalledProcessError, ValueError, OSError) as exc:
         print(f"::warning::review-finding hold query for PR #{pr} failed ({exc}); treating as held")
         return True
@@ -1053,20 +1209,30 @@ def prefetch_holds(repo: str, prs: list[int]) -> callable:
     """Hold lookup for this decision pass, read in one batch with one settle
     (#6493 Step 1c). Fresh every run, never cached across runs; a failed batch
     read falls back to the per-PR is_held, which fails toward holding. The
-    pre-dispatch recheck still calls is_held directly."""
+    pre-dispatch recheck still calls is_held directly. PR heads are read once
+    per PR so superseded-head findings never hold (#6701)."""
     try:
         issues = review_finding_hold.gh_issues_many(repo, prs) if prs else {}
     except (subprocess.CalledProcessError, ValueError, OSError) as exc:
         print(f"::warning::batched review-finding hold read failed ({exc}); reading per PR")
         issues = {}
+    heads: dict[int, str | None] = {}
+    for number in prs:
+        heads[number] = review_finding_hold.pull_head_sha(repo, number)
     found: dict[int, list[dict[str, Any]]] = {}
 
     def held(number: int) -> list[dict[str, Any]] | bool:
         if number not in issues:
-            return is_held(repo, number)
+            head = heads.get(number)
+            return is_held(repo, number) if head is None else is_held(repo, number, head)
         if number not in found:
             try:
-                rows = review_finding_hold.blocking_findings(issues[number], repo, number)
+                head = heads.get(number)
+                if head is None:
+                    rows = review_finding_hold.blocking_findings(issues[number], repo, number)
+                else:
+                    rows = review_finding_hold.blocking_findings(
+                        issues[number], repo, number, pr_head=head)
             except (subprocess.CalledProcessError, ValueError, OSError) as exc:
                 print(f"::warning::review-finding hold check for PR #{number} failed ({exc}); treating as held")
                 return True
@@ -1219,8 +1385,19 @@ def main(now: datetime | None = None) -> int:
     pass_refunded = memoised_evidence(lambda run: refund_eligible_in_any_attempt(repo, run))
     action, pr, reason = decide(candidates, runs, held, pass_applied, main_sha,
                                 skipped, pass_refused, stale=pass_stale,
-                                refunded=pass_refunded, live=live, permanent=pass_permanent)
+                                refunded=pass_refunded, live=live, permanent=pass_permanent,
+                                now=now)
     for entry in skipped:
+        if entry.get("never_promote"):
+            versions = ",".join(entry.get("never_promote") or [])
+            print(f"never-promote: PR #{entry['number']} versions {versions} — "
+                  f"{entry.get('never_promote_reason', 'retired original')}; "
+                  "not in production via this lane")
+            continue
+        if entry.get("hold_timed_out"):
+            refs = ", ".join(f"#{f.get('number')}" for f in entry.get("findings") or [])
+            print(f"timeout: PR #{entry['number']} review-finding hold timed out ({refs}); promoting")
+            continue
         if entry.get("pending_dependencies"):
             refs = ", ".join(f"{v} (PR #{owner})" for v, owner in entry["pending_dependencies"].items())
             print(f"dependency: PR #{entry['number']} waiting on production evidence for {refs}; later independent PRs still promote")
@@ -1306,6 +1483,12 @@ def main(now: datetime | None = None) -> int:
         orphan_lines = [f"orphan retry defect: {type(exc).__name__}: {exc}"]
     for line in orphan_lines:
         print(f"::warning title=Parked review finding holds production::{line}")
+    try:
+        adopt_lines = adopt_merged_findings(repo, skipped, now, dry_run=args.dry_run)
+    except Exception as exc:  # noqa: BLE001 -- contained like the reconciler
+        adopt_lines = [f"adopt defect: {type(exc).__name__}: {exc}"]
+    for line in adopt_lines:
+        print(f"::warning title=Adopted merged-PR review finding::{line}")
     # Plan R1/R7 (#6561): mark stranded PRs on the PRs themselves, over every
     # candidate. Contained: a reconciler defect never changes the exit code.
     # merged_migration_prs raises on incomplete discovery, so reaching here

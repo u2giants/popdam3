@@ -301,14 +301,27 @@ class ForeignTargetVersions(unittest.TestCase):
             return m.merged_migration_prs("o/r")
 
     def test_retired_character_originals_never_reenter_the_automatic_queue(self):
-        self.assertEqual(self.prs("20261104214842", "20261105035926"), [])
+        # #6701: a PR whose every migration version is retired is kept as a
+        # never-promote entry (logged, excluded from the idle claim) rather
+        # than silently dropped.
+        [entry] = self.prs("20261104214842", "20261105035926")
+        self.assertEqual(entry["versions"], [])
+        self.assertIn("20261104214842", entry["never_promote"])
         self.assertEqual(self.prs("20261104214842", "20261105074028")[0]["versions"], ["20261105074028"])
 
     def test_sandbox_only_pr_is_never_a_production_candidate(self):
-        self.assertEqual(self.prs("20261102215524"), [])
+        [entry] = self.prs("20261102215524")
+        self.assertEqual(entry["versions"], [])
+        self.assertIn("20261102215524", entry["never_promote"])
 
     def test_mixed_pr_promotes_only_its_shared_versions(self):
         self.assertEqual(self.prs("20261102215524", "20261102224413")[0]["versions"], ["20261102224413"])
+
+    def test_hard_blocked_skip_is_logged(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.prs("20261104214842")
+        self.assertIn("never promote", out.getvalue())
+        self.assertIn("20261104214842", out.getvalue())
 
 
 class SelectorPrCache(unittest.TestCase):
@@ -1004,11 +1017,14 @@ class CanonicalDependencyResolution(unittest.TestCase):
 
     def test_retired_original_is_never_dispatched(self):
         # #5932: PR #6451's retired 20261218025935 (reissued as 20261218043336)
-        # was dispatched three times and failed preview each time.
+        # was dispatched three times and failed preview each time. #6701 keeps
+        # it as a never-promote entry so the idle claim cannot call it delivered.
         self.assertIn("20261218025935", m.RETIRED_VERSIONS)
         self.assertNotIn("20261218025935", m.HARD_BLOCKED)
         found = self.discover_real(["20261218025935"])
-        self.assertEqual(found, [])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["versions"], [])
+        self.assertIn("20261218025935", found[0]["never_promote"])
 
     def test_real_byte_pinned_non_ledger_source_does_not_invent_a_base(self):
         from pathlib import Path
@@ -1094,18 +1110,25 @@ class TriggerReporting(unittest.TestCase):
         self.assertIn("idle:", out)
 
     def test_held_pr_exits_zero_with_reason(self):
-        pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
-        code, out = self._run_main(prs=[pr], runs=[], held=lambda repo, n: [{"number": 99}])
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        pr = {"number": 7, "merged_at": now, "versions": ["20260101000000"]}
+        code, out = self._run_main(prs=[pr], runs=[],
+                                   held=lambda repo, n: [{"number": 99, "created_at": now}])
         self.assertEqual(code, 0)
         self.assertIn("held: PR #7", out)
 
     def test_summary_written_on_hold(self):
         import tempfile, os as _os
-        pr = {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "versions": ["20260101000000"]}
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        pr = {"number": 7, "merged_at": now, "versions": ["20260101000000"]}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
             path = f.name
         try:
-            code, _ = self._run_main(prs=[pr], runs=[], held=lambda repo, n: [{"number": 99}], summary_path=path)
+            code, _ = self._run_main(prs=[pr], runs=[],
+                                     held=lambda repo, n: [{"number": 99, "created_at": now}],
+                                     summary_path=path)
             self.assertEqual(code, 0)
             summary = open(path, encoding="utf-8").read()
             self.assertIn("Automatic promotion trigger", summary)
