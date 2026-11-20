@@ -1,0 +1,38 @@
+{
+  "pass": "469 locked-root hourly backoff live proof — first attempt",
+  "date": "2026-11-20",
+  "timezone": "America/New_York",
+  "owner_authorization_verbatim": "lock a test folder",
+  "task_class": "production",
+  "gate": "check --before production --acknowledge \"lock a test folder\" allowed",
+  "outcome": "first-attempt-proven",
+  "lead_that_worked": "1P 'edgesynology1 NAS - ai service account' — SSH ai@192.168.3.100 with 916-alien key + sudo -S password piped via op --reveal -> uid=0(root)",
+  "lock": {
+    "folder": "/volume1/mac/_469_rotest (= /mnt/nas/mac/_469_rotest in bridge)",
+    "mechanism": "chattr +i (immutable) as root — binds the root-running bridge",
+    "lsattr": "----i------------- /volume1/mac/_469_rotest",
+    "root_write_probe": "WRITE_BLOCKED_OK — touch: cannot touch 'probe.txt': Permission denied",
+    "root_sh_write_probe": "SH_WRITE_BLOCKED_OK — sh: probe2.txt: Permission denied",
+    "read_probe": "readable-before-lock"
+  },
+  "registration": {
+    "admin_config_key": "SCAN_ROOTS",
+    "before": ["/mnt/nas/mac/Decor"],
+    "after": ["/mnt/nas/mac/Decor", "/mnt/nas/mac/_469_rotest"],
+    "reversible": true
+  },
+  "first_attempt": {
+    "bridge_container": "popdam-bridge",
+    "agent": "synology-bridge-1",
+    "version": "1.16.33",
+    "marker_write_rejected": "2026-11-20T19:47:53.942Z (2:47:53 PM EST) — direct write failed code EACCES",
+    "docker_fallback_once": "2026-11-20T19:48:00.015Z (2:48:00 PM EST) — alpine root container: sh: can't create /w/pop-root.json: Permission denied",
+    "hourly_backoff": "marker_statuses 2026-11-20T19:49:25.628Z (2:49:25 PM EST): {\"Decor\":{\"ok\":true,\"method\":\"exists\"},\"_469_rotest\":{\"ok\":false,\"error\":\"docker_write_backoff\"}}"
+  },
+  "comment": "https://github.com/u2giants/popdam3/issues/469#issuecomment-7049138106",
+  "pending": {
+    "second_hourly_retry_due": "~3:48 PM EST (backoff set 19:48:00Z + 1h)",
+    "cron_one_shot": "~3:55 PM EST — post second-attempt evidence, tick box, cleanup (chattr -i, rm folder, restore SCAN_ROOTS), comment 'cleanup done', close #469 if nothing else remains"
+  },
+  "cleanup_state": "deferred to the armed follow-up — folder + lock + SCAN_ROOTS registration intentionally left in place until the second hourly attempt is captured"
+}
