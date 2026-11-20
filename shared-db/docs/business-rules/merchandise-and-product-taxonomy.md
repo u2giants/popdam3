@@ -116,6 +116,7 @@ For the owner-directed replacement of licensed MG06 choices with the exact submi
 - In licensed divisions `CW001` and `SP001`, MG05 and MG06 mean Licensor and Property.
 - The CW001/SP001 MG05 list is the only Licensor list (owner ruling 6.41, 2026-11-15). `core.licensor` is its nightly copy; there is no hand-maintained licensor list to consult.
 - Merchandise groups are division-specific (owner ruling 6.42, 2026-11-16): the same MG slot means different things per division (EH001 MG05 values are art themes such as Abstract and Animal). Only CW001/SP001 MG05 values are Licensors; always filter by division and resolve parents within the same division.
+- Nothing sits under MG01 codes N–Z in division `CW001` (owner ruling by Albert Hazan, 2026-11-18). Those MG01 codes are not used in CW001; CW001 items or MG02/MG03 entries under them are wrong and are re-coded or deleted in ColdLion through Jamielynn, never in DesignFlow.
 - In Spruce non-licensed division `EH001`, those same slots mean Big Theme and Little Theme.
 - In retired book and education division `EP001`, those same slots mean Product Line and Product Type.
 
