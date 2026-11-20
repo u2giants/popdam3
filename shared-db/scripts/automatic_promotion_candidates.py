@@ -1431,7 +1431,7 @@ def main(now: datetime | None = None) -> int:
                                     stale=lambda run: stale_main_refusal_only(repo, run),
                                     permanent=lambda run: permanent_refusal(repo, run),
                                     refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
-                                    live=live)
+                                    live=live, now=now)
         phase("fresh recheck done")
         if action != "dispatch":
             print(f"dispatch withdrawn on the fresh recheck: {action}: {reason}")
@@ -1472,7 +1472,7 @@ def main(now: datetime | None = None) -> int:
                                     stale=lambda run: stale_main_refusal_only(repo, run),
                                     permanent=lambda run: permanent_refusal(repo, run),
                                     refunded=lambda run: refund_eligible_in_any_attempt(repo, run),
-                                    live=live)
+                                    live=live, now=now)
         print(f"{action}: {reason} (after passing over claimed PR(s) "
               f"{', '.join(f'#{n}' for n in sorted(claimed_elsewhere))})")
     for line in alerts:
