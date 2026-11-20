@@ -178,7 +178,11 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    **Parking a stuck claim** (the work should return later, but the session cannot
    finish it now): `--release-claim`, `--park`, and `--retire` were all retired
    by #5409; there is no replacement. (Historical note: `--park` never combined
-   with `--retire`.)
+   with `--retire`.) **Superseded 2026-11-19 (#6667/#6668):** `--release-claim`,
+   `--park`, `--confirm-finished`, `--stop-author` and `--check-in-author` are
+   re-implemented in `scripts/manage-migration-coordination.mjs` (with the
+   retirement-tombstones tests hardened against parse-error false passes);
+   `--retire` still has no replacement.
 
    **Procedure 2 — terminal retirement** (the work cannot or should not return):
 
@@ -189,7 +193,9 @@ summary and points here; where the two differ in wording, `AGENTS.md` wins.
    3. Close the pull request through the normal authenticated operator flow.
       Never delete its branch or its refs.
    4. Retire the claim with the tombstoning `--release-claim` (retired by #5409;
-      there is no replacement), which writes an
+      there is no replacement — **superseded 2026-11-19 (#6667/#6668):**
+      `--release-claim` is re-implemented in `scripts/manage-migration-coordination.mjs`;
+      `--retire` remains without a replacement), which writes an
       immutable tombstone and reads it back before the claim closes.
    5. A successor takes a fresh claim tuple and a fresh migration version. The
       retired version can never be reissued, and a retired claim is refused on
