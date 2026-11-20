@@ -151,27 +151,27 @@ class CommentOnlyBatchVerifiesTheObjectsItNames(unittest.TestCase):
 
 
 class CommentOnlyDoesNotLaunderAnythingElse(unittest.TestCase):
-    """The refusal must survive everything the fix deliberately does not cover."""
+    """#6658: empty-target batches report not-verifiable; a false no-op claim still fails."""
 
-    def test_a_comment_beside_a_statement_deriving_nothing_still_proves_nothing(self):
+    def test_a_comment_beside_a_statement_deriving_nothing_is_not_verifiable(self):
         targets = targets_for(
             "comment on schema core is 'x';\nupdate plm.widget set a = 1;"
         )
         self.assertTrue(targets.is_empty())
-        _, failures = render(targets, {"schemas": [], "relations": []})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("proved nothing", failures[0])
+        markdown, failures = render(targets, {"schemas": [], "relations": []})
+        self.assertEqual(failures, [])
+        self.assertIn("not verifiable", markdown.lower())
 
-    def test_a_comment_on_an_unreadable_object_kind_still_proves_nothing(self):
+    def test_a_comment_on_an_unreadable_object_kind_is_not_verifiable(self):
         targets = targets_for("comment on policy p on plm.a is 'x';")
         self.assertTrue(targets.is_empty())
-        _, failures = render(targets, {"schemas": [], "relations": []})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("proved nothing", failures[0])
+        markdown, failures = render(targets, {"schemas": [], "relations": []})
+        self.assertEqual(failures, [])
+        self.assertIn("not verifiable", markdown.lower())
 
     def test_a_comment_only_batch_with_a_false_no_op_claim_still_fails(self):
         # A rejected `-- catalog-verification: no-op` claim is a false claim in
-        # its own right; the comment-only pass must not launder it. (A claim is
+        # its own right; the not-verifiable path must not launder it. (A claim is
         # rejected for comment statements because they are not data statements.)
         sql = (
             "-- catalog-verification: no-op this file changes nothing at all, "
@@ -183,6 +183,7 @@ class CommentOnlyDoesNotLaunderAnythingElse(unittest.TestCase):
         self.assertFalse(targets.noop_declaration["accepted"])
         _, failures = render(targets, {"schemas": [], "relations": []})
         self.assertTrue(failures)
+        self.assertIn("REJECTED", failures[0])
 
 
 if __name__ == "__main__":

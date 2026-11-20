@@ -4755,35 +4755,36 @@ def render_report(
         )
         add("")
     elif targets.is_empty():
-        # ISSUE #697 EXISTS BECAUSE A GREEN TICK WAS MISTAKEN FOR EVIDENCE.
-        # A run where this step proved nothing must therefore not end green in
-        # enforcing mode. `20260810110000` lands exactly here: its only
-        # statement outside a `do $$` block is an `alter view`, and before the
-        # review fix even that derived nothing. The remedy for a genuinely
-        # unverifiable migration is to say so on the issue, not to let the lane
-        # report a verification it did not perform. A genuinely pure-data
-        # migration is NOT this case and is noted above (issue #5932).
-        detail = (
-            f" The file's own no-op declaration was REJECTED: "
-            f"{declaration['rejected_because']}."
-            if declaration is not None
-            else ""
-        )
-        if not detail and targets.pure_data.get("rejected"):
-            named = "; ".join(
-                f"{version}: {offenders}"
-                for version, offenders in sorted(targets.pure_data["rejected"].items())
+        # ISSUE #6658. A post-apply run whose lexer derived no catalog object
+        # must report NOT VERIFIABLE, not FAILURE. The apply already succeeded
+        # and the ledger is the delivery record; coloring the run red here
+        # contradicted the ledger and burned refund-eligible attempts. Pre-merge
+        # (#6588) refuses NEW migrations this lexer cannot read; this leg only
+        # classifies what already landed. A false `-- catalog-verification:
+        # no-op` claim remains a failure in its own right.
+        if declaration is not None and not declaration["accepted"]:
+            failures.append(
+                f"{declaration['version']} declares itself a catalog-verification "
+                f"no-op and that claim is REJECTED: {declaration['rejected_because']}"
             )
-            detail = f" It is also NOT pure-data: {named}."
-        failures.append(
-            "the allowlisted migrations named NO catalog object this lexer can "
-            "read, so this step proved nothing. A run that verified nothing must "
-            "not report itself green. If the migration really is a pure-data "
-            "no-op, say so IN THE MIGRATION with a "
-            "`-- catalog-verification: no-op <reason>` line, which is checked "
-            "(every statement in the file must be a data statement) and "
-            "reproduced in this artifact." + detail
-        )
+        else:
+            detail = ""
+            if targets.pure_data.get("rejected"):
+                named = "; ".join(
+                    f"{version}: {offenders}"
+                    for version, offenders in sorted(targets.pure_data["rejected"].items())
+                )
+                detail = f" Content the pure-data scan could not classify as data-only: {named}."
+            add("## Catalog verification")
+            add("")
+            add(
+                "- **Applied, not verifiable by catalog.** The allowlisted "
+                "migrations named no catalog object this lexer can read "
+                "(dynamic SQL, `do` bodies, or statements outside the "
+                "lexer). The migration ledger is the record of what applied."
+                + detail
+            )
+            add("")
 
     if (
         declaration is not None
@@ -4794,7 +4795,7 @@ def render_report(
         # right, whatever else the run proved.
         failures.append(
             f"{declaration['version']} declares itself a catalog-verification "
-            f"no-op and that claim is false: {declaration['rejected_because']}"
+            f"no-op and that claim is REJECTED: {declaration['rejected_because']}"
         )
 
     if catalog is None:

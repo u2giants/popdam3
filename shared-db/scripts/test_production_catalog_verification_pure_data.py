@@ -180,34 +180,33 @@ class UndeclaredPureDataIsNotedNotRefused(unittest.TestCase):
 
 
 class TheRefusalSurvivesEverythingThatIsNotPureData(unittest.TestCase):
-    """#697 is untouched where it belongs: unverifiable still fails."""
+    """#6658: empty-target non-pure data is NOT VERIFIABLE, not a hard failure.
+    Pre-merge (#6588) refuses new opaque migrations; this leg only classifies
+    what already applied. A false no-op claim remains a failure."""
 
-    def test_a_do_body_hiding_ddl_still_proves_nothing(self):
+    def test_a_do_body_hiding_ddl_is_not_verifiable(self):
         targets = targets_for(HIDDEN_DDL_DO)
         self.assertTrue(targets.is_empty())
         self.assertFalse(targets.pure_data_ok)
         markdown, failures = render(targets, {"relations": []})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("proved nothing", failures[0])
-        self.assertIn("NOT pure-data", failures[0])
+        self.assertEqual(failures, [])
+        self.assertIn("not verifiable", markdown.lower())
 
-    def test_a_comment_beside_data_still_proves_nothing(self):
-        # `comment on` is a catalog statement, not DML: the batch is not pure
-        # data and the lexer derived nothing it can verify.
+    def test_a_comment_beside_data_is_not_verifiable(self):
         targets = targets_for(
             "comment on schema core is 'x';\nupdate plm.widget set a = 1;"
         )
         self.assertTrue(targets.is_empty())
         markdown, failures = render(targets, {"schemas": [], "relations": []})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("proved nothing", failures[0])
+        self.assertEqual(failures, [])
+        self.assertIn("not verifiable", markdown.lower())
 
     def test_a_principal_change_is_not_pure_data(self):
         self.assertTrue(pure_data_offenders("set role service_role;\n"))
         targets = targets_for("set role service_role;\n")
         markdown, failures = render(targets, {"relations": []})
-        self.assertEqual(len(failures), 1)
-        self.assertIn("proved nothing", failures[0])
+        self.assertEqual(failures, [])
+        self.assertIn("not verifiable", markdown.lower())
 
     def test_a_system_catalog_write_is_not_pure_data(self):
         self.assertTrue(pure_data_offenders("update pg_class set relacl = null;\n"))
@@ -224,7 +223,7 @@ class TheRefusalSurvivesEverythingThatIsNotPureData(unittest.TestCase):
 
     def test_a_rejected_short_reason_header_still_fails(self):
         # The header is present but defective: the claim path governs, and a
-        # rejected claim is a defect in its own right (not laundered by (b)).
+        # rejected claim is a defect in its own right (not laundered by not-verifiable).
         targets = targets_for(
             "-- catalog-verification: no-op meh\nupdate plm.widget set a = 1;"
         )
