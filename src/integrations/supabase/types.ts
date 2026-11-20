@@ -755,6 +755,7 @@ export type Database = {
           artboards: number | null
           asset_type: Database["public"]["Enums"]["asset_type"] | null
           big_theme: string | null
+          content_sha256: string | null
           content_type: string | null
           cover_description: string | null
           created_at: string
@@ -789,6 +790,8 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           modified_at: string
+          nas_ino: number | null
+          nas_volume: string | null
           pdf_page2_url: string | null
           primary_sort_tier: number
           product_category: string | null
@@ -827,6 +830,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          content_sha256?: string | null
           content_type?: string | null
           cover_description?: string | null
           created_at?: string
@@ -861,6 +865,8 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at: string
+          nas_ino?: number | null
+          nas_volume?: string | null
           pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
@@ -901,6 +907,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          content_sha256?: string | null
           content_type?: string | null
           cover_description?: string | null
           created_at?: string
@@ -935,6 +942,8 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at?: string
+          nas_ino?: number | null
+          nas_volume?: string | null
           pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
@@ -4903,6 +4912,7 @@ export type Database = {
           artboards: number | null
           asset_type: Database["public"]["Enums"]["asset_type"] | null
           big_theme: string | null
+          content_sha256: string | null
           content_type: string | null
           cover_description: string | null
           created_at: string
@@ -4937,6 +4947,8 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           modified_at: string
+          nas_ino: number | null
+          nas_volume: string | null
           pdf_page2_url: string | null
           primary_sort_tier: number
           product_category: string | null
@@ -4984,6 +4996,7 @@ export type Database = {
           artboards: number | null
           asset_type: Database["public"]["Enums"]["asset_type"] | null
           big_theme: string | null
+          content_sha256: string | null
           content_type: string | null
           cover_description: string | null
           created_at: string
@@ -5018,6 +5031,8 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           modified_at: string
+          nas_ino: number | null
+          nas_volume: string | null
           pdf_page2_url: string | null
           primary_sort_tier: number
           product_category: string | null
