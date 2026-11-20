@@ -1,5 +1,7 @@
 # AGENTS.md — PopDAM Router
 
+For the shared database layout, ownership, and pending schema changes, start with the [canonical shared database design and schema reference](https://github.com/popcre/shared-db/blob/main/docs/database-design-and-schema.md).
+
 The complete document index is [`docs/INDEX.md`](docs/INDEX.md), generated from
 document headers. Read it (or search it for your topic's keywords) before
 opening or searching any other document; open a document only when its summary
