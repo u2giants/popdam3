@@ -467,7 +467,7 @@ WITH expected(grantee,kind,name,priv) AS (VALUES
  ('designflow_prod_data_sync_grants','table','dflow_prod.ProdOrderHeader','UPDATE'),
  ('designflow_prod_data_sync_grants','table','dflow_prod.UDFTable','SELECT'),
  ('designflow_prod_data_sync_grants','table','dflow_prod.externalApi','SELECT'),
- ('designflow_prod_data_sync_grants','table','dflow_prod.externalCustomer','INSERT'),('designflow_prod_data_sync_grants','table','dflow_prod.externalCustomer','SELECT'),('designflow_prod_data_sync_grants','table','dflow_prod.externalVendor','SELECT'),('designflow_prod_data_sync_grants','table','dflow_prod.SeasonCode','SELECT'),
+ ('designflow_prod_data_sync_grants','table','dflow_prod.externalCustomer','INSERT'),('designflow_prod_data_sync_grants','table','dflow_prod.externalCustomer','SELECT'),('designflow_prod_data_sync_grants','table','dflow_prod.externalVendor','SELECT'),('designflow_prod_data_sync_grants','table','dflow_prod.SeasonCode','SELECT'),('designflow_prod_data_sync_grants','table','dflow_prod.SeasonCode','INSERT'),('designflow_prod_data_sync_grants','table','dflow_prod.SeasonCode','UPDATE'),
  ('designflow_prod_data_sync_grants','table','dflow_prod.externalVendor','INSERT'),
  ('designflow_prod_data_sync_grants','table','dflow_prod.itemAttachment','SELECT'),
  ('designflow_prod_data_sync_grants','table','dflow_prod.itemDetail','INSERT'),
