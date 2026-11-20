@@ -3220,6 +3220,9 @@ export type Database = {
           lifecycle_state: string
           reconcile_batches: number
           reconcile_completed_at: string | null
+          reconcile_job_error: string | null
+          reconcile_requested_at: string | null
+          reconcile_root_labels: string[] | null
           reconcile_started_at: string | null
           refresh_completed_at: string | null
           refresh_started_at: string | null
@@ -3250,6 +3253,9 @@ export type Database = {
           lifecycle_state?: string
           reconcile_batches?: number
           reconcile_completed_at?: string | null
+          reconcile_job_error?: string | null
+          reconcile_requested_at?: string | null
+          reconcile_root_labels?: string[] | null
           reconcile_started_at?: string | null
           refresh_completed_at?: string | null
           refresh_started_at?: string | null
@@ -3280,6 +3286,9 @@ export type Database = {
           lifecycle_state?: string
           reconcile_batches?: number
           reconcile_completed_at?: string | null
+          reconcile_job_error?: string | null
+          reconcile_requested_at?: string | null
+          reconcile_root_labels?: string[] | null
           reconcile_started_at?: string | null
           refresh_completed_at?: string | null
           refresh_started_at?: string | null
@@ -5705,6 +5714,10 @@ export type Database = {
         Args: { p_file_id: string; p_rule_version: string; p_tags: Json }
         Returns: number
       }
+      request_sg_reconcile: {
+        Args: { p_root_labels: string[]; p_run_id: string }
+        Returns: undefined
+      }
       requeue_all_failed_sg_jobs: {
         Args: { p_limit?: number }
         Returns: number
@@ -5763,6 +5776,7 @@ export type Database = {
           primaries_updated: number
         }[]
       }
+      run_requested_sg_reconciles: { Args: never; Returns: number }
       search_assets_full_text: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
