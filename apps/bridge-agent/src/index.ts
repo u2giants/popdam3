@@ -25,7 +25,7 @@ import { createLivenessWatchdog, startEventLoopBackstop, setActivity, getActivit
 import { exec } from "node:child_process";
 import { stat, readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { setIngestionRules, validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
-import { computeQuickHash } from "./hasher.js";
+import { computeQuickHash, computeContentSha256 } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
@@ -1212,6 +1212,9 @@ async function processFile(file: FileCandidate) {
   try {
     // 1. Quick hash
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
+    // Full-content hash for the cross-volume move fallback (#1198 item 3).
+    // Streams the file once; only processed (changed/new) files get here.
+    const content_sha256 = await computeContentSha256(file.absolutePath);
     const contentIdentityKey = `${quick_hash}\0${file.filename}`;
     const skipMoveDetection = scanContentIdentitySeen.has(contentIdentityKey);
     scanContentIdentitySeen.add(contentIdentityKey);
@@ -1266,6 +1269,9 @@ async function processFile(file: FileCandidate) {
       file_created_at: file.fileCreatedAt?.toISOString() || null,
       quick_hash,
       quick_hash_version,
+      nas_volume: file.nasVolume ?? null,
+      nas_ino: file.nasIno ?? null,
+      content_sha256,
       thumbnail_url: thumb.thumbnailUrl,
       thumbnail_error: thumb.thumbnailError,
       width: thumb.width,

@@ -57,6 +57,7 @@ import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts"
 import { writeWithRetry } from "../_shared/sg-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireExactString, requireNumber, requireString } from "../_shared/validators.ts";
 import { pickMoveCandidate } from "../_shared/move-candidates.ts";
+import { moveMatchTier, type FileIdentity } from "../_shared/file-identity.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
@@ -1099,6 +1100,15 @@ async function handleIngest(
   const quickHash = requireString(body, "quick_hash");
   const quickHashVersion = optionalNumber(body, "quick_hash_version") ?? 1;
   const skipMoveDetection = body.skip_move_detection === true;
+  // Foolproof move identity (#1198 item 3): stable volume key + inode at the
+  // scanning bridge, full-content hash as the cross-volume fallback. The inode
+  // travels as a string (bigint column; JSON numbers lose precision past 2^53).
+  const nasVolume = optionalString(body, "nas_volume");
+  const nasInoRaw = body.nas_ino;
+  const nasIno = (typeof nasInoRaw === "string" || typeof nasInoRaw === "number") && /^\d{1,20}$/.test(String(nasInoRaw))
+    ? String(nasInoRaw)
+    : null;
+  const contentSha256 = optionalString(body, "content_sha256") || null;
   const thumbnailUrl = optionalString(body, "thumbnail_url");
   const thumbnailError = optionalString(body, "thumbnail_error");
   const width = optionalNumber(body, "width") ?? 0;
@@ -1139,35 +1149,72 @@ async function handleIngest(
 
   // ── 1) Move detection: same file relocated ──
   //
-  // quick_hash is a SAMPLED hash (first 64KB + last 64KB + size), so DISTINCT
-  // files collide: template-derived designs (identical header/footer/size, e.g.
-  // many SKUs' "sewn-in label.ai") and all 0-byte files. The old logic matched
-  // on quick_hash ALONE and deduped on it, which (a) flip-flapped one shared
-  // asset row between the colliding files' paths every scan and (b) HID the
-  // other N-1 files from the Library entirely (full analysis: docs/KNOWN_QUIRKS
-  // #51). Guard rails:
+  // Tier order (#1198 item 3, owner ruling 2026-11-19 — a move must be proven,
+  // never guessed): the NAS file identity first. (nas_volume, nas_ino) is the
+  // same file instance through any rename or folder move on one volume, with a
+  // name-or-size sanity guard against inode reuse; content_sha256 covers
+  // cross-volume moves (a copy gets a new inode) and keeps the exact disk
+  // basename (#1233) so a renamed copy can never steal a record. The
+  // (quick_hash, basename) match stays as the last resort for records ingested
+  // before the identity columns — it is a SAMPLED hint that collides for
+  // template-derived files (#51), with its existing guard rails:
   //   - skip move detection for 0-byte files (constant hash);
-  //   - require the name to match too — a genuine move/folder-reorg keeps the
-  //     EXACT basename of relative_path, so a same-hash file whose disk name
-  //     differs by as little as a leading space is a different file (#1233) and
-  //     must fall through to be inserted as its own asset, not "moved";
-  //   - only act when the candidate is UNIQUE (≥2 same-hash+name rows is
-  //     ambiguous → don't ping-pong between them).
+  //   - require the EXACT disk basename of relative_path (a same-hash file
+  //     whose disk name differs by as little as a leading space is a different
+  //     file (#1233));
+  //   - only act when the candidate is UNIQUE (≥2 rows is ambiguous → don't
+  //     ping-pong between them).
   // Bridge agents that see the same (quick_hash, filename) more than once in a
   // scan pass set skip_move_detection for later copies. That is the only place
   // with live filesystem context, and it lets genuine duplicate copies settle
   // into one asset row per path instead of flip-flapping one row forever.
   let existingByHash: ({ id: string; relative_path: string } & Record<string, unknown>) | null = null;
   if (fileSize > 0 && !skipMoveDetection && !existingByPath) {
-    const { data: hashCandidates } = await db
-      .from("assets")
-      .select("*")
-      .eq("quick_hash", quickHash)
-      .eq("is_deleted", false)
-      .neq("relative_path", relativePath)
-      .limit(25);
-    const picked = pickMoveCandidate((hashCandidates ?? []) as Array<{ relative_path: string }>, relativePath);
-    existingByHash = picked as ({ id: string; relative_path: string } & Record<string, unknown>) | null;
+    const subject: FileIdentity = {
+      id: "",
+      relative_path: relativePath,
+      filename,
+      file_size: fileSize,
+      quick_hash: quickHash,
+      nas_volume: nasVolume,
+      nas_ino: nasIno,
+      content_sha256: contentSha256,
+    };
+    const tierCandidates = async (filters: Array<[string, unknown]>): Promise<Array<{ id: string; relative_path: string } & Record<string, unknown>>> => {
+      let query = db.from("assets").select("*").eq("is_deleted", false).neq("relative_path", relativePath);
+      for (const [column, value] of filters) query = query.eq(column, value);
+      const { data, error } = await query.limit(2);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Array<{ id: string; relative_path: string } & Record<string, unknown>>;
+    };
+    // Tier 1 — inode (same file instance; catches renames).
+    if (nasVolume && nasIno) {
+      const rows = await tierCandidates([["nas_volume", nasVolume], ["nas_ino", nasIno]]);
+      if (rows.length === 1 && moveMatchTier(subject, rows[0] as unknown as FileIdentity) === "inode") {
+        existingByHash = rows[0];
+      }
+    }
+    // Tier 2 — full content hash (cross-volume move; the disk name kept).
+    if (!existingByHash && contentSha256) {
+      const rows = await tierCandidates([["content_sha256", contentSha256]]);
+      if (rows.length === 1 && moveMatchTier(subject, rows[0] as unknown as FileIdentity) === "content_hash") {
+        existingByHash = rows[0];
+      }
+    }
+    // Tier 3 — the colliding hint (a wider candidate pool: the picker applies
+    // the exact-basename rule among same-hash rows).
+    if (!existingByHash) {
+      const { data: hashCandidates, error: hintError } = await db
+        .from("assets")
+        .select("*")
+        .eq("quick_hash", quickHash)
+        .eq("is_deleted", false)
+        .neq("relative_path", relativePath)
+        .limit(25);
+      if (hintError) throw new Error(hintError.message);
+      const picked = pickMoveCandidate((hashCandidates ?? []) as Array<{ relative_path: string }>, relativePath);
+      existingByHash = picked as ({ id: string; relative_path: string } & Record<string, unknown>) | null;
+    }
   }
 
   if (existingByHash) {
@@ -1199,6 +1246,10 @@ async function handleIngest(
       last_seen_at: new Date().toISOString(),
       // The file is on the NAS again at its new path (badge cleared if set).
       file_missing_at: null,
+      // Identity only when provided, so a pre-identity bridge never clears it.
+      ...(nasVolume ? { nas_volume: nasVolume } : {}),
+      ...(nasIno ? { nas_ino: nasIno } : {}),
+      ...(contentSha256 ? { content_sha256: contentSha256 } : {}),
       workflow_status: reDerived.workflow_status,
       is_licensed: reDerived.is_licensed,
       ...thumbMove,
@@ -1284,6 +1335,10 @@ async function handleIngest(
       // The file is on the NAS (seen by the walk; changed enough to ingest),
       // so any "no longer on the NAS" mark is cleared.
       file_missing_at: null,
+      // Identity only when provided, so a pre-identity bridge never clears it.
+      ...(nasVolume ? { nas_volume: nasVolume } : {}),
+      ...(nasIno ? { nas_ino: nasIno } : {}),
+      ...(contentSha256 ? { content_sha256: contentSha256 } : {}),
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
       ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
@@ -1336,6 +1391,9 @@ async function handleIngest(
     last_seen_at: new Date().toISOString(),
     thumbnail_url: thumbnailUrl,
     thumbnail_error: thumbnailError,
+    ...(nasVolume ? { nas_volume: nasVolume } : {}),
+    ...(nasIno ? { nas_ino: nasIno } : {}),
+    ...(contentSha256 ? { content_sha256: contentSha256 } : {}),
     workflow_status: derived.workflow_status,
     is_licensed: derived.is_licensed,
     ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),

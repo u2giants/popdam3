@@ -26,6 +26,10 @@ export interface RetirementIdentity {
   file_size: number | null;
   relative_path: string;
   is_deleted: boolean | null;
+  /** Foolproof move identity (#1198 item 3); null on records ingested before it landed. */
+  nas_volume?: string | null;
+  nas_ino?: string | number | null;
+  content_sha256?: string | null;
 }
 
 /** Returns why the pair must not be retired, or null when it is allowed. */
