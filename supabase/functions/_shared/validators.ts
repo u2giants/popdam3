@@ -13,6 +13,18 @@ export function requireString(obj: Record<string, unknown>, key: string): string
   return v.trim();
 }
 
+/**
+ * Like requireString but keeps the value byte-for-byte. File names are exact
+ * disk names: " x.ai" and "x.ai" are different files (#1233).
+ */
+export function requireExactString(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  if (typeof v !== "string" || v === "") {
+    throw new Error(`Missing required string field: ${key}`);
+  }
+  return v;
+}
+
 export function optionalString(
   obj: Record<string, unknown>,
   key: string,

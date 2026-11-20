@@ -135,7 +135,7 @@ async function getMgLookupOrEmpty(mgTypeCode: string, divisionCode: string): Pro
 }
 
 export async function parseSku(filename: string, opts: { fileDate?: string | null } = {}): Promise<ParsedSku | null> {
-  const base = filename.replace(/\.[^.]+$/, "")
+  const base = filename.trim().replace(/\.[^.]+$/, "")
     .split(/[\s_]/)[0].toUpperCase();
 
   if (base.length < 6) return null;
