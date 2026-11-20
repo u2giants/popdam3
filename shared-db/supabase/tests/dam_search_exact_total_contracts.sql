@@ -7,6 +7,11 @@ set local search_path=pg_catalog,public,extensions;
 create function pg_temp.t5747(p_f jsonb) returns bigint language sql as $$
   select min(total_count) from public.search_dam_documents('zq5747token', p_f, 10, 0, null, null, 0, null)
 $$;
+create function pg_temp.t6871_page(p_f jsonb, p_offset integer) returns jsonb language sql as $$
+  select jsonb_agg(jsonb_build_array(document_type, entity_id, rank, has_more)
+                  order by rank desc, document_type, entity_id)
+  from public.search_dam_documents('zq5747token', p_f, 1, p_offset, null, null, 0, null)
+$$;
 create function pg_temp.flag(p_type text, p_id uuid) returns boolean language sql as $$
   select has_default_visible_member from public.dam_search_documents where document_type=p_type and entity_id=p_id
 $$;
@@ -51,6 +56,10 @@ begin
   -- One visible + one hidden member counted once; thumbnail-null old asset not counted
   fast := pg_temp.t5747('{}'); probe := pg_temp.t5747('{"customer":""}');
   if fast <> 3 or probe <> 3 then raise exception '#5747 baseline totals fast=% probe=% (want 3)', fast, probe; end if;
+  if pg_temp.t6871_page('{}', 0) is distinct from pg_temp.t6871_page('{"customer":""}', 0)
+     or pg_temp.t6871_page('{}', 1) is distinct from pg_temp.t6871_page('{"customer":""}', 1) then
+    raise exception '#6871 unfiltered page differs from the visibility probe (baseline totals)';
+  end if;
 
   -- Filter predicates respected (filtered path untouched)
   if pg_temp.t5747('{"fileType":["ai"]}') <> 1 then raise exception '#5747 fileType filter total wrong'; end if;
@@ -90,6 +99,10 @@ begin
   end if;
   fast := pg_temp.t5747('{}'); probe := pg_temp.t5747('{"customer":""}');
   if fast <> probe then raise exception '#5747 stale-min-date fast=% probe=%', fast, probe; end if;
+  if pg_temp.t6871_page('{}', 0) is distinct from pg_temp.t6871_page('{"customer":""}', 0)
+     or pg_temp.t6871_page('{}', 1) is distinct from pg_temp.t6871_page('{"customer":""}', 1) then
+    raise exception '#6871 unfiltered page differs from the visibility probe (stale-min-date)';
+  end if;
   perform public.dam_sweep_default_visible_flags(1000000);
   if pg_temp.flag('asset',a2) is not true then raise exception '#5747 sweep did not recompute with new min date'; end if;
   fast := pg_temp.t5747('{}'); probe := pg_temp.t5747('{"customer":""}');
@@ -99,6 +112,10 @@ begin
   update public.dam_search_documents set has_default_visible_member = null where document_type='style_group' and entity_id=g1;
   fast := pg_temp.t5747('{}'); probe := pg_temp.t5747('{"customer":""}');
   if fast <> probe then raise exception '#5747 null-flag fast=% probe=%', fast, probe; end if;
+  if pg_temp.t6871_page('{}', 0) is distinct from pg_temp.t6871_page('{"customer":""}', 0)
+     or pg_temp.t6871_page('{}', 1) is distinct from pg_temp.t6871_page('{"customer":""}', 1) then
+    raise exception '#6871 unfiltered page differs from the visibility probe (null-flag)';
+  end if;
 
   -- #5850: no shared-lock-table use; cron sweep commits per document
   if exists (select 1 from pg_proc where proname in ('dam_refresh_default_visible_flag','dam_search_documents_set_default_visible','assets_refresh_default_visible_flags','dam_lock_default_visible_owner') and prosrc ilike '%advisory%')
