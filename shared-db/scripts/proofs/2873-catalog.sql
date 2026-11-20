@@ -106,7 +106,7 @@ WITH expected(grantee,kind,name,priv) AS (VALUES
  ('designflow_prod_backend_grants','table','dflow_prod.deliveryLocation','INSERT'),
  ('designflow_prod_backend_grants','table','dflow_prod.deliveryLocation','UPDATE'),
  ('designflow_prod_backend_grants','table','dflow_prod.divisionCode','SELECT'),
- ('designflow_prod_backend_grants','table','dflow_prod.email_logs','INSERT'),
+ ('designflow_prod_backend_grants','table','dflow_prod.email_logs','INSERT'),('designflow_prod_backend_grants','table','dflow_prod.email_logs','SELECT'),
  ('designflow_prod_backend_grants','table','dflow_prod.grid_cell_notes','SELECT'),
  ('designflow_prod_backend_grants','table','dflow_prod.grid_cell_notes','INSERT'),
  ('designflow_prod_backend_grants','table','dflow_prod.grid_cell_notes','UPDATE'),
