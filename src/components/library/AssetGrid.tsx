@@ -159,6 +159,9 @@ const AssetCard = memo(function AssetCard({
   }
 
   const fileSizeStr = formatFileSize(asset.file_size);
+  // The exact disk name is the basename of relative_path: the filename column
+  // may hold a pre-#1233 trimmed name (" x.ai" stored as "x.ai").
+  const displayName = asset.relative_path.split("/").pop() || asset.filename;
 
   return (
     <ContextMenu>
@@ -181,7 +184,7 @@ const AssetCard = memo(function AssetCard({
             {hasPreview ? (
               <img
                 src={asset.thumbnail_url!}
-                alt={asset.filename}
+                alt={displayName}
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
@@ -229,9 +232,9 @@ const AssetCard = memo(function AssetCard({
             <span
               className="truncate font-mono font-semibold leading-snug"
               style={{ fontSize: 13, color: "var(--pd-fg, hsl(var(--foreground)))" }}
-              title={asset.filename}
+              title={displayName}
             >
-              {asset.filename}
+              {displayName}
             </span>
 
             {/* Licensor · Property */}
