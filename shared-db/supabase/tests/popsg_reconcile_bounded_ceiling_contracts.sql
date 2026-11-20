@@ -80,6 +80,11 @@ begin
               where not f.is_active) then
     raise exception '3458 contract: crawl_seen holds a row for an inactive file';
   end if;
+  -- #3458: stale rows are found with a sequential pass, never an index range
+  -- walk through the previous run's dead entries right after an ingest.
+  if v_src !~ 'enable_indexscan'', ''off''' or v_src ~ 'crawl_run_id < p_run_id' then
+    raise exception '3458 contract: stale rows are walked through an index range again';
+  end if;
   if v_src !~ 'limit v_need' then
     raise exception '2792 contract 2: later batches no longer bound the run-active guard probe';
   end if;
