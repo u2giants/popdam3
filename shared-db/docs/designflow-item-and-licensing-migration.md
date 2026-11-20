@@ -11,7 +11,7 @@ read-when: "Building, releasing or verifying the DesignFlow item and licensing m
 
 ## Delivery order
 
-1. **Create the item child structures.** The first additive migration adds `plm.item_merch_group`, `plm.item_custom_value`, and `plm.item_price`. They attach to the existing `plm.item.id`. Record all unresolved nonblank merchandise slots with the original ID or code and a disposition. The database must reject a canonical link on a held slot. Custom fields retain their source type and numbering, including text `udfnum01` as a distinct field from `udf_num01`, and retain timestamp values without a timezone conversion. A–H price slots retain zero and signed numeric amounts. Browser roles receive no access. Rehearse and verify the new structures before any consumer uses them.
+1. **Create the item child structures.** The first additive migration adds `plm.item_merch_group`, `plm.item_custom_value`, and `plm.item_price`. They attach to the existing `plm.item.id`. Record all unresolved nonblank merchandise slots with the original ID or code and a disposition. The database rejects a canonical link on a slot recorded as held. The loader must check actual hold membership and abort before attachment if a source ID is both held and linked. Custom fields retain their source type and numbering, including text `udfnum01` as a distinct field from `udf_num01`, and retain timestamp values without a timezone conversion. A–H price slots retain zero and signed numeric amounts. Browser roles receive no access. Rehearse and verify the new structures before any consumer uses them.
 2. **Finish the item and licensing contracts.** Keep the ColdLion row and UUID authoritative on the existing item master. Keep DesignFlow-edited fields on the PLM item side without overwriting ColdLion's item number, description, licensing taxonomy, or source payload. Finalize the application-used fields and the stable DesignFlow integer-to-canonical UUID bridge with the backend, Item Master, Tracking and Data Syncing call sites. Preserve references from the existing item and licensing screens, RFQs, orders, files, notifications and audit history. Use existing `plm.licensing_status` and `plm.licensing_feedback` for milestone/status and reply threads. Model assignees, mentions and attachment relationships as rows. Distinguish item-header milestone flags/dates from independent licensing status actions. Keep attachment order, provider/object identity, parent type and attribution. Attach through `app.file_object` using the existing provider contract, preserving source provenance. Send no notifications during backfill.
 3. **Publish the consumer code and data move.** DesignFlow owns the application rows. Use an idempotent, bounded DesignFlow loader and a dry-run manifest per environment. Freeze or capture writes during snapshot-to-cutover reconciliation. Reconcile each source identity and item child to exactly one result, including blanks, holds, missing parents and explicit exclusions. Keep the previous app read/write path as the rollback source and verify a catch-up replay can restore it without lost edits. Confirm real service roles and use only the access each contract needs. Publish schema/type proof and the application release contracts through the [DesignFlow release process](designflow-db-release.md). Production schema promotion follows the automated [shared database route](production-promotion-procedure.md). Uma owns the app merge and release.
 4. **Prove the app behavior.** Before switching reads, compare old and new API values and behavior with the same roles in the DesignFlow sandbox. Exercise Item Library, item create/edit and drafts, price and custom fields, agreed merchandise slots, licensing milestones, multiple assignees, comment replies and mentions, attachment display/download and Tracking. Explicitly check an item with a held slot, an excluded item, and a draft without a ColdLion item number. Verify read and write behavior across a sync cycle, then repeat against the promoted production revisions. Reconcile unresolved items and child rows before turning off the previous path. Leave the live-proof checkbox on #4707 open until this passes.
@@ -35,7 +35,7 @@ All nonblank DesignFlow item numbers were unique after trim and case normalizati
 The [held merchandise-group check](verification/4707-designflow-merch-group-holds-20261120.md) was rerun before this analysis. All 3,099 holds remained and none qualified for an automatic link. Among 19,285 eligible item headers, **15,499 populated slots** refer to held IDs. **10,890** slots passed the existing bridge, company, division, slot type and legacy code checks. **80,991** slots have a code alone. Do not resolve those by a bare code. Require the same full ColdLion identity, valid slot context and the applicable [merchandise rules](business-rules/merchandise-and-product-taxonomy.md#mgcategory). Where an owner-approved value rule already exists, such as MG04 size conversion, keep its canonical target distinct from an inferred legacy merchandise-group ID.
 
 | Slot | Bridge verified | Code only | Held ambiguous | Held unmatched | No bridge | Wrong context | Code conflict | Blank |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 01 | 3510 | 14126 | 0 | 57 | 0 | 14 | 10 | 1568 |
 | 02 | 2916 | 12816 | 532 | 104 | 0 | 12 | 18 | 2887 |
 | 03 | 1318 | 12849 | 2103 | 91 | 0 | 3 | 30 | 2891 |
@@ -54,11 +54,17 @@ Of 16,302 legacy licensing status rows, 15,894 point to uniquely eligible items.
 
 Every sampled reference from the legacy assignee, assignor, reply-author and mention columns/arrays joined to a DesignFlow user. Exact email-to-profile comparison left 49 scalar assignee, 52 array assignee, two assignor, one reply-author and eight mention references without an `app.profile` identity. Some single and array assignees may overlap. Treat these as reference counts, not distinct users. Do not assign these references to another user, remove them or force a sign-in migration to fill a foreign key. The DesignFlow identity contract belongs on [backend #71](https://github.com/popcre/designflow-backend/issues/71) under [the DesignFlow user authority ruling](https://github.com/popcre/designflow-backend/issues/250). A transitional integer identity must stay inspectable; a canonical foreign key requires proven source identity.
 
+## Sandbox and application release prerequisites
+
+The DesignFlow sandbox has 21,699 item headers and 4,497 DesignFlow merchandise groups. The read-only catalog check found ten sandbox ColdLion merchandise feed records, no canonical ColdLion item rows or canonical group bridge rows, and no hold table. The production reconciliation uses the production DesignFlow source and cannot establish this separate sandbox data. Use an environment-specific, bounded rehearsal with known source and held cases. The [DesignFlow sandbox workflow](https://github.com/popcre/shared-db/actions/workflows/designflow-sandbox-migrations.yml) requires merged source and a successful exact-version dry run before any sandbox apply.
+
+The Data Syncing preflight SQL matched production aggregate counts through the approved read-only identity. The current application logins lack the required canonical read privileges. Resolve the narrow reader and writer contracts with the actual app paths before enabling the loader. The [issue evidence](https://github.com/popcre/shared-db/issues/4707#issuecomment-7051180608) records the tested Data Syncing source and the deployment gate that refused the current sandbox release.
+
 ## Repeat the item and slot checks
 
 Verify the shared production target and approved read-only identity first. These queries return aggregate counts only. Re-run the separate held-ID query first. Abort attachment if a source ID is both held and linked.
 
-Item, status, reply, and item-attachment outcomes:
+The first query counts items, statuses, replies and item attachments.
 
 ```sql
 begin read only;
@@ -79,7 +85,7 @@ union all select 'attachment',coalesce(o.outcome,'missing_parent'),count(*) from
 rollback;
 ```
 
-Merchandise slots on eligible items:
+The second query counts merchandise slots on eligible items.
 
 ```sql
 begin read only;
