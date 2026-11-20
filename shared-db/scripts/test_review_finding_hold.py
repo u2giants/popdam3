@@ -2,8 +2,7 @@
 """Offline tests for automatic production promotion (popcre/ai-devops #2075).
 
 Covers rule 8.6: a blocking review-finding issue holds a change out of
-production (open, or closed as not planned within 24 hours), a fixed close
-releases it, the preview rehearsal job runs for every promoted change and
+production while open; any close releases it, the preview rehearsal job runs for every promoted change and
 cannot be skipped, and no owner-override path remains.
 """
 from __future__ import annotations
@@ -50,8 +49,9 @@ class HoldRule(unittest.TestCase):
     def test_open_finding_holds(self):
         self.assertEqual(run([issue(1)]), 3)
 
-    def test_closed_not_planned_within_24_hours_holds(self):
-        self.assertEqual(run([issue(2, "closed", "not_planned", "2026-10-29T13:00:00Z")]), 3)
+    def test_closed_not_planned_releases_at_once(self):
+        # Albert 2026-11-20: a closed finding must not hold the queue for 24 hours.
+        self.assertEqual(run([issue(2, "closed", "not_planned", "2026-10-29T13:00:00Z")]), 0)
 
     def test_closed_not_planned_after_24_hours_releases(self):
         self.assertEqual(run([issue(3, "closed", "not_planned", "2026-10-29T11:59:00Z")]), 0)
@@ -212,14 +212,15 @@ class InvalidEvidence(unittest.TestCase):
             raise OSError("network")
         self.assertFalse(hold.verified_invalid(self.item, REPO, 5100, broken))
 
-    def test_duplicate_snapshots_reuse_candidate_proof(self):
+    def test_closed_candidates_need_no_proof(self):
+        # A closed finding releases without proof, so no verification runs.
         calls = []
         def verify(*_args):
             calls.append(1)
             return True
         self.assertEqual(hold.main(["--pr", "5100", "--repo", REPO],
                                   fetch=lambda _r, _p: [self.item, self.item.copy()], now=NOW, verify_invalid=verify), 0)
-        self.assertEqual(calls, [1])
+        self.assertEqual(calls, [])
 
     def test_referenced_run_and_candidate_comments_are_cached(self):
         self.comment["body"] = "<!-- review-fixer-invalid:v1 " + json.dumps(self.proof) + " -->"

@@ -6,8 +6,8 @@ promotion is automatic once the change merged, the preview rehearsal passed and
 the tests passed, unless a blocking `review-finding` issue references the
 change. "References" means an issue labelled `review-finding` whose body
 contains the source PR URL (the advisory ai-review workflow writes it).
-"Blocking" means open, or closed as not planned within the last 24 hours,
-except a false finding evidenced by a successful trusted fixer target job.
+"Blocking" means open. A closed finding never holds, whatever its close
+reason (owner ruling 2026-10-29; 24-hour not-planned window removed 2026-11-20).
 
 The query runs live, immediately before promotion, never at merge time.
 
@@ -57,9 +57,11 @@ def blocking(issue: dict[str, Any], now: datetime) -> bool:
         return False
     if issue.get("state") == "open":
         return True
-    if issue.get("state_reason") == "not_planned":
-        closed = _time(issue.get("closed_at"))
-        return closed is None or now - closed < WINDOW
+    # Owner ruling 2026-10-29 (docs/owner-rulings.md): hold only while a
+    # finding is open. A closed finding releases promotion whatever its close
+    # reason. Albert 2026-11-20: "nothing should be allowed to hold other work
+    # back for 20 hours" -- the old 24-hour not-planned window held every later
+    # migration behind one closed finding.
     return False
 
 
@@ -289,7 +291,7 @@ def main(argv: list[str] | None = None, fetch: Callable[[str, int], list[dict[st
     found = blocking_findings(issues, args.repo, args.pr, now, verify_invalid, head)
     if found:
         for issue in found:
-            why = "open" if issue.get("state") == "open" else "closed as not planned within 24 hours"
+            why = "open"
             print(f"HELD: review-finding #{issue.get('number')} ({why}) references PR #{args.pr}: {issue.get('html_url')}")
         return 3
     print(f"CLEAR: no blocking review-finding issue references PR #{args.pr}")
