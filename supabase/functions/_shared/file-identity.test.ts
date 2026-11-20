@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artworkMatchTier, moveMatchTier, type FileIdentity } from "./file-identity.ts";
+import { artworkMatchTier, type FileIdentity, moveMatchTier } from "./file-identity.ts";
 
 const rec = (over: Partial<FileIdentity>): FileIdentity => ({
   id: "a1",
@@ -64,13 +64,28 @@ describe("artworkMatchTier (does the artwork survive elsewhere)", () => {
 
   it("quick_hash alone is not proof — the name and size must agree", () => {
     const old = rec({ nas_volume: null, nas_ino: null, content_sha256: null });
-    const collision = rec({ id: "h2", nas_volume: null, nas_ino: null, content_sha256: null, relative_path: "Decor/y/other-name.ai", filename: "other-name.ai" });
+    const collision = rec({
+      id: "h2",
+      nas_volume: null,
+      nas_ino: null,
+      content_sha256: null,
+      relative_path: "Decor/y/other-name.ai",
+      filename: "other-name.ai",
+    });
     expect(artworkMatchTier(old, collision)).toBeNull();
   });
 
   it("0-byte files never prove by hint (constant hash)", () => {
     const empty = rec({ nas_volume: null, nas_ino: null, content_sha256: null, file_size: 0, quick_hash: "empty-hash" });
-    const emptyTwin = rec({ id: "e1", nas_volume: null, nas_ino: null, content_sha256: null, file_size: 0, quick_hash: "empty-hash", relative_path: "Decor/y/old-name.ai" });
+    const emptyTwin = rec({
+      id: "e1",
+      nas_volume: null,
+      nas_ino: null,
+      content_sha256: null,
+      file_size: 0,
+      quick_hash: "empty-hash",
+      relative_path: "Decor/y/old-name.ai",
+    });
     expect(artworkMatchTier(empty, emptyTwin)).toBeNull();
   });
 });

@@ -45,8 +45,8 @@ export type MoveMatchTier = "inode" | "content_hash";
 export type ArtworkMatchTier = "inode" | "content_hash" | "hint";
 
 function sameInode(a: FileIdentity, b: FileIdentity): boolean {
-  return !!a.nas_volume && !!b.nas_volume && a.nas_volume === b.nas_volume
-    && a.nas_ino != null && b.nas_ino != null && String(a.nas_ino) === String(b.nas_ino);
+  return !!a.nas_volume && !!b.nas_volume && a.nas_volume === b.nas_volume &&
+    a.nas_ino != null && b.nas_ino != null && String(a.nas_ino) === String(b.nas_ino);
 }
 
 /** Inode reuse guard: proof needs the name or the size to agree as well. */
@@ -61,9 +61,9 @@ function sameContent(a: FileIdentity, b: FileIdentity): boolean {
 }
 
 function sameHint(a: FileIdentity, b: FileIdentity): boolean {
-  return !!a.quick_hash && a.quick_hash === b.quick_hash
-    && !!a.filename && a.filename === b.filename
-    && !!a.file_size && a.file_size === b.file_size;
+  return !!a.quick_hash && a.quick_hash === b.quick_hash &&
+    !!a.filename && a.filename === b.filename &&
+    !!a.file_size && a.file_size === b.file_size;
 }
 
 /**

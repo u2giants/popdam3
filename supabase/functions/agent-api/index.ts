@@ -57,7 +57,7 @@ import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts"
 import { writeWithRetry } from "../_shared/sg-render-completion.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireExactString, requireNumber, requireString } from "../_shared/validators.ts";
 import { pickMoveCandidate } from "../_shared/move-candidates.ts";
-import { moveMatchTier, type FileIdentity } from "../_shared/file-identity.ts";
+import { type FileIdentity, moveMatchTier } from "../_shared/file-identity.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
@@ -1105,9 +1105,7 @@ async function handleIngest(
   // travels as a string (bigint column; JSON numbers lose precision past 2^53).
   const nasVolume = optionalString(body, "nas_volume");
   const nasInoRaw = body.nas_ino;
-  const nasIno = (typeof nasInoRaw === "string" || typeof nasInoRaw === "number") && /^\d{1,20}$/.test(String(nasInoRaw))
-    ? String(nasInoRaw)
-    : null;
+  const nasIno = (typeof nasInoRaw === "string" || typeof nasInoRaw === "number") && /^\d{1,20}$/.test(String(nasInoRaw)) ? String(nasInoRaw) : null;
   const contentSha256 = optionalString(body, "content_sha256") || null;
   const thumbnailUrl = optionalString(body, "thumbnail_url");
   const thumbnailError = optionalString(body, "thumbnail_error");
