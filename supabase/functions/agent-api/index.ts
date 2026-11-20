@@ -70,7 +70,6 @@ import {
   buildSgIngestCompletionUpdate,
   hasMoreSgSearchDocuments,
   runScheduledSgRefresh,
-  SG_RECONCILE_BATCH_SIZE,
   SG_REFRESH_TIMEOUT_RETRY_MS,
   SG_SCHEDULED_REFRESH_RETRY_MS,
   shouldRetrySgRefreshTimeout,
@@ -3514,7 +3513,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       // `style_guide_crawl_runs_completion_requires_reconcile`: a run may not be
       // written as status='completed' until BOTH reconcile_completed_at and
       // refresh_completed_at are set. So the order here is mandatory:
-      //   1. run one bounded reconcile_stale_sg_files_batch call; when work
+      //   1. request the database-side retire job (shared-db#3458) and poll; while work
       //      remains, return an additive continuation state so the bridge calls
       //      again instead of holding one Edge request open indefinitely,
       //   2. refresh the matviews WITH the run id (that is what stamps
@@ -3526,61 +3525,47 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       let reconcileFailure: string | undefined = accessibleRoots.length > 0 ? undefined : "No accessible roots to reconcile; refusing to report completion";
       let reconcileAttentionRequired = false;
 
-      for (const root of accessibleRoots) {
-        const rootLabel = root.split("/").filter(Boolean).pop() || root;
-        const { data, error: reconcileErr } = await db.rpc("reconcile_stale_sg_files_batch", {
-          p_root_label: rootLabel,
-          p_run_id: runId,
-          p_batch_size: SG_RECONCILE_BATCH_SIZE,
-          p_min_ratio: 0.5,
-        });
-        if (reconcileErr) {
-          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
-          reconcileOk = false;
-          reconcileFailure = `Reconcile failed for root "${rootLabel}": ${reconcileErr.message}`;
-          console.error("[complete-style-guide-crawl]", reconcileFailure);
-          break;
+      // shared-db#3458: the retire step runs inside the database (pg_cron job
+      // sg-reconcile-requested, 10 min budget) because PostgREST's 8 s ceiling
+      // is exceeded right after the nightly ingest. Record the request once,
+      // then poll the run row until the job finishes or the guard parks it.
+      if (reconcileOk) {
+        const reconcileRoots = [...new Set(accessibleRoots.map((root) => root.split("/").filter(Boolean).pop() || root))];
+        const { data: rec, error: recErr } = await db
+          .from("style_guide_crawl_runs")
+          .select(
+            "reconcile_requested_at, reconcile_completed_at, reconcile_job_error, lifecycle_state, guard_state, guard_reason, files_deactivated, stale_remaining",
+          )
+          .eq("id", runId)
+          .single();
+        if (recErr || !rec) return err(`Could not load reconcile state: ${recErr?.message ?? "run not found"}`, 500);
+        if (!rec.reconcile_requested_at) {
+          const { error: reqErr } = await db.rpc("request_sg_reconcile", { p_run_id: runId, p_root_labels: reconcileRoots });
+          if (reqErr) return err(`Could not request reconcile: ${reqErr.message}`, 500);
+          return json({ ok: true, state: "reconciling", retry_after_ms: SG_SCHEDULED_REFRESH_RETRY_MS });
         }
-        const batch = (Array.isArray(data) ? data[0] : data) as {
-          deactivated: number;
-          remaining: number;
-          done: boolean;
-          guard_state: string | null;
-          guard_reason: string | null;
-        } | null;
-        if (!batch) {
-          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
-          reconcileOk = false;
-          reconcileFailure = `Reconcile returned no result for root "${rootLabel}"`;
-          console.error("[complete-style-guide-crawl]", reconcileFailure);
-          break;
-        }
-        const deactivated = Number(batch.deactivated);
-        const measured = (!batch.guard_state || batch.guard_state === "ok") &&
-          Number.isSafeInteger(deactivated) && deactivated >= 0;
-        logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", measured ? deactivated : null, measured ? deactivated : null);
-        console.log(
-          `[complete-style-guide-crawl] Reconcile root "${rootLabel}": deactivated=${batch.deactivated} remaining=${batch.remaining} done=${batch.done}`,
-        );
-        if (batch.guard_state && batch.guard_state !== "ok") {
-          // The guard refused to inactivate anything and parked the run as
-          // attention_required. Do NOT mark it completed.
+        if (rec.lifecycle_state === "attention_required" || (rec.guard_state && rec.guard_state !== "ok")) {
           reconcileOk = false;
           reconcileAttentionRequired = true;
-          reconcileFailure = `Reconcile guard "${batch.guard_state}" fired for root "${rootLabel}": ${batch.guard_reason ?? "no reason given"}`;
+          reconcileFailure = `Reconcile guard "${rec.guard_state}" fired: ${rec.guard_reason ?? "no reason given"}`;
+          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
           console.error("[complete-style-guide-crawl]", reconcileFailure);
-          break;
-        }
-        if (!batch.done) {
+        } else if (rec.reconcile_job_error) {
+          reconcileOk = false;
+          reconcileFailure = `Reconcile failed: ${rec.reconcile_job_error}`;
+          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", null, null);
+          console.error("[complete-style-guide-crawl]", reconcileFailure);
+        } else if (!rec.reconcile_completed_at) {
           return json({
             ok: true,
             state: "reconciling",
-            retry_after_ms: 1_000,
-            counters: {
-              deactivated: batch.deactivated,
-              remaining: batch.remaining,
-            },
+            retry_after_ms: SG_SCHEDULED_REFRESH_RETRY_MS,
+            counters: { deactivated: Number(rec.files_deactivated ?? 0), remaining: Number(rec.stale_remaining ?? 0) },
           });
+        } else {
+          const deactivated = Number(rec.files_deactivated ?? 0);
+          logIndexedWriteResult("public.style_guide_files", "crawl-reconcile", deactivated, deactivated);
+          console.log(`[complete-style-guide-crawl] Reconcile done in database: deactivated=${deactivated}`);
         }
       }
 
