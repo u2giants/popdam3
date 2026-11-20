@@ -454,7 +454,9 @@ class OverdueHoldAlert(unittest.TestCase):
         m.gh = lambda *a: {"sha": "abc"}
         m.merged_migration_prs = lambda repo: [pr]
         m.workflow_runs = lambda repo, **_: []
-        m.is_held = lambda repo, n: self.pr["findings"]
+        # A readable finding past HOLD_TIMEOUT stops holding (the hold times
+        # out), so the alert is exercised with an unreadable finding query.
+        m.is_held = lambda repo, n: True
         sys.argv, os.environ["GITHUB_REPOSITORY"] = ["x", "--dry-run"], "o/r"
         try:
             with contextlib.redirect_stdout(io.StringIO()) as out:
@@ -1677,24 +1679,24 @@ class StrandedLabelReconciler(unittest.TestCase):
     def test_held_threshold_and_unknown_read(self):
         fake = StrandedRepoFake(labels={11: {HELD}})
         finding = _finding(901, "2026-11-17T00:00:00Z")
-        nine_hours = _pr(9, merged="2026-11-17T03:00:00Z", findings=[finding])
-        seven_hours = _pr(10, merged="2026-11-17T05:00:00Z")
-        unknown = _pr(11, merged="2026-11-17T03:00:00Z")
+        nine_hours = _pr(9, merged="2026-11-17T11:00:00Z", findings=[finding])  # held 60 min
+        seven_hours = _pr(10, merged="2026-11-17T11:45:00Z")  # held 15 min
+        unknown = _pr(11, merged="2026-11-17T11:00:00Z")
         held = lambda n: {9: [finding], 10: [finding], 11: True}.get(n, [])
         results, _ = _reconcile(fake, [nine_hours, seven_hours, unknown], held=held)
         self.assertEqual(fake.touched(), [9])
         self.assertEqual(_outcomes(results), {(9, HELD): "posted", (11, HELD): "unknown"})
         self.assertIn(HELD, fake.labels[11])
 
-    def test_alert_and_escalation_thresholds_differ(self):
+    def test_alert_and_escalation_thresholds_are_thirty_minutes(self):
         self.assertEqual(m.ALERT_AFTER, timedelta(minutes=30))
-        self.assertEqual(m.HELD_ESCALATE_AFTER, timedelta(hours=8))
+        self.assertEqual(m.HELD_ESCALATE_AFTER, timedelta(minutes=30))
         finding = _finding(901, "2026-11-17T10:00:00Z")
-        one_hour = _pr(10, merged="2026-11-17T11:00:00Z", findings=[finding])
-        # Held one hour: the operator alert fires, the label does not.
-        self.assertEqual(len(m.overdue_holds([one_hour], NOW)), 1)
+        twenty_min = _pr(10, merged="2026-11-17T11:40:00Z", findings=[finding])
+        # Held 20 minutes: neither the operator alert nor the label fires.
+        self.assertEqual(m.overdue_holds([twenty_min], NOW), [])
         fake = StrandedRepoFake()
-        results, _ = _reconcile(fake, [one_hour], held=lambda n: [finding])
+        results, _ = _reconcile(fake, [twenty_min], held=lambda n: [finding])
         self.assertEqual(results, [])
         self.assertEqual(fake.writes, [])
 
@@ -2556,7 +2558,7 @@ class ClaimRefPaths(unittest.TestCase):
 
 class DispatchClaims(unittest.TestCase):
     """#6493 Step 2: per-PR liveness lease against duplicate dispatch."""
-    now = datetime(2026, 11, 16, 20, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 11, 16, 19, 20, tzinfo=timezone.utc)
     claim = {"pr": 7, "versions": ["20261116100000"], "run_id": "11", "claimed_at": "2026-11-16T19:00:00Z"}
 
     def arun(self, status, conclusion=None, title="DB preview apply PR7 20261116100000", at="2026-11-16T19:01:00Z"):
@@ -2582,7 +2584,7 @@ class DispatchClaims(unittest.TestCase):
     def test_ledger_applied_claim_is_stale(self):
         self.assertTrue(m.claim_is_stale(self.claim, [self.arun("in_progress")], {"20261116100000"}, self.now))
 
-    def test_nothing_moving_for_four_hours_reclaims(self):
+    def test_nothing_moving_past_the_idle_limit_reclaims(self):
         later = self.now + timedelta(hours=5)
         self.assertTrue(m.claim_is_stale(self.claim, [self.arun("completed", "success")], set(), later))
         self.assertFalse(m.claim_is_stale(self.claim, [self.arun("in_progress")], set(), later))
@@ -3291,9 +3293,9 @@ class OrphanedFindingRetry(unittest.TestCase):
             self.assertEqual([(pr, f["number"]) for pr, f in got], [(6650, 6651)])
 
     def test_ignores_young_active_closed_and_non_review_holds(self):
-        self.assertEqual(m.orphaned_findings([self.entry(["fixer-deferred"], merged="2026-11-18T13:00:00Z")], self.now), [])
+        self.assertEqual(m.orphaned_findings([self.entry(["fixer-deferred"], merged="2026-11-18T15:45:00Z")], self.now), [])
         young = self.entry(["fixer-deferred"])
-        young["findings"][0]["created_at"] = "2026-11-18T13:00:00Z"
+        young["findings"][0]["created_at"] = "2026-11-18T15:45:00Z"
         self.assertEqual(m.orphaned_findings([young], self.now), [])
         self.assertEqual(m.orphaned_findings([self.entry([])], self.now), [])
         self.assertEqual(m.orphaned_findings([self.entry(["fixer-done"])], self.now), [])
@@ -3330,7 +3332,7 @@ class OrphanedFindingRetry(unittest.TestCase):
         self.assertIn("label fixer-deferred not removed", lines[0])
         self.assertIn("fixer dispatch refused", lines[0])
         self.assertIn("did not complete", writes[-1][2]["body"])
-        self.assertIn("held 12h", writes[0][2]["body"])
+        self.assertIn("held 750 min", writes[0][2]["body"])
 
     def test_one_malformed_finding_does_not_stop_the_rest(self):
         bad, good = self.entry(["fixer-deferred"]), self.entry(["fixer-deferred"])

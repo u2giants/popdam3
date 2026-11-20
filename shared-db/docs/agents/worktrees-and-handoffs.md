@@ -130,7 +130,7 @@ work and again before it ends:
 
 `promotion-parked` means the automatic lane is out of attempts for that change, or a refusal
 is permanent. `promotion-held` means open review findings have blocked the change for more
-than 8 hours. Each label comes with one notice comment on the pull request that says what is
+than 30 minutes. Each label comes with one notice comment on the pull request that says what is
 wrong and how it can be repaired.
 
 The automatic trigger adds and removes these labels itself, and it clears them when the

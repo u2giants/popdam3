@@ -1027,12 +1027,12 @@ def overdue_holds(skipped: list[dict[str, Any]], now: datetime) -> list[str]:
 # retries the fixer on it exactly once (the blocker -- a claim, a flaky agent
 # run -- has usually cleared after the merge), leaving a marked note on the
 # finding so the retry is visible and never repeats.
-ORPHAN_RETRY_AFTER = timedelta(hours=4)
+ORPHAN_RETRY_AFTER = timedelta(minutes=30)
 # #6701: a review-finding hold older than this no longer blocks promotion.
 # The orphan-retry nudge above still runs so parked findings get one fixer
 # attempt; a still-open finding past the timeout is adopted (disposition note)
 # rather than holding production forever.
-HOLD_TIMEOUT = timedelta(hours=4)
+HOLD_TIMEOUT = timedelta(minutes=30)
 FIXER_TERMINAL_LABELS = ("fixer-deferred", "fixer-failed")
 ORPHAN_RETRY_MARKER = "<!-- promotion-orphan-retry:v1 -->"
 ADOPT_MARKER = "<!-- promotion-adopt-merged:v1 -->"
@@ -1090,9 +1090,9 @@ def _retry_one(repo: str, pr: int, finding: dict[str, Any], now: datetime, dry_r
     parked = sorted(_label_names(finding) & set(FIXER_TERMINAL_LABELS))
     # Held time is measured from the hold start, the same clock overdue_holds uses.
     held = finding.get("_held_since")
-    hours = int((now - held).total_seconds() // 3600) if held else 0
+    minutes = int((now - held).total_seconds() // 60) if held else 0
     body = (f"{ORPHAN_RETRY_MARKER}\nThis open finding holds merged PR #{pr} out of production "
-            f"and the automatic fixer parked it ({', '.join(parked)}; held {hours}h). Retrying the "
+            f"and the automatic fixer parked it ({', '.join(parked)}; held {minutes} min). Retrying the "
             f"fixer once now. If it parks again, this finding needs a disposition (fix forward, "
             f"or close with reasons) for the release to proceed.\n\n" + _footer())
     # The marker note is the once-only guard, so it is written first; a later
@@ -1168,8 +1168,8 @@ def _adopt_one(repo: str, pr: int, finding: dict[str, Any], now: datetime, dry_r
     if superseded:
         reasons.append("its Head SHA is not the delivered PR head")
     if timed_out:
-        hours = int(held_for.total_seconds() // 3600)
-        reasons.append(f"the hold timed out after {hours}h with no disposition")
+        minutes = int(held_for.total_seconds() // 60)
+        reasons.append(f"the hold timed out after {minutes} min with no disposition")
     if dry_run:
         return f"finding #{n} (on merged PR #{pr}): would adopt ({'; '.join(reasons)})"
     body = (
@@ -1654,7 +1654,7 @@ def dispatch(repo: str, pr: dict[str, Any], main_sha: str, runs: list[dict[str, 
 # associated has moved for CLAIM_IDLE_LIMIT. The trigger's concurrency group
 # already serializes selector runs; this is defense in depth.
 CLAIM_PREFIX = "refs/dispatch-claims/pr-"
-CLAIM_IDLE_LIMIT = timedelta(hours=4)
+CLAIM_IDLE_LIMIT = timedelta(minutes=30)
 # Candidates one selector run may pass over because another run holds their claim.
 MAX_CLAIM_PASSES = 3
 
@@ -1827,11 +1827,11 @@ def report_stuck_change(repo: str, entries: list[dict[str, Any]], now: datetime)
 
 PARKED_LABEL = "promotion-parked"
 HELD_LABEL = "promotion-held"
-HELD_ESCALATE_AFTER = timedelta(hours=8)
+HELD_ESCALATE_AFTER = timedelta(minutes=30)
 LABEL_COLOURS = {PARKED_LABEL: "B60205", HELD_LABEL: "FBCA04"}
 LABEL_DESCRIPTIONS = {
     PARKED_LABEL: "Merged migration out of automatic promotion attempts; not in production",
-    HELD_LABEL: "Merged migration held over 8h by open review findings; not in production",
+    HELD_LABEL: "Merged migration held over 30 minutes by open review findings; not in production",
 }
 
 
