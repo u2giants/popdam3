@@ -48,7 +48,7 @@ test('complete profile fits the original 8192-byte artifact bound and the query 
  const sqlBytes=await readFile(new URL('./2873-catalog.sql',import.meta.url));const contractBytes=await readFile(new URL('./2873-contract.json',import.meta.url));
  assert.ok(buildObservation({rows:rows(),env:env(),sqlBytes,contractBytes,observedAt:'2026-10-06T21:00:00.000Z'}).length<=8192);
  const sql=sqlBytes.toString();assert.match(sql,/WITH expected/);assert.doesNotMatch(sql,/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|GRANT|REVOKE)\b/im);
- assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,477);
+ assert.equal(expected.catalog.role_count,8);assert.equal(expected.catalog.matrix_entries,485);
 });
 
 // #2873: Supabase's non-superuser postgres receives PostgreSQL 16+'s implicit creator
@@ -81,12 +81,16 @@ test('global_no_truncate exempts only PUBLIC-inherited TRUNCATE in schema net',a
 
 
 test('both exact matrices contain the exact prerequisite and tracking-access relation privileges', async()=>{
- const parse=sql=>[...sql.matchAll(/\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(m=>m.slice(1));
+ const parse=sql=>{
+  const values=sql.replace(/--[^\n]*/g,'').match(/(?:WITH expected\(grantee,kind,name,priv\) AS \(VALUES|insert into t2873_expected values)\n([\s\S]*?)(?=\n\), role_names AS|;)/)?.[1];
+  assert.ok(values,'expected grant matrix');
+  return [...values.matchAll(/\('([^']+)','([^']+)','([^']+)','([^']+)'\)/g)].map(m=>m.slice(1));
+ };
  const matrices=await Promise.all(['2873-catalog.sql','2873-role-contract.sql'].map(async name=>parse(await readFile(new URL(name,import.meta.url),'utf8'))));
  for(const rows of matrices){
-  assert.equal(rows.length,485);
+  assert.equal(rows.length,expected.catalog.matrix_entries);
   assert.deepEqual(rows.filter(r=>r[2].startsWith('coldlion.')).sort(),[['designflow_prod_backend_runtime','table','coldlion.merch_group_event_log','INSERT'],['designflow_prod_backend_runtime','table','coldlion.merch_group_event_log','SELECT'],['designflow_prod_data_sync_runtime','table','coldlion.merch_group_event_log','INSERT'],['designflow_prod_data_sync_runtime','table','coldlion.merch_group_event_log','SELECT'],['designflow_prod_tracking_grants','table','coldlion.order_history_line','SELECT'],['designflow_prod_tracking_grants','table','coldlion.prod_history_line','SELECT']]);
-  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,485);
+  assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.v_prod_order_sales_order_link'),[['designflow_prod_tracking_grants','view','dflow_prod.v_prod_order_sales_order_link','SELECT']]);assert.equal(new Set(rows.map(JSON.stringify)).size,rows.length);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.user_roles').sort(),['DELETE','INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_backend_grants','table','dflow_prod.user_roles',priv]));
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.item_detail_upc'),[['designflow_prod_item_master_grants','view','dflow_prod.item_detail_upc','SELECT']]);
   assert.deepEqual(rows.filter(r=>r[2]==='dflow_prod.prod_order_milestone_schedule').sort(),['INSERT','SELECT','UPDATE'].map(priv=>['designflow_prod_tracking_grants','table','dflow_prod.prod_order_milestone_schedule',priv]));
@@ -99,6 +103,17 @@ test('both exact matrices contain the exact prerequisite and tracking-access rel
  assert.match(source,/GRANT SELECT, INSERT, UPDATE, DELETE ON dflow_prod\.user_roles TO designflow_prod_backend_grants;/);
  assert.match(expected.live_assertion,/thirteen underlying dflow_prod\.itemDetail fields/);
  assert.equal(expected.catalog.memberships_exact,true);assert.equal(expected.catalog.effective_relations_exact,true);assert.equal(expected.catalog.effective_function_extras_exact,true);
+});
+
+test('the metadata observer and executable proof use the same event log checks',async()=>{
+ const [catalog,roleProof]=await Promise.all(['2873-catalog.sql','2873-role-contract.sql'].map(name=>readFile(new URL(name,import.meta.url),'utf8')));
+ const checks=sql=>sql.match(/event_log AS \([\s\S]*?\n\)(?=\nSELECT)/)?.[0];
+ assert.ok(checks(catalog));
+ assert.equal(checks(catalog),checks(roleProof));
+ for(const [field,column] of [['event_log_updates_exact','updates_exact'],['event_log_policies_exact','policies_exact']]){
+  assert.equal(expected.catalog[field],true);
+  assert.ok(catalog.includes(`'${field}',(SELECT ${column} FROM event_log_checks)`));
+ }
 });
 
 // #4646: scoped inherited backend exception must not expand history access or other objects.

@@ -496,7 +496,44 @@ WITH expected(grantee,kind,name,priv) AS (VALUES
  SELECT r.rolname::text,'function',COALESCE(e.name,p.oid::regprocedure::text),a.privilege_type
  FROM pg_proc p CROSS JOIN LATERAL aclexplode(p.proacl) a JOIN roles r ON r.oid=a.grantee
  LEFT JOIN expected e ON e.kind='function' AND e.grantee=r.rolname AND to_regprocedure(e.name)=p.oid AND e.priv=a.privilege_type
-), diff AS ((SELECT * FROM expected EXCEPT SELECT * FROM actual) UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected))
+), diff AS ((SELECT * FROM expected EXCEPT SELECT * FROM actual) UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected)),
+event_log AS (
+ SELECT c.oid, c.relrowsecurity
+ FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname='coldlion' AND c.relname='merch_group_event_log' AND c.relkind='r'
+), event_log_roles AS (
+ SELECT oid, rolname,
+        CASE rolname WHEN 'designflow_prod_backend_runtime' THEN 'runtime'
+                     WHEN 'designflow_prod_data_sync_runtime' THEN 'data_sync' END policy_suffix
+ FROM pg_roles WHERE rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_(grants|runtime)$'
+), event_log_checks AS (
+ SELECT
+  (SELECT count(*) FROM pg_attribute a JOIN event_log l ON l.oid=a.attrelid
+   WHERE a.attnum>0 AND NOT a.attisdropped AND a.attname IN ('status','reason','rows_touched','processed_at'))=4
+  AND NOT EXISTS (
+   SELECT 1 FROM event_log l CROSS JOIN event_log_roles r
+   WHERE has_table_privilege(r.oid,l.oid,'UPDATE,DELETE')
+  )
+  AND NOT EXISTS (
+   SELECT 1 FROM event_log l JOIN pg_attribute a ON a.attrelid=l.oid CROSS JOIN event_log_roles r
+   WHERE a.attnum>0 AND NOT a.attisdropped
+     AND (has_column_privilege(r.oid,l.oid,a.attnum,'UPDATE') <>
+          (r.policy_suffix IS NOT NULL AND a.attname IN ('status','reason','rows_touched','processed_at'))
+          OR has_column_privilege(r.oid,l.oid,a.attnum,'UPDATE WITH GRANT OPTION'))
+  ) AS updates_exact,
+  EXISTS (SELECT 1 FROM event_log WHERE relrowsecurity)
+  AND (SELECT count(*) FROM pg_policy p JOIN event_log l ON l.oid=p.polrelid)=6
+  AND (SELECT count(*) FROM pg_policy p JOIN event_log l ON l.oid=p.polrelid
+       JOIN event_log_roles r ON p.polroles=ARRAY[r.oid]
+       JOIN (VALUES ('select','r',true,false), ('insert','a',false,true), ('update','w',true,true))
+            AS op(name, command, uses_qual, uses_check)
+         ON p.polname='merch_group_event_log_'||r.policy_suffix||'_'||op.name
+        AND p.polcmd::text=op.command
+       WHERE p.polpermissive
+         AND pg_get_expr(p.polqual,p.polrelid) IS NOT DISTINCT FROM CASE WHEN op.uses_qual THEN 'true' END
+         AND pg_get_expr(p.polwithcheck,p.polrelid) IS NOT DISTINCT FROM CASE WHEN op.uses_check THEN 'true' END)=6
+  AS policies_exact
+)
 SELECT jsonb_build_object(
  'inherited_helpers',(SELECT jsonb_agg(jsonb_build_object('signature',p.oid::regprocedure::text,'security_definer',p.prosecdef,'configuration',p.proconfig,'body_sha256',encode(sha256(convert_to(pg_get_functiondef(p.oid),'UTF8')),'hex')) ORDER BY p.oid::regprocedure::text) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='dflow_prod' AND p.proname IN ('get_child_id','get_parent_id','reject_sample_movement_mutation')),
  'effective_function_extras_exact',NOT EXISTS(SELECT 1 FROM roles r CROSS JOIN pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE r.suffix='_runtime' AND n.nspname='dflow_prod' AND has_function_privilege(r.oid,p.oid,'EXECUTE') AND NOT EXISTS(SELECT 1 FROM expected e WHERE e.kind='function' AND e.grantee='designflow_prod_'||r.service||'_grants' AND to_regprocedure(e.name)=p.oid) AND p.proname NOT IN ('get_child_id','get_parent_id','reject_sample_movement_mutation'))
@@ -522,6 +559,8 @@ SELECT jsonb_build_object(
  'tracking_history_policies_exact',(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND c.relkind='r' AND c.relrowsecurity)=2
  AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND (0=ANY(p.polroles) OR EXISTS(SELECT 1 FROM pg_roles audience WHERE audience.rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_(grants|runtime)$' AND audience.oid=ANY(p.polroles))))=2
  AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND p.polname='coldlion_history_tracking_read' AND p.polcmd='r' AND p.polpermissive AND p.polroles=ARRAY['designflow_prod_tracking_grants'::regrole]::oid[] AND pg_get_expr(p.polqual,p.polrelid)='true' AND p.polwithcheck IS NULL)=2,
+ 'event_log_updates_exact',(SELECT updates_exact FROM event_log_checks),
+ 'event_log_policies_exact',(SELECT policies_exact FROM event_log_checks),
  'no_ownership',NOT EXISTS(SELECT 1 FROM pg_class WHERE relowner IN(SELECT oid FROM roles)) AND NOT EXISTS(SELECT 1 FROM pg_proc WHERE proowner IN(SELECT oid FROM roles)) AND NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspowner IN(SELECT oid FROM roles)),
  'no_defaults',NOT EXISTS(SELECT 1 FROM pg_default_acl d CROSS JOIN LATERAL aclexplode(d.defaclacl) a WHERE d.defaclrole IN(SELECT oid FROM roles) OR a.grantee IN(SELECT oid FROM roles)),
  'no_grant_options',NOT EXISTS(SELECT 1 FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a WHERE a.grantee IN(SELECT oid FROM roles) AND a.is_grantable) AND NOT EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(p.proacl) a WHERE a.grantee IN(SELECT oid FROM roles) AND a.is_grantable),

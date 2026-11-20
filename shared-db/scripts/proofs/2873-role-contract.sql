@@ -513,28 +513,22 @@ begin
     if (select array_agg(r.rolname::text) from pg_auth_members m join pg_roles r on r.oid=m.roleid
         where m.member=('designflow_prod_'||v_role||'_runtime')::regrole) <> array['designflow_prod_'||v_role||'_grants']
     then raise exception '#2873: runtime role % must be a member of exactly its own grant role', v_role; end if;
-    -- #4464 option (c): only the tracking runtime holds direct grants, and only its plm
-    -- Stage Catalog, AuditLog and user_notification (#4515) entries, which the matrix
-    -- comparison above pins exactly.
-    if exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace, aclexplode(c.relacl) a
-               where a.grantee=('designflow_prod_'||v_role||'_runtime')::regrole
-                 and not (v_role='tracking' and (n.nspname='plm' or (n.nspname='dflow_prod' and c.relname in ('AuditLog','user_notification')))))
-       or exists (select 1 from pg_proc p, aclexplode(p.proacl) a where a.grantee=('designflow_prod_'||v_role||'_runtime')::regrole)
-    then raise exception '#2873: runtime role % holds a direct privilege', v_role; end if;
   end loop;
 
-  -- Catalog equals the expected matrix, both directions.
-  with actual as (
+  -- Compare all direct grants, including runtime roles, against the exact matrix.
+  with audited_roles as (
+    select oid, rolname from pg_roles
+    where rolname like 'designflow\_prod\_%\_grants'
+       or rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_runtime$'
+  ), actual as (
     select r.rolname::text grantee,
            case c.relkind when 'v' then 'view' when 'S' then 'sequence' else 'table' end kind,
            n.nspname||'.'||c.relname name, a.privilege_type priv
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
-    cross join lateral aclexplode(c.relacl) a join pg_roles r on r.oid=a.grantee
-    where r.rolname like 'designflow\_prod\_%\_grants' or r.rolname = 'designflow_prod_tracking_runtime'
+    cross join lateral aclexplode(c.relacl) a join audited_roles r on r.oid=a.grantee
     union all
     select r.rolname::text, 'function', n.nspname||'.'||p.proname, a.privilege_type
-    from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join lateral aclexplode(p.proacl) a join pg_roles r on r.oid=a.grantee
-    where r.rolname like 'designflow\_prod\_%\_grants'
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join lateral aclexplode(p.proacl) a join audited_roles r on r.oid=a.grantee
   ), d as ((select * from actual except select * from t2873_expected) union all (select * from t2873_expected except select * from actual))
   select string_agg(format('%s %s %s %s', grantee, kind, name, priv), '; ') into v_diff from d;
   if v_diff is not null then raise exception '#2873: grant matrix drift: %', v_diff; end if;
@@ -572,6 +566,52 @@ do $tracking_history$ begin
  AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND (0=ANY(p.polroles) OR EXISTS(SELECT 1 FROM pg_roles audience WHERE audience.rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_(grants|runtime)$' AND audience.oid=ANY(p.polroles))))=2
  AND (SELECT count(*) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='coldlion' AND c.relname IN ('order_history_line','prod_history_line') AND p.polname='coldlion_history_tracking_read' AND p.polcmd='r' AND p.polpermissive AND p.polroles=ARRAY['designflow_prod_tracking_grants'::regrole]::oid[] AND pg_get_expr(p.polqual,p.polrelid)='true' AND p.polwithcheck IS NULL)=2) then raise exception '#2873: tracking history policies or RLS differ'; end if;
 end $tracking_history$;
+
+-- #6171/#6860: match the journal checks in 2873-catalog.sql.
+do $event_log$
+declare updates_ok boolean; policies_ok boolean;
+begin
+WITH event_log AS (
+ SELECT c.oid, c.relrowsecurity
+ FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname='coldlion' AND c.relname='merch_group_event_log' AND c.relkind='r'
+), event_log_roles AS (
+ SELECT oid, rolname,
+        CASE rolname WHEN 'designflow_prod_backend_runtime' THEN 'runtime'
+                     WHEN 'designflow_prod_data_sync_runtime' THEN 'data_sync' END policy_suffix
+ FROM pg_roles WHERE rolname ~ '^designflow_prod_(backend|item_master|tracking|data_sync)_(grants|runtime)$'
+), event_log_checks AS (
+ SELECT
+  (SELECT count(*) FROM pg_attribute a JOIN event_log l ON l.oid=a.attrelid
+   WHERE a.attnum>0 AND NOT a.attisdropped AND a.attname IN ('status','reason','rows_touched','processed_at'))=4
+  AND NOT EXISTS (
+   SELECT 1 FROM event_log l CROSS JOIN event_log_roles r
+   WHERE has_table_privilege(r.oid,l.oid,'UPDATE,DELETE')
+  )
+  AND NOT EXISTS (
+   SELECT 1 FROM event_log l JOIN pg_attribute a ON a.attrelid=l.oid CROSS JOIN event_log_roles r
+   WHERE a.attnum>0 AND NOT a.attisdropped
+     AND (has_column_privilege(r.oid,l.oid,a.attnum,'UPDATE') <>
+          (r.policy_suffix IS NOT NULL AND a.attname IN ('status','reason','rows_touched','processed_at'))
+          OR has_column_privilege(r.oid,l.oid,a.attnum,'UPDATE WITH GRANT OPTION'))
+  ) AS updates_exact,
+  EXISTS (SELECT 1 FROM event_log WHERE relrowsecurity)
+  AND (SELECT count(*) FROM pg_policy p JOIN event_log l ON l.oid=p.polrelid)=6
+  AND (SELECT count(*) FROM pg_policy p JOIN event_log l ON l.oid=p.polrelid
+       JOIN event_log_roles r ON p.polroles=ARRAY[r.oid]
+       JOIN (VALUES ('select','r',true,false), ('insert','a',false,true), ('update','w',true,true))
+            AS op(name, command, uses_qual, uses_check)
+         ON p.polname='merch_group_event_log_'||r.policy_suffix||'_'||op.name
+        AND p.polcmd::text=op.command
+       WHERE p.polpermissive
+         AND pg_get_expr(p.polqual,p.polrelid) IS NOT DISTINCT FROM CASE WHEN op.uses_qual THEN 'true' END
+         AND pg_get_expr(p.polwithcheck,p.polrelid) IS NOT DISTINCT FROM CASE WHEN op.uses_check THEN 'true' END)=6
+  AS policies_exact
+)
+SELECT updates_exact, policies_exact INTO updates_ok, policies_ok FROM event_log_checks;
+if not updates_ok then raise exception '#2873: event log UPDATE or DELETE privileges differ'; end if;
+if not policies_ok then raise exception '#2873: event log policies or RLS differ'; end if;
+end $event_log$;
 
 -- Live refusal controls as the Tracking runtime identity.
 set local role designflow_prod_tracking_runtime;
