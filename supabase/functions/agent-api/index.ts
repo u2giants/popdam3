@@ -1498,9 +1498,7 @@ const SURVIVOR_LOOKUP_CONCURRENCY = 8;
 
 async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const items = body.assets;
-  const clearIds = Array.isArray(body.clear_missing_flags)
-    ? (body.clear_missing_flags as unknown[]).filter((id): id is string => typeof id === "string")
-    : [];
+  const clearIds = Array.isArray(body.clear_missing_flags) ? (body.clear_missing_flags as unknown[]).filter((id): id is string => typeof id === "string") : [];
   if (clearIds.length > RETIRE_MISSING_MAX_BATCH) return err(`clear_missing_flags exceeds maximum batch size of ${RETIRE_MISSING_MAX_BATCH}`);
   // A clear-only call (the walk saw files whose "no longer on the NAS" mark is
   // stale) carries no missing records; anything else must.
@@ -1643,9 +1641,9 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   });
   const kept = skipped["no_surviving_copy"] ?? 0;
   console.log(
-    `[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), flagged ${flagged} missing, cleared ${cleared}, skipped ${JSON.stringify(skipped)}${
-      outcome.error ? `, stopped: ${outcome.error}` : ""
-    }`,
+    `[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), flagged ${flagged} missing, cleared ${cleared}, skipped ${
+      JSON.stringify(skipped)
+    }${outcome.error ? `, stopped: ${outcome.error}` : ""}`,
   );
   // Work done before a failure is reported, not lost: a 500 would make the
   // bridge retry rows already retired and hide the count.
