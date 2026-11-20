@@ -1,0 +1,87 @@
+{
+  "issue": "u2giants/popdam3#469",
+  "pass": "production PDF retry via OpenRouter (DEEPSEEK_BASE_URL route)",
+  "date": "2026-11-20",
+  "timezone": "America/New_York",
+  "owner_decision": "use deepseek through openrouter (verbatim, owner chat 2026-11-20)",
+  "task_gates": {
+    "class": "production",
+    "base": "59e1870bfc48",
+    "checks": [
+      "check --before deploy — allowed by owner authorization",
+      "check --before database — allowed by owner authorization",
+      "check --before production — allowed by owner authorization"
+    ]
+  },
+  "found_state": {
+    "worktree": "wt-469-openrouter clean, commit 2269ac12 pushed",
+    "pr_1242": "OPEN, MERGEABLE, CI all green (lint-test-build SUCCESS)",
+    "railway_env": "DEEPSEEK_BASE_URL unset; DEEPSEEK_API_KEY still DeepSeek-direct key fp e5fd6dec8b65dcd0; OPENROUTER_API_KEY present fp 6684f5b62d651c27 (worker's own pre-existing var)",
+    "admin_config": "AI_TASK_MODELS.rich_pdf_extraction absent (fallback deepseek-chat); OPENROUTER_API_KEY fp da8b115ed72519de",
+    "leftover_fixtures": "none (assets/texts/rich rows for 00004690-… and a4690000-… : 0 rows)",
+    "retry_proof": "not started by the cancelled run"
+  },
+  "local_checks": {
+    "root_typecheck": "exit 0",
+    "root_lint": "0 errors (359 pre-existing warnings)",
+    "worker_suite": "542/543 pass; 1 fail = worker-heartbeat #836 pre-existing flake (identical on clean origin/main)"
+  },
+  "pr_1242": {
+    "title": "feat(worker): route rich-PDF DeepSeek calls through OpenRouter (#469)",
+    "commit": "2269ac1256f3abed331f570b815859b9ae68fef5",
+    "files": ["apps/worker/src/config.ts", "apps/worker/src/deepseek.ts", "apps/worker/src/deepseek.test.ts", "apps/worker/src/handlers/rich-pdf.ts"],
+    "ci": "lint-test-build SUCCESS; task-gates / shared-db guard / forbid-shared-db-bypass SUCCESS; ai-review NEUTRAL",
+    "merged_at_est": "2026-11-20 11:29:56 AM",
+    "merge_commit": "5f2934e81f8248d962e6c791375f0adcdc335c18"
+  },
+  "deploy": {
+    "railway_deployment": "55933a39-2937-42fc-b7e5-e3c360f578eb",
+    "status": "SUCCESS",
+    "at_est": "2026-11-20 11:30:00 AM",
+    "commit": "5f2934e81f8248d962e6c791375f0adcdc335c18",
+    "worker_heartbeat": {"status": "running", "sha": "5f2934e81f8248d962e6c791375f0adcdc335c18", "updated_at": "2026-11-20T16:30:30Z"}
+  },
+  "env": {
+    "service": "popdam3 (f777713f-d0f8-4f9b-9685-37c9090c98ef)",
+    "environment": "production (70aef28e-b9f8-4aa6-b902-c9a06aec08d5)",
+    "project": "8645c5fe-ae60-413e-8464-508456c65365",
+    "access": "railway CLI session (railway whoami refresh; config.json token + backboard GraphQL; stored 1P Railway API tokens remain dead, gap #551)",
+    "DEEPSEEK_BASE_URL": "https://openrouter.ai/api/v1/chat/completions (readback exact; previously unset)",
+    "DEEPSEEK_API_KEY": "OpenRouter production key, len 73, sha256_16 da8b115ed72519de (readback matches); source admin_config.OPENROUTER_API_KEY (app model catalog key); replaced DeepSeek-direct key fp e5fd6dec8b65dcd0",
+    "model_id": "admin_config.AI_TASK_MODELS.rich_pdf_extraction = deepseek/deepseek-v4.1-flash-1017 (jsonb_set, siblings preserved; previously absent)",
+    "mutation": "variableUpsert skipDeploys:true x2 (merge-triggered deploy carries code+env)",
+    "preflight": "benign OpenRouter chat call 11:27 AM EST: HTTP 200, response model deepseek/deepseek-v4.1-flash-1017"
+  },
+  "fixture": {
+    "asset_id": "00004690-4690-4000-8000-000000000001",
+    "filename": "toytest_tech_pack_469probe.pdf",
+    "text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0",
+    "failure_row": "upsert_pdf_rich_extraction p_parse_error='probe-induced failure for 469 retry verification', p_data={}",
+    "cooldown_seeded": "extracted_at = now() - interval '25 hours' -> 2026-11-19 10:34:46-05:00 (Management API SQL, fixture row only)",
+    "leg1_pre_run": {"parse_error": "probe-induced failure for 469 retry verification", "source_text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0"}
+  },
+  "retry_proof": {
+    "triggered_at_est": "2026-11-20 11:35:42 AM (admin_config BULK_OPERATIONS rich-pdf-extract status=running cursor=0)",
+    "observed_at_est": "2026-11-20 11:35:48 AM",
+    "post_run": {
+      "parse_error": null,
+      "extracted_at": "2026-11-20 11:35:48.80267-05:00",
+      "model": "deepseek/deepseek-v4.1-flash-1017",
+      "source_text_sha256": "ba621d0e526b761177d81b3e488fdfffab2625e9fb345bd80bfbd8a576c15de0 (unchanged — same-hash cooldown retry)"
+    },
+    "interpretation": "saved failure retried after 24h cooldown through OpenRouter (provider-returned model id deepseek/deepseek-v4.1-flash-1017 cannot come from the direct DeepSeek API); success cleared parse_error"
+  },
+  "cleanup": {
+    "fixture_rows_deleted": "1 asset / 1 pdf_text_samples / 1 dam.pdf_rich_extraction",
+    "post_cleanup_reads": {"assets": 0, "texts": 0, "rich": 0},
+    "op_left": "rich-pdf-extract interrupted / user_stop at ~11:36 AM EST",
+    "no_nas_files_placed": true
+  },
+  "disclosed_writes": [
+    "Railway popdam3 env: DEEPSEEK_BASE_URL added, DEEPSEEK_API_KEY replaced with OpenRouter production key (fp da8b115ed72519de)",
+    "admin_config AI_TASK_MODELS.rich_pdf_extraction = deepseek/deepseek-v4.1-flash-1017",
+    "PR #1242 merged to main (merge 5f2934e8) + Railway deploy 55933a39 SUCCESS",
+    "rich-pdf-extract run 11:35-11:36 AM EST (normal output on pending rows + fixture retry); op left interrupted/user_stop",
+    "Fixture rows created and deleted (0 remain)"
+  ]
+}
