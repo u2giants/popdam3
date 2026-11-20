@@ -12,6 +12,7 @@
 import { readdir, stat, lstat } from "node:fs/promises";
 import { join, extname, basename, relative } from "node:path";
 import { config } from "./config.js";
+import { inodeKey, volumeKeyOf } from "./nas-file-identity.js";
 import { logger } from "./common/logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
@@ -51,6 +52,10 @@ export interface FileCandidate {
   fileSize: number;
   modifiedAt: Date;
   fileCreatedAt: Date | null;
+  /** NAS file identity (#1198 item 3); filled by the scanner, optional for tests. */
+  nasVolume?: string;
+  /** Inode as a decimal string (bigint-safe); optional for tests. */
+  nasIno?: string | null;
 }
 
 /**
@@ -262,7 +267,9 @@ async function* scanDirectory(
     counters.files_checked++;
 
     try {
-      const s = await stat(fullPath);
+      // bigint stat: the inode exceeds 2^53 on Btrfs and must not lose
+      // precision (#1198 item 3). It travels to the cloud as a string.
+      const s = await stat(fullPath, { bigint: true });
 
       // Build canonical relative path (POSIX, no leading slash) per PATH_UTILS.md §1
       const effectiveRoot = mountRoot || config.nasContainerMountRoot;
@@ -278,12 +285,14 @@ async function* scanDirectory(
         relativePath: relPath,
         filename: basename(entry.name),
         fileType,
-        fileSize: s.size,
+        fileSize: Number(s.size),
         // modifiedAt = mtime (last content modification, NOT access time)
         // fileCreatedAt = birthtime (original creation time, may be null on Linux)
         // We intentionally do NOT use atime (last access time) as it changes on read
         modifiedAt: s.mtime,
-        fileCreatedAt: s.birthtime?.getFullYear() > 1970 ? s.birthtime : null,
+        fileCreatedAt: s.birthtime && s.birthtime.getFullYear() > 1970 ? s.birthtime : null,
+        nasVolume: volumeKeyOf(effectiveRoot),
+        nasIno: inodeKey(s.ino),
       };
 
       counters.candidates_found++;

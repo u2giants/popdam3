@@ -178,6 +178,11 @@ export interface IngestPayload {
   file_created_at: string | null;
   quick_hash: string;
   quick_hash_version: number;
+  /** NAS file identity (#1198 item 3); the inode travels as a decimal string. */
+  nas_volume?: string | null;
+  nas_ino?: string | null;
+  /** Full-content SHA-256 (cross-volume move fallback). */
+  content_sha256?: string | null;
   thumbnail_url?: string;
   thumbnail_error?: string;
   width?: number;
