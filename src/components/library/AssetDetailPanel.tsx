@@ -606,6 +606,17 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
                   <DlRow label="Type">
                     <Badge variant="secondary" className="text-[10px] uppercase">{asset.file_type ?? "—"}</Badge>
                   </DlRow>
+                  {asset.file_missing_at && (
+                    <DlRow label="NAS">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase"
+                        style={{ color: "var(--pd-danger, #e5484d)", borderColor: "var(--pd-danger, #e5484d)" }}
+                      >
+                        No longer on the NAS
+                      </Badge>
+                    </DlRow>
+                  )}
                   <DlRow label="Size">{formatSize(asset.file_size)}</DlRow>
                   {asset.width && asset.height && (
                     <DlRow label="Dimensions">{asset.width} × {asset.height}</DlRow>

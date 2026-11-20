@@ -220,6 +220,13 @@ const AssetCard = memo(function AssetCard({
               </span>
             )}
 
+            {/* "No longer on the NAS" mark (owner ruling 2026-11-19, #1198) */}
+            {asset.file_missing_at && (
+              <span className="absolute bottom-1.5 left-1.5">
+                <GlassBadge>no longer on the NAS</GlassBadge>
+              </span>
+            )}
+
             {/* Selection overlay */}
             {selected && (
               <div className="pointer-events-none absolute inset-0" style={{ background: "var(--pd-primary, hsl(var(--primary))) / 0.10", opacity: 0.12, backgroundColor: "currentColor" }} />
