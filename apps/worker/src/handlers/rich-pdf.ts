@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import { db } from "../supabase.js";
 import { config } from "../config.js";
-import { deepSeekChat } from "../deepseek.js";
+import { deepSeekChat, isOpenRouterEndpoint, resolveDeepSeekApiKey } from "../deepseek.js";
 import { isStyleGuideSourcePdf } from "./ai-tagging-shared.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
@@ -197,12 +197,15 @@ type SampleRow = {
  * the ones whose text changed since last extraction, roll up + reindex.
  */
 export async function handleRichPdfExtract(opState: OpState): Promise<BatchResult> {
-  const apiKey = config.deepSeekApiKey;
+  const usesOpenRouter = isOpenRouterEndpoint(config.deepSeekBaseUrl);
+  const apiKey = resolveDeepSeekApiKey(config.deepSeekBaseUrl, config.deepSeekApiKey, config.openRouterApiKey);
   if (!apiKey) {
     return {
       ok: false,
       done: false,
-      error: "No DeepSeek API key configured (set DEEPSEEK_API_KEY in the Railway worker env; value in 1Password ai-provider-api-keys/deepseek)",
+      error: usesOpenRouter
+        ? "No key configured for the OpenRouter endpoint (set OPENROUTER_API_KEY when DEEPSEEK_BASE_URL targets OpenRouter; use DEEPSEEK_API_KEY for the direct endpoint)"
+        : "No key configured for the direct DeepSeek endpoint (set DEEPSEEK_API_KEY; use OPENROUTER_API_KEY when DEEPSEEK_BASE_URL targets OpenRouter)",
     };
   }
 

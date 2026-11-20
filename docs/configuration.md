@@ -210,6 +210,8 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `OPENROUTER_API_KEY` | No | Fallback when database-managed `OPENROUTER_API_KEY` is empty or unreadable |
+| `DEEPSEEK_API_KEY` | No | Key for rich-PDF extraction when using the direct DeepSeek endpoint |
+| `DEEPSEEK_BASE_URL` | No | Rich-PDF chat-completions endpoint; defaults to DeepSeek direct. Set to the OpenRouter chat-completions URL to route through OpenRouter, which then uses `OPENROUTER_API_KEY` |
 | `META_API_KEY` | No | Fallback for direct Meta Image Tagging and content-lease-bound PopSG PDF transcription when no saved Settings key exists or the database read fails. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
 | `SCALEDOWN_API_KEY` | No | Worker fallback for the direct ScaleDown Vision Bake-Off when no saved Settings key exists or the database read fails. Agents do not read this variable: they receive only the saved `SCALEDOWN_API_KEY` row. |

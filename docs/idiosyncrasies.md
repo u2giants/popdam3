@@ -257,11 +257,12 @@ When the op is finished or has no next key, the worker writes `null`, never a ba
 **Actually:** `dam` is not in `pgrst.db_schemas` (`public, graphql_public, api, crm, pim, core, app`), so any PostgREST call to `dam.*` returns **`Invalid schema: dam`** — even for `service_role`. This is deliberate: `dam` holds worker-internal tables (`sku_human_description`, `pdf_rich_extraction`) the frontend never queries.
 **Do not change because:** Adding `dam` to the exposed list broadens the shared API surface for all apps and needs RLS on every `dam` table. Instead reach `dam.*` through `public` `SECURITY DEFINER` functions granted to `service_role` (e.g. `get_pdf_rich_extraction_hashes`, `upsert_pdf_rich_extraction`, `refresh_style_group_rich_metadata`). Full detail: `docs/KNOWN_QUIRKS.md` #64.
 
-## Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
+## Rich-PDF extraction supports direct DeepSeek and OpenRouter routing (updated 2026-11-20)
 
-**Looks like:** all worker AI goes through OpenRouter/Exacto, so rich-PDF should too.
-**Actually:** the `rich-pdf-extract` op calls DeepSeek directly (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY`) because it sends an identical instructions+schema prefix on every one of ~19k calls, and DeepSeek's **automatic prefix caching** bills cache hits at ~1/10 — a saving OpenRouter does not reliably pass through. The op puts the stable prompt in `system` and the variable PDF text in `user` to maximize cache hits, and normalizes extracted `materials` (uppercase) so the DAM Material facet doesn't split on casing.
-**Do not change because:** routing this batch through OpenRouter loses the caching economics. General rule for future cacheable, high-volume LLM batches: prefer the direct provider API. Full detail: `docs/RICH_PDF_EXTRACTION.md`.
+**Looks like:** `rich-pdf-extract` always uses the same provider key and model spelling regardless of endpoint.
+**Actually:** `DEEPSEEK_BASE_URL` selects the route: DeepSeek direct uses `DEEPSEEK_API_KEY`; OpenRouter uses `OPENROUTER_API_KEY`. Bare configured IDs are sent as `deepseek/<id>` to OpenRouter, while already namespaced IDs remain unchanged. The op keeps its stable prompt in `system`, variable PDF text in `user`, and normalizes extracted `materials` to uppercase.
+**Why it changed:** the owner decision on 2026-11-20 was to use DeepSeek through OpenRouter for this operation. The earlier direct-only rationale and general preference for direct APIs no longer govern this route. Full detail: `docs/RICH_PDF_EXTRACTION.md`.
+**Do not change because:** endpoint, key, and model slug must stay paired. Preserve the owner's OpenRouter routing decision and update the configuration and model rules together if the route changes again.
 
 ## Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
 

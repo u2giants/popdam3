@@ -1,12 +1,10 @@
 /**
  * DeepSeek chat client (OpenAI-compatible).
  *
- * Used for cacheable, high-volume batch work — currently rich-PDF extraction.
- * The endpoint is overridable via `DEEPSEEK_BASE_URL` so production can route
- * through OpenRouter (owner decision 2026-11-20: "use deepseek through
- * openrouter"); the default remains DeepSeek's direct API, whose automatic
- * prefix-based context caching bills cache-hit input tokens at ~1/10 the miss
- * price. See docs/RICH_PDF_EXTRACTION.md.
+ * Used for high-volume batch work — currently rich-PDF extraction. The
+ * endpoint is overridable via `DEEPSEEK_BASE_URL`; OpenRouter requests use
+ * OpenRouter model slugs, while direct requests use DeepSeek model IDs.
+ * See docs/RICH_PDF_EXTRACTION.md.
  *
  * To maximize cache hits, callers MUST put the stable content (instructions +
  * schema) in `system` (the shared prefix) and the variable content (the PDF
@@ -52,6 +50,24 @@ export interface DeepSeekChatOptions {
   baseUrl?: string;
 }
 
+/** OpenRouter requires provider/model slugs; the direct API accepts bare IDs. */
+export function isOpenRouterEndpoint(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname === "openrouter.ai";
+  } catch {
+    return false;
+  }
+}
+
+export function resolveDeepSeekApiKey(baseUrl: string, directKey: string, openRouterKey: string): string {
+  return isOpenRouterEndpoint(baseUrl) ? openRouterKey : directKey;
+}
+
+export function resolveDeepSeekModel(model: string, baseUrl: string): string {
+  if (!isOpenRouterEndpoint(baseUrl) || model.includes("/")) return model;
+  return `deepseek/${model}`;
+}
+
 /**
  * Call DeepSeek chat completions. Retries transient (429/5xx/network) errors
  * with exponential backoff. Throws DeepSeekError on terminal failure.
@@ -72,7 +88,7 @@ export async function deepSeekChat(opts: DeepSeekChatOptions): Promise<DeepSeekR
   if (!apiKey) throw new DeepSeekError("DeepSeek API key not configured (set DEEPSEEK_API_KEY)");
 
   const body: Record<string, unknown> = {
-    model,
+    model: resolveDeepSeekModel(model, baseUrl),
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
@@ -117,7 +133,7 @@ export async function deepSeekChat(opts: DeepSeekChatOptions): Promise<DeepSeekR
       if (typeof content !== "string" || content.trim().length === 0) {
         throw new DeepSeekError("DeepSeek returned empty content");
       }
-      return { content, usage: json.usage ?? {}, model: json.model ?? model };
+      return { content, usage: json.usage ?? {}, model: json.model ?? resolveDeepSeekModel(model, baseUrl) };
     } catch (err) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       const isNetwork = err instanceof TypeError;

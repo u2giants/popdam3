@@ -97,9 +97,9 @@ OpenRouter. Regular OpenRouter PDF extraction is unchanged when selected.
 
 ### Rich PDF Extraction (`rich-pdf-extract` op, Railway worker)
 - Extracts structured product data from tech-pack / licensing-sheet PDFs into `dam.pdf_rich_extraction` → `style_groups.rich_metadata`. Code: `apps/worker/src/handlers/rich-pdf.ts`.
-- **Uses DeepSeek's DIRECT API, not OpenRouter** (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY` in the Railway worker env; value in 1Password `ai-provider-api-keys/deepseek`). Reason: the instructions+schema prefix is identical on every one of ~19k calls, and DeepSeek's automatic prefix caching bills cache hits at ~1/10 — which OpenRouter does not reliably pass through. Keep the stable prompt in the `system` message and the variable PDF text in `user` to maximize cache hits.
+- The endpoint defaults to DeepSeek direct (`DEEPSEEK_API_KEY`) and can be set with `DEEPSEEK_BASE_URL` to use OpenRouter (`OPENROUTER_API_KEY`). The worker prefixes bare model IDs with `deepseek/` for OpenRouter and preserves already namespaced IDs. Keep the stable prompt in `system` and variable PDF text in `user`.
 - Model config: `admin_config.AI_TASK_MODELS.rich_pdf_extraction` (defaults to `deepseek-chat` in code). JSON mode (`response_format: json_object`).
-- General rule: for a cacheable, high-volume LLM batch, prefer the direct provider API over OpenRouter. See `docs/RICH_PDF_EXTRACTION.md` and `docs/KNOWN_QUIRKS.md` #64.
+- Owner decision 2026-11-20 authorizes routing this workload through DeepSeek on OpenRouter. Do not apply the former general preference for direct-provider routing to this operation; see `docs/RICH_PDF_EXTRACTION.md` and `docs/idiosyncrasies.md`.
 
 ### ERP Product Category Classification
 - Uses OpenRouter to classify ERP items into product categories when deterministic MG code rules can't resolve them.

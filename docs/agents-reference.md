@@ -318,7 +318,7 @@ Full entries live in [`docs/idiosyncrasies.md`](idiosyncrasies.md) — read the 
 - `quick_hash` is NOT content-unique — move detection is guarded (fixed forward 2026-06-20)
 - Library list/facet queries must beat the 8s `authenticated` timeout (2026-06-19)
 - The `dam` schema is NOT exposed to PostgREST — reach `dam.*` via `public` RPCs (2026-07-15)
-- Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
+- Rich-PDF extraction supports direct DeepSeek and OpenRouter routing (updated 2026-11-20)
 - Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
 - Source-contract tests must normalize CRLF; AG Grid tests need a sized host (2026-10-19)
 

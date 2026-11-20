@@ -1,5 +1,5 @@
 ---
-summary: Rich tech-pack and licensing PDF extraction, shipped 2026-07-15: schema, the DeepSeek direct-API worker op, frontend facets and design history.
+summary: Rich tech-pack and licensing PDF extraction, shipped 2026-07-15: schema, direct or OpenRouter DeepSeek worker routing, frontend facets and design history.
 kind: living
 status: current
 read-when: changing rich PDF extraction or its facets
@@ -16,16 +16,17 @@ read-when: changing rich PDF extraction or its facets
 > RPC wrappers `get_pdf_rich_extraction_hashes` / `upsert_pdf_rich_extraction`
 > (shared-db PRs #74, #77, #78; migrations `20260715183000` / `210000` / `214500`).
 > **Worker:** op `rich-pdf-extract` (`apps/worker/src/handlers/rich-pdf.ts`) using the
-> **direct DeepSeek client** (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY`).
+> DeepSeek-compatible client (`apps/worker/src/deepseek.ts`). It defaults to DeepSeek direct
+> (`DEEPSEEK_API_KEY`) and supports OpenRouter (`OPENROUTER_API_KEY`) through `DEEPSEEK_BASE_URL`.
 > **Frontend:** Product Details section (StyleGroupDetailPanel), backfill trigger
 > (Settings → PDF Text → Rich PDF Extraction), and the Material filter facet
 > (`useProductMaterials`).
 >
-> **Two hard-won lessons (see `docs/KNOWN_QUIRKS.md` #64/#65):** (1) `dam.*` is not
-> exposed to PostgREST, so the worker MUST reach it through `public` `SECURITY DEFINER`
-> RPCs — a direct `.schema("dam").from(...)` fails with `Invalid schema: dam`. (2) DeepSeek
-> **direct** (not OpenRouter) is used deliberately for its automatic prefix caching on
-> this high-volume, fixed-prompt batch; keep the stable instructions+schema in `system`.
+> **Two hard-won lessons:** (1) `dam.*` is not exposed to PostgREST, so the worker MUST
+> reach it through `public` `SECURITY DEFINER` RPCs — a direct `.schema("dam").from(...)`
+> fails with `Invalid schema: dam`. (2) The owner changed the route preference on 2026-11-20
+> to DeepSeek through OpenRouter. The worker selects the matching key and converts bare
+> model IDs to OpenRouter slugs; keep the stable instructions+schema in `system`.
 >
 > **Backfill:** Pass 1 complete (246 PDFs — all tech-pack/licensing PDFs with extracted
 > text; 202 had materials). Model output `materials` are uppercase-normalized (worker +
@@ -206,17 +207,12 @@ Enforced with a strict `json_schema` at the model layer.
   resolver later. Do not overload `sku_files_used`.
 - **Q3 (asset denorm vs projection):** projection via the style_group search
   rollup; no physical per-asset copy in v1.
-- **Q4 (model + creds):** **direct DeepSeek API** (OpenAI-compatible,
-  `https://api.deepseek.com`), NOT OpenRouter. Rationale: the prompt has a large
-  fixed prefix (instructions + strict JSON schema) identical across all ~19k
-  calls; DeepSeek's **automatic prefix-based context caching** bills cache-hit
-  input at ~1/10 the miss price — a major saving on a batch this size. OpenRouter
-  adds a routing margin, does not reliably pass DeepSeek's auto-caching through,
-  and its account data-policy guardrails already blocked the spike. **The worker
-  must order messages stable-prefix-first** (instructions+schema, then the
-  variable PDF text last) to maximize cache hits. Key: the existing `deepseek`
-  field in 1Password `ai-provider-api-keys` (confirmed present) — no new secret.
-  Store the model id in `admin_config.AI_TASK_MODELS.rich_pdf_extraction`.
+- **Q4 (model + creds):** Resolved 2026-07-15 to direct DeepSeek; owner decision
+  changed 2026-11-20 to use DeepSeek through OpenRouter. `DEEPSEEK_BASE_URL`
+  selects the endpoint and key: direct uses `DEEPSEEK_API_KEY`, OpenRouter uses
+  `OPENROUTER_API_KEY`. The worker prefixes bare model IDs with `deepseek/` for
+  OpenRouter and leaves namespaced IDs intact. Keep the stable prompt prefix in
+  `system` and the variable PDF text in `user`.
 
 ### Worker + backfill
 - New bulk op `rich-pdf-extract` (operation-loop), resumable via keyset cursor
@@ -237,11 +233,11 @@ One additive migration: create `dam.pdf_rich_extraction`; add the 3 nullable
 `style_groups` columns; add `refresh_style_group_rich_metadata()`; extend the
 search rollup functions. All additive → cannot break CRM/PM/PLM.
 
-### Decisions (resolved 2026-07-15 with owner)
-1. **Extraction model:** **direct DeepSeek API** with automatic context caching
-   (see Q4). Not OpenRouter — this is a cacheable, high-volume batch and the owner
-   rule is "never use OpenRouter for cacheable repeated-prompt workloads." Worker
-   orders the stable instructions+schema prefix first, PDF text last.
+### Decisions (initially resolved 2026-07-15; routing updated 2026-11-20)
+1. **Extraction model:** DeepSeek through OpenRouter per the owner decision
+   dated 2026-11-20; direct DeepSeek remains the default endpoint unless
+   `DEEPSEEK_BASE_URL` is configured. The worker orders the stable
+   instructions+schema prefix first, PDF text last.
 2. **Faceted filtering:** **project facet fields onto `assets` in v1** (owner
    choice). In addition to the `style_groups.rich_metadata` rollup + search,
    denormalize a small high-value set onto `assets` so `FilterSidebar` can facet
