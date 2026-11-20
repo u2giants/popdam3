@@ -42,5 +42,5 @@ Use the [Business Logic Library](business-rules/application-map.md) for source a
 ## Still undecided or unverified
 
 - Final table and column mappings for the open moves, reconciliation of overlapping records, and compatibility and live acceptance for each cutover. Draft names and mappings in the older crosswalk are provisional.
-- The [production merchandise-group reconciliation](verification/4707-designflow-merch-group-holds-20261120.md) accounts for all 3,099 held DesignFlow IDs. Keep them parked in item mapping until new identity evidence changes their disposition.
+- The [DesignFlow item and licensing migration plan](designflow-item-and-licensing-migration.md) defines the database structure, DesignFlow data move, release order and live checks for #4707. The [production merchandise-group reconciliation](verification/4707-designflow-merch-group-holds-20261120.md) accounts for all 3,099 held DesignFlow IDs.
 - No open owner question from the merchandise group email. Escalate only a new business choice with verified examples. For live proof and implementation ownership, start on the linked issue rather than opening a competing plan.
