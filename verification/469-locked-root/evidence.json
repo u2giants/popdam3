@@ -1,0 +1,37 @@
+{
+  "pass": "469 locked-root hourly backoff live proof — lock step",
+  "date": "2026-11-20",
+  "timezone": "America/New_York",
+  "owner_authorization_verbatim": "lock a test folder",
+  "task_class": "production",
+  "gate": "check --before production allowed by owner authorization (scoped delegation, verbatim in gate log)",
+  "outcome": "blocked",
+  "blocked_at": "lock step — SMB ACL deny-write not enforced on \\\\192.168.3.100\\mac",
+  "folder_tested": "\\\\192.168.3.100\\mac\\_469_rotest (host /volume1/mac/_469_rotest)",
+  "service_account": "popdam (1P vault pimcaogmxxzoafh7lsluj6uxkq, item 'edgesynology1 NAS - popdam service account')",
+  "verbatim_errors": [
+    "icacls /deny *S-1-5-21-825338834-1085883014-4274235744-3078:(W) -> Successfully processed 0 files; Failed processing 1 files: No mapping between account names and security IDs was done.",
+    "icacls /deny popdam:(W) -> popdam: No mapping between account names and security IDs was done.",
+    "verify write as popdam after Everyone DENY -> WRITE_UNEXPECTEDLY_OK (probe.txt created 2:28 PM EST)",
+    "verify write as popdam on fresh SMB session -> FRESH_SESSION_WRITE_UNEXPECTEDLY_OK",
+    "sudo -n true (ahazan@edgesynology1) -> sudo: a password is required"
+  ],
+  "posix_state_after_deny": "drwxrwxrwx+ 1 popdam users (mode 777 unchanged)",
+  "structural_finding": "bridge runs as root with bind mount /volume1/mac:/mnt/nas/mac (Dockerfile 'Run as root to access Docker socket for self-update.'; compose has no user:). Marker writes are root bind-mount writes; a service-account SMB ACL cannot fail ensureRootMarkers even if enforced.",
+  "bridge_state_at_attempt": {
+    "agent": "synology-bridge-1",
+    "status": "online",
+    "version": "1.16.33",
+    "build_sha": "afc06d55e8eb319e51b18a7fd0da2016b6b4db16",
+    "last_heartbeat": "2026-11-20T14:33:10.826-05:00",
+    "decor_marker": "ok"
+  },
+  "not_done": [
+    "no SCAN_ROOTS registration (config untouched: [\"/mnt/nas/mac/Decor\"])",
+    "no marker attempt observed",
+    "no backoff evidence",
+    "no follow-up cron armed"
+  ],
+  "cleanup": "done — folder deleted (SSH read-back: no _469_rotest under /volume1/mac/), temp SMB mappings F:/G: removed, W: (pre-existing) untouched, credential temp files deleted",
+  "box_state": "unchecked — needs a write-failure mechanism that binds the root-running bridge (root credential required) or an owner decision"
+}
