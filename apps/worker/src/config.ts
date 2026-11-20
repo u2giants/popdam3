@@ -42,11 +42,16 @@ export const config = {
   // ScaleDown (scaledown.ai) key — bake-off only, "scaledown/..." models.
   scaledownApiKey: optional("SCALEDOWN_API_KEY", ""),
 
-  // Direct DeepSeek API key — used ONLY for cacheable high-volume batch work
-  // (rich-PDF extraction) where DeepSeek's automatic prefix caching beats the
-  // OpenRouter path on cost. Value lives in 1Password ai-provider-api-keys
-  // (deepseek field); set DEEPSEEK_API_KEY in the Railway worker env.
+  // DeepSeek chat key for cacheable high-volume batch work (rich-PDF
+  // extraction). Value lives in 1Password ai-provider-api-keys (deepseek
+  // field); set DEEPSEEK_API_KEY in the Railway worker env. When
+  // DEEPSEEK_BASE_URL points at OpenRouter, this must be an OpenRouter key.
   deepSeekApiKey: optional("DEEPSEEK_API_KEY", ""),
+
+  // Chat-completions endpoint for the rich-PDF DeepSeek calls. Defaults to
+  // DeepSeek's direct API; production sets https://openrouter.ai/api/v1/chat/completions
+  // to route DeepSeek through OpenRouter (owner decision 2026-11-20).
+  deepSeekBaseUrl: optional("DEEPSEEK_BASE_URL", "https://api.deepseek.com/chat/completions"),
 
   // Legacy direct Anthropic key (unused by the OpenRouter path; kept for
   // any residual direct calls).

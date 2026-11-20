@@ -305,6 +305,7 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
             model,
             system,
             user: `Document kind: ${docKind}\nFilename: ${r.filename ?? ""}\n\nPDF TEXT:\n${text}`,
+            baseUrl: config.deepSeekBaseUrl,
           });
           const data = normalizeExtraction(parseRichPdfData(result.content));
           const { error: upErr } = await client.rpc("upsert_pdf_rich_extraction", {
