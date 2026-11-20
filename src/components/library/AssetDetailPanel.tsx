@@ -102,7 +102,7 @@ function openMockupTool(asset: Asset) {
     ? "clock"
     : "canvas";
   const win = window.open(
-    buildMockupUrl({ art: asset.thumbnail_url, name: asset.filename, route }),
+    buildMockupUrl({ art: asset.thumbnail_url, name: asset.relative_path.split("/").pop() || asset.filename, route }),
     "_blank",
     "noopener",
   );
@@ -212,6 +212,9 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
   const fileType = (asset.file_type ?? "").toLowerCase();
   const typeColor = getTypeColor(fileType);
   const typeHue = getTypeHue(fileType);
+  // The exact disk name is the basename of relative_path: the filename column
+  // may hold a pre-#1233 trimmed name (" x.ai" stored as "x.ai").
+  const displayName = asset.relative_path.split("/").pop() || asset.filename;
 
   // ── NAS config ──────────────────────────────────────────────
   const { data: nasConfig } = useQuery({
@@ -413,7 +416,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
           {asset.thumbnail_url ? (
             <img
               src={asset.thumbnail_url}
-              alt={asset.filename}
+              alt={displayName}
               className="absolute inset-0 h-full w-full object-contain"
               style={{ background: "var(--pd-surface-2)" }}
             />
@@ -474,7 +477,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
             className="font-mono font-bold leading-snug"
             style={{ fontSize: 16, wordBreak: "break-all", color: "var(--pd-fg)" }}
           >
-            {asset.filename}
+            {displayName}
           </p>
           <div className="mt-1.5 flex items-center gap-2 flex-wrap">
             {/* Version pill */}
