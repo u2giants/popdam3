@@ -55,7 +55,8 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { persistDamRenderCompletion } from "../_shared/dam-render-completion.ts";
 import { writeWithRetry } from "../_shared/sg-render-completion.ts";
-import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
+import { optionalNumber, optionalString, requireCanonicalRelativePath, requireExactString, requireNumber, requireString } from "../_shared/validators.ts";
+import { pickMoveCandidate } from "../_shared/move-candidates.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
 import { type LicensingResolution, resolveAuthoritativeLicensing } from "../_shared/licensing-resolution.ts";
 import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
@@ -1054,7 +1055,7 @@ async function handleIngest(
   if (isExcludedRelativePath(relativePath)) {
     return json({ ok: true, skipped: true, reason: "excluded_path", id: null });
   }
-  const filename = requireString(body, "filename");
+  const filename = requireExactString(body, "filename");
 
   // ── Junk-file guard: skip system/temp files before any DB work ──
   if (
@@ -1146,9 +1147,10 @@ async function handleIngest(
   // other N-1 files from the Library entirely (full analysis: docs/KNOWN_QUIRKS
   // #51). Guard rails:
   //   - skip move detection for 0-byte files (constant hash);
-  //   - require the FILENAME to match too — a genuine move/folder-reorg keeps
-  //     the name, so a same-hash file with a DIFFERENT name is a different file
-  //     and must fall through to be inserted as its own asset, not "moved";
+  //   - require the name to match too — a genuine move/folder-reorg keeps the
+  //     EXACT basename of relative_path, so a same-hash file whose disk name
+  //     differs by as little as a leading space is a different file (#1233) and
+  //     must fall through to be inserted as its own asset, not "moved";
   //   - only act when the candidate is UNIQUE (≥2 same-hash+name rows is
   //     ambiguous → don't ping-pong between them).
   // Bridge agents that see the same (quick_hash, filename) more than once in a
@@ -1161,13 +1163,11 @@ async function handleIngest(
       .from("assets")
       .select("*")
       .eq("quick_hash", quickHash)
-      .eq("filename", filename)
       .eq("is_deleted", false)
       .neq("relative_path", relativePath)
-      .limit(2);
-    if (hashCandidates && hashCandidates.length === 1) {
-      existingByHash = hashCandidates[0];
-    }
+      .limit(25);
+    const picked = pickMoveCandidate((hashCandidates ?? []) as Array<{ relative_path: string }>, relativePath);
+    existingByHash = picked as ({ id: string; relative_path: string } & Record<string, unknown>) | null;
   }
 
   if (existingByHash) {

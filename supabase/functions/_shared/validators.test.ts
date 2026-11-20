@@ -27,3 +27,17 @@ describe.each([{ name: "admin", validators: admin }, { name: "agent", validators
     });
   },
 );
+
+describe("agent requireExactString", () => {
+  it("keeps surrounding whitespace (exact file names, #1233)", () => {
+    expect(agent.requireExactString({ value: " x.ai" }, "value")).toBe(" x.ai");
+    expect(agent.requireExactString({ value: "x.ai " }, "value")).toBe("x.ai ");
+    expect(agent.requireExactString({ value: " " }, "value")).toBe(" ");
+  });
+
+  it("rejects missing, empty and non-string values", () => {
+    expect(() => agent.requireExactString({}, "value")).toThrow(/^Missing required string field: value$/);
+    expect(() => agent.requireExactString({ value: "" }, "value")).toThrow(/^Missing required string field: value$/);
+    expect(() => agent.requireExactString({ value: 7 }, "value")).toThrow(/^Missing required string field: value$/);
+  });
+});

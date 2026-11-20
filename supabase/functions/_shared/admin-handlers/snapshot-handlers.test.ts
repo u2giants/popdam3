@@ -112,11 +112,13 @@ describe("snapshot restore requests (popdam3#963)", () => {
   });
 
   it("a restored copy with a suffixed name is ingested as a new asset, not as a move", () => {
-    // Move detection requires same quick_hash AND same filename; the restore suffix changes the name.
+    // Move detection requires same quick_hash AND the same exact disk basename
+    // (whitespace included); the restore suffix changes the name.
     const src = readFileSync(new URL("../../agent-api/index.ts", import.meta.url), "utf-8");
     const i = src.indexOf("Move detection: same file relocated");
     const block = src.slice(i, i + 4000);
-    expect(block).toMatch(/\.eq\("quick_hash", quickHash\)\s*\.eq\("filename", filename\)/);
+    expect(block).toMatch(/\.eq\("quick_hash", quickHash\)/);
+    expect(block).toMatch(/pickMoveCandidate\(/);
     const bridge = readFileSync(new URL("../../../../apps/bridge-agent/src/handlers/snapshot-tools.ts", import.meta.url), "utf-8");
     expect(bridge).toMatch(/\(restored \$\{day\}/);
   });
