@@ -1,12 +1,12 @@
 /**
- * Direct DeepSeek API client (OpenAI-compatible).
+ * DeepSeek chat client (OpenAI-compatible).
  *
- * Used ONLY for cacheable, high-volume batch work — currently rich-PDF
- * extraction. DeepSeek's API does automatic prefix-based context caching:
- * cache-hit input tokens bill at ~1/10 the miss price. Because rich-PDF
- * extraction sends the SAME large instruction+schema prefix on every one of
- * ~19k calls, that caching is a major cost saver — which OpenRouter does not
- * reliably pass through. See docs/RICH_PDF_EXTRACTION.md.
+ * Used for cacheable, high-volume batch work — currently rich-PDF extraction.
+ * The endpoint is overridable via `DEEPSEEK_BASE_URL` so production can route
+ * through OpenRouter (owner decision 2026-11-20: "use deepseek through
+ * openrouter"); the default remains DeepSeek's direct API, whose automatic
+ * prefix-based context caching bills cache-hit input tokens at ~1/10 the miss
+ * price. See docs/RICH_PDF_EXTRACTION.md.
  *
  * To maximize cache hits, callers MUST put the stable content (instructions +
  * schema) in `system` (the shared prefix) and the variable content (the PDF
@@ -48,6 +48,8 @@ export interface DeepSeekChatOptions {
   temperature?: number;
   maxRetries?: number;
   timeoutMs?: number;
+  /** Chat-completions endpoint override (e.g. OpenRouter). Default: DeepSeek direct. */
+  baseUrl?: string;
 }
 
 /**
@@ -64,6 +66,7 @@ export async function deepSeekChat(opts: DeepSeekChatOptions): Promise<DeepSeekR
     temperature = 0,
     maxRetries = 3,
     timeoutMs = 120_000,
+    baseUrl = DEEPSEEK_URL,
   } = opts;
 
   if (!apiKey) throw new DeepSeekError("DeepSeek API key not configured (set DEEPSEEK_API_KEY)");
@@ -84,7 +87,7 @@ export async function deepSeekChat(opts: DeepSeekChatOptions): Promise<DeepSeekR
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(DEEPSEEK_URL, {
+      const response = await fetch(baseUrl, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
