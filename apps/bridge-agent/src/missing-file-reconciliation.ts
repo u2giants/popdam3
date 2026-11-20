@@ -27,11 +27,16 @@ import { resolveUnderRoot } from "./common/path-containment.js";
 export interface LiveAssetPath {
   id: string;
   relative_path: string;
+  /** "No longer on the NAS" mark set by a previous reconcile (#1198); cleared when the walk sees the file again. */
+  file_missing_at?: string | null;
 }
 
 export interface ReconcileDeps {
   listLivePaths: (afterId: string | null) => Promise<{ assets: LiveAssetPath[]; next_after_id: string | null }>;
-  retire: (assets: Array<{ asset_id: string; confirmed_absent_path: string }>) => Promise<{ retired: number; kept?: number; error?: string }>;
+  retire: (
+    assets: Array<{ asset_id: string; confirmed_absent_path: string }>,
+    clearMissingFlags?: string[],
+  ) => Promise<{ retired: number; kept?: number; flagged?: number; cleared?: number; error?: string }>;
   stat: (path: string) => Promise<unknown>;
   readdir: (path: string) => Promise<string[]>;
   shouldAbort?: () => boolean;
@@ -59,6 +64,8 @@ export interface ReconcileResult {
   retired: number;
   /** Confirmed-absent records the cloud left in place: no surviving copy proved a move (#1198). */
   kept: number;
+  /** "No longer on the NAS" marks cleared because the walk saw the file again. */
+  cleared_missing_flags: number;
   refused?: "skipped_dirs" | "root_unreadable" | "too_many_missing" | "aborted" | "retire_failed";
   /** With refused="retire_failed": why the cloud stopped accepting retirements. */
   retire_error?: string;
@@ -79,7 +86,7 @@ async function rootsReadable(roots: string[], readdir: ReconcileDeps["readdir"])
 }
 
 export async function reconcileMissingFiles(options: ReconcileOptions, deps: ReconcileDeps): Promise<ReconcileResult> {
-  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0, kept: 0 };
+  const result: ReconcileResult = { live_under_roots: 0, missing: 0, retired: 0, kept: 0, cleared_missing_flags: 0 };
   if (options.skippedDirsTruncated) return { ...result, refused: "skipped_dirs" };
   const skipped = options.skippedDirs.map((d) => d.replace(/^\/+|\/+$/g, "")).filter(Boolean);
 
@@ -93,6 +100,10 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
 
   const concurrency = options.statConcurrency ?? 8;
   const missing: Array<{ asset_id: string; confirmed_absent_path: string }> = [];
+  // Records marked "no longer on the NAS" whose file the walk saw again —
+  // the mark is cleared on this pass (#1198). An unchanged return never
+  // reaches ingest, so this is the only place that can clear it.
+  const clearFlags: string[] = [];
   let afterId: string | null = null;
   do {
     if (deps.shouldAbort?.()) return { ...result, refused: "aborted" };
@@ -108,7 +119,10 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
       }
       if (!roots.some((root) => fullPath.startsWith(`${root}/`))) continue;
       result.live_under_roots++;
-      if (options.seenPaths.has(asset.relative_path) || seenFolded.has(fold(asset.relative_path))) continue;
+      if (options.seenPaths.has(asset.relative_path) || seenFolded.has(fold(asset.relative_path))) {
+        if (asset.file_missing_at) clearFlags.push(asset.id);
+        continue;
+      }
       if (skipped.some((d) => asset.relative_path === d || asset.relative_path.startsWith(`${d}/`))) continue;
       toCheck.push({ ...asset, fullPath });
     }
@@ -125,6 +139,19 @@ export async function reconcileMissingFiles(options: ReconcileOptions, deps: Rec
     }
     afterId = page.next_after_id;
   } while (afterId);
+
+  // Clears are safe (the walk saw the file) and run even when the missing pass
+  // refuses; a failure stops the run like a failed retirement batch.
+  for (let i = 0; i < clearFlags.length; i += 100) {
+    if (deps.shouldAbort?.()) return { ...result, refused: "aborted" };
+    try {
+      const { cleared, error } = await deps.retire([], clearFlags.slice(i, i + 100));
+      result.cleared_missing_flags += cleared ?? 0;
+      if (error) return { ...result, refused: "retire_failed", retire_error: error };
+    } catch (e) {
+      return { ...result, refused: "retire_failed", retire_error: (e as Error).message };
+    }
+  }
 
   result.missing = missing.length;
   if (missing.length === 0) return result;

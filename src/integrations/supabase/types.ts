@@ -766,6 +766,7 @@ export type Database = {
           division_code: string | null
           division_name: string | null
           file_created_at: string | null
+          file_missing_at: string | null
           file_size: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string
@@ -837,6 +838,7 @@ export type Database = {
           division_code?: string | null
           division_name?: string | null
           file_created_at?: string | null
+          file_missing_at?: string | null
           file_size?: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string
@@ -910,6 +912,7 @@ export type Database = {
           division_code?: string | null
           division_name?: string | null
           file_created_at?: string | null
+          file_missing_at?: string | null
           file_size?: number | null
           file_type?: Database["public"]["Enums"]["file_type"]
           filename?: string
@@ -4831,10 +4834,12 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       dam_search_name_queries: { Args: { p_names: Json }; Returns: unknown[] }
-      dam_search_named_scope: {
-        Args: { p_filters: Json }
-        Returns: Record<string, unknown>
-      }
+      dam_search_named_scope:
+        | { Args: { p_filters: Json }; Returns: Record<string, unknown> }
+        | {
+            Args: { p_filters: Json; p_need_asset_sets: boolean }
+            Returns: Record<string, unknown>
+          }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
@@ -4909,6 +4914,7 @@ export type Database = {
           division_code: string | null
           division_name: string | null
           file_created_at: string | null
+          file_missing_at: string | null
           file_size: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string
@@ -4989,6 +4995,7 @@ export type Database = {
           division_code: string | null
           division_name: string | null
           file_created_at: string | null
+          file_missing_at: string | null
           file_size: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string

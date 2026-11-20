@@ -84,6 +84,39 @@ test("counts records the cloud keeps because no surviving copy proves a move (#1
   assert.equal(result.kept, 3);
 });
 
+test("clears the missing mark when the walk sees the file again (#1198)", async () => {
+  const clears: string[] = [];
+  const result = await reconcileMissingFiles({
+    mountRoot: "/mnt",
+    scanRoots: ["/mnt/Decor"],
+    seenPaths: new Set(["Decor/a.psd", "Decor/b.psd"]),
+    skippedDirs: [],
+    skippedDirsTruncated: false,
+    minMissingAllowance: 10,
+  }, {
+    listLivePaths: async () => ({
+      assets: [
+        { id: "id0", relative_path: "Decor/a.psd", file_missing_at: "2026-11-19T00:00:00Z" },
+        { id: "id1", relative_path: "Decor/b.psd" },
+        { id: "id2", relative_path: "Decor/c.psd", file_missing_at: "2026-11-19T00:00:00Z" },
+      ],
+      next_after_id: null,
+    }),
+    retire: async (assets, clearMissingFlags) => {
+      clears.push(...(clearMissingFlags ?? []));
+      return { retired: 0, kept: assets.length, cleared: (clearMissingFlags ?? []).length };
+    },
+    stat: async () => { throw enoent(); },
+    readdir: async () => ["x"],
+  });
+  // a.psd is seen again (mark cleared); b.psd is seen and unmarked (nothing to
+  // do); c.psd is missing and stays on the retire path.
+  assert.deepEqual(clears, ["id0"]);
+  assert.equal(result.cleared_missing_flags, 1);
+  assert.equal(result.missing, 1);
+  assert.equal(result.kept, 1);
+});
+
 test("keeps a file that exists even though the walk did not list it", async () => {
   const { retired } = await run({
     live: live("Decor/a.psd", "Decor/sub/deep.psd"),
