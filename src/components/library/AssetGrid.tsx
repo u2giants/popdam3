@@ -231,7 +231,7 @@ const AssetCard = memo(function AssetCard({
             {/* Filename */}
             <span
               className="truncate font-mono font-semibold leading-snug"
-              style={{ fontSize: 13, color: "var(--pd-fg, hsl(var(--foreground)))" }}
+              style={{ fontSize: 13, color: "var(--pd-fg, hsl(var(--foreground)))", whiteSpace: "pre" }}
               title={displayName}
             >
               {displayName}

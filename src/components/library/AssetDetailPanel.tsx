@@ -475,7 +475,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
         <div className="shrink-0 px-4 py-3 border-b" style={{ borderColor: "var(--pd-border)" }}>
           <p
             className="font-mono font-bold leading-snug"
-            style={{ fontSize: 16, wordBreak: "break-all", color: "var(--pd-fg)" }}
+            style={{ fontSize: 16, wordBreak: "break-all", whiteSpace: "pre-wrap", color: "var(--pd-fg)" }}
           >
             {displayName}
           </p>
