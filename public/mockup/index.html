@@ -10008,7 +10008,7 @@ function applyLayout(root, id){
   aside.querySelectorAll(":scope > section").forEach(s => { const h = s.querySelector(":scope > h2"); if(h) old[h.textContent.trim()] = s; });
   let anchor = aside.querySelector(":scope > details.guide:not(.ct-row)") || aside.querySelector(":scope > h1");
   steps.forEach(([title, ic, desc, parts]) => {
-    const card = document.createElement("section"); card.className = "lay-card";
+    const card = document.createElement("section"); card.className = "lay-card"; card.dataset.step = title;   // the open files bar leaves the View and Export cards out of "changed"
     const h = document.createElement("h2");
     h.innerHTML = `<span class="lay-ic"><svg class="ic"><use href="#${ic}"/></svg></span><span class="lay-t"><b>${title}</b><small>${desc}</small></span>`;
     card.append(h);
@@ -74812,15 +74812,16 @@ confirmButton($("newBtn"), newMockup);
 api.loadFile=loadFile; api.state=S;
 }
 </script>
-<script>const APP_BUILD="2026-11-19 6:29 PM EST · 3171052";</script>
+<script>const APP_BUILD="2026-11-19 8:12 PM EST · 26cf70f";</script>
 <script>
 /* ---------- version history ----------
    1.x Shadowbox Mockup (standalone) · 2.x Canvas Mockup (standalone)
    3.x Product Mockups (both tools in one page) · 4.x Product Mockups on the Pop Creations design system
    A new feature set bumps the second number; a big change in structure or look bumps the first.
    Notes: short, most important first; cosmetic changes summed up in one "Visual updates" line. */
-const APP_VERSION="8.4";
+const APP_VERSION="8.5";
 const CHANGELOG=[
+  {v:"8.5", date:"2026-11-19", items:["Closing a file you saved and did not change no longer asks to save it again. The dot in the files bar also goes away when you undo your changes."]},
   {v:"8.4", date:"2026-11-19", items:["Opening a file picks the product better: it reads the file name in many spellings (FlushMount, shadow-box, door mat…) and the layers inside (GLASS, BOOKEND, PAPER INSERT…), and lists the best matches first. For Framed Print you choose the frame style (Standard, Floating, Flush mount) before it opens.", "Item codes in the file name are understood too (C9C… = Corkboard, VDC… = Coir Mat, BGX… = Shadowbox…).", "Online and in the installed app: when a new version is out a window asks you to update; with nothing open (or nothing changed for 2 hours) it updates by itself while you are away. Your open files come back.", "Create presentation: choose the file name once, in Export; the HTML, PDF and editable file all use it."]},
   {v:"8.3", date:"2026-11-19", items:["Open files: the side bar now lists the mockups and presentations you have open (several of the same product too); click to switch, New mockup / New presentation, a dot shows what is not saved in a file, and they come back when you reopen the tool. The product list moved to the home page.", "Coir Mat: a more real coir: warmer and more orange, fine wavy fibres in clumps with a little shine, like the real mats.", "Coir Mat: design tips (thick lines, at most 7 colors, the natural coir as background), with examples, from Coir Mat design tips above the file guide."]},
   {v:"8.2", date:"2026-11-18", items:["Framed Print: new frame style Flush mount, the print fills the frame with no gap (1 in deep, 0.25 in face, high gloss); the Front view of every frame style shows the sides at 45°, like the Canvas.", "Framed Print, Framed 3D Lenticular and Shaped Frame: Side shade can also make the sides lighter (slider in the middle: right darker, left lighter); it suggests a side from the frame color, lighter for dark frames.", "Framed Print: Finish Matte or High gloss for the print, with the same shine controls as the Canvas (Streaks, Band, Window, Glow; strength, position, angle, size).", "High gloss reflections move across the piece as you turn it, like a real light (Framed Print, Canvas, Shaped Canvas, Stager 4 Piece).", "Installed app: .ai, .pdf, .popmockup and .popshow files can open straight in Pop Mockups from Finder or Explorer (Open With, or as the default app).", "Coir Mat redone from real mats: tufted pile, the same texture over the edge and down the sides, a slightly fuzzy edge, no line round it.", "Create presentation: a bigger number per slide now brings the next pieces in; the View sliders reach every angle and tilt and redraw when let go; View codes from a mat seen from above are followed; mats saved with an older version open seen from above.", "Fixed: High gloss did not show on the Shaped Canvas."]},
@@ -75448,6 +75449,8 @@ function initPresent(root, api){
         it.uid=++P.uid; it.url=it.pic.toDataURL("image/webp",.86); P.items.push(it); added.push(it); }
       catch(e){ console.error(e); bad.push(files[i].name); }
     }
+    // a .popshow opened as it is: the open files bar takes it as saved (no question when closing it untouched)
+    if(show && !bad.includes(show.name) && !added.length && api.onOpened) setTimeout(()=>api.onOpened(P.showName),400);
     bar.style.width="100%"; location.hash="#/presentation"; await wait(60); busy.hidden=true; root.querySelector("main").append(busy);
     // until the slides are arranged by hand, they are sorted by IP; after that, new pieces go on new slides at the end
     const per=Math.max(1,+$("prPer").value||3);
@@ -76106,6 +76109,10 @@ function initPresent(root, api){
   /* ---------- .popshow: the presentation itself (pieces, slides, every setting), to open and keep editing.
      "POPSHOW1\n" + the JSON, gzipped. The password is never kept. ---------- */
   const SHOW_MAGIC="POPSHOW1\n", SHOW_TEXT=["prTitle","prSub","prThanksText","prBgColor","prWmText","prPer","prFileName"], SHOW_CHECK=["prCover","prIndex","prIxSec","prIxNames","prThanks","prTheme","prShowSub","prShowDim","prThreeD","prHover","prWm","prLayers","prShowName"];
+  // what the presentation is now, without the heavy pictures: the open files bar compares it with the saved one (8.5)
+  api.sig=()=>{ const set={cols:P.cols, bg:P.bg, orn:P.orn, buyer:P.buyer, bAdj:P.bAdj, bBug:P.bBug, mode:P.mode, vmode:P.vmode, vall:P.vall}; SHOW_TEXT.forEach(id=>set[id]=$(id).value); SHOW_CHECK.forEach(id=>set[id]=$(id).checked);
+    return JSON.stringify({set, items:P.items.map(it=>[it.uid, it.file, it.name, it.label||"", it.ip, it.sub, it.dims||null, it.crop||null, it.fv||null, it.ov||null, it.lay||null, (it.url||"").length]),
+      slides:P.slides.filter(s=>s.ids.length).map(s=>[s.title, s.ids, s.per, s.sec, s.grp])}); };
   // the whole presentation as a .popshow (gzipped JSON): saving, and the open files bar
   async function showBlob(){
     const set={cols:P.cols, bg:P.bg, weight:P.weight, orn:P.orn, buyer:P.buyer, bAdj:P.bAdj, bBug:P.bBug, mode:P.mode, vmode:P.vmode, vall:P.vall}; SHOW_TEXT.forEach(id=>set[id]=$(id).value); SHOW_CHECK.forEach(id=>set[id]=$(id).checked);
@@ -77753,7 +77760,7 @@ const FILES=(function(){
   let persistAsked=false;
   async function keep(d){
     if(!persistAsked){ persistAsked=true; try{ if(navigator.storage&&navigator.storage.persist) await navigator.storage.persist(); }catch(_){} }
-    const rec={id:d.id, tool:d.tool, name:d.name, dirty:d.dirty, hasFile:d.hasFile, thumb:d.thumb||null, order:F.docs.indexOf(d), blob:d.blob||null, fileName:d.fileName||null};
+    const rec={id:d.id, tool:d.tool, name:d.name, dirty:d.dirty, hasFile:d.hasFile, thumb:d.thumb||null, order:F.docs.indexOf(d), blob:d.blob||null, fileName:d.fileName||null, savedSig:d.savedSig||null};
     await tx("docs","readwrite",s=>s.put(rec));
   }
   const forget=id=>tx("docs","readwrite",s=>s.delete(id));
@@ -77804,6 +77811,47 @@ const FILES=(function(){
     const root=document.getElementById("tool-"+id), fn=root&&root.querySelector("#fileName"), t=fn?fn.textContent.trim():"";
     return !t || /no file loaded|^sample/i.test(t) ? "" : t.replace(/\.(ai|pdf|png|jpe?g|psd|webp|tiff?)$/i,""); };
 
+  /* ---------- has it really changed since it was saved? (8.5, Andre: saved and not touched = close without asking)
+     A signature of the file as it is now (every control and setting, the art as a tiny picture), compared with the one taken
+     when it was saved or opened. The view and export controls (angle, PNG size…) don't count. ---------- */
+  const VIEW_IDS=new Set(["angle","tilt","light","proj","lens","viewCode"]);
+  const fnv=str=>{ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h.toString(36)+":"+str.length; };
+  const tiny=document.createElement("canvas"); tiny.width=tiny.height=24; const tinyX=tiny.getContext("2d",{willReadFrequently:true});
+  function pix(v){ try{ const w=v.width||v.naturalWidth||0, h=v.height||v.naturalHeight||0; if(!w||!h) return "0";
+    tinyX.clearRect(0,0,24,24); tinyX.drawImage(v,0,0,24,24); const a=tinyX.getImageData(0,0,24,24).data; let s=0; for(let i=0;i<a.length;i+=3) s=(s*31+a[i])>>>0; return w+"x"+h+":"+s; }catch(_){ return "?"; } }
+  function sig(id){ const j=sigText(id); return j==null ? null : fnv(j); }
+  function sigText(id){
+    try{
+      const t=T(id); if(!t||!t.ready) return null;
+      if(id===PRES) return t.api.sig ? t.api.sig() : null;
+      const m=t.api.saveMockup(), root=document.getElementById("tool-"+id), skip=new Set(VIEW_IDS);
+      if(root) root.querySelectorAll('[data-step="View"] [id],[data-step="Export"] [id],.view-card [id]').forEach(e=>skip.add(e.id));
+      const ctl={}; for(const k in m.ctl) if(!skip.has(k)) ctl[k]=m.ctl[k];
+      const seen=new WeakSet();
+      const json=JSON.stringify({...m, ctl, src:undefined}, (k,v)=>{   // src = the "from file / manual" labels, not the design
+        if(v && typeof v==="object"){
+          if((typeof HTMLCanvasElement!=="undefined" && v instanceof HTMLCanvasElement) || (typeof HTMLImageElement!=="undefined" && v instanceof HTMLImageElement) || (typeof ImageBitmap!=="undefined" && v instanceof ImageBitmap) || (typeof OffscreenCanvas!=="undefined" && v instanceof OffscreenCanvas)) return "img:"+pix(v);
+          if(typeof ImageData!=="undefined" && v instanceof ImageData){ let s=0; for(let i=0;i<v.data.length;i+=97) s=(s*31+v.data[i])>>>0; return "id:"+v.width+"x"+v.height+":"+s; }
+          if(ArrayBuffer.isView(v)){ let s=0; for(let i=0;i<v.length;i+=Math.max(1,v.length>>9)) s=(s*31+(v[i]|0))>>>0; return "ta:"+v.length+":"+s; }
+          if(v instanceof Node) return undefined;
+          if(seen.has(v)) return undefined; seen.add(v);
+        }
+        return v; });
+      return json;
+    }catch(e){ return null; }
+  }
+  // the file as it is now = as saved: no dot, no question when closing
+  function settle(d){
+    if(!d || !d.savedSig || F.mounted[d.tool]!==d.id || !d.dirty) return;
+    const s=sig(d.tool); if(s && s===d.savedSig){ d.dirty=false; render(); keepLater(d,true); }
+  }
+  // take the "saved" signature now, and once more when the product has finished drawing (if nobody touched it in between)
+  function mark(d){
+    if(!d || F.mounted[d.tool]!==d.id) return;
+    const at=Date.now(); d.savedSig=sig(d.tool);
+    setTimeout(()=>{ if(doc(d.id) && F.mounted[d.tool]===d.id && !(F.lastChange>at)){ const s=sig(d.tool); if(s){ d.savedSig=s; if(d.dirty){ d.dirty=false; render(); } keepLater(d,true); } } },1500);
+  }
+
   /* ---------- the files ---------- */
   function newDoc(id, o){ const d={id:"f"+Date.now().toString(36)+(F.seq++), tool:id, name:"", dirty:false, hasFile:false, thumb:null, ...(o||{})}; F.docs.push(d); return d; }
   // switch to a file (null = the home: pick a product for a new mockup)
@@ -77816,7 +77864,7 @@ const FILES=(function(){
       await routeTo(d.tool);
       if(F.mounted[d.tool]!==d.id){
         const o=doc(F.mounted[d.tool]);
-        if(o){ Object.assign(o, await snapshot(d.tool)); keepLater(o,true); }
+        if(o){ settle(o); Object.assign(o, await snapshot(d.tool)); keepLater(o,true); }
         mfToast("Opening "+(d.name||label(d))+"…"); await restore(d); mfToast("");
         F.mounted[d.tool]=d.id;
       }
@@ -77841,6 +77889,7 @@ const FILES=(function(){
   const label=d=>d.tool===PRES ? "Presentation" : (prod(d.tool)||{}).name||d.tool;
   async function close(id){
     const d=doc(id); if(!d) return;
+    settle(d);
     if(d.dirty && d.hasFile){
       const a=await ask(d); if(a==="cancel") return;
       if(a==="save"){ await show(d.id); const ok=await saveNow(d); if(!ok) return; }
@@ -77881,7 +77930,7 @@ const FILES=(function(){
   // changes in the open file: a dot, a new picture and name, and kept a few seconds later
   function changed(id, how){
     const d=doc(F.mounted[id]); if(!d) return;
-    if(how!=="view"){ d.dirty=true; F.lastChange=Date.now(); }
+    if(how!=="view"){ d.dirty=true; F.lastChange=Date.now(); clearTimeout(F.setT); F.setT=setTimeout(()=>settle(d),700); }
     clearTimeout(F.thT); F.thT=setTimeout(()=>{ capture(d).then(render); },900);
     keepLater(d);
   }
@@ -77948,13 +77997,13 @@ const FILES=(function(){
   setInterval(()=>{ for(const id in TOOLS) ensure(id); },120);
   // a .popmockup / .popshow opened or saved
   async function slot(id, name){ return fresh(id, name?{name}:null); }
-  function opened(id, name){ const d=doc(F.mounted[id]); if(!d) return; d.name=name||d.name; d.hasFile=true; d.dirty=false; F.justOpened=true; capture(d).then(()=>{ render(); keepLater(d,true); }); }
-  function saved(id, name){ const d=doc(F.mounted[id]); if(!d) return; if(name) d.name=name; d.dirty=false; render(); keepLater(d,true);
+  function opened(id, name){ const d=doc(F.mounted[id]); if(!d) return; d.name=name||d.name; d.hasFile=true; d.dirty=false; F.justOpened=true; mark(d); capture(d).then(()=>{ render(); keepLater(d,true); }); }
+  function saved(id, name){ const d=doc(F.mounted[id]); if(!d) return; if(name) d.name=name; d.dirty=false; mark(d); render(); keepLater(d,true);
     if(F.waitSave && F.waitSave.d===d){ const w=F.waitSave; F.waitSave=null; w.ok(true); } }
   // back from storage: the files as they were (each opens when clicked; the last one open opens now)
   async function bringBack(){
     const recs=await tx("docs","readonly",s=>s.getAll()); const cur=await tx("meta","readonly",s=>s.get("cur"));
-    (recs||[]).sort((a,b)=>(a.order||0)-(b.order||0)).forEach(r=>{ if(TOOLS[r.tool]) F.docs.push({id:r.id, tool:r.tool, name:r.name, dirty:r.dirty, hasFile:r.hasFile, thumb:r.thumb, blob:r.blob}); });
+    (recs||[]).sort((a,b)=>(a.order||0)-(b.order||0)).forEach(r=>{ if(TOOLS[r.tool]) F.docs.push({id:r.id, tool:r.tool, name:r.name, dirty:r.dirty, hasFile:r.hasFile, thumb:r.thumb, blob:r.blob, savedSig:r.savedSig||null}); });
     render();
     // the page opened on a product (a link, or the last page before a reload): that product's file; a PopDAM link (?art=) is a new one
     let want=(location.hash.replace(/^#\/?/,"")||"").toLowerCase(); want=want==="presentation"||want==="present"?PRES:want;
@@ -77966,11 +78015,11 @@ const FILES=(function(){
   }
   addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden"){ const d=doc(F.cur); if(d) keepNow(d); } });
   setup();
-  if(TOOLS.present){ const a=TOOLS.present.api; a.onSaved=n=>saved(PRES,n); }
+  if(TOOLS.present){ const a=TOOLS.present.api; a.onSaved=n=>saved(PRES,n); a.onOpened=n=>opened(PRES,n); }
   setTimeout(bringBack,0);
   // before the page reloads (a new version): write every file as it is now
   async function flush(){ for(const d of F.docs.slice()){ clearTimeout(timers[d.id]); try{ await keepNow(d); }catch(_){} } try{ await meta("cur",F.cur); }catch(_){} }
-  return {F, show, fresh, slot, opened, saved, close, render, flush};
+  return {F, show, fresh, slot, opened, saved, close, render, flush, sigText};
 })();
 </script>
 <style>
