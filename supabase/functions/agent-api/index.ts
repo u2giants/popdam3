@@ -85,7 +85,7 @@ import {
   staleRetirementRefusal,
 } from "../_shared/stale-asset-retirement.ts";
 import { findSurvivingCopy } from "../_shared/surviving-copy.ts";
-import { retireMissingInChunks } from "../_shared/retire-missing-chunks.ts";
+import { RETIRE_MISSING_CHUNK, retireMissingInChunks } from "../_shared/retire-missing-chunks.ts";
 import { mergeCompatAuditFlagged } from "../_shared/compat-audit-preview-merge.ts";
 import { appendScanHistory, buildScanHistoryEntry, isExpiredSiblingScanRow, SCAN_HISTORY_KEY, TERMINAL_SCAN_STATUSES } from "../_shared/scan-history.ts";
 import { emitIndexedWriteReceipt } from "../_shared/indexed-write-receipt.ts";
@@ -1197,6 +1197,8 @@ async function handleIngest(
       modified_at: modifiedAt,
       file_created_at: fileCreatedAt || modifiedAt,
       last_seen_at: new Date().toISOString(),
+      // The file is on the NAS again at its new path (badge cleared if set).
+      file_missing_at: null,
       workflow_status: reDerived.workflow_status,
       is_licensed: reDerived.is_licensed,
       ...thumbMove,
@@ -1279,6 +1281,9 @@ async function handleIngest(
       quick_hash: quickHash,
       quick_hash_version: quickHashVersion,
       last_seen_at: new Date().toISOString(),
+      // The file is on the NAS (seen by the walk; changed enough to ingest),
+      // so any "no longer on the NAS" mark is cleared.
+      file_missing_at: null,
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
       ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
@@ -1462,7 +1467,7 @@ async function handleListLiveAssetPaths(body: Record<string, unknown>) {
   const db = serviceClient();
   let query = db
     .from("assets")
-    .select("id, relative_path")
+    .select("id, relative_path, file_missing_at")
     .eq("is_deleted", false)
     .order("id", { ascending: true })
     .limit(LIVE_PATH_PAGE_SIZE);
@@ -1493,10 +1498,20 @@ const SURVIVOR_LOOKUP_CONCURRENCY = 8;
 
 async function handleRetireMissingAssets(body: Record<string, unknown>) {
   const items = body.assets;
-  if (!Array.isArray(items) || items.length === 0) return err("assets must be a non-empty array");
-  if (items.length > RETIRE_MISSING_MAX_BATCH) return err(`assets exceeds maximum batch size of ${RETIRE_MISSING_MAX_BATCH}`);
+  const clearIds = Array.isArray(body.clear_missing_flags)
+    ? (body.clear_missing_flags as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  if (clearIds.length > RETIRE_MISSING_MAX_BATCH) return err(`clear_missing_flags exceeds maximum batch size of ${RETIRE_MISSING_MAX_BATCH}`);
+  // A clear-only call (the walk saw files whose "no longer on the NAS" mark is
+  // stale) carries no missing records; anything else must.
+  if ((!Array.isArray(items) || items.length === 0) && clearIds.length === 0) {
+    return err("assets must be a non-empty array (or clear_missing_flags)");
+  }
+  if (Array.isArray(items) && items.length > RETIRE_MISSING_MAX_BATCH) {
+    return err(`assets exceeds maximum batch size of ${RETIRE_MISSING_MAX_BATCH}`);
+  }
   const wanted = new Map<string, string>();
-  for (const item of items as Array<Record<string, unknown>>) {
+  for (const item of (items ?? []) as Array<Record<string, unknown>>) {
     if (typeof item?.asset_id !== "string" || typeof item?.confirmed_absent_path !== "string") {
       return err("each asset needs asset_id and confirmed_absent_path");
     }
@@ -1552,8 +1567,10 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   for (const id of ids) if (!found.has(id)) skip("not_found");
 
   // Proof gate (#1198): hide only records whose file survives at another live
-  // path. Everything else keeps its record and is reported as kept.
+  // path. Everything else keeps its record, is reported as kept, and is marked
+  // "no longer on the NAS" via file_missing_at (owner ruling 2026-11-19).
   const retireRows: Array<{ id: string; relative_path: string }> = [];
+  const keptIds: string[] = [];
   for (let i = 0; i < eligible.length; i += SURVIVOR_LOOKUP_CONCURRENCY) {
     const chunk = eligible.slice(i, i + SURVIVOR_LOOKUP_CONCURRENCY);
     const proofs = await Promise.all(chunk.map(async (row) => {
@@ -1568,10 +1585,37 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
       if (proof instanceof Error) return err(proof.message, 500);
       if (!proof) {
         skip("no_surviving_copy");
+        keptIds.push(chunk[j].id);
         continue;
       }
       retireRows.push({ id: chunk[j].id, relative_path: chunk[j].relative_path });
     }
+  }
+
+  // "No longer on the NAS" marking: only transitions are written (the columns
+  // are trigger-heavy), so an already-marked record keeps its original stamp
+  // and a seen file's mark is cleared by the bridge's clear list below.
+  let flagged = 0;
+  for (let i = 0; i < keptIds.length; i += RETIRE_MISSING_CHUNK) {
+    const { data, error } = await db
+      .from("assets")
+      .update({ file_missing_at: new Date().toISOString() })
+      .in("id", keptIds.slice(i, i + RETIRE_MISSING_CHUNK))
+      .is("file_missing_at", null)
+      .select("id");
+    if (error) return json({ ok: true, retired: 0, kept: keptIds.length, skipped, partial: true, error: error.message });
+    flagged += (data ?? []).length;
+  }
+  let cleared = 0;
+  for (let i = 0; i < clearIds.length; i += RETIRE_MISSING_CHUNK) {
+    const { data, error } = await db
+      .from("assets")
+      .update({ file_missing_at: null })
+      .in("id", clearIds.slice(i, i + RETIRE_MISSING_CHUNK))
+      .not("file_missing_at", "is", null)
+      .select("id");
+    if (error) return json({ ok: true, retired: 0, kept: keptIds.length, skipped, partial: true, error: error.message });
+    cleared += (data ?? []).length;
   }
 
   const outcome = await retireMissingInChunks(retireRows, {
@@ -1599,13 +1643,21 @@ async function handleRetireMissingAssets(body: Record<string, unknown>) {
   });
   const kept = skipped["no_surviving_copy"] ?? 0;
   console.log(
-    `[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), skipped ${JSON.stringify(skipped)}${
+    `[retire-missing-assets] retired ${outcome.retired} (proven moves), kept ${kept} (no surviving copy), flagged ${flagged} missing, cleared ${cleared}, skipped ${JSON.stringify(skipped)}${
       outcome.error ? `, stopped: ${outcome.error}` : ""
     }`,
   );
   // Work done before a failure is reported, not lost: a 500 would make the
   // bridge retry rows already retired and hide the count.
-  return json({ ok: true, retired: outcome.retired, kept, skipped, ...(outcome.error ? { partial: true, error: outcome.error } : {}) });
+  return json({
+    ok: true,
+    retired: outcome.retired,
+    kept,
+    flagged,
+    cleared,
+    skipped,
+    ...(outcome.error ? { partial: true, error: outcome.error } : {}),
+  });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────

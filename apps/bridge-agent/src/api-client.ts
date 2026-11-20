@@ -303,24 +303,28 @@ export async function checkChanged(files: CheckChangedFile[]): Promise<CheckChan
 }
 
 export async function listLiveAssetPaths(afterId: string | null): Promise<{
-  assets: Array<{ id: string; relative_path: string }>;
+  assets: Array<{ id: string; relative_path: string; file_missing_at?: string | null }>;
   next_after_id: string | null;
 }> {
   const data = await callApi("list-live-asset-paths", afterId ? { after_id: afterId } : {}, 120_000);
   return {
-    assets: (data.assets as Array<{ id: string; relative_path: string }>) || [],
+    assets: (data.assets as Array<{ id: string; relative_path: string; file_missing_at?: string | null }>) || [],
     next_after_id: (data.next_after_id as string | null) ?? null,
   };
 }
 
 export async function retireMissingAssets(
   assets: Array<{ asset_id: string; confirmed_absent_path: string }>,
-): Promise<{ retired: number; kept: number; error?: string }> {
-  const data = await callApi("retire-missing-assets", { assets }, 120_000);
+  clearMissingFlags: string[] = [],
+): Promise<{ retired: number; kept: number; flagged: number; cleared: number; error?: string }> {
+  const data = await callApi("retire-missing-assets", { assets, clear_missing_flags: clearMissingFlags }, 120_000);
   return {
     retired: Number(data.retired ?? 0),
-    // Records left live because no surviving copy proved the file moved (#1198).
+    // Records left live because no surviving copy proved the file moved (#1198);
+    // those carry the "no longer on the NAS" mark (file_missing_at).
     kept: Number(data.kept ?? 0),
+    flagged: Number(data.flagged ?? 0),
+    cleared: Number(data.cleared ?? 0),
     ...(data.partial ? { error: String(data.error ?? "partial retirement") } : {}),
   };
 }
