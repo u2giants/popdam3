@@ -67,8 +67,8 @@ begin
   if v_src ~ 'is distinct from p_run_id' then
     raise exception '2792 contract 2: victims are still selected with IS DISTINCT FROM (full-root walk)';
   end if;
-  if v_src !~ 'least\(coalesce\(p_batch_size, 500\), 500\)' then
-    raise exception '2792 contract 2: per-call write cap is not 500';
+  if v_src !~ 'least\(coalesce\(p_batch_size, 50\), 50\)' then
+    raise exception '2792 contract 2: per-call write cap is not 50 (#3458)';
   end if;
   -- #3458: the preview counts only the active-files side table (no per-row
   -- heap recheck of style_guide_files), and that table must stay active-only.
@@ -271,7 +271,7 @@ begin
   end if;
 
   -- -------------------------------------------------------------------------
-  -- 8. a request above the cap writes at most 500 and continues with done=false
+  -- 8. a request above the cap writes at most 50 (#3458) and continues with done=false
   -- -------------------------------------------------------------------------
   insert into public.style_guide_crawl_runs (id, status, files_found)
   values ('00000000-0000-4000-8000-00000000000c', 'pending', 751);
@@ -285,14 +285,24 @@ begin
     from generate_series(1, 1500) g;
 
   select * into v_batch from public.reconcile_stale_sg_files_batch('R2792CAP', '00000000-0000-4000-8000-00000000000c', 50000);
-  if v_batch.deactivated <> 500 or v_batch.done or v_batch.remaining <> 249 then
+  if v_batch.deactivated <> 50 or v_batch.done or v_batch.remaining <> 699 then
     raise exception '2792 contract 8: oversized request deactivated=% remaining=% done=%',
       v_batch.deactivated, v_batch.remaining, v_batch.done;
   end if;
-  select * into v_batch from public.reconcile_stale_sg_files_batch('R2792CAP', '00000000-0000-4000-8000-00000000000c', 50000);
-  if v_batch.deactivated <> 249 or not v_batch.done or v_batch.remaining <> 0 then
-    raise exception '2792 contract 8: continuation deactivated=% remaining=% done=%',
-      v_batch.deactivated, v_batch.remaining, v_batch.done;
+  v_total := 50;
+  v_calls := 1;
+  loop
+    select * into v_batch from public.reconcile_stale_sg_files_batch('R2792CAP', '00000000-0000-4000-8000-00000000000c', 50000);
+    v_calls := v_calls + 1;
+    if v_batch.deactivated > 50 then
+      raise exception '2792 contract 8: continuation wrote % rows (cap 50)', v_batch.deactivated;
+    end if;
+    v_total := v_total + v_batch.deactivated;
+    exit when v_batch.done or v_calls > 20;
+  end loop;
+  if v_total <> 749 or not v_batch.done or v_batch.remaining <> 0 then
+    raise exception '2792 contract 8: continuation total=% remaining=% done=%',
+      v_total, v_batch.remaining, v_batch.done;
   end if;
 
   raise notice 'issue #2792 PopSG bounded reconcile contracts: all 8 checks passed';
