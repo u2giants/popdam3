@@ -8,6 +8,8 @@
 
 # AGENTS.md — cross-app coordination playbook
 
+For the current database design, live schema sources, planned moves, and retired assumptions, start with the [canonical database design and schema reference](docs/database-design-and-schema.md).
+
 The complete document index is [`docs/INDEX.md`](docs/INDEX.md), generated from document headers. Search it for your topic's keywords (or read it) before opening or searching any other document. Open a document only when its summary matches your task.
 
 This file is a router: it routes, it does not contain. Detail that used to live here is in [`docs/agents/router-detail.md`](docs/agents/router-detail.md) and the §-numbered chapters under `docs/agents/`.
