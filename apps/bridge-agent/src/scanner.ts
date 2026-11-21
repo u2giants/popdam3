@@ -267,9 +267,14 @@ async function* scanDirectory(
     counters.files_checked++;
 
     try {
-      // bigint stat: the inode exceeds 2^53 on Btrfs and must not lose
-      // precision (#1198 item 3). It travels to the cloud as a string.
-      const s = await stat(fullPath, { bigint: true });
+      // The NUMBER stat is the contract for mtime/size/birthtime: its Date
+      // rounding matches every stored modified_at. A bigint stat rounds
+      // fractional milliseconds differently (±1ms on ~half of all files),
+      // which made every file look changed and re-ingested the whole catalog
+      // (2026-11-20, bridge 1.16.34). The inode comes from a separate bigint
+      // stat — it must not lose precision past 2^53 (#1198 item 3).
+      const s = await stat(fullPath);
+      const sBig = await stat(fullPath, { bigint: true });
 
       // Build canonical relative path (POSIX, no leading slash) per PATH_UTILS.md §1
       const effectiveRoot = mountRoot || config.nasContainerMountRoot;
@@ -285,14 +290,14 @@ async function* scanDirectory(
         relativePath: relPath,
         filename: basename(entry.name),
         fileType,
-        fileSize: Number(s.size),
+        fileSize: s.size,
         // modifiedAt = mtime (last content modification, NOT access time)
         // fileCreatedAt = birthtime (original creation time, may be null on Linux)
         // We intentionally do NOT use atime (last access time) as it changes on read
         modifiedAt: s.mtime,
-        fileCreatedAt: s.birthtime && s.birthtime.getFullYear() > 1970 ? s.birthtime : null,
+        fileCreatedAt: s.birthtime?.getFullYear() > 1970 ? s.birthtime : null,
         nasVolume: volumeKeyOf(effectiveRoot),
-        nasIno: inodeKey(s.ino),
+        nasIno: inodeKey(sBig.ino),
       };
 
       counters.candidates_found++;

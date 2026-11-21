@@ -2578,7 +2578,13 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     const existingMod = new Date(existing.modified_at).getTime();
     const incomingSize = f.file_size as number;
 
-    if (incomingMod !== existingMod || incomingSize !== (existing.file_size ?? 0)) {
+    // A ≤1ms mtime delta is stat-precision noise, not a save. Node's number and
+    // bigint stats round fractional milliseconds differently — bridge 1.16.34
+    // (2026-11-20) sent the bigint variant and re-ingested the whole catalog
+    // against stored values from the number variant. A real save moves mtime
+    // by seconds, and no editor preserves size while shifting 1ms.
+    const modDrift = Math.abs(incomingMod - existingMod);
+    if (modDrift > 1 || incomingSize !== (existing.file_size ?? 0)) {
       changed.push(rp);
       if (existing.quick_hash && existing.thumbnail_url) {
         existingThumbnails.push({ relative_path: rp, quick_hash: existing.quick_hash, thumbnail_url: existing.thumbnail_url });
