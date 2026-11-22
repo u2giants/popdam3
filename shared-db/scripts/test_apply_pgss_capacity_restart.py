@@ -74,6 +74,8 @@ class FakeAPI:
             return dict(self.config)
         if (method, kind) == ('GET', 'identity'):
             return {'id': self.identity_id}
+        if (method, kind) == ('GET', 'branches'):
+            return [{'project_ref': self.identity_id, 'status': 'FUNCTIONS_DEPLOYED'}]
         if (method, kind) == ('PUT', 'config'):
             # Enforce API contract checks
             mod.require(
@@ -298,6 +300,45 @@ class TestApplyPgssCapacityRestart(unittest.TestCase):
                     env=make_env('preview_and_production'), root=ROOT,
                     api_factory=lambda ref, tok: prod_api, fence=lambda: None, now_utc=sat_ny,
                 )
+
+
+    def test_api_accepts_http_201_on_post_and_put_and_uses_branches_for_preview(self):
+        class FakeResp:
+            def __init__(self, status, payload):
+                self.status = status
+                self._raw = json.dumps(payload).encode()
+
+            def read(self, n=-1):
+                return self._raw
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        seen = []
+
+        class FakeTransport:
+            def open(self, req, timeout=25):
+                seen.append((req.get_method(), req.full_url, req.get_header('User-agent')))
+                if req.get_method() == 'POST':
+                    return FakeResp(201, make_catalog(effective='5000'))
+                if req.get_method() == 'PUT':
+                    return FakeResp(201, {'pg_stat_statements.max': 40000})
+                if req.full_url.endswith('/branches'):
+                    return FakeResp(200, [{'project_ref': PREVIEW_REF}])
+                return FakeResp(200, {})
+
+        api = mod.API(PREVIEW_REF, 'tok', parent_ref=PROD_REF, transport=FakeTransport())
+        rows = api.call('POST', 'catalog', {'query': mod.SQL, 'read_only': True})
+        self.assertEqual(rows[0]['effective'], '5000')
+        updated = api.call('PUT', 'config', {'pg_stat_statements.max': 40000, 'restart_database': True})
+        self.assertEqual(updated['pg_stat_statements.max'], 40000)
+        branches = api.call('GET', 'branches')
+        self.assertEqual(branches[0]['project_ref'], PREVIEW_REF)
+        self.assertTrue(all(ua == 'shared-db-pgss-capacity-restart/1.0' for _, _, ua in seen))
+        self.assertTrue(seen[2][1].endswith(f'/v1/projects/{PROD_REF}/branches'))
 
 
 if __name__ == '__main__':

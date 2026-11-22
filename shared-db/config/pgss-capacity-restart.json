@@ -2,7 +2,7 @@
   "schema_version": 1,
   "operation": "pg-stat-statements-capacity-restart/v1",
   "work_issue": 5609,
-  "source_pr": 6949,
+  "source_pr": 6957,
   "owner": "shared-db issue 5609 coordinator",
   "necessity": "Increase pg_stat_statements.max to 40000 and restart Postgres so complete authentic #5609 statement observations run without eviction.",
   "retirement": "Remove this capacity-restart route after effective capacity 40000 is independently verified and issue 5609 is accepted.",
@@ -13,9 +13,6 @@
   "expected_pre_effective": [5000, 40000],
   "maintenance_window_tz": "America/New_York",
   "production_candidates": [
-    {"schema":"public","index":"idx_assets_full_text_search","index_oid":"464884","table_oid":"17809","definition_md5":"c5f859e1843ec268608c9f3bdda91140"},
-    {"schema":"public","index":"idx_assets_tags","index_oid":"17966","table_oid":"17809","definition_md5":"ef912b57eaaac8358f8a3326e8e12198"},
-    {"schema":"public","index":"idx_sgf_directory_path_trgm","index_oid":"2957816","table_oid":"18497","definition_md5":"88e1c3b7f461295813b75466830bcbec"},
-    {"schema":"public","index":"idx_style_guide_files_tag_search_trgm","index_oid":"3822946","table_oid":"18497","definition_md5":"19eb10d68eeaf9c5214c0526f55426f7"}
+    {"schema":"public","index":"idx_assets_tags","index_oid":"17966","table_oid":"17809","definition_md5":"ef912b57eaaac8358f8a3326e8e12198"}
   ]
 }

@@ -27,10 +27,7 @@ DESIRED = 40000
 ALLOWED_MODES = ('preview_only', 'preview_and_production')
 WINDOW_TZ = 'America/New_York'
 CANDIDATE_NAMES = (
-    'idx_assets_full_text_search',
     'idx_assets_tags',
-    'idx_sgf_directory_path_trgm',
-    'idx_style_guide_files_tag_search_trgm',
 )
 # Versioned Management API update schema. Unknown keys fail closed.
 CONFIG_KEYS = frozenset(
@@ -68,9 +65,7 @@ SQL = """select current_user as execution_role, session_user as session_role,
    order by c.relname)
   from pg_index i join pg_class c on c.oid=i.indexrelid
   join pg_namespace n on n.oid=c.relnamespace
-  where n.nspname='public' and c.relname in
-  ('idx_assets_full_text_search','idx_assets_tags','idx_sgf_directory_path_trgm',
-   'idx_style_guide_files_tag_search_trgm')) as indexes
+  where n.nspname='public' and c.relname in ('idx_assets_tags')) as indexes
  from pg_settings s where s.name='pg_stat_statements.max'"""
 
 
@@ -169,7 +164,7 @@ def load_plan(root=ROOT):
         'plan ownership refused',
     )
     indexes = plan['production_candidates']
-    require(type(indexes) is list and len(indexes) == 4, 'candidate plan refused')
+    require(type(indexes) is list and len(indexes) == len(CANDIDATE_NAMES), 'candidate plan refused')
     require(sorted(x['index'] for x in indexes) == list(CANDIDATE_NAMES), 'candidate names refused')
     for index in indexes:
         require(
@@ -189,13 +184,18 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class API:
-    def __init__(self, ref, token, transport=None):
+    def __init__(self, ref, token, *, parent_ref=None, transport=None):
         require(type(ref) is str and re.fullmatch('[a-z]{20}', ref), 'target syntax refused')
+        require(
+            parent_ref is None or (type(parent_ref) is str and re.fullmatch('[a-z]{20}', parent_ref)),
+            'parent target syntax refused',
+        )
         require(
             type(token) is str and token and '\n' not in token and '\r' not in token,
             'credential unavailable',
         )
         self.base = 'https://api.supabase.com/v1/projects/' + ref
+        self.parent_base = None if parent_ref is None else ('https://api.supabase.com/v1/projects/' + parent_ref)
         self.ref = ref
         self.token = token
         self.transport = transport or urllib.request.build_opener(
@@ -206,14 +206,22 @@ class API:
 
     def call(self, method, kind, payload=None):
         require(
-            (method, kind) in {('GET', 'config'), ('GET', 'identity'), ('PUT', 'config'), ('POST', 'catalog')},
+            (method, kind) in {
+                ('GET', 'config'), ('GET', 'identity'), ('GET', 'branches'),
+                ('PUT', 'config'), ('POST', 'catalog'),
+            },
             'operation endpoint refused',
         )
-        endpoint = {
-            'config': '/config/database/postgres',
-            'catalog': '/database/query/read-only',
-            'identity': '',
-        }[kind]
+        if kind == 'branches':
+            require(self.parent_base is not None, 'parent target unavailable')
+            url = self.parent_base + '/branches'
+        else:
+            endpoint = {
+                'config': '/config/database/postgres',
+                'catalog': '/database/query/read-only',
+                'identity': '',
+            }[kind]
+            url = self.base + endpoint
         if method == 'POST':
             require(payload == {'query': SQL, 'read_only': True}, 'read-only query refused')
         if method == 'PUT':
@@ -225,14 +233,19 @@ class API:
                 'capacity-restart body refused',
             )
         request = urllib.request.Request(
-            self.base + endpoint,
+            url,
             method=method,
             data=None if payload is None else json.dumps(payload, allow_nan=False).encode(),
-            headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'},
+            headers={
+                'Authorization': 'Bearer ' + self.token,
+                'Content-Type': 'application/json',
+                'User-Agent': 'shared-db-pgss-capacity-restart/1.0',
+            },
         )
+        ok_statuses = (200, 201) if method in ('POST', 'PUT') else (200,)
         try:
             with self.transport.open(request, timeout=25) as response:
-                require(response.status == 200, 'vendor status refused')
+                require(response.status in ok_statuses, 'vendor status refused')
                 data = response.read(1048577)
                 require(len(data) <= 1048576, 'vendor response too large')
                 return safe_json(data)
@@ -298,7 +311,7 @@ def validate_catalog(rows, plan, target):
         'counter identity refused',
     )
     indexes = row['indexes']
-    require(type(indexes) is list and len(indexes) == 4, 'catalog candidates refused')
+    require(type(indexes) is list and len(indexes) == len(CANDIDATE_NAMES), 'catalog candidates refused')
     require(sorted(x.get('index', '') for x in indexes) == list(CANDIDATE_NAMES), 'catalog names refused')
     for index in indexes:
         require(
@@ -461,8 +474,16 @@ def apply_capacity_restart(
     restarted = False
     if needs_apply:
         fence()
-        identity = api.call('GET', 'identity')
-        require(type(identity) is dict and identity.get('id') == api.ref, 'point-of-use target identity refused')
+        if target == 'preview':
+            branches = api.call('GET', 'branches')
+            require(
+                isinstance(branches, list)
+                and any(isinstance(b, dict) and b.get('project_ref') == api.ref for b in branches),
+                'point-of-use preview branch identity refused',
+            )
+        else:
+            identity = api.call('GET', 'identity')
+            require(type(identity) is dict and identity.get('id') == api.ref, 'point-of-use target identity refused')
         latest = validate_config(api.call('GET', 'config'))
         require(latest == before, 'concurrent config change refused')
         payload = dict(latest, **{SETTING: DESIRED, 'restart_database': True})
@@ -532,8 +553,13 @@ def run(
         require(preview_receipt is None, 'preview input refused')
     ref = preview if target == 'preview' else prod
     require(callable(fence), 'native exclusive fencing unavailable')
+    api = (
+        API(ref, env.get('SUPABASE_ACCESS_TOKEN', ''), parent_ref=prod if target == 'preview' else None)
+        if api_factory is API
+        else api_factory(ref, env.get('SUPABASE_ACCESS_TOKEN', ''))
+    )
     result = apply_capacity_restart(
-        api_factory(ref, env.get('SUPABASE_ACCESS_TOKEN', '')),
+        api,
         plan, target, fence,
         poll_timeout_s=poll_timeout_s, poll_interval_s=poll_interval_s,
         sleep_fn=sleep_fn, monotonic_fn=monotonic_fn,
