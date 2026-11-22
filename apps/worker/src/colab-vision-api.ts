@@ -6,7 +6,7 @@
  *   "colab-direct/Qwen/Qwen3-VL-32B-Instruct"
  *
  * Endpoint URL and bearer token live in admin_config.COLAB_VISION_CONFIG
- * ({ base_url, api_key }) with env fallback (COLAB_VISION_BASE_URL / COLAB_VISION_API_KEY).
+ * ({ base_url, api_key, auto_shutdown }) with env fallback (COLAB_VISION_BASE_URL / COLAB_VISION_API_KEY).
  * Short cache TTL (15s) lets a new Colab session take effect without restarting Railway.
  */
 
@@ -17,6 +17,7 @@ import { withDependencyTimeout } from "./bounded-dependency.js";
 import type { ChatCompletionRequest, ChatCompletionResult, ToolCallResult } from "./openrouter.js";
 
 export const COLAB_DIRECT_PREFIX = "colab-direct/";
+const COLAB_MODEL_SHAPE = /^[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)?$/;
 const CONFIG_CACHE_TTL_MS = 15_000;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -35,7 +36,8 @@ export class ColabVisionApiError extends Error {
 
 export function isColabDirectModel(model: string): boolean {
   const trimmed = model.trim();
-  return trimmed.startsWith(COLAB_DIRECT_PREFIX) && trimmed.length > COLAB_DIRECT_PREFIX.length;
+  if (!trimmed.startsWith(COLAB_DIRECT_PREFIX)) return false;
+  return COLAB_MODEL_SHAPE.test(trimmed.slice(COLAB_DIRECT_PREFIX.length));
 }
 
 export function colabModelId(model: string): string {
@@ -47,19 +49,39 @@ export function isTerminalColabVisionApiError(error: unknown): boolean {
   return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 429 || error.status >= 500;
 }
 
+function isPrivateIpv4Octets(a: number, b: number): boolean {
+  if (a === 127 || a === 10 || a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  return false;
+}
+
 function isPrivateOrLoopbackHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
-  if (h === "::1" || h === "0:0:0:0:0:0:0:1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")) return true;
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 100 && b >= 64 && b <= 127) return true;
+  // IPv6 loopback, ULA (fc00::/7), link-local (fe80::/10), and IPv4-mapped IPv6 (::ffff:...)
+  if (h.includes(":")) {
+    if (h === "::" || h === "::1" || h === "0:0:0:0:0:0:0:1") return true;
+    if (/^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) return true;
+    if (h.startsWith("::ffff:")) {
+      const mapped = h.slice("::ffff:".length);
+      const dotted = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(mapped);
+      if (dotted) return isPrivateIpv4Octets(Number(dotted[1]), Number(dotted[2]));
+      const hexPair = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(mapped);
+      if (hexPair) {
+        const hi = parseInt(hexPair[1], 16);
+        return isPrivateIpv4Octets((hi >> 8) & 0xff, hi & 0xff);
+      }
+      return true;
+    }
+    return false;
   }
+  // Reject raw integer / hex / octal IPv4 forms
+  if (/^(?:0x[0-9a-f]+|\d+)$/.test(h)) return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (ipv4) return isPrivateIpv4Octets(Number(ipv4[1]), Number(ipv4[2]));
   return false;
 }
 
@@ -117,14 +139,14 @@ export async function getColabVisionConfig(
   const now = Date.now();
   if (cachedConfig && now - cachedConfig.cachedAt < CONFIG_CACHE_TTL_MS) return cachedConfig.value;
 
-  let baseUrl = config.colabVisionBaseUrl;
-  let apiKey = config.colabVisionApiKey;
+  let baseUrl = config.colabVisionBaseUrl.trim();
+  let apiKey = config.colabVisionApiKey.trim();
   let autoShutdown = true;
   try {
     const row = await loadFromDb();
     if (row.found) {
-      baseUrl = row.baseUrl;
-      apiKey = row.apiKey;
+      baseUrl = row.baseUrl.trim();
+      apiKey = row.apiKey.trim();
       autoShutdown = row.autoShutdown;
     }
   } catch (error) {
@@ -133,7 +155,16 @@ export async function getColabVisionConfig(
     });
   }
 
-  const normalizedUrl = baseUrl ? validateColabBaseUrl(baseUrl) : "";
+  let normalizedUrl = "";
+  if (baseUrl) {
+    try {
+      normalizedUrl = validateColabBaseUrl(baseUrl);
+    } catch (error) {
+      logger.warn("colab-vision-api: ignoring invalid COLAB_VISION_CONFIG base_url", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const value = { baseUrl: normalizedUrl, apiKey, autoShutdown };
   cachedConfig = { value, cachedAt: now };
   return value;
@@ -150,8 +181,32 @@ export async function getColabVisionApiKey(
   }
 }
 
+// Tracks concurrent in-process jobs sharing the ephemeral Colab GPU (e.g., bulk tagging + Vision Bake-Off)
+// so one finisher does not shut down the GPU while another active consumer still needs it.
+const activeColabConsumers = new Set<string>();
+
+export function markColabConsumerActive(consumerId: string): void {
+  if (consumerId) activeColabConsumers.add(consumerId);
+}
+
+export async function releaseColabConsumerAndMaybeShutdown(
+  consumerId: string,
+  options?: Parameters<typeof shutdownColabVisionServer>[0],
+): Promise<boolean> {
+  if (consumerId) activeColabConsumers.delete(consumerId);
+  if (activeColabConsumers.size > 0) {
+    logger.info("colab-vision-api: deferring instant shutdown while another Colab consumer is active", {
+      consumerId,
+      remainingConsumers: activeColabConsumers.size,
+    });
+    return false;
+  }
+  return shutdownColabVisionServer(options);
+}
+
 export function resetColabVisionConfigCacheForTests(): void {
   cachedConfig = null;
+  activeColabConsumers.clear();
 }
 
 function parseOpenAiToolCalls(rawToolCalls: unknown): ToolCallResult[] | undefined {
@@ -183,14 +238,19 @@ export async function colabChatCompletion(
   timeoutMs = DEFAULT_TIMEOUT_MS,
   options?: { baseUrl?: string; fetchImpl?: typeof fetch },
 ): Promise<ChatCompletionResult> {
+  const targetModel = colabModelId(request.model);
+  if (!isColabDirectModel(request.model) || !targetModel) {
+    throw new ColabVisionApiError(400, `Invalid Colab Vision model ID: ${request.model}`);
+  }
   const baseUrl = options?.baseUrl
     ? validateColabBaseUrl(options.baseUrl)
     : (await getColabVisionConfig()).baseUrl;
   if (!baseUrl) throw new ColabVisionApiError(503, "Google Colab vision base_url is not configured");
-  if (!apiKey.trim()) throw new ColabVisionApiError(401, "Google Colab vision api_key is not configured");
+  const trimmedKey = apiKey.trim();
+  if (!trimmedKey) throw new ColabVisionApiError(401, "Google Colab vision api_key is not configured");
 
   const body: Record<string, unknown> = {
-    model: colabModelId(request.model),
+    model: targetModel,
     messages: request.messages,
     max_tokens: request.max_tokens ?? 4000,
     temperature: request.temperature ?? 0,
@@ -204,7 +264,7 @@ export async function colabChatCompletion(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey.trim()}`,
+      Authorization: `Bearer ${trimmedKey}`,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
@@ -219,7 +279,8 @@ export async function colabChatCompletion(
   try {
     data = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    throw new ColabVisionApiError(502, `Invalid JSON response from Colab Vision API: ${text.slice(0, 200)}`);
+    // Non-terminal parse error so executeStructuredOutput can continue its fallback/repair ladder.
+    throw new Error(`Invalid JSON response from Colab Vision API: ${text.slice(0, 200)}`);
   }
 
   const choices = Array.isArray(data.choices) ? data.choices : [];
@@ -232,13 +293,13 @@ export async function colabChatCompletion(
 
   return {
     id: typeof data.id === "string" ? data.id : undefined,
-    model: typeof data.model === "string" ? data.model : colabModelId(request.model),
+    model: typeof data.model === "string" ? data.model : targetModel,
     content,
     toolCalls,
     usage,
     providerInfo: {
       provider: "google-colab",
-      servedModel: typeof data.model === "string" ? data.model : colabModelId(request.model),
+      servedModel: typeof data.model === "string" ? data.model : targetModel,
       source: "direct-colab",
     } as ChatCompletionResult["providerInfo"],
   };
@@ -268,15 +329,16 @@ export async function shutdownColabVisionServer(options?: {
           autoShutdown: options?.autoShutdown ?? true,
         }
       : await getColabVisionConfig(options?.loadFromDb);
+    const trimmedKey = cfg.apiKey.trim();
     const shouldShutdown = options?.autoShutdown ?? cfg.autoShutdown;
-    if (!shouldShutdown || !cfg.baseUrl || !cfg.apiKey) return false;
+    if (!shouldShutdown || !cfg.baseUrl || !trimmedKey) return false;
 
     const fetchFn = options?.fetchImpl ?? fetch;
     const response = await fetchFn(`${cfg.baseUrl}/popdam/shutdown`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${cfg.apiKey}`,
+        Authorization: `Bearer ${trimmedKey}`,
       },
       body: JSON.stringify({ reason: options?.reason ?? "job_completed" }),
       signal: AbortSignal.timeout(options?.timeoutMs ?? 10_000),
