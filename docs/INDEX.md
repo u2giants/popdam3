@@ -35,6 +35,7 @@ Read the summary; open a document only when it matches your task.
 | [docs/decisions/2026-11-02-customs-matching-uses-muse-spark.md](decisions/2026-11-02-customs-matching-uses-muse-spark.md) | current | Customs PO-to-HTS line description matching uses Muse Spark 1.3 Contributor, chosen by Albert for cost (2026-11-02). | changing the model or method for customs PO item to HTS description matching |
 | [docs/decisions/2026-11-04-gpu-poller-is-the-durable-embedding-runner.md](decisions/2026-11-04-gpu-poller-is-the-durable-embedding-runner.md) | current | The GPU poller on edge-dev with its own database login is the durable embedding runner for both DAM and PopSG (D3, O1). | changing where embeddings are computed, or its database credentials |
 | [docs/decisions/2026-11-11-complete-catalog-code-not-in-catalog-matches-by-words.md](decisions/2026-11-11-complete-catalog-code-not-in-catalog-matches-by-words.md) | current | A complete item code in a catalog format that is not in the catalog returns word matches only, no picture guesses (owner reversal 2026-11-11). | changing how item-code or SKU queries combine picture and text search |
+| [docs/decisions/2026-11-22-one-packaging-list.md](decisions/2026-11-22-one-packaging-list.md) | current | DesignFlow and PopDAM use one packaging-type list, core.packaging_type, with DesignFlow spellings kept for merged duplicates. | changing packaging types, the PopDAM Packaging Types settings tab, or DesignFlow Item Details packaging |
 
 ## living
 
