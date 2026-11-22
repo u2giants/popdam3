@@ -9,6 +9,15 @@ read-when: "Building, releasing or verifying the DesignFlow item and licensing m
 
 [Issue #4707](https://github.com/popcre/shared-db/issues/4707) tracks the database structure, the DesignFlow data move, and the application acceptance. This plan implements the item and licensing scope of the [database migration](designflow-cloudsql-to-supabase-plan.md#value-mapping-decisions). Field ownership follows the [legacy column crosswalk](verification/cloudsql-piecemeal-cutover-20261002/designflow-legacy-column-crosswalk.md). Keep dependent RFQ and production-order moves on their existing issues.
 
+## Status
+
+| Step | Status | Evidence or next action |
+| --- | --- | --- |
+| Shared structures and live Data Syncing access | Complete | Initial schema and access live. [Production access proof](https://github.com/popcre/shared-db/actions/runs/44984975594) |
+| Exact application release and first production copy | Complete | 19,761 copied item workspaces. Replay matched 478,613 rows and inserted zero. [Copy and replay evidence](https://github.com/popcre/shared-db/issues/4707#issuecomment-7084333446) |
+| Changed and removed record reconciliation | Open | Read-only comparison implemented and rehearsed in isolation. A reversible write route and recovery proof remain open. |
+| Item Master, Tracking and Backend cutover | Open | Confirm role-specific access and current application behavior before switching any consumer. |
+
 ## Delivery order
 
 1. **Create the item child structures.** The first additive migration adds `plm.item_merch_group`, `plm.item_custom_value`, and `plm.item_price`. They attach to the existing `plm.item.id`. Record all unresolved nonblank merchandise slots with the original ID or code and a disposition. The database rejects a canonical link on a slot recorded as held. The loader must check actual hold membership and abort before attachment if a source ID is both held and linked. Custom fields retain their source type and numbering, including text `udfnum01` as a distinct field from `udf_num01`, and retain timestamp values without a timezone conversion. A–H price slots retain zero and signed numeric amounts. Browser roles receive no access. Rehearse and verify the new structures before any consumer uses them.
@@ -68,7 +77,7 @@ The DesignFlow sandbox has 21,699 item headers and 4,497 DesignFlow merchandise 
 
 Item Master owns Item Library, create and edit, licensing actions and replies, and vendor item scope. Tracking reads the latest action by its original action ID, applies that status and its assignees to grid filters, updates header licensing fields, and runs the due reminder. Backend uses the original item ID in autofill, PDF import and the HTS phrase store. Move these paths together only after the shadow copy and changed and deleted row reconciliation pass. Preserve vendor item scope, internal Tracking access and due reminder idempotency. The licensing migration uses transitional DesignFlow user IDs and original names. It does not depend on migrating unrelated account or role data.
 
-The [first hosted Data Syncing rehearsal](https://github.com/popcre/designflow-data-syncing/pull/171#issuecomment-7072202425) verified exact replay and rollback of item and licensing fixtures. Repeat it with the dedicated milestone fixture after its own sandbox schema and app source land. The Data Syncing preflight SQL matched production aggregate counts through the approved read-only identity. The current application logins lack the required canonical read privileges. Resolve the narrow reader and writer contracts with the actual app paths before enabling the loader. The [issue evidence](https://github.com/popcre/shared-db/issues/4707#issuecomment-7051180608) records the tested Data Syncing source and the deployment gate that refused the current sandbox release.
+The [final hosted Data Syncing rehearsal](https://github.com/popcre/designflow-data-syncing/pull/171#issuecomment-7073687032) proved replay and rollback of item, milestone, assignee and licensing fixtures. The [production release](https://github.com/popcre/designflow-data-syncing/pull/173) used the approved managed job and the existing Data Syncing login for a read-only plan and a snapshot-bound copy. Independent production readback confirmed the copy counts and sampled the corresponding source fields. Held groups kept their original identifiers, with zero incorrect links. Item Master, Tracking and Backend still lack read access to the new item and licensing tables. The current Item Master active-status filter finds 489 vendor-coded items outside the approved copy population. Preserve the existing route for those exclusions and keep the current login-to-vendor-code check. The copied active items matched their original vendor codes.
 
 ## Data Syncing access and release
 
@@ -90,14 +99,18 @@ role rehearsal check the narrower writes and the single-column user lookup. Keep
 release digest in force until the replacement application manifest and the
 production catalog proof can be checked together.
 
-After source and sandbox verification, use the released job and exact
-production login for the read-only plan. Compare its item dispositions, held
-slots, milestone records, attachments and coverage counts with an independent
-read. Use the application migration route for the initial copy after the
-read-only rehearsal passes. An exact snapshot digest must match in the copy
-transaction. Source updates and deletions require a separate reconciliation
-before switching any consumer. Preserve the original authoritative routes
-until the Item Master, Tracking and Backend behavior qualifies live.
+The released job used the existing production login for its read-only plan.
+Independent reads matched the source counts, all seven item dispositions and
+all 46 populated merchandise-group result categories. The copy and replay used
+the same verified snapshot digest. Source updates and deletions still require
+reconciliation before any consumer switches.
+
+Use a read-only comparison of the original projections to identify missing,
+changed and extra records. Account for a missing copied parent before comparing
+its dependent children. Test a bounded, recoverable update and deletion route
+under its own exact app role. The existing copy role can insert but cannot update
+or delete the workspace. Preserve the original authoritative routes through a
+full sync cycle and real-role Item Master, Tracking and Backend acceptance.
 
 ## Repeat the item and slot checks
 
