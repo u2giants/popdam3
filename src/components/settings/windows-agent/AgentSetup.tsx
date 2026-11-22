@@ -162,39 +162,40 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "polling" | "success" | "error">("idle");
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  const testMountedRef = useRef(true);
+  const testLifetimeRef = useRef(0);
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    testMountedRef.current = true;
     return () => {
-      testMountedRef.current = false;
+      testLifetimeRef.current += 1;
       if (testTimerRef.current) clearTimeout(testTimerRef.current);
     };
   }, []);
 
   const sendTestJob = async () => {
+    const lifetime = testLifetimeRef.current;
     setTestStatus("sending");
     setTestResult(null);
     try {
       const result = await call("send-test-render");
+      if (testLifetimeRef.current !== lifetime) return;
       if (!result.ok) throw new Error(result.error || "Failed to send test job");
       const jobId = result.job_id as string;
       setTestStatus("polling");
       let attempts = 0;
       const maxAttempts = 12;
       const poll = async () => {
-        if (!testMountedRef.current) return;
+        if (testLifetimeRef.current !== lifetime) return;
         attempts++;
         let status: Record<string, unknown>;
         try {
           status = await call("check-render-job", { job_id: jobId });
         } catch (e: unknown) {
-          if (!testMountedRef.current) return;
+          if (testLifetimeRef.current !== lifetime) return;
           setTestStatus("error");
           setTestResult(e instanceof Error ? e.message : "Could not check the test job");
           return;
         }
-        if (!testMountedRef.current) return;
+        if (testLifetimeRef.current !== lifetime) return;
         if (status.status === "completed") {
           setTestStatus("success");
           setTestResult(status.thumbnail_url as string || "Completed successfully");
@@ -214,6 +215,7 @@ export function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () =
       };
       void poll();
     } catch (e: unknown) {
+      if (testLifetimeRef.current !== lifetime) return;
       setTestStatus("error");
       setTestResult(e instanceof Error ? e.message : "Unknown error");
     }
