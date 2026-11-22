@@ -43,6 +43,25 @@ export function publishAlarm({ result, report, repository, runUrl, event }, io) 
   return { issue: issue.number, fingerprint: digest, message: 'Verified drift reported; NOT a clean ledger.' }
 }
 
+// Clearance: only a VERIFIED clean production result (detector exit 0, valid
+// result, driftFound false) may close alarms. Exit 2 never reaches this path.
+export function clearAlarms({ result, repository, runUrl }, io) {
+  validateDriftResult(result)
+  if (result.target !== 'production' || result.drift.driftFound) throw new Error('clearance requires a verified clean production result')
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !runUrl.startsWith(`https://github.com/${repository}/actions/runs/`) || !/^\d+$/.test(runUrl.split('/').at(-1))) throw new Error('alarm run identity is invalid')
+  const open = io.listIssues().filter(row => !row.pull_request && row.state === 'open' && row.title === TITLE)
+  const closed = []
+  for (const issue of open) {
+    const body = `Verified clean: a fresh read-only check of the production ledger found no drift.\n\nRun: ${runUrl}\n\nClosing this alarm automatically.\n\nPosted by GitHub Actions (migration-ledger-drift)\n`
+    io.comment(issue.number, body)
+    io.closeIssue(issue.number)
+    const after = io.readIssue(issue.number)
+    if (after.state !== 'closed') throw new Error(`alarm #${issue.number} did not close`)
+    closed.push(issue.number)
+  }
+  return { closed, message: closed.length ? `Closed alarm(s) ${closed.map(n => '#' + n).join(', ')}.` : 'No open alarm to clear.' }
+}
+
 export function githubIo(repository, run = runGitHubCommand) {
   const json = (args, input) => JSON.parse(run(args, input === undefined ? {} : { input: JSON.stringify(input), attempts: 1 }))
   const root = `repos/${repository}`
@@ -53,11 +72,16 @@ export function githubIo(repository, run = runGitHubCommand) {
     createIssue: (title,body) => json(['api', '--method', 'POST', `${root}/issues`, '--input', '-'], { title, body, labels: ['db-work'] }),
     listComments: n => pages(`${root}/issues/${n}/comments?per_page=100`),
     comment: (n,body) => json(['api', '--method', 'POST', `${root}/issues/${n}/comments`, '--input', '-'], { body }),
+    closeIssue: n => json(['api', '--method', 'PATCH', `${root}/issues/${n}`, '--input', '-'], { state: 'closed', state_reason: 'completed' }),
     readComment: id => json(['api', `${root}/issues/comments/${id}`]),
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    if (process.argv[2] === '--clear') {
+      console.log(JSON.stringify(clearAlarms({ result: JSON.parse(readFileSync(process.argv[3],'utf8')), repository: process.env.GITHUB_REPOSITORY, runUrl: process.env.RUN_URL }, githubIo(process.env.GITHUB_REPOSITORY))))
+      process.exit(0)
+    }
     const [jsonFile, reportFile] = process.argv.slice(2)
     console.log(JSON.stringify(publishAlarm({ result: JSON.parse(readFileSync(jsonFile,'utf8')), report: readFileSync(reportFile,'utf8'), repository: process.env.GITHUB_REPOSITORY, runUrl: process.env.RUN_URL, event: process.env.GITHUB_EVENT_NAME }, githubIo(process.env.GITHUB_REPOSITORY))))
   } catch (error) { console.error(`::error::Drift report could not be durably published: ${error.message}`); process.exitCode = 2 }

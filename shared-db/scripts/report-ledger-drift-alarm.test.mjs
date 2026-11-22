@@ -31,3 +31,32 @@ test('workflow keeps unknown/manual failures red and gates automatic success on 
 })
 
 test('untrusted fingerprint comments do not suppress actionable publication',()=>{const f=fixture();f.setComments([{id:999,body:`<!-- ledger-drift-fingerprint:${fingerprint(result())} -->\nhttps://github.com/popcre/shared-db/actions/runs/1`,user:{login:'outsider'}}]);publishAlarm(args(),f.io);assert.equal(f.writes(),1)})
+
+import { clearAlarms } from './report-ledger-drift-alarm.mjs'
+const clean = () => { const r = result(); r.drift = { ...r.drift, mergedNotApplied:[], actionableMergedNotApplied:[], driftFound:false, appliedCount:2 }; r.pendingClassifications = {}; return r }
+function clearFixture(issues) {
+  const state = Object.fromEntries(issues.map(i => [i.number, i])), log = []
+  return { log, io: { listIssues:()=>Object.values(state), comment:(n,body)=>{log.push(['comment',n,body]);return {id:1}}, closeIssue:n=>{log.push(['close',n]);state[n]={...state[n],state:'closed'}}, readIssue:n=>state[n] } }
+}
+const clearArgs = r => ({ result:r, repository:'popcre/shared-db', runUrl:'https://github.com/popcre/shared-db/actions/runs/45050827440' })
+test('verified clean production result closes every open alarm with a run link', () => {
+  const f = clearFixture([{number:6740,title:TITLE,state:'open'},{number:7,title:'other',state:'open'},{number:8,title:TITLE,state:'open',pull_request:{}}])
+  const out = clearAlarms(clearArgs(clean()), f.io)
+  assert.deepEqual(out.closed, [6740])
+  assert.match(f.log[0][2], /actions\/runs\/45050827440/)
+  assert.deepEqual(f.log[1], ['close', 6740])
+})
+test('clean with no open alarm is a no-op', () => { const f = clearFixture([]); assert.deepEqual(clearAlarms(clearArgs(clean()), f.io).closed, []); assert.equal(f.log.length, 0) })
+test('drift, preview, invalid data or bad run identity never close an alarm', () => {
+  for (const mk of [()=>clearArgs(result()), ()=>{const a=clearArgs(clean());a.result.target='preview';return a}, ()=>{const a=clearArgs(clean());a.result.drift.appliedCount=0;return a}, ()=>{const a=clearArgs(clean());a.runUrl='https://evil.example/1';return a}]) {
+    const f = clearFixture([{number:6740,title:TITLE,state:'open'}]); assert.throws(()=>clearAlarms(mk(), f.io)); assert.equal(f.log.length, 0)
+  }
+})
+test('close that does not read back closed refuses success', () => { const f = clearFixture([{number:6740,title:TITLE,state:'open'}]); f.io.closeIssue=()=>{}; assert.throws(()=>clearAlarms(clearArgs(clean()), f.io), /did not close/) })
+test('workflow clears only on verified exit 0 production result', async () => {
+  const { readFileSync } = await import('node:fs')
+  const s = readFileSync(new URL('../.github/workflows/migration-ledger-drift.yml', import.meta.url), 'utf8')
+  assert.match(s, /0\)\n\s+echo "No drift."\n\s+if \[ "\$TARGET" = "production" \]; then echo "clean=true"/)
+  assert.match(s, /if: steps\.check\.outputs\.clean == 'true'/)
+  assert.match(s, /report-ledger-drift-alarm\.mjs --clear \/tmp\/drift\.json/)
+})
