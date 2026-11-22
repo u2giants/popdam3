@@ -1,18 +1,18 @@
 # Implementation Plan: Prevent Index Maintenance from Starving Schema Promotions
 
-Companion handoff: [`HANDOFF.d/2026-11-22T1820Z-edge-dev-antigravity-index-maintenance-no-starvation.md`](HANDOFF.d/2026-11-22T1820Z-edge-dev-antigravity-index-maintenance-no-starvation.md)
+Companion handoff: retired in follow-up STATUS PR (originally `HANDOFF.d/2026-11-22T1820Z-edge-dev-antigravity-index-maintenance-no-starvation.md`).
 
 ## STATUS
 
-**Where a fresh session starts:** Step 1 (after reading this plan and confirming `origin/main` has not already landed these edits).
+**Where a fresh session starts:** Done — all steps implemented, merged in PR `#6971` (`61031a1b4b6a38a8a177acfe4654787e8222e7bc`), and verified live on `main` (run `45073443130`).
 
 | Step | Description | Status | Date | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | Add `dispatched=true`/`false` output on all exit paths in `scripts/automatic_promotion_candidates.py` | ⬜ open | 2026-11-22 | — |
-| 2 | Scope index-maintenance retry cap to `(operation_id, target, policy_digest)` across all `main` SHAs, count `startup_failure` and re-runs, and skip exhausted operations in `scripts/automatic_index_maintenance.py` | ⬜ open | 2026-11-22 | — |
-| 3 | Reorder `.github/workflows/automatic-production-trigger.yml` so schema promotion runs before optional index maintenance, gating maintenance on `steps.checkout.outcome == 'success'` and `steps.selector.outputs.dispatched != 'true'` | ⬜ open | 2026-11-22 | — |
-| 4 | Add offline unit/adversarial tests in `scripts/test_automatic_index_maintenance.py` and `scripts/test_automatic_promotion_candidates.py` | ⬜ open | 2026-11-22 | — |
-| 5 | Open PR, verify CI green, merge to `main`, and verify live trigger run order + zero regressions | ⬜ open | 2026-11-22 | — |
+| 1 | Add `dispatched=true`/`false` output on all exit paths in `scripts/automatic_promotion_candidates.py` | ✅ done | 2026-11-22 | PR `#6971` (`61031a1b4b6a38a8a177acfe4654787e8222e7bc`); `test_main_writes_dispatched_output` |
+| 2 | Scope index-maintenance retry cap to `(operation_id, target, policy_digest)` across all `main` SHAs, count `startup_failure` and re-runs, and skip exhausted operations in `scripts/automatic_index_maintenance.py` | ✅ done | 2026-11-22 | PR `#6971` (`61031a1b4b6a38a8a177acfe4654787e8222e7bc`); `failed_attempts_for_operation` + 11 adversarial tests |
+| 3 | Reorder `.github/workflows/automatic-production-trigger.yml` so schema promotion runs before optional index maintenance, gating maintenance on `steps.checkout.outcome == 'success'` and `steps.selector.outputs.dispatched != 'true'` | ✅ done | 2026-11-22 | PR `#6971` (`61031a1b4b6a38a8a177acfe4654787e8222e7bc`); live run `45073443130` |
+| 4 | Add offline unit/adversarial tests in `scripts/test_automatic_index_maintenance.py` and `scripts/test_automatic_promotion_candidates.py` | ✅ done | 2026-11-22 | 280/280 tests passing locally; `SQL migration guards` & `Promotion contract tests (offline)` green in PR `#6971` |
+| 5 | Open PR, verify CI green, merge to `main`, and verify live trigger run order + zero regressions | ✅ done | 2026-11-22 | PR `#6971` merged (`61031a1b4b6a38a8a177acfe4654787e8222e7bc`); live run `45073443130` (`selector` step 8 before `index_maintenance` step 10, `Save the workflow-run cache` step 11 `success`) |
 
 ---
 
@@ -207,11 +207,11 @@ Baseline commit on `popcre/shared-db` `main`: `759bea851` (2026-11-22).
 ## 13. Definition of Done + Risks and Open Questions
 
 **Definition of done:**
-- [ ] Steps 1–4 implemented in an isolated worktree of `popcre/shared-db`.
-- [ ] All new unit/adversarial tests and the full `scripts/test_*.py` suite pass locally and in CI.
-- [ ] PR merged to `popcre/shared-db` `main` via merge queue (exact commit SHA recorded in STATUS).
-- [ ] Live `Automatic production promotion trigger` run on `main` verified showing `selector` running before `index_maintenance` and `Save the workflow-run cache` succeeding.
-- [ ] Worktree removed; plan STATUS table and companion `HANDOFF.d/` updated (or plan retired once live proof passes).
+- [x] Steps 1–4 implemented in an isolated worktree of `popcre/shared-db`.
+- [x] All new unit/adversarial tests and the full `scripts/test_*.py` suite pass locally and in CI.
+- [x] PR merged to `popcre/shared-db` `main` via merge queue (exact commit SHA recorded in STATUS).
+- [x] Live `Automatic production promotion trigger` run on `main` verified showing `selector` running before `index_maintenance` and `Save the workflow-run cache` succeeding.
+- [x] Worktree removed; plan STATUS table and companion `HANDOFF.d/` updated (or plan retired once live proof passes).
 
 **Risks & rollback:**
 - *Risk:* If `selector` throws an unexpected exception *after* calling `gh workflow run` but *before* writing `dispatched=true`, `index_maintenance` could run and see the newly dispatched active run. *Mitigation:* Step 1 writes `dispatched=true` immediately after `dispatch()` returns (`:1454`), `index_maintenance` already calls `promotion.workflow_runs()` and refuses to dispatch if any run is active, and `shared-supabase-migrations.yml` enforces its own concurrency group.
