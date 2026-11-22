@@ -1,6 +1,9 @@
 """Offline selection and workflow integration checks; no dispatch or SQL."""
+import contextlib
+import io
 import json
 import os
+import subprocess
 import tempfile
 from subprocess import CompletedProcess
 from types import SimpleNamespace
@@ -168,16 +171,151 @@ class SelectionTests(unittest.TestCase):
         text=(ROOT/'.github/workflows/automatic-production-trigger.yml').read_text()
         self.assertIn('python scripts/automatic_promotion_candidates.py',text)
         self.assertIn('python scripts/automatic_index_maintenance.py',text)
-        self.assertLess(text.index('python scripts/automatic_index_maintenance.py'),text.index('python scripts/automatic_promotion_candidates.py'))
+        self.assertLess(text.index('python scripts/automatic_promotion_candidates.py'),text.index('python scripts/automatic_index_maintenance.py'))
         # #6508: the lane guard runs before checkout and every later step
-        # respects both its skip and the maintenance dispatch. The guard must
+        # respects both its skip and the promotion dispatch. The guard must
         # count dispatched lane runs only (--event workflow_dispatch), like the
         # selector's own wait; CI runs never hold the lane.
         self.assertIn("github.event.workflow_run.event != 'workflow_dispatch' && '-ci-noise' || ''",text)
         self.assertIn('id: lane_guard',text)
         self.assertLess(text.index('id: lane_guard'),text.index('uses: actions/checkout@v4'))
         self.assertIn('--event workflow_dispatch',text)
-        self.assertIn("if: always() && steps.lane_guard.outputs.skipped != 'true' && steps.index_maintenance.outputs.dispatched != 'true'",text)
+        self.assertIn('- id: checkout\n        uses: actions/checkout@v4',text)
+        selector_block=text[text.index('- name: Start the next automatic promotion'):text.index('- name: Save the selector PR cache')]
+        self.assertIn('id: selector',selector_block)
+        self.assertIn("if: steps.lane_guard.outputs.skipped != 'true'",selector_block)
+        self.assertNotIn('always()',selector_block)
+        maintenance_block=text[text.index('- name: Select an explicitly enabled exact-index maintenance operation'):text.index('- name: Save the workflow-run cache')]
+        self.assertIn('id: index_maintenance',maintenance_block)
+        self.assertIn("if: always() && steps.lane_guard.outputs.skipped != 'true' && steps.checkout.outcome == 'success' && steps.selector.outputs.dispatched != 'true'",maintenance_block)
+        save_cache_block=text[text.index('- name: Save the workflow-run cache'):]
+        self.assertIn("if: always() && (steps.selector.outcome != 'skipped' || steps.index_maintenance.outcome != 'skipped')",save_cache_block)
+
+    def _maintenance_run(self,operation_id,target,sha,conclusion='failure',run_attempt=1):
+        dispatch_ref=f'refs/db-index-maintenance-operations/{operation_id}/{target}/{sha}'
+        return {
+            'display_title':f'INDEX {target} {dispatch_ref} {sha}',
+            'conclusion':conclusion,
+            'run_attempt':run_attempt,
+        },dispatch_ref
+
+    def test_attempts_accumulate_across_different_main_shas(self):
+        op,target,digest='test-operation','preview','digest-1'
+        receipts={}
+        runs=[]
+        for ch in ('a','b','c'):
+            run,ref=self._maintenance_run(op,target,ch*40)
+            runs.append(run)
+            receipts[ref]={'operation_id':op,'target':target,'policy_digest':digest}
+        self.assertEqual(automatic.failed_attempts_for_operation(runs,op,target,digest,receipts.get),3)
+
+    def test_startup_failure_counts_toward_attempt_cap(self):
+        op,target,digest='test-operation','preview','digest-1'
+        run,ref=self._maintenance_run(op,target,'a'*40,conclusion='startup_failure')
+        receipts={ref:{'operation_id':op,'target':target,'policy_digest':digest}}
+        self.assertEqual(automatic.failed_attempts_for_operation([run],op,target,digest,receipts.get),1)
+
+    def test_rerun_attempt_counts_toward_attempt_cap(self):
+        op,target,digest='test-operation','preview','digest-1'
+        run_ok,ref_ok=self._maintenance_run(op,target,'a'*40,conclusion='success',run_attempt=2)
+        run_fail,ref_fail=self._maintenance_run(op,target,'b'*40,conclusion='failure',run_attempt=2)
+        receipts={
+            ref_ok:{'operation_id':op,'target':target,'policy_digest':digest},
+            ref_fail:{'operation_id':op,'target':target,'policy_digest':digest},
+        }
+        self.assertGreaterEqual(automatic.failed_attempts_for_operation([run_ok],op,target,digest,receipts.get),1)
+        self.assertEqual(automatic.failed_attempts_for_operation([run_fail],op,target,digest,receipts.get),2)
+
+    def test_attempt_matching_rejects_operation_id_prefix_collision(self):
+        digest='digest-1'
+        r1,_=self._maintenance_run('repack-10','preview','a'*40)
+        r2,_=self._maintenance_run('repack-1','production','b'*40)
+        self.assertEqual(automatic.failed_attempts_for_operation([r1,r2],'repack-1','preview',digest,lambda ref:None),0)
+
+    def test_attempt_matching_ignores_malformed_titles(self):
+        op,target,digest='test-operation','preview','digest-1'
+        sha='a'*40
+        bad_titles=[
+            f'INDEX {target} refs/db-index-maintenance-operations/{op}/{target}/{sha}',
+            f'INDEX {target} refs/db-index-maintenance-operations/{op}/{target}/{"g"*40} {"g"*40}',
+            f'INDEX {target} refs/db-index-maintenance-operations/{op}/{target}/{sha} {sha} extra',
+            None,
+        ]
+        runs=[{'display_title':t,'conclusion':'failure','run_attempt':1} for t in bad_titles]
+        self.assertEqual(automatic.failed_attempts_for_operation(runs,op,target,digest,lambda ref:None),0)
+
+    def test_unreadable_or_missing_dispatch_receipt_counts_fail_closed(self):
+        op,target,digest='test-operation','preview','digest-1'
+        run,_=self._maintenance_run(op,target,'a'*40)
+        def raise_cpe(_):raise subprocess.CalledProcessError(1,'git')
+        def raise_val(_):raise ValueError('bad json')
+        for reader in (lambda _:None,lambda _:'corrupt',lambda _:[],raise_cpe,raise_val):
+            with self.subTest(reader=reader):
+                self.assertEqual(automatic.failed_attempts_for_operation([run],op,target,digest,reader),1)
+
+    def test_mismatched_receipt_identity_counts_fail_closed(self):
+        op,target,digest='test-operation','preview','digest-1'
+        run,_=self._maintenance_run(op,target,'a'*40)
+        mismatches=[
+            {'operation_id':'other-op','target':target,'policy_digest':'old-digest'},
+            {'operation_id':op,'target':'production','policy_digest':'old-digest'},
+        ]
+        for receipt in mismatches:
+            with self.subTest(receipt=receipt):
+                self.assertEqual(automatic.failed_attempts_for_operation([run],op,target,digest,lambda _:receipt),1)
+
+    def test_policy_digest_change_resets_attempt_budget(self):
+        op,target='test-operation','preview'
+        old_digest,new_digest='old-digest','new-digest'
+        receipts={}
+        runs=[]
+        for ch in ('a','b','c'):
+            run,ref=self._maintenance_run(op,target,ch*40)
+            runs.append(run)
+            receipts[ref]={'operation_id':op,'target':target,'policy_digest':old_digest}
+        self.assertEqual(automatic.failed_attempts_for_operation(runs,op,target,new_digest,receipts.get),0)
+
+    def test_exhausted_operation_is_skipped_and_alerts_so_next_runs(self):
+        policy={'schema_version':1,'operations':{'op-a':entry(),'op-b':entry()}}
+        buf=io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            picked=select(policy,lambda ref:None,[],lambda pr:False,'a'*40,exhausted=lambda op,t,e:op=='op-a')
+        self.assertEqual(picked['operation_id'],'op-b')
+        out=buf.getvalue()
+        self.assertIn('::error title=ENGINEER ACTION REQUIRED: index maintenance attempts exhausted::',out)
+        self.assertIn('op-a',out)
+
+    def test_lazy_attempt_fetch_not_called_when_no_op_is_ready(self):
+        done_entry=entry()
+        held_entry={**entry(),'source_pr':2}
+        policy={'schema_version':1,'operations':{'op-done':done_entry,'op-held':held_entry}}
+        done_receipt={'phase':'complete','operation_id':'op-done','target':'production','source_pr':1,'policy_digest':maintenance.digest(done_entry)}
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'policy.json';path.write_text(json.dumps(policy))
+            receipts=MagicMock()
+            receipts.read.side_effect=lambda ref:done_receipt if ref=='refs/db-index-maintenance/op-done/production/complete' else None
+            with patch.dict(os.environ,{'GITHUB_REPOSITORY':maintenance.REPO}),patch.object(maintenance,'POLICY',path),\
+                 patch.object(maintenance,'Receipts',return_value=receipts),patch.object(maintenance,'gh',return_value={'sha':'a'*40}),\
+                 patch.object(promotion,'workflow_runs',return_value=[]) as fetch,\
+                 patch.object(promotion,'prefetch_holds',return_value=lambda pr:pr==2),\
+                 patch.object(sys,'argv',['automatic_index_maintenance.py']),\
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(automatic.main(),0)
+            self.assertEqual(fetch.call_count,1)
+            self.assertFalse(any('fresh_since' in c.kwargs for c in fetch.call_args_list))
+
+    def test_bad_completion_receipt_still_refuses_when_exhausted_supplied(self):
+        val=entry()
+        policy={'schema_version':1,'operations':{'test-operation':val}}
+        bad={'phase':'complete','operation_id':'test-operation','target':'production','source_pr':2,'policy_digest':maintenance.digest(val)}
+        with self.assertRaises(maintenance.Refusal):
+            select(policy,lambda ref:bad,[],lambda pr:False,'a'*40,exhausted=lambda *_:False)
+        runs=[self._maintenance_run('test-operation','preview',ch*40)[0] for ch in ('a','b')]
+        picked=select(
+            policy,lambda ref:None,[],lambda pr:False,'c'*40,
+            exhausted=lambda op,t,e:automatic.failed_attempts_for_operation(runs,op,t,maintenance.digest(e),lambda _:None)>=automatic.MAX_ATTEMPTS,
+        )
+        self.assertEqual(picked['operation_id'],'test-operation')
 
 
 if __name__=='__main__':unittest.main()

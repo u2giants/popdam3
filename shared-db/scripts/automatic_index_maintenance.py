@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -14,9 +15,50 @@ import nontransactional_index_maintenance as maintenance
 
 ACTIVE_WAIT_S=120
 ACTIVE_POLL_S=20
+MAX_ATTEMPTS=3
+FAILED_CONCLUSIONS=frozenset({'failure','cancelled','timed_out','startup_failure'})
 
 
-def select(policy,read_receipt,active_runs,held,source_sha):
+def failed_attempts_for_operation(runs,operation_id,target,policy_digest,read_receipt):
+    pattern=re.compile(
+        rf"^INDEX {re.escape(target)} "
+        rf"(refs/db-index-maintenance-operations/{re.escape(operation_id)}/{re.escape(target)}/[a-f0-9]{{40}}) "
+        rf"[a-f0-9]{{40}}$"
+    )
+    total=0
+    for r in runs:
+        title=r.get('display_title')
+        if not isinstance(title,str):continue
+        match=pattern.fullmatch(title)
+        if not match:continue
+        is_failed=r.get('conclusion') in FAILED_CONCLUSIONS
+        run_attempt=int(r.get('run_attempt') or 1)
+        is_rerun=run_attempt>1
+        if not (is_failed or is_rerun):continue
+        dispatch_ref=match.group(1)
+        try:
+            receipt=read_receipt(dispatch_ref)
+        except Exception:
+            receipt=None
+        if (
+            isinstance(receipt,dict)
+            and receipt.get('operation_id')==operation_id
+            and receipt.get('target')==target
+            and isinstance(receipt.get('policy_digest'),str)
+            and receipt['policy_digest']
+            and receipt['policy_digest']!=policy_digest
+        ):
+            continue
+        if is_failed and is_rerun:
+            total+=run_attempt
+        elif is_failed:
+            total+=1
+        else:
+            total+=max(1,run_attempt-1)
+    return total
+
+
+def select(policy,read_receipt,active_runs,held,source_sha,exhausted=None):
     if active_runs:return None
     for operation_id in sorted(policy['operations']):
         entry=maintenance.operation(policy,operation_id)
@@ -44,6 +86,14 @@ def select(policy,read_receipt,active_runs,held,source_sha):
         if entry.get('preview_only') and preview is not None:continue
         if held(entry['source_pr']):continue
         target='production' if preview is not None else 'preview'
+        if exhausted is not None and exhausted(operation_id,target,entry):
+            print(
+                f"::error title=ENGINEER ACTION REQUIRED: index maintenance attempts exhausted::"
+                f"operation={operation_id} target={target} work_issue=#{entry['work_issue']} "
+                f"source_pr=#{entry['source_pr']} — automatic retries stopped; edit policy entry "
+                f"(change policy_digest) to re-arm."
+            )
+            continue
         return dict(operation_id=operation_id,target=target,source_sha=source_sha)
     return None
 
@@ -77,16 +127,15 @@ def main():
     def held(pr):
         if not batch:batch.append(promotion.prefetch_holds(maintenance.REPO,sorted({e['source_pr'] for e in policy['operations'].values()})))
         return bool(batch[0](pr))
-    candidate=select(policy,verified_read,active,held,maintenance.gh('commits/main')['sha'])
+    fresh_runs=[]
+    def exhausted(operation_id,target,entry):
+        if not fresh_runs:
+            fresh_runs.append(promotion.workflow_runs(maintenance.REPO,fresh_since=promotion.ACTIVATED_AT))
+        return failed_attempts_for_operation(fresh_runs[0],operation_id,target,maintenance.digest(entry),receipts.read)>=MAX_ATTEMPTS
+    candidate=select(policy,verified_read,active,held,maintenance.gh('commits/main')['sha'],exhausted=exhausted)
     if candidate is None:
         print('No ready index maintenance operation.');return 0
-    # Existing 3-attempt policy, operation-qualified and exact main-qualified.
-    # Attempts are never counted from the run cache: re-read every run now.
-    runs=promotion.workflow_runs(maintenance.REPO,fresh_since=promotion.ACTIVATED_AT)
     dispatch_ref=f"refs/db-index-maintenance-operations/{candidate['operation_id']}/{candidate['target']}/{candidate['source_sha']}"
-    title=f"INDEX {candidate['target']} {dispatch_ref} {candidate['source_sha']}"
-    attempts=[r for r in runs if r.get('display_title')==title and r.get('conclusion') in {'failure','cancelled','timed_out'}]
-    if len(attempts)>=3:raise maintenance.Refusal('maintenance automatic attempts exhausted; preserve same-issue recovery custody')
     print(json.dumps(candidate))
     if options.dry_run:return 0
     maintenance.Receipts().create(dispatch_ref,{'operation_id':candidate['operation_id'],'target':candidate['target'],

@@ -3279,6 +3279,67 @@ class SelfScheduledRecheck(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_main_writes_dispatched_output(self):
+        pr = {"number": 7, "merged_at": "2026-11-16T10:00:00Z", "versions": ["20261116100000"]}
+        now = m._time("2026-11-17T00:00:00Z")
+
+        def run_case(*, prs, argv=None, ledger=None, ledger_file="", reruns_exc=None):
+            with tempfile.NamedTemporaryFile("r+", delete=False) as fh:
+                path = fh.name
+            try:
+                env = {
+                    "GITHUB_REPOSITORY": "o/r",
+                    "GITHUB_OUTPUT": path,
+                    "PRODUCTION_LEDGER_FILE": ledger_file,
+                }
+                reruns_kw = {"side_effect": reruns_exc} if reruns_exc else {"return_value": []}
+                with mock.patch.dict(os.environ, env), \
+                     mock.patch.object(sys, "argv", argv or ["x"]), \
+                     mock.patch.object(m, "gh", return_value={"sha": "abc"}), \
+                     mock.patch.object(m, "workflow_runs", return_value=[]), \
+                     mock.patch.object(m, "merged_migration_prs", return_value=prs), \
+                     mock.patch.object(m, "prefetch_holds", return_value=lambda n: []), \
+                     mock.patch.object(m, "is_held", return_value=[]), \
+                     mock.patch.object(m, "production_ledger", return_value=ledger), \
+                     mock.patch.object(m, "claim_dispatch", return_value=True), \
+                     mock.patch.object(m, "prune_claims", return_value=None), \
+                     mock.patch.object(m, "backstop_freeze", return_value=False), \
+                     mock.patch.object(m, "dispatch", return_value=None), \
+                     mock.patch.object(m, "reconcile_stranded_marks", return_value=[]), \
+                     mock.patch.object(m, "retry_orphaned_findings", return_value=[]), \
+                     mock.patch.object(m, "adopt_merged_findings", return_value=[]), \
+                     mock.patch.object(m, "recent_re_runs", **reruns_kw), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    if reruns_exc:
+                        with self.assertRaises(type(reruns_exc)):
+                            m.main(now)
+                    else:
+                        self.assertEqual(m.main(now), 0)
+                with open(path, encoding="utf-8") as fh:
+                    return fh.read()
+            finally:
+                os.unlink(path)
+
+        out = run_case(prs=[pr])
+        self.assertEqual(out.count("dispatched=true\n"), 1)
+        self.assertNotIn("dispatched=false\n", out)
+
+        out = run_case(prs=[pr], reruns_exc=RuntimeError("post-dispatch boom"))
+        self.assertEqual(out.count("dispatched=true\n"), 1)
+        self.assertNotIn("dispatched=false\n", out)
+
+        out = run_case(prs=[pr], ledger=None, ledger_file="ledger.json")
+        self.assertEqual(out.count("dispatched=false\n"), 1)
+        self.assertNotIn("dispatched=true\n", out)
+
+        out = run_case(prs=[pr], argv=["x", "--dry-run"])
+        self.assertEqual(out.count("dispatched=false\n"), 1)
+        self.assertNotIn("dispatched=true\n", out)
+
+        out = run_case(prs=[])
+        self.assertEqual(out.count("dispatched=false\n"), 1)
+        self.assertNotIn("dispatched=true\n", out)
+
 
 class OrphanedFindingRetry(unittest.TestCase):
     """#6701: a finding the fixer parked keeps holding its merged PR; the

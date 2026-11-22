@@ -1343,6 +1343,13 @@ def write_recheck_output(recheck: bool) -> None:
     print(f"recheck: {'scheduled' if recheck else 'not needed'}")
 
 
+def write_dispatched_output(dispatched: bool) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(f"dispatched={'true' if dispatched else 'false'}\n")
+
+
 def main(now: datetime | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -1360,6 +1367,7 @@ def main(now: datetime | None = None) -> int:
               "the next trigger retries once the ledger reads")
         print("wait: production ledger unreadable")
         write_recheck_output(True)
+        write_dispatched_output(False)
         return 0
     started = time.monotonic()
     phase = lambda name: print(f"timing: {name} at {time.monotonic() - started:.1f}s", flush=True)
@@ -1414,6 +1422,7 @@ def main(now: datetime | None = None) -> int:
     alerts = overdue_holds(skipped, now)
     claimed_elsewhere: set[int] = set()
     reconcile_runs = runs
+    dispatched = False
     while action == "dispatch":
         # Selecting takes minutes; a run started meanwhile must count (#5558:
         # a re-run began after the snapshot and PR #5539 was dispatched again).
@@ -1455,6 +1464,8 @@ def main(now: datetime | None = None) -> int:
             except Exception:
                 release_claim(repo, pr["number"])
                 raise
+            dispatched = True
+            write_dispatched_output(True)
             break
         # #6493 Step 4: a PR another selector holds a live claim on is passed
         # over like a held PR -- later PRs still promote. Ending the cycle here
@@ -1519,6 +1530,8 @@ def main(now: datetime | None = None) -> int:
         report_stuck_change(repo, exhausted, now)
     phase("dispatch step done")
     write_recheck_output(not args.dry_run and needs_recheck(action, skipped, claimed_elsewhere))
+    if not dispatched:
+        write_dispatched_output(False)
     reruns = recent_re_runs(runs, now, ACKNOWLEDGED_RE_RUNS)
     for r in reruns:
         print(f"::error title=ENGINEER ACTION REQUIRED: production apply re-run::"
