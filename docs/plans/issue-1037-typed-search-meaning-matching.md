@@ -8,7 +8,7 @@ read-when: implementing or planning issue work for issue-1037, or changing how t
 # Plan: typed search by meaning — descriptions and folders, named characters, picture guesses demoted (u2giants/popdam3#1037)
 
 Issue: https://github.com/u2giants/popdam3/issues/1037
-Current handoff: [Typed search acceptance](../../HANDOFF.d/2026-11-19T1747Z-hetz-codex-typed-search-acceptance.md). The [prior handoff](../../HANDOFF.d/2026-11-18T0942Z-hetz-claude-typed-search-meaning-finish.md) covers the initial rollout.
+No open handoff: issues #1037 and #1252 are closed with live proof (Nov 22, 2026). Past handoffs are in git history.
 Parent plan: [plan_vector_consolidation.md](../../plan_vector_consolidation.md) (its STATUS and "Reconciliation" section still govern the embedding worker, alarms and the scorecard; this plan adds one new leg to search and wins only where it says so).
 Written November 17, 2026, 1:40 PM EST on `hetz` by Claude (session `semantic-search-investigation-8d17ef`). Investigation and planning only: **no code, database or configuration was changed.**
 
