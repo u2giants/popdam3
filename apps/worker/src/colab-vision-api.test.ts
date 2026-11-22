@@ -146,7 +146,7 @@ test("shutdownColabVisionServer sends authenticated instant shutdown by default 
     loadFromDb: async () => ({
       found: true,
       baseUrl: "https://demo-tunnel.trycloudflare.com",
-      apiKey: "tok_shutdown",
+      apiKey: "  tok_shutdown \t",
       autoShutdown: true,
     }),
   });

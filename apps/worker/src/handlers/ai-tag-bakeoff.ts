@@ -1,5 +1,5 @@
 import { isMetaDirectModel } from "../meta-model-api.js";
-import { isColabDirectModel, shutdownColabVisionServer } from "../colab-vision-api.js";
+import { isColabDirectModel } from "../colab-vision-api.js";
 /**
  * AI tag model bake-off handler.
  *
@@ -488,6 +488,8 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   // synchronous bake-off. Refuse the run before it is marked running, and mark
   // the run failed, instead of leaving it "running" or silently dropping a slot.
   const requestedModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
+  const activeModels = requestedModels.filter((model): model is string => Boolean(model));
+  const colabShutdownReason = activeModels.some(isColabDirectModel) ? "ai_tag_bakeoff_completed" : undefined;
   if (requestedModels.some((modelId) => typeof modelId === "string" && modelId.trim().endsWith(":batch"))) {
     const message = "Batch-only models are only supported for production Image Tagging, not bake-offs";
     const marked = await client.from("ai_tag_bakeoff_runs").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", runId);
@@ -508,11 +510,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", runId);
-    const activeModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e].filter((m): m is string => Boolean(m));
-    if (activeModels.some(isColabDirectModel)) {
-      await shutdownColabVisionServer({ reason: "ai_tag_bakeoff_completed" });
-    }
-    return { ok: true, done: true, total_count: assetIds.length * activeModels.length, evaluated: 0, failed: 0, nextOffset: cursor };
+    return { ok: true, done: true, colabShutdownReason, total_count: assetIds.length * activeModels.length, evaluated: 0, failed: 0, nextOffset: cursor };
   }
 
   const { data: assets, error: assetErr } = await client
@@ -582,14 +580,12 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", runId);
-    if (models.some(([, modelId]) => isColabDirectModel(modelId))) {
-      await shutdownColabVisionServer({ reason: "ai_tag_bakeoff_completed" });
-    }
   }
 
   return {
     ok: true,
     done,
+    colabShutdownReason: done ? colabShutdownReason : undefined,
     evaluated,
     failed,
     failure_samples: failureSamples.slice(-50),

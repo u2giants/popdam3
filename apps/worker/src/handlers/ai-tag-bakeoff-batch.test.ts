@@ -43,7 +43,7 @@ test("a re-queued bake-off skips answers that already succeeded", async () => {
     if (url.includes("/rest/v1/admin_config")) return reply([{ value: "test-key" }]);
     if (url.includes("/rest/v1/ai_tag_bakeoff_runs")) {
       if (method === "PATCH") return new Response(null, { status: 204 });
-      return reply([{ id: "run-1", model_a: "qwen/qwen3-vl-32b-instruct", model_b: "openai/gpt-5.6", model_c: null, model_d: null, model_e: null, asset_ids: ["a1"] }]);
+      return reply([{ id: "run-1", model_a: "colab-direct/qwen3-vl-32b", model_b: "openai/gpt-5.6", model_c: null, model_d: null, model_e: null, asset_ids: ["a1"] }]);
     }
     if (url.includes("/rest/v1/ai_tag_bakeoff_results") && method === "GET") return reply([{ asset_id: "a1", model_slot: "a" }, { asset_id: "a1", model_slot: "b" }]);
     if (url.includes("/rest/v1/assets")) return reply([{ id: "a1", filename: "f.png", relative_path: "x/f.png", thumbnail_url: "https://example.test/t.png" }]);
@@ -55,6 +55,7 @@ test("a re-queued bake-off skips answers that already succeeded", async () => {
     assert.equal(result.ok, true);
     assert.equal(result.evaluated, 2);
     assert.equal(result.failed, 0);
+    assert.equal(result.colabShutdownReason, "ai_tag_bakeoff_completed");
     assert.deepEqual(modelCalls.filter((u) => !u.includes("/models")), []);
   } finally {
     globalThis.fetch = original;

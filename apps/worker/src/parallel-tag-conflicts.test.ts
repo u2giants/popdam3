@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runningTagConflict, tick, operationBatchLimit } from "./operation-loop.js";
+import { resetColabVisionConfigCacheForTests } from "./colab-vision-api.js";
+import type { OpState } from "./types.js";
 test("parallel tag conflict covers manual single retags in both directions", () => {
   assert.equal(runningTagConflict("ai-tag-parallel", ["ai-tag-single-123e4567-e89b-42d3-a456-426614174000"]), true);
   assert.equal(runningTagConflict("ai-tag-single-123e4567-e89b-42d3-a456-426614174000", ["ai-tag-parallel"]), true);
@@ -42,6 +44,60 @@ test("benchmark pages yield while tagging retains its full processing turn", () 
   assert.equal(operationBatchLimit("ai-tag-bakeoff"),1);
   assert.equal(operationBatchLimit("ai-tag-parallel"),50);
   assert.equal(operationBatchLimit("erp-enrichment"),50);
+});
+
+test("Colab fallback shutdown waits for the overlapping bake-off to finish", async () => {
+  const ops: Record<string, OpState> = {
+    "ai-tag-all": { status: "running", run_id: "tag", cursor: 0, updated_at: new Date(Date.now() - 1000).toISOString() },
+    "ai-tag-bakeoff": { status: "running", run_id: "bakeoff", cursor: 0, params: { run_id: "bakeoff" }, updated_at: new Date().toISOString() },
+  };
+  const configRows: Record<string, unknown> = {
+    BULK_OPERATIONS: ops,
+    AI_TASK_MODELS: { vision_tagging: "openai/fixture", vision_tagging_fallback: "colab-direct/fixture" },
+    COLAB_VISION_CONFIG: { base_url: "https://colab-fixture.example", api_key: "fixture" },
+    OPENROUTER_API_KEY: "fixture",
+  };
+  const shutdowns: unknown[] = [];
+  const original = globalThis.fetch;
+  resetColabVisionConfigCacheForTests();
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    const reply = (value: unknown) => Response.json(value);
+    if (url.hostname === "www.seafile.com") return new Response("");
+    if (url.hostname === "colab-fixture.example" && url.pathname === "/popdam/shutdown") {
+      shutdowns.push(JSON.parse(String(init?.body)));
+      return reply({ ok: true });
+    }
+    assert.equal(url.hostname, "localhost");
+    if (url.pathname.endsWith("/admin_config")) {
+      const filter = url.searchParams.get("key") ?? "";
+      const keys = filter.startsWith("eq.") ? [filter.slice(3)] : filter.slice(4, -1).split(",");
+      return reply(keys.filter(key => key in configRows).map(key => ({ key, value: configRows[key] })));
+    }
+    if (url.pathname.endsWith("/rpc/update_bulk_operation")) {
+      const { p_op_key, p_op_state } = JSON.parse(String(init?.body));
+      ops[p_op_key] = p_op_state;
+      return reply(ops);
+    }
+    if (url.pathname.endsWith("/ai_tag_bakeoff_runs")) {
+      return init?.method === "PATCH" ? new Response(null, { status: 204 })
+        : reply({ id: "bakeoff", model_a: "openai/fixture", asset_ids: [] });
+    }
+    return reply([]);
+  };
+  try {
+    await tick();
+    assert.equal(ops["ai-tag-all"].status, "completed");
+    assert.equal(ops["ai-tag-bakeoff"].status, "running");
+    assert.deepEqual(shutdowns, []);
+
+    await tick();
+    assert.equal(ops["ai-tag-bakeoff"].status, "completed");
+    assert.deepEqual(shutdowns, [{ reason: "bulk_ai_tag_completed" }]);
+  } finally {
+    resetColabVisionConfigCacheForTests();
+    globalThis.fetch = original;
+  }
 });
 
 test("a trial cap heartbeat never restores the pre-page cursor or progress", async () => {

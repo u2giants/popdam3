@@ -264,19 +264,20 @@ export async function shutdownColabVisionServer(options?: {
     const cfg = hasExplicitEndpoint
       ? {
           baseUrl: validateColabBaseUrl(options!.baseUrl!),
-          apiKey: options!.apiKey!.trim(),
+          apiKey: options!.apiKey!,
           autoShutdown: options?.autoShutdown ?? true,
         }
       : await getColabVisionConfig(options?.loadFromDb);
     const shouldShutdown = options?.autoShutdown ?? cfg.autoShutdown;
-    if (!shouldShutdown || !cfg.baseUrl || !cfg.apiKey) return false;
+    const apiKey = cfg.apiKey.trim();
+    if (!shouldShutdown || !cfg.baseUrl || !apiKey) return false;
 
     const fetchFn = options?.fetchImpl ?? fetch;
     const response = await fetchFn(`${cfg.baseUrl}/popdam/shutdown`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${cfg.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ reason: options?.reason ?? "job_completed" }),
       signal: AbortSignal.timeout(options?.timeoutMs ?? 10_000),

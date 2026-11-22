@@ -20,6 +20,7 @@ import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handl
 
 import { db } from "./supabase.js";
 import { logger } from "./logger.js";
+import { getColabVisionConfig, shutdownColabVisionServer, type ColabVisionConfig } from "./colab-vision-api.js";
 import type { BatchResult, OpState } from "./types.js";
 import { hasSubmissionLeaseReceipt, isGuardedEnvelope } from "./operation-lease.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
@@ -567,6 +568,47 @@ export function detectFailureKillSwitch(progress: Record<string, unknown>, start
 
 const SINGLE_AI_TAG_PREFIX = "ai-tag-single-";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const COLAB_CONSUMER_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff"]);
+let pendingColabShutdown: { endpoint: ColabVisionConfig; reason: string } | undefined;
+
+function hasColabConsumer(ops: Record<string, OpState>): boolean {
+  return Object.entries(ops).some(([key, state]) =>
+    (state.status === "running" || state.status === "queued") &&
+    (COLAB_CONSUMER_OPS.has(key) || key.startsWith(SINGLE_AI_TAG_PREFIX)));
+}
+
+async function flushColabShutdown(ops: Record<string, OpState>, reason?: string): Promise<void> {
+  if (!reason && !pendingColabShutdown) return;
+  // The single worker dispatches one operation at a time. Keep the GPU
+  // available across page yields and queued resumes for any potential consumer.
+  const hasConsumer = hasColabConsumer(ops);
+  if (!reason && hasConsumer) return;
+
+  try {
+    const endpoint = await getColabVisionConfig();
+    if (reason) pendingColabShutdown = { endpoint, reason };
+    if (hasConsumer) return;
+
+    const request = pendingColabShutdown;
+    pendingColabShutdown = undefined;
+    // A deferred completion belongs to the original tunnel.
+    if (!request || !endpoint.autoShutdown || !endpoint.baseUrl || !endpoint.apiKey ||
+        endpoint.baseUrl !== request.endpoint.baseUrl || endpoint.apiKey !== request.endpoint.apiKey) return;
+
+    // Another operation may have been queued while the last page ran.
+    const { data, error } = await withDependencyTimeout("Colab shutdown operation state read",
+      db().from("admin_config").select("value").eq("key", CONFIG_KEY).maybeSingle());
+    if (error || !data?.value) return;
+    if (hasColabConsumer(data.value as Record<string, OpState>)) {
+      pendingColabShutdown = request;
+      return;
+    }
+    await shutdownColabVisionServer({ ...endpoint, reason: request.reason });
+  } catch {
+    pendingColabShutdown = undefined;
+    logger.warn("tick: could not load Colab shutdown configuration");
+  }
+}
 
 export function scopeSingleAssetTag(opKey: string, opState: OpState): OpState | null {
   if (!opKey.startsWith(SINGLE_AI_TAG_PREFIX)) return null;
@@ -968,6 +1010,7 @@ export async function tick(): Promise<void> {
     activeLanes.add(lane);
   }
 
+  await flushColabShutdown(allOps);
   if (runningEntries.length === 0) {
     return; // Nothing to do — idle
   }
@@ -1528,7 +1571,11 @@ export async function tick(): Promise<void> {
         result_message: buildResultMessage(opKey, progress),
         updated_at: new Date().toISOString(),
       };
-      if (await persistOpState(opKey, completedState, { onlyIfRunning: true })) await recordStyleGroupTerminalOutcome(opKey, completedState, "succeeded");
+      if (await persistOpState(opKey, completedState, { onlyIfRunning: true })) {
+        allOps[opKey] = completedState;
+        await flushColabShutdown(allOps, result.colabShutdownReason);
+        await recordStyleGroupTerminalOutcome(opKey, completedState, "succeeded");
+      }
       return;
     }
 

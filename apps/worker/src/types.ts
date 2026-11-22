@@ -103,6 +103,7 @@ export interface OpenRouterBatchJobState {
 export interface BatchResult {
   ok: boolean;
   done: boolean;
+  colabShutdownReason?: string;
   nextOffset?: number | string | null;
   error?: string;
   error_stage?: OperationStage;
