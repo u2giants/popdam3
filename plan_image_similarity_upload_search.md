@@ -8,7 +8,7 @@ read-when: working on image similarity or its workers
 # Implementation plan — Upload an image, find the same artwork in the library
 
 **Plan file:** `plan_image_similarity_upload_search.md`  
-**Handoff:** [HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md](HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md)  
+**Handoff:** `HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md` (retired; in git history)  
 **Mode:** A (write implementation plan)  
 **Owner decisions (locked 2026-10-22, Albert chat):** hybrid = GPU dual-embedding blueprint + PopDAM product rules; **show 90% near-misses at first**; **thresholds tunable**; **ScaleDown dropped**.  
 **Review chain:** Muse REVISE → GLM REVISE → DeepSeek REVISE (B1–B5) → Muse REVISE (18 findings) → **this revision integrates all of the above** (§14–§16).
@@ -416,7 +416,7 @@ Models: `facebook/dinov3-vitb16-pretrain-lvd1689m` (Meta dinov3-license, gated) 
 
 ## Related
 
-- Handoff: [HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md](HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md)
+- Handoff: `HANDOFF.d/2026-10-22T1323Z-edge-dev-mimo-image-similarity-plan.md` (retired; in git history)
 - Muse extracts: `.ai/reviews/muse-image-similarity-plan-audit-extracted.md`, `...-audit2-extracted.md`
 - GLM: `.ai/reviews/glm-image-similarity-plan-glm-review-*.md`
 - DeepSeek session: `20261022-151744-2210561`
