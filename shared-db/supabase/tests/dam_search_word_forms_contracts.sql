@@ -10,6 +10,7 @@ declare
   g_exact uuid; g_form uuid; g_plural uuid; g_other uuid; g_name_exact uuid; g_name_form uuid; g_name_blur uuid;
   r record; ids uuid[]; expected_page uuid; n bigint; v tsvector; q tsquery; done integer;
   exact_rank real; form_rank real; plural_rank real; base_rank real;
+  term text; single_type jsonb; repeated_type jsonb;
 begin
   -- the stemmed column, its index and trigger exist; the exact index is untouched
   if not exists (select 1 from pg_indexes where schemaname='public' and indexname='dam_search_keys_tsv_en_idx'
@@ -86,6 +87,19 @@ begin
       or ids[1] is distinct from g_exact or not (ids @> array[g_exact, g_form, g_plural]) then
     raise exception 'popdam3#1037 Step 7: zqlamp frame returned % %', n, ids;
   end if;
+  -- The literal style-group index path must preserve exact, stemmed and
+  -- substring results against the equivalent general type-array path.
+  foreach term in array array['zqlamp frame', 'zqlamp framed', 'cerule'] loop
+    select jsonb_agg(to_jsonb(s) order by s.ordinality) into single_type
+      from public.search_dam_documents(term, '{}', 2, 1, array['style_group'], null, 0, null)
+      with ordinality s;
+    select jsonb_agg(to_jsonb(s) order by s.ordinality) into repeated_type
+      from public.search_dam_documents(term, '{}', 2, 1, array['style_group','style_group'], null, 0, null)
+      with ordinality s;
+    if single_type is null or single_type is distinct from repeated_type then
+      raise exception '#6871 style-group keyword results differ for %', term;
+    end if;
+  end loop;
   -- The exact key also matches the stemmed query. Excluding its duplicate must leave
   -- both word forms reachable on later pages and preserve the exact visible total.
   expected_page := ids[3];
