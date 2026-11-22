@@ -9,6 +9,7 @@ import {
   isColabDirectModel,
   isTerminalColabVisionApiError,
   resetColabVisionConfigCacheForTests,
+  shutdownColabVisionServer,
   validateColabBaseUrl,
 } from "./colab-vision-api.js";
 
@@ -52,16 +53,16 @@ test("getColabVisionConfig uses authoritative DB row and caches", async () => {
   let calls = 0;
   const loader = async () => {
     calls++;
-    return { found: true, baseUrl: "https://demo-tunnel.trycloudflare.com/v1", apiKey: "tok_123" };
+    return { found: true, baseUrl: "https://demo-tunnel.trycloudflare.com/v1", apiKey: "tok_123", autoShutdown: true };
   };
   const first = await getColabVisionConfig(loader);
   const second = await getColabVisionConfig(loader);
-  assert.deepEqual(first, { baseUrl: "https://demo-tunnel.trycloudflare.com", apiKey: "tok_123" });
+  assert.deepEqual(first, { baseUrl: "https://demo-tunnel.trycloudflare.com", apiKey: "tok_123", autoShutdown: true });
   assert.deepEqual(second, first);
   assert.equal(calls, 1);
 
   resetColabVisionConfigCacheForTests();
-  const key = await getColabVisionApiKey(async () => ({ found: true, baseUrl: "", apiKey: "tok_only" }));
+  const key = await getColabVisionApiKey(async () => ({ found: true, baseUrl: "", apiKey: "tok_only", autoShutdown: true }));
   assert.equal(key, "");
 });
 
@@ -125,4 +126,56 @@ test("colabChatCompletion classifies terminal HTTP errors", async () => {
   );
   assert.equal(isTerminalColabVisionApiError(new ColabVisionApiError(400, "bad request")), false);
   assert.equal(isTerminalColabVisionApiError(new ColabVisionApiError(401, "unauthorized")), true);
+});
+
+test("shutdownColabVisionServer sends authenticated instant shutdown by default and respects opt-out", async () => {
+  resetColabVisionConfigCacheForTests();
+  let capturedUrl = "";
+  let capturedAuth = "";
+  let capturedReason = "";
+  const fakeFetch: typeof fetch = async (input, init) => {
+    capturedUrl = String(input);
+    capturedAuth = (init?.headers as Record<string, string>).Authorization;
+    capturedReason = (JSON.parse(String(init?.body)) as { reason?: string }).reason ?? "";
+    return new Response(JSON.stringify({ ok: true, shutting_down: true }), { status: 200 });
+  };
+
+  const sent = await shutdownColabVisionServer({
+    reason: "bulk_ai_tag_completed",
+    fetchImpl: fakeFetch,
+    loadFromDb: async () => ({
+      found: true,
+      baseUrl: "https://demo-tunnel.trycloudflare.com",
+      apiKey: "tok_shutdown",
+      autoShutdown: true,
+    }),
+  });
+  assert.equal(sent, true);
+  assert.equal(capturedUrl, "https://demo-tunnel.trycloudflare.com/popdam/shutdown");
+  assert.equal(capturedAuth, "Bearer tok_shutdown");
+  assert.equal(capturedReason, "bulk_ai_tag_completed");
+
+  // Explicit opt-out skips the HTTP call completely
+  resetColabVisionConfigCacheForTests();
+  let calledOnOptOut = false;
+  const skipped = await shutdownColabVisionServer({
+    fetchImpl: async () => { calledOnOptOut = true; return new Response("ok", { status: 200 }); },
+    loadFromDb: async () => ({
+      found: true,
+      baseUrl: "https://demo-tunnel.trycloudflare.com",
+      apiKey: "tok_shutdown",
+      autoShutdown: false,
+    }),
+  });
+  assert.equal(skipped, false);
+  assert.equal(calledOnOptOut, false);
+
+  // Network/HTTP errors are swallowed so completed jobs never fail
+  resetColabVisionConfigCacheForTests();
+  const failed = await shutdownColabVisionServer({
+    baseUrl: "https://demo-tunnel.trycloudflare.com",
+    apiKey: "tok_shutdown",
+    fetchImpl: async () => { throw new Error("tunnel already closed"); },
+  });
+  assert.equal(failed, false);
 });

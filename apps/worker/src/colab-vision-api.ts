@@ -23,6 +23,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 export interface ColabVisionConfig {
   baseUrl: string;
   apiKey: string;
+  autoShutdown: boolean;
 }
 
 export class ColabVisionApiError extends Error {
@@ -87,15 +88,16 @@ export function validateColabBaseUrl(raw: string): string {
   return `${url.origin}${normalizedPath}`;
 }
 
-type ConfigRow = { found: boolean; baseUrl: string; apiKey: string };
+type ConfigRow = { found: boolean; baseUrl: string; apiKey: string; autoShutdown: boolean };
 let cachedConfig: { value: ColabVisionConfig; cachedAt: number } | null = null;
 
-function parseConfigRow(value: unknown): { baseUrl: string; apiKey: string } {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { baseUrl: "", apiKey: "" };
+function parseConfigRow(value: unknown): { baseUrl: string; apiKey: string; autoShutdown: boolean } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { baseUrl: "", apiKey: "", autoShutdown: true };
   const record = value as Record<string, unknown>;
   const baseUrl = typeof record.base_url === "string" ? record.base_url.trim() : "";
   const apiKey = typeof record.api_key === "string" ? record.api_key.trim() : "";
-  return { baseUrl, apiKey };
+  const autoShutdown = record.auto_shutdown !== false;
+  return { baseUrl, apiKey, autoShutdown };
 }
 
 async function readColabConfigFromDb(): Promise<ConfigRow> {
@@ -104,7 +106,7 @@ async function readColabConfigFromDb(): Promise<ConfigRow> {
     db().from("admin_config").select("value").eq("key", "COLAB_VISION_CONFIG").maybeSingle(),
   );
   if (error) throw new Error(error.message);
-  if (data === null) return { found: false, baseUrl: "", apiKey: "" };
+  if (data === null) return { found: false, baseUrl: "", apiKey: "", autoShutdown: true };
   const parsed = parseConfigRow(data.value);
   return { found: true, ...parsed };
 }
@@ -117,11 +119,13 @@ export async function getColabVisionConfig(
 
   let baseUrl = config.colabVisionBaseUrl;
   let apiKey = config.colabVisionApiKey;
+  let autoShutdown = true;
   try {
     const row = await loadFromDb();
     if (row.found) {
       baseUrl = row.baseUrl;
       apiKey = row.apiKey;
+      autoShutdown = row.autoShutdown;
     }
   } catch (error) {
     logger.error("colab-vision-api: could not read admin_config.COLAB_VISION_CONFIG; using environment fallback", {
@@ -130,7 +134,7 @@ export async function getColabVisionConfig(
   }
 
   const normalizedUrl = baseUrl ? validateColabBaseUrl(baseUrl) : "";
-  const value = { baseUrl: normalizedUrl, apiKey };
+  const value = { baseUrl: normalizedUrl, apiKey, autoShutdown };
   cachedConfig = { value, cachedAt: now };
   return value;
 }
@@ -238,4 +242,61 @@ export async function colabChatCompletion(
       source: "direct-colab",
     } as ChatCompletionResult["providerInfo"],
   };
+}
+
+/**
+ * Best-effort immediate shutdown signal to the ephemeral Colab vision server
+ * when a bulk tagging or bake-off job finishes with no remaining work.
+ * Enabled by default (opt out via admin_config.COLAB_VISION_CONFIG.auto_shutdown = false).
+ * Never throws so a network/tunnel hiccup can never fail a completed job.
+ */
+export async function shutdownColabVisionServer(options?: {
+  reason?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  autoShutdown?: boolean;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+  loadFromDb?: () => Promise<ConfigRow>;
+}): Promise<boolean> {
+  try {
+    const hasExplicitEndpoint = Boolean(options?.baseUrl && options?.apiKey);
+    const cfg = hasExplicitEndpoint
+      ? {
+          baseUrl: validateColabBaseUrl(options!.baseUrl!),
+          apiKey: options!.apiKey!.trim(),
+          autoShutdown: options?.autoShutdown ?? true,
+        }
+      : await getColabVisionConfig(options?.loadFromDb);
+    const shouldShutdown = options?.autoShutdown ?? cfg.autoShutdown;
+    if (!shouldShutdown || !cfg.baseUrl || !cfg.apiKey) return false;
+
+    const fetchFn = options?.fetchImpl ?? fetch;
+    const response = await fetchFn(`${cfg.baseUrl}/popdam/shutdown`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify({ reason: options?.reason ?? "job_completed" }),
+      signal: AbortSignal.timeout(options?.timeoutMs ?? 10_000),
+    });
+    if (!response.ok) {
+      logger.warn("colab-vision-api: instant shutdown signal returned non-2xx", {
+        status: response.status,
+        reason: options?.reason ?? "job_completed",
+      });
+      return false;
+    }
+    logger.info("colab-vision-api: instant shutdown signal acknowledged by Colab server", {
+      reason: options?.reason ?? "job_completed",
+    });
+    return true;
+  } catch (error) {
+    logger.warn("colab-vision-api: instant shutdown signal failed (idle fallback will still protect units)", {
+      reason: options?.reason ?? "job_completed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
