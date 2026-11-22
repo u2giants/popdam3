@@ -215,7 +215,7 @@
           }
         }
       ],
-      "contract_manifest_sha256": "be6acee5372525737f2e9cb64524a0a0a9f1873d0a51706be76ce7a123d7d930",
+      "contract_manifest_sha256": "4b81ee0041eea937713771b7b3f7051d953f1ac442e694b3052af54df6a42310",
       "main_protection": {
         "branch": "main",
         "baseline_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
