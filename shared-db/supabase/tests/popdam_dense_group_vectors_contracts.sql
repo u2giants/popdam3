@@ -32,8 +32,10 @@ begin
   moved := gen_random_uuid();
   insert into public.dam_search_documents(document_type,entity_id,embedding,embedding_model)
     values ('style_group',fixture,v,'google/siglip2-base-patch16-naflex');
-  if not exists(select 1 from dam.search_group_vectors where entity_id=fixture and embedding=v) then
-    raise exception 'insert not synchronized'; end if;
+  if not exists(select 1 from dam.search_group_vectors where entity_id=fixture and embedding=v
+      and embedding_model='google/siglip2-base-patch16-naflex'
+      and pg_column_size(embedding_model) > octet_length(embedding_model)) then
+    raise exception 'insert must synchronize the vector with an inline model label'; end if;
   insert into public.dam_search_documents(document_type,entity_id,embedding,embedding_model)
     values ('asset',fixture,v2,'asset-only');
   update public.dam_search_documents set embedding=v,embedding_model='asset-replaced'
@@ -44,8 +46,9 @@ begin
     raise exception 'asset writer changed a same-key group vector'; end if;
   update public.dam_search_documents set embedding=v2,embedding_model='test-model'
     where document_type='style_group' and entity_id=fixture;
-  if not exists(select 1 from dam.search_group_vectors where entity_id=fixture and embedding=v2 and embedding_model='test-model') then
-    raise exception 'replacement not synchronized'; end if;
+  if not exists(select 1 from dam.search_group_vectors where entity_id=fixture and embedding=v2 and embedding_model='test-model'
+      and pg_column_size(embedding_model) > octet_length(embedding_model)) then
+    raise exception 'replacement must synchronize the vector with an inline model label'; end if;
   update public.dam_search_documents set entity_id=moved where document_type='style_group' and entity_id=fixture;
   if exists(select 1 from dam.search_group_vectors where entity_id=fixture)
     or not exists(select 1 from dam.search_group_vectors where entity_id=moved) then
