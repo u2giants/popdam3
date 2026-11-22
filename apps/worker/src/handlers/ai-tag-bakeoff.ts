@@ -1,4 +1,5 @@
 import { isMetaDirectModel } from "../meta-model-api.js";
+import { isColabDirectModel, shutdownColabVisionServer } from "../colab-vision-api.js";
 /**
  * AI tag model bake-off handler.
  *
@@ -507,8 +508,11 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", runId);
-    const modelCount = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e].filter(Boolean).length;
-    return { ok: true, done: true, total_count: assetIds.length * modelCount, evaluated: 0, failed: 0, nextOffset: cursor };
+    const activeModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e].filter((m): m is string => Boolean(m));
+    if (activeModels.some(isColabDirectModel)) {
+      await shutdownColabVisionServer({ reason: "ai_tag_bakeoff_completed" });
+    }
+    return { ok: true, done: true, total_count: assetIds.length * activeModels.length, evaluated: 0, failed: 0, nextOffset: cursor };
   }
 
   const { data: assets, error: assetErr } = await client
@@ -578,6 +582,9 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", runId);
+    if (models.some(([, modelId]) => isColabDirectModel(modelId))) {
+      await shutdownColabVisionServer({ reason: "ai_tag_bakeoff_completed" });
+    }
   }
 
   return {

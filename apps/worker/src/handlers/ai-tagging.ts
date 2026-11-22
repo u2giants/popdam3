@@ -16,6 +16,7 @@ import { buildStructuredOutputRequest, buildJsonRepairRequest } from "../structu
 
 import { handleMetaTagResponse } from "./meta-tag-response-state.js";
 import { isMetaDirectModel } from "../meta-model-api.js";
+import { isColabDirectModel, shutdownColabVisionServer } from "../colab-vision-api.js";
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -1164,6 +1165,7 @@ export async function handleBulkAiTag(
   const rawCursor = opState.cursor;
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
   const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
+  const usesColab = isColabDirectModel(configuredModels.primary) || Boolean(parallel?.models.some(isColabDirectModel));
 
   if (requireAssetIds && !parallel?.discover && (!assetIds || assetIds.length === 0)) {
     return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
@@ -1210,7 +1212,11 @@ export async function handleBulkAiTag(
     if (fileSourcesFailed > 0) logger.warn("ai-tag: file_sources failed for tagged assets; metadata saved", { fileSourcesFailed, page: page.length });
 
     const nextOffset = assetOffset + page.length;
-    return { ok: true, done: nextOffset >= assetIds.length, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, file_sources_failed: fileSourcesFailed, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
+    const done = nextOffset >= assetIds.length;
+    if (done && usesColab) {
+      await shutdownColabVisionServer({ reason: "bulk_ai_tag_completed" });
+    }
+    return { ok: true, done, tagged, skipped, failed, visual_analysis_unavailable: visualAnalysisUnavailable, file_sources_failed: fileSourcesFailed, failure_samples: failureSamples, skip_samples: [], nextOffset, last_stage: "tag_write" };
   }
 
   let cursor;
@@ -1283,6 +1289,9 @@ export async function handleBulkAiTag(
   });
 
   if (!assets || assets.length === 0) {
+    if (usesColab) {
+      await shutdownColabVisionServer({ reason: "bulk_ai_tag_completed" });
+    }
     return {
       ok: true,
       done: true,
