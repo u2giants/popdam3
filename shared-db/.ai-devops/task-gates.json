@@ -30,6 +30,15 @@
       ],
       "forbidden_actions": []
     },
+    "infrastructure": {
+      "required": [
+        "repository-branch-and-pr",
+        "current-chat-resource-and-action-authorization",
+        "reviewed-production-dispatch",
+        "supabase-postgres-config-capacity-restart"
+      ],
+      "forbidden_actions": []
+    },
     "reviewer-safety": {
       "required": ["repository-branch-and-pr", "repository-rulebook-full-treatment"],
       "forbidden_actions": []

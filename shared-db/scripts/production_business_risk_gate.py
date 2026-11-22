@@ -930,6 +930,12 @@ PREVIEW_PRODUCER_PATHS = (
 PREVIEW_RUNTIME_DATA_DIRS = ("supabase", "config")
 
 PREVIEW_RUNTIME_DATA_EXEMPTIONS = {
+    "config/pgss-capacity-restart.json": (
+        "Never read by the preview job. Read only by the standalone "
+        "apply-pgss-capacity-restart.yml workflow for #5609 pg_stat_statements "
+        "capacity tuning and controlled restart; never imported or loaded by "
+        "the migration preview rehearsal job or its helpers."
+    ),
     "config/designflow-consumer-release-notify.yml": (
         "Never read by the preview job or its migration helpers. This "
         "inert consumer Actions notification template is copied to consumer "
