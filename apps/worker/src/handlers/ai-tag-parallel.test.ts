@@ -49,6 +49,17 @@ test("single-model forced run is valid and keeps exact-run identity", () => {
   assert.throws(() => parallelTagRun({...single, models: []}, "run", [id]));
 });
 
+test("colab-direct vision models are accepted in parallel bulk runs", () => {
+  const colabRun = parallelTagRun(
+    { run_id: "run", models: ["colab-direct/Qwen/Qwen3-VL-32B-Instruct"], concurrency: 8, discover: true },
+    "run",
+    null,
+  )!;
+  assert.equal(colabRun.discover, true);
+  assert.equal(parallelModel(colabRun, id), "colab-direct/Qwen/Qwen3-VL-32B-Instruct");
+  assert.throws(() => parallelTagRun({ ...setting, models: ["colab-direct/"] }, "run", [id]));
+});
+
 test("tag save retries only statement timeouts, within its bound", async () => {
   const run = async (codes: Array<string | null>) => {
     let calls = 0;

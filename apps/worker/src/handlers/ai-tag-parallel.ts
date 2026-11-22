@@ -10,7 +10,12 @@ export function parallelTagRun(value: unknown, runId: string | undefined, explic
   const discover = v.discover === true && explicitIds == null;
   if (discover && (typeof runId !== "string" || !runId)) throw new Error("Parallel tagging requires a run identity");
   if (!discover && (typeof runId !== "string" || !runId || !Array.isArray(explicitIds) || !explicitIds.length || new Set(explicitIds).size !== explicitIds.length || explicitIds.some(id => typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)))) throw new Error("Parallel tagging requires unique explicit asset IDs and a run identity");
-  if (!Array.isArray(v.models) || v.models.length < 1 || v.models.length > 4 || new Set(v.models).size !== v.models.length || v.models.some(m => typeof m !== "string" || !/^[a-z0-9.-]+\/[a-zA-Z0-9._-]+$/.test(m) || /^(meta-direct|google-direct|scaledown)\//.test(m))) throw new Error("Parallel tagging requires one to four distinct synchronous OpenRouter models");
+  const isValidParallelModel = (m: unknown): m is string =>
+    typeof m === "string" && (
+      (/^colab-direct\/[a-zA-Z0-9._-]+(?:\/[a-zA-Z0-9._-]+)?$/.test(m)) ||
+      (/^[a-z0-9.-]+\/[a-zA-Z0-9._-]+$/.test(m) && !/^(meta-direct|google-direct|scaledown)\//.test(m))
+    );
+  if (!Array.isArray(v.models) || v.models.length < 1 || v.models.length > 4 || new Set(v.models).size !== v.models.length || v.models.some(m => !isValidParallelModel(m))) throw new Error("Parallel tagging requires one to four distinct synchronous OpenRouter or colab-direct models");
   if (!Number.isInteger(v.concurrency) || Number(v.concurrency) < 2 || Number(v.concurrency) > 32) throw new Error("Parallel tagging concurrency must be between two and thirty-two");
   if (v.max_cursor !== undefined && (!Number.isSafeInteger(v.max_cursor) || Number(v.max_cursor) < 0 || Number(v.max_cursor) > (Array.isArray(explicitIds) ? explicitIds.length : 0))) throw new Error("Invalid parallel tagging trial cursor");
   if (v.force !== undefined && typeof v.force !== "boolean") throw new Error("Invalid parallel tagging force flag");

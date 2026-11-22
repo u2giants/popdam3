@@ -39,6 +39,11 @@ export const config = {
   // "meta-direct/..." model such as Muse Spark 1.3 Contributor.
   metaApiKey: optional("META_API_KEY", ""),
 
+  // Ephemeral Google Colab vision server fallback (admin_config.COLAB_VISION_CONFIG
+  // is authoritative; used when an AI task selects a "colab-direct/..." model).
+  colabVisionBaseUrl: optional("COLAB_VISION_BASE_URL", ""),
+  colabVisionApiKey: optional("COLAB_VISION_API_KEY", ""),
+
   // ScaleDown (scaledown.ai) key — bake-off only, "scaledown/..." models.
   scaledownApiKey: optional("SCALEDOWN_API_KEY", ""),
 
