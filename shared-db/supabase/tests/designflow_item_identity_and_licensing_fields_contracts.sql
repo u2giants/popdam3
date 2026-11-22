@@ -36,11 +36,36 @@ begin
     values (canonical_status_id, 'canonical', 'test_item_identity', 'visible-status');
   insert into plm.licensing_status (
     id, status, source_system, source_id, designflow_status_id, designflow_item_id,
-    designflow_source_item_id, designflow_status_value, designflow_event_date
+    designflow_source_item_id, designflow_status_value, designflow_event_date,
+    designflow_source_assignee_id, designflow_source_assignee_ids
   ) values (
     draft_status_id, 'legacy_unspecified', 'designflow_licensing_status', '4707001', 4707001,
-    4707001, 4707001, null, 'Historical date text'
+    4707001, 4707001, null, 'Historical date text', 42, '[41,41]'::jsonb
   );
+
+  insert into plm.licensing_status (
+    status, source_system, source_id, milestone, designflow_item_id, designflow_source_item_id,
+    designflow_milestone_id, designflow_milestone_at, designflow_milestone_checked_by_name,
+    designflow_milestone_created_at, designflow_milestone_updated_at
+  ) values (
+    'legacy_milestone_recorded', 'designflow_item_milestone', 'milestone:4707001',
+    'submission', 4707001, 4707001, 4707001, timestamp '2025-11-02 01:30:00', 'Fixture staff',
+    timestamp '2025-11-02 01:35:00', timestamp '2025-11-02 01:40:00'
+  );
+
+  begin
+    update plm.licensing_status set source_id = '4707001:submission'
+      where designflow_milestone_id = 4707001;
+    raise exception 'a dedicated milestone accepted a header milestone source key';
+  exception when check_violation then
+    null;
+  end;
+  begin
+    update plm.licensing_status set designflow_milestone_at = null where designflow_milestone_id = 4707001;
+    raise exception 'a dedicated milestone accepted loss of its original data';
+  exception when check_violation then
+    null;
+  end;
 
   insert into plm.licensing_feedback (licensing_status_id, body, source_system, source_id)
     values (canonical_status_id, 'shared fixture', 'test_item_identity', 'visible-reply');
@@ -68,14 +93,33 @@ begin
     null;
   end;
 
+  begin
+    update plm.licensing_status set designflow_source_assignee_id = 42
+      where designflow_milestone_id = 4707001;
+    raise exception 'a dedicated milestone accepted an action assignee';
+  exception when check_violation then
+    null;
+  end;
+
   delete from plm.designflow_item where legacy_item_id = 4707001;
   if not exists (
     select from plm.licensing_status
     where id = draft_status_id and designflow_item_id is null
       and designflow_source_item_id = 4707001 and designflow_status_value is null
       and designflow_event_date = 'Historical date text'
+      and designflow_source_assignee_id = 42 and designflow_source_assignee_ids = '[41,41]'::jsonb
   ) then
     raise exception 'detaching a draft lost historical licensing provenance';
+  end if;
+
+  if not exists (
+    select from plm.licensing_status
+    where designflow_milestone_id = 4707001 and designflow_item_id is null
+      and designflow_source_item_id = 4707001 and designflow_status_id is null
+      and designflow_milestone_at = timestamp '2025-11-02 01:30:00'
+      and designflow_milestone_checked_by_name = 'Fixture staff'
+  ) then
+    raise exception 'detaching a draft lost its dedicated milestone ID, original local time or attribution';
   end if;
 
   if has_table_privilege('anon', 'plm.designflow_item', 'SELECT,INSERT,UPDATE,DELETE')
@@ -98,6 +142,7 @@ begin
   set local role authenticated;
   if not exists (select from plm.licensing_status where source_system = 'test_item_identity' and source_id = 'visible-status')
      or exists (select from plm.licensing_status where source_system = 'designflow_licensing_status' and source_id = '4707001')
+     or exists (select from plm.licensing_status where designflow_milestone_id = 4707001)
      or not exists (select from plm.licensing_feedback where source_system = 'test_item_identity' and source_id = 'visible-reply')
      or exists (select from plm.licensing_feedback where source_system = 'designflow_licensing_feedback' and source_id = '4707001') then
     raise exception 'existing PLM licensing access did not isolate DesignFlow data';

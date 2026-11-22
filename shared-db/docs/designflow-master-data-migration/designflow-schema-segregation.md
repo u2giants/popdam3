@@ -171,7 +171,7 @@ DesignFlow data will first land in a Supabase **`designflow` staging schema** (f
 | # | `designflow` table | Notes |
 |---:|---|---|
 | 27 | `licensingStatus` | Item licensing status thread |
-| 28 | `licensingMilestone` | Licensing milestones |
+| 28 | `licensingMilestone` | Dedicated licensing milestones. See the [item and licensing delivery plan](../designflow-item-and-licensing-migration.md). |
 | 29 | `licensingFeedbackReply` | Feedback replies |
 | 30 | `LicenseFeedBacks` | Feedback phase definitions |
 | 31 | `groups` | Tagged user groups (Teams integration) |

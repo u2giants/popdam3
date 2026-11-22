@@ -68,6 +68,9 @@ snake_case where the table is recreated):
 - `licensingStatus` / `licensingFeedbackReply` → existing tables plus
   assignee, mention and attachment join tables (arrays and JSON lists become
   rows; attachments go through `app.file_object`).
+- Dedicated `licensingMilestone` records also move to `plm.licensing_status`.
+  The [November 21 production recheck and delivery plan](../../designflow-item-and-licensing-migration.md)
+  supersede the earlier model-only classification.
 - `customers`, `users`, `vendor`: passwords are never moved (sign-in is
   Supabase Auth). `vendor_passw` also needs a rotation review.
 - `AuditLog` old/new value and element id go into `app.activity.payload`.
@@ -80,7 +83,7 @@ snake_case where the table is recreated):
 
 **Not moved:** model-only tables listed in the gap analysis
 (`ShippingPort`, `ProdShipmentTransitTime`, `ProdPaymentTerms`,
-`RFQItemDivision`, `productions`, `licensingMilestone`, legacy `comments`) and
+`RFQItemDivision`, `productions`, legacy `comments`) and
 `itemDetail` columns (see §4).
 
 ## 3. Decision recorded (Albert, 2026-10-23)

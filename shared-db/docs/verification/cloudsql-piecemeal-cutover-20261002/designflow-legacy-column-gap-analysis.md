@@ -195,7 +195,8 @@ merch group headers.
 Reply → `plm.licensing_feedback`; missing `tagged_user_ids`, `attachments`
 (`:906,909`). `LicenseFeedBacks` catalog (status, item_order, explanation): no
 normalized table. `LicensingTime`, `DesignTeamTime`, `FactoryTime` lead-time
-tables: no normalized home. `licensingMilestone`: model only, not needed.
+tables: no normalized home. The [November 21 recheck](../../designflow-item-and-licensing-migration.md)
+found 114 dedicated `licensingMilestone` records to preserve in `plm.licensing_status`.
 `itemLicenseImage`, `groups` (teams): legacy copies only.
 
 ### Comments and notifications
@@ -242,8 +243,7 @@ tracking; no normalized model.
 
 ### Not needed
 Model files only: `ShippingPort`, `ProdShipmentTransitTime`,
-`ProdPaymentTerms`, `RFQItemDivision`, `productions`, `licensingMilestone`,
-legacy `comments`. No legacy table exists for cost sheets, BOM, colours, uom,
+`ProdPaymentTerms`, `RFQItemDivision`, `productions`, legacy `comments`. No legacy table exists for cost sheets, BOM, colours, uom,
 royalty or salesperson codes (codes live only on ColdLion item columns).
 
 ### Caveats
