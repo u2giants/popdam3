@@ -5,6 +5,8 @@ status: open
 read-when: dropping unused indexes after the observation window (#5610)
 ---
 
+**November 21 continuation:** Steps 1–5 are delivered in [#6907](https://github.com/popcre/shared-db/pull/6907). Three indexes were removed in production and about 277 MB was freed. Resume at Step 6. All 373 requests succeeded during the first 24 hours, but comparable no-regression and representative-access proof remain open. See [the live check](https://github.com/popcre/shared-db/issues/5610#issuecomment-7068201605).
+
 # Plan: drop provably unused large indexes on the shared database
 Historical assessment handoff (write-once; current state is this plan and #5610): (handoff retired 2026-11-12; see docs/handoff-review-2026-11-08.md)
 Owning issue: popcre/shared-db#5610. Related: #2427 (large-index findings), #1966 (high-churn tables), [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) Step 7 ("dated index observation" — this plan executes that step for the largest candidates; tick it there when done), [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (#5482, house style).

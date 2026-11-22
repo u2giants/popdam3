@@ -5,6 +5,8 @@ status: open
 read-when: "continuing issue #5609 assets trigger write-amplification acceptance"
 ---
 
+**November 21 continuation:** [#5609](https://github.com/popcre/shared-db/issues/5609) still lacks a valid measurement window and a qualified production restart route. Resume by qualifying the route and securing the [#5610 live evidence](https://github.com/popcre/shared-db/issues/5610#issuecomment-7068201605).
+
 # Plan: stop `public.assets` updates from re-running work nothing asked for
 
 Historical planning handoff (write-once record, not current execution state): (handoff retired 2026-11-12; see docs/handoff-review-2026-11-08.md).
