@@ -265,6 +265,14 @@
       "reason": "Resolution records, not a source vocabulary."
     },
     {
+      "family": "designflow_item_workspace",
+      "licensor": "POP Creations application data",
+      "business_purpose": "DesignFlow item working fields and source identity",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["designflow_item"],
+      "reason": "DesignFlow operational records, including drafts and unresolved item links."
+    },
+    {
       "family": "item_landing_and_import",
       "licensor": "POP Creations application data",
       "business_purpose": "Item landing, import and taxonomy staging",

@@ -18,6 +18,10 @@ read-when: "Building, releasing or verifying the DesignFlow item and licensing m
 
 ## Current evidence and cutover conditions
 
+The DesignFlow item workspace keeps the existing integer header key and the DesignFlow reference number. It can hold a draft without an ERP item number or a canonical item link. Only a unique, eligible ColdLion item can attach. The workspace keeps typed source header fields for compatibility and records why a link is absent. The read-only inventory counts excluded EP001, non-inventory and owner-excluded items, and those records stay outside the workspace. The canonical item and division stay ColdLion-owned. Existing screens retain the original route for unresolved items until their new read and write paths pass comparison tests.
+
+DesignFlow licensing status and reply source IDs stay stable. The status records the original nullable status, date text, actor and group separately from its canonical representation. The loader gives header milestones their own stable keys and retains the original flag and date spelling. A status can reference a DesignFlow draft without requiring a ColdLion item. An orphan retains its original item ID. Direct authenticated database readers can continue reading the existing shared licensing sources. The existing DesignFlow service remains the repair path for its old records until the replacement server path, least-privilege database access, and application acceptance are ready.
+
 Production read-only checks on November 20, 2026 found **20,241** DesignFlow item headers and **20,180** existing ColdLion items. The first match pass used normalized item number only when exactly one ColdLion candidate existed across the whole master, then applied the existing exclusion rules.
 
 | Item disposition | Rows |
