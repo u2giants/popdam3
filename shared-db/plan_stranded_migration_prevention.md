@@ -1,3 +1,10 @@
+---
+summary: "Completed implementation plan (#6574) to prevent stranded migrations: pre-merge high-risk guard, early park on permanent refusal, catalog-readable check."
+kind: plan
+status: done
+read-when: reviewing the #6574 stranded-migration prevention guards or their live-proof receipts
+---
+
 # Implementation Plan: Prevent stranded migrations
 
 Issue: [popcre/shared-db#6574](https://github.com/popcre/shared-db/issues/6574) (claim-first there).

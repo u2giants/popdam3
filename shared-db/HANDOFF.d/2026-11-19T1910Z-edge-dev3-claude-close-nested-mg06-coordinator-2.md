@@ -12,7 +12,7 @@ handoff from the Claude sessions named ... to make one large handoff that create
 is a coordinator and spins up nested subsessions for each of the tasks among all these chats."
 Re-invoked by Albert 2026-11-19 2:09 PM EST: "/close-nested".
 
-Predecessor: https://github.com/popcre/shared-db/blob/main/HANDOFF.d/20261117T1325Z-edge-dev3-claude-close-nested-mg06-jamielynn.md
+Predecessor: https://github.com/popcre/shared-db/blob/main/HANDOFF.d/2026-11-17T1325Z-edge-dev3-claude-close-nested-mg06-jamielynn.md
 (owner rulings there remain binding; ME/MMF/MM ruling is now owner ruling 6.43 in `docs/owner-rulings.md`).
 
 ## Additional owner rulings (2026-11-17)

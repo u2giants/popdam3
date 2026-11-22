@@ -1,3 +1,10 @@
+---
+summary: "How to detect and escape a GitHub Actions ghost run that holds a workflow concurrency group (#6426)."
+kind: ops
+status: current
+read-when: a GitHub Actions workflow is stuck queued behind a ghost run with zero jobs
+---
+
 # Escaping a GitHub ghost run (issue #6426)
 
 A **ghost run** is a GitHub Actions run record that GitHub created but never

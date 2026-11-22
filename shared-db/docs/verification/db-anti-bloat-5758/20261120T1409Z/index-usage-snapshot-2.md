@@ -1,5 +1,5 @@
 ---
-summary: "Issue 5758 Step 5 index audit snapshot 2 (2026-11-20): every zero-scan index on the plan tables is referenced, constraint-backing or owned by #5610/#5747; no safe drops."
+summary: "Issue 5758 Step 5 index audit snapshot 2 (2026-11-20): every zero-scan index is referenced, constraint-backing, or owned by #5610/#5747; no drops."
 kind: proof
 status: done
 read-when: deciding index drops on the 5758 busy tables or re-running the Step 5 audit

@@ -1,5 +1,5 @@
 ---
-summary: "Nov 18 public.assets index re-check (#5747 Step 3): 12-day window since the Nov 6 restart, below the 14-day gate; no drops; six residual zero-scan candidates (~34 MB) carry to the Nov 20 decision; index growth has plateaued at ~839 MB."
+summary: "Nov 18 public.assets index re-check (#5747 Step 3): 12-day window below 14-day gate; no drops; six zero-scan candidates (~34 MB) carry to Nov 20."
 kind: proof
 status: done
 read-when: deciding #5747 Step 3 residual assets index drops

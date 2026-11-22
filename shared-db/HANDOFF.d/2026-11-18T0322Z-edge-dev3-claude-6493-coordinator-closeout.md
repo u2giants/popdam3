@@ -12,7 +12,7 @@ read-when: picking up #6493 or #6574 after 2026-11-18 03:22Z; read together with
 Written 2026-11-17 10:25 PM EST by Claude chat `96fb0739-4894-42e6-a355-3d65a9a0a97e` on edge-dev3.
 **Read the predecessor first; it is kept on purpose** (its dead ends and findings, §4–§5, exist nowhere else,
 and two of its next steps are still open):
-[`HANDOFF.d/20261118T0216Z-edge-dev3-claude-promotion-throughput-three-session-closeout.md`](https://github.com/popcre/shared-db/blob/main/HANDOFF.d/20261118T0216Z-edge-dev3-claude-promotion-throughput-three-session-closeout.md).
+[`HANDOFF.d/2026-11-18T0216Z-edge-dev3-claude-promotion-throughput-three-session-closeout.md`](https://github.com/popcre/shared-db/blob/main/HANDOFF.d/2026-11-18T0216Z-edge-dev3-claude-promotion-throughput-three-session-closeout.md).
 
 Moving facts at 03:22Z Nov 18: `origin/main` = [`fb97213ba`](https://github.com/popcre/shared-db/commit/fb97213ba00238136e549c42a7cf78d3b164fdc9);
 #6493 and #6574 OPEN; no PR carries `promotion-parked`.

@@ -1,5 +1,5 @@
 ---
-summary: Plan to keep a property's four names (Coldlion name, exact licensor-submission name, user nickname, short description name) together on core.property; duplicate check done, build open.
+summary: "Plan to keep a property's four names (ColdLion, licensor-submission, nickname, short description) on core.property; duplicate check done, build open."
 kind: plan
 status: open
 read-when: adding or using property nicknames, short names, or licensor-submission names

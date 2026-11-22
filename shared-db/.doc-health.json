@@ -12,7 +12,9 @@
     "docs/production-promotion-app-tolerance-contract.md",
     "docs/verification/issue-1039-production-risk-activation-forward-proof.md",
     "HANDOFF.d/20261108T1305Z-edge-dev3-claude-close-nested-5758-anti-bloat.md",
-    "HANDOFF.d/2026-10-11T1705Z-edge-dev-mimo-nine-issues-clearance.md"
+    "HANDOFF.d/2026-10-11T1705Z-edge-dev-mimo-nine-issues-clearance.md",
+    "HANDOFF.d/2026-10-13T1710Z-edge-dev3-claude-770-dflow-migration-program.md",
+    "HANDOFF.d/20261117T124800Z-edge-dev-zcode-promotion-stranding-watch-plan.md"
   ],
   "router": "AGENTS.md",
   "router_max_bytes": 30000,

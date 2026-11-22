@@ -1,5 +1,5 @@
 ---
-summary: "#6416 SD-RPC matrix on preview: 201 functions dispositioned (76 intended, 17 revoke, 1 remediate, 107 revoke-candidates); authenticated leg blocked by preview GoTrue"
+summary: "#6416 SD-RPC matrix on preview: 201 functions dispositioned (76 intended, 17 revoke, 1 remediate, 107 candidates); auth leg blocked by GoTrue."
 kind: proof
 status: done
 read-when: checking the #6416 security-definer RPC measurement, per-function dispositions, or the Step 2 NOT MEASURED closure in plan_database_efficiency_and_api_security.md

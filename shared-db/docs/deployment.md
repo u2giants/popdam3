@@ -67,6 +67,7 @@ and AGENTS.md / runbook chapters.
 | Bad migration not yet applied | Remove it from the promotion batch before apply; update the claim |
 | Consumer saw a bad mirror | Consumers pick up the next `sync.yml` run after `main` is corrected |
 | Production apply refused | Nothing was written; re-run under a freeze once `main` is stable |
+| Workflow stuck behind GitHub ghost run | Follow [`docs/ghost-run-escape.md`](ghost-run-escape.md) (#6426) |
 
 There is no rollback of production schema via down-migration. Treat every
 migration as forward-only.

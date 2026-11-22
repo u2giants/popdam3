@@ -1,5 +1,5 @@
 ---
-summary: "Production-only operational demolition of the stale dflow seed schema (issue #6325): why it is not a migration, preconditions, ordered SQL (reader moves including 14 shared-table foreign keys, classid-correct dependent guard), verification, rollback, and the standing rules for future dflow migrations."
+summary: "Production-only operational demolition of the stale dflow seed schema (#6325): preconditions, ordered SQL, verification, rollback, and standing rules."
 kind: ops
 status: current
 read-when: executing or reviewing the production dflow snapshot demolition; authoring any migration that touches dflow.* objects or shared-table constraints referencing dflow; deciding whether an environment-scoped schema retirement needs a migration
