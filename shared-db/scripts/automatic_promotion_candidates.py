@@ -1954,7 +1954,8 @@ def notice_body(label: str, entry: dict[str, Any], now: datetime) -> str:
         hours = int((now - hold_since(entry)).total_seconds() // 3600)
         status = (
             "**This merged migration is held and is not in production.** "
-            f"Open review finding{'' if len(findings) == 1 else 's'} {refs} {verb} blocked it for {hours}h."
+            f"Review finding{'' if len(findings) == 1 else 's'} {refs} {verb} blocked it for {hours}h "
+            "(an open finding, or one closed as not planned within the last 24h)."
         )
     repair = (
         "Repair by fix-forward (a new governed version) or retire-and-reissue. "
