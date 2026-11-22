@@ -9,6 +9,8 @@ matches your task. This file routes — it does not contain. The detail behind
 every section below lives in [`docs/agents-reference.md`](docs/agents-reference.md)
 (same section names), and the deep-dive docs under `docs/` it points to.
 
+Before changing anything, search the `decision` section of `docs/INDEX.md` for your topic and open only the matching files in `docs/decisions/`; settled owner rulings and design decisions live there and must not be contradicted.
+
 Every new Markdown file opens with the four-key header (`summary`, `kind`,
 `status`, `read-when`); then regenerate the index with
 `ai-doc-health --repo . --fix-index` (tool: popcre/ai-devops, rules:
