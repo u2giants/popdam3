@@ -318,7 +318,14 @@ def workflow_gate(options,entry):
     admission_result=json.loads(result.stdout)
     if admission_result.get('admitted') is not True:raise Refusal('maintenance claim admission refused')
     import review_finding_hold
-    if review_finding_hold.blocking_findings(review_finding_hold.gh_issues(REPO,entry['source_pr']),REPO,entry['source_pr']):raise Refusal('blocking review finding')
+    # Bind to the same current source PR as the selector. The dispatch input
+    # pins main, which is not the head that the advisory finding reviewed.
+    source_pr = entry['source_pr']
+    pr_head = review_finding_hold.head_sha_from_pull(pr)
+    if review_finding_hold.blocking_findings(
+        review_finding_hold.gh_issues(REPO, source_pr), REPO, source_pr, pr_head=pr_head
+    ):
+        raise Refusal('blocking review finding')
     project_ref=(options.linked_dir/'supabase/.temp/project-ref').read_text().strip()
     if project_ref!=options.expected_project_ref:raise Refusal('point-of-use linked target mismatch')
     if options.target=='production' and project_ref!=PROD or options.target=='preview' and project_ref==PROD:raise Refusal('target class mismatch')

@@ -261,6 +261,13 @@ def blocking_findings(issues: list[dict[str, Any]], repository: str, pr: int, no
     return holds(issues, repository, pr, now or datetime.now(timezone.utc), invalid, pr_head)
 
 
+def head_sha_from_pull(pull: dict[str, Any]) -> str | None:
+    """Validate the head of a GitHub pull request response before binding a hold."""
+    head = pull.get("head") if isinstance(pull, dict) else None
+    sha = head.get("sha") if isinstance(head, dict) else None
+    return sha if isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha) else None
+
+
 def pull_head_sha(repository: str, pr: int, run: Callable[[str], dict[str, Any]] | None = None) -> str | None:
     """The PR's current head, or None when unreadable (fail toward holding)."""
     reader = run or _gh_object
@@ -268,8 +275,7 @@ def pull_head_sha(repository: str, pr: int, run: Callable[[str], dict[str, Any]]
         data = reader(f"repos/{repository}/pulls/{pr}")
     except (subprocess.CalledProcessError, json.JSONDecodeError, OSError, TypeError, ValueError, KeyError):
         return None
-    head = ((data or {}).get("head") or {}).get("sha")
-    return head.lower() if isinstance(head, str) and re.fullmatch(r"[0-9a-f]{40}", head) else None
+    return head_sha_from_pull(data)
 
 
 def main(argv: list[str] | None = None, fetch: Callable[[str, int], list[dict[str, Any]]] = gh_issues,

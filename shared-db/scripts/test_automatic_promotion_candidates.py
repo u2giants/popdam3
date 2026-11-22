@@ -17,7 +17,12 @@ import refund_fault_classification as classifier  # noqa: E402
 # Main-path tests stub is_held; route the batched hold read through it so no
 # test reaches the network. PrefetchHolds tests the real function.
 REAL_PREFETCH_HOLDS = m.prefetch_holds
-m.prefetch_holds = lambda repo, prs: (lambda n: m.is_held(repo, n))
+
+
+def setUpModule():
+    patcher = mock.patch.object(m, "prefetch_holds", lambda repo, prs: lambda n: m.is_held(repo, n))
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
 
 APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "success"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]
 NOT_APPLIED = [{"steps": [{"name": m.APPLY_STEP, "conclusion": "failure"}, {"name": m.CATALOG_STEP, "conclusion": "failure"}]}]

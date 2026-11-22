@@ -2,6 +2,8 @@
 import json
 import os
 import tempfile
+from subprocess import CompletedProcess
+from types import SimpleNamespace
 from unittest.mock import MagicMock,patch
 from pathlib import Path
 import sys
@@ -11,6 +13,7 @@ import automatic_index_maintenance as automatic
 import automatic_promotion_candidates as promotion
 from automatic_index_maintenance import select
 import nontransactional_index_maintenance as maintenance
+import review_finding_hold
 from test_nontransactional_index_maintenance import entry
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -28,6 +31,75 @@ class SelectionTests(unittest.TestCase):
         policy={'schema_version':1,'operations':{'test-operation':entry()}}
         self.assertIsNone(select(policy,lambda r:None,[{'status':'in_progress'}],lambda pr:False,'a'*40))
         self.assertIsNone(select(policy,lambda r:None,[],lambda pr:True,'a'*40))
+
+    def test_selector_and_executor_share_source_head_review_binding(self):
+        operation = "test-operation"
+        value = entry()
+        source_pr = value["source_pr"]
+        policy = {"schema_version": 1, "operations": {operation: value}}
+        main_sha, pr_head, merged_sha = "d" * 40, "a" * 40, "b" * 40
+        preview = "x" * 20
+        dispatch_ref = f"refs/db-index-maintenance-operations/{operation}/preview/{main_sha}"
+        run = {"id": 8, "path": f".github/workflows/{maintenance.WORKFLOW}",
+               "head_sha": main_sha, "head_branch": "main", "event": "workflow_dispatch",
+               "status": "in_progress", "conclusion": None, "run_attempt": 1,
+               "actor": {"login": "github-actions[bot]"},
+               "triggering_actor": {"login": "github-actions[bot]"},
+               "display_title": f"INDEX preview {dispatch_ref} {main_sha}"}
+        environment = {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": maintenance.REPO,
+                       "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_RUN_ATTEMPT": "1",
+                       "GITHUB_ACTOR": "github-actions[bot]", "GITHUB_RUN_ID": "8",
+                       "GITHUB_WORKFLOW_REF": f"{maintenance.REPO}/.github/workflows/"
+                                              f"{maintenance.WORKFLOW}@refs/heads/main",
+                       "PREVIEW_PROJECT_REF": preview}
+        receipt = {"operation_id": operation, "target": "preview", "source_sha": main_sha,
+                   "policy_digest": maintenance.digest(value)}
+        command_outputs = [main_sha, "", json.dumps(policy), '{"admitted": true}']
+        cases = [
+            ("superseded, even if it matches main dispatch", pr_head, main_sha, "open", False),
+            ("current", pr_head, pr_head, "open", True),
+            ("unbound", pr_head, None, "open", True),
+            ("missing canonical head", None, main_sha, "open", True),
+            ("malformed canonical head", "not-a-sha", main_sha, "open", True),
+            ("closed", None, pr_head, "closed", False),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            linked = Path(directory) / "supabase/.temp"
+            linked.mkdir(parents=True)
+            (linked / "project-ref").write_text(preview)
+            options = SimpleNamespace(source_sha=main_sha, target="preview", dispatch_ref=dispatch_ref,
+                                      operation=operation, expected_project_ref=preview, linked_dir=Path(directory))
+            for name, canonical_head, finding_head, status, expected_hold in cases:
+                with self.subTest(name=name):
+                    pull = {"merged_at": "2026-11-21T01:02:03Z", "base": {"ref": "main"},
+                            "merge_commit_sha": merged_sha, "head": {"sha": canonical_head}}
+                    body = f"https://github.com/{maintenance.REPO}/pull/{source_pr}\n"
+                    if finding_head:
+                        body += f"Head SHA: `{finding_head}`\n"
+                    finding = {"number": 99, "state": status, "body": body}
+                    with patch.object(review_finding_hold, "_gh_object", return_value=pull), \
+                         patch.object(review_finding_hold, "gh_issues_many", return_value={source_pr: [finding]}):
+                        held = promotion.prefetch_holds(maintenance.REPO, [source_pr])
+                        self.assertEqual(select(policy, lambda ref: None, [], held, main_sha) is None,
+                                         expected_hold)
+                    github = {"actions/runs/8": run, "commits/main": {"sha": main_sha},
+                              f"pulls/{source_pr}": pull}
+                    with patch.dict(os.environ, environment), \
+                         patch.object(maintenance, "gh", side_effect=github.__getitem__), \
+                         patch.object(maintenance, "Receipts") as receipts, \
+                         patch.object(maintenance, "linked_connection", return_value=(None, {})) as connect, \
+                         patch.object(review_finding_hold, "gh_issues", return_value=[finding]), \
+                         patch.object(maintenance.subprocess, "run", side_effect=[
+                             CompletedProcess([], 0, output) for output in command_outputs
+                         ]):
+                        receipts.return_value.read.return_value = receipt
+                        if expected_hold:
+                            with self.assertRaisesRegex(maintenance.Refusal, "blocking review finding"):
+                                maintenance.workflow_gate(options, value)
+                            connect.assert_not_called()
+                        else:
+                            self.assertEqual(maintenance.workflow_gate(options, value)["_SOURCE_MERGE_SHA"],
+                                             merged_sha)
     def test_finished_operation_reads_no_hold_and_held_bad_receipt_is_skipped(self):
         # #6493 Step 4: each hold read settles 20 s; a finished operation must not pay it.
         policy={'schema_version':1,'operations':{'test-operation':entry()}}
