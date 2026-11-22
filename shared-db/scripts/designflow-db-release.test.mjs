@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { canonicalJson, sha256 } from './db-flow/evidence-bundle.mjs';
 import { proposeTrain, trainRecordRef } from './db-flow/migration-train.mjs';
 import { manifestDigest } from './lib/designflow-db-release.mjs';
-import { sourceFacts, assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog, currentLiveRecoveryCommandFrom } from './designflow-db-release.mjs';
+import { sourceFacts, nonclosingSourceBinding, batchSourceIdentity, assessRelease, runObserver, releasePolicy, dispatchTitle, verifyApplyReceipt, verifyAppliedFiles, workflowRuns, artifactContainsSource, assertObserverSource, publishAppStatus, prepareReleaseReady, productionRunMatches, verifyBatchProductionFiles, batchRunCandidate, validatedTrainRefFromLog, currentLiveRecoveryCommandFrom } from './designflow-db-release.mjs';
 
 const head = 'a'.repeat(40), repository = 'popcre/designflow-tracking';
 const path = 'supabase/migrations/20261022194647_synthetic.sql', content = '-- synthetic only\n';
@@ -468,6 +468,87 @@ test('actual sourceFacts preserves real links and refuses conflicting or invalid
  const linked=sourceBindingFixture();linked.state.linked=[{number:4646}];assert.equal(sourceFacts(linked.required,linked.io).work_issue,4646);
  for(const mutate of [f=>f.state.linked=[{number:99}],f=>f.state.linked=[{number:4646},{number:99}],f=>f.state.pr.body='Refs #4646',f=>f.state.pr.merged_at=null,f=>f.state.issueState='unknown',f=>f.state.completion.work_issue=99,f=>f.state.completion.migration_versions=[],f=>f.state.reserved=false]){const f=sourceBindingFixture();mutate(f);assert.throws(()=>sourceFacts(f.required,f.io));}
  const changed=sourceBindingFixture();let reads=0;changed.io.content=()=>++reads===1?'original':'modified';assert.throws(()=>sourceFacts(changed.required,changed.io),/changed after source approval/);
+});
+
+function nonclosingFixture() {
+  const f = sourceBindingFixture();
+  const version = '20261025125632';
+  const path = `supabase/migrations/${version}_dflow_prod_milestone_schedule.sql`;
+  const scope = [
+    '```db-work-scope', 'status: ready', 'work_type: structural', 'route: claim-first',
+    'priority: 1', 'writes:', '  - table plm.designflow_item', '```',
+  ].join('\n');
+  const body = '-- #4646: original scoped migration\nselect 1;\n';
+  const repository = 'popcre/designflow-data-syncing';
+  f.state.pr.body = 'Tracks #4646';
+  f.state.pr.head.repo = {full_name: 'popcre/shared-db'};
+  f.state.pr.changed_files = 1;
+  f.io.pages = () => [{filename: path, status: 'added'}];
+  f.io.content = () => body;
+  f.io.githubIo.getIssue = number => ({number, state: f.state.issueState, body: scope});
+  const binding = {
+    work_issue: f.required.work_issue,
+    source_pr: f.required.source_pr,
+    migration_hashes: {[version]: createHash('sha256').update(body).digest('hex')},
+  };
+  const policy = {repositories: [{repository, nonclosing_sources: [binding]}]};
+  return {...f, repository, binding, policy, version};
+}
+
+test('reviewed non-closing source binding verifies immutable C2 bytes without legacy evidence', () => {
+  const f = nonclosingFixture();
+  const binding = nonclosingSourceBinding(f.policy, f.repository, f.required);
+  assert.equal(sourceFacts(f.required, f.io, binding).work_issue, f.required.work_issue);
+  f.state.issueState = 'closed';
+  assert.equal(sourceFacts(f.required, f.io, binding).work_issue, f.required.work_issue);
+  assert.equal(nonclosingSourceBinding(f.policy, 'popcre/designflow-tracking', f.required), null);
+  assert.equal(nonclosingSourceBinding(f.policy, f.repository, {...f.required, source_pr: 17}), null);
+  assert.throws(() => sourceFacts(f.required, f.io), /Work issue/);
+  f.policy.repositories[0].nonclosing_sources.push(f.binding);
+  assert.throws(() => nonclosingSourceBinding(f.policy, f.repository, f.required), /Ambiguous/);
+});
+
+test('native train source identity accepts exact reviewed sources and preserves other real closing links', () => {
+  const {binding} = nonclosingFixture();
+  const {source_pr, work_issue} = binding;
+  assert.deepEqual(batchSourceIdentity(source_pr, [], [binding]), {work_issue, binding});
+  assert.deepEqual(batchSourceIdentity(source_pr, [{number: work_issue}], [binding]), {work_issue, binding});
+  assert.deepEqual(batchSourceIdentity(18, [{number: 17}], [binding]), {work_issue: 17, binding: null});
+  assert.throws(() => batchSourceIdentity(18, [], [binding]), /ambiguous/);
+  assert.throws(() => batchSourceIdentity(source_pr, [{number: 17}], [binding]), /conflicts/);
+  assert.throws(() => batchSourceIdentity(source_pr, [], [binding, binding]), /ambiguous/);
+  assert.throws(() => batchSourceIdentity(source_pr, null, [binding]), /ambiguous/);
+});
+
+test('non-closing source binding refuses wrong workflow scope, unreserved or forged source', () => {
+  for (const change of [
+    f => {f.state.linked = [{number: 17}];},
+    f => {f.state.linked = null;},
+    f => {f.state.pr.merged = false;},
+    f => {f.state.pr.head.repo.full_name = 'untrusted/shared-db';},
+    f => {f.state.pr.changed_files = 2;},
+    f => {f.state.reserved = false;},
+    f => {f.state.issueState = 'unknown';},
+    f => {f.io.githubIo.getIssue = number => ({number, state: 'open', body: ''});},
+    f => {const get = f.io.githubIo.getIssue; f.io.githubIo.getIssue = number => {
+      const work = get(number);
+      return {...work, body: work.body.replace('status: ready', 'status: blocked')};
+    };},
+    f => {f.binding.migration_hashes[f.version] = '0'.repeat(64);},
+    f => {
+      const bad = '-- #17: unrelated migration\nselect 1;\n';
+      f.io.content = () => bad;
+      f.binding.migration_hashes[f.version] = createHash('sha256').update(bad).digest('hex');
+    },
+    f => {
+      const original = f.io.content();
+      f.io.content = (_repo, _path, ref) => ref === f.state.pr.head.sha ? original : 'different main bytes';
+    },
+  ]) {
+    const f = nonclosingFixture();
+    change(f);
+    assert.throws(() => sourceFacts(f.required, f.io, f.binding));
+  }
 });
 
 test('sourceFacts retains historical identity after reference-only work is genuinely closed',()=>{

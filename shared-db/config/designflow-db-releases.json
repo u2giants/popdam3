@@ -178,6 +178,43 @@
           "source_pr": 4640
         }
       ],
+      "nonclosing_sources": [
+        {
+          "work_issue": 4707,
+          "source_pr": 6925,
+          "migration_hashes": {
+            "20261225070101": "ff594a290119110f03ae6e33c6a382446164f22d5623ee1db1d0845b5d9009dc"
+          }
+        },
+        {
+          "work_issue": 4707,
+          "source_pr": 6926,
+          "migration_hashes": {
+            "20261225070102": "9e03a1b704f8ac624f13cb6014329da5114830a51f4250fde3707fd813d9365d"
+          }
+        },
+        {
+          "work_issue": 4707,
+          "source_pr": 6932,
+          "migration_hashes": {
+            "20261225090100": "35cc43d24e65b25c2ee90d57f07b9fbd01ff354da23da9130f0abeb15b443420"
+          }
+        },
+        {
+          "work_issue": 4707,
+          "source_pr": 6942,
+          "migration_hashes": {
+            "20261225090201": "fbfcf6479390e71ec45bddfff222c735f624db1d7f897d6069ae8c9de9201b7f"
+          }
+        },
+        {
+          "work_issue": 4707,
+          "source_pr": 6944,
+          "migration_hashes": {
+            "20261225090301": "94059893943a4bcfa4af016ce4c89a67b7b206a71d2cbeaabb5055a000bf754d"
+          }
+        }
+      ],
       "contract_manifest_sha256": "be6acee5372525737f2e9cb64524a0a0a9f1873d0a51706be76ce7a123d7d930",
       "main_protection": {
         "branch": "main",
