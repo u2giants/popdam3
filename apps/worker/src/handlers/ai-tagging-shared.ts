@@ -1,4 +1,11 @@
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
+import {
+  colabChatCompletion,
+  getColabVisionApiKey,
+  getColabVisionConfig,
+  isColabDirectModel,
+  isTerminalColabVisionApiError,
+} from "../colab-vision-api.js";
 import { db } from "../supabase.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { getGoogleAiApiKey } from "../google-ai-key.js";
@@ -598,8 +605,18 @@ export async function callTagAssetModel(
   characterCatalogIds?: string[],
 ): Promise<TagAssetCompletionResult> {
   const directMeta = isMetaDirectModel(model);
-  const selectedApiKey = directMeta ? await getMetaApiKey() : apiKey;
-  if (directMeta && !selectedApiKey) throw new Error("Meta Model API key is not configured in Settings");
+  const directColab = isColabDirectModel(model);
+  let selectedApiKey = apiKey;
+  if (directMeta) {
+    selectedApiKey = await getMetaApiKey();
+    if (!selectedApiKey) throw new Error("Meta Model API key is not configured in Settings");
+  } else if (directColab) {
+    const colabConfig = await getColabVisionConfig();
+    selectedApiKey = colabConfig.apiKey;
+    if (!colabConfig.baseUrl || !selectedApiKey) {
+      throw new Error("Google Colab vision endpoint is not configured (set COLAB_VISION_CONFIG in admin_config)");
+    }
+  }
   const capabilities = directMeta ? {
     modelId: model,
     imageInput: true,
@@ -611,12 +628,27 @@ export async function callTagAssetModel(
     prefer: ["json_schema" as const, "json_object" as const, "tool_auto" as const],
     source: "override" as const,
     fetchedAt: new Date().toISOString(),
+  } : directColab ? {
+    modelId: model,
+    imageInput: true,
+    tools: false,
+    toolChoice: false,
+    toolChoiceModes: [],
+    structuredOutputs: true,
+    jsonObject: true,
+    prefer: ["json_schema" as const, "json_object" as const],
+    source: "override" as const,
+    fetchedAt: new Date().toISOString(),
   } : await getRuntimeModelCapabilities(selectedApiKey, model);
   const result = await executeStructuredOutput({
     apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: tagAssetSchemaForCharacters(characterCatalogIds),
-    capabilities, timeoutMs, maxTokens, provider: directMeta ? undefined : provider,
-    completion: directMeta ? metaChatCompletion : undefined,
-    isTerminalError: directMeta ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error) : undefined,
+    capabilities, timeoutMs, maxTokens, provider: directMeta || directColab ? undefined : provider,
+    completion: directMeta ? metaChatCompletion : directColab ? colabChatCompletion : undefined,
+    isTerminalError: directMeta
+      ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error)
+      : directColab
+        ? (error) => isTerminalColabVisionApiError(error) || isRetryableTagTransportError(error)
+        : undefined,
     validate(value) { validateTagAssetData(value, "structured"); if (characterCatalogIds !== undefined) validateTagCharacterBinding(value.character_ids, characterCatalogIds); return value; },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
@@ -624,5 +656,6 @@ export async function callTagAssetModel(
 
 export function getAiTaggingApiKey(model?: string): Promise<string> {
   if (model && isDirectGeminiBatchModel(model)) return getGoogleAiApiKey();
+  if (model && isColabDirectModel(model)) return getColabVisionApiKey();
   return model && isMetaDirectModel(model) ? getMetaApiKey() : getOpenRouterApiKey();
 }

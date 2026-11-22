@@ -1016,7 +1016,11 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   const attemptTag = async (model: string): Promise<AttemptResult> => {
     const apiKey = await getAiTaggingApiKey(model);
     if (!apiKey) {
-      const keyName = model.startsWith("meta-direct/") ? "META_API_KEY" : "OPENROUTER_API_KEY";
+      const keyName = model.startsWith("meta-direct/")
+        ? "META_API_KEY"
+        : model.startsWith("colab-direct/")
+          ? "COLAB_VISION_CONFIG"
+          : "OPENROUTER_API_KEY";
       return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
@@ -1043,7 +1047,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || (model.startsWith("meta-direct/") && isRetryableTagTransportError(e)))) {
+        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || ((model.startsWith("meta-direct/") || model.startsWith("colab-direct/")) && isRetryableTagTransportError(e)))) {
           logger.warn("ai-tag: structured output/routing error, retrying same model", {
             assetId,
             model,
