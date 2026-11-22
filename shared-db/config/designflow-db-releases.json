@@ -168,7 +168,9 @@
         "designflow_prod_backend_runtime"
       ],
       "schemas": [
-        "dflow_prod"
+        "dflow_prod",
+        "core",
+        "plm"
       ],
       "required_sources": [
         {

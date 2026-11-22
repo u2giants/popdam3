@@ -111,7 +111,13 @@ begin
   -- The baseline PLM policies must both survive: this change is additive, and it must
   -- not have widened WRITES.
   select array_agg(policyname order by policyname) into v_policies
-  from pg_policies where schemaname = 'plm' and tablename = 'item';
+  from pg_policies where schemaname = 'plm' and tablename = 'item'
+    and not (
+      policyname = 'item_designflow_shadow_read'
+      and roles = array['designflow_prod_data_sync_grants']::name[]
+      and cmd = 'SELECT' and permissive = 'PERMISSIVE'
+      and qual = '(source_system = ''coldlion''::text)' and with_check is null
+    );
 
   if v_policies is distinct from array['item_popdam_read','plm_admin_write','plm_read'] then
     v_bad := v_bad + 1;
@@ -139,7 +145,7 @@ begin
   end if;
 
   if v_bad > 0 then raise exception 'A FAILED (% failures)', v_bad; end if;
-  raise notice 'A passed: plm.item carries exactly {item_popdam_read, plm_admin_write, '
+  raise notice 'A passed: plm.item keeps the baseline {item_popdam_read, plm_admin_write, '
     'plm_read}; item_popdam_read is a PERMISSIVE SELECT policy to {authenticated} using (true)';
 end;
 $$;

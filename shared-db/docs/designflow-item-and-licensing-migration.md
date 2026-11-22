@@ -70,6 +70,35 @@ Item Master owns Item Library, create and edit, licensing actions and replies, a
 
 The [first hosted Data Syncing rehearsal](https://github.com/popcre/designflow-data-syncing/pull/171#issuecomment-7072202425) verified exact replay and rollback of item and licensing fixtures. Repeat it with the dedicated milestone fixture after its own sandbox schema and app source land. The Data Syncing preflight SQL matched production aggregate counts through the approved read-only identity. The current application logins lack the required canonical read privileges. Resolve the narrow reader and writer contracts with the actual app paths before enabling the loader. The [issue evidence](https://github.com/popcre/shared-db/issues/4707#issuecomment-7051180608) records the tested Data Syncing source and the deployment gate that refused the current sandbox release.
 
+## Data Syncing access and release
+
+Grant the existing Data Syncing role the exact source columns, read-only ColdLion
+item and merchandise bridge fields, and insert-only shadow targets. Licensing
+records and attachments from other sources remain outside the role. Direct
+browser access does not change. Keep the user authority on the existing
+DesignFlow integer ID. The copy validates references using only the legacy
+user ID column.
+
+Bind the application release to the exact canonical migration sources. The
+file copy uses a security-invoker view in the existing DesignFlow namespace.
+The view exposes the exact file fields under the original file policies and
+keeps the app namespace closed to the runtime. Before applying the access
+migration, check on the verified hosted preview and production catalogs that
+the runtime has no inherited executable PLM definer functions. The release catalog checks
+column-level reads and relation-level writes. Database tests and the deployed
+role rehearsal check the narrower writes and the single-column user lookup. Keep the existing
+release digest in force until the replacement application manifest and the
+production catalog proof can be checked together.
+
+After source and sandbox verification, use the released job and exact
+production login for the read-only plan. Compare its item dispositions, held
+slots, milestone records, attachments and coverage counts with an independent
+read. Use the application migration route for the initial copy after the
+read-only rehearsal passes. An exact snapshot digest must match in the copy
+transaction. Source updates and deletions require a separate reconciliation
+before switching any consumer. Preserve the original authoritative routes
+until the Item Master, Tracking and Backend behavior qualifies live.
+
 ## Repeat the item and slot checks
 
 Verify the shared production target and approved read-only identity first. These queries return aggregate counts only. Re-run the separate held-ID query first. Abort attachment if a source ID is both held and linked.

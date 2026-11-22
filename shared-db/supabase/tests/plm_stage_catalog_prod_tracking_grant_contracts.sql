@@ -10,8 +10,9 @@
 --    client-role ACL entry, RLS on, seven policies scoped only to that role, the grant role
 --    designflow_prod_tracking_grants holds nothing on plm (production makes the backend
 --    runtime a member of it), no other role is a member of the tracking runtime, and the
---    backend, item-master and data-sync runtimes still cannot reach plm (#2873 boundary,
---    narrowed for the tracking runtime only).
+--    backend and item-master runtimes still cannot reach plm (#2873 boundary).
+--    Data Syncing can reach its own item copy contracts but cannot access the
+--    stage catalog or create objects in plm.
 -- B. Behaviour (only when the session may SET ROLE to it; otherwise a WARNING says it was
 --    not exercised): the seeded catalog is visible; INSERT into all five editor tables
 --    works (identity-keyed ones without any sequence grant); an editor UPDATE bumps the
@@ -78,10 +79,22 @@ begin
      or has_schema_privilege('designflow_prod_tracking_grants', 'plm', 'USAGE') then
     raise exception 'A8 designflow_prod_tracking_grants still holds plm privileges';
   end if;
-  if exists (select 1 from unnest(array['backend','item_master','data_sync']) s
+  if exists (select 1 from unnest(array['backend','item_master']) s
              where to_regrole('designflow_prod_'||s||'_runtime') is not null
                and has_schema_privilege('designflow_prod_'||s||'_runtime', 'plm', 'USAGE,CREATE')) then
-    raise exception 'A9 a non-tracking designflow_prod runtime reaches plm';
+    raise exception 'A9 an unrelated designflow_prod runtime reaches plm';
+  end if;
+  if has_schema_privilege('designflow_prod_data_sync_runtime', 'plm', 'CREATE')
+     or has_function_privilege('designflow_prod_data_sync_runtime', 'plm.stage_catalog_bump_version()', 'EXECUTE')
+     or exists (
+       select from pg_class c
+       where c.relnamespace='plm'::regnamespace
+         and c.relname in ('stage_list','stage','stage_duration','stage_dependency',
+           'licensor_stage_option','prod_stage_progress','prod_stage_option')
+         and (has_any_column_privilege('designflow_prod_data_sync_runtime', c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+           or has_table_privilege('designflow_prod_data_sync_runtime', c.oid, 'DELETE,TRUNCATE,TRIGGER'))
+     ) then
+    raise exception 'A9 Data Syncing can access the Tracking stage catalog or create objects';
   end if;
 end
 $a$;
