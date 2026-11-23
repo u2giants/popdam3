@@ -20,9 +20,6 @@ function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'skill-drift-'))
   mkdirSync(path.join(root, 'skills'), { recursive: true })
   cpSync(canonical, path.join(root, 'skills', 'shared'), { recursive: true })
-  const target = path.join(root, 'skills', 'claude', 'shared-db-change')
-  mkdirSync(path.dirname(target), { recursive: true })
-  cpSync(path.join(sourceRoot, 'skills', 'claude', 'shared-db-change'), target, { recursive: true })
   return root
 }
 
@@ -46,7 +43,7 @@ test('require-skills fails when only the retired claude path exists', () => {
 
 test('#3874 a skill that still routes to the retired coordinator fails', () => {
   const root = fixture()
-  const skill = path.join(root, 'skills', 'claude', 'shared-db-change', 'SKILL.md')
+  const skill = path.join(root, 'skills', 'shared', 'shared-db-change', 'SKILL.md')
   writeFileSync(skill, execFileSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(skill)},'utf8'))`], { encoding: 'utf8' }) + '\n> Working IN the shared-db repo and you were not started as the orchestrator? STOP.\n')
   try {
     const result = run(root)
@@ -57,7 +54,7 @@ test('#3874 a skill that still routes to the retired coordinator fails', () => {
 
 test('#3874 a retired-marker query without --repo is still flagged', () => {
   const root = fixture()
-  const skill = path.join(root, 'skills', 'claude', 'shared-db-change', 'SKILL.md')
+  const skill = path.join(root, 'skills', 'shared', 'shared-db-change', 'SKILL.md')
   writeFileSync(skill, execFileSync(process.execPath, ['-e', `process.stdout.write(require('fs').readFileSync(${JSON.stringify(skill)},'utf8'))`], { encoding: 'utf8' }) + '\n`gh issue list --label orchestrator-marker --state open`\n')
   try {
     const result = run(root)

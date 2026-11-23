@@ -156,7 +156,7 @@ async function main() {
 
   const problems = [];
   for (const skill of SKILLS) {
-    const tree = skill === 'shared-db-change' ? 'claude' : 'shared';
+    const tree = 'shared';
     const path = join(root, 'skills', tree, skill, 'SKILL.md');
     let text;
     try {
