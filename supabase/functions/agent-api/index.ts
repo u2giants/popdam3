@@ -2577,7 +2577,7 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const PERMANENT_THUMB_ERRORS = ["no_preview_or_render_failed"];
   // Hi-res backfill (popdam3#1272): re-render a few unchanged assets per batch
   // that predate the hi-res rendition. Only thumbnails that hit the 800px cap
-  // can have a larger source; smaller ones never get a hi-res copy.
+  // (or whose size was never recorded) can have a larger source.
   const HIRES_BACKFILL_PER_BATCH = 10;
   let hiresBackfill = 0;
 
@@ -2630,7 +2630,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       existing.thumbnail_url &&
       !existing.hires_url &&
       existing.quick_hash &&
-      Math.max(existing.width ?? 0, existing.height ?? 0) >= 800 &&
+      // Size unknown (most legacy rows store 0) or the thumbnail hit the cap.
+      // A re-render records the thumbnail size, so small originals drop out.
+      (!existing.width || !existing.height || Math.max(existing.width, existing.height) >= 800) &&
       hiresBackfill < HIRES_BACKFILL_PER_BATCH
     ) {
       hiresBackfill++;
