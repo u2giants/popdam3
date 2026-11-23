@@ -22,9 +22,9 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 
 | Stage | Repo | What | State | Evidence |
 |---|---|---|---|---|
-| S1 | shared-db | Read function for production orders by SKU | ⬜ open (2026-11-23) | — |
-| P1 | popdam3 | Design panel reads shared production orders | ⬜ open | — |
-| P2 | popdam3 | Retire PopDAM's production-order copy pipeline + its credentials | ⬜ open | — |
+| S1 | shared-db | Read function for production orders by SKU | ✅ done 2026-11-23 4:20 PM EST | popcre/shared-db#6987 + #6990 (56068c2); production apply run "DB production apply c8c0dc1 PR6987 20261225090701" success; proven as `authenticated` |
+| P1 | popdam3 | Design panel reads shared production orders | ✅ done 2026-11-23 4:25 PM EST | #1296 (d4810b7) live; dam.designflow.app panel for AA062VMAT03 shows D3401/D3402/D3731 |
+| P2 | popdam3 | Retire PopDAM's production-order copy pipeline + its credentials | ✅ done 2026-11-23 4:25 PM EST | #1296 removed sync/schedule/admin actions/settings; secrets, admin_config rows, GCP SA popdam-po-sync deleted, 1Password items archived (~3:30 PM EST) |
 | T1 | designflow-tracking | Remove the production-order feed service key | ⬜ open | — |
 | S2 | shared-db | Drop the production-order copy tables and two empty placeholders | ⬜ open | — |
 | C1 | shared-db + popdam3 | Build and review the PopDAM→shared character map | ⬜ open | — |
