@@ -773,6 +773,7 @@ export type Database = {
           filename: string
           freelancer_name: string | null
           height: number | null
+          hires_url: string | null
           id: string
           ingested_at: string | null
           is_deleted: boolean | null
@@ -848,6 +849,7 @@ export type Database = {
           filename: string
           freelancer_name?: string | null
           height?: number | null
+          hires_url?: string | null
           id?: string
           ingested_at?: string | null
           is_deleted?: boolean | null
@@ -925,6 +927,7 @@ export type Database = {
           filename?: string
           freelancer_name?: string | null
           height?: number | null
+          hires_url?: string | null
           id?: string
           ingested_at?: string | null
           is_deleted?: boolean | null
@@ -4939,6 +4942,7 @@ export type Database = {
           filename: string
           freelancer_name: string | null
           height: number | null
+          hires_url: string | null
           id: string
           ingested_at: string | null
           is_deleted: boolean | null
@@ -5023,6 +5027,7 @@ export type Database = {
           filename: string
           freelancer_name: string | null
           height: number | null
+          hires_url: string | null
           id: string
           ingested_at: string | null
           is_deleted: boolean | null
