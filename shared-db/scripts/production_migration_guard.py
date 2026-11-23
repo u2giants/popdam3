@@ -639,6 +639,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261225090600": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox",
+        "issue": "#6198",
+        "note": "Repoints the sandbox category resolver to the current app item table. Shared preview and production are excluded.",
+    },
     "20261202130000": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",

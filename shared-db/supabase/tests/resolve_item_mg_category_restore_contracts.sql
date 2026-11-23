@@ -2,9 +2,8 @@
 -- api.resolve_item_mg_category(integer) was removed out-of-band after the
 -- clean 2026-11-14 apply of 20261114040632. Migration 20261201120000 restores
 -- it byte-for-byte. This contract pins what "restored" means: the function
--- exists, reads the DesignFlow app schema's copies (dflow_prod on the shared
--- databases, dflow on the DesignFlow sandbox) — never a frozen core
--- "merchGroup" copy — keeps the #1662 MG01-only shape, volatility, invoker
+-- exists, reads the environment's current sources, and keeps the #1662
+-- MG01-only shape, volatility, invoker
 -- security, cutoff and retirement gate, and carries exactly the original
 -- execute rights.
 
@@ -24,11 +23,12 @@ begin
 
   v_def := pg_get_functiondef('api.resolve_item_mg_category(integer)'::regprocedure);
 
-  -- App-schema source: the body must read the app schema's itemHeader and
-  -- merchGroup copies (dflow_prod on shared preview/production, dflow on the
-  -- DesignFlow sandbox), and never the frozen core."merchGroup" copy.
+  -- The paired production sources remain in dflow_prod. Sandbox now reads
+  -- plm items and dflow groups. Also accept the pre-#6198 sandbox baseline.
   if position('dflow_prod."itemHeader"' in v_def) > 0 then
     v_item_table := 'dflow_prod."itemHeader"';
+  elsif position('plm."itemHeader"' in v_def) > 0 then
+    v_item_table := 'plm."itemHeader"';
   elsif position('dflow."itemHeader"' in v_def) > 0 then
     v_item_table := 'dflow."itemHeader"';
   else
@@ -41,8 +41,12 @@ begin
   else
     raise exception 'FAIL #6305: function does not read an app-schema merchGroup';
   end if;
-  if split_part(v_item_table, '.', 1) is distinct from split_part(v_mg_table, '.', 1) then
-    raise exception 'FAIL #6305: itemHeader (%) and merchGroup (%) come from different schemas', v_item_table, v_mg_table;
+  if (v_item_table, v_mg_table) not in (
+    ('dflow_prod."itemHeader"', 'dflow_prod."merchGroup"'),
+    ('plm."itemHeader"', 'dflow."merchGroup"'),
+    ('dflow."itemHeader"', 'dflow."merchGroup"')
+  ) then
+    raise exception 'FAIL #6305: unexpected source pair (%) and (%)', v_item_table, v_mg_table;
   end if;
   if position('core."merchGroup"' in v_def) > 0 then
     raise exception 'FAIL #6305: function reads the frozen core."merchGroup" copy';

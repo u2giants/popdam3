@@ -84,9 +84,8 @@ begin
       using v_cw_mg, v_sp_mg, v_inactive_mg;
   end if;
 
-  -- #6305: the function itself may read the app schema's copies
-  -- (dflow / dflow_prod "itemHeader" and "merchGroup"); seed the fixtures
-  -- wherever the deployed body reads them.
+  -- Seed both sources where the deployed body reads them. DesignFlow test
+  -- reads itemHeader from plm and merchGroup from dflow.
   v_fn_def := pg_get_functiondef('api.resolve_item_mg_category(integer)'::regprocedure);
   if position('dflow_prod."merchGroup"' in v_fn_def) > 0 then
     v_mg_table := 'dflow_prod."merchGroup"';
@@ -95,6 +94,8 @@ begin
   end if;
   if position('dflow_prod."itemHeader"' in v_fn_def) > 0 then
     v_item_table := 'dflow_prod."itemHeader"';
+  elsif position('plm."itemHeader"' in v_fn_def) > 0 then
+    v_item_table := 'plm."itemHeader"';
   end if;
   if position('core."merchGroup"' in v_fn_def) > 0 and v_mg_table <> 'core."merchGroup"' then
     raise exception 'FAIL function body names both core."merchGroup" and %', v_mg_table;
