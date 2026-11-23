@@ -28,6 +28,7 @@ import { useScopedTagMutation } from "@/hooks/useScopedTagMutation";
 import { useSingleAssetTagging } from "@/hooks/useSingleAssetTagging";
 import { CopyInlineButton, formatSize, formatDateValue, Lightbox, SectionLabel, RichProductDetails, DlRow, fileTypeTileClass } from "./style-group-detail/parts";
 import { FindAlternativeImages } from "./style-group-detail/FindAlternativeImages";
+import { fetchStyleProductionOrders } from "@/lib/productionOrders";
 
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
@@ -176,25 +177,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
   const { data: productionOrders } = useQuery({
     queryKey: ["style-prod-orders", group.sku],
     enabled: !!group.sku,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("prod_order_headers_current")
-        .select("id, prod_order_number, order_status, customer_name, quantity, due_date, order_date, erp_updated_at")
-        .eq("style_number", group.sku)
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .order("prod_order_number", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        id: string;
-        prod_order_number: string;
-        order_status: string | null;
-        customer_name: string | null;
-        quantity: number | null;
-        due_date: string | null;
-        order_date: string | null;
-        erp_updated_at: string | null;
-      }>;
-    },
+    queryFn: () => fetchStyleProductionOrders(group.sku),
     staleTime: 2 * 60 * 1000,
   });
 

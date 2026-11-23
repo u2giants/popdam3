@@ -67,12 +67,11 @@ Use this exact shape for every new quirk:
 **Actually:** Before 2025-05-10, the MG01 field from the ERP API used single-letter codes with unstable meanings. After that date the letters reliably map to categories. The worker (`apps/worker/src/handlers/erp.ts`) only uses `mg_category` to set `product_category` when `erp_updated_at >= 2025-05-10`. Items before that date fall through to the AI prediction path. About 5,500 style groups with pre-cutoff ERP data have null `product_category` and need AI classification.
 **Do not change because:** Items before the cutoff would get wrong categories applied automatically.
 
-## PLM production PO sync has two auth layers, and browser JWTs are not durable
+## Production orders are read from the shared database, never copied
 
-**Looks like:** `getProdOrderHeader` only needs the Cloud Run `Authorization` identity token and an `X-User-Authorization` value copied from the PLM web app.
-**Actually:** Cloud Run auth and PLM app auth are separate. Cloud Run is handled server-side with `PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON` / service-account impersonation. The PLM app token (`X-User-Authorization`, stored as `PROD_ORDER_API_TOKEN_2`) is a short-lived browser JWT; one verified token expired on 2026-06-16 and later requests returned `403 Invalid Token`.
-**Data shape gotcha:** the SKU is nested in `details[]` as `Item #` / `matchedItemNumber`; the production PO number is on the header as `Prod Reference #` / `Prod Order No`.
-**Do not change because:** A copied browser token will keep expiring and breaking background sync. The durable fix is for the PLM/BFF developer to provide service-to-service auth: either trust the Cloud Run invoker service account, expose a client-credentials/token-refresh flow, or issue a long-lived read-only API token.
+**Looks like:** PopDAM needs its own copy of PLM production orders (the retired `prod_order_headers_*` sync).
+**Actually:** The orders live in the shared database (`plm.production_order`, `plm.production_order_line`). PopDAM reads them through `api.dam_production_orders_for_sku` (popcre/shared-db#6986), production orders only — ColdLion sales orders share the table and are excluded.
+**Do not change because:** Owner ruling 2026-11-23 (popdam3#1272): one shared database so apps don't copy data. Do not reintroduce a PLM feed sync.
 
 ## Bridge agent defers thumbnails to Windows Render Agent for certain files
 
