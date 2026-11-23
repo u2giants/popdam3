@@ -363,8 +363,7 @@ type RunRow = {
 export async function handleTriggerProdOrderSync(body: Record<string, unknown> = {}) {
   const db = serviceClient();
   const continueOnly = body.continue_only === true;
-  const pageBudget = typeof body.pages_per_call === "number"
-    ? Math.max(1, Math.min(20, Math.floor(body.pages_per_call))) : PAGES_PER_CALL;
+  const pageBudget = typeof body.pages_per_call === "number" ? Math.max(1, Math.min(20, Math.floor(body.pages_per_call))) : PAGES_PER_CALL;
 
   const { data: runningRuns } = await db.from("prod_order_sync_runs")
     .select("id, total_fetched, total_upserted, total_errors, error_samples, run_metadata")
@@ -460,7 +459,10 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
       }
 
       const { rows, totalCount } = extractRows(parsed);
-      if (rows.length === 0) { done = true; break; }
+      if (rows.length === 0) {
+        done = true;
+        break;
+      }
       totalFetched += rows.length;
 
       const normalized: NormalizedProdOrder[] = [];
@@ -502,7 +504,10 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
       meta.next_page = page;
       if (totalCount !== null) meta.total_count = totalCount;
       await saveProgress();
-      if ((totalCount !== null && endRow >= totalCount) || rows.length < pageSize) { done = true; break; }
+      if ((totalCount !== null && endRow >= totalCount) || rows.length < pageSize) {
+        done = true;
+        break;
+      }
     }
     if (page >= maxPages) done = true;
 
