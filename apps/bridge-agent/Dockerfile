@@ -5,7 +5,7 @@
 # Run:   docker run --env-file .env -v /volume1/nas-share:/mnt/nas/mac:ro ghcr.io/u2giants/popdam-bridge:latest
 
 # ── Stage 1: Build ───────────────────────────────────────────────
-FROM node:20-bookworm-slim AS builder
+FROM node:26.13.1-bookworm-slim AS builder
 
 WORKDIR /build
 
@@ -56,7 +56,7 @@ RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('packag
 RUN node -e "require('@popdam/path-filters');console.log('BUILD CHECK: @popdam/path-filters OK');"
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
-FROM node:20-bookworm-slim AS runtime
+FROM node:26.13.1-bookworm-slim AS runtime
 
 # Build args for version injection
 ARG POPDAM_IMAGE_TAG=latest

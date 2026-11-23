@@ -2,7 +2,7 @@
 # Build: docker build -t popdam-worker .
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:20-bookworm-slim AS builder
+FROM node:26.13.1-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -36,7 +36,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM node:20-bookworm-slim AS runtime
+FROM node:26.13.1-bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
