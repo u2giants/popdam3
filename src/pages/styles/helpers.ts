@@ -2,7 +2,7 @@ import { workflowCellValue, normalizeWorkflowEditValue } from "@/lib/master-data
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeStyleTrackerValue } from "@/lib/style-tracker-candidates";
 import { type FieldKey, type RowData, type StyleRow, type SheetColumn, type PickerOption, type DescriptionParts, type DescriptionEditorOptions, type AuditLogEntry } from "./types";
-import { APPROVED_LICENSOR_PROPERTY_OPTIONS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs } from "./columns";
+import { APPROVED_LICENSOR_PROPERTY_OPTIONS, SIZE_AT_END_RE, configs } from "./columns";
 
 export function valueFor(row: StyleRow | undefined, column: SheetColumn) {
   if (!row) return "";
@@ -258,25 +258,17 @@ export async function fetchPropertyOptions() {
 }
 
 export async function fetchSizeOptions() {
-  const coreSize = await (supabase as any)
-    .schema("core")
-    .from("product_size")
-    .select("id, name")
-    .eq("status", "active")
-    .order("name", { ascending: true })
-    .limit(1000);
-  if (!coreSize.error) return compactPickerOptions(coreSize.data);
-
-  const styleGroupSizes = await (supabase as any)
-    .from("style_groups")
-    .select("size_name")
-    .not("size_name", "is", null)
-    .limit(1000);
-  if (styleGroupSizes.error) return compactStringOptions(COMMON_SIZE_OPTIONS, 500);
-  return compactStringOptions(
-    ((styleGroupSizes.data ?? []) as { size_name?: string | null }[]).map((row) => row.size_name),
-    500,
-  );
+  const { data, error } = await (supabase as any)
+    .schema("api")
+    .rpc("product_size_list");
+  if (error) throw error;
+  const sizes = new Map<string, string>();
+  for (const { label, selectable } of (data ?? []) as { label: string; selectable: boolean }[]) {
+    const displayLabel = label.replace(/\s+/g, " ").trim();
+    const key = displayLabel.toLowerCase();
+    if (selectable && !sizes.has(key)) sizes.set(key, displayLabel);
+  }
+  return [...sizes.values()].sort((a, b) => a.localeCompare(b));
 }
 
 export function buildLicensorPropertyOptions(properties: string[]) {
@@ -293,12 +285,6 @@ export function parseDescriptionParts(value: unknown, options: DescriptionEditor
     artDescription: "",
     size: "",
   };
-
-  const sizeMatch = remaining.match(SIZE_AT_END_RE);
-  if (sizeMatch?.[1]) {
-    parts.size = sizeMatch[1].replace(/\s*[x×]\s*/g, "x").replace(/\s+/g, " ").trim();
-    remaining = remaining.slice(0, sizeMatch.index).trim();
-  }
 
   const mg01Option = longestPrefixMatch(remaining, options.mg01);
   if (mg01Option) {
@@ -320,6 +306,22 @@ export function parseDescriptionParts(value: unknown, options: DescriptionEditor
   if (licensorPropertyOption) {
     parts.licensorProperty = licensorPropertyOption;
     remaining = remaining.slice(licensorPropertyOption.length).trim();
+  }
+
+  const lowerDescription = remaining.toLowerCase();
+  const approvedSize = options.size.reduce((longest, option) => {
+    const label = option.toLowerCase();
+    const matches = lowerDescription === label || lowerDescription.endsWith(` ${label}`);
+    return matches && option.length > longest.length ? option : longest;
+  }, "");
+  const legacyMatch = remaining.match(SIZE_AT_END_RE);
+  const legacySize = legacyMatch?.[1] ?? "";
+  if (approvedSize && approvedSize.length >= legacySize.length) {
+    parts.size = approvedSize;
+    remaining = remaining.slice(0, -approvedSize.length).trim();
+  } else if (legacySize) {
+    parts.size = legacySize.replace(/\s*[x×]\s*/g, "x");
+    remaining = remaining.slice(0, legacyMatch?.index).trim();
   }
 
   parts.artDescription = remaining;
@@ -348,7 +350,7 @@ export function optionSet(options: string[]) {
   return new Set(options.map((option) => normalized(option)));
 }
 
-export function validateDescriptionSelection(value: unknown, options: DescriptionEditorOptions) {
+export function validateDescriptionSelection(value: unknown, options: DescriptionEditorOptions, currentValue?: unknown) {
   const text = String(value ?? "").trim();
   if (!text) return null;
 
@@ -358,7 +360,12 @@ export function validateDescriptionSelection(value: unknown, options: Descriptio
   if (!optionSet(options.mg02(parts.mg01)).has(normalized(parts.mg02))) missing.push("MG02");
   if (!optionSet(options.mg03(parts.mg01, parts.mg02)).has(normalized(parts.mg03))) missing.push("MG03");
   if (!optionSet(options.licensorProperty).has(normalized(parts.licensorProperty))) missing.push("Licensor + Property");
-  if (!optionSet(options.size).has(normalized(parts.size))) missing.push("Size");
+  const currentSize = parseDescriptionParts(currentValue, options).size;
+  const size = parts.size.toLowerCase();
+  if (!size || (
+    !options.size.some((option) => option.toLowerCase() === size) &&
+    size !== currentSize.toLowerCase()
+  )) missing.push("Size");
   return missing.length ? `Choose approved values for ${missing.join(", ")}.` : null;
 }
 

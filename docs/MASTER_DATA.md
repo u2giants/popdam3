@@ -156,7 +156,7 @@ canonical item links. A pre-refresh database backup was taken before replacement
   select or edit a group from this list. Empty matches return `[]`, never null.
 - Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from six visual sections:
   `MG01`, `MG02`, `MG03`, `Licensor + Property`, `Art Description`, and `Size`.
-- The controlled description sections are picker/autocomplete driven. `MG01`, `MG02`, and `MG03` use the MerchGroup schema in `src/lib/mg-lookup.ts`; MG02 is limited by MG01, and MG03 is limited by MG01 + MG02. `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
+- The controlled description sections are picker/autocomplete driven. `MG01`, `MG02`, and `MG03` use the MerchGroup schema in `src/lib/mg-lookup.ts`; MG02 is limited by MG01, and MG03 is limited by MG01 + MG02. `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` offers selectable labels from `api.product_size_list()`, backed by ColdLion MG04. An existing legacy dimension can stay on its own row. An unavailable lookup shows a retry action. `Art Description` is the only free-text section.
 - A nonblank description must have approved values for MG01, MG02, MG03, Licensor + Property, and Size before the grid accepts the edit.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - Grid pagination defaults to 1,500 rows per page, with 500 and 1,000 row options.
@@ -294,7 +294,7 @@ Picker sources:
 
 - MG01, MG02, and MG03 use the human-readable MerchGroup values in `src/lib/mg-lookup.ts`, in that order. The saved description contains the labels, not the one-character ERP codes.
 - `core.property` has the property name and `licensor_id`; the UI shows the property picker as `Licensor Property`, so users browse by property but the final description includes the licensor automatically.
-- `core.product_size` is the preferred future size picker. Until it is live everywhere, the UI falls back to DAM style-group `size_name` values and the examples from the convention document.
+- The Description editor uses the shared Product Size picker. Product Depth has a separate shared list and is tracked on [#1273](https://github.com/u2giants/popdam3/issues/1273).
 
 Do not add browser-side PLM calls for these pickers. Add or update shared picker tables/RPCs in canonical `popcre/shared-db`, then consume them from the Master Data page.
 

@@ -3,27 +3,12 @@ import { type CustomCellRendererProps, type CustomHeaderProps } from "ag-grid-re
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup";
 import { cn } from "@/lib/utils";
 import { type StyleRow, type DescriptionSectionKey, type DescriptionParts, type DescriptionEditorProps } from "./types";
-import { APPROVED_LICENSOR_PROPERTY_OPTIONS, COMMON_SIZE_OPTIONS } from "./columns";
 import { isUserCreatedRow, normalized, parseDescriptionParts, assembleDescription } from "./helpers";
 
 export function DescriptionBuilderEditor(props: DescriptionEditorProps) {
-  const options = props.options ?? {
-    mg01: getMg01Options().map((option) => option.name),
-    mg02: (mg01: string) => {
-      const code = getMg01Options().find((option) => option.name === mg01)?.code;
-      return getMg02Options(code).map((option) => option.name);
-    },
-    mg03: (mg01: string, mg02: string) => {
-      const mg01Code = getMg01Options().find((option) => option.name === mg01)?.code;
-      const mg02Code = getMg02Options(mg01Code).find((option) => option.name === mg02)?.code;
-      return getMg03Options(mg01Code, mg02Code).map((option) => option.name);
-    },
-    licensorProperty: APPROVED_LICENSOR_PROPERTY_OPTIONS,
-    size: COMMON_SIZE_OPTIONS,
-  };
+  const { options } = props;
   const initialParts = useMemo(() => parseDescriptionParts(props.value ?? "", options), [options, props.value]);
   const [parts, setParts] = useState<DescriptionParts>(initialParts);
   const [activeSection, setActiveSection] = useState<DescriptionSectionKey>("mg01");
@@ -88,7 +73,7 @@ export function DescriptionBuilderEditor(props: DescriptionEditorProps) {
     { key: "mg03", label: "MG03", placeholder: "Feature", className: "min-w-[130px] flex-1" },
     { key: "licensorProperty", label: "Licensor + Property", placeholder: "Marvel Spider-Man", className: "min-w-[190px] flex-[1.05]" },
     { key: "artDescription", label: "Art Description", placeholder: "Building Hopping", className: "min-w-[190px] flex-1" },
-    { key: "size", label: "Size", placeholder: "16x20\" x1.2\"", className: "min-w-[140px] flex-[0.75]" },
+    { key: "size", label: "Size", placeholder: "Choose a size", className: "min-w-[140px] flex-[0.75]" },
   ];
 
   return (
