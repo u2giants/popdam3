@@ -4047,6 +4047,7 @@ export type Database = {
           source_row_number: number | null
           source_sheet: string
           source_workbook_id: string
+          staged_product_depth_id: string | null
           tracker_type: string
           upc: string | null
           updated_at: string
@@ -4077,6 +4078,7 @@ export type Database = {
           source_row_number?: number | null
           source_sheet: string
           source_workbook_id?: string
+          staged_product_depth_id?: string | null
           tracker_type: string
           upc?: string | null
           updated_at?: string
@@ -4107,6 +4109,7 @@ export type Database = {
           source_row_number?: number | null
           source_sheet?: string
           source_workbook_id?: string
+          staged_product_depth_id?: string | null
           tracker_type?: string
           upc?: string | null
           updated_at?: string
@@ -4502,6 +4505,7 @@ export type Database = {
           source_row_number: number | null
           source_sheet: string
           source_workbook_id: string
+          staged_product_depth_id: string | null
           tracker_type: string
           upc: string | null
           updated_at: string
