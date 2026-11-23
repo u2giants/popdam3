@@ -41,6 +41,16 @@
       "client_sha256": "e69ddbcff74e9400452ed06b26a452d80a771a46b46d1de59f7b1f9e105ea14d",
       "wait_timeout_s": 30,
       "total_timeout_s": 3300
+    },
+    "repack-20261123-eff8fe8a": {
+      "kind": "table-repack/v1",
+      "source_pr": 7011,
+      "work_issue": 5886,
+      "claim_issue": 7010,
+      "table": "plm.item_import",
+      "client_sha256": "e69ddbcff74e9400452ed06b26a452d80a771a46b46d1de59f7b1f9e105ea14d",
+      "wait_timeout_s": 30,
+      "total_timeout_s": 3300
     }
   }
 }
