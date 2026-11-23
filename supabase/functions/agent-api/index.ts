@@ -2527,7 +2527,7 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       lookupGroups.slice(gi, gi + LOOKUP_CONCURRENCY).map((paths) =>
         db
           .from("assets")
-          .select("relative_path, filename, modified_at, file_size, quick_hash, thumbnail_url, thumbnail_error")
+          .select("relative_path, filename, modified_at, file_size, quick_hash, thumbnail_url, thumbnail_error, hires_url, width, height")
           .in("relative_path", paths)
           .eq("is_deleted", false)
       ),
@@ -2546,6 +2546,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     quick_hash: string | null;
     thumbnail_url: string | null;
     thumbnail_error: string | null;
+    hires_url: string | null;
+    width: number | null;
+    height: number | null;
   }>();
   for (const asset of existingAssets) {
     existingMap.set(asset.relative_path, {
@@ -2555,6 +2558,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       quick_hash: asset.quick_hash,
       thumbnail_url: asset.thumbnail_url,
       thumbnail_error: asset.thumbnail_error,
+      hires_url: asset.hires_url,
+      width: asset.width,
+      height: asset.height,
     });
   }
 
@@ -2569,6 +2575,11 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   // turns out equal the bridge reuses the stored name instead of orphaning it.
   const existingThumbnails: Array<{ relative_path: string; quick_hash: string; thumbnail_url: string }> = [];
   const PERMANENT_THUMB_ERRORS = ["no_preview_or_render_failed"];
+  // Hi-res backfill (popdam3#1272): re-render a few unchanged assets per batch
+  // that predate the hi-res rendition. Only thumbnails that hit the 800px cap
+  // can have a larger source; smaller ones never get a hi-res copy.
+  const HIRES_BACKFILL_PER_BATCH = 10;
+  let hiresBackfill = 0;
 
   for (const file of files) {
     const f = file as Record<string, unknown>;
@@ -2615,6 +2626,17 @@ async function handleCheckChanged(body: Record<string, unknown>) {
       !PERMANENT_THUMB_ERRORS.includes(existing.thumbnail_error)
     ) {
       needsThumbnail.push(rp);
+    } else if (
+      existing.thumbnail_url &&
+      !existing.hires_url &&
+      existing.quick_hash &&
+      Math.max(existing.width ?? 0, existing.height ?? 0) >= 800 &&
+      hiresBackfill < HIRES_BACKFILL_PER_BATCH
+    ) {
+      hiresBackfill++;
+      needsThumbnail.push(rp);
+      // Reuse the stored thumbnail name so the backfill orphans nothing.
+      existingThumbnails.push({ relative_path: rp, quick_hash: existing.quick_hash, thumbnail_url: existing.thumbnail_url });
     }
   }
 
