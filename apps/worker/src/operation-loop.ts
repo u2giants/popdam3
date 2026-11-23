@@ -33,6 +33,7 @@ import { handleShortenItemDescriptions } from "./handlers/item-short-description
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
+import { maybeSyncProdOrders } from "./handlers/prod-order-sync-schedule.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleEmbedSgSearch } from "./handlers/embed-sg-search.js";
 import { handleImageEmbedBackfill } from "./handlers/image-embed-backfill.js";
@@ -811,6 +812,11 @@ export async function tick(): Promise<void> {
     await withDependencyTimeout("SeaDrive mirror maintenance", maybeMirrorSeaDrive());
   } catch (error) {
     logger.warn("tick: SeaDrive maintenance exceeded its budget; continuing to queued operations", { error: String(error) });
+  }
+  try {
+    await withDependencyTimeout("Production PO sync", maybeSyncProdOrders());
+  } catch (error) {
+    logger.warn("tick: production PO sync step failed; continuing", { error: String(error) });
   }
   try {
     await withDependencyTimeout("PopSG pending-tag maintenance", processPendingPopSGTags());

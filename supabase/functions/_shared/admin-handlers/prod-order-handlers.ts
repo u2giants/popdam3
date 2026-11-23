@@ -344,15 +344,38 @@ async function getProdOrderStyleNumbers(db: DbClient): Promise<string[]> {
   return styles.length > 0 ? styles : ["__none__"];
 }
 
+// One edge invocation cannot hold the whole feed (3,283 orders exhausted its
+// compute on 2026-11-23), so a run advances a few pages per call and records
+// its cursor. The Railway worker keeps calling until the run completes
+// (popdam3#1272). A lease stops two callers working the same run at once.
+const PAGES_PER_CALL = 3;
+const RUN_LEASE_MS = 3 * 60_000;
+
+type RunRow = {
+  id: string;
+  total_fetched: number | null;
+  total_upserted: number | null;
+  total_errors: number | null;
+  error_samples: string[] | null;
+  run_metadata: Record<string, unknown> | null;
+};
+
 export async function handleTriggerProdOrderSync(body: Record<string, unknown> = {}) {
   const db = serviceClient();
-  const pageSize = typeof body.page_size === "number" ? Math.max(1, Math.min(500, Math.floor(body.page_size))) : DEFAULT_PAGE_SIZE;
-  const maxPages = typeof body.max_pages === "number" ? Math.max(1, Math.min(MAX_PAGES, Math.floor(body.max_pages))) : MAX_PAGES;
+  const continueOnly = body.continue_only === true;
+  const pageBudget = typeof body.pages_per_call === "number" ? Math.max(1, Math.min(20, Math.floor(body.pages_per_call))) : PAGES_PER_CALL;
 
   const { data: runningRuns } = await db.from("prod_order_sync_runs")
-    .select("id").eq("status", "running").limit(1);
-  if (runningRuns && runningRuns.length > 0) {
-    return err(`A production PO sync is already running (${runningRuns[0].id})`, 409);
+    .select("id, total_fetched, total_upserted, total_errors, error_samples, run_metadata")
+    .eq("status", "running").order("started_at", { ascending: false }).limit(1);
+  let run = (runningRuns?.[0] ?? null) as RunRow | null;
+  if (run) {
+    const leaseUntil = Date.parse(String(run.run_metadata?.lease_until ?? ""));
+    if (Number.isFinite(leaseUntil) && leaseUntil > Date.now()) {
+      return err(`A production PO sync chunk is already in progress (${run.id})`, 409);
+    }
+  } else if (continueOnly) {
+    return json({ ok: true, idle: true });
   }
 
   const config = await getConfigMap(db, [
@@ -373,23 +396,47 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
     );
   }
 
-  const { data: run, error: runErr } = await db.from("prod_order_sync_runs")
-    .insert({
-      status: "running",
-      created_by: "admin-api",
-      run_metadata: { endpoint, page_size: pageSize, max_pages: maxPages },
-    })
-    .select("id")
-    .single();
-  if (runErr || !run) return err(runErr?.message ?? "Failed to create production PO sync run", 500);
+  if (!run) {
+    const pageSize = typeof body.page_size === "number" ? Math.max(1, Math.min(500, Math.floor(body.page_size))) : DEFAULT_PAGE_SIZE;
+    const maxPages = typeof body.max_pages === "number" ? Math.max(1, Math.min(MAX_PAGES, Math.floor(body.max_pages))) : MAX_PAGES;
+    const { data: created, error: runErr } = await db.from("prod_order_sync_runs")
+      .insert({
+        status: "running",
+        created_by: typeof body.created_by === "string" ? body.created_by : "admin-api",
+        run_metadata: { endpoint, page_size: pageSize, max_pages: maxPages, next_page: 0 },
+      })
+      .select("id, total_fetched, total_upserted, total_errors, error_samples, run_metadata")
+      .single();
+    if (runErr || !created) return err(runErr?.message ?? "Failed to create production PO sync run", 500);
+    run = created as RunRow;
+  }
 
-  let totalFetched = 0;
-  let totalUpserted = 0;
-  let totalErrors = 0;
-  const errorSamples: string[] = [];
+  const meta = { ...(run.run_metadata ?? {}) };
+  const pageSize = typeof meta.page_size === "number" ? meta.page_size : DEFAULT_PAGE_SIZE;
+  const maxPages = typeof meta.max_pages === "number" ? meta.max_pages : MAX_PAGES;
+  let page = typeof meta.next_page === "number" ? meta.next_page : 0;
+  let totalFetched = run.total_fetched ?? 0;
+  let totalUpserted = run.total_upserted ?? 0;
+  let totalErrors = run.total_errors ?? 0;
+  const errorSamples: string[] = [...(run.error_samples ?? [])];
+  const runId = run.id;
 
+  const saveProgress = (extra: Record<string, unknown> = {}) =>
+    db.from("prod_order_sync_runs").update({
+      total_fetched: totalFetched,
+      total_upserted: totalUpserted,
+      total_errors: totalErrors,
+      error_samples: errorSamples.slice(0, 20),
+      run_metadata: meta,
+      ...extra,
+    }).eq("id", runId);
+
+  meta.lease_until = new Date(Date.now() + RUN_LEASE_MS).toISOString();
+  await saveProgress();
+
+  let done = false;
   try {
-    for (let page = 0; page < maxPages; page++) {
+    for (let processed = 0; processed < pageBudget && page < maxPages; processed++) {
       const { startRow, endRow } = prodOrderPageWindow(page, pageSize);
       const url = new URL(endpoint);
       url.searchParams.set("startRow", String(startRow));
@@ -412,7 +459,10 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
       }
 
       const { rows, totalCount } = extractRows(parsed);
-      if (rows.length === 0) break;
+      if (rows.length === 0) {
+        done = true;
+        break;
+      }
       totalFetched += rows.length;
 
       const normalized: NormalizedProdOrder[] = [];
@@ -431,7 +481,7 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
         const { error: rawErr } = await db.from("prod_order_headers_raw").insert(deduped.map((row) => ({
           external_id: row.external_id,
           raw_payload: row.raw_payload,
-          sync_run_id: run.id,
+          sync_run_id: runId,
         })));
         if (rawErr) throw new Error(rawErr.message);
 
@@ -439,7 +489,7 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
           .upsert(
             deduped.map((row) => ({
               ...row,
-              sync_run_id: run.id,
+              sync_run_id: runId,
               synced_at: new Date().toISOString(),
             })),
             { onConflict: "external_id" },
@@ -450,22 +500,26 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
         totalUpserted += upserted?.length ?? deduped.length;
       }
 
-      if (totalCount !== null && endRow >= totalCount) break;
-      if (rows.length < pageSize) break;
+      page += 1;
+      meta.next_page = page;
+      if (totalCount !== null) meta.total_count = totalCount;
+      await saveProgress();
+      if ((totalCount !== null && endRow >= totalCount) || rows.length < pageSize) {
+        done = true;
+        break;
+      }
     }
+    if (page >= maxPages) done = true;
 
-    await db.from("prod_order_sync_runs").update({
-      status: "completed",
-      ended_at: new Date().toISOString(),
-      total_fetched: totalFetched,
-      total_upserted: totalUpserted,
-      total_errors: totalErrors,
-      error_samples: errorSamples,
-    }).eq("id", run.id);
+    meta.lease_until = null;
+    await saveProgress(done ? { status: "completed", ended_at: new Date().toISOString() } : {});
 
     return json({
       ok: true,
-      run_id: run.id,
+      run_id: runId,
+      done,
+      next_page: page,
+      total_count: meta.total_count ?? null,
       total_fetched: totalFetched,
       total_upserted: totalUpserted,
       total_errors: totalErrors,
@@ -473,14 +527,10 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    await db.from("prod_order_sync_runs").update({
-      status: "failed",
-      ended_at: new Date().toISOString(),
-      total_fetched: totalFetched,
-      total_upserted: totalUpserted,
-      total_errors: totalErrors + 1,
-      error_samples: [...errorSamples, message].slice(0, 20),
-    }).eq("id", run.id);
+    meta.lease_until = null;
+    totalErrors += 1;
+    errorSamples.push(message);
+    await saveProgress({ status: "failed", ended_at: new Date().toISOString() });
     return err(`Production PO sync failed: ${message}`, 502);
   }
 }
