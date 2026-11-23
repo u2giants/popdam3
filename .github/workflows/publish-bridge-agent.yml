@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version: 26.13.1
 
       # Gate the image on the agent's unit tests (liveness watchdog #167,
       # style-guide crawler) so a broken agent never reaches :stable.
