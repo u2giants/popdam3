@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_issue": 6984,
+  "pr": 6985,
+  "outcome": "ready-for-merge",
+  "migration_versions": [
+    "20261225090700"
+  ],
+  "contract_ref": "refs/db-contracts/6984/2",
+  "contract_sha256": "ae4afeea6d5bdec5e06894120f88669400bf24626bb76517bce3d0f42d1a2e25",
+  "base_sha": "a6a8638c1889c41630b39fb30bf0e3f72f263cf0",
+  "head_sha": "29da453404667c796dff7701700551fc105e05ff",
+  "files_changed": [
+    "supabase/migrations/20261225090700_dam_master_data_staged_product_depth.sql",
+    "supabase/tests/dam_master_data_staged_product_depth.sql"
+  ],
+  "db_reads": [
+    "table core.product_depth"
+  ],
+  "db_writes": [
+    "table public.style_tracker_rows",
+    "view api.style_tracker_staged_product_depth",
+    "function dam.validate_style_tracker_product_depth",
+    "trigger style_tracker_product_depth_validate on public.style_tracker_rows"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Static SQL, version ordering, verify cost, and PL/pgSQL checks passed."
+    },
+    {
+      "command": "PostgreSQL 17 staged Depth contract",
+      "exit_code": 0,
+      "evidence": "Both tracker types stage, retain retired, and clear Depth. New retired selection is refused. Signed-in role insert and read passed in the isolated database."
+    }
+  ],
+  "assumptions_resolved": [
+    "The test included the normal authenticated tracker and core read grants."
+  ],
+  "stop_conditions_hit": []
+}
