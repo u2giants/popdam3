@@ -46,13 +46,13 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out the pull request
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Check out the documentation health tool
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: popcre/ai-devops
           ref: ${{ env.DOC_HEALTH_TOOLKIT_REF }}
@@ -107,13 +107,13 @@ jobs:
       issues: write
     steps:
       - name: Check out the branch under watch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Check out the documentation health tool
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: popcre/ai-devops
           ref: ${{ env.DOC_HEALTH_TOOLKIT_REF }}
