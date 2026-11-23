@@ -19,7 +19,7 @@ import { ClaimAccounting, maintenancePausesClaims, currentCommandDeferral, heart
 import { getLogTail, logger } from "./common/logger.js";
 import * as api from "./api-client";
 import { type CompatWorker, type PdfRenderResult, renderFile, renderNativeImage } from "./renderer";
-import { reinitializeS3Client, uploadPdfPage, uploadSgThumbnail, uploadThumbnail } from "./uploader";
+import { reinitializeS3Client, uploadHires, uploadPdfPage, uploadSgThumbnail, uploadThumbnail } from "./uploader";
 import { type HealthStatus, runPreflight } from "./preflight";
 import { getUpdateState, initUpdater, postRestartHealthCheck, RESTART_EXIT_CODE, triggerImmediateUpdate } from "./updater";
 import { compressTiff, deleteOriginalBackup, scanTiffFiles, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
@@ -554,6 +554,13 @@ async function processJob(job: api.RenderJob): Promise<void> {
     const result = await withRenderTimeout(renderFile(uncPath, fileType, cw), `render ${job.relative_path}`);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
     let hiresUrl: string | undefined;
+    if (result.hiresBuffer) {
+      try {
+        hiresUrl = await uploadHires(job.asset_id, result.hiresBuffer);
+      } catch (e) {
+        logger.warn("Hi-res upload failed", { assetId: job.asset_id, error: (e as Error).message });
+      }
+    }
 
     // For PDFs, upload hi-res page images
     if ("hiresPage1Buffer" in result) {
