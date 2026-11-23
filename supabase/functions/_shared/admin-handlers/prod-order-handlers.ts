@@ -349,6 +349,7 @@ async function getProdOrderStyleNumbers(db: DbClient): Promise<string[]> {
 // its cursor. The Railway worker keeps calling until the run completes
 // (popdam3#1272). A lease stops two callers working the same run at once.
 const PAGES_PER_CALL = 3;
+const WRITE_BATCH = 25;
 const RUN_LEASE_MS = 3 * 60_000;
 
 type RunRow = {
@@ -477,27 +478,28 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
 
       const deduped = [...new Map(normalized.map((row) => [row.external_id, row])).values()];
 
-      if (deduped.length > 0) {
-        const { error: rawErr } = await db.from("prod_order_headers_raw").insert(deduped.map((row) => ({
+      // Rows carry ~28 KB raw payloads; 100 per statement ran 4–5 s and hit
+      // the statement timeout (2026-11-23), so write in small batches.
+      for (let b = 0; b < deduped.length; b += WRITE_BATCH) {
+        const batch = deduped.slice(b, b + WRITE_BATCH);
+        const { error: rawErr } = await db.from("prod_order_headers_raw").insert(batch.map((row) => ({
           external_id: row.external_id,
           raw_payload: row.raw_payload,
           sync_run_id: runId,
         })));
         if (rawErr) throw new Error(rawErr.message);
 
-        const { data: upserted, error: upsertErr } = await db.from("prod_order_headers_current")
+        const { error: upsertErr } = await db.from("prod_order_headers_current")
           .upsert(
-            deduped.map((row) => ({
+            batch.map((row) => ({
               ...row,
               sync_run_id: runId,
               synced_at: new Date().toISOString(),
             })),
             { onConflict: "external_id" },
-          )
-          .select("id");
-
+          );
         if (upsertErr) throw new Error(upsertErr.message);
-        totalUpserted += upserted?.length ?? deduped.length;
+        totalUpserted += batch.length;
       }
 
       page += 1;
