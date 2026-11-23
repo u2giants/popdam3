@@ -27,7 +27,7 @@ import { stat, readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { setIngestionRules, validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash, computeContentSha256 } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
-import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
+import { uploadThumbnail, uploadHires, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname, join, basename } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
@@ -797,25 +797,34 @@ function shouldDeferToWindows(
 async function processThumbnail(
   file: FileCandidate,
   tempAssetId: string,
-): Promise<{ thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string }> {
+): Promise<{ thumbnailUrl?: string; hiresUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string }> {
   try {
     const result = await generateThumbnail(file.absolutePath, file.fileType);
     const url = await uploadThumbnail(tempAssetId, result.buffer);
 
     let pdfPage2Url: string | undefined;
+    let hiresUrl: string | undefined;
+    if (result.hiresBuffer) {
+      try {
+        hiresUrl = await uploadHires(tempAssetId, result.hiresBuffer);
+      } catch (e) {
+        logger.warn("Hi-res upload failed", { file: file.relativePath, error: (e as Error).message });
+      }
+    }
 
     // For PDFs, upload hi-res page images
     if ("hiresPage1Buffer" in result) {
       const pdfResult = result as PdfThumbnailResult;
       // Upload hi-res page 1
-      await uploadPdfPage(tempAssetId, 1, pdfResult.hiresPage1Buffer);
+      // The hi-res page 1 doubles as the AI tagging rendition.
+      hiresUrl = await uploadPdfPage(tempAssetId, 1, pdfResult.hiresPage1Buffer);
       // Upload hi-res page 2 if available
       if (pdfResult.hiresPage2Buffer) {
         pdfPage2Url = await uploadPdfPage(tempAssetId, 2, pdfResult.hiresPage2Buffer);
       }
     }
 
-    return { thumbnailUrl: url, width: result.width, height: result.height, pdfPage2Url };
+    return { thumbnailUrl: url, hiresUrl, width: result.width, height: result.height, pdfPage2Url };
   } catch (e) {
     const errorMsg = (e as Error).message;
     logger.warn("Thumbnail generation failed", { file: file.relativePath, error: errorMsg });
@@ -1226,7 +1235,7 @@ async function processFile(file: FileCandidate) {
     }
 
     // 2. Thumbnail strategy — uses new policy if set, else legacy mode
-    let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string } = {};
+    let thumb: { thumbnailUrl?: string; hiresUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string } = {};
     const effectiveMode = windowsRenderPolicy?.mode ?? windowsRenderMode;
     const policy = windowsRenderPolicy;
 
@@ -1273,6 +1282,7 @@ async function processFile(file: FileCandidate) {
       nas_ino: file.nasIno ?? null,
       content_sha256,
       thumbnail_url: thumb.thumbnailUrl,
+      hires_url: thumb.hiresUrl,
       thumbnail_error: thumb.thumbnailError,
       width: thumb.width,
       height: thumb.height,

@@ -184,6 +184,8 @@ export interface IngestPayload {
   /** Full-content SHA-256 (cross-volume move fallback). */
   content_sha256?: string | null;
   thumbnail_url?: string;
+  /** Hi-res AI tagging rendition (assets.hires_url, popdam3#1272). */
+  hires_url?: string;
   thumbnail_error?: string;
   width?: number;
   height?: number;

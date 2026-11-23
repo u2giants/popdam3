@@ -74,6 +74,17 @@ export async function uploadThumbnail(
 }
 
 /**
+ * Upload the hi-res AI-tagging rendition (assets.hires_url, popdam3#1272).
+ */
+export async function uploadHires(
+  assetId: string,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `hires/${assetId}.jpg`;
+  return uploader.uploadToSpaces(key, buffer);
+}
+
+/**
  * Upload a sibling image thumbnail to Spaces.
  * Stored under siblings/ prefix to avoid collision with asset thumbnails.
  */

@@ -26,6 +26,8 @@ import { isAiSentinel } from "./ai-sentinel-detect.js";
 const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800; // px
+/** Hi-res rendition for AI tagging (assets.hires_url, popdam3#1272). */
+export const HIRES_MAX_DIM = 1500; // px
 const SHARP_TIMEOUT_MS = 60_000; // 60 s per-step timeout — prevents hanging on corrupt/huge files
 const PSD_TOTAL_TIMEOUT_MS = 90_000; // 90 s overall cap for the full PSD pipeline (3 steps × 60 s would exceed the UI's 3-min stale threshold)
 
@@ -42,6 +44,32 @@ export interface ThumbnailResult {
   buffer: Buffer;
   width: number;
   height: number;
+  /** Larger rendition (longest edge up to HIRES_MAX_DIM) for AI tagging;
+   *  absent when the source is no bigger than the thumbnail. */
+  hiresBuffer?: Buffer;
+}
+
+/**
+ * Encode the 800px thumbnail and, when the source is larger than the
+ * thumbnail, a hi-res rendition from the same prepared pipeline.
+ */
+async function encodeRenditions(img: sharp.Sharp, label: string): Promise<ThumbnailResult> {
+  // Decode the source once: render the hi-res copy, then derive the thumbnail
+  // from it (huge PSDs must not be decoded twice inside their timeout).
+  const hires = await withTimeout(
+    img.resize(HIRES_MAX_DIM, HIRES_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true }),
+    SHARP_TIMEOUT_MS, `${label}.hires`,
+  );
+  const thumb = await withTimeout(
+    sharp(hires.data).resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true }),
+    SHARP_TIMEOUT_MS, `${label}.toBuffer`,
+  );
+  const width = thumb.info.width;
+  const height = thumb.info.height;
+  const bigger = Math.max(hires.info.width, hires.info.height) > Math.max(width, height);
+  return { buffer: thumb.data, width, height, hiresBuffer: bigger ? hires.data : undefined };
 }
 
 export interface PdfThumbnailResult extends ThumbnailResult {
@@ -59,10 +87,7 @@ export interface PdfThumbnailResult extends ThumbnailResult {
 async function thumbnailRaster(filePath: string): Promise<ThumbnailResult> {
   // Pass the path so libvips streams from disk instead of buffering the file (#232).
   const img = sharp(filePath).rotate().flatten({ background: "#ffffff" });
-  const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-  const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "raster.toBuffer");
-  const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "raster.meta");
-  return { buffer, width: meta.width || 0, height: meta.height || 0 };
+  return encodeRenditions(img, "raster");
 }
 
 /**
@@ -76,14 +101,8 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
       // multi-GB PSD in memory (#232).
       const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
       const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
-      const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-      const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
-      const outMeta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "psd.outMeta");
-      return {
-        buffer,
-        width: outMeta.width || meta.width || 0,
-        height: outMeta.height || meta.height || 0,
-      };
+      const out = await encodeRenditions(img, "psd");
+      return { ...out, width: out.width || meta.width || 0, height: out.height || meta.height || 0 };
     };
     return await withTimeout(psdWork(), PSD_TOTAL_TIMEOUT_MS, "psd.total");
   } catch (e) {
@@ -205,16 +224,7 @@ async function thumbnailFromSibling(filePath: string): Promise<ThumbnailResult> 
     siblingUsed: path.basename(siblingPath),
   });
 
-  const resized = sharp(siblingPath)
-    .flatten({ background: "#ffffff" })
-    .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-  const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "sibling.toBuffer");
-  const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "sibling.meta");
-  return {
-    buffer,
-    width: meta.width || 0,
-    height: meta.height || 0,
-  };
+  return encodeRenditions(sharp(siblingPath).flatten({ background: "#ffffff" }), "sibling");
 }
 
 async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult> {
@@ -230,16 +240,7 @@ async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult
       filePath,
     ], { timeout: 60_000 });
 
-    const resized = sharp(outPath)
-      .flatten({ background: "#ffffff" })
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "gs.toBuffer");
-    const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "gs.meta");
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    return await encodeRenditions(sharp(outPath).flatten({ background: "#ffffff" }), "gs");
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch((e) => {
       logger.warn("Failed to clean up Ghostscript temp dir", { tmpDir, error: (e as Error).message });
@@ -271,14 +272,7 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
   // Step 1: Try sharp (PDF-compatible .ai files)
   try {
     const img = sharp(filePath, { density: 150 }).flatten({ background: "#ffffff" });
-    const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "ai.toBuffer");
-    const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "ai.meta");
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    return await encodeRenditions(img, "ai");
   } catch (e) {
     logger.warn("AI sharp PDF-compat failed, trying Ghostscript", { filePath, error: (e as Error).message });
   }
