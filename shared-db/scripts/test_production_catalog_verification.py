@@ -429,6 +429,25 @@ class DeriveTargetsTests(unittest.TestCase):
         )
         self.assertEqual(t.tables, ["plm.widget"])
 
+    def test_verify_table_after_rename_and_schema_move(self):
+        targets = targets_for(
+            'grant select on core."externalCustomer" to authenticated;'
+            'alter table core."externalCustomer" rename to external_customer_old;'
+            'alter table core.external_customer_old set schema archive;'
+            'create view core."externalCustomer" as select 1;'
+        )
+        self.assertEqual(targets.tables, ["archive.external_customer_old"])
+        self.assertEqual(targets.views, ['core."externalCustomer"'])
+        self.assertEqual(
+            set(targets.required_relations), {"archive.external_customer_old", 'core."externalCustomer"'}
+        )
+        self.assertEqual(targets.privileges[0].target, "archive.external_customer_old")
+
+    def test_table_schema_move_if_exists_remains_optional(self):
+        targets = targets_for('alter table if exists core."Maybe" set schema "Archive";')
+        self.assertEqual(targets.optional, ['"Archive"."Maybe"'])
+        self.assertEqual(targets.required_relations, [])
+
     def test_alter_view_is_derived(self):
         # 20260810110000's ONLY statement outside a `do $$` block is
         # `alter view api.dam_order_list set (security_invoker = true)`, a real

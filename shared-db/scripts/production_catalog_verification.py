@@ -236,6 +236,10 @@ ALTER_RELATION_RE = re.compile(
     r"^\s*alter\s+(table|view|materialized\s+view|foreign\s+table)\s+"
     rf"(if\s+exists\s+)?(?:only\s+)?{QUALIFIED}"
 )
+ALTER_TABLE_LOCATION_RE = re.compile(
+    rf"^\s*alter\s+table\s+(if\s+exists\s+)?(?:only\s+)?{QUALIFIED}\s+"
+    rf"(rename\s+to|set\s+schema)\s+({QIDENT})\s*$"
+)
 # Issue #6603: `alter table <schema>.<table> alter column <col> [set data] type
 # <type>` changes `pg_attribute.atttypid`/`atttypmod` only. The relation may be a
 # quoted mixed-case name (`dflow_prod."itemHeader"`), which `QUALIFIED` cannot
@@ -3501,6 +3505,37 @@ def derive_targets(migrations: dict[str, Path], allowlist: list[str]) -> Targets
                         normalize_column_type(type_text)
                     )
                 change_types.add("alter column type")
+                continue
+            if match := ALTER_TABLE_LOCATION_RE.match(statement):
+                if_exists, source_schema, source_table, action, target = match.groups()
+                source = f"{source_schema}.{source_table}"
+                moving_schema = action.split()[0] == "set"
+                target_schema, target_table = (
+                    (target, source_table) if moving_schema else (source_schema, target)
+                )
+                destination = f"{target_schema}.{target_table}"
+                # Each assertion follows the table's identity. A later
+                # CREATE VIEW at the old name adds its own independent target.
+                for names in (tables, views, rls, seeded, optional):
+                    if source in names:
+                        names.remove(source)
+                        names.add(destination)
+                (optional if if_exists else tables).add(destination)
+                if not if_exists:
+                    optional.discard(destination)
+                for expectation in privileges:
+                    if expectation.kind == "relation" and expectation.target == source:
+                        expectation.target = destination
+                for index, relation in tuple(indexes):
+                    if relation == source:
+                        indexes.remove((index, relation))
+                        index_name = index.split(".", 1)[1]
+                        indexes.add((f"{target_schema}.{index_name}", destination))
+                for key in tuple(column_types):
+                    if key[:2] == (_ident_name(source_schema), _ident_name(source_table)):
+                        moved_key = (_ident_name(target_schema), _ident_name(target_table), key[2])
+                        column_types[moved_key] = column_types.pop(key)
+                change_types.add("alter table set schema" if moving_schema else "alter table rename")
                 continue
             if match := ALTER_RELATION_RE.match(statement):
                 kind, if_exists = match.group(1), match.group(2)
