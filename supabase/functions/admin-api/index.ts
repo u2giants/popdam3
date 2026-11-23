@@ -85,7 +85,6 @@ import {
   handleErpReviewQueue,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
-import { handleProdOrderStats, handleProdOrderSyncRuns, handleTriggerProdOrderSync } from "../_shared/admin-handlers/prod-order-handlers.ts";
 
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
@@ -2157,12 +2156,6 @@ corsServe(async (req: Request) => {
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":
         return await handleErpItemsDismiss(body);
-      case "trigger-prod-order-sync":
-        return await handleTriggerProdOrderSync(body);
-      case "prod-order-sync-runs":
-        return await handleProdOrderSyncRuns();
-      case "prod-order-stats":
-        return await handleProdOrderStats();
 
       // ── Install bundle (from install-bundle-handler.ts) ──
       case "generate-install-bundle":
