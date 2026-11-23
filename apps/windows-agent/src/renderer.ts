@@ -59,6 +59,24 @@ export interface RenderResult {
   buffer: Buffer;
   width: number;
   height: number;
+  /** Larger rendition (longest edge up to PDF_HIRES_DIM) for AI tagging
+   *  (assets.hires_url, popdam3#1272); absent when the source is no bigger
+   *  than the thumbnail. */
+  hiresBuffer?: Buffer;
+}
+
+/**
+ * Decode once: render the hi-res copy, then derive the 800px thumbnail from it.
+ */
+async function encodeRenditions(img: sharp.Sharp): Promise<RenderResult> {
+  const hires = await img
+    .resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true });
+  const thumb = await sharp(hires.data)
+    .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 85 }).toBuffer({ resolveWithObject: true });
+  const bigger = Math.max(hires.info.width, hires.info.height) > Math.max(thumb.info.width, thumb.info.height);
+  return { buffer: thumb.data, width: thumb.info.width, height: thumb.info.height, hiresBuffer: bigger ? hires.data : undefined };
 }
 
 export interface PdfRenderResult extends RenderResult {
@@ -325,19 +343,7 @@ async function renderWithSharp(
   const img = sharp(filePath, { ...options, limitInputPixels: false })
     .flatten({ background: "#ffffff" });
 
-  const resized = img.resize(
-    THUMB_MAX_DIM, THUMB_MAX_DIM,
-    { fit: "inside", withoutEnlargement: true },
-  );
-
-  const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-  const meta = await sharp(buffer).metadata();
-
-  return {
-    buffer,
-    width: meta.width || 0,
-    height: meta.height || 0,
-  };
+  return await encodeRenditions(img);
 }
 
 // Native PostScript AI may place its artwork outside the default Letter page.
@@ -389,21 +395,8 @@ async function renderWithGhostscript(
       filePath,
     ], { timeout: 60_000 });
 
-    const resized = sharp(outPath, { limitInputPixels: false })
-      .flatten({ background: "#ffffff" })
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
-        fit: "inside",
-        withoutEnlargement: true,
-      });
-
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
-
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    return await encodeRenditions(sharp(outPath, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" }));
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -435,21 +428,8 @@ async function renderWithInkscape(
       throw new Error("Inkscape produced no output");
     }
 
-    const resized = sharp(outPath, { limitInputPixels: false })
-      .flatten({ background: "#ffffff" })
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
-        fit: "inside",
-        withoutEnlargement: true,
-      });
-
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
-
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    return await encodeRenditions(sharp(outPath, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" }));
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -484,21 +464,8 @@ async function renderWithPoppler(
 
     const outFile = path.join(tmpDir, files[0]);
 
-    const resized = sharp(outFile, { limitInputPixels: false })
-      .flatten({ background: "#ffffff" })
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
-        fit: "inside",
-        withoutEnlargement: true,
-      });
-
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
-
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    return await encodeRenditions(sharp(outFile, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" }));
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -527,7 +494,7 @@ async function renderWithImageMagick(
         "-colorspace", "sRGB",
         "-background", "white",
         "-flatten",
-        "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+        "-resize", `${PDF_HIRES_DIM}x${PDF_HIRES_DIM}>`,
         "-quality", "85",
         outPath,
       ], { timeout: 120_000 }); // PSDs can be slow
@@ -554,19 +521,9 @@ async function renderWithImageMagick(
       usedFallback = true;
     }
 
-    // ImageMagick applies the 800px cap itself; the psd-tools PNG must be capped here.
-    const pipeline = sharp(renderedPath, { limitInputPixels: false });
-    const capped = usedFallback
-      ? pipeline.resize({ width: THUMB_MAX_DIM, height: THUMB_MAX_DIM, fit: "inside", withoutEnlargement: true })
-      : pipeline;
-    const buffer = await capped.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
-
-    return {
-      buffer,
-      width: meta.width || 0,
-      height: meta.height || 0,
-    };
+    // ImageMagick caps at the hi-res size; both renditions are derived here.
+    void usedFallback;
+    return await encodeRenditions(sharp(renderedPath, { limitInputPixels: false }));
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -587,7 +544,7 @@ async function renderWithImageMagickNative(filePath: string): Promise<RenderResu
       "-colorspace", "sRGB",
       "-background", "white",
       "-flatten",
-      "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+      "-resize", `${PDF_HIRES_DIM}x${PDF_HIRES_DIM}>`,
       "-quality", "85",
       outPath,
     ], { timeout: 120_000 });
@@ -596,9 +553,7 @@ async function renderWithImageMagickNative(filePath: string): Promise<RenderResu
       throw new Error("ImageMagick produced no output");
     }
 
-    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
-    return { buffer, width: meta.width || 0, height: meta.height || 0 };
+    return await encodeRenditions(sharp(outPath, { limitInputPixels: false }));
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -629,21 +584,7 @@ async function renderFromSibling(
       const siblingPath = path.join(dir, match);
       logger.info("Using sibling image", { filePath, sibling: match });
 
-      const buffer = await sharp(withLongPathPrefix(siblingPath))
-        .flatten({ background: "#ffffff" })
-        .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-
-      const meta = await sharp(buffer).metadata();
-      return {
-        buffer,
-        width: meta.width || 0,
-        height: meta.height || 0,
-      };
+      return await encodeRenditions(sharp(withLongPathPrefix(siblingPath)).flatten({ background: "#ffffff" }));
     }
   }
 
@@ -797,13 +738,7 @@ export async function renderNativeImage(filePath: string): Promise<RenderResult>
   }
   try {
     try {
-      const buffer = await sharp(effectivePath, { limitInputPixels: false })
-        .flatten({ background: "#ffffff" })
-        .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      const meta = await sharp(buffer).metadata();
-      return { buffer, width: meta.width || 0, height: meta.height || 0 };
+      return await encodeRenditions(sharp(effectivePath, { limitInputPixels: false }).flatten({ background: "#ffffff" }));
     } catch (sharpErr) {
       // Sharp failed (likely CMYK/Lab color space). Try ImageMagick with sRGB conversion.
       if (!IM_EXE) throw sharpErr;

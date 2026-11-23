@@ -58,6 +58,14 @@ export async function uploadThumbnail(
  * Upload a style-guide page thumbnail to Spaces.
  * Stored under sg-thumbnails/ prefix.
  */
+export async function uploadHires(
+  assetId: string,
+  buffer: Buffer,
+): Promise<string> {
+  // AI tagging rendition (assets.hires_url, popdam3#1272).
+  return uploader.uploadToSpaces(`hires/${assetId}.jpg`, buffer);
+}
+
 export async function uploadSgThumbnail(
   fileId: string,
   buffer: Buffer,
