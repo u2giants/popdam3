@@ -15,6 +15,7 @@ export const COMPANY_CODE = "EDGEHOME";
 export function parseArgs(argv) {
   const args = { company: COMPANY_CODE, dryRun: false };
   for (let index=0; index<argv.length; index+=1) {
+    if (argv[index] === "--customers-only") { args.customersOnly=true; continue; }
     if (argv[index] === "--dry-run") { args.dryRun=true; continue; }
     throw new Error(`unknown argument ${argv[index]}`);
   }
@@ -57,6 +58,28 @@ function makeLoad(table, spec, sourceRows, requestedBy, startedAt, finishedAt, c
       httpStatus: requestEvidence.every(({httpStatus})=>httpStatus===requestEvidence[0]?.httpStatus) ? requestEvidence[0]?.httpStatus : null,
       bodyStatus: requestEvidence.every(({bodyStatus})=>bodyStatus===requestEvidence[0]?.bodyStatus) ? requestEvidence[0]?.bodyStatus : null,
       requestedBy, startedAt, finishedAt, durationMs: Math.max(0, new Date(finishedAt)-new Date(startedAt)), rowsFetched: sourceRows.length },
+  };
+}
+
+export async function collectCustomers({ companyCode=COMPANY_CODE, apiKey, fetchOptions={} } = {}) {
+  const spec = MASTER_SPECS.customer;
+  const requestEvidence = [];
+  const startedAt = new Date().toISOString();
+  const rows = await fetchVariants(spec, { companyCode }, apiKey, {
+    requestGate: makeGate(fetchOptions.pauseMs ?? 3000),
+    ...fetchOptions,
+    onResponse: (entry) => requestEvidence.push(entry),
+  });
+  const counts = new Set(rows.map((row) => row.active));
+  if (!counts.has("Y") || !counts.has("N")) {
+    throw new Error("ColdLion customer refresh requires both active and inactive rows");
+  }
+  return {
+    loads: [makeLoad("customer", spec, rows, "coldlion-landing sync-customers",
+      startedAt, new Date().toISOString(), companyCode, requestEvidence)],
+    itemSlots: [],
+    affectedItemGrains: [],
+    includeItemSlots: false,
   };
 }
 
@@ -153,7 +176,9 @@ export async function main(argv=process.argv.slice(2), dependencies={}) {
   const prove=dependencies.proveTarget ?? proveTarget;
   const execute=dependencies.runSql ?? runSql;
   const readKey=dependencies.readApiKey ?? readColdlionApiKey;
-  const collect=dependencies.collectMasters ?? collectMasters;
+  const collect = args.customersOnly
+    ? dependencies.collectCustomers ?? collectCustomers
+    : dependencies.collectMasters ?? collectMasters;
   const recordFailure=dependencies.recordMasterFailure ?? recordMasterFailure;
   const target=prove();
   console.log(`target ${target.database} at ${target.host}`);

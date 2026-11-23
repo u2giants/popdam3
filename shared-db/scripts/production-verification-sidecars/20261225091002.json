@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225091002",
+  "migration_sha256": "df1a71609768f59a4f14fc52e355124f86c0e805ae616abb4774df71ebcf8c13",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 175,
+      "line_end": 210,
+      "disposition": "no_durable_target",
+      "reason": "These statements preserve relation-level SELECT for the exact pre-cutover grantees and remove default privileges, direct writes and access to the archived relations. Grantees are read from the target database catalog and cannot be enumerated in a fixed production sidecar. The sidecar contract types do not compare prior ACLs. The migration verifies each SELECT grant and refuses any remaining nonowner archive or non-SELECT view grants."
+    }
+  ],
+  "checks": []
+}

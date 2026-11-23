@@ -23,8 +23,21 @@ begin
       'item_product_description', 'item_product_description_history',  -- #5026; proved by its own exact contract
       'merchGroupRepairJournal'  -- #6584; repair undo journal
     );
+  -- #6998 keeps the frozen baseline recoverable in the private archive.
+  -- Count the archived customer table as part of that original inventory.
+  if not exists (
+    select 1 from pg_class
+    where oid = 'dflow_prod."externalCustomer"'::regclass and relkind = 'v'
+  ) or not exists (
+    select 1 from pg_class
+    where oid = 'archive.external_customer_prod_6998'::regclass and relkind = 'r'
+  ) then
+    raise exception 'production customer view or its recovery table is missing';
+  end if;
+  v_tables := v_tables + 1;
+
   if v_tables <> 103 then
-    raise exception 'expected 103 dflow_prod tables, found %', v_tables;
+    raise exception 'expected 103 frozen dflow_prod baseline tables, found %', v_tables;
   end if;
 
   select count(*) into v_sequences
@@ -46,8 +59,16 @@ begin
                 'merchGroupRepairJournal')  -- #6584
          )
     );
+  if not exists (
+    select 1 from pg_class
+    where oid = 'archive.external_customer_prod_6998_id_seq'::regclass and relkind = 'S'
+  ) then
+    raise exception 'production customer recovery sequence is missing';
+  end if;
+  v_sequences := v_sequences + 1;
+
   if v_sequences <> 97 then
-    raise exception 'expected 97 dflow_prod sequences, found %', v_sequences;
+    raise exception 'expected 97 frozen dflow_prod baseline sequences, found %', v_sequences;
   end if;
 
   if exists (

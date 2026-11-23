@@ -5,7 +5,7 @@ import { fetchArrayMaster, fetchPagedMaster, masterUrl } from "./coldlion-landin
 import { ITEM_SPECS, MASTER_SPECS, knownApiFields } from "./coldlion-landing/lib/master-specs.mjs";
 import { assertKnownShape, projectCurrentRows, projectItemSlots } from "./coldlion-landing/lib/project-masters.mjs";
 import { buildMasterLoadSql } from "./coldlion-landing/lib/load-masters.mjs";
-import { assertRequestedScope, assertSameIdentitySet, collectMasters, dedupeSlots, main, parseArgs, splitOrphanItemDetails } from "./coldlion-landing/sync-masters.mjs";
+import { assertRequestedScope, assertSameIdentitySet, collectCustomers, collectMasters, dedupeSlots, main, parseArgs, splitOrphanItemDetails } from "./coldlion-landing/sync-masters.mjs";
 import { assertExpectedTarget, masterFailureSql, redactPsqlError, runSql as landingRunSql } from "./coldlion-landing/lib/db.mjs";
 import { existsSync } from "node:fs";
 
@@ -238,6 +238,28 @@ test("EP001 itemDetails are excluded before the division completeness comparison
   const kept=sourceFor(spec,{companyCode:"EDGEHOME",divisionCode:"SD001",itemNo:"I1",itemPkey:"P1"});
   const retired=sourceFor(spec,{companyCode:"EDGEHOME",divisionCode:"EP001",itemNo:"I2",itemPkey:"P2"});
   assert.doesNotThrow(()=>assertSameIdentitySet(spec,[kept,retired].filter((row)=>row.divisionCode!=="EP001"),[kept]));
+});
+
+test("customer-only refresh lands both active groups without touching other masters", async () => {
+  const calls = [];
+  const spec = MASTER_SPECS.customer;
+  const fetchImpl = async (rawUrl) => {
+    const url = new URL(rawUrl);
+    assert.equal(url.pathname, "/EhpApi/customers");
+    const active = url.searchParams.get("active");
+    calls.push(active);
+    const rows = [sourceFor(spec, { companyCode: "EDGEHOME", customerCode: active, active })];
+    return { ok: true, status: 200, text: async () => JSON.stringify({
+      content: rows, number: 0, size: 2000, numberOfElements: 1,
+      totalElements: 1, totalPages: 1, last: true,
+    }) };
+  };
+  const result = await collectCustomers({ apiKey: "hidden", fetchOptions: { fetchImpl, pauseMs: 0 } });
+  assert.deepEqual(calls, ["Y", "N"]);
+  assert.deepEqual(result.loads.map((load) => load.table), ["customer"]);
+  const sql = buildMasterLoadSql(result);
+  assert.match(sql, /insert into coldlion\.customer/);
+  assert.doesNotMatch(sql, /item_merch_group|insert into coldlion\.vendor/);
 });
 
 test("collector fans seasons per division, merges active variants, and proves itemDetails",async()=>{
