@@ -553,11 +553,13 @@ async function processJob(job: api.RenderJob): Promise<void> {
     const cw = fileType === "ai" ? await getCompatWorker() : undefined;
     const result = await withRenderTimeout(renderFile(uncPath, fileType, cw), `render ${job.relative_path}`);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
+    let hiresUrl: string | undefined;
 
     // For PDFs, upload hi-res page images
     if ("hiresPage1Buffer" in result) {
       const pdfResult = result as PdfRenderResult;
-      await uploadPdfPage(job.asset_id, 1, pdfResult.hiresPage1Buffer);
+      // The hi-res page 1 doubles as the AI tagging rendition (popdam3#1272).
+      hiresUrl = await uploadPdfPage(job.asset_id, 1, pdfResult.hiresPage1Buffer);
       if (pdfResult.hiresPage2Buffer) {
         const page2Url = await uploadPdfPage(job.asset_id, 2, pdfResult.hiresPage2Buffer);
         // Update asset with page 2 URL via separate update call
@@ -569,7 +571,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
       }
     }
 
-    await api.completeRender(job.job_id, true, thumbnailUrl);
+    await api.completeRender(job.job_id, true, thumbnailUrl, undefined, hiresUrl);
     jobsCompleted++;
     logger.info("Render job completed", { jobId: job.job_id, assetId: job.asset_id, thumbnailUrl });
   } catch (e) {

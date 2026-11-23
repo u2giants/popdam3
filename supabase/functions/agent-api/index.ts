@@ -1107,6 +1107,9 @@ async function handleIngest(
   const nasIno = (typeof nasInoRaw === "string" || typeof nasInoRaw === "number") && /^\d{1,20}$/.test(String(nasInoRaw)) ? String(nasInoRaw) : null;
   const contentSha256 = optionalString(body, "content_sha256") || null;
   const thumbnailUrl = optionalString(body, "thumbnail_url");
+  // Hi-res AI tagging rendition (popdam3#1272). Replaced with every new
+  // thumbnail so a stale hi-res copy never outlives the thumbnail it matched.
+  const hiresUrl = optionalString(body, "hires_url") || null;
   const thumbnailError = optionalString(body, "thumbnail_error");
   const width = optionalNumber(body, "width") ?? 0;
   const height = optionalNumber(body, "height") ?? 0;
@@ -1223,6 +1226,7 @@ async function handleIngest(
     const thumbMove: Record<string, unknown> = {};
     if (thumbnailUrl) {
       thumbMove.thumbnail_url = thumbnailUrl;
+      thumbMove.hires_url = hiresUrl;
       thumbMove.thumbnail_error = null;
     } else if (thumbnailError) {
       const { data: current } = await db
@@ -1288,6 +1292,7 @@ async function handleIngest(
     if (thumbnailUrl) {
       // Always overwrite with a working thumbnail
       thumbnailFields.thumbnail_url = thumbnailUrl;
+      thumbnailFields.hires_url = hiresUrl;
       thumbnailFields.thumbnail_error = null;
     } else if (thumbnailError) {
       // Only set error if asset doesn't already have a working thumbnail
@@ -1387,6 +1392,7 @@ async function handleIngest(
     quick_hash_version: quickHashVersion,
     last_seen_at: new Date().toISOString(),
     thumbnail_url: thumbnailUrl,
+    ...(hiresUrl ? { hires_url: hiresUrl } : {}),
     thumbnail_error: thumbnailError,
     ...(nasVolume ? { nas_volume: nasVolume } : {}),
     ...(nasIno ? { nas_ino: nasIno } : {}),
@@ -2207,7 +2213,7 @@ async function handleCompleteRender(body: Record<string, unknown>) {
     },
     saveThumbnail: () =>
       db.from("assets")
-        .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null }, { count: "exact" })
+        .update({ thumbnail_url: thumbnailUrl, hires_url: optionalString(body, "hires_url") || null, thumbnail_error: null }, { count: "exact" })
         .eq("id", job.asset_id),
     failOwnCompletion: (reason, completedAt) =>
       db.from("render_queue")

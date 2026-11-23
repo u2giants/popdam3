@@ -167,11 +167,13 @@ export async function completeRender(
   success: boolean,
   thumbnailUrl?: string,
   error?: string,
+  hiresUrl?: string,
 ): Promise<void> {
   await callApi("complete-render", {
     job_id: jobId,
     success,
     thumbnail_url: thumbnailUrl,
+    hires_url: hiresUrl,
     error,
   });
 }

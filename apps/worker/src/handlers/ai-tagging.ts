@@ -203,12 +203,36 @@ type BatchAsset = {
   licensor_id: string | null;
   property_id: string | null;
   thumbnail_url: string | null;
+  hires_url: string | null;
   status: string | null;
   ai_tagged_at: string | null;
   sku: string | null;
   division_code: string | null;
   style_group_id: string | null;
 };
+
+/**
+ * Vision input for tagging (popdam3#1272): the agent's hi-res rendition when
+ * present (longest edge up to 1500px), else the 800px thumbnail.
+ */
+export function taggingImageUrl(asset: { thumbnail_url: string | null; hires_url?: string | null }): string | null {
+  return asset.hires_url || asset.thumbnail_url || null;
+}
+
+/** Fetch the hi-res rendition, falling back to the thumbnail if it is unreachable. */
+async function fetchTaggingImage(
+  asset: { thumbnail_url: string | null; hires_url?: string | null },
+  assetId: string,
+): Promise<{ base64: string; mimeType: string }> {
+  if (asset.hires_url) {
+    try {
+      return await fetchImageData(asset.hires_url);
+    } catch (e) {
+      logger.warn("ai-tag: hi-res fetch failed, using thumbnail", { assetId, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return fetchImageData(asset.thumbnail_url!);
+}
 
 async function buildBatchAssetRequest(
   assetId: string,
@@ -220,7 +244,7 @@ async function buildBatchAssetRequest(
 ) {
   const client = db();
   const { data: asset, error } = await client.from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, hires_url, status, ai_tagged_at, sku, division_code, style_group_id")
     .eq("id", assetId).maybeSingle();
   if (error) throw new Error(`Asset reload failed before submission: ${error.message}`);
   if (!asset) throw new AssetMissingError(assetId);
@@ -230,7 +254,7 @@ async function buildBatchAssetRequest(
   const prompt = await buildImageTaggingPrompt(typed);
   const messages = buildBatchImageTaggingMessages(
     prompt,
-    typed.thumbnail_url,
+    taggingImageUrl(typed)!,
     "Analyze this design asset image and return structured tags matching the tag_asset schema.",
   );
   const request: ChatCompletionRequest = {
@@ -940,7 +964,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   // Fetch asset
   const { data: asset, error: fetchErr } = await client
     .from("assets")
-    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, ai_description, ai_model, sku, division_code, style_group_id")
+    .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, hires_url, status, ai_tagged_at, ai_description, ai_model, sku, division_code, style_group_id")
     .eq("id", assetId)
     .single();
 
@@ -972,7 +996,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   } : undefined);
   let image: { base64: string; mimeType: string };
   try {
-    image = await fetchImageData(thumbnailUrl);
+    image = await fetchTaggingImage(asset, assetId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.warn("ai-tag: thumbnail fetch error", { assetId, error: msg });
@@ -1143,11 +1167,11 @@ export async function handleBulkAiTag(
         return row ? { asset_id: row.id, next_cursor: encodeAiTagCursor({ tier: row.primary_sort_tier, id: row.id }), done: false } : null;
       },
       prepare: async (id, method, repairError, outputTokenLimit) => {
-        const { data: loadedAsset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).maybeSingle();
+        const { data: loadedAsset, error } = await db().from("assets").select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, hires_url, status, ai_tagged_at, sku, division_code, style_group_id").eq("id", id).maybeSingle();
         const asset = requireMetaAssetRow(loadedAsset, error, id);
         if (!tagAll && asset.status === "tagged" && asset.ai_tagged_at) return null;
         if (!asset.thumbnail_url) throw new Error(`Asset has no thumbnail: ${id}`);
-        const image = await fetchImageData(asset.thumbnail_url);
+        const image = await fetchTaggingImage(asset, id);
         let characterCatalogIds: string[] = [];
         const prompt = await buildImageTaggingPrompt(asset, { requireCharacterReadSuccess: true, onCharacterCatalog: ids => { characterCatalogIds = ids; } });
         const messages = buildImageTaggingMessages(prompt, image, "Analyze this design asset image and return structured tags matching the tag_asset schema.");
