@@ -98,7 +98,7 @@ export type DescriptionEditorOptions = {
 };
 
 export type DescriptionEditorProps = CustomCellEditorProps<StyleRow, string> & {
-  options?: DescriptionEditorOptions;
+  options: DescriptionEditorOptions;
 };
 
 export type AuditLogEntry = {

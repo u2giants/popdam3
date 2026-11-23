@@ -27,8 +27,8 @@ import { getMg01Options, getMg02Options, getMg03Options } from "@/lib/mg-lookup"
 import { refreshStyleTrackerBridgeWithRetry, StyleRowSavedBridgeRefreshError } from "@/lib/style-tracker-save";
 import { cn } from "@/lib/utils";
 import { type FieldKey, type StyleRow, type SheetColumn, type ReviewItem, type LinkCandidate, type JevRankingResponse, type DescriptionEditorOptions, type AuditCell, type SavedView } from "./styles/types";
-import { JEV_MATCH_FIELDS, COMMON_SIZE_OPTIONS, SIZE_AT_END_RE, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
-import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, compactStringOptions, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation, isUserCreatedRow } from "./styles/helpers";
+import { JEV_MATCH_FIELDS, configs, lightGridTheme, darkGridTheme } from "./styles/columns";
+import { valueFor, yesNoValue, numberValue, dateValue, googleDateDisplay, displayValueFor, normalized, fieldValue, fieldLabel, hasFieldMatch, hasManualResolution, fuzzyCandidate, statusFor, buildUpdate, columnLabel, auditTitle, auditDescription, formatAuditTime, fetchPropertyOptions, fetchSizeOptions, buildLicensorPropertyOptions, validateDescriptionSelection, isColdLionDescription, matchStatusExplanation, isUserCreatedRow } from "./styles/helpers";
 import { refreshBridgeWithMeasurement, fetchRowsPage, fetchStyleRow, fetchCellAuditLog, activeViewStorageKey, fetchSavedViews, fetchCount, searchCandidates, searchManualCandidates, fetchCustomerOptions, fetchLicensorOptions, fetchDesignerOptions, fetchFactoryOptions, fetchPackagingTypeOptions } from "./styles/api";
 import { DescriptionBuilderEditor, RowNumberCell, RowNumberHeader, RfqGroupCell } from "./styles/cells";
 
@@ -200,13 +200,6 @@ export default function StylesPage() {
   const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
     const mg01Options = getMg01Options();
     const mg01CodeByName = new Map(mg01Options.map((option) => [option.name, option.code]));
-    const parsedSizes = rows
-      .map((row) => {
-        const match = String(row.description ?? "").match(SIZE_AT_END_RE);
-        return match?.[1]?.replace(/\s*[x×]\s*/g, "x").replace(/\s+/g, " ").trim();
-      })
-      .filter((value): value is string => Boolean(value));
-
     return {
       mg01: mg01Options.map((option) => option.name),
       mg02: (mg01) => getMg02Options(mg01CodeByName.get(mg01)).map((option) => option.name),
@@ -216,9 +209,9 @@ export default function StylesPage() {
         return getMg03Options(mg01Code, mg02Code).map((option) => option.name);
       },
       licensorProperty: buildLicensorPropertyOptions(propertyOptionsQuery.data ?? []),
-      size: compactStringOptions([...(sizeOptionsQuery.data?.length ? sizeOptionsQuery.data : COMMON_SIZE_OPTIONS), ...parsedSizes], 500),
+      size: sizeOptionsQuery.data ?? [],
     };
-  }, [propertyOptionsQuery.data, rows, sizeOptionsQuery.data]);
+  }, [propertyOptionsQuery.data, sizeOptionsQuery.data]);
 
   const reviewItems = useMemo(() => {
     const items = new Map<string, ReviewItem>();
@@ -638,7 +631,10 @@ export default function StylesPage() {
         width: column.width ?? 140,
         pinned: column.pinned,
         hide: column.hide,
-        editable: (params) => isAdmin && column.typedField !== "license_status" && !isColdLionDescription(params.data, column),
+        editable: (params) => isAdmin &&
+          column.typedField !== "license_status" &&
+          (column.typedField !== "description" || Boolean(sizeOptionsQuery.data)) &&
+          !isColdLionDescription(params.data, column),
         cellEditor:
           column.date
             ? "agDateStringCellEditor"
@@ -718,7 +714,7 @@ export default function StylesPage() {
         valueSetter: (params) => {
           if (!params.data || !isAdmin || column.typedField === "license_status") return false;
           if (column.typedField === "description") {
-            const validationError = validateDescriptionSelection(params.newValue, descriptionOptions);
+            const validationError = validateDescriptionSelection(params.newValue, descriptionOptions, params.oldValue);
             if (validationError) {
               toast.error("Description is incomplete", { description: validationError });
               return false;
@@ -753,7 +749,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, isAdmin, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
+    [active, isAdmin, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data, sizeOptionsQuery.data],
   );
 
   const loadStatus = masterDataLoadStatus({
@@ -819,8 +815,12 @@ export default function StylesPage() {
     if (column.typedField === "designer" && value && !designerOptionKeys.has(normalized(String(value)))) throw new Error("The requested designer is not in the Creative Designer list.");
     if (column.optionKind === "packagingType" && value && !packagingTypeOptionKeys.has(normalized(String(value)))) throw new Error("The requested packaging type is not in the Packaging Types list.");
     if (column.typedField === "description") {
-      const validationError = validateDescriptionSelection(value, descriptionOptions);
-      if (validationError) throw new Error(validationError);
+      if (!sizeOptionsQuery.data) throw new Error("The shared Size list is unavailable.");
+      for (const row of selectedRows) {
+        if (isColdLionDescription(row, column)) continue;
+        const validationError = validateDescriptionSelection(value, descriptionOptions, row.description);
+        if (validationError) throw new Error(validationError);
+      }
     }
     const editableRows = selectedRows.filter((row) => !isColdLionDescription(row, column));
     if (!editableRows.length) throw new Error("Description comes from ColdLion for linked lines and cannot be edited here.");
@@ -848,6 +848,11 @@ export default function StylesPage() {
               <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
               <div className="flex flex-wrap items-center gap-2">
                 <p role="status" className="text-xs text-muted-foreground">{loadStatus.message}</p>
+                {isAdmin && sizeOptionsQuery.isError && (
+                  <Button variant="outline" size="sm" onClick={() => void sizeOptionsQuery.refetch()}>
+                    Retry loading the shared Size list
+                  </Button>
+                )}
                 {loadStatus.showRetry && (
                   <Button
                     variant="outline"

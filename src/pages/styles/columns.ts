@@ -30,19 +30,6 @@ export const APPROVED_LICENSOR_PROPERTY_OPTIONS = [
   "WB Friday the 13th",
 ];
 
-export const COMMON_SIZE_OPTIONS = [
-  "8x10\"",
-  "11x14\"",
-  "12x12\"",
-  "12x16\"",
-  "16x20\"",
-  "16x20\" x1.2\"",
-  "18x24\"",
-  "20x20\"",
-  "24x24\" x1.5\"",
-  "24x36\"",
-];
-
 export const SIZE_AT_END_RE = /(?:^|\s)(\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:"|in))?(?:\s*[x×]\s*\d+(?:\.\d+)?\s*(?:"|in)?)?)$/i;
 
 export const licensedColumns: SheetColumn[] = [
