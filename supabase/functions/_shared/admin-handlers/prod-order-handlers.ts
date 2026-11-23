@@ -18,8 +18,10 @@
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { unwrapConfigString, unwrapConfigValue } from "../config-utils.ts";
+import { prodOrderPageWindow } from "./prod-order-paging.ts";
 
-const DEFAULT_ENDPOINT = "https://popcre-tracking-prod-677598988032.us-central1.run.app/getProdOrderHeader";
+// popdam3#1272: the us-central1 address returns 404; prod runs in us-east4.
+const DEFAULT_ENDPOINT = "https://popcre-tracking-prod-mi7si7t62a-uk.a.run.app/getProdOrderHeader";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGES = 2000;
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -388,8 +390,7 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
 
   try {
     for (let page = 0; page < maxPages; page++) {
-      const startRow = page * pageSize + 1;
-      const endRow = startRow + pageSize - 1;
+      const { startRow, endRow } = prodOrderPageWindow(page, pageSize);
       const url = new URL(endpoint);
       url.searchParams.set("startRow", String(startRow));
       url.searchParams.set("endRow", String(endRow));
@@ -417,7 +418,7 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
       const normalized: NormalizedProdOrder[] = [];
       for (let i = 0; i < rows.length; i++) {
         try {
-          normalized.push(...normalizeProdOrderRows(rows[i], startRow + i));
+          normalized.push(...normalizeProdOrderRows(rows[i], startRow + i + 1));
         } catch (e) {
           totalErrors += 1;
           if (errorSamples.length < 20) errorSamples.push(e instanceof Error ? e.message : String(e));
