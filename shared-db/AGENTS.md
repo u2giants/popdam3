@@ -256,6 +256,7 @@ identifiers resolve to preserved evidence storage as documented in
 - [plan_rls_request_constant_checks.md](plan_rls_request_constant_checks.md)
 - [plan_go-live-lane-prevention.md](plan_go-live-lane-prevention.md) (read its STATUS table first — do not re-derive or re-plan; issue #5782)
 - [plan_stranded_migration_prevention.md](plan_stranded_migration_prevention.md) (completed #6574)
+- [plan_index-maintenance-no-starvation.md](plan_index-maintenance-no-starvation.md) (completed PR #6971)
 
 ## Task declaration
 

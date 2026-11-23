@@ -1,3 +1,10 @@
+---
+summary: "Completed implementation plan (PR #6971) preventing index maintenance from starving schema promotions, with per-operation retry caps."
+kind: plan
+status: done
+read-when: reviewing the automatic-production-trigger step order or index-maintenance retry cap
+---
+
 # Implementation Plan: Prevent Index Maintenance from Starving Schema Promotions
 
 Companion handoff: retired in follow-up STATUS PR (originally `HANDOFF.d/2026-11-22T1820Z-edge-dev-antigravity-index-maintenance-no-starvation.md`).

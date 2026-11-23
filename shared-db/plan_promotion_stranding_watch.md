@@ -1,8 +1,8 @@
 ---
-summary: Stop merged shared-db migrations from stranding unpromoted and unnoticed — the promotion selector marks every parked or long-held PR on the PR itself (comment + label, cleared on delivery), and sessions check those labels at start and before ending.
-kind: implementation-plan
-status: ready-for-implementation (revision 3, 2026-11-17)
-read-when: implementing or reviewing the stranded-PR escalation in the automatic promotion trigger or the promotion-watch session rule; when a merged migration sits unpromoted and nobody knows.
+summary: "Plan (#6561) to stop merged migrations from stranding unnoticed: selector marks parked/held PRs and clears on delivery; sessions check labels."
+kind: plan
+status: open
+read-when: implementing or reviewing stranded-PR escalation in the automatic promotion trigger or the promotion-watch session rule
 ---
 
 # Plan: promotion-stranding watch (revision 3)
