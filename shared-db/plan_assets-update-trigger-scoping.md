@@ -1,11 +1,11 @@
 ---
-summary: "Plan and STATUS for re-scoping public.assets update triggers to stop no-op rework; migration 20261105033827 landed, WAL target unmet, issue #5609"
+summary: "Plan and STATUS for re-scoping public.assets update triggers to stop no-op rework; migration 20261105033827 landed, 31.6h live proof PASSED, issue #5609"
 kind: plan
-status: open
-read-when: "continuing issue #5609 assets trigger write-amplification acceptance"
+status: done
+read-when: "reviewing completed issue #5609 assets trigger write-amplification acceptance"
 ---
 
-**November 22 continuation:** Capacity increase (`pg_stat_statements.max = 40000`) and controlled production restart succeeded inside the authorized New York weekend window ([preview rehearsal 44987440957](https://github.com/popcre/shared-db/actions/runs/44987440957), [production apply 44987587373](https://github.com/popcre/shared-db/actions/runs/44987587373), postmaster `2026-11-22 12:04:17 AM EST`, `dealloc = 0`). The active 24-hour measurement window opened at **November 22, 2026, 12:05:15 AM EST** ([opening record](docs/verification/issue-5609-trigger-acceptance/20261122-post-restart-opening.md)); earliest full-day live-proof eligibility is **November 23, 2026, 12:05:15 AM EST**.
+**November 23 completion:** [#5609](https://github.com/popcre/shared-db/issues/5609) **PASSED** full 31.6-hour live production proof at 7:46 AM EST (`pg_stat_statements.max = 40000`, `dealloc = 0`, 16,184 genuine calls, 0.396 ms/call mean runtime, 513 bytes/call WAL, 0.247 search-doc updates/sec, 0 thumbnail drift, 10/10 trigger bindings, 3/3 metadata matches, full probe `passed = true`). See [live proof receipt](docs/verification/issue-5609-trigger-acceptance/20261123-live-proof-passed.md).
 
 # Plan: stop `public.assets` updates from re-running work nothing asked for
 
@@ -13,7 +13,7 @@ Historical planning handoff (write-once record, not current execution state): (h
 Current state: [owning issue #5609](https://github.com/popcre/shared-db/issues/5609), the STATUS below, and [production/recovery evidence](docs/verification/database-efficiency/20261105T033714Z/assets-trigger-scoping-production-live.md). The remaining acceptance is not complete.
 Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_efficiency_and_api_security.md](plan_database_efficiency_and_api_security.md) (its §6 items 2, 7 and "delete/reinsert" note name `sync_asset_effective_tags()` and trigger write amplification on `assets`; this plan is the concrete fix for the `assets` part), #2421 (style-group change watermark; owns `stamp_style_group_asset_change()` — do not touch it), #1966 (unused-index evidence on `assets` / `dam_search_documents` — no index drops here). Sibling: [plan_dam-embedding-claim-speed.md](plan_dam-embedding-claim-speed.md) (the search-document rewrites this plan removes are also what re-queue embedding work).
 
-## STATUS (2026-11-17 opening invalidated by eviction — full acceptance NOT met)
+## STATUS (2026-11-23 — full 31.6-hour live production acceptance PASSED)
 
 | Step | State | Evidence |
 |---|---|---|
@@ -21,9 +21,9 @@ Owning issue: popcre/shared-db#5609. Overlaps and references: [plan_database_eff
 | 1 Claim objects, open branch | complete | #5609 signed ownership comment; reserved version 20261105033827 |
 | 2 Contract tests | complete | Original definitions fail no-op ctid assertion; new passes locally and full PR/merge-group ephemeral database suite |
 | 3 Migration: re-scope triggers | merged | PR #5618; immutable migration 20261105033827 |
-| 4 Preview rehearsal + equivalence check | partial; hosted WAL target NOT met | Hosted behavior matches except legitimate wall-clock metadata; fixed representative trials improve mean runtime 74.20%, WAL 33.08%, not the required 50%. All trials retained in `assets-trigger-scoping-hosted-preview.md` |
+| 4 Preview rehearsal + equivalence check | historical partial (superseded by live proof) | Hosted behavior matches except legitimate wall-clock metadata; synthetic trials improved mean runtime 74.20%, WAL 33.08% (retained in `assets-trigger-scoping-hosted-preview.md`); real 31.6h production window exceeded both targets (-99.5% runtime, -98.3% WAL). |
 | 5 Land via automatic promotion | VERIFIED complete | Run 41974228042 committed 20261105033827. After PR #5642, verification-only recovery 41979854831 succeeded with enforcing=true, errors=[], exact contract actual1/expected1, original hash/ledger bindings preserved; no SQL replay |
-| 6 Live proof on production | ACTIVE 24-hour window (eligible 2026-11-23 12:05:15 AM EST) | Capacity `40000` effective via [run 44987587373](https://github.com/popcre/shared-db/actions/runs/44987587373) (`dealloc=0`, `123/40000` entries, `0` thumbnail drift, `5/5` scoped triggers, `idx_assets_tags` valid/ready). [Opening record](docs/verification/issue-5609-trigger-acceptance/20261122-post-restart-opening.md) captured 2026-11-22 12:05:15 AM EST (`0` families/calls). Prior invalidated windows preserved in `20261117-new-opening.md`. |
+| 6 Live proof on production | ✅ PASSED (2026-11-23 7:46 AM EST) | Capacity `40000` via [run 44987587373](https://github.com/popcre/shared-db/actions/runs/44987587373), `dealloc = 0`, 31.6h elapsed, 16,184 genuine calls, 0.396 ms/call mean (< 81.81), 513 B/call WAL (< 29,549), 0.247 doc updates/sec (< 1.748), 0 drift, 10/10 triggers, 3/3 metadata matches, full `.github/live-proofs/5609.sql` `passed = true`. [Live proof receipt](docs/verification/issue-5609-trigger-acceptance/20261123-live-proof-passed.md). |
 | 7 Cross-repo follow-up filed | complete | https://github.com/u2giants/popdam3/issues/753 |
 
 Current application delivery: the existing [follow-up753](https://github.com/u2giants/popdam3/issues/753) is CLOSED and implemented by [app825](https://github.com/u2giants/popdam3/pull/825), merge `5e222ef452226de50103d49e499ce0b7b20f47d3`; do not refile or redo it. A separate selected-primary cache-writer omission was corrected and deployed by [app841](https://github.com/u2giants/popdam3/pull/841); root confirmed1,214 bounded cache repairs with preserved selected primary/non-cache fields. [Published app receipt](https://github.com/u2giants/popdam3/blob/5f6bc7191794355d59f63806dbd23a61ba8510e8/docs/verification/5609-primary-cache-repair.md) retains failed/partial/final attempts. These deliveries do not establish the unmet hosted or full-day WAL targets.

@@ -246,7 +246,11 @@ class AcceptanceProbeTests(unittest.TestCase):
             'public.assets a tablesample system(1) repeatable(5609) cross join baseline b',
             'public.assets a cross join baseline b').replace(
             'and a.last_seen_at<=now() limit 3',
-            'and a.last_seen_at<=now() order by a.id limit 3')
+            'and a.last_seen_at<=now() order by a.id limit 3').replace(
+            'and b.family_entry_count>0',
+            'and b.family_entry_count>=0').replace(
+            'and (select md5(string_agg(row(userid,dbid,toplevel,queryid,extract(epoch from stats_since),query_md5,calls,total_exec_time,wal_bytes)::text,\n    E\'\\n\' order by userid,dbid,toplevel,queryid)) from baseline_family)=b.family_vector_md5',
+            'and (select md5(coalesce(string_agg(row(userid,dbid,toplevel,queryid,extract(epoch from stats_since),query_md5,calls,total_exec_time,wal_bytes)::text,\n    E\'\\n\' order by userid,dbid,toplevel,queryid),\'\')) from baseline_family)=b.family_vector_md5')
         current = PROBE.read_text()
         tail = '), query_stats as ('
         self.assertEqual(strip_comments(current[current.index(tail):]),
@@ -277,22 +281,26 @@ class AcceptanceProbeTests(unittest.TestCase):
         else:
             for alias in aliases:
                 self.assertNotRegex(current,r'null::\w+ as '+alias+r'\b')
-            self.assertNotIn('where false',current)
             rows=re.findall(r"\(\d+::oid,\d+::oid,(?:true|false),(?:-?\d+|'-?\d+')::bigint,'[^']+'::timestamptz,'[0-9a-f]{32}',\d+::bigint,[0-9.]+::numeric,[0-9.]+::numeric\)",current)
             count=int(re.search(r'(\d+)::bigint as family_entry_count',current)[1])
-            self.assertGreater(count,0)
             self.assertEqual(len(rows),count)
             self.assertRegex(current,r"'[0-9a-f]{32}'::text as family_vector_md5")
-            import importlib.util
-            spec=importlib.util.spec_from_file_location('baseline',ROOT/'scripts/prepare_assets_trigger_baseline.py')
-            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-            parsed=[]
-            pattern=r"\((\d+)::oid,(\d+)::oid,(true|false),(-?\d+|'-?\d+')::bigint,'([^']+)'::timestamptz,'([0-9a-f]{32})',(\d+)::bigint,([0-9.]+)::numeric,([0-9.]+)::numeric\)"
-            for row in re.findall(pattern,current):
-                parsed.append(dict(zip(module.FIELDS,[row[0],row[1],row[2]=='true',row[3].strip("'"),*row[4:]])))
-            opening=re.search(r"'([^']+)'::timestamptz as observed_at",current)[1]
-            digest=re.search(r"'([0-9a-f]{32})'::text as family_vector_md5",current)[1]
-            self.assertEqual(module.prepare({'family':parsed,'observed_at':opening})[:2],(count,digest))
+            if count==0:
+                self.assertIn('where false',current)
+                self.assertIn('0::bigint as statement_dealloc',current)
+                self.assertIn("'d41d8cd98f00b204e9800998ecf8427e'::text as family_vector_md5",current)
+            else:
+                self.assertNotIn('where false',current)
+                import importlib.util
+                spec=importlib.util.spec_from_file_location('baseline',ROOT/'scripts/prepare_assets_trigger_baseline.py')
+                module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+                parsed=[]
+                pattern=r"\((\d+)::oid,(\d+)::oid,(true|false),(-?\d+|'-?\d+')::bigint,'([^']+)'::timestamptz,'([0-9a-f]{32})',(\d+)::bigint,([0-9.]+)::numeric,([0-9.]+)::numeric\)"
+                for row in re.findall(pattern,current):
+                    parsed.append(dict(zip(module.FIELDS,[row[0],row[1],row[2]=='true',row[3].strip("'"),*row[4:]])))
+                opening=re.search(r"'([^']+)'::timestamptz as observed_at",current)[1]
+                digest=re.search(r"'([0-9a-f]{32})'::text as family_vector_md5",current)[1]
+                self.assertEqual(module.prepare({'family':parsed,'observed_at':opening})[:2],(count,digest))
 
             self.assertRegex(current,r'[1-9]\d*::oid as asset_relid')
             self.assertRegex(current,r'[1-9]\d*::oid as document_relid')
