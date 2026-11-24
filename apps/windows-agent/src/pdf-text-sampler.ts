@@ -54,12 +54,12 @@ export interface AiConfig {
   pdf_extraction: { ai_vision_model_id: string } | null;
   googleApiKey: string;
   anthropicApiKey: string;
-  /** OpenRouter API key — if set, all AI vision calls go through openrouter.ai */
+  /** API key used for requests routed through OpenRouter. */
   openRouterApiKey?: string;
-  /** ScaleDown API key — used when the selected model is a scaledown/ id */
   /** OpenAI direct key and routing switch for openai/* models. */
   openAiApiKey?: string;
   openAiRoute?: "direct" | "openrouter";
+  /** ScaleDown API key — used when the selected model is a scaledown/ id */
   scaleDownApiKey?: string;
   /** Per-task model overrides from AI_TASK_MODELS admin config */
   aiTaskModels?: Record<string, string>;

@@ -55,24 +55,36 @@ test("ScaleDown truncation is an error, not a transcription", async () => {
   }
 });
 
-test("a non-ScaleDown selection still routes through OpenRouter when its key is saved", async () => {
+test("OpenAI selection uses the configured route and requires its key for direct calls", async (t) => {
   const page = Buffer.from("fixture");
-  const originalFetch = globalThis.fetch;
-  const calls: string[] = [];
-  globalThis.fetch = (async (url: RequestInfo | URL) => {
-    calls.push(String(url));
-    return new Response(JSON.stringify({ choices: [{ message: { content: "openrouter transcription" } }] }), { status: 200 });
-  }) as typeof fetch;
-  try {
-    const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
-      openRouterApiKey: "fixture-router-key",
-      aiTaskModels: { pdf_extraction: "openai/gpt-6-luna" } };
-    assert.equal(await callAiVision(page, config), "openrouter transcription");
-    assert.equal(calls.length, 1);
-    assert.match(calls[0], /openrouter\.ai/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const calls: Array<{ url: string; model: string; authorization: string | null }> = [];
+  t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      model: JSON.parse(String(init?.body)).model,
+      authorization: new Headers(init?.headers).get("authorization"),
+    });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "fixture transcription" } }] }));
+  });
+
+  const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+    openAiApiKey: "fixture-openai-key", openRouterApiKey: "fixture-router-key",
+    aiTaskModels: { pdf_extraction: "openai/gpt-6-luna" } };
+  assert.equal(await callAiVision(page, config), "fixture transcription");
+  assert.equal(await callAiVision(page, { ...config, openAiRoute: "direct" }), "fixture transcription");
+  assert.equal(await callAiVision(page, { ...config, openAiRoute: "openrouter" }), "fixture transcription");
+  await assert.rejects(callAiVision(page, { ...config, openAiApiKey: undefined }), /OPENAI_API_KEY/);
+
+  const directRequest = {
+    url: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-6-luna",
+    authorization: "Bearer fixture-openai-key",
+  };
+  assert.deepEqual(calls, [directRequest, directRequest, {
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    model: "openai/gpt-6-luna",
+    authorization: "Bearer fixture-router-key",
+  }]);
 });
 
 test("a meta-direct selection fails closed instead of reaching OpenRouter", async () => {

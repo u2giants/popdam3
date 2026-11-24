@@ -7,6 +7,38 @@ test("PDF size guard skips only files larger than 100 MB", () => {
   assert.equal(exceedsPdfSizeLimit(PDF_SIZE_LIMIT_BYTES + 1), true);
 });
 
+test("OpenAI selection uses the configured route and requires its key for direct calls", async (t) => {
+  const page = Buffer.from("fixture");
+  const calls: Array<{ url: string; model: string; authorization: string | null }> = [];
+  t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      model: JSON.parse(String(init?.body)).model,
+      authorization: new Headers(init?.headers).get("authorization"),
+    });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "fixture transcription" } }] }));
+  });
+
+  const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+    openAiApiKey: "fixture-openai-key", openRouterApiKey: "fixture-router-key",
+    aiTaskModels: { pdf_extraction: "openai/gpt-6-luna" } };
+  assert.equal(await callAiVision(page, config), "fixture transcription");
+  assert.equal(await callAiVision(page, { ...config, openAiRoute: "direct" }), "fixture transcription");
+  assert.equal(await callAiVision(page, { ...config, openAiRoute: "openrouter" }), "fixture transcription");
+  await assert.rejects(callAiVision(page, { ...config, openAiApiKey: undefined }), /OPENAI_API_KEY/);
+
+  const directRequest = {
+    url: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-6-luna",
+    authorization: "Bearer fixture-openai-key",
+  };
+  assert.deepEqual(calls, [directRequest, directRequest, {
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    model: "openai/gpt-6-luna",
+    authorization: "Bearer fixture-router-key",
+  }]);
+});
+
 test("PopSG direct Meta selection uses its leased server route before OpenRouter", async () => {
   const page = Buffer.from("fixture");
   let received: Buffer | null = null;
