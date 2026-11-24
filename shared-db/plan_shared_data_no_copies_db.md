@@ -18,8 +18,8 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 |---|---|---|---|
 | S1 | Read function: DesignFlow production orders for a style SKU | ✅ done 2026-11-23 4:20 PM EST | #6987 + #6990 (56068c2); production apply run "DB production apply c8c0dc1 PR6987 20261225090701" success; proven as `authenticated` (3 orders for AA062VMAT03) |
 | S2 | Drop PopDAM production-order copy tables + `dam` placeholders | ⬜ open (after popdam3 P2) | — |
-| C1 | Build + review PopDAM→`core.character` map | ⬜ open | — |
-| C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (after C1; with popdam3 C3) | — |
+| C1 | Build + review PopDAM→`core.character` map | ✅ live 2026-11-23 | #7000 c8c0dc157 + #7004 af007fa89; 99.11% of links mapped; proof on #6994 |
+| C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (C1 done; with popdam3 C3) | — |
 | C4 | Retire `public.characters`, `public.properties`, `public.licensors` | ⬜ open (after C2/C3) | — |
 | N1 | Style-group names derived from linked shared records | ⬜ open | — |
 | D1 | `core."externalCustomer"` served from `coldlion.customer` | ⬜ open (after designflow-data-syncing D2) | — |
