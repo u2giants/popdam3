@@ -501,12 +501,12 @@ async function loadTaxonomy(): Promise<TaxonomyEntry[]> {
 
   const client = db();
   // Canonical taxonomy lives in the `core` schema (sourced from DesignFlow PLM /
-  // ColdLion), NOT the retired public.licensors/properties tables — see the
+  // ColdLion), NOT the retired legacy licensor/property lists — see the
   // core-licensor/property contract. core.licensor carries the merch-group
   // `code` (WARNER BROS=WB, AARDMAN ANIMATIONS=AA, TOEI - ONE PIECE=1P); folders
   // frequently store that code rather than the legal name, so we resolve against
   // name AND code. Characters come from the licensor-scraped `core.character`
-  // list; the DesignFlow public.characters catalog is retired.
+  // list; the legacy DesignFlow character catalog is retired.
   const [licensorsResult, propertiesResult, charactersResult, licensorAliasesResult, propertyAliasesResult] = await Promise.all([
     client.schema("core").from("licensor").select("id, name, code"),
     client.schema("core").from("property").select("id, name"),

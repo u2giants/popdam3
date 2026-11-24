@@ -191,10 +191,10 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
     const { data, error } = await serviceClient().rpc("get_dam_search_named_rows", { p_keys: namedLookupKeys(phrases, knownFullNames) })
       .abortSignal(controller.signal);
     if (error || controller.signal.aborted || !data || typeof data !== "object") return null;
-    const { characters, aliases, legacyCharacters, properties, propertyCharacters, licensorNames } = data as Record<string, unknown>;
+    const { characters, aliases, properties, propertyCharacters, licensorNames } = data as Record<string, unknown>;
     if (
       !namedRows(characters, ["id", "name"]) || !namedRows(aliases, ["characterId", "alias"]) ||
-      !namedRows(legacyCharacters, ["id", "name"]) || !namedRows(properties, ["id", "name"]) ||
+      !namedRows(properties, ["id", "name"]) ||
       !namedRows(propertyCharacters, ["propertyId", "characterId"]) ||
       !Array.isArray(licensorNames) || !licensorNames.every((name) => typeof name === "string")
     ) return null;
@@ -203,7 +203,6 @@ async function loadNamedScope(texts: ReadonlyArray<string | null>, requestSignal
       buildNameIndex({
         characters,
         aliases,
-        legacyCharacters,
         properties,
         propertyCharacters,
         licensorNames,
