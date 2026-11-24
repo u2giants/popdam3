@@ -9021,6 +9021,7 @@ const AINative = (() => {
       if(!line) continue;
       if(line.charCodeAt(0) === 37){   // %: comments and data; raster data is skipped whole
         if(line.startsWith("%%BeginData:")){ const cnt = parseInt(line.slice(12)); const k = text.indexOf("%%EndData", i + (cnt > 0 ? cnt - 10 : 0)); i = k < 0 ? n : k + 9; stats.images++; }
+        else if(/^%AI\d+_BeginPlaced/.test(line)) stats.images++;   // a linked (placed) image: only the PDF copy has it (LayeredMDFDieCut-LOTR, 8.9)
         continue;
       }
       if(skipDepth){ if(/\bTO$/.test(line)) skipDepth--; else if(/\bTo$/.test(line)) skipDepth++; continue; }
@@ -19120,7 +19121,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -23653,7 +23654,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -28186,7 +28187,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -32719,7 +32720,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -37252,7 +37253,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -41785,7 +41786,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -46318,7 +46319,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -50851,7 +50852,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -55384,7 +55385,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -59917,7 +59918,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -64450,7 +64451,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -68983,7 +68984,7 @@ async function exportAllViews(withMockup){
   for(const v of views){ views.forEach(q=>q.visible=q===v); const nm=`${base}_${v.userData.view}.png`; await save(nm, await toBlob(renderCropped(size, solid))); files.push(nm); }
   views.forEach(q=>q.visible=true); renderer.render(scene,camera);
   if(withMockup){ const name=base+".popmockup";
-    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
+    if(dir && typeof mfEncode==="function"){ await save(name, await mfEncode("fauxbook", api.saveMockup())); files.push(name); if(window.FILES) FILES.saved("fauxbook", base); } else if(typeof saveMockupFile==="function") saveMockupFile("fauxbook");
     if(typeof package3D==="function"){ setNote("Building the 3D file…"); await new Promise(r=>setTimeout(r,30)); const h=await package3D("fauxbook"); if(h){ await save(base+"_3D.html", h); files.push(base+"_3D.html"); } } }
   setSaved(`Saved ${files.length} files${dir?" in "+dir.name:""}: ${files.join(", ")}`);
 }
@@ -76219,15 +76220,17 @@ confirmButton($("newBtn"), newMockup);
 api.loadFile=loadFile; api.state=S;
 }
 </script>
-<script>const APP_BUILD="2026-11-23 3:46 PM EST · 681aea1";</script>
+<script>const APP_BUILD="2026-11-24 3:38 PM EST · 788fc6a";</script>
 <script>
 /* ---------- version history ----------
    1.x Shadowbox Mockup (standalone) · 2.x Canvas Mockup (standalone)
    3.x Product Mockups (both tools in one page) · 4.x Product Mockups on the Pop Creations design system
    A new feature set bumps the second number; a big change in structure or look bumps the first.
    Notes: short, most important first; cosmetic changes summed up in one "Visual updates" line. */
-const APP_VERSION="8.7";
+const APP_VERSION="8.9";
 const CHANGELOG=[
+  {v:"8.9", date:"2026-11-23", items:["Files with a linked (placed) image open with the image: it went missing in Layered MDF Die-Cut, Bookend and other products that read Illustrator's own art."]},
+  {v:"8.8", date:"2026-11-23", items:["A file you saved and did not change closes without asking again (also after Download package)."]},
   {v:"8.7", date:"2026-11-23", items:["Every layer of the file prints: only the FRAME layer (and DO NOT PRINT layers) are left out. A layer called Frames, for example, was taken for the frame and went missing (Framed Print, Shadowbox, Shaped Frame)."]},
   {v:"8.6", date:"2026-11-23", items:["Shaped Frame and Clock: the frame shows as it is drawn on the FRAME layer (File, the first finish). Solid, Wood, Metal or Image only when you pick them.", "Opening a file: the product search finds every product again (also by other names: photo frame, door mat…), and a file named only …frame is no longer taken for a Framed Print.", "Foil and glitter in MDF Die-Cut, Layered MDF Die-Cut, Bookend and Die-Cut MDF Photo Frame: from FOIL / GLITTER PLACEMENT layers, with the same controls as the Canvas.", "Colors closer to Illustrator: CMYK files without their own color profile now use a standard coated profile (greys and silver no longer turn cyan), and the printed faces of Layered MDF Die-Cut and the Photo Frame no longer wash out light colors."]},
   {v:"8.5", date:"2026-11-19", items:["Closing a file you saved and did not change no longer asks to save it again. The dot in the files bar also goes away when you undo your changes."]},
@@ -78781,6 +78784,7 @@ function attachMockupSave(root, id){
             else { const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=n; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); await new Promise(r=>setTimeout(r,400)); }
           }
           window.__lastPackage=files.map(f=>f[0]);   // kept for the automated tests
+          if(window.FILES) FILES.saved(id, files[1][0].replace(/\.popmockup$/i,""));   // the editable file is saved: closing it no longer asks (8.8)
           mfToast(`Saved ${files.map(f=>f[0]).join(", ")}${dir?" in "+dir.name:""}.`); return;
         }catch(e){ console.error(e); mfToast("The files could not be saved: "+(e.message||e), true); return; }
       }
@@ -79430,6 +79434,7 @@ const FILES=(function(){
   async function flush(){ for(const d of F.docs.slice()){ clearTimeout(timers[d.id]); try{ await keepNow(d); }catch(_){} } try{ await meta("cur",F.cur); }catch(_){} }
   return {F, show, fresh, slot, opened, saved, close, render, flush, sigText};
 })();
+window.FILES=FILES;   // a const is not on window: mockfile.js and update.html look for window.FILES (8.8: saving never cleared the dot)
 </script>
 <style>
 /* Coir Mat design tips popup (8.3) */
