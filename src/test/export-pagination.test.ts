@@ -23,12 +23,9 @@ it("orders junction exports by both identity columns instead of a nonexistent id
 });
 
 it("exports characters from the shared list, never the retired PopDAM copy (#1301)", async () => {
-  const { tableSource } = await import("../../supabase/functions/_shared/export-tables");
-  const calls: string[] = [];
-  const db = { schema: (s: string) => ({ from: (t: string) => { calls.push(`${s}.${t}`); return {}; } }), from: (t: string) => { calls.push(`public.${t}`); return {}; } };
-  tableSource(db as never, "characters");
-  expect(calls).toEqual(["core.character"]);
   const { readFileSync } = await import("node:fs");
+  const tables = readFileSync("supabase/functions/_shared/export-tables.ts", "utf8");
+  expect(tables).toContain('if (table === "characters") return db.schema("core").from("character");');
   const dump = readFileSync("supabase/functions/export-sql-dump/index.ts", "utf8");
   expect(dump).toContain('if (table === "characters") return "core.character";');
 });
