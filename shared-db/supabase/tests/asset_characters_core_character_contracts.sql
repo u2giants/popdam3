@@ -1,4 +1,4 @@
--- Verification for migration 20261225091203_asset_characters_core_character (popcre/shared-db#6995).
+-- Verification for migration 20261225091406_asset_characters_core_character (re-issue of 20261225091203; popcre/shared-db#6995).
 -- Proves: public.asset_characters.character_id references core.character, no
 -- link is orphaned, dam.character_usage exists with RLS and the agreed grants,
 -- and the search builders no longer read public.characters. Rolls back.
