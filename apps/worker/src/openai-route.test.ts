@@ -1,3 +1,4 @@
+import { setStraitlyApiKeyForTests } from "./provider-api-key.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chatCompletion } from "./openrouter.js";
@@ -49,13 +50,34 @@ test("switch set to openrouter keeps the OpenRouter path", async () => {
   } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); }
 });
 
-test("non-openai models never consult the switch", async () => {
+test("non-openai models never consult the switch and go to Straitly", async () => {
   setOpenAiRoutingLoaderForTests(async () => { throw new Error("must not be read"); });
+  setStraitlyApiKeyForTests("st-key");
   const f = capture(ok);
   try {
-    await chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] });
+    await chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }], provider: { only: ["x"] } });
+    assert.equal(f.calls[0].url, "https://api.straitly.ai/v1/chat/completions");
+    assert.equal(f.calls[0].auth, "Bearer st-key");
+    assert.equal(f.calls[0].body.model, "z-ai/glm-5.3-flash");
+    assert.equal(f.calls[0].body.provider, undefined);
+  } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); setStraitlyApiKeyForTests(null); }
+});
+
+test("anthropic models stay on OpenRouter", async () => {
+  const f = capture(ok);
+  try {
+    await chatCompletion("or-key", { model: "anthropic/claude-haiku-5-5", messages: [{ role: "user", content: "x" }] });
     assert.equal(f.calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
-  } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); }
+  } finally { f.restore(); }
+});
+
+test("Straitly without a key fails instead of silently using OpenRouter", async () => {
+  setStraitlyApiKeyForTests("");
+  const f = capture(ok);
+  try {
+    await assert.rejects(chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] }), /STRAITLY_API_KEY/);
+    assert.equal(f.calls.length, 0);
+  } finally { f.restore(); setStraitlyApiKeyForTests(null); }
 });
 
 test("direct mode without a key fails instead of silently using OpenRouter", async () => {

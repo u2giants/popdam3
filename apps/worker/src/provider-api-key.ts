@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const CACHE_TTL_MS = 60_000;
-type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY";
+type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY" | "STRAITLY_API_KEY";
 type KeyRow = { found: boolean; value: string };
 const cache = new Map<DirectProviderKey, { value: string; cachedAt: number }>();
 
@@ -58,6 +58,18 @@ export function getMetaApiKey(): Promise<string> {
 
 export function getScaleDownApiKey(): Promise<string> {
   return resolveDirectProviderApiKey("SCALEDOWN_API_KEY", config.scaledownApiKey);
+}
+
+let straitlyKeyOverride: string | null = null;
+
+export function getStraitlyApiKey(): Promise<string> {
+  if (straitlyKeyOverride !== null) return Promise.resolve(straitlyKeyOverride);
+  return resolveDirectProviderApiKey("STRAITLY_API_KEY", config.straitlyApiKey);
+}
+
+/** Test hook: force the Straitly key (null restores normal lookup). */
+export function setStraitlyApiKeyForTests(value: string | null): void {
+  straitlyKeyOverride = value;
 }
 
 export function resetDirectProviderApiKeyCacheForTests(): void {

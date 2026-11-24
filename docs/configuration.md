@@ -212,6 +212,7 @@ Runs on Railway. Environment variables are set in the Railway project dashboard.
 | `META_API_KEY` | No | Fallback for direct Meta Image Tagging and content-lease-bound PopSG PDF transcription when no saved Settings key exists or the database read fails. |
 | `GOOGLE_AI_API_KEY` | No | Fallback when database-managed `GOOGLE_AI_API_KEY` is empty or unreadable |
 | `SCALEDOWN_API_KEY` | No | Worker fallback for the direct ScaleDown Vision Bake-Off when no saved Settings key exists or the database read fails. Agents do not read this variable: they receive only the saved `SCALEDOWN_API_KEY` row. |
+| `STRAITLY_API_KEY` | Yes for non-OpenAI, non-Anthropic chat models | Worker key for Straitly (`api.straitly.ai`), which serves every interactive chat model except `openai/*` and `anthropic/*` (owner decision 2026-11-24). A saved `admin_config.STRAITLY_API_KEY` row wins. Missing key = hard error, no OpenRouter fallback. Batch jobs stay on OpenRouter. |
 | `RICH_PDF_RETRY_AFTER_HOURS` | No | Failed rich-PDF extraction cooldown in hours; default 24, with non-finite/non-positive values falling back to 24. Successful unchanged extractions stay skipped. |
 | `BULK_OPERATION_ALERT_WEBHOOK_URL` | Yes once the `bulk-operation-alert` function is deployed | Receives terminal `rebuild-style-groups` failure alerts; an unset value is logged as an undelivered alert, never treated as success. Set it to the deployed `bulk-operation-alert` function URL including its `?key=` shared secret (see below). |
 

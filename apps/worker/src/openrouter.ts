@@ -15,12 +15,33 @@
 
 import { logger } from "./logger.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
+import { getStraitlyApiKey } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
 const OPENAI_DIRECT_URL = "https://api.openai.com/v1/chat/completions";
+const STRAITLY_URL = "https://api.straitly.ai/v1/chat/completions";
+
+/**
+ * Owner decision 2026-11-24: every interactive chat model that is not OpenAI
+ * or Anthropic (GLM, Gemini, Qwen, MiniMax, …) goes through Straitly's
+ * OpenAI-compatible gateway instead of OpenRouter. ScaleDown, Meta and
+ * DeepSeek-direct use their own clients and are unaffected. Batch jobs stay on
+ * OpenRouter's Batch API (Straitly has none). No silent fallback: a missing
+ * key is an error.
+ */
+export function isStraitlyModel(model: string): boolean {
+  const m = model.trim().toLowerCase();
+  return !m.startsWith("openai/") && !m.startsWith("anthropic/");
+}
+
+/** OpenRouter-shaped request → Straitly request (bare model id, no OpenRouter routing fields). */
+export function toStraitlyRequest(request: ChatCompletionRequest): Record<string, unknown> {
+  const { provider: _provider, meta_max_output_tokens: _meta, ...rest } = request;
+  return { ...rest, model: baseModelId(request.model) };
+}
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
@@ -495,6 +516,7 @@ async function parseChatCompletionResult(
   timeoutMs: number,
   malformedToolArgsAsContent = false,
   openAiDirect = false,
+  straitly = false,
 ): Promise<ChatCompletionResult> {
   const choices = data.choices as Array<{
     message?: {
@@ -507,6 +529,8 @@ async function parseChatCompletionResult(
 
   const providerInfo = openAiDirect
     ? { ...collectProviderInfo(headers, data), provider: "openai-direct" }
+    : straitly
+    ? { ...collectProviderInfo(headers, data), provider: "straitly" }
     : await enrichProviderInfo(apiKey, collectProviderInfo(headers, data), timeoutMs);
   if (choice.tool_calls && choice.tool_calls.length > 0) {
     let toolCalls: ToolCallResult[];
@@ -596,17 +620,26 @@ export async function chatCompletion(
   if (openAiDirect && !openAiRouting.apiKey) {
     throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
   }
+  const straitlyKey = !openAiRouting && isStraitlyModel(request.model) ? await getStraitlyApiKey() : null;
+  const straitly = straitlyKey !== null;
+  if (straitly && !straitlyKey) {
+    throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");
+  }
   const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
   let currentRequest: ChatCompletionRequest | Record<string, unknown> = openAiDirect
     ? toOpenAiDirectRequest(request)
+    : straitly
+    ? toStraitlyRequest(request)
     : routingOverride
     ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
     : { ...request, model: withExactoRouting(request.model) };
-  const url = openAiDirect ? OPENAI_DIRECT_URL : OPENROUTER_URL;
+  const url = openAiDirect ? OPENAI_DIRECT_URL : straitly ? STRAITLY_URL : OPENROUTER_URL;
   const headers = openAiDirect
     ? { Authorization: `Bearer ${openAiRouting.apiKey}`, "Content-Type": "application/json" }
+    : straitly
+    ? { Authorization: `Bearer ${straitlyKey}`, "Content-Type": "application/json" }
     : openRouterHeaders(apiKey);
-  const label = openAiDirect ? "OpenAI" : "OpenRouter";
+  const label = openAiDirect ? "OpenAI" : straitly ? "Straitly" : "OpenRouter";
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -629,7 +662,7 @@ export async function chatCompletion(
 
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
-      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect);
+      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect, straitly);
     }
 
     if (response.status === 429) {

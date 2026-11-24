@@ -324,7 +324,7 @@ The cloud worker (`apps/worker/`) runs on Railway as a persistent Node.js proces
 
 **No manual step required.** Railway detects the push, rebuilds from `apps/worker/Dockerfile`, and replaces the running container automatically.
 
-**Runtime env vars** are set in the Railway dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_AI_API_KEY`, `META_API_KEY`, and `SCALEDOWN_API_KEY`. The OpenRouter key comes from `admin_config.OPENROUTER_API_KEY` (Settings → Processing → AI Tagging); a Railway `OPENROUTER_API_KEY` is only a fallback. Meta and ScaleDown keys set in Settings take precedence, with Railway values used only if the corresponding Settings row is missing or unreadable.
+**Runtime env vars** are set in the Railway dashboard: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_AI_API_KEY`, `META_API_KEY`, `SCALEDOWN_API_KEY`, and `STRAITLY_API_KEY` (1Password: "straitly ai api endpoint API key"). The OpenRouter key comes from `admin_config.OPENROUTER_API_KEY` (Settings → Processing → AI Tagging); a Railway `OPENROUTER_API_KEY` is only a fallback. Meta and ScaleDown keys set in Settings take precedence, with Railway values used only if the corresponding Settings row is missing or unreadable.
 
 **The worker is not triggered by HTTP.** It runs a continuous polling loop, reading `admin_config.BULK_OPERATIONS` every 1 second. Admin UI actions write a `queued` entry to that config key; the worker picks it up on the next poll.
 

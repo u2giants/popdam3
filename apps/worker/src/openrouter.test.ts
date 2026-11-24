@@ -165,7 +165,7 @@ test("known provider metadata avoids a second generation lookup", async () => {
         headers: { "x-openrouter-provider": "test-provider" },
       });
     };
-    const result = await chatCompletion("key", { model: "test/model", messages: [] });
+    const result = await chatCompletion("key", { model: "anthropic/test-model", messages: [] });
     assert.equal(result.content, "ok");
     assert.equal(result.providerInfo?.provider, "test-provider");
     assert.equal(calls, 1);
