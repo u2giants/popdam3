@@ -71,6 +71,11 @@ begin
       (select search_text from public.dam_search_documents where document_type = 'asset' and entity_id = v_asset)) = 0 then
     raise exception 'core character name missing from asset search text';
   end if;
+  -- 20261225091508: a core id filter matches an asset_characters tag (ungrouped asset).
+  if not (select v_asset = any(character_assets)
+          from public.dam_search_named_scope(jsonb_build_object('requiredCharacterIds', jsonb_build_array(v_char)), true)) then
+    raise exception 'dam_search_named_scope ignores asset_characters core ids';
+  end if;
   delete from core.character where id = v_char;
   if exists (select 1 from public.asset_characters where character_id = v_char) then
     raise exception 'deleting a core.character must cascade to asset_characters';
