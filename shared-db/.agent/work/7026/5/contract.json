@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "work_issue": 7026,
+  "generation": 5,
+  "evidence_parent": {
+    "work_issue": 7026,
+    "generation": 4,
+    "contract_sha256": "403b63102425fce7739b5b7aedc583abd83740df4187dc32a86904ff69d89a37"
+  },
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Restore Generic Master Data by making the existing RFQ index eligible.",
+  "base_sha": "40d759fdb5d3ab0439eb74749c6e5750b458f6a4",
+  "dispatcher": "Codex chat 01a209de on edge-dev3",
+  "worker": "codex",
+  "branch": "codex/1273-generic-rfq-load",
+  "worktree": "~/.codex/worktrees/1273-generic-rfq-load/shared-db",
+  "allowed_paths": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261225091306.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20261225091306_dam_master_data_rfq_lookup_index_predicate.sql",
+    "supabase/tests/style_tracker_rfq_lookup_index_predicate.sql"
+  ],
+  "file_writes": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261225091306.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20261225091306_dam_master_data_rfq_lookup_index_predicate.sql",
+    "supabase/tests/style_tracker_rfq_lookup_index_predicate.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view public.style_tracker_rows_with_bridge"
+  ],
+  "prohibited_actions": [
+    "Preserve all view results and access rules.",
+    "Use the automatic release route."
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "PostgreSQL 17 RFQ parity and grants",
+    "Shared database verification sidecar and catalog tests",
+    "Full shared-db offline Python suite"
+  ],
+  "assumptions": [
+    "Equivalent live read-only query used the existing production RFQ index."
+  ],
+  "stop_conditions": [
+    "Stop on unexpected view definition, permissions or a failed preview."
+  ]
+}

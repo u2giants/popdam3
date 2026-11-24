@@ -6060,6 +6060,19 @@ CATALOG_CONTRACTS["dam_order_list_role_free_party_names_v1"] = (
 )
 
 
+CATALOG_CONTRACTS["master_data_rfq_lookup_predicate_v1"] = (
+    """exists (
+      select 1 from pg_class c
+      where c.oid = to_regclass('public.style_tracker_rows_with_bridge')
+        and c.relkind = 'v'
+        and strpos(
+          pg_get_viewdef(c.oid),
+          $predicate$(NULLIF(TRIM(BOTH FROM i."rfqItem_style_number"), ''::text) IS NOT NULL)$predicate$
+        ) > 0
+    )"""
+)
+
+
 POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT = (
     # Issue #3023. The refresh reads search-sync candidates from a narrow queue
     # fed by a trigger instead of scanning every style guide file.

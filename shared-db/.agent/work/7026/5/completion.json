@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_issue": 7026,
+  "pr": 7027,
+  "outcome": "ready-for-merge",
+  "migration_versions": [
+    "20261225091306"
+  ],
+  "contract_ref": "refs/db-contracts/7026/5",
+  "contract_sha256": "739872a9f47fe04d98b8a90a5de0158372733c36864a034871623aa24b1b00d9",
+  "base_sha": "40d759fdb5d3ab0439eb74749c6e5750b458f6a4",
+  "head_sha": "39e7c759792b741edfac4e41f7265f8d9bfc1521",
+  "files_changed": [
+    "config/production-verification-sidecar-registry.json",
+    "docs/verification/throughput-guard-truth-baseline-20260828.json",
+    "scripts/production-verification-sidecars/20261225091306.json",
+    "scripts/production_catalog_verification.py",
+    "supabase/migrations/20261225091306_dam_master_data_rfq_lookup_index_predicate.sql",
+    "supabase/tests/style_tracker_rfq_lookup_index_predicate.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "view public.style_tracker_rows_with_bridge"
+  ],
+  "checks": [
+    {
+      "command": "bash scripts/check-sql.sh",
+      "exit_code": 0,
+      "evidence": "Local SQL guards and PL/pgSQL lint passed; production catalog verification derives a live target."
+    },
+    {
+      "command": "PostgreSQL 17 RFQ parity and grants",
+      "exit_code": 0,
+      "evidence": "Preserved case/whitespace, blank and null, duplicate and missing lookup results and the complete view ACL on the isolated fixture."
+    },
+    {
+      "command": "Shared database verification sidecar and catalog tests",
+      "exit_code": 0,
+      "evidence": "Sidecar linter and Python catalog suite passed; PostgreSQL 17 verified missing and installed predicate detection. Full CI sidecar gate verified the historical marker inventory and the new exact migration."
+    },
+    {
+      "command": "Full shared-db offline Python suite",
+      "exit_code": 0,
+      "evidence": "Full offline suite passed: 2434 tests ran with 105 skipped. Live production has the declared predecessor. Reran on refreshed main with identical migration bytes under the new reserved version."
+    }
+  ],
+  "assumptions_resolved": [
+    "Read-only production comparison used the RFQ partial index in 0.54 seconds, compared with 30.1 seconds and 855 sequential RFQ scans."
+  ],
+  "stop_conditions_hit": []
+}
