@@ -66,10 +66,34 @@ test("a non-ScaleDown selection still routes through OpenRouter when its key is 
   try {
     const config = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
       openRouterApiKey: "fixture-router-key",
-      aiTaskModels: { pdf_extraction: "openai/gpt-6-luna" } };
+      aiTaskModels: { pdf_extraction: "z-ai/glm-5.3-flash" } };
     assert.equal(await callAiVision(page, config), "openrouter transcription");
     assert.equal(calls.length, 1);
     assert.match(calls[0], /openrouter\.ai/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("an OpenAI selection goes directly to OpenAI by default, or OpenRouter when switched", async () => {
+  const page = Buffer.from("fixture");
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; model: string }> = [];
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), model: JSON.parse(String(init?.body)).model });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const base = { models: [], pdf_extraction: null, googleApiKey: "", anthropicApiKey: "",
+      openRouterApiKey: "fixture-router-key", openAiApiKey: "fixture-openai-key",
+      aiTaskModels: { pdf_extraction: "openai/gpt-6-luna" } };
+    await callAiVision(page, base);
+    assert.equal(calls[0].url, "https://api.openai.com/v1/chat/completions");
+    assert.equal(calls[0].model, "gpt-6-luna");
+    await callAiVision(page, { ...base, openAiRoute: "openrouter" as const });
+    assert.match(calls[1].url, /openrouter\.ai/);
+    await assert.rejects(callAiVision(page, { ...base, openAiApiKey: "" }), /OPENAI_API_KEY/);
+    assert.equal(calls.length, 2);
   } finally {
     globalThis.fetch = originalFetch;
   }
