@@ -64,10 +64,12 @@ describe("canonical licensor/property contract", () => {
     const tagging = read("apps/worker/src/handlers/ai-tagging.ts");
     expect(tagging).toContain('client.from("asset_characters").upsert(rows');
     const admin = read("supabase/functions/admin-api/index.ts");
-    expect(admin).toContain('.schema("dam").from("character_usage")');
+    expect(admin).toContain('.schema("api").from("dam_character_usage")');
+    expect(admin).toContain('.rpc("dam_publish_character_usage"');
+    expect(admin).not.toContain('.schema("dam")');
     const apis = read("src/components/settings/ApisTab.tsx");
     expect(apis).toContain('.schema("core").from("character")');
-    expect(apis).toContain('.schema("dam").from("character_usage")');
+    expect(apis).toContain('.schema("api").from("dam_character_usage")');
   });
 
   it("never derives licensor or property identity from folder names", () => {

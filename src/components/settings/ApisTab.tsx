@@ -1115,9 +1115,9 @@ export function CharacterStatsSection() {
     queryFn: async () => {
       const [{ count: total }, { count: priority }] = await Promise.all([
         // Counts come from the shared character list (core.character) and
-        // PopDAM's usage table keyed by it (dam.character_usage), #1301.
+        // PopDAM's usage table keyed by it (dam.character_usage, read via api.dam_character_usage), #1301.
         (supabase as any).schema("core").from("character").select("id", { count: "exact", head: true }).not("status", "in", "(archived,deleted)"),
-        (supabase as any).schema("dam").from("character_usage").select("core_character_id", { count: "exact", head: true }).eq("is_priority", true),
+        (supabase as any).schema("api").from("dam_character_usage").select("core_character_id", { count: "exact", head: true }).eq("is_priority", true),
       ]);
       return { total: total ?? 0, priority: priority ?? 0 };
     },
