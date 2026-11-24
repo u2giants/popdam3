@@ -7,11 +7,8 @@ import {
   isTerminalColabVisionApiError,
 } from "../colab-vision-api.js";
 import { db } from "../supabase.js";
-import { getOpenRouterApiKey } from "../openrouter-key.js";
-import { getGoogleAiApiKey } from "../google-ai-key.js";
 import { getMetaApiKey } from "../provider-api-key.js";
-import { isDirectGeminiBatchModel } from "../gemini-batch.js";
-import { imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
+import { getChatConfig, imageContent, publicImageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput, type OutputAttempt } from "../structured-output.js";
 import {
@@ -654,8 +651,14 @@ export async function callTagAssetModel(
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
 
-export function getAiTaggingApiKey(model?: string): Promise<string> {
-  if (model && isDirectGeminiBatchModel(model)) return getGoogleAiApiKey();
-  if (model && isColabDirectModel(model)) return getColabVisionApiKey();
-  return model && isMetaDirectModel(model) ? getMetaApiKey() : getOpenRouterApiKey();
+export async function getAiTaggingConfig(model: string) {
+  if (isColabDirectModel(model)) {
+    const apiKey = await getColabVisionApiKey();
+    return { apiKey, requestKey: apiKey, keyName: "COLAB_VISION_CONFIG" };
+  }
+  if (isMetaDirectModel(model)) {
+    const apiKey = await getMetaApiKey();
+    return { apiKey, requestKey: apiKey, keyName: "META_API_KEY" };
+  }
+  return getChatConfig(model);
 }

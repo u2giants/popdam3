@@ -5,6 +5,7 @@ import { addNamedCharacters } from "./ai-tagging-shared.js";
 
 test("new executor aggregate errors retain same-model retry behavior", () => {
   assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: no parsable JSON"), true);
+  assert.equal(isRetryableStructuredOutputError("Structured output failed: json_schema: Straitly 404: model not found"), true);
   assert.equal(isRetryableStructuredOutputError("Structured output failed: data_inspection_failed"), false);
 });
 

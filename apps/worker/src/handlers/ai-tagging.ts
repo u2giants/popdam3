@@ -60,7 +60,7 @@ import {
   callTagAssetModel,
   isRetryableTagTransportError,
   fetchImageData,
-  getAiTaggingApiKey,
+  getAiTaggingConfig,
   isStyleGuideSourcePdf,
   loadSheetFacts,
   parseJsonObject,
@@ -149,10 +149,11 @@ export function isModelSpecificError(msg: string): boolean {
  * only errors raised by the model call, never database or storage errors.
  */
 export function isModelOutageError(msg: string): boolean {
-  if (/^OpenRouter (408|425|429|5\d\d):/.test(msg)) return true;
+  if (/^(OpenRouter|OpenAI|Straitly) (401|402|403):/.test(msg)) return false;
+  if (/^(OpenRouter|OpenAI|Straitly) (408|425|429|5\d\d):/.test(msg)) return true;
   if (/^Colab Vision API (404|408|425|429|5\d\d):/.test(msg)) return true;
   if (/not available in the OpenRouter account catalog/.test(msg)) return true;
-  if (/^OpenRouter 40[0-4]:/.test(msg) && /not a valid model|no endpoints|model.*(not found|does not exist)/i.test(msg)) return true;
+  if (/(?:^|: )(OpenRouter|OpenAI|Straitly) 40[04]:[^\n]*(?:not a valid model|no endpoints|model.*(?:not[ _]found|does not exist))/i.test(msg)) return true;
   return /aborted|timed? ?out|fetch failed|econnreset|econnrefused|enotfound|socket hang up|network/i.test(msg);
 }
 
@@ -174,7 +175,7 @@ export function isRetryableStructuredOutputError(msg: string): boolean {
       lower.includes("tool_call") ||
       lower.includes("no parsable json") ||
       lower.includes("malformed tool call json") ||
-      lower.includes("openrouter 404") ||
+      /(?:openrouter|openai|straitly) 404:/.test(lower) ||
       lower.includes("invalid structured tag data")
     )
   );
@@ -611,7 +612,7 @@ async function handleDurableBatchTag(
   const provider = batchProvider === "openrouter" ? buildProviderPin(providerPin) : undefined;
 
   if (!job) {
-    const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+    const capabilities = await getRuntimeModelCapabilities(apiKey, model, true);
     const outputMethod = buildStructuredOutputPlan(capabilities)
       .find((method): method is Exclude<StructuredOutputMethod, "json_repair"> => method !== "json_repair");
     if (!outputMethod) return { ok: false, done: false, error: `Model ${model} has no supported structured-output method` };
@@ -881,6 +882,7 @@ async function handleDurableBatchTag(
       const { value: tagData } = await structuredBatchResult({
         apiKey,
         model,
+        batchProvider,
         result: completion,
         toolName: "tag_asset",
         schema: TAG_ASSET_SCHEMA as Record<string, unknown>,
@@ -1040,13 +1042,8 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   };
 
   const attemptTag = async (model: string): Promise<AttemptResult> => {
-    const apiKey = await getAiTaggingApiKey(model);
+    const { apiKey, keyName, requestKey } = await getAiTaggingConfig(model);
     if (!apiKey) {
-      const keyName = isMetaDirectModel(model)
-        ? "META_API_KEY"
-        : isColabDirectModel(model)
-          ? "COLAB_VISION_CONFIG"
-          : "OPENROUTER_API_KEY";
       return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
@@ -1057,7 +1054,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           image,
           "Analyze this design asset image and return structured tags matching the tag_asset schema.",
         );
-        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride, parallelModel ? characterCatalogIds : undefined);
+        const { tagData, outputMode, providerInfo, retryCount, attempts } = await callTagAssetModel(requestKey, model, messages, AI_TIMEOUT_MS, 4000, providerOverride, parallelModel ? characterCatalogIds : undefined);
         logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
         if (attempts.length > 1) logger.warn("ai-tag: model needed structured-output fallback", { assetId, model, attempts });
 
@@ -1147,7 +1144,7 @@ export async function handleBulkAiTag(
     const ids = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
     if (requireAssetIds && !ids?.length) return { ok: false, done: true, error: "Single-asset tag operation has no asset ID" };
     return handleMetaTagResponse(opState, {
-      model, apiKey: await getAiTaggingApiKey(model), unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: async (value, binding) => { validateTagAssetData(value, "structured"); await validateCharacterReferences(value.character_ids, binding); },
+      model, apiKey: (await getAiTaggingConfig(model)).apiKey, unavailable: isVisualAnalysisUnavailableError, missing: error => error instanceof AssetMissingError, validate: async (value, binding) => { validateTagAssetData(value, "structured"); await validateCharacterReferences(value.character_ids, binding); },
       apply: async (id, value, model, binding) => {
         const applied = await applyBatchTagResult(id, value, model, undefined, binding);
         if (applied.fileSourcesFailed) logger.warn("ai-tag: file_sources gap on Meta-tagged asset", { assetId: id });

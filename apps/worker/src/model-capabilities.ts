@@ -1,4 +1,4 @@
-import { baseModelId } from "./openrouter.js";
+import { baseModelId, chatProvider } from "./openrouter.js";
 import { logger } from "./logger.js";
 import { db } from "./supabase.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
@@ -41,6 +41,14 @@ let catalogRefresh: Promise<void> | null = null;
 let overrideCache: { fetchedAt: number; value: CapabilityOverrides } | null = null;
 
 function boolParam(params: string[], name: string) { return params.includes(name); }
+function unknownCapabilities(modelId: string): ModelCapabilities {
+  return {
+    modelId, imageInput: null, tools: null, toolChoice: null,
+    toolChoiceModes: [], structuredOutputs: null, jsonObject: null,
+    prefer: [], source: "unknown", fetchedAt: new Date().toISOString(),
+  };
+}
+
 function mergeOverride(profile: ModelCapabilities, override?: CapabilityOverride): ModelCapabilities {
   if (!override) return profile;
   return {
@@ -97,16 +105,13 @@ export async function getModelCapabilities(apiKey: string, modelId: string, over
     toolChoiceModes: boolParam(params, "tool_choice") ? ["named", "required", "auto"] : [],
     structuredOutputs: boolParam(params, "structured_outputs"),
     jsonObject: boolParam(params, "response_format"), prefer: [], source, fetchedAt: new Date(cache?.fetchedAt ?? Date.now()).toISOString(),
-  } : {
-    modelId: selected || bare, imageInput: null, tools: null, toolChoice: null,
-    toolChoiceModes: [], structuredOutputs: null, jsonObject: null, prefer: [], source: "unknown", fetchedAt: new Date().toISOString(),
-  };
+  } : unknownCapabilities(selected || bare);
   const builtIn = DEFAULT_OVERRIDES[bare];
   const configured = overrides[bare];
   return mergeOverride(profile, builtIn || configured ? { ...builtIn, ...configured } : undefined);
 }
 
-export async function getRuntimeModelCapabilities(apiKey: string, modelId: string): Promise<ModelCapabilities> {
+export async function getRuntimeModelCapabilities(apiKey: string, modelId: string, batch = false): Promise<ModelCapabilities> {
   if (isDirectGeminiBatchModel(modelId)) {
     return {
       modelId,
@@ -130,7 +135,15 @@ export async function getRuntimeModelCapabilities(apiKey: string, modelId: strin
     const value = data?.value;
     overrideCache = { fetchedAt: Date.now(), value: value && typeof value === "object" && !Array.isArray(value) ? value as CapabilityOverrides : {} };
   }
-  return getModelCapabilities(apiKey, modelId, overrideCache.value);
+  if (batch || await chatProvider(modelId) === "OpenRouter") {
+    return getModelCapabilities(apiKey, modelId, overrideCache.value);
+  }
+  // Account-specific OpenRouter metadata cannot describe another gateway.
+  // Start with the bounded compatibility plan and apply configured facts.
+  return mergeOverride({
+    ...unknownCapabilities(modelId.trim()),
+    toolChoiceModes: ["auto"],
+  }, overrideCache.value[baseModelId(modelId)]);
 }
 
 export function buildStructuredOutputPlan(capabilities: ModelCapabilities, override?: CapabilityOverride): StructuredOutputMethod[] {

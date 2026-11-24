@@ -7,10 +7,8 @@
  */
 
 import { db, type DB } from "../supabase.js";
-import { config } from "../config.js";
-import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { logger } from "../logger.js";
-import type { ChatMessage } from "../openrouter.js";
+import { getChatConfig, type ChatMessage } from "../openrouter.js";
 import { getRuntimeModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import type { BatchResult, OpState } from "../types.js";
@@ -452,13 +450,11 @@ function isUnclassifiable(item: { item_description: string | null; style_number:
 
 export async function handleClassifyErpCategories(opState: OpState): Promise<BatchResult> {
   const client = db();
-  const apiKey = (await getOpenRouterApiKey()) || config.anthropicApiKey;
-  if (!apiKey) {
-    return { ok: false, done: false, error: "No AI API key configured (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)" };
-  }
-
-  // Read model from admin_config (cached)
   const classificationModel = await getClassificationModel();
+  const { apiKey, keyName, requestKey } = await getChatConfig(classificationModel);
+  if (!apiKey) {
+    return { ok: false, done: false, error: `No AI API key configured (set ${keyName} in Settings)` };
+  }
 
   // Under the old 45s edge function these were 5/80/50. The persistent worker
   // has no timeout, so we can classify more candidates per tick.
@@ -623,9 +619,9 @@ Use the provided tool to return your classification.`;
         { role: "user", content: prompt },
       ];
 
-      const capabilities = await getRuntimeModelCapabilities(apiKey, classificationModel);
+      const capabilities = await getRuntimeModelCapabilities(requestKey, classificationModel);
       const aiResult = await executeStructuredOutput({
-        apiKey, model: classificationModel, messages, maxTokens: 1024,
+        apiKey: requestKey, model: classificationModel, messages, maxTokens: 1024,
         schemaName: "classify_product", schema: ERP_CLASSIFICATION_SCHEMA, capabilities,
         validate: validateErpClassification,
       });

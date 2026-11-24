@@ -62,7 +62,7 @@ import {
   selectStyleGroupRepresentatives,
   type StyleGroupRepresentativeCandidate,
 } from "../style-group-representatives.js";
-import { fetchImageData, getAiTaggingApiKey, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
+import { fetchImageData, getAiTaggingConfig, parseJsonObject, type ImageData } from "./ai-tagging-shared.js";
 import { ApplyWriteError, clearRequestJob, MAX_APPLY_WRITE_ATTEMPTS, indexBatchResults, nextBatchAction, pollBoundProviderBatch, transientPollDelayMs } from "./ai-tagging-batch-state.js";
 import { getVisionModels } from "./ai-tagging.js";
 
@@ -417,8 +417,8 @@ export async function callStyleGroupModel(
   images: ImageData[],
   model: string,
 ): Promise<StyleGroupProfileData> {
-  const apiKey = await getAiTaggingApiKey(model);
-  if (!apiKey) throw new Error("No AI API key configured for Style Group profiling");
+  const { apiKey, keyName, requestKey } = await getAiTaggingConfig(model);
+  if (!apiKey) throw new Error(`No AI API key configured for Style Group profiling (set ${keyName} in Settings)`);
   const directMeta = isMetaDirectModel(model);
   const capabilities = directMeta ? {
     modelId: model,
@@ -431,10 +431,10 @@ export async function callStyleGroupModel(
     prefer: ["json_schema" as const, "json_object" as const, "tool_auto" as const],
     source: "override" as const,
     fetchedAt: new Date().toISOString(),
-  } : await getRuntimeModelCapabilities(apiKey, model);
+  } : await getRuntimeModelCapabilities(requestKey, model);
   const models = directMeta ? null : await getVisionModels();
   const result = await executeStructuredOutput({
-    apiKey,
+    apiKey: requestKey,
     model,
     messages: buildGroupProfileMessages(group, representatives, images),
     schemaName: SCHEMA_NAME,
@@ -632,7 +632,7 @@ async function handleDurableGroupProfiles(
   const job = opState.external_job;
 
   if (!job) {
-    const capabilities = await getRuntimeModelCapabilities(apiKey, model);
+    const capabilities = await getRuntimeModelCapabilities(apiKey, model, true);
     const outputMethod = buildStructuredOutputPlan(capabilities)
       .find((method): method is Exclude<StructuredOutputMethod, "json_repair"> => method !== "json_repair");
     if (!outputMethod) return { ok: false, done: false, error: `Model ${model} has no supported structured-output method` };
@@ -891,6 +891,7 @@ async function handleDurableGroupProfiles(
       const { value: profile } = await structuredBatchResult({
         apiKey,
         model,
+        batchProvider,
         result: completion,
         toolName: SCHEMA_NAME,
         schema: TAG_STYLE_GROUP_SCHEMA as Record<string, unknown>,

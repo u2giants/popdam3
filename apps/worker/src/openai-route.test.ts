@@ -1,7 +1,7 @@
 import { setStraitlyApiKeyForTests } from "./provider-api-key.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chatCompletion } from "./openrouter.js";
+import { chatCompletion, isTerminalOpenRouterError, OpenRouterError } from "./openrouter.js";
 import { parseOpenAiRoute, setOpenAiRoutingLoaderForTests } from "./openai-route.js";
 
 function capture(reply: Record<string, unknown>) {
@@ -75,9 +75,28 @@ test("Straitly without a key fails instead of silently using OpenRouter", async 
   setStraitlyApiKeyForTests("");
   const f = capture(ok);
   try {
-    await assert.rejects(chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] }), /STRAITLY_API_KEY/);
+    await assert.rejects(chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] }), { message: /^Straitly 401: STRAITLY_API_KEY/ });
     assert.equal(f.calls.length, 0);
   } finally { f.restore(); setStraitlyApiKeyForTests(null); }
+});
+
+test("a Straitly billing failure preserves its status and provider name", async () => {
+  setStraitlyApiKeyForTests("st-key");
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response("quota required", { status: 402 });
+  try {
+    await assert.rejects(chatCompletion("", { model: "z-ai/glm-5.3-flash", messages: [] }), (error: unknown) => {
+      assert.ok(error instanceof OpenRouterError);
+      assert.equal(error.status, 402);
+      assert.equal(error.name, "StraitlyError");
+      assert.equal(error.message, "Straitly 402: quota required");
+      assert.equal(isTerminalOpenRouterError(error), true);
+      return true;
+    });
+  } finally {
+    globalThis.fetch = original;
+    setStraitlyApiKeyForTests(null);
+  }
 });
 
 test("direct mode without a key fails instead of silently using OpenRouter", async () => {

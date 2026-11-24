@@ -1,5 +1,6 @@
-import { chatCompletion, type ChatCompletionRequest, type ChatCompletionResult } from "./openrouter.js";
-import { geminiGenerateContent, isDirectGeminiBatchModel } from "./gemini-batch.js";
+import { openRouterBatchRepairCompletion, type ChatCompletionRequest, type ChatCompletionResult } from "./openrouter.js";
+import { geminiGenerateContent } from "./gemini-batch.js";
+import { batchProviderForModel, type DurableBatchProvider } from "./batch-provider.js";
 import { parseStructuredJson, runJsonRepair } from "./structured-output.js";
 
 const MAX_MALFORMED_CHARS = 12_000;
@@ -60,13 +61,13 @@ export function isRepairInfrastructureError(error: unknown): boolean {
 }
 
 /** The synchronous endpoint for the SAME model a batch ran on. */
-export function sameModelRepairCompletion(model: string): {
+export function sameModelRepairCompletion(model: string, batchProvider = batchProviderForModel(model)): {
   model: string;
   completion: (apiKey: string, request: ChatCompletionRequest, timeoutMs?: number) => Promise<ChatCompletionResult>;
 } {
-  if (isDirectGeminiBatchModel(model)) return { model: model.trim(), completion: geminiGenerateContent };
+  if (batchProvider === "google-gemini") return { model: model.trim(), completion: geminiGenerateContent };
   // OpenRouter `:batch` is a pricing variant; the base ID is the same model.
-  return { model: model.trim().replace(/:batch$/, ""), completion: chatCompletion };
+  return { model: model.trim().replace(/:batch$/, ""), completion: openRouterBatchRepairCompletion };
 }
 
 export interface BatchStructuredResult<T> {
@@ -89,6 +90,7 @@ export async function structuredBatchResult<T>(options: {
   validate: (value: Record<string, unknown>) => T;
   maxTokens?: number;
   repair?: ReturnType<typeof sameModelRepairCompletion>;
+  batchProvider?: DurableBatchProvider;
   /** OpenRouter provider pin used for the batch; repair keeps the same routing. */
   provider?: ChatCompletionRequest["provider"];
 }): Promise<BatchStructuredResult<T>> {
@@ -118,7 +120,7 @@ export async function structuredBatchResult<T>(options: {
   const malformed = options.result.content?.trim()
     || (candidate ? JSON.stringify(candidate) : wrongToolArguments ? JSON.stringify(wrongToolArguments) : "");
   if (!malformed) throw new UnrepairableBatchResultError(`${reason}; the model returned no content to repair`);
-  const repair = options.repair ?? sameModelRepairCompletion(options.model);
+  const repair = options.repair ?? sameModelRepairCompletion(options.model, options.batchProvider);
   let repaired: Awaited<ReturnType<typeof runJsonRepair<T>>>;
   try {
     repaired = await runJsonRepair({

@@ -13,9 +13,8 @@
 
 import { db } from "../supabase.js";
 import { logger } from "../logger.js";
-import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { getMetaApiKey } from "../provider-api-key.js";
-import type { ChatMessage } from "../openrouter.js";
+import { getChatConfig, type ChatMessage } from "../openrouter.js";
 import { getRuntimeModelCapabilities, type ModelCapabilities } from "../model-capabilities.js";
 import { executeStructuredOutput } from "../structured-output.js";
 import { isMetaDirectModel, isTerminalMetaModelApiError, metaChatCompletion } from "../meta-model-api.js";
@@ -115,11 +114,14 @@ export async function handleShortenItemDescriptions(opState: OpState): Promise<B
   const client = db();
   const model = await getClassificationModel();
   const directMeta = isMetaDirectModel(model);
-  const apiKey = directMeta ? await getMetaApiKey() : await getOpenRouterApiKey();
+  const metaKey = directMeta ? await getMetaApiKey() : "";
+  const { apiKey, keyName, requestKey } = directMeta
+    ? { apiKey: metaKey, requestKey: metaKey, keyName: "META_API_KEY" }
+    : await getChatConfig(model);
   if (!apiKey) {
-    return { ok: false, done: false, error: `No AI API key configured in Settings (${directMeta ? "Meta" : "OpenRouter"})` };
+    return { ok: false, done: false, error: `No AI API key configured (set ${keyName} in Settings)` };
   }
-  const capabilities = directMeta ? META_CAPABILITIES(model) : await getRuntimeModelCapabilities(apiKey, model);
+  const capabilities = directMeta ? META_CAPABILITIES(model) : await getRuntimeModelCapabilities(requestKey, model);
 
   // Cursor is the last style_groups.id examined (uuid order). 0/empty = start.
   let after = typeof opState.cursor === "string" && opState.cursor.length > 0 ? opState.cursor : null;
@@ -159,7 +161,7 @@ export async function handleShortenItemDescriptions(opState: OpState): Promise<B
     await Promise.all(stale.slice(i, i + CONCURRENCY).map(async (row) => {
       const input = row.item_description as string;
       try {
-        const short = await shortenOne(model, apiKey, capabilities, input);
+        const short = await shortenOne(model, requestKey, capabilities, input);
         const { error } = await client
           .from("style_groups")
           .update({

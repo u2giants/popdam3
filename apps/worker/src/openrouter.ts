@@ -15,6 +15,7 @@
 
 import { logger } from "./logger.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
+import { getOpenRouterApiKey } from "./openrouter-key.js";
 import { getStraitlyApiKey } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
@@ -32,9 +33,26 @@ const STRAITLY_URL = "https://api.straitly.ai/v1/chat/completions";
  * OpenRouter's Batch API (Straitly has none). No silent fallback: a missing
  * key is an error.
  */
-export function isStraitlyModel(model: string): boolean {
-  const m = model.trim().toLowerCase();
-  return !m.startsWith("openai/") && !m.startsWith("anthropic/");
+export async function chatProvider(model: string): Promise<ChatProvider> {
+  if (isOpenAiModel(model)) return (await getOpenAiRouting()).route === "direct" ? "OpenAI" : "OpenRouter";
+  return model.trim().toLowerCase().startsWith("anthropic/") ? "OpenRouter" : "Straitly";
+}
+
+type ChatProvider = "OpenRouter" | "OpenAI" | "Straitly";
+
+async function getChatCredentials(provider: ChatProvider, openRouterKey?: string) {
+  switch (provider) {
+    case "OpenAI": return { apiKey: (await getOpenAiRouting()).apiKey, keyName: "OPENAI_API_KEY" };
+    case "Straitly": return { apiKey: await getStraitlyApiKey(), keyName: "STRAITLY_API_KEY" };
+    case "OpenRouter": return { apiKey: openRouterKey ?? await getOpenRouterApiKey(), keyName: "OPENROUTER_API_KEY" };
+  }
+}
+
+/** Only an OpenRouter credential can be passed to the catalog and shared chat client. */
+export async function getChatConfig(model: string) {
+  const provider = await chatProvider(model);
+  const { apiKey, keyName } = await getChatCredentials(provider);
+  return { apiKey, keyName, requestKey: provider === "OpenRouter" ? apiKey : "" };
 }
 
 /** OpenRouter-shaped request → Straitly request (bare model id, no OpenRouter routing fields). */
@@ -47,9 +65,9 @@ const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
 
 export class OpenRouterError extends Error {
-  constructor(public status: number, public body: string, public providerInfo?: OpenRouterProviderInfo) {
-    super(`OpenRouter ${status}: ${body.slice(0, 300)}`);
-    this.name = "OpenRouterError";
+  constructor(public status: number, public body: string, public providerInfo?: OpenRouterProviderInfo, provider: ChatProvider = "OpenRouter") {
+    super(`${provider} ${status}: ${body.slice(0, 300)}`);
+    this.name = `${provider}Error`;
   }
 }
 
@@ -354,7 +372,7 @@ export function baseModelId(model: string): string {
 export function isTerminalOpenRouterError(error: unknown): boolean {
   if (!(error instanceof OpenRouterError)) return false;
   const body = error.body.toLowerCase();
-  return error.status === 401 || error.status === 403 || error.status === 429 || error.status >= 500 ||
+  return [401, 402, 403, 408, 425, 429].includes(error.status) || error.status >= 500 ||
     /billing|credit|payment|invalid (?:image|media)|content[_ -]?policy|safety|moderation|blocked|refusal/.test(body);
 }
 
@@ -525,7 +543,7 @@ async function parseChatCompletionResult(
     };
   }> | undefined;
   const choice = choices?.[0]?.message;
-  if (!choice) throw new Error("OpenRouter returned no choices");
+  if (!choice) throw new Error(`${openAiDirect ? "OpenAI" : straitly ? "Straitly" : "OpenRouter"} returned no choices`);
 
   const providerInfo = openAiDirect
     ? { ...collectProviderInfo(headers, data), provider: "openai-direct" }
@@ -590,10 +608,15 @@ function batchErrorText(value: unknown): string {
 
 // ── Main call ────────────────────────────────────────────────────────────────
 
-export async function chatCompletion(
+export function chatCompletion(apiKey: string, request: ChatCompletionRequest, timeoutMs?: number): Promise<ChatCompletionResult> {
+  return completeChat(apiKey, request, timeoutMs);
+}
+
+async function completeChat(
   apiKey: string,
   request: ChatCompletionRequest,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  forceOpenRouter = false,
 ): Promise<ChatCompletionResult> {
   if (request.model.trim().endsWith(":batch")) {
     throw new Error("Batch-only models require the durable asynchronous Batch API path");
@@ -615,16 +638,13 @@ export async function chatCompletion(
   //
   // OpenAI models go to api.openai.com unless the admin switch says
   // OpenRouter (see openai-route.ts). No silent fallback either way.
-  const openAiRouting = isOpenAiModel(request.model) ? await getOpenAiRouting() : null;
-  const openAiDirect = openAiRouting?.route === "direct";
-  if (openAiDirect && !openAiRouting.apiKey) {
-    throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
+  const label = forceOpenRouter ? "OpenRouter" : await chatProvider(request.model);
+  const { apiKey: selectedKey, keyName } = await getChatCredentials(label, apiKey);
+  if (!selectedKey) {
+    throw new OpenRouterError(401, `${keyName} is not configured; set it in Settings`, undefined, label);
   }
-  const straitlyKey = !openAiRouting && isStraitlyModel(request.model) ? await getStraitlyApiKey() : null;
-  const straitly = straitlyKey !== null;
-  if (straitly && !straitlyKey) {
-    throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");
-  }
+  const openAiDirect = label === "OpenAI";
+  const straitly = label === "Straitly";
   const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
   let currentRequest: ChatCompletionRequest | Record<string, unknown> = openAiDirect
     ? toOpenAiDirectRequest(request)
@@ -634,12 +654,9 @@ export async function chatCompletion(
     ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
     : { ...request, model: withExactoRouting(request.model) };
   const url = openAiDirect ? OPENAI_DIRECT_URL : straitly ? STRAITLY_URL : OPENROUTER_URL;
-  const headers = openAiDirect
-    ? { Authorization: `Bearer ${openAiRouting.apiKey}`, "Content-Type": "application/json" }
-    : straitly
-    ? { Authorization: `Bearer ${straitlyKey}`, "Content-Type": "application/json" }
-    : openRouterHeaders(apiKey);
-  const label = openAiDirect ? "OpenAI" : straitly ? "Straitly" : "OpenRouter";
+  const headers = label === "OpenRouter"
+    ? openRouterHeaders(selectedKey)
+    : { Authorization: `Bearer ${selectedKey}`, "Content-Type": "application/json" };
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -662,7 +679,7 @@ export async function chatCompletion(
 
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
-      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect, straitly);
+      return parseChatCompletionResult(selectedKey, data, response.headers, timeoutMs, false, openAiDirect, straitly);
     }
 
     if (response.status === 429) {
@@ -671,18 +688,18 @@ export async function chatCompletion(
       // the worker loop neither spins nor sleeps for an hour.
       const parsedRetryAfter = parseInt(response.headers.get("retry-after") || "5", 10);
       const retryAfter = Math.min(Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : 5, 60);
-      logger.warn("openrouter: rate limited", { attempt, retryAfter, via: label });
+      logger.warn("chat completion: rate limited", { attempt, retryAfter, via: label });
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
         continue;
       }
-      throw new OpenRouterError(429, `${label} rate limited after retries`);
+      throw new OpenRouterError(429, "rate limited after retries", undefined, label);
     }
 
     if (response.status >= 500 && attempt < MAX_RETRIES) {
       // Drain the body so the socket is released before retrying.
       await response.text().catch(() => "");
-      logger.warn("openrouter: transient error, retrying", { status: response.status, attempt });
+      logger.warn("chat completion: transient error, retrying", { status: response.status, attempt, via: label });
       await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
       continue;
     }
@@ -705,7 +722,8 @@ export async function chatCompletion(
     // value, retry with the next less-strict value in the ladder.
     if (isToolChoiceCompatibilityError(response.status, errBody) && toolChoiceFallbacks.length > 0) {
       const nextChoice = toolChoiceFallbacks.shift()!;
-      logger.warn("openrouter: tool_choice not supported, retrying with fallback", {
+      logger.warn("chat completion: tool_choice not supported, retrying with fallback", {
+        via: label,
         model: currentRequest.model,
         from: currentRequest.tool_choice,
         to: nextChoice,
@@ -715,10 +733,15 @@ export async function chatCompletion(
       continue;
     }
 
-    throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers, errJson));
+    throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers, errJson), label);
   }
 
   throw lastError ?? new Error(`${label} request failed after retries`);
+}
+
+/** Repair a saved OpenRouter batch using its original credential and routing pin. */
+export function openRouterBatchRepairCompletion(apiKey: string, request: ChatCompletionRequest, timeoutMs?: number): Promise<ChatCompletionResult> {
+  return completeChat(apiKey, request, timeoutMs, true);
 }
 
 /** OpenRouter-shaped request → OpenAI's own chat completions request. */

@@ -495,7 +495,6 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   }
 
   const apiKey = await getOpenRouterApiKey();
-  if (!apiKey) return { ok: false, done: false, error: "No AI API key configured (set the OpenRouter key in PopDAM Settings \u2192 APIs)" };
   await markStaleRunningResults(runId);
 
   if (cursor === 0) {

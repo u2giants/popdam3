@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RepairNotAuthorizedError, RepairUnavailableError, sameModelRepairCompletion, structuredBatchResult } from "./batch-result-repair.js";
-import { chatCompletion, parseOpenRouterBatchResult, type ChatCompletionRequest } from "./openrouter.js";
+import { parseOpenRouterBatchResult, type ChatCompletionRequest } from "./openrouter.js";
+import { setStraitlyApiKeyForTests } from "./provider-api-key.js";
+import { setOpenAiRoutingLoaderForTests } from "./openai-route.js";
 import { geminiGenerateContent } from "./gemini-batch.js";
 
 const schema = { type: "object", properties: { tags: { type: "array", items: { type: "string" } } }, required: ["tags"] };
@@ -10,13 +12,37 @@ const validate = (value: Record<string, unknown>) => {
   return value as { tags: string[] };
 };
 
-test("repair uses the SAME model's synchronous endpoint, never another model", () => {
-  const openRouter = sameModelRepairCompletion("google/gemini-3.7-flash:batch");
-  assert.equal(openRouter.model, "google/gemini-3.7-flash");
-  assert.equal(openRouter.completion, chatCompletion);
+test("direct Gemini keeps the original model identifier for repair", () => {
   const direct = sameModelRepairCompletion("google-direct/gemini-3.8-flash:batch");
   assert.equal(direct.model, "google-direct/gemini-3.8-flash:batch");
   assert.equal(direct.completion, geminiGenerateContent);
+});
+
+test("OpenRouter batch repair uses the saved key and pin even if interactive chat uses another provider", async () => {
+  const original = globalThis.fetch;
+  const pin = { only: ["saved-provider"], allow_fallbacks: false };
+  setStraitlyApiKeyForTests("");
+  setOpenAiRoutingLoaderForTests(async () => ({ route: "direct", apiKey: "direct-key" }));
+  const calls: Array<{ url: string; auth: string | null; body: ChatCompletionRequest }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), auth: new Headers(init?.headers).get("authorization"), body: JSON.parse(String(init?.body)) });
+    return Response.json({ choices: [{ message: { content: '{"tags":["red"]}' } }] });
+  };
+  try {
+    const models = ["google/gemini-3.7-flash", "openai/gpt-6-luna"];
+    for (const model of models) {
+      const result = await structuredBatchResult({
+        apiKey: "saved-key", model: `${model}:batch`, result: { content: "bad" }, toolName: "tag_asset", schema, validate, provider: pin,
+      });
+      assert.deepEqual(result, { value: { tags: ["red"] }, repaired: true });
+    }
+    assert.deepEqual(calls.map(({ url, auth, body }) => ({ url, auth, model: body.model, pin: body.provider })),
+      models.map((model) => ({ url: "https://openrouter.ai/api/v1/chat/completions", auth: "Bearer saved-key", model: `${model}:exacto`, pin })));
+  } finally {
+    globalThis.fetch = original;
+    setStraitlyApiKeyForTests(null);
+    setOpenAiRoutingLoaderForTests(null);
+  }
 });
 
 test("a valid batch answer is applied without any repair call", async () => {

@@ -10,10 +10,11 @@ read-when: changing any model reference or AI call path
 ## Capability-driven structured output
 
 Image tagging, Vision Bake-Off, and ERP classification share one bounded output
-engine. It reads the account-filtered OpenRouter catalog, caches it for ten
-minutes, and merges `AI_MODEL_CAPABILITY_OVERRIDES`. Strict schema is preferred
-when advertised, followed by JSON object and compatible tool modes. Each method
-is attempted at most once, with one final JSON repair attempt.
+engine. OpenRouter requests use the account-filtered catalog, cached for ten
+minutes. Straitly and direct OpenAI use a bounded compatibility plan. Both
+paths apply `AI_MODEL_CAPABILITY_OVERRIDES`. Strict schema is preferred when
+advertised, followed by JSON object and compatible tool modes. Each method is
+attempted at most once, with one final JSON repair attempt.
 
 Malformed JSON, a missing tool call, or business-validation failure may move to
 the next supported method. Authentication, authorization, billing, exhausted
