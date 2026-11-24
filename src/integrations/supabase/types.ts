@@ -431,20 +431,6 @@ export type Database = {
             referencedRelation: "assets"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "asset_characters_character_id_fkey"
-            columns: ["character_id"]
-            isOneToOne: false
-            referencedRelation: "characters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "asset_characters_character_id_fkey"
-            columns: ["character_id"]
-            isOneToOne: false
-            referencedRelation: "dam_character_catalog"
-            referencedColumns: ["id"]
-          },
         ]
       }
       asset_checkouts: {
