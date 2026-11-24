@@ -60,6 +60,49 @@ class AllowlistTests(unittest.TestCase):
             sp.parse_sandbox_allowlist("20260905072856", local_migrations(ROOT))
 
 
+class CustomerDerivationTests(unittest.TestCase):
+    def test_proof_is_derived_from_the_historical_customer_statement(self) -> None:
+        historical = sp.local_migrations(ROOT)[sp.CUSTOMER_IMPORT_BASE].read_text()
+        customer_body = historical.split("as $$", 1)[1].split("$$;", 1)[0]
+        definition = (
+            "CREATE OR REPLACE FUNCTION plm.import_coldlion_customers(customers_payload jsonb)\n"
+            " RETURNS TABLE(sync_run_id uuid, customers_seen integer, customers_active integer, "
+            "canonical_created integer, canonical_matched integer)\n"
+            " LANGUAGE plpgsql\n SECURITY DEFINER\n"
+            " SET search_path TO 'app', 'core', 'ingest', 'plm', 'extensions', 'public'\n"
+            f"AS $function${customer_body}$function$\n"
+        )
+
+        def prove(rows, ref=sp.SANDBOX_PROJECT_REF, returned=sp.SANDBOX_PROJECT_REF):
+            return sp.customer_derivation_override(
+                ROOT, sp.CUSTOMER_CORRECTION, ref, PREVIEW, "token",
+                fetch=lambda *_: {"id": returned}, query=lambda *_: rows,
+            )
+
+        result = {"customer_definition": definition, "vendor_absent": True}
+        self.assertTrue(prove([result]).startswith(f"{sp.CUSTOMER_CORRECTION}:{sp.CUSTOMER_IMPORT_BASE}="))
+        for changed in (
+            dict(result, customer_definition=None),
+            dict(result, customer_definition=definition.replace("SECURITY DEFINER", "SECURITY INVOKER")),
+            dict(result, vendor_absent=False),
+        ):
+            with self.subTest(changed=list(changed)), self.assertRaises(sp.Refusal):
+                prove([changed])
+        for wrong_ref in (sp.PRODUCTION_PROJECT_REF, PREVIEW):
+            with self.assertRaises(sp.Refusal):
+                prove([result], ref=wrong_ref)
+            with self.assertRaises(sp.Refusal):
+                prove([result], returned=wrong_ref)
+        with self.assertRaises(sp.Refusal):
+            prove([])
+
+    def test_historical_apply_and_mixed_correction_are_refused(self) -> None:
+        migrations = sp.local_migrations(ROOT)
+        for allowlist in (sp.CUSTOMER_IMPORT_BASE, f"20261225091002,{sp.CUSTOMER_CORRECTION}"):
+            with self.assertRaises(sp.Refusal):
+                sp.parse_sandbox_allowlist(allowlist, migrations)
+
+
 class CollisionTests(unittest.TestCase):
     def test_names_created_objects_including_unqualified_indexes(self) -> None:
         sql = (
@@ -201,6 +244,12 @@ class WorkflowInvariantTests(unittest.TestCase):
         self.assertLess(step.index('cat supabase/.temp/project-ref'), step.index('supabase db push --include-all'))
         self.assertIn('!= "$SANDBOX_PROJECT_REF"', step)
         self.assertIn("sandbox_migration_preflight.py identity", WORKFLOW)
+
+    def test_customer_proof_reaches_all_derivation_checks_and_is_rechecked_at_apply(self):
+        self.assertEqual(WORKFLOW.count('--derivation-override "$CUSTOMER_DERIVATION_PROOF"'), 4)
+        write = WORKFLOW.index("# THE WRITE.")
+        self.assertLess(WORKFLOW.index("the customer importer proof changed before apply"), write)
+        self.assertGreater(WORKFLOW.index("Verify the customer importer and retired vendor absence after apply"), write)
 
     def test_apply_requires_prior_dry_run_and_post_apply_proofs(self) -> None:
         for needle in ("dry_run_run_id", "sandbox-migration-binding.mjs --source-pr", "sandbox-migration-binding.mjs --dry-run-run", "sandbox_migration_preflight.py collisions",

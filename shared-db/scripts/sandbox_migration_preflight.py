@@ -61,8 +61,28 @@ PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai"
 PROJECT_REF_RE = re.compile(r"^[a-z]{20}$")
 VERSION_RE = re.compile(r"^\d{14}$")
 
+# #6998: permit the customer correction on the standalone sandbox only after
+# proving the installed customer half of the historical migration. The vendor
+# half is retired. Keep the actual ledger and both migration files untouched.
+CUSTOMER_CORRECTION = "20261225091206"
+CUSTOMER_IMPORT_BASE = "20260716140000"
+CUSTOMER_MIGRATION_HASHES = {
+    CUSTOMER_IMPORT_BASE: "9d7377233dc123326c34d3fdddd33a22d687b04aa75ca476ce7d3600f1bd289f",
+    CUSTOMER_CORRECTION: "ae1ac8ecb6ff41bd23e728411329b511a64313fc12ee438a59431ca2a110e42e",
+}
+# SHA-256 of pg_get_functiondef for the customer statement in CUSTOMER_IMPORT_BASE.
+CUSTOMER_IMPORT_DEFINITION = "16493d71961a067f47786eb1fd93569fa96ea734e07df0993fc801fd3714226d"
+CUSTOMER_IMPORT_PROBE = """
+select pg_get_functiondef(to_regprocedure('plm.import_coldlion_customers(jsonb)')) as customer_definition,
+       not exists (
+           select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'plm' and p.proname = 'import_coldlion_vendors'
+       ) as vendor_absent
+"""
+
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    CUSTOMER_IMPORT_BASE: "#6998: applying the historical file would recreate the retired vendor importer.",
     "20261224000000": (
         "issue #6472: sandbox catch-up batch 23 committed its first four blocks and then stopped on the sandbox's "
         "missing pg_cron (run 44483769361). Superseded by batch 24, 20261224010000."
@@ -175,6 +195,35 @@ def fetch_project(project_ref: str, token: str) -> object:
         raise Refusal(f"HTTP {exc.code} reading project {project_ref}: {read_error_body(exc)}") from exc
 
 
+def customer_derivation_override(
+    repo: Path, raw_allowlist: str, project_ref: str, preview_ref: str, token: str,
+    fetch=fetch_project, query=run_query,
+) -> str:
+    check_target_ref(project_ref, preview_ref)
+    if raw_allowlist != CUSTOMER_CORRECTION:
+        raise Refusal("customer importer proof is restricted to the singleton #6998 correction")
+    migrations = local_migrations(repo)
+    for version, expected in CUSTOMER_MIGRATION_HASHES.items():
+        path = migrations.get(version)
+        if path is None or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise Refusal(f"customer importer proof requires the exact source bytes for {version}")
+    check_returned_project(project_ref, fetch(project_ref, token))
+    rows = query(project_ref, token, CUSTOMER_IMPORT_PROBE)
+    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        raise Refusal("customer importer catalog proof did not return exactly one result")
+    definition = rows[0].get("customer_definition")
+    if not isinstance(definition, str) or hashlib.sha256(definition.encode()).hexdigest() != CUSTOMER_IMPORT_DEFINITION:
+        raise Refusal("installed customer importer does not match the historical definition")
+    if rows[0].get("vendor_absent") is not True:
+        raise Refusal("retired vendor importer absence was not proved")
+    return (
+        f"{CUSTOMER_CORRECTION}:{CUSTOMER_IMPORT_BASE}="
+        "Standalone DesignFlow sandbox has the exact historical customer importer "
+        f"(definition SHA-256 {CUSTOMER_IMPORT_DEFINITION}); "
+        "the retired vendor importer is absent and the historical ledger remains unchanged (#6998)."
+    )
+
+
 def parse_sandbox_allowlist(raw: str, migrations: dict[str, Path]) -> list[str]:
     values = [item.strip() for item in (raw or "").split(",")]
     if not values or any(not v for v in values):
@@ -188,6 +237,8 @@ def parse_sandbox_allowlist(raw: str, migrations: dict[str, Path]) -> list[str]:
     blocked = [v for v in values if v in SANDBOX_BLOCKED]
     if blocked:
         raise Refusal("; ".join(f"{v} is blocked on the sandbox route: {SANDBOX_BLOCKED[v]}" for v in blocked))
+    if CUSTOMER_CORRECTION in values and raw != CUSTOMER_CORRECTION:
+        raise Refusal("the #6998 customer correction must run by itself")
     unknown = [v for v in values if v not in migrations]
     if unknown:
         raise Refusal(f"not on disk at this commit: {', '.join(unknown)}")
@@ -338,6 +389,10 @@ def main(argv: list[str] | None = None) -> int:
     subs = parser.add_subparsers(dest="command", required=True)
     ident = subs.add_parser("identity")
     ident.add_argument("--project-ref", required=True)
+    customer = subs.add_parser("customer-derivation")
+    customer.add_argument("--repo", type=Path, required=True)
+    customer.add_argument("--allowlist", required=True)
+    customer.add_argument("--project-ref", required=True)
     allow = subs.add_parser("allowlist")
     allow.add_argument("--repo", type=Path, required=True)
     allow.add_argument("--allowlist", required=True)
@@ -365,6 +420,11 @@ def main(argv: list[str] | None = None) -> int:
             check_target_ref(args.project_ref, os.environ.get("PREVIEW_PROJECT_REF", ""))
             check_returned_project(args.project_ref, fetch_project(args.project_ref, _token()))
             print(f"IDENTITY OK: {args.project_ref} is the DesignFlow sandbox, not production or preview.")
+        elif args.command == "customer-derivation":
+            print(customer_derivation_override(
+                args.repo, args.allowlist, args.project_ref,
+                os.environ.get("PREVIEW_PROJECT_REF", ""), _token(),
+            ))
         elif args.command == "allowlist":
             values = parse_sandbox_allowlist(args.allowlist, local_migrations(args.repo))
             print(f"SANDBOX ALLOWLIST OK: {', '.join(values)}")
