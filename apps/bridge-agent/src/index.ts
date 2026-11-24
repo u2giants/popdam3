@@ -187,6 +187,8 @@ let cloudStyleGuideRoots: string[] = [];
 let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
 let cloudOpenRouterApiKey = "";
+let cloudOpenAiApiKey = "";
+let cloudOpenAiRoute: "direct" | "openrouter" = "direct";
 let cloudScaleDownApiKey = "";
 let cloudAiTaskModels: Record<string, string> = {};
 let cloudAiModels: AiModelDef[] = [];
@@ -349,6 +351,8 @@ const heartbeatCommandHandlers = createBridgeCommandHandlers({
     googleApiKey: cloudGoogleAiApiKey,
     anthropicApiKey: cloudAnthropicApiKey,
     openRouterApiKey: cloudOpenRouterApiKey,
+    openAiApiKey: cloudOpenAiApiKey,
+    openAiRoute: cloudOpenAiRoute,
     scaleDownApiKey: cloudScaleDownApiKey,
     aiTaskModels: cloudAiTaskModels,
   }),
@@ -360,6 +364,8 @@ const heartbeatCommandHandlers = createBridgeCommandHandlers({
     googleApiKey: cloudGoogleAiApiKey,
     anthropicApiKey: cloudAnthropicApiKey,
     openRouterApiKey: cloudOpenRouterApiKey,
+    openAiApiKey: cloudOpenAiApiKey,
+    openAiRoute: cloudOpenAiRoute,
     scaleDownApiKey: cloudScaleDownApiKey,
     aiTaskModels: cloudAiTaskModels,
   }),
@@ -482,6 +488,8 @@ interface CloudConfig {
     anthropic_api_key?: string;
     google_ai_api_key?: string;
     openrouter_api_key?: string;
+    openai_api_key?: string;
+    openai_route?: "direct" | "openrouter";
     scaledown_api_key?: string;
     ai_task_models?: Record<string, string>;
     models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
@@ -720,6 +728,8 @@ function applyCloudConfig(cfg: CloudConfig) {
     if (cfg.ai.anthropic_api_key) cloudAnthropicApiKey = cfg.ai.anthropic_api_key;
     if (cfg.ai.google_ai_api_key) cloudGoogleAiApiKey = cfg.ai.google_ai_api_key;
     if (cfg.ai.openrouter_api_key) cloudOpenRouterApiKey = cfg.ai.openrouter_api_key;
+    if (cfg.ai.openai_api_key) cloudOpenAiApiKey = cfg.ai.openai_api_key;
+    cloudOpenAiRoute = cfg.ai.openai_route === "openrouter" ? "openrouter" : "direct";
     if (cfg.ai.scaledown_api_key) cloudScaleDownApiKey = cfg.ai.scaledown_api_key;
     if (cfg.ai.ai_task_models) cloudAiTaskModels = cfg.ai.ai_task_models;
     if (Array.isArray(cfg.ai.models) && cfg.ai.models.length > 0) cloudAiModels = cfg.ai.models as AiModelDef[];

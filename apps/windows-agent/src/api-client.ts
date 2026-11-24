@@ -75,6 +75,7 @@ export interface WindowsHeartbeatResponse {
       google_ai_api_key?: string;
       openai_api_key?: string;
       openrouter_api_key?: string;
+      openai_route?: "direct" | "openrouter";
       scaledown_api_key?: string;
       models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
       ai_task_models?: Record<string, string>;

@@ -35,6 +35,9 @@ export interface PdfAiVisionConfig {
   googleApiKey: string;
   anthropicApiKey: string;
   openRouterApiKey?: string;
+  /** OpenAI direct key; used for openai/* models unless openAiRoute is "openrouter". */
+  openAiApiKey?: string;
+  openAiRoute?: "direct" | "openrouter";
   scaleDownApiKey?: string;
   aiTaskModels?: Record<string, string>;
 }
@@ -118,6 +121,34 @@ export async function callPdfAiVision(
   if (aiConfig.aiTaskModels?.pdf_extraction?.trim().startsWith("scaledown/")) {
     if (!aiConfig.scaleDownApiKey) throw new Error("SCALEDOWN_API_KEY is not configured in Settings");
     return transcribeWithScaleDown(base64, aiConfig.scaleDownApiKey);
+  }
+
+  // OpenAI models go to OpenAI directly unless the admin switch says
+  // OpenRouter. No silent fallback: a missing key is an error.
+  const selected = aiConfig.aiTaskModels?.pdf_extraction?.trim() ?? "";
+  if (selected.toLowerCase().startsWith("openai/") && aiConfig.openAiRoute !== "openrouter") {
+    if (!aiConfig.openAiApiKey) throw new Error("OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${aiConfig.openAiApiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({
+        model: selected.split(":")[0].slice("openai/".length),
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:image/png;base64,${base64}` } },
+            { type: "text", text: PDF_EXTRACTION_PROMPT },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = await res.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string; refusal?: string } }> };
+    const choice = data.choices?.[0];
+    if (choice?.message?.refusal || choice?.finish_reason === "content_filter") throw new Error("OpenAI refused PDF transcription");
+    if (!choice?.message || typeof choice.message.content !== "string") throw new Error("OpenAI returned a malformed PDF transcription response");
+    return choice.message.content.trim();
   }
 
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
