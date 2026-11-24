@@ -156,3 +156,24 @@ begin
   if n <> 0 then raise exception 'I2 a vector index exists'; end if;
 end
 $t$;
+
+-- K. delete guard (review of PR 7044): direct DELETE refused, item cascade allowed.
+do $g$
+declare n int; pt bigint; conv bigint; p1 bigint;
+begin
+  insert into dflow."itemHeader" (item_id_pk) overriding system value values (987654322);
+  insert into dflow.product_type (name, source) values ('ZZ delete-guard type', 'seed') returning id into pt;
+  insert into dflow.description_convention (division_code, version, template)
+    values ('ZZDG1', 1, '{}') returning id into conv;
+  insert into dflow.item_description_parts (item_fk, product_type_id, convention_id, assembled_description)
+    values (987654322, pt, conv, 'ZZ dg') returning id into p1;
+  begin
+    delete from dflow.item_description_parts where id = p1;
+    raise exception 'K1 direct delete of a parts row accepted';
+  exception when check_violation then null; end;
+  -- K2: deleting the item still cascades its parts rows away.
+  delete from dflow."itemHeader" where item_id_pk = 987654322;
+  select count(*) into n from dflow.item_description_parts where id = p1;
+  if n <> 0 then raise exception 'K2 cascade from itemHeader did not remove the parts row'; end if;
+end
+$g$;

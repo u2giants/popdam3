@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225120103",
+  "migration_sha256": "ac06c6ef5cc3d7604011adb9d2c09d57c7c0f364869396b52156c503b52d82ac",
+  "checks": [
+    {
+      "id": "dflow_prod_aid_parts_no_delete_table_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.item_description_parts",
+      "filters": [
+        {
+          "column": "assembled_description",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    }
+  ]
+}

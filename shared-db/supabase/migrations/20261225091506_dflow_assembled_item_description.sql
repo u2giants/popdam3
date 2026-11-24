@@ -11,7 +11,8 @@
 -- item_description_parts, embellishment_phrase, product_type_search_log,
 -- mg_display_name), their indexes (trigram on product_type.name,
 -- product_type.search_terms, embellishment_phrase.phrase; no vector index,
--- D5), function + trigger item_description_parts_append_only. No grants: the
+-- D5), functions + triggers item_description_parts_append_only (UPDATE) and
+-- item_description_parts_no_delete (DELETE). No grants: the
 -- sandbox item service runs as the pooler admin and ownership covers
 -- everything (as 20261106050346). resolve_mg_path and the search functions
 -- are deferred to plan step 3.1. No data is written.
@@ -20,8 +21,8 @@
 -- no-op. Rollback: drop the nine tables (item_description_parts,
 -- product_type_search_log, product_type_mg03_allowed, product_type_mg,
 -- product_type_request, embellishment_phrase, description_convention,
--- mg_display_name, product_type) and function
--- dflow.item_description_parts_append_only.
+-- mg_display_name, product_type) and functions
+-- dflow.item_description_parts_append_only, dflow.item_description_parts_no_delete.
 
 set lock_timeout = '5s';
 set statement_timeout = '2min';
@@ -32,6 +33,10 @@ begin
     raise exception '#7041/20261225091506 self-check: schema dflow_prod exists here — this is the production project; the paired version 20261225091507 applies there, never this one'
       using errcode = 'feature_not_supported';
   end if;
+end $$;
+
+do $$
+begin
   if to_regclass('dflow."itemHeader"') is null then
     raise exception '#7041/20261225091506 self-check: dflow."itemHeader" is missing — wrong database for the sandbox half'
       using errcode = 'feature_not_supported';
@@ -219,6 +224,24 @@ drop trigger if exists item_description_parts_append_only on dflow.item_descript
 create trigger item_description_parts_append_only
   before update on dflow.item_description_parts
   for each row execute function dflow.item_description_parts_append_only();
+
+-- D11 append-only also covers DELETE: a parts row is never removed directly.
+-- The one allowed path is the itemHeader ON DELETE CASCADE, which runs this
+-- trigger from inside the referential-integrity trigger (depth > 1).
+create or replace function dflow.item_description_parts_no_delete() returns trigger as $fn$
+begin
+  if pg_trigger_depth() > 1 then
+    return old;
+  end if;
+  raise exception 'item_description_parts % is append-only: rows are never deleted (clear is_current and insert a new row instead)',
+    old.id using errcode = 'check_violation';
+end
+$fn$ language plpgsql;
+
+drop trigger if exists item_description_parts_no_delete on dflow.item_description_parts;
+create trigger item_description_parts_no_delete
+  before delete on dflow.item_description_parts
+  for each row execute function dflow.item_description_parts_no_delete();
 
 -- Free-text embellishment phrases (L8), fed only by saved items; suggested
 -- back to designers, never reviewed. Embedding as on product_type (D4/D5).
