@@ -18,6 +18,7 @@ import { ScopedTagSections } from "@/components/library/ScopedTagSections";
 import { X, Copy, Check, Star, Loader2, ChevronLeft, ChevronRight, Sparkles, Clock, HardDrive, Tag, FileText, FolderOpen, Download, ClipboardList, Share2, Layers, Box } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import CheckoutBar from "@/components/library/CheckoutBar";
+import OlderCopiesSection from "@/components/library/OlderCopiesSection";
 import { cn } from "@/lib/utils";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { isLegacyErpItem } from "@/lib/canonical-erp-items";
@@ -1194,6 +1195,15 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     );
                   })
                 )}
+                {/* Older copies for the selected file (admin only; component self-gates), popdam3#963 */}
+                {(() => {
+                  const sel = orderedAssets.find((a) => a.id === (selectedAssetId ?? (orderedAssets.length === 1 ? orderedAssets[0].id : null)));
+                  return sel ? (
+                    <div className="pt-3">
+                      <OlderCopiesSection key={sel.id} assetId={sel.id} relativePath={sel.relative_path} />
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
 
