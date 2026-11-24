@@ -21,6 +21,23 @@ A ColdLion style number is required only when a user requests ColdLion numbering
 
 A failure to obtain a ColdLion style number must not destroy the Item or silently invent a number.
 
+### ColdLion refuses codes that do not exist
+
+**Settled 2026-11-24 (Albert, confirmed by ColdLion).** When an item sent to
+ColdLion names a code that does not exist in ColdLion (for example a merchandise
+group), ColdLion must refuse the whole item and say which value is wrong. It must
+not create the item with that value left blank. Albert asked ColdLion for this;
+ColdLion replied "We've added validations for put /items api".
+
+DesignFlow shows that refusal to the user in plain words: which field is wrong,
+that no item was created in ColdLion, and to pick an existing value (or have the
+code added in ColdLion) before trying again.
+
+Verified live 2026-11-24 1:50 PM EST: an item sent with made-up merchandise-group
+codes was refused ("merchGroup01: Invalid Merch Group; …"), and no item was
+created. Implementation evidence: popcre/designflow-item-master
+`explainColdlionRejection` in `services/item_detail.service.js`.
+
 ## Classification and descriptions
 
 Product classification follows [`merchandise-and-product-taxonomy.md`](merchandise-and-product-taxonomy.md). A controlled description keeps Product Type, subtype, Licensor, Property, artwork wording, and size as separate facts even when presented as one readable description.
