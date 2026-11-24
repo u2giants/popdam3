@@ -22,9 +22,9 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 | C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (C1 done; with popdam3 C3) | — |
 | C4 | Retire `public.characters`, `public.properties`, `public.licensors` | ⬜ open (after C2/C3) | — |
 | N1 | Style-group names derived from linked shared records | ✅ live (2026-11-23) | #7001 merge 62175efa6; migration 20261225090802; production drift 0 (was 254 licensor / 2,565 property), proof on #6997 |
-| D1 | `core."externalCustomer"` served from `coldlion.customer` | ⬜ open (after designflow-data-syncing D2) | — |
+| D1 | DesignFlow customer views read `plm.erp_customer` | 🟡 production verified 2026-11-24, standalone sandbox pending | [Production proof and sandbox blocker](https://github.com/popcre/shared-db/issues/6998#issuecomment-7138765335) |
 
-Fresh session starts at the lowest open stage whose prerequisite is met; S1, C1, N1 have none (D1 waits for designflow-data-syncing D2).
+Fresh sessions start at the lowest open stage whose prerequisite is met. For D1, start with the [standalone sandbox handoff](https://github.com/popcre/shared-db/blob/main/HANDOFF.d/2026-11-24T2055Z-edge-dev3-codex-designflow-customer-sandbox.md). The production cutover is complete.
 
 ---
 
@@ -51,7 +51,7 @@ In: stages S1, S2, C1, C2, C4, N1, D1 below.
 - Characters: `public.characters` (9,622; cols `id, property_id, name, external_id, usage_count, is_priority, created_at, updated_at`), FK `public.asset_characters.character_id → public.characters ON DELETE CASCADE` (49,485 links), `public.characters.property_id → public.properties → public.licensors`; `plm.style_tracker_item_bridge.public_licensor_id → public.licensors ON DELETE SET NULL`; views `public.dam_character_catalog`, `public.style_tracker_rows_with_bridge`. `core.character` (15,117; `id, licensor_id, name, code, status, metadata`), `core.character_alias`, `core.taxonomy_source_ref` (no rows match `public.characters.external_id`).
 - Match quality: ~5,713 PopDAM characters match exactly one `core.character` with the same licensor+name; ~1,357 match several; ~2,550 match none.
 - `public.style_groups` carries ids (`licensor_id`, `property_id`, `customer_id`) and copied names/codes (`licensor_name/code`, `property_name/code`, `division_code/name`, `mg01..03_code/name`, `customer`); ~114 migration functions reference the name columns.
-- `core."externalCustomer"` (839, camelCase ColdLion fields) is written by designflow-data-syncing `getExternalCustomer`; `coldlion.customer` (838, snake_case, every same field, refreshed daily) is the main ERP feed. View `api.dam_order_customer_settings` reads `externalCustomer`.
+- Before D1, DesignFlow Data Syncing wrote the separate `core."externalCustomer"` copy. [The live D1 route](https://github.com/popcre/shared-db/issues/6998#issuecomment-7138765335) serves the existing customer views from `plm.erp_customer`, which brings together the landed ERP feed and POP-managed customer values.
 
 ### 6. Findings
 See § 5 numbers. Reading `plm` directly would give PopDAM orders for 5,695 style groups (copy covered 278). `plm.production_order.company_id` is a `core.customer` for only 7 orders.
@@ -91,10 +91,10 @@ Open: S1 customer/due-date source (criteria in S1); C1 acceptance (criteria in C
 - Migration: trigger on `public.style_groups` (before insert/update of the id columns) filling names/codes from `core.licensor`, `core.property`, `core.customer`, and the merchandise-group/division source used by `apply-erp-enrichment` (find it in popdam3 `supabase/functions/_shared/admin-handlers/*erp*`); plus statement-level triggers on `core.licensor/property/customer` name changes that update affected style groups in batches (≤ 20k rows per statement). One-time backfill in batches.
 - Gate: in preview, renaming a licensor updates its style groups; production read-only check `… where sg.licensor_name is distinct from l.name` = 0; existing search performance checks unchanged (`docs/` cold-statement ceiling).
 
-**D1 — `externalCustomer` from the ERP feed** (`lead-only`: DesignFlow readers)
-- Migration: rename table `core."externalCustomer"` → `archive."externalCustomer_before_view_<date>"`; create view `core."externalCustomer"` over `coldlion.customer` with the exact same column names and types (`"companyCode"` ← `company_code`, …, `id` ← stable surrogate, e.g. the archived id joined on `customerCode`, else `row_number` is **not** acceptable — ids must stay stable for readers); grants unchanged. Compare row-by-row first: report customers present in one source only.
-- Prerequisite: designflow-data-syncing D2 is live (nothing writes `core."externalCustomer"` any more — a view cannot be written).
-- Gate: designflow-item-master and designflow-tracking customer pickers/grids show the same customers on the sandbox; `api.dam_order_customer_settings` returns the same rows.
+**D1 — DesignFlow reads the shared ERP customer record** (`lead-only`: DesignFlow readers)
+
+- [Production verified](https://github.com/popcre/shared-db/pull/7032). Both existing DesignFlow views read `plm.erp_customer` with the prior column contracts. The linked production proof records all 838 ERP codes, 767 flagged inactive customers with their original IDs, and preservation of existing POP values.
+- The [standalone sandbox dry-run](https://github.com/popcre/shared-db/actions/runs/45443066610) stopped on a historical prerequisite. Use the handoff linked from STATUS to resume. The sandbox gate covers the DesignFlow Item Master and Tracking customer lookups, the customer settings view, stable IDs and POP-owned values.
 
 ## 10. Tests
 - S1: `supabase/tests/dam_production_orders_for_sku.test.sql` (pgTAP): voided rows excluded, ColdLion SO excluded, multi-line order aggregated.
