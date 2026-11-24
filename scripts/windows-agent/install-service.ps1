@@ -243,8 +243,8 @@ $IndraRoot = "C:\ProgramData\PopDAM\indra"
 $SystemPython = Get-Command python.exe -ErrorAction SilentlyContinue | Where-Object { $_.Source -notlike "*WindowsApps*" } | Select-Object -First 1 -ExpandProperty Source
 if ($SystemPython) {
     & $SystemPython -m venv $IndraRoot
-    & "$IndraRoot\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check indra-ocr==1.1.1
-    & "$IndraRoot\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('datalab-to/indra-ocr', revision='v1.1.0', allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'], ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'], local_dir=r'$IndraRoot\models')"
+    & "$IndraRoot\Scripts\python.exe" -m pip install --quiet --disable-pip-version-check indra-ocr==1.2.0
+    & "$IndraRoot\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('datalab-to/indra-ocr', revision='v1.2.0', allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'], ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'], local_dir=r'$IndraRoot\models'); import pathlib; (pathlib.Path(r'$IndraRoot\models') / '.indra-revision').write_text('v1.2.0')"
     & $NssmExe set $ServiceName AppEnvironmentExtra "INDRA_OCR_PYTHON=$IndraRoot\Scripts\python.exe" "INDRA_OCR_MODEL_DIR=$IndraRoot\models" 2>&1 | Out-Null
 } else {
     Write-Warning "Python not found; Indra OCR not installed (agent will use tesseract.js)."

@@ -2,8 +2,8 @@
  * Indra OCR provisioning for the Windows agent.
  *
  * Indra is a Python engine plus ONNX models installed OUTSIDE the shipped code
- * (same pins as scripts/windows-agent/install-service.ps1: indra-ocr 1.1.1,
- * models revision v1.1.0). The installer sets it once — OTA updates only swap
+ * (same pins as scripts/windows-agent/install-service.ps1: indra-ocr 1.2.0,
+ * models revision v1.2.0). The installer sets it once — OTA updates only swap
  * code — so a box installed before Indra existed, or one where the install
  * step could not run, silently degrades to tesseract.js forever.
  *
@@ -36,8 +36,11 @@ const execFileAsync = promisify(execFile);
 export const INDRA_ROOT = "C:\\ProgramData\\PopDAM\\indra";
 export const INDRA_PYTHON = `${INDRA_ROOT}\\Scripts\\python.exe`;
 export const INDRA_MODELS = `${INDRA_ROOT}\\models`;
-export const INDRA_PACKAGE_SPEC = "indra-ocr==1.1.1";
-export const INDRA_MODEL_REVISION = "v1.1.0";
+export const INDRA_PACKAGE_SPEC = "indra-ocr==1.2.0";
+export const INDRA_MODEL_REVISION = "v1.2.0";
+export const INDRA_PACKAGE_VERSION = INDRA_PACKAGE_SPEC.split("==")[1];
+/** Written after a successful model download; a missing or different value forces reprovisioning. */
+export const INDRA_REVISION_MARKER = ".indra-revision";
 
 /** Long outputs (pip/tqdm) — execFile's default 1 MiB buffer is too small. */
 const STEP_MAX_BUFFER = 32 * 1024 * 1024;
@@ -117,7 +120,14 @@ export function powerShellString(value: string): string {
  * not have yet — the directory must travel with the command itself.
  */
 export function deepVerifyScript(modelsDir: string): string {
-  return `from indra_ocr import OrtOCR; OrtOCR(${pythonString(modelsDir.replace(/\\/g, "/"))}); print('indra-ok')`;
+  const dir = pythonString(modelsDir.replace(/\\/g, "/"));
+  return [
+    "import importlib.metadata as m, pathlib;",
+    `v = m.version("indra-ocr"); assert v == ${pythonString(INDRA_PACKAGE_VERSION)}, "indra-ocr " + v + " is not the pinned version";`,
+    `r = (pathlib.Path(${dir}) / ${pythonString(INDRA_REVISION_MARKER)});`,
+    `assert r.exists() and r.read_text().strip() == ${pythonString(INDRA_MODEL_REVISION)}, "models are not the pinned revision";`,
+    `from indra_ocr import OrtOCR; OrtOCR(${dir}); print('indra-ok')`,
+  ].join(" ");
 }
 
 export function checkIndra(): IndraStatus {
@@ -183,7 +193,8 @@ export function provisionPlan(
     `snapshot_download('datalab-to/indra-ocr', revision='${INDRA_MODEL_REVISION}',`,
     "allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'],",
     "ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'],",
-    `local_dir=${pythonString(modelsDir.replace(/\\/g, "/"))})`,
+    `local_dir=${pythonString(modelsDir.replace(/\\/g, "/"))});`,
+    `import pathlib; (pathlib.Path(${pythonString(modelsDir.replace(/\\/g, "/"))}) / ${pythonString(INDRA_REVISION_MARKER)}).write_text(${pythonString(INDRA_MODEL_REVISION)})`,
   ].join(" ");
   return [
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
