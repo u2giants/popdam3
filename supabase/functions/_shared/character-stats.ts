@@ -1,29 +1,34 @@
-// Pure planning for the rebuild-character-stats admin route (#1095).
-// The route publishes every changed character's count and priority in ONE
-// write, so a failure never leaves a half-reset catalog.
+// Pure planning for the rebuild-character-stats admin route (#1095, #1301).
+// Usage counts and priority live in dam.character_usage, keyed by the shared
+// core.character id. The route publishes every changed row in ONE write, so a
+// failure never leaves a half-reset table.
 
-export interface CharacterStatsRow {
-  id: string;
-  name: string;
-  property_id: string;
+export interface CharacterUsageRow {
+  core_character_id: string;
   usage_count: number;
   is_priority: boolean;
 }
 
-/** Full rows (for one atomic upsert) for characters whose stats change. */
+/**
+ * Rows (for one atomic upsert) whose stats change. Covers every character
+ * that has links now or had a published row before (which drops to zero).
+ */
 export function planCharacterStats(
-  characters: CharacterStatsRow[],
+  existing: CharacterUsageRow[],
   tally: Map<string, number>,
   threshold: number,
-): { changed: CharacterStatsRow[]; priorityCount: number } {
-  const changed: CharacterStatsRow[] = [];
+): { changed: CharacterUsageRow[]; priorityCount: number } {
+  const previous = new Map(existing.map((r) => [r.core_character_id, r]));
+  const ids = new Set<string>([...previous.keys(), ...tally.keys()]);
+  const changed: CharacterUsageRow[] = [];
   let priorityCount = 0;
-  for (const c of characters) {
-    const usage_count = tally.get(c.id) ?? 0;
+  for (const id of ids) {
+    const usage_count = tally.get(id) ?? 0;
     const is_priority = usage_count >= threshold;
     if (is_priority) priorityCount++;
-    if (usage_count !== c.usage_count || is_priority !== c.is_priority) {
-      changed.push({ ...c, usage_count, is_priority });
+    const old = previous.get(id);
+    if (!old || usage_count !== old.usage_count || is_priority !== old.is_priority) {
+      changed.push({ core_character_id: id, usage_count, is_priority });
     }
   }
   return { changed, priorityCount };

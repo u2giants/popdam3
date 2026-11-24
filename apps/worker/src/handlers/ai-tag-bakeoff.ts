@@ -98,13 +98,37 @@ function propertyEvidence(propertyName: string | null, evidenceText: string): bo
   return tokens.length <= 1 ? matches === 1 : matches >= 2;
 }
 
+// A shared core.character with the properties it is currently linked to.
 type CharacterRow = {
   id: string;
   name: string;
-  property_id: string;
-  is_priority?: boolean;
-  usage_count?: number;
+  licensor_id: string | null;
+  property_ids: string[];
 };
+
+type CoreCharacterRecord = {
+  id: string;
+  name: string;
+  status?: string | null;
+  licensor_id: string | null;
+  property_character_associations?: Array<{ property_id: string; is_current: boolean | null }> | null;
+};
+
+const CORE_CHARACTER_SELECT = "id, name, status, licensor_id, property_character_associations(property_id, is_current)";
+
+// Archived or deleted shared characters are never offered or accepted.
+function usableCharacter(row: CoreCharacterRecord | null | undefined): row is CoreCharacterRecord {
+  return !!row?.id && !!row.name && !["archived", "deleted"].includes(row.status ?? "");
+}
+
+function toCharacterRow(row: CoreCharacterRecord): CharacterRow {
+  return {
+    id: row.id,
+    name: row.name,
+    licensor_id: row.licensor_id,
+    property_ids: (row.property_character_associations ?? []).filter((a) => a.is_current !== false).map((a) => a.property_id),
+  };
+}
 
 type ModelPricing = {
   prompt: number | null;
@@ -167,7 +191,7 @@ async function resolveNames(characterIds: string[], propertyId: string | null): 
   const client = db();
   const [charsRes, propRes] = await Promise.all([
     characterIds.length > 0
-      ? client.from("dam_character_catalog").select("id, name").in("id", characterIds)
+      ? client.schema("core").from("character").select("id, name").in("id", characterIds)
       : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
     propertyId
       ? client.schema("core").from("property").select("name").eq("id", propertyId).maybeSingle()
@@ -179,12 +203,12 @@ async function resolveNames(characterIds: string[], propertyId: string | null): 
   };
 }
 
-async function loadProperty(propertyId: string | null): Promise<{ id: string; name: string } | null> {
+async function loadProperty(propertyId: string | null): Promise<{ id: string; name: string; licensor_id: string | null } | null> {
   if (!propertyId) return null;
   const { data } = await db()
     .schema("core")
     .from("property")
-    .select("id, name")
+    .select("id, name, licensor_id")
     .eq("id", propertyId)
     .maybeSingle();
   return data ?? null;
@@ -193,13 +217,16 @@ async function loadProperty(propertyId: string | null): Promise<{ id: string; na
 async function loadCharactersByIds(characterIds: string[]): Promise<CharacterRow[]> {
   if (characterIds.length === 0) return [];
   const { data } = await db()
-    .from("dam_character_catalog")
-    .select("id, name, property_id:core_property_id, is_priority, usage_count")
+    .schema("core")
+    .from("character")
+    .select(CORE_CHARACTER_SELECT)
     .in("id", characterIds);
-  return (data ?? []) as CharacterRow[];
+  return ((data ?? []) as unknown as CoreCharacterRecord[]).filter(usableCharacter).map(toCharacterRow);
 }
 
-async function resolveCharacterNameCandidates(names: string[], preferredPropertyId: string | null, collectUnresolved = true): Promise<{
+// Resolve names against the shared list (core.character and its aliases),
+// scoped to the licensor when one is known.
+async function resolveCharacterNameCandidates(names: string[], preferredPropertyId: string | null, licensorId: string | null, collectUnresolved = true): Promise<{
   rows: CharacterRow[];
   unresolved: string[];
 }> {
@@ -212,16 +239,22 @@ async function resolveCharacterNameCandidates(names: string[], preferredProperty
     const trimmed = name.trim();
     if (!trimmed || normalizeName(trimmed).length < 3) continue;
 
-    const { data } = await client
-      .from("dam_character_catalog")
-      .select("id, name, property_id:core_property_id, is_priority, usage_count")
-      .ilike("name", trimmed)
-      .limit(25);
+    let byName = client.schema("core").from("character").select(CORE_CHARACTER_SELECT).ilike("name", trimmed);
+    if (licensorId) byName = byName.eq("licensor_id", licensorId);
+    let byAlias = client.schema("core").from("character_alias").select(`alias, character:character_id(${CORE_CHARACTER_SELECT})`).ilike("alias", trimmed);
+    if (licensorId) byAlias = byAlias.eq("licensor_id", licensorId);
+    const [{ data: named }, { data: aliased }] = await Promise.all([byName.limit(25), byAlias.limit(25)]);
 
-    const candidates = ((data ?? []) as CharacterRow[])
-      .filter((candidate) => normalizeName(candidate.name) === normalizeName(trimmed));
+    const found = new Map<string, CoreCharacterRecord>();
+    for (const row of (named ?? []) as unknown as CoreCharacterRecord[]) {
+      if (usableCharacter(row) && normalizeName(row.name) === normalizeName(trimmed)) found.set(row.id, row);
+    }
+    for (const row of (aliased ?? []) as unknown as Array<{ alias: string; character: CoreCharacterRecord | null }>) {
+      if (usableCharacter(row.character) && normalizeName(row.alias) === normalizeName(trimmed)) found.set(row.character.id, row.character);
+    }
+    const candidates = [...found.values()].map(toCharacterRow);
     const preferred = preferredPropertyId
-      ? candidates.filter((candidate) => candidate.property_id === preferredPropertyId)
+      ? candidates.filter((candidate) => candidate.property_ids.includes(preferredPropertyId))
       : candidates;
     const usable = preferred.length > 0 ? preferred : candidates;
 
@@ -264,8 +297,8 @@ async function normalizeModelTaxonomy(asset: BakeoffAsset, output: Record<string
 
   const idRows = await loadCharactersByIds(rawCharacterIds);
   const acceptedIdRows = idRows.filter((row) => {
-    if (propertyId) return row.property_id === propertyId;
-    if (asset.property_id) return row.property_id === asset.property_id;
+    if (propertyId) return row.property_ids.includes(propertyId);
+    if (asset.property_id) return row.property_ids.includes(asset.property_id);
     return textHasName(aiDescription, row.name);
   });
 
@@ -274,9 +307,10 @@ async function normalizeModelTaxonomy(asset: BakeoffAsset, output: Record<string
     debug.rejected_character_ids = rawCharacterIds.filter((id) => !acceptedIds.has(id));
   }
 
+  const licensorId = asset.licensor_id ?? rawProperty?.licensor_id ?? null;
   const [{ rows: explicitNameRows, unresolved }, { rows: tagNameRows }] = await Promise.all([
-    resolveCharacterNameCandidates(explicitCharacterNames, propertyId ?? asset.property_id ?? null, true),
-    resolveCharacterNameCandidates(tags, propertyId ?? asset.property_id ?? null, false),
+    resolveCharacterNameCandidates(explicitCharacterNames, propertyId ?? asset.property_id ?? null, licensorId, true),
+    resolveCharacterNameCandidates(tags, propertyId ?? asset.property_id ?? null, licensorId, false),
   ]);
   if (unresolved.length > 0) debug.unresolved_character_names = unresolved;
 
@@ -290,7 +324,7 @@ async function normalizeModelTaxonomy(asset: BakeoffAsset, output: Record<string
   }
 
   if (!propertyId && mergedRows.length > 0) {
-    const propertyIds = [...new Set(mergedRows.map((row) => row.property_id))];
+    const propertyIds = [...new Set(mergedRows.flatMap((row) => row.property_ids))];
     if (propertyIds.length === 1) propertyId = propertyIds[0];
   }
 

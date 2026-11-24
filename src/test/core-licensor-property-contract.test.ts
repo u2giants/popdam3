@@ -43,6 +43,33 @@ describe("canonical licensor/property contract", () => {
     expect(tagging).not.toContain('from("dam_character_catalog")');
   });
 
+  it("never reads or writes the retired public.characters list (#1301)", () => {
+    const files = [
+      "apps/worker/src/handlers/ai-tagging.ts",
+      "apps/worker/src/handlers/ai-tagging-shared.ts",
+      "apps/worker/src/handlers/ai-tag-bakeoff.ts",
+      "apps/worker/src/handlers/group-metadata-refresh.ts",
+      "supabase/functions/admin-api/index.ts",
+      "supabase/functions/agent-api/index.ts",
+      "supabase/functions/export-table/index.ts",
+      "supabase/functions/export-sql-dump/index.ts",
+      "supabase/functions/_shared/export-tables.ts",
+      "src/components/settings/ApisTab.tsx",
+    ];
+    for (const path of files) {
+      const src = read(path);
+      expect(src, path).not.toMatch(/\.from\(\s*["'](?:characters|dam_character_catalog)["']\s*\)/);
+      expect(src, path).not.toContain("public.characters");
+    }
+    const tagging = read("apps/worker/src/handlers/ai-tagging.ts");
+    expect(tagging).toContain('client.from("asset_characters").upsert(rows');
+    const admin = read("supabase/functions/admin-api/index.ts");
+    expect(admin).toContain('.schema("dam").from("character_usage")');
+    const apis = read("src/components/settings/ApisTab.tsx");
+    expect(apis).toContain('.schema("core").from("character")');
+    expect(apis).toContain('.schema("dam").from("character_usage")');
+  });
+
   it("never derives licensor or property identity from folder names", () => {
     const derivation = read("supabase/functions/_shared/metadata-derivation.ts");
     expect(derivation).not.toContain("licensor_name");

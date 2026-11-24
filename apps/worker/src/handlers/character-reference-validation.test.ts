@@ -16,7 +16,7 @@ test("unknown, malformed and out-of-bound character references perform zero writ
  for(const [ids,binding] of [[[other],[character]],[["invalid"],[character]],[[other],[other]]] as Array<[unknown,string[]]>){const c=client();await assert.rejects(applyBatchTagResult(assetId,result(ids),"fixture",c.db,binding),CharacterReferenceValidationError);assert.equal(c.writes.length,0);}
 });
 test("duplicate normalized UUIDs preserve exactly one legitimate link and mark asset last",async()=>{
- const c=client();await applyBatchTagResult(assetId,result([character,character.toUpperCase()]),"fixture",c.db,[character]);const link=c.writes.find(w=>w.stage==="asset_licensor_characters") as {rows:Array<Record<string,unknown>>}|undefined;assert.deepEqual(link?.rows.map(r=>[r.asset_id,r.character_id,r.source,r.model]),[[assetId,character,"ai","fixture"]]);assert.equal(c.writes.at(-1)?.stage,"asset_metadata");assert.deepEqual(normalizeCharacterIds([character.toUpperCase(),character]),[character]);
+ const c=client();await applyBatchTagResult(assetId,result([character,character.toUpperCase()]),"fixture",c.db,[character]);const link=c.writes.find(w=>w.stage==="asset_characters") as {rows:Array<Record<string,unknown>>}|undefined;assert.deepEqual(link?.rows,[{asset_id:assetId,character_id:character}]);assert.equal(c.writes.at(-1)?.stage,"asset_metadata");assert.deepEqual(normalizeCharacterIds([character.toUpperCase(),character]),[character]);
 });
 test("character lookup failure is a dependency hold, not invalid model data or an empty catalog",async()=>{
  const c=client([character],true);await assert.rejects(validateCharacterReferences([character],[character],c.db),CharacterCatalogDependencyError);assert.equal(c.writes.length,0);await assert.rejects(applyBatchTagResult(assetId,result([character]),"fixture",c.db,[character]),CharacterCatalogDependencyError);assert.equal(c.writes.length,0);
@@ -74,13 +74,45 @@ test("a fabricated character ID triggers same-model output repair before a resul
 
 test("a re-tag clears the asset's old character links before writing the new ones, even when none are found",async()=>{
  const found=client();await applyBatchTagResult(assetId,result([character]),"fixture",found.db,[character]);
- assert.deepEqual(found.writes.map(w=>w.stage).slice(1,4),["asset_licensor_characters:delete","asset_characters:delete","asset_licensor_characters"]);
+ assert.deepEqual(found.writes.map(w=>w.stage).slice(1,4),["asset_characters:delete","asset_licensor_characters:delete","asset_characters"]);
  const none=client();await applyBatchTagResult(assetId,result([]),"fixture",none.db,[character]);
- assert.ok(none.writes.some(w=>w.stage==="asset_licensor_characters:delete"));assert.ok(none.writes.some(w=>w.stage==="asset_characters:delete"));assert.ok(!none.writes.some(w=>w.stage==="asset_licensor_characters"));
+ assert.ok(none.writes.some(w=>w.stage==="asset_licensor_characters:delete"));assert.ok(none.writes.some(w=>w.stage==="asset_characters:delete"));assert.ok(!none.writes.some(w=>w.stage==="asset_characters"));
 });
 
 test("a file with no licensing context is offered no characters",async()=>{
  const asset={id:assetId,filename:"fixture.png",relative_path:null,file_type:"png",tags:null,licensor_id:null,property_id:null,thumbnail_url:"fixture",status:"pending",ai_tagged_at:null,sku:null,division_code:null,style_group_id:null};let binding:string[]|undefined;
  const prompt=await buildImageTaggingPrompt(asset,{client:promptClient(),requireCharacterReadSuccess:true,onCharacterCatalog:ids=>{binding=ids;}});
  assert.deepEqual(binding,[]);assert.ok(!prompt.includes("Fixture character"));
+});
+
+test("tagging resolves a character name to a core.character id and links it in asset_characters (#1301)",async()=>{
+ const coreId="423e4567-e89b-42d3-a456-426614174003", licensor="523e4567-e89b-42d3-a456-426614174004";
+ const writes:Array<{schema:string;table:string;op:string;rows?:unknown}>=[];
+ const reads:Array<{schema:string;table:string}>=[];
+ const data=(schema:string,table:string)=>{
+  if(table==="assets")return {id:assetId,filename:"fixture.png",file_type:"png",sku:null,licensor_id:licensor,property_id:null,style_group_id:null};
+  if(schema==="core"&&table==="character")return [{id:coreId,name:"Hero",status:"active"},{id:other,name:"Hero",status:"archived"}];
+  return [];
+ };
+ const make=(schema:string)=>({from:(table:string)=>{
+  reads.push({schema,table});
+  const res={data:data(schema,table),error:null};
+  const chain:any=new Proxy(()=>undefined,{get:(_t,key)=>{
+   if(key==="then")return (done:(v:unknown)=>void)=>done(res);
+   if(key==="single"||key==="maybeSingle")return async()=>({data:Array.isArray(res.data)?res.data[0]??null:res.data,error:null});
+   if(key==="upsert")return async(rows:unknown)=>{writes.push({schema,table,op:"upsert",rows});return {error:null};};
+   if(key==="insert")return async(rows:unknown)=>{writes.push({schema,table,op:"insert",rows});return {error:null};};
+   if(key==="delete")return ()=>{writes.push({schema,table,op:"delete"});return chain;};
+   if(key==="update")return (rows:unknown)=>{writes.push({schema,table,op:"update",rows});return chain;};
+   return ()=>chain;
+  }});
+  return chain;
+ }});
+ const db:any={...make("public"),rpc:async()=>({error:null}),schema:(s:string)=>make(s)};
+ const tag={...result([]),character_names:["Hero"]};
+ await applyBatchTagResult(assetId,tag as never,"fixture",db,[]);
+ const link=writes.find(w=>w.table==="asset_characters"&&w.op==="upsert");
+ assert.deepEqual(link?.rows,[{asset_id:assetId,character_id:coreId}]);
+ assert.ok(reads.some(r=>r.schema==="core"&&r.table==="character"));
+ assert.ok(!reads.some(r=>["characters","dam_character_catalog"].includes(r.table)));
 });
