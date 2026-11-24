@@ -76,13 +76,20 @@ begin
   if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
              cross join lateral aclexplode(c.relacl) a
              where n.nspname = 'plm' and a.grantee = 'designflow_prod_tracking_grants'::regrole)
-     or has_schema_privilege('designflow_prod_tracking_grants', 'plm', 'USAGE') then
+     or has_schema_privilege('designflow_prod_tracking_grants', 'plm', 'CREATE')
+     -- #4707: column-scoped read of the DesignFlow copy only (designflow_plm_read_paths_runtime_select_contracts).
+     or exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+             join pg_attribute att on att.attrelid = c.oid and att.attnum > 0
+             cross join lateral aclexplode(att.attacl) a
+             where n.nspname = 'plm' and a.grantee = 'designflow_prod_tracking_grants'::regrole
+               and (a.privilege_type <> 'SELECT' or c.relname not in ('designflow_item', 'licensing_status',
+                 'licensing_feedback', 'licensing_status_assignee', 'licensing_feedback_mention', 'licensing_attachment'))) then
     raise exception 'A8 designflow_prod_tracking_grants still holds plm privileges';
   end if;
   if exists (select 1 from unnest(array['backend','item_master']) s
              where to_regrole('designflow_prod_'||s||'_runtime') is not null
-               and has_schema_privilege('designflow_prod_'||s||'_runtime', 'plm', 'USAGE,CREATE')) then
-    raise exception 'A9 an unrelated designflow_prod runtime reaches plm';
+               and has_schema_privilege('designflow_prod_'||s||'_runtime', 'plm', 'CREATE')) then
+    raise exception 'A9 an unrelated designflow_prod runtime can create in plm';
   end if;
   if has_schema_privilege('designflow_prod_data_sync_runtime', 'plm', 'CREATE')
      or has_function_privilege('designflow_prod_data_sync_runtime', 'plm.stage_catalog_bump_version()', 'EXECUTE')

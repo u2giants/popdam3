@@ -36,7 +36,7 @@ BEGIN
   IF to_regnamespace('dflow_prod') IS NOT NULL THEN
     ASSERT has_function_privilege(backend, 'dflow_prod.suggested_property_for_sku(text)', 'EXECUTE')
        AND NOT has_function_privilege(backend, original, 'EXECUTE')
-       AND NOT has_schema_privilege(backend, 'plm', 'USAGE,CREATE'),
+       AND NOT has_schema_privilege(backend, 'plm', 'CREATE'), -- USAGE: #4707 copy reads
       'the production runtime may call the facade within its own schema';
     FOREACH source IN ARRAY ARRAY[
       'plm.coldlion_item_merch_group', 'plm.dcp_asset', 'plm.dcp_asset_property_observation',
