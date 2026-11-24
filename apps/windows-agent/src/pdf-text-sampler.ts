@@ -57,6 +57,9 @@ export interface AiConfig {
   /** OpenRouter API key — if set, all AI vision calls go through openrouter.ai */
   openRouterApiKey?: string;
   /** ScaleDown API key — used when the selected model is a scaledown/ id */
+  /** OpenAI direct key and routing switch for openai/* models. */
+  openAiApiKey?: string;
+  openAiRoute?: "direct" | "openrouter";
   scaleDownApiKey?: string;
   /** Per-task model overrides from AI_TASK_MODELS admin config */
   aiTaskModels?: Record<string, string>;
