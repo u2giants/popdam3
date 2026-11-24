@@ -31,7 +31,14 @@ begin
     (b||'In Development/Customer Adopted/Ross/2026/f.psd', 'In Development', 'Ross', null),
     (b||'In Development/Customer Adopted/Ross/2026', 'In Development', 'Ross', null),
     (b||'In Development/Customer Adopted/_FINISHED/Ross_finished/2025/Wall/f.psd', 'In Development', 'Ross', 'Wall 2025'),
-    (b||'In Development/Customer Adopted/Dollar General/2027/Dollar General Harvest Coir/SKU/f.psd', 'In Development', 'Dollar General', 'Dollar General Harvest Coir 2027')
+    (b||'In Development/Customer Adopted/Dollar General/2027/Dollar General Harvest Coir/SKU/f.psd', 'In Development', 'Dollar General', 'Dollar General Harvest Coir 2027'),
+    -- short customer folder names keep the stored customer (Phase 5, dam.customer_folder_alias)
+    (b||'In Dev/Cust Adopted/Desperate/SS24/SKU/f.psd', 'In Development', 'Desperate Signs', 'SS24'),
+    (b||'In Development/Customer Adopted/Desperate Signs/SS24/f.psd', 'In Development', 'Desperate Signs', 'SS24'),
+    (b||'In Development/Customer Adopted/_FINISHED/Desperate/SS23/f.psd', 'In Development', 'Desperate Signs', 'SS23'),
+    (b||'In Development/Customer Adopted/VW/2026/Wall/f.psd', 'In Development', 'Variety Wholesalers', 'Wall 2026'),
+    (b||'In Development/Customer Adopted/Aldi/Wall/f.psd', 'In Development', 'Aldi''s', 'Wall'),
+    (b||'In Development/Customer Adopted/Amazon/Wall/f.psd', 'In Development', 'Amazon', 'Wall')
   ) v(p, st, cu, pr) loop
     got := public.infer_path_attrs(c.p);
     if got->>'stage' is distinct from c.st or got->>'customer' is distinct from c.cu
