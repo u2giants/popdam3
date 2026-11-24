@@ -22,9 +22,9 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 | C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (C1 done; with popdam3 C3) | — |
 | C4 | Retire `public.characters`, `public.properties`, `public.licensors` | ⬜ open (after C2/C3) | — |
 | N1 | Style-group names derived from linked shared records | ✅ live (2026-11-23) | #7001 merge 62175efa6; migration 20261225090802; production drift 0 (was 254 licensor / 2,565 property), proof on #6997 |
-| D1 | DesignFlow customer views read `plm.erp_customer` | 🟡 production verified 2026-11-24, standalone sandbox pending | [Production proof and sandbox blocker](https://github.com/popcre/shared-db/issues/6998#issuecomment-7138765335) |
+| D1 | DesignFlow customer views read `plm.erp_customer` | ✅ production and standalone sandbox verified 2026-11-24 | [Production proof](https://github.com/popcre/shared-db/issues/6998#issuecomment-7138765335) and [sandbox live proof](https://github.com/popcre/shared-db/issues/6998#issuecomment-7145611396) |
 
-Fresh sessions start at the lowest open stage whose prerequisite is met. For D1, start with the [standalone sandbox handoff](https://github.com/popcre/shared-db/blob/main/HANDOFF.d/2026-11-24T2055Z-edge-dev3-codex-designflow-customer-sandbox.md). The production cutover is complete.
+Fresh sessions start at the lowest open stage whose prerequisite is met.
 
 ---
 
@@ -94,7 +94,8 @@ Open: S1 customer/due-date source (criteria in S1); C1 acceptance (criteria in C
 **D1 — DesignFlow reads the shared ERP customer record** (`lead-only`: DesignFlow readers)
 
 - [Production verified](https://github.com/popcre/shared-db/pull/7032). Both existing DesignFlow views read `plm.erp_customer` with the prior column contracts. The linked production proof records all 838 ERP codes, 767 flagged inactive customers with their original IDs, and preservation of existing POP values.
-- The [standalone sandbox dry-run](https://github.com/popcre/shared-db/actions/runs/45443066610) stopped on a historical prerequisite. Use the handoff linked from STATUS to resume. The sandbox gate covers the DesignFlow Item Master and Tracking customer lookups, the customer settings view, stable IDs and POP-owned values.
+- [Standalone sandbox verified](https://github.com/popcre/shared-db/issues/6998#issuecomment-7145611396). The [sandbox prerequisite check](https://github.com/popcre/shared-db/pull/7067) proved the existing customer importer matched the historical definition and the retired vendor importer was absent. The [bounded dry-run](https://github.com/popcre/shared-db/actions/runs/45495667176) and [apply](https://github.com/popcre/shared-db/actions/runs/45495822934) used the same main commit and added only correction `20261225091206`.
+- All 838 sandbox customer codes served through the shared table. All 769 inactive customers kept their IDs and statuses, including the 766 historically flagged in this sandbox. The 830 POP customer links and values, both authenticated DesignFlow lookup results, and the archived records matched the fresh baseline. The consumer settings view held zero rows, with the same pre-existing access denial for its normal role before and after.
 
 ## 10. Tests
 - S1: `supabase/tests/dam_production_orders_for_sku.test.sql` (pgTAP): voided rows excluded, ColdLion SO excluded, multi-line order aggregated.
