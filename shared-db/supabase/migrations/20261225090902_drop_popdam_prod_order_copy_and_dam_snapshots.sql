@@ -1,5 +1,5 @@
 -- u2giants/popdam3#1298 stage S2 (claim: popcre/shared-db#6993).
--- derived-from: 20261203000000, 20261201100000
+-- derived-from: 20261201110000, 20261029093309
 -- PopDAM now reads DesignFlow production orders through
 -- api.dam_production_orders_for_sku (popcre/shared-db#6987) and no longer
 -- copies them (u2giants/popdam3#1296), so its copy tables go. The two dam
