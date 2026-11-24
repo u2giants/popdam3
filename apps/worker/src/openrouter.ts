@@ -14,11 +14,13 @@
  */
 
 import { logger } from "./logger.js";
+import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
+const OPENAI_DIRECT_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_BATCH_REQUESTS = 100;
 const MAX_RETRIES = 2;
@@ -492,6 +494,7 @@ async function parseChatCompletionResult(
   headers: Headers,
   timeoutMs: number,
   malformedToolArgsAsContent = false,
+  openAiDirect = false,
 ): Promise<ChatCompletionResult> {
   const choices = data.choices as Array<{
     message?: {
@@ -502,7 +505,9 @@ async function parseChatCompletionResult(
   const choice = choices?.[0]?.message;
   if (!choice) throw new Error("OpenRouter returned no choices");
 
-  const providerInfo = await enrichProviderInfo(apiKey, collectProviderInfo(headers, data), timeoutMs);
+  const providerInfo = openAiDirect
+    ? { ...collectProviderInfo(headers, data), provider: "openai-direct" }
+    : await enrichProviderInfo(apiKey, collectProviderInfo(headers, data), timeoutMs);
   if (choice.tool_calls && choice.tool_calls.length > 0) {
     let toolCalls: ToolCallResult[];
     try {
@@ -583,18 +588,33 @@ export async function chatCompletion(
   // send the bare model pinned to a known-good provider. Otherwise apply Exacto
   // by default (idempotent — a slug with an explicit variant is left untouched).
   // A caller-supplied provider (e.g. the config endpoint pin) always wins.
+  //
+  // OpenAI models go to api.openai.com unless the admin switch says
+  // OpenRouter (see openai-route.ts). No silent fallback either way.
+  const openAiRouting = isOpenAiModel(request.model) ? await getOpenAiRouting() : null;
+  const openAiDirect = openAiRouting?.route === "direct";
+  if (openAiDirect && !openAiRouting.apiKey) {
+    throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
+  }
   const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
-  let currentRequest: ChatCompletionRequest = routingOverride
+  let currentRequest: ChatCompletionRequest | Record<string, unknown> = openAiDirect
+    ? toOpenAiDirectRequest(request)
+    : routingOverride
     ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
     : { ...request, model: withExactoRouting(request.model) };
+  const url = openAiDirect ? OPENAI_DIRECT_URL : OPENROUTER_URL;
+  const headers = openAiDirect
+    ? { Authorization: `Bearer ${openAiRouting.apiKey}`, "Content-Type": "application/json" }
+    : openRouterHeaders(apiKey);
+  const label = openAiDirect ? "OpenAI" : "OpenRouter";
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     let response: Response;
     try {
-      response = await fetch(OPENROUTER_URL, {
+      response = await fetch(url, {
         method: "POST",
-        headers: openRouterHeaders(apiKey),
+        headers,
         signal: AbortSignal.timeout(timeoutMs),
         body: JSON.stringify(currentRequest),
       });
@@ -609,7 +629,7 @@ export async function chatCompletion(
 
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
-      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs);
+      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect);
     }
 
     if (response.status === 429) {
@@ -618,12 +638,12 @@ export async function chatCompletion(
       // the worker loop neither spins nor sleeps for an hour.
       const parsedRetryAfter = parseInt(response.headers.get("retry-after") || "5", 10);
       const retryAfter = Math.min(Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : 5, 60);
-      logger.warn("openrouter: rate limited", { attempt, retryAfter });
+      logger.warn("openrouter: rate limited", { attempt, retryAfter, via: label });
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
         continue;
       }
-      throw new OpenRouterError(429, "Rate limited after retries");
+      throw new OpenRouterError(429, `${label} rate limited after retries`);
     }
 
     if (response.status >= 500 && attempt < MAX_RETRIES) {
@@ -636,6 +656,17 @@ export async function chatCompletion(
 
     const errBody = await response.text();
     const errJson = parseJsonRecord(errBody);
+
+    // OpenAI direct rejects some parameters on reasoning models (e.g. a
+    // non-default temperature). Drop the named parameter once and retry.
+    const unsupported = openAiDirect ? unsupportedOpenAiParam(response.status, errBody) : null;
+    if (unsupported && unsupported in currentRequest) {
+      logger.warn("openai-direct: dropping unsupported parameter", { model: currentRequest.model, param: unsupported });
+      const { [unsupported]: _dropped, ...rest } = currentRequest as Record<string, unknown>;
+      currentRequest = rest;
+      attempt--;
+      continue;
+    }
 
     // tool_choice compatibility fallback: if the model rejects our tool_choice
     // value, retry with the next less-strict value in the ladder.
@@ -654,5 +685,21 @@ export async function chatCompletion(
     throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers, errJson));
   }
 
-  throw lastError ?? new Error("OpenRouter request failed after retries");
+  throw lastError ?? new Error(`${label} request failed after retries`);
+}
+
+/** OpenRouter-shaped request → OpenAI's own chat completions request. */
+export function toOpenAiDirectRequest(request: ChatCompletionRequest): Record<string, unknown> {
+  const { provider: _provider, meta_max_output_tokens: _meta, max_tokens, ...rest } = request;
+  return {
+    ...rest,
+    model: openAiDirectModelId(request.model),
+    ...(max_tokens !== undefined ? { max_completion_tokens: max_tokens } : {}),
+  };
+}
+
+export function unsupportedOpenAiParam(status: number, body: string): string | null {
+  if (status !== 400) return null;
+  const match = /unsupported (?:parameter|value): '([a-z_]+)'/i.exec(body);
+  return match && match[1] !== "model" && match[1] !== "messages" ? match[1] : null;
 }

@@ -399,7 +399,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "META_API_KEY", "SCALEDOWN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "AI_MODEL_POOL", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "META_API_KEY", "SCALEDOWN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENAI_ROUTE"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -505,6 +505,16 @@ export function AiModelsConfigSection() {
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
+  // OpenAI models go straight to OpenAI unless this is explicitly "openrouter".
+  const openAiDirect = String(unwrap(configData?.config?.OPENAI_ROUTE)).toLowerCase() !== "openrouter";
+  const saveOpenAiRoute = useMutation({
+    mutationFn: (direct: boolean) => call("set-config", { entries: { OPENAI_ROUTE: direct ? "direct" : "openrouter" } }),
+    onSuccess: (_data, direct) => {
+      toast.success(direct ? "OpenAI models now go directly to OpenAI" : "OpenAI models now go through OpenRouter");
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const keyConfigured = (field: AiModelKeyField) =>
     (configData?.config?.[AI_KEY_CONFIG_NAMES[field]] as { configured?: unknown } | undefined)?.configured === true;
   const openRouterKeyConfigured = keyConfigured("openRouterKey");
@@ -716,6 +726,20 @@ export function AiModelsConfigSection() {
               onChange={(value) => updateApiKey("openaiKey", value)}
               onToggleVisibility={() => setShowOpenai((value) => !value)}
               onToggleClear={toggleClearKey}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Send OpenAI models directly to OpenAI</p>
+              <p className="text-[10px] text-muted-foreground">
+                On: every OpenAI model uses the OpenAI API key above. Off: OpenAI models go through OpenRouter. Other models are not affected.
+              </p>
+            </div>
+            <Switch
+              checked={openAiDirect}
+              disabled={saveOpenAiRoute.isPending || !configData}
+              aria-label="Send OpenAI models directly to OpenAI"
+              onCheckedChange={(direct) => saveOpenAiRoute.mutate(direct)}
             />
           </div>
         </div>

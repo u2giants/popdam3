@@ -118,6 +118,8 @@ let cloudNasPassword = "";
 let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
 let cloudOpenRouterApiKey = "";
+let cloudOpenAiApiKey = "";
+let cloudOpenAiRoute: "direct" | "openrouter" = "direct";
 let cloudScaleDownApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
 let cloudAiTaskModels: Record<string, string> = {};
@@ -349,6 +351,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (ai.anthropic_api_key) cloudAnthropicApiKey = ai.anthropic_api_key;
     if (ai.google_ai_api_key) cloudGoogleAiApiKey = ai.google_ai_api_key;
     if (ai.openrouter_api_key) cloudOpenRouterApiKey = ai.openrouter_api_key;
+    if (ai.openai_api_key) cloudOpenAiApiKey = ai.openai_api_key;
+    cloudOpenAiRoute = ai.openai_route === "openrouter" ? "openrouter" : "direct";
     if (ai.scaledown_api_key) cloudScaleDownApiKey = ai.scaledown_api_key;
     if (Array.isArray(ai.models) && ai.models.length > 0) cloudAiModels = ai.models as AiModelDef[];
     if (ai.ai_task_models && typeof ai.ai_task_models === "object") cloudAiTaskModels = ai.ai_task_models as Record<string, string>;
@@ -386,6 +390,8 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
       googleApiKey: cloudGoogleAiApiKey,
       anthropicApiKey: cloudAnthropicApiKey,
       openRouterApiKey: cloudOpenRouterApiKey,
+      openAiApiKey: cloudOpenAiApiKey,
+      openAiRoute: cloudOpenAiRoute,
       scaleDownApiKey: cloudScaleDownApiKey,
       aiTaskModels: cloudAiTaskModels,
     });
@@ -398,6 +404,8 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
       googleApiKey: cloudGoogleAiApiKey,
       anthropicApiKey: cloudAnthropicApiKey,
       openRouterApiKey: cloudOpenRouterApiKey,
+      openAiApiKey: cloudOpenAiApiKey,
+      openAiRoute: cloudOpenAiRoute,
       scaleDownApiKey: cloudScaleDownApiKey,
       aiTaskModels: cloudAiTaskModels,
     });
@@ -408,6 +416,8 @@ const heartbeatCommandHandlers = createWindowsCommandHandlers({
     googleApiKey: cloudGoogleAiApiKey,
     anthropicApiKey: cloudAnthropicApiKey,
     openRouterApiKey: cloudOpenRouterApiKey,
+    openAiApiKey: cloudOpenAiApiKey,
+    openAiRoute: cloudOpenAiRoute,
     scaleDownApiKey: cloudScaleDownApiKey,
     aiTaskModels: cloudAiTaskModels,
   }),
