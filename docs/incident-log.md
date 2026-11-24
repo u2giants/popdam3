@@ -63,6 +63,8 @@ Fix: shared-db popcre/shared-db#5045 (issue #5037, migration `20261029162652`) r
 
 Rule: library-scale queries must stay far under the 8 s `authenticated` cap cold; measure with `EXPLAIN (ANALYZE)` as production sees it (see the 2026-10-27 OrderList entry) and fix the plan, not the timeout.
 
+On 2026-11-24, the production Generic sheet failed at the RFQ group lookup in the same view. Its first 1,000 rows caused 855 sequential scans of RFQ items and took 30.1 seconds. The lookup needed an explicit nonblank condition on the RFQ item style number to use its existing partial index. [Shared-db PR #7027](https://github.com/popcre/shared-db/pull/7027) added that condition. The equivalent production read-only probe of the full response took about 0.1 seconds.
+
 ## Resolved 2026-10-27: OrderList first load "canceling statement due to statement timeout"
 
 What happened: opening OrderList failed with "Could not load OrderList: canceling statement due to statement timeout" (SQLSTATE 57014, 8s `authenticated` limit); a few hard refreshes made it load. The failing request was the first 500-row block sorted by `sales_order_received_date`.
