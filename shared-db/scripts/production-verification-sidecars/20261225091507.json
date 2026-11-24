@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225091507",
+  "migration_sha256": "4066243c03544a614c7c24ab4fb226671a271e8a959cff25a1a842f334539978",
+  "checks": [
+    {
+      "id": "dflow_prod_aid_product_type_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.product_type",
+      "filters": [
+        {
+          "column": "name",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_product_type_mg_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.product_type_mg",
+      "filters": [
+        {
+          "column": "mg01_code",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_product_type_mg03_allowed_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.product_type_mg03_allowed",
+      "filters": [
+        {
+          "column": "mg03_code",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_product_type_request_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.product_type_request",
+      "filters": [
+        {
+          "column": "requested_text",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_description_convention_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.description_convention",
+      "filters": [
+        {
+          "column": "division_code",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_item_description_parts_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.item_description_parts",
+      "filters": [
+        {
+          "column": "assembled_description",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_embellishment_phrase_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.embellishment_phrase",
+      "filters": [
+        {
+          "column": "phrase",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_product_type_search_log_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.product_type_search_log",
+      "filters": [
+        {
+          "column": "query_text",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    },
+    {
+      "id": "dflow_prod_aid_mg_display_name_exists",
+      "kind": "exact_row_count",
+      "relation": "dflow_prod.mg_display_name",
+      "filters": [
+        {
+          "column": "mg_code",
+          "type": "text",
+          "equals": "zz-sidecar-never-a-value"
+        }
+      ],
+      "expected_count": 0
+    }
+  ]
+}

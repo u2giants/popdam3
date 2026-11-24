@@ -21,7 +21,8 @@ begin
       'item_customer_selling',  -- #4991; proved by its own exact contract
       'mg_combination_description', 'mg_combination_description_history',
       'item_product_description', 'item_product_description_history',  -- #5026; proved by its own exact contract
-      'merchGroupRepairJournal'  -- #6584; repair undo journal
+      'merchGroupRepairJournal',  -- #6584; repair undo journal
+      'product_type', 'product_type_mg', 'product_type_mg03_allowed', 'product_type_request', 'description_convention', 'item_description_parts', 'embellishment_phrase', 'product_type_search_log', 'mg_display_name'  -- #7041; proved by its own exact contract
     );
   -- #6998 keeps the frozen baseline recoverable in the private archive.
   -- Count the archived customer table as part of that original inventory.
@@ -56,7 +57,8 @@ begin
                 'sample_shipment_notice', 'sample_shipment_notice_recipient', 'product_type_factory_time', 'vendor_wechat_identity', 'prod_order_milestone_schedule', 'item_customer_selling',  -- #2874, #2875, #3737, #4634, #4646 and #4991
                 'mg_combination_description', 'mg_combination_description_history',
                 'item_product_description', 'item_product_description_history',  -- #5026; excludes their three identity sequences the same way
-                'merchGroupRepairJournal')  -- #6584
+                'merchGroupRepairJournal',  -- #6584
+                'product_type', 'product_type_mg', 'product_type_mg03_allowed', 'product_type_request', 'description_convention', 'item_description_parts', 'embellishment_phrase', 'product_type_search_log', 'mg_display_name')  -- #7041
          )
     );
   if not exists (

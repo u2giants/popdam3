@@ -773,6 +773,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#5020",
         "note": "PR#5029, claim #5772. Core Product Type sandbox half: creates the dflow.mg_combination_description / dflow.item_product_description pairs with audit and human-override guard triggers on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is issue #5026 (version re-reserved on resume). This is target scope, not retirement.",
     },
+    "20261225091506": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#7041",
+        "note": "Claim #7042. Assembled item descriptions, sandbox half: creates the nine catalog/parts/convention/display-name tables in schema dflow on the DesignFlow non-production project only (popcre/designflow-item-master#194). The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is version 20261225091507 (same issue), which the shared preview and production lanes promote normally. This is target scope, not retirement.",
+    },
     "20261110131459": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
