@@ -19,12 +19,13 @@ describe("planCharacterStats (#1095, #1301)", () => {
     expect(changed).toEqual([row("a", 4, true), row("b", 0, false), row("d", 1, false)]);
   });
 
-  it("route writes dam.character_usage once and never the retired character list", () => {
+  it("route publishes dam.character_usage once (via the api schema) and never the retired character list", () => {
     const src = readFileSync(new URL("../admin-api/index.ts", import.meta.url), "utf8");
     const start = src.indexOf("async function handleRebuildCharacterStats");
     const fn = src.slice(start, src.indexOf("\n}\n", start));
-    expect(fn).toContain('.schema("dam").from("character_usage")');
-    expect(fn).toContain(".upsert(changed");
+    expect(fn).toContain('.schema("api").from("dam_character_usage")');
+    expect(fn).toContain('.rpc("dam_publish_character_usage", { p_rows: changed })');
+    expect(fn).not.toContain('.schema("dam")');
     expect(fn).not.toContain('from("characters")');
     expect(fn).not.toMatch(/usage_count:\s*0/);
   });

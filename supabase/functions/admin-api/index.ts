@@ -677,7 +677,7 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
   const existing: CharacterUsageRow[] = [];
   for (let from = 0;; from += PAGE) {
     const { data, error } = await db
-      .schema("dam").from("character_usage")
+      .schema("api").from("dam_character_usage")
       .select("core_character_id, usage_count, is_priority")
       .order("core_character_id")
       .range(from, from + PAGE - 1);
@@ -688,9 +688,9 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
 
   const { changed, priorityCount } = planCharacterStats(existing, tally, threshold);
   if (changed.length > 0) {
-    const now = new Date().toISOString();
-    const { error: upsertErr } = await db.schema("dam").from("character_usage")
-      .upsert(changed.map((r) => ({ ...r, updated_at: now })), { onConflict: "core_character_id" });
+    // dam is not an API schema; publish through the shared-db api function.
+    const { error: upsertErr } = await db.schema("api")
+      .rpc("dam_publish_character_usage", { p_rows: changed });
     if (upsertErr) return err(`character stats publish failed: ${upsertErr.message}`, 500);
   }
 
