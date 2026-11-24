@@ -117,6 +117,24 @@ test("python/PowerShell sources embed paths safely, including quotes", () => {
   assert.ok(plan[2].args.join(" ").includes(`"D:/in'dra"`), "models step must embed the path as a Python string");
 });
 
+test("verification checks the pip pin and requires the exact model marker before loading", () => {
+  const script = deepVerifyScript("D:\\in'dra");
+  assert.match(script, /pin = Requirement\("indra-ocr==1\.2\.0"\); v = m\.version\(pin\.name\);/);
+  assert.match(script, /assert pin\.specifier\.contains\(v\)/);
+  assert.ok(script.includes(`r = (pathlib.Path("D:/in'dra") / ".indra-revision");`));
+  const markerCheck = 'assert r.exists() and r.read_text().strip() == "v1.2.0"';
+  assert.ok(script.includes(markerCheck));
+  assert.ok(script.indexOf(markerCheck) < script.indexOf("OrtOCR("));
+});
+
+test("the models step writes the revision marker after the download returns", () => {
+  const script = provisionPlan("C:\\py\\python.exe", "D:\\in'dra")[2].args[1];
+  assert.match(script, /snapshot_download\('datalab-to\/indra-ocr', revision="v1\.2\.0",/);
+  assert.ok(script.includes(
+    `local_dir="D:/in'dra"); import pathlib; (pathlib.Path("D:/in'dra") / ".indra-revision").write_text("v1.2.0")`,
+  ));
+});
+
 test("beginProvisioningStatus reports installing for the whole provisioning window", () => {
   const ready: IndraStatus = {
     state: "ready",
@@ -237,6 +255,11 @@ test("EPERM from kill(pid, 0) means a live foreign-user process", (t) => {
   assert.equal(defaultPidAlive(4242), false);
 });
 
-test("a waiter outlasts the stale window", () => {
+test("the full repair fits within the stale window and the waiter outlasts it", () => {
+  const plan = provisionPlan("C:\\py\\python.exe");
+  // Include the checks before and after the plan, Python discovery, and environment persistence.
+  const repairTimeoutMs = plan.reduce((sum, step) => sum + step.timeoutMs, 0)
+    + 2 * plan[3].timeoutMs + 15_000 + 30_000;
+  assert.ok(LOCK_STALE_MS > repairTimeoutMs);
   assert.ok(LOCK_WAIT_MS > LOCK_STALE_MS);
 });

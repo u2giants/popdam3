@@ -38,12 +38,12 @@ export const INDRA_PYTHON = `${INDRA_ROOT}\\Scripts\\python.exe`;
 export const INDRA_MODELS = `${INDRA_ROOT}\\models`;
 export const INDRA_PACKAGE_SPEC = "indra-ocr==1.2.0";
 export const INDRA_MODEL_REVISION = "v1.2.0";
-export const INDRA_PACKAGE_VERSION = INDRA_PACKAGE_SPEC.split("==")[1];
 /** Written after a successful model download; a missing or different value forces reprovisioning. */
 export const INDRA_REVISION_MARKER = ".indra-revision";
 
 /** Long outputs (pip/tqdm) — execFile's default 1 MiB buffer is too small. */
 const STEP_MAX_BUFFER = 32 * 1024 * 1024;
+const VERIFY_TIMEOUT_MS = 180_000;
 
 export type IndraState = "ready" | "installing" | "missing" | "error";
 
@@ -123,7 +123,9 @@ export function deepVerifyScript(modelsDir: string): string {
   const dir = pythonString(modelsDir.replace(/\\/g, "/"));
   return [
     "import importlib.metadata as m, pathlib;",
-    `v = m.version("indra-ocr"); assert v == ${pythonString(INDRA_PACKAGE_VERSION)}, "indra-ocr " + v + " is not the pinned version";`,
+    "from packaging.requirements import Requirement;",
+    `pin = Requirement(${pythonString(INDRA_PACKAGE_SPEC)}); v = m.version(pin.name);`,
+    'assert pin.specifier.contains(v), "indra-ocr " + v + " is not the pinned version";',
     `r = (pathlib.Path(${dir}) / ${pythonString(INDRA_REVISION_MARKER)});`,
     `assert r.exists() and r.read_text().strip() == ${pythonString(INDRA_MODEL_REVISION)}, "models are not the pinned revision";`,
     `from indra_ocr import OrtOCR; OrtOCR(${dir}); print('indra-ok')`,
@@ -188,19 +190,20 @@ export function provisionPlan(
   systemPython: string,
   modelsDir: string = INDRA_MODELS,
 ): Array<{ step: string; file: string; args: string[]; timeoutMs: number }> {
+  const dir = pythonString(modelsDir.replace(/\\/g, "/"));
   const modelsDownload = [
     "from huggingface_hub import snapshot_download;",
-    `snapshot_download('datalab-to/indra-ocr', revision='${INDRA_MODEL_REVISION}',`,
+    `snapshot_download('datalab-to/indra-ocr', revision=${pythonString(INDRA_MODEL_REVISION)},`,
     "allow_patterns=['*.onnx','meta.json','lm.npz','lm_*.npz'],",
     "ignore_patterns=['math*.onnx','math_meta.json','model.safetensors'],",
-    `local_dir=${pythonString(modelsDir.replace(/\\/g, "/"))});`,
-    `import pathlib; (pathlib.Path(${pythonString(modelsDir.replace(/\\/g, "/"))}) / ${pythonString(INDRA_REVISION_MARKER)}).write_text(${pythonString(INDRA_MODEL_REVISION)})`,
+    `local_dir=${dir});`,
+    `import pathlib; (pathlib.Path(${dir}) / ${pythonString(INDRA_REVISION_MARKER)}).write_text(${pythonString(INDRA_MODEL_REVISION)})`,
   ].join(" ");
   return [
     { step: "venv", file: systemPython, args: ["-m", "venv", INDRA_ROOT], timeoutMs: 180_000 },
     { step: "package", file: INDRA_PYTHON, args: ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", INDRA_PACKAGE_SPEC], timeoutMs: 420_000 },
     { step: "models", file: INDRA_PYTHON, args: ["-c", modelsDownload], timeoutMs: 900_000 },
-    { step: "verify", file: INDRA_PYTHON, args: ["-c", deepVerifyScript(modelsDir)], timeoutMs: 180_000 },
+    { step: "verify", file: INDRA_PYTHON, args: ["-c", deepVerifyScript(modelsDir)], timeoutMs: VERIFY_TIMEOUT_MS },
   ];
 }
 
@@ -238,7 +241,7 @@ async function verifyInstall(modelsDir: string, pythonPath: string): Promise<voi
   }
   const { stdout } = await execFileAsync(pythonPath, ["-c", deepVerifyScript(modelsDir)], {
     windowsHide: true,
-    timeout: 180_000,
+    timeout: VERIFY_TIMEOUT_MS,
     maxBuffer: STEP_MAX_BUFFER,
   });
   if (!stdout.includes("indra-ok")) throw new Error("Indra model load check produced no confirmation");
@@ -257,7 +260,7 @@ function errorMessage(error: unknown): string {
  * a restart overlapping a still-running provision and a stray second instance,
  * and because the supervisor must not grow an Indra dependency.
  */
-export const LOCK_STALE_MS = 45 * 60_000; // covers the longest provision (sum of step timeouts ~30 min)
+export const LOCK_STALE_MS = 45 * 60_000; // covers the full repair path (~35 min including verification)
 const LOCK_DEAD_PID_GRACE_MS = 30_000;
 // A waiter must outlast the stale window, or it gives up on a lock that is
 // still considered fresh and never gets the chance to steal it.
