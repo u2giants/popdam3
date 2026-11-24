@@ -21,7 +21,7 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 | C1 | Build + review PopDAM→`core.character` map | ✅ live 2026-11-23 | #7000 c8c0dc157 + #7004 af007fa89; 99.11% of links mapped; proof on #6994 |
 | C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (C1 done; with popdam3 C3) | — |
 | C4 | Retire `public.characters`, `public.properties`, `public.licensors` | ⬜ open (after C2/C3) | — |
-| N1 | Style-group names derived from linked shared records | ⬜ open | — |
+| N1 | Style-group names derived from linked shared records | ✅ live (2026-11-23) | #7001 merge 62175efa6; migration 20261225090802; production drift 0 (was 254 licensor / 2,565 property), proof on #6997 |
 | D1 | `core."externalCustomer"` served from `coldlion.customer` | ⬜ open (after designflow-data-syncing D2) | — |
 
 Fresh session starts at the lowest open stage whose prerequisite is met; S1, C1, N1 have none (D1 waits for designflow-data-syncing D2).
