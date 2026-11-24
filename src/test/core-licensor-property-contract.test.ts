@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Normalize CRLF so source-shape assertions hold on Windows checkouts
@@ -70,6 +70,36 @@ describe("canonical licensor/property contract", () => {
     const apis = read("src/components/settings/ApisTab.tsx");
     expect(apis).toContain('.schema("core").from("character")');
     expect(apis).toContain('.schema("api").from("dam_character_usage")');
+  });
+
+  it("no app code references the retired shared lists (popcre/shared-db#6996)", () => {
+    const root = process.cwd();
+    const retired = [
+      /\bpublic\.(?:characters|properties|licensors|dam_character_catalog)\b/,
+      /\bcharacter_core_map\b/,
+      /\bdam_character_catalog\b/,
+      /\brequiredLegacyCharacterIds\b/,
+      /\.from\(\s*["'`](?:characters|properties|licensors)["'`]\s*\)/,
+    ];
+    const skip = /(?:node_modules|dist|build|\.git|bin|obj)$/;
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) {
+          if (!skip.test(name)) walk(path);
+          continue;
+        }
+        if (!/\.(?:ts|tsx|js|mjs|cjs|cs|py|sql)$/.test(name)) continue;
+        if (/\.test\.|[\\/]test[\\/]/.test(path) || path.endsWith(join("integrations", "supabase", "types.ts"))) continue;
+        const src = readFileSync(path, "utf8");
+        for (const re of retired) if (re.test(src)) offenders.push(`${path.slice(root.length + 1)}: ${re}`);
+      }
+    };
+    for (const dir of ["src", "supabase/functions", "apps", "scripts"]) {
+      try { walk(join(root, dir)); } catch { /* directory absent */ }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("never derives licensor or property identity from folder names", () => {

@@ -26,7 +26,6 @@ const base: NameIndexInput = {
     { characterId: "c-mickey", alias: "Mat" },
     { characterId: "c-mickey", alias: "Mo" },
   ],
-  legacyCharacters: [{ id: "l-marie", name: "Marie" }],
   properties: [
     { id: "p-cats", name: "Aristocats" },
     { id: "p-toons", name: "Looney Toons" },
@@ -73,7 +72,6 @@ describe("namedCharacterScope (#1037)", () => {
     expect(namedCharacterScope(["marie frame"], index)).toEqual({
       requiredCharacterNames: ["marie"],
       requiredCharacterIds: ["c-marie-1", "c-marie-2"],
-      requiredLegacyCharacterIds: ["l-marie"],
     });
   });
 
@@ -114,7 +112,6 @@ describe("namedCharacterScope (#1037)", () => {
     expect(namedCharacterScope(["aristocats marie frame"], index)).toEqual({
       requiredCharacterNames: ["marie"],
       requiredCharacterIds: ["c-marie-1"],
-      requiredLegacyCharacterIds: ["l-marie"],
     });
   });
 

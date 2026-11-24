@@ -366,13 +366,13 @@ describe("DAM search embedding availability", () => {
     const marie1 = "33333333-3333-4333-8333-333333333331";
     const marie2 = "33333333-3333-4333-8333-333333333332";
     state.characters.push({ id: marie1, name: "Marie" }, { id: marie2, name: "Marie" });
+    // Retired public.characters ids the RPC may still return are ignored (popcre/shared-db#6996).
     state.legacyCharacters.push({ id: "44444444-4444-4444-8444-444444444444", name: "Marie" });
     const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
     expect((await search("marie frame")).status).toBe(200);
     const scope = {
       requiredCharacterNames: ["marie"],
       requiredCharacterIds: [marie1, marie2],
-      requiredLegacyCharacterIds: ["44444444-4444-4444-8444-444444444444"],
     };
     expect(filtersOf()).toEqual([scope]);
     expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor_named", expect.objectContaining({ p_filters: scope }));

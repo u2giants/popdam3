@@ -5,7 +5,7 @@
  * that character." The picture leg cannot tell one cartoon cat from another, so a search that
  * names a character sends search_dam_documents the character's ids and the typed name; every leg
  * then keeps only products tagged with the character or naming it in their own text
- * (p_filters.requiredCharacterIds / requiredLegacyCharacterIds / requiredCharacterNames,
+ * (p_filters.requiredCharacterIds / requiredCharacterNames,
  * popcre/shared-db#6607).
  *
  * A search that names a property and no character sends the property and its linked characters
@@ -22,7 +22,6 @@ export type PropertyCharacterRow = { propertyId: string; characterId: string };
 export type NameIndexInput = {
   characters: ReadonlyArray<NamedRow>;
   aliases: ReadonlyArray<CharacterAliasRow>;
-  legacyCharacters: ReadonlyArray<NamedRow>;
   properties: ReadonlyArray<NamedRow>;
   propertyCharacters: ReadonlyArray<PropertyCharacterRow>;
   /** Licensor names and aliases: a name that is also a licensor counts as the licensor. */
@@ -36,7 +35,7 @@ export type NameIndexInput = {
   knownNames?: Iterable<string>;
 };
 
-type NameEntry = { core: Set<string>; legacy: Set<string>; properties: Set<string>; licensor: boolean };
+type NameEntry = { core: Set<string>; properties: Set<string>; licensor: boolean };
 
 export type NameIndex = {
   /** Keyed by the name without spaces, so "Spiderman" and "Spider Man" are one name. */
@@ -50,7 +49,6 @@ export type NameIndex = {
 
 export type NamedScope = {
   requiredCharacterIds?: string[];
-  requiredLegacyCharacterIds?: string[];
   requiredCharacterNames?: string[];
   semanticPropertyIds?: string[];
   semanticPropertyCharacterIds?: string[];
@@ -115,7 +113,7 @@ export function buildNameIndex(input: NameIndexInput): NameIndex {
     if (words > MAX_NAME_WORDS) return null;
     let found = names.get(compact(name));
     if (!found) {
-      found = { core: new Set(), legacy: new Set(), properties: new Set(), licensor: false };
+      found = { core: new Set(), properties: new Set(), licensor: false };
       names.set(compact(name), found);
     }
     maxWords = Math.max(maxWords, words);
@@ -127,7 +125,6 @@ export function buildNameIndex(input: NameIndexInput): NameIndex {
   };
   for (const { id, name } of input.characters) if (characterName(name)) entry(name)?.core.add(id);
   for (const { characterId, alias } of input.aliases) if (characterName(alias)) entry(alias)?.core.add(characterId);
-  for (const { id, name } of input.legacyCharacters) if (characterName(name)) entry(name)?.legacy.add(id);
   for (const { id, name } of input.properties) entry(name)?.properties.add(id);
   for (const name of input.licensorNames) {
     const found = entry(name);
@@ -180,22 +177,19 @@ export function namedCharacterScope(texts: ReadonlyArray<string | null | undefin
         entry.properties.forEach((id) => propertyIds.add(id));
         continue;
       }
-      if (entry.core.size || entry.legacy.size) characterNames.set(name, entry);
+      if (entry.core.size) characterNames.set(name, entry);
     }
   }
   if (characterNames.size) {
     const core = new Set<string>();
-    const legacy = new Set<string>();
     for (const entry of characterNames.values()) {
       // Same-named characters (two "Marie" rows) are one request; when the words also name a
       // property, keep the rows linked to it, if any are.
       const linked = propertyIds.size ? [...entry.core].filter((id) => [...(index.characterProperties.get(id) ?? [])].some((p) => propertyIds.has(p))) : [];
       (linked.length ? linked : [...entry.core]).forEach((id) => core.add(id));
-      entry.legacy.forEach((id) => legacy.add(id));
     }
     const scope: NamedScope = { requiredCharacterNames: [...characterNames.keys()].sort() };
     if (core.size) scope.requiredCharacterIds = [...core].sort();
-    if (legacy.size) scope.requiredLegacyCharacterIds = [...legacy].sort();
     return scope;
   }
   if (propertyIds.size) {
@@ -218,7 +212,6 @@ export function withNamedScope(filters: Record<string, unknown>, scope: NamedSco
   if (scope.requiredCharacterNames?.length && !filters.characterId) {
     out.requiredCharacterNames = scope.requiredCharacterNames;
     if (scope.requiredCharacterIds?.length) out.requiredCharacterIds = scope.requiredCharacterIds;
-    if (scope.requiredLegacyCharacterIds?.length) out.requiredLegacyCharacterIds = scope.requiredLegacyCharacterIds;
   }
   if (usesPictures && scope.semanticPropertyIds?.length && !filters.propertyId) {
     out.semanticPropertyIds = scope.semanticPropertyIds;
@@ -228,14 +221,13 @@ export function withNamedScope(filters: Record<string, unknown>, scope: NamedSco
 }
 
 export const hasNamedScope = (filters: Record<string, unknown>) =>
-  ["requiredCharacterNames", "requiredCharacterIds", "requiredLegacyCharacterIds", "semanticPropertyIds"].some((key) =>
+  ["requiredCharacterNames", "requiredCharacterIds", "semanticPropertyIds"].some((key) =>
     Array.isArray(filters[key]) && (filters[key] as unknown[]).length > 0
   );
 
 const SCOPE_KEYS = [
   "semanticLicensorIds",
   "requiredCharacterIds",
-  "requiredLegacyCharacterIds",
   "requiredCharacterNames",
   "semanticPropertyIds",
   "semanticPropertyCharacterIds",
