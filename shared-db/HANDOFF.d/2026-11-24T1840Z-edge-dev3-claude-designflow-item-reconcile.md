@@ -1,7 +1,7 @@
 ---
 issue: 4707
 status: OPEN
-owner: claude/4707-handoff
+owner: claude/4707-handoff-coordinator
 ---
 
 # DesignFlow item migration: reconcile built; production run and live acceptance remain
@@ -54,7 +54,8 @@ Keep the canonical copy reconciled with records that are added, edited or remove
 
 ## 6. Exact next steps
 
-1. Merge [#201](https://github.com/popcre/designflow-data-syncing/pull/201) after its checks pass (`ai-pr-wait 201`). Done when it shows MERGED with `forbid-shared-db-bypass` passing.
+0. ~~Merge #201~~ done 1:43 PM EST. ~~Verify production promotion~~ done 2:05 PM EST (claim #7028 closed). Skip steps 1–2.
+1. (done) Merge [#201](https://github.com/popcre/designflow-data-syncing/pull/201) after its checks pass (`ai-pr-wait 201`). Done when it shows MERGED with `forbid-shared-db-bypass` passing.
 2. Verify production promotion of `20261225091301`: query `supabase_migrations.schema_migrations` read-only on production, and check `has_table_privilege('designflow_prod_data_sync_runtime','plm.designflow_reconcile_before_image','INSERT')`. If it is parked or held, use the `shared-db-promotion` repair routes only. Done when the version is in the production ledger. Then close claim #7028.
 3. Repair the stale 1Password credential from the Cloud Run secret (`secrets-to-1password` skill). Done when a read-only `select current_user` as the runtime succeeds.
 4. Promote the Data Syncing code `sandbox-albert` → `develop` → `main` under GATEKEEPER. Rule 2 needs the rehearsal and the second-AI debate linked on the PR, both of which exist. Rule 1 needs Uma's written approval only for `dflow_prod` changes, and this change only reads `dflow_prod`; say so on the PR. Done when it is deployed to the production job image.
@@ -79,3 +80,29 @@ Self-audit (2026-11-24):
 - Q2: Yes; dead ends and findings are in §4–§5.
 - Q3: Yes; §3, §6 and §9 carry the evidence links.
 - Q4: Yes; a sweep found no owner question, and the Uma rule-1 note is a release-rule fact, not a business ask.
+
+
+## Coordinator plan for the next session (requested by Albert, 2026-11-24)
+
+The next session is a **coordinator**: it spawns subagents for all execution, runs independent lanes in parallel, verifies every subagent result itself (check the PR/diff/query, never trust a report), and owns #4707 evidence. Never delegate a decision. Pair: Claude Opus `low` lead → Haiku `high` helpers for mechanical steps; full-strength subagents for design work. Each subagent gets its own worktree from the repo's current upstream branch.
+
+Still-open items carried from the 2026-11-24 session (every one must be closed or re-handed):
+- A. Stale production copy-job credential in 1Password (§4) — blocks the production run.
+- B. Data Syncing release `sandbox-albert` → `develop` → `main` under GATEKEEPER (§6 step 4).
+- C. Production `plan` + `reconcile` run and a zero-write confirmation (§6 step 5).
+- D. Item Master, Tracking, Backend canonical read paths with legacy fallback, vendor scope, 489 legacy lookups (§6 step 6).
+- E. Real-role live checks in sandbox then production incl. a denied cross-vendor read; production Sales QA login returned HTTP 403 earlier (§8).
+- F. Production rollback proof (§6 step 7), then close #4707 and delete this file.
+
+Parallel lanes (start together):
+1. **Lane 1 — credential (A)**, one subagent, `secrets-to-1password` skill: read the Cloud Run secret `DB_USER_SYNC`/password for job `popcre-item-header-sync-prod`, update the vault item, prove a read-only `select current_user` returns `designflow_prod_data_sync_runtime`.
+2. **Lane 2 — Data Syncing release (B)**, one subagent: PR `sandbox-albert`→`develop`, then `develop`→`main`, linking the rehearsal and Codex debate evidence and stating rule 1 does not apply (reads `dflow_prod` only). Gate: production job image contains the reconcile mode.
+3. **Lane 3 — Item Master path (D)**, **Lane 4 — Tracking path (D)**, **Lane 5 — Backend path (D)**: one subagent per repo, each with plan §6 step 4 as its spec, sandbox branch only, tests for authorized vendor, denied cross-vendor read, ERP-less draft, held merchandise, milestones, assignees, replies, mentions, attachments (Tracking: latest action + reminders).
+4. **Lane 6 — QA access (E prep)**: one subagent finds or repairs working real-role test logins (Sales, a vendor A, a vendor B) for sandbox and production through the vault; never ask Albert to sign in.
+
+Sequential after lanes join:
+5. C after lanes 1+2 pass: run `plan`, then `reconcile <digest>`, then `plan`+`reconcile` again expecting 0 writes; post counts and run id on #4707.
+6. E after lanes 3–6 and C: one `designflow-e2e-tester` subagent per app verifies in sandbox across a sync cycle, then the apps release under GATEKEEPER, then the same checks in production.
+7. F last: rollback proof, evidence, close #4707, delete this file in that commit.
+
+Each subagent's spec must tell it, when finished, to re-read this file's remaining steps and report any drift.
