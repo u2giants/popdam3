@@ -63,13 +63,18 @@ begin
     if not (select relrowsecurity from pg_class where oid=candidate.relation::regclass)
        or not has_column_privilege(runtime_role, candidate.relation, candidate.field, 'SELECT')
        or not has_column_privilege(runtime_role, candidate.relation, candidate.field, 'INSERT')
-       or has_any_column_privilege(runtime_role, candidate.relation, 'UPDATE')
+       -- #4707 reconciliation: updates on copied rows; deletes only on
+       -- replaceable child rows. Copied items, licensing history and files stay.
+       or (candidate.relation in ('plm.licensing_status_assignee','plm.licensing_feedback_mention',
+             'plm.licensing_attachment','app.file_object'))
+          = has_any_column_privilege(runtime_role, candidate.relation, 'UPDATE')
        or exists (
          select from pg_policy where polrelid=candidate.relation::regclass
            and (select oid from pg_roles where rolname=grants_role)=any(polroles)
-           and polcmd not in ('a','r')
+           and polcmd not in ('a','r','w','d')
        )
-       or has_table_privilege(runtime_role, candidate.relation, 'DELETE')
+       or (candidate.relation in ('plm.designflow_item','plm.licensing_status','plm.licensing_feedback','app.file_object'))
+          = has_table_privilege(runtime_role, candidate.relation, 'DELETE')
        or has_table_privilege(runtime_role, candidate.relation, 'TRUNCATE') then
       raise exception 'Unexpected copy privileges for %', candidate.relation;
     end if;
@@ -87,6 +92,14 @@ begin
      or has_any_column_privilege(runtime_role, 'core.merch_group', 'INSERT')
      or has_any_column_privilege(runtime_role, 'core.merch_group', 'UPDATE') then
     raise exception 'The item copy can affect data outside its owned shadow scope';
+  end if;
+  if not has_table_privilege(runtime_role, 'plm.designflow_reconcile_before_image', 'INSERT')
+     or has_any_column_privilege(runtime_role, 'plm.designflow_reconcile_before_image', 'UPDATE')
+     or has_table_privilege(runtime_role, 'plm.designflow_reconcile_before_image', 'DELETE')
+     or has_table_privilege(runtime_role, 'plm.designflow_reconcile_before_image', 'TRUNCATE')
+     or has_table_privilege('authenticated', 'plm.designflow_reconcile_before_image', 'SELECT')
+     or not (select relrowsecurity from pg_class where oid='plm.designflow_reconcile_before_image'::regclass) then
+    raise exception 'Reconciliation before-images are not append-only for the runtime';
   end if;
 end
 $test$;

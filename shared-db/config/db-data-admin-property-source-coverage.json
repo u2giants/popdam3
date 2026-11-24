@@ -273,6 +273,14 @@
       "reason": "DesignFlow operational records, including drafts and unresolved item links."
     },
     {
+      "family": "designflow_item_reconcile_before_image",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Rollback copies of DesignFlow rows changed by item reconciliation",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["designflow_reconcile_before_image"],
+      "reason": "Operational rollback records for #4707 reconciliation runs."
+    },
+    {
       "family": "item_landing_and_import",
       "licensor": "POP Creations application data",
       "business_purpose": "Item landing, import and taxonomy staging",
