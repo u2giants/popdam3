@@ -61,7 +61,7 @@ import {
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
 import { handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
-import { type CharacterStatsRow, planCharacterStats } from "../_shared/character-stats.ts";
+import { type CharacterUsageRow, planCharacterStats } from "../_shared/character-stats.ts";
 
 import {
   handleBulkPropagateGroupTags,
@@ -670,25 +670,27 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
     if (!counts || counts.length < PAGE) break;
   }
 
-  // Read the current catalog, plan every change, then publish it in ONE
+  // Read the published usage rows, plan every change, then publish it in ONE
   // upsert (a single statement, so all-or-nothing). A failure leaves the
-  // previous published counts and priorities intact (#1095).
-  const characters: CharacterStatsRow[] = [];
+  // previous published counts and priorities intact (#1095). Counts are keyed
+  // by the shared core.character id (#1301).
+  const existing: CharacterUsageRow[] = [];
   for (let from = 0;; from += PAGE) {
     const { data, error } = await db
-      .from("characters")
-      .select("id, name, property_id, usage_count, is_priority")
-      .order("id")
+      .schema("dam").from("character_usage")
+      .select("core_character_id, usage_count, is_priority")
+      .order("core_character_id")
       .range(from, from + PAGE - 1);
     if (error) return err(error.message, 500);
-    characters.push(...((data ?? []) as CharacterStatsRow[]));
+    existing.push(...((data ?? []) as CharacterUsageRow[]));
     if (!data || data.length < PAGE) break;
   }
 
-  const { changed, priorityCount } = planCharacterStats(characters, tally, threshold);
+  const { changed, priorityCount } = planCharacterStats(existing, tally, threshold);
   if (changed.length > 0) {
-    const { error: upsertErr } = await db.from("characters")
-      .upsert(changed, { onConflict: "id" });
+    const now = new Date().toISOString();
+    const { error: upsertErr } = await db.schema("dam").from("character_usage")
+      .upsert(changed.map((r) => ({ ...r, updated_at: now })), { onConflict: "core_character_id" });
     if (upsertErr) return err(`character stats publish failed: ${upsertErr.message}`, 500);
   }
 

@@ -75,6 +75,7 @@ const POSTGREST_PAGE = 1000; // PostgREST max per request
 function sqlTarget(table: string): string {
   if (table === "licensors") return "core.licensor";
   if (table === "properties") return "core.property";
+  if (table === "characters") return "core.character";
   return `public.${table}`;
 }
 

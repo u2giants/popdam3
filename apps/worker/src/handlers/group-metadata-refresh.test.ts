@@ -173,7 +173,7 @@ test("neither the new operation nor the legacy alias ever reaches an asset row",
 
 test("the refresh handler's source contains no asset table access at all", () => {
   const source = readFileSync(fileURLToPath(new URL("./group-metadata-refresh.ts", import.meta.url)), "utf8");
-  for (const table of ["\"assets\"", "\"asset_tags\"", "\"asset_characters\""]) {
+  for (const table of ["\"assets\"", "\"asset_tags\"", "\"asset_characters\"", "\"characters\"", "\"dam_character_catalog\""]) {
     assert.ok(!source.includes(`from(${table})`), `the refresh must not query or write ${table}`);
   }
 });

@@ -129,11 +129,9 @@ function TaxonomyApiSection() {
         let from = 0;
         while (true) {
           const client = schema === "core" ? (supabase as any).schema("core") : (supabase as any);
-          const { data, error } = await client
-            .from(table)
-            .select(select)
-            .order(orderCol)
-            .range(from, from + PAGE - 1);
+          let query = client.from(table).select(select);
+          for (const col of orderCol.split(",")) query = query.order(col);
+          const { data, error } = await query.range(from, from + PAGE - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
           all.push(...(data as unknown as Record<string, unknown>[]));
@@ -146,16 +144,20 @@ function TaxonomyApiSection() {
       const [licensors, properties, characters] = await Promise.all([
         fetchAll("core", "licensor", "id, name, external_id:code", "name"),
         fetchAll("core", "property", "id, name, external_id:code, licensor_id", "name"),
-        fetchAll("public", "dam_character_catalog", "id, name, property_id:core_property_id", "name"),
+        fetchAll("core", "property_character_associations", "property_id, is_current, character:character_id(id, name, status)", "property_id,character_id"),
       ]);
 
       const charsByProp = new Map<string, { id: string; name: string }[]>();
-      for (const c of characters) {
-        const pid = c.property_id as string;
+      for (const link of characters) {
+        const c = link.character as { id: string; name: string; status: string | null } | null;
+        if (link.is_current === false || !c || ["archived", "deleted"].includes(c.status ?? "")) continue;
+        const pid = link.property_id as string;
         const list = charsByProp.get(pid) || [];
-        list.push({ id: c.id as string, name: c.name as string });
+        list.push({ id: c.id, name: c.name });
         charsByProp.set(pid, list);
       }
+
+      for (const list of charsByProp.values()) list.sort((a, b) => a.name.localeCompare(b.name));
 
       const propsByLic = new Map<string, PropertyRow[]>();
       for (const p of properties) {
@@ -1112,8 +1114,10 @@ export function CharacterStatsSection() {
     queryKey: ["character-stats"],
     queryFn: async () => {
       const [{ count: total }, { count: priority }] = await Promise.all([
-        supabase.from("characters").select("*", { count: "exact", head: true }),
-        supabase.from("characters").select("*", { count: "exact", head: true }).eq("is_priority", true),
+        // Counts come from the shared character list (core.character) and
+        // PopDAM's usage table keyed by it (dam.character_usage), #1301.
+        (supabase as any).schema("core").from("character").select("id", { count: "exact", head: true }).not("status", "in", "(archived,deleted)"),
+        (supabase as any).schema("dam").from("character_usage").select("core_character_id", { count: "exact", head: true }).eq("is_priority", true),
       ]);
       return { total: total ?? 0, priority: priority ?? 0 };
     },
