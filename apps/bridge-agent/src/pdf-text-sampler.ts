@@ -44,6 +44,9 @@ export interface AiConfig {
   googleApiKey: string;
   anthropicApiKey: string;
   openRouterApiKey?: string;
+  /** OpenAI direct key and routing switch for openai/* models. */
+  openAiApiKey?: string;
+  openAiRoute?: "direct" | "openrouter";
   scaleDownApiKey?: string;
   aiTaskModels?: Record<string, string>;
 }
