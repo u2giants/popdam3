@@ -27,6 +27,8 @@ begin
   insert into public.licensors(id,name,external_id) values(v_licensor,'ZZ1427 Licensor','zz1427-l-'||txid_current());
   insert into public.properties(id,licensor_id,name,external_id) values(v_property,v_licensor,'ZZ1427 Property','zz1427-p-'||txid_current());
   insert into public.characters(id,property_id,name,external_id) values(v_character,v_property,v_character_name,'zz1427-c-'||txid_current());
+  -- C2 (#6995): public.asset_characters.character_id references core.character.
+  insert into core.character(id,name) values(v_character,v_character_name);
   insert into public.style_groups(id,sku,folder_path,licensor_id,property_id,licensor_name,property_name)
   values(v_group,'ZZ1427-A-'||txid_current(),'ZZ1427/A',null,null,'ZZ1427 Licensor','ZZ1427 Property'),
         (v_other_group,'ZZ1427-B-'||txid_current(),'ZZ1427/B',null,null,null,null);
