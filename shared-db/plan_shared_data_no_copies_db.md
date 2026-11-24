@@ -17,7 +17,7 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 | Stage | What | State | Evidence |
 |---|---|---|---|
 | S1 | Read function: DesignFlow production orders for a style SKU | ✅ done 2026-11-23 4:20 PM EST | #6987 + #6990 (56068c2); production apply run "DB production apply c8c0dc1 PR6987 20261225090701" success; proven as `authenticated` (3 orders for AA062VMAT03) |
-| S2 | Drop PopDAM production-order copy tables + `dam` placeholders | ⬜ open (after popdam3 P2) | — |
+| S2 | Drop PopDAM production-order copy tables + `dam` placeholders | ✅ done 2026-11-23 — migration `20261225091103` (PR #7018; original 20261225090902 retired), production apply run 45314731038; re-check: 0 of the 5 tables in `information_schema.tables` |
 | C1 | Build + review PopDAM→`core.character` map | ✅ live 2026-11-23 | #7000 c8c0dc157 + #7004 af007fa89; 99.11% of links mapped; proof on #6994 |
 | C2 | Re-point `public.asset_characters` at `core.character` | ⬜ open (C1 done; with popdam3 C3) | — |
 | C4 | Retire `public.characters`, `public.properties`, `public.licensors` | ⬜ open (after C2/C3) | — |
