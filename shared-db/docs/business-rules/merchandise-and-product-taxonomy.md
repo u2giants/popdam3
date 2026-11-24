@@ -290,6 +290,24 @@ A wrong description is worse than none.
 The 2025-05-01 boundary above is the product-description population boundary. It is a
 different date and purpose from the May 14, 2025 item-learning boundary in this topic.
 
+## Assembled item descriptions (designers pick parts)
+
+Work issue: popcre/designflow-item-master#194. Not built yet; these are the business rules it must follow.
+
+**Settled (Albert, 2026-11-09 to 2026-11-12):**
+
+- The Item Description is built from parts, not typed: core product type (material included), embellishment if any, licensor, property, a free-text description of the artwork, and the size.
+- Order, licensed divisions `CW001` and `SP001` (2026-11-10 11:28 AM EST): "Product type ( + embellishment if applicable) - Licensor - Property - Description of artwork - Dimensions". Example: `Canvas with Foil Disney Cars McQueen on racetrack 12x16"`.
+- Non-licensed division `EH001` (2026-11-10 1:01 PM EST): "we don't put MG05 and MG06 into the item description on non-licensed items". MG05/MG06 are still chosen and stored.
+- Designers find the core product type by meaning, "even if they didn't remember the exact wording". A missing type is requested; "they have to request it from someone who approves it". Approvers: "i (albert, admin), carlos (project manager), or jessica (project manager)". While a request is pending, the item cannot be created: "half-filled item is kept as a draft".
+- The system sets MG01, MG02 and MG03 from the chosen product type and embellishment; designers do not pick them. "one product type should only sit under one MG01+MG02"; many product types may share one MG01+MG02. Material is part of the product type.
+- The embellishment choices "follow its parent-child relationship with MG01 and MG02" (MG03 children of the type's MG02). Carlos spot-checks the system-built list per product type; that spot-check is the acceptance. An optional free-text extra embellishment goes into the name only and is never reviewed.
+- Size: "the exact size typed, with depth"; the system picks MG04.
+- Licensor and property wording: our own display name and short form, kept by Marcel for licensed divisions (Carlos for non-licensed). A licensor is left out of the name when it is obvious, has only one or two properties, or shares the property's name. Viacom is shown as "Paramount" everywhere. Star Wars is a licensor; Harry Potter and DC are properties, not licensors. Property groups never print in the name (2026-11-12).
+- ColdLion stays authoritative for every MG code; none of this writes merchandise groups.
+
+**Proposed (planner, awaiting Albert):** depth is printed only when greater than zero; when the parts exceed 100 characters the designer shortens the artwork text (never cut automatically); existing item descriptions are not rewritten.
+
 ## Authority boundary
 
 This taxonomy governs product and merchandise meaning only. Licensing names, ownership, Characters, Style Guides, Assets, Franchises, and Property Active/Inactive status follow [`licensing-master-data.md`](licensing-master-data.md).
