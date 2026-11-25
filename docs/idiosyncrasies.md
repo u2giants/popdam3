@@ -72,6 +72,7 @@ Use this exact shape for every new quirk:
 **Looks like:** PopDAM needs its own copy of PLM production orders (the retired `prod_order_headers_*` sync).
 **Actually:** The orders live in the shared database (`plm.production_order`, `plm.production_order_line`). PopDAM reads them through `api.dam_production_orders_for_sku` (popcre/shared-db#6986), production orders only — ColdLion sales orders share the table and are excluded.
 **Do not change because:** Owner ruling 2026-11-23 (popdam3#1272): one shared database so apps don't copy data. Do not reintroduce a PLM feed sync.
+Open follow-ups (error display, docs, credential proof): [`plans/issue-1304-production-orders-read-path-followups.md`](plans/issue-1304-production-orders-read-path-followups.md).
 
 ## Bridge agent defers thumbnails to Windows Render Agent for certain files
 
