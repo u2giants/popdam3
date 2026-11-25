@@ -28,7 +28,7 @@ export interface SnapshotVersion {
 type State =
   | { kind: "idle" }
   | { kind: "searching" }
-  | { kind: "listed"; versions: SnapshotVersion[] }
+  | { kind: "listed"; versions: MergedVersion[] }
   | { kind: "restoring" }
   | { kind: "restored"; path: string }
   | { kind: "error"; message: string };
@@ -39,19 +39,65 @@ const TIMEOUT_MS = 60_000;
 const fmtSize = (n: number) =>
   n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 const fmtDay = (iso: string) => format(new Date(iso), "MMM d, yyyy");
+const fmtSaved = (iso: string) => format(new Date(iso), "MMM d, yyyy 'at' h:mm a");
 const folderOf = (p: string) => p.slice(0, p.lastIndexOf("/"));
 
-export default function OlderCopiesSection({ assetId, relativePath }: { assetId: string; relativePath: string }) {
-  const { isAdmin } = useIsAdmin();
-  if (!isAdmin) return null;
-  return <OlderCopiesInner assetId={assetId} relativePath={relativePath} />;
+/** One version of the file's content, however many snapshots or folders it appeared in. */
+export interface MergedVersion extends SnapshotVersion {
+  /** Folders this content sat in, oldest first. */
+  folders: string[];
 }
 
-function OlderCopiesInner({ assetId, relativePath }: { assetId: string; relativePath: string }) {
+/**
+ * The helper splits a version whenever the folder changes (e.g. a folder rename).
+ * To the user that is still the same file, so merge neighbouring entries whose
+ * size and saved time match. The newest snapshot/path is kept for restoring.
+ */
+export function mergeVersions(versions: SnapshotVersion[]): MergedVersion[] {
+  const sorted = [...versions].sort((a, b) => a.first_taken_at.localeCompare(b.first_taken_at));
+  const out: MergedVersion[] = [];
+  for (const v of sorted) {
+    const prev = out[out.length - 1];
+    const folder = folderOf(v.source_path);
+    if (prev && prev.size === v.size && new Date(prev.mtime).getTime() === new Date(v.mtime).getTime()) {
+      if (v.last_taken_at >= prev.last_taken_at) {
+        prev.last_snapshot = v.last_snapshot;
+        prev.last_taken_at = v.last_taken_at;
+        prev.source_path = v.source_path;
+      }
+      prev.snapshot_count += v.snapshot_count;
+      if (!prev.folders.includes(folder)) prev.folders.push(folder);
+    } else {
+      out.push({ ...v, folders: [folder] });
+    }
+  }
+  return out;
+}
+
+/** Same size and saved time (to the second) as the file on the server now. */
+const sameAsCurrent = (v: SnapshotVersion, size?: number | null, modifiedAt?: string | null) =>
+  size != null && !!modifiedAt && v.size === size &&
+  Math.abs(new Date(v.mtime).getTime() - new Date(modifiedAt).getTime()) < 2000;
+
+interface Props {
+  assetId: string;
+  relativePath: string;
+  /** Current file size and saved time, used to label the version that matches today's file. */
+  fileSize?: number | null;
+  modifiedAt?: string | null;
+}
+
+export default function OlderCopiesSection(props: Props) {
+  const { isAdmin } = useIsAdmin();
+  if (!isAdmin) return null;
+  return <OlderCopiesInner {...props} />;
+}
+
+function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props) {
   const { call } = useAdminApi();
   const { bridgeStatus } = useAgentStatus();
   const [state, setState] = useState<State>({ kind: "idle" });
-  const [confirm, setConfirm] = useState<SnapshotVersion | null>(null);
+  const [confirm, setConfirm] = useState<MergedVersion | null>(null);
 
   async function poll(action: string, requestId: string) {
     const until = Date.now() + TIMEOUT_MS;
@@ -69,13 +115,13 @@ function OlderCopiesInner({ assetId, relativePath }: { assetId: string; relative
       const { request_id } = await call<{ request_id: string }>("request-snapshot-versions", { asset_id: assetId });
       const r = await poll("get-snapshot-versions-result", request_id);
       if (!r.ok) throw new Error(String(r.error ?? "Search failed"));
-      setState({ kind: "listed", versions: (r.versions as SnapshotVersion[]) ?? [] });
+      setState({ kind: "listed", versions: mergeVersions((r.versions as SnapshotVersion[]) ?? []) });
     } catch (e) {
       setState({ kind: "error", message: (e as Error).message });
     }
   }
 
-  async function restore(v: SnapshotVersion) {
+  async function restore(v: MergedVersion) {
     setConfirm(null);
     setState({ kind: "restoring" });
     try {
@@ -107,25 +153,41 @@ function OlderCopiesInner({ assetId, relativePath }: { assetId: string; relative
       {state.kind === "listed" && state.versions.length === 0 && (
         <p className="text-[11px]" style={muted}>No older copies of this file were found in the snapshots.</p>
       )}
-      {state.kind === "listed" && state.versions.length === 1 && state.versions[0].source_path === relativePath && (
-        <p className="text-[11px]" style={muted}>This file is unchanged in every snapshot that has it.</p>
+      {state.kind === "listed" && state.versions.length > 0 && (
+        <p className="text-[11px]" style={muted}>
+          {state.versions.length === 1
+            ? "The snapshots hold only one version of this file."
+            : `The snapshots hold ${state.versions.length} different versions of this file, newest first.`}
+        </p>
       )}
       {state.kind === "listed" && state.versions.length > 0 && (
         <div className="space-y-1.5">
-          {[...state.versions].reverse().map((v) => (
-            <div key={`${v.source_path}|${v.first_snapshot}`} className="rounded p-2 space-y-0.5" style={{ background: "var(--pd-surface-2)" }}>
-              <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>
-                {fmtDay(v.first_taken_at)}{v.first_snapshot !== v.last_snapshot ? ` – ${fmtDay(v.last_taken_at)}` : ""}
-                {" · "}{fmtSize(v.size)}{" · modified "}{format(new Date(v.mtime), "MMM d, yyyy HH:mm")}
-              </p>
-              {folderOf(v.source_path) !== folderOf(relativePath) && (
-                <p className="text-[10px] font-mono break-all" style={muted}>was in: {folderOf(v.source_path)}</p>
-              )}
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={busy} onClick={() => setConfirm(v)}>
-                Restore beside current file
-              </Button>
-            </div>
-          ))}
+          {[...state.versions].reverse().map((v) => {
+            const current = sameAsCurrent(v, fileSize, modifiedAt);
+            const oldFolders = v.folders.filter((f) => f !== folderOf(relativePath));
+            const sameDay = fmtDay(v.first_taken_at) === fmtDay(v.last_taken_at);
+            return (
+              <div key={`${v.source_path}|${v.first_snapshot}`} className="rounded p-2 space-y-0.5" style={{ background: "var(--pd-surface-2)" }}>
+                <p className="text-[11px] font-medium" style={{ color: "var(--pd-fg-muted)" }}>
+                  Saved {fmtSaved(v.mtime)} · {fmtSize(v.size)}
+                  {current && <span className="font-normal" style={muted}> · same as the current file</span>}
+                </p>
+                <p className="text-[11px]" style={muted}>
+                  {sameDay
+                    ? `Kept in the snapshot of ${fmtDay(v.first_taken_at)}`
+                    : `Kept in snapshots from ${fmtDay(v.first_taken_at)} to ${fmtDay(v.last_taken_at)}`}
+                </p>
+                {oldFolders.map((f) => (
+                  <p key={f} className="text-[10px] font-mono break-all" style={muted}>was in: {f}</p>
+                ))}
+                {!current && (
+                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={busy} onClick={() => setConfirm(v)}>
+                    Restore beside current file
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       {state.kind === "restoring" && (
@@ -143,7 +205,7 @@ function OlderCopiesInner({ assetId, relativePath }: { assetId: string; relative
           <DialogHeader>
             <DialogTitle>Restore this older copy?</DialogTitle>
             <DialogDescription>
-              {confirm && `The copy from ${fmtDay(confirm.last_taken_at)} will be saved next to the current file with "(restored …)" added to its name. The current file is not changed.`}
+              {confirm && `The version saved ${fmtSaved(confirm.mtime)} will be saved next to the current file with "(restored …)" added to its name. The current file is not changed.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
