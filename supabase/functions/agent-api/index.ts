@@ -4060,8 +4060,13 @@ async function handleClaimFactoryApprovalForms(body: Record<string, unknown>) {
       .createSignedUrl(r.storage_path, 900);
     if (signErr || !signed?.signedUrl) {
       await db.schema("core").rpc("record_factory_approval_form_ocr", {
-        p_form_id: r.id, p_ocr_text: null, p_name: null, p_number: null, p_expires_on: null,
-        p_error: `storage: ${signErr?.message ?? "no signed url"}`.slice(0, 500), p_engine: "indra",
+        p_form_id: r.id,
+        p_ocr_text: null,
+        p_name: null,
+        p_number: null,
+        p_expires_on: null,
+        p_error: `storage: ${signErr?.message ?? "no signed url"}`.slice(0, 500),
+        p_engine: "indra",
       });
       continue;
     }
