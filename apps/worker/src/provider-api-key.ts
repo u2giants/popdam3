@@ -85,6 +85,43 @@ export async function openRouterCheapestRouting(): Promise<boolean> {
   return (await resolveDirectProviderApiKey("OPENROUTER_ROUTING", "")).toLowerCase() === "cheapest";
 }
 
+const providerListCache = { value: {} as Record<string, string[]>, cachedAt: 0 };
+
+/**
+ * admin_config.OPENROUTER_PROVIDER_ALLOWLIST: {"author/model": ["provider/tag", ...]}.
+ * Under cheapest routing, a listed model only goes to these tested providers.
+ */
+export async function openRouterProviderAllowlist(model: string): Promise<string[] | null> {
+  if (straitlyKeyOverride !== null || openRouterRoutingOverride !== null) return null;
+  const now = Date.now();
+  if (now - providerListCache.cachedAt >= CACHE_TTL_MS) {
+    try {
+      const { data, error } = await withDependencyTimeout(
+        "OPENROUTER_PROVIDER_ALLOWLIST config read",
+        db().from("admin_config").select("value").eq("key", "OPENROUTER_PROVIDER_ALLOWLIST").maybeSingle(),
+      );
+      if (error) throw new Error(error.message);
+      const raw = data?.value;
+      const next: Record<string, string[]> = {};
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+          if (Array.isArray(v)) {
+            const list = v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim());
+            if (list.length > 0) next[k.trim().toLowerCase()] = list;
+          }
+        }
+      }
+      providerListCache.value = next;
+    } catch (error) {
+      logger.error("provider-api-key: could not read admin_config.OPENROUTER_PROVIDER_ALLOWLIST; keeping last value", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    providerListCache.cachedAt = now;
+  }
+  return providerListCache.value[model.trim().toLowerCase()] ?? null;
+}
+
 /** Test hook: force the Straitly key (null restores normal lookup). */
 export function setStraitlyApiKeyForTests(value: string | null): void {
   straitlyKeyOverride = value;
