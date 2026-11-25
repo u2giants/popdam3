@@ -135,7 +135,7 @@ Verbatim Albert, 2026-11-13 2:19 PM EST, answering whether Disney OPA "Mickey Mo
 > 2) we went over this extensively, document it conspicuously: if a design has only mickey in it, it goes under 'Mickey Mouse' which sits under 'Mickey Mouse Family'. if a design has only Minnie in it, it goes under 'Minnie & Me' which sits under 'Mickey Mouse Family'. If a design has Mickey + anyone else in it, it goes under 'Standard Characters'"
 
 **Effect.**
-- **Mickey only → "Mickey Mouse" (under "Mickey Mouse Family"); Mickey plus anyone else → "Standard Characters".** These are separate properties; never merge them or link one to another's OPA property. **Minnie half superseded by 6.44 (2026-11-25): solo Minnie is "Minnie" > "Minnie & Me", not under "Mickey Mouse Family".**
+- **Mickey only → "Mickey Mouse"; Minnie only → "Minnie & Me"; Mickey plus anyone else → "Standard Characters".** Mickey Mouse and Minnie & Me sit under "Mickey Mouse Family". These are three separate properties; never merge them or link one to another's OPA property.
 - POP's `core.property` MM "Standard Characters" (nickname "Mickey Group") links to OPA 361, not OPA 372 (corrected in migration `20261113183820`, shared-db#6269).
 - X-Men (OPA 640) and X-Men Classic are one property: POP's XM row keeps its OPA link. **Superseded for X-Men by 6.40 (2026-11-14) — see there; the submissions site scrape wins.**
 - Do not re-ask. Applies to the #2541 placement repair on shared-db#6209.
@@ -169,7 +169,7 @@ Verbatim Albert, 2026-11-14, after being shown that the OPA submissions site scr
 
 Verbatim Albert, 2026-11-15 8:49 PM EST:
 
-> "delete "our own system's licensor list" so no future session can use it. the only thing to be using is the canonical MG05 list we build from what comes in on the API"
+> "delete \"our own system's licensor list\" so no future session can use it. the only thing to be using is the canonical MG05 list we build from what comes in on the API"
 
 **Effect** (issue #6440, migration `20261116124500`).
 - The licensor list is ColdLion's MG05 (Licensor) list as it arrives from the API (`coldlion.merch_group_detail`, plus `dflow_prod."merchGroup"` divisions CW001/SP001). Nothing else is a licensor source.
@@ -192,11 +192,3 @@ Verbatim Albert ruling, 2026-11-16, as recorded by the coordinator handoff (issu
 > "2026-11-16 (Mickey/Minnie): MM = Mickey alone ("Mickey Mouse"); new code ME = Minnie alone ("Minnie & Me"; avoid letters I/L; MN is Minions); MMF renamed "Mickey Group" in ColdLion and its licensor-site value is OPA "Standard Characters"."
 
 **Effect.** Refines 6.38 with ColdLion codes. MG06 `MM` ("Mickey Mouse") is Mickey alone. New MG06 code `ME` ("Minnie & Me") is Minnie alone; codes avoid the letters I and L, and `MN` is already Minions. MG06 `MMF` is renamed "Mickey Group" in ColdLion (a ColdLion change, not a shared-db write) and maps to licensor-site value OPA "Standard Characters".
-
-### 6.44 OWNER RULING — solo Minnie goes under "Minnie" > "Minnie & Me"; the "Mickey Mouse Family > Minnie & Me" placement is deleted (Albert Hazan, 2026-11-25)
-
-Verbatim Albert, 2026-11-25 3:59 PM EST, asked whether solo Minnie art goes under "Mickey Mouse Family > Minnie & Me" (6.38) or "Minnie > Minnie & Me":
-
-> "'Minnie > Minnie & Me'. delete the 'Mickey Mouse Family > Minnie & Me' decision."
-
-**Effect.** Solo Minnie art (ColdLion MG06 `ME`) is submitted under the Disney OPA root property **"Minnie"**, character **"Minnie & Me"** — never under "Mickey Mouse Family". This replaces the Minnie half of 6.38 and the "under Mickey Mouse Family" wording of 6.43. Mickey alone ("Mickey Mouse Family" > "Mickey Mouse") and Mickey plus anyone ("Standard Characters") are unchanged. The database already carries this path (migration `20261204000500`); no data change.
