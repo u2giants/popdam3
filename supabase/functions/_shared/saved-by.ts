@@ -40,6 +40,8 @@ interface Revision {
 
 /** Commit time and NAS modified time of the same save differ by seconds. */
 export const MATCH_WINDOW_SEC = 120;
+/** A person's Seafile commit can land up to 15 minutes after the file's saved time. */
+export const PERSON_LATE_SEC = 900;
 /** How long after a NAS save the sync account may upload it. */
 export const NAS_UPLOAD_LAG_SEC = 12 * 3600;
 const MAX_PAGES = 4;
@@ -76,18 +78,24 @@ export function isSyncAccount(r: Revision, syncEmails: string[]): boolean {
 
 export function matchVersion(v: VersionIn, revs: Revision[], syncEmails: string[]): Pick<SavedBy, "via" | "name"> {
   const t = Math.floor(new Date(v.mtime).getTime() / 1000);
-  let best: Revision | null = null;
-  for (const r of revs) {
-    if (r.size !== v.size) continue;
+  // Only revisions that could be this version: same size, plausible timing for who made them.
+  const eligible = revs.filter((r) => {
+    if (r.size !== v.size) return false;
     const d = r.ctime - t;
-    // A person's Seafile save lands on the NAS stamped with the commit time (seconds apart);
-    // a NAS save reaches Seafile later, whenever the sync account next uploads.
-    if (d < -MATCH_WINDOW_SEC || d > NAS_UPLOAD_LAG_SEC) continue;
-    if (!best || Math.abs(d) < Math.abs(best.ctime - t)) best = r;
-  }
-  if (!best) return { via: null, name: null };
+    // A NAS save reaches Seafile later, whenever the sync account next uploads.
+    if (isSyncAccount(r, syncEmails)) return d >= -MATCH_WINDOW_SEC && d <= NAS_UPLOAD_LAG_SEC;
+    // A person's Seafile save lands on the NAS stamped seconds from the commit; a slow upload can commit later.
+    return d >= -MATCH_WINDOW_SEC && d <= PERSON_LATE_SEC;
+  });
+  if (eligible.length === 0) return { via: null, name: null };
+  let best = eligible[0];
+  for (const r of eligible) if (Math.abs(r.ctime - t) < Math.abs(best.ctime - t)) best = r;
   if (isSyncAccount(best, syncEmails)) return { via: "nas", name: null };
-  if (Math.abs(best.ctime - t) > MATCH_WINDOW_SEC) return { via: null, name: null };
+  // A late match only when no other person's revision could also be this version.
+  if (Math.abs(best.ctime - t) > MATCH_WINDOW_SEC) {
+    const people = new Set(eligible.filter((r) => !isSyncAccount(r, syncEmails)).map((r) => r.email ?? r.name));
+    if (people.size !== 1) return { via: null, name: null };
+  }
   return { via: "seafile", name: best.name ?? best.email };
 }
 
