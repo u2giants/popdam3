@@ -1,5 +1,5 @@
 ---
-summary: Issue #1307 (+ folded #1335) plan: repair the shared-data no-copies plan STATUS (T1 row carries S2 evidence, stale start line) and retire stale PopDAM docs for dropped tables. Read its STATUS first.
+summary: Plan for #1307 (+#1335): repair the shared-data no-copies plan STATUS and drop stale table docs. Read its STATUS first.
 kind: plan
 status: open
 read-when: implementing issue #1307, or editing plan_shared_data_no_copies.md STATUS

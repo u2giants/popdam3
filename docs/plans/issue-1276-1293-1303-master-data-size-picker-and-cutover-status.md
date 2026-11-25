@@ -1,5 +1,5 @@
 ---
-summary: Combined plan for #1276, #1293, #1303 — repair the Master Data/DesignFlow reference cutover STATUS and fix the shared Size picker gaps in PopDAM Master Data. Read its STATUS first.
+summary: Plan for #1276/#1293/#1303: fix the Master Data Size picker gaps and repair the reference-cutover STATUS. Read its STATUS first.
 kind: plan
 status: open
 read-when: implementing #1276, #1293 or #1303; changing the Master Data Description Size picker; editing plan_master_data_designflow_reference_cutover.md STATUS
