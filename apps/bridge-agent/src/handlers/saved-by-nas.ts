@@ -5,7 +5,8 @@
  * /file-activity) returns save events with the person's name from the SMB
  * transfer log and the Synology Drive log. For each snapshot version we look a
  * few minutes around its saved time for an event on the same file, and for SMB
- * the same size. Optional: without NAS_FILE_ACTIVITY_URL/TOKEN nothing changes.
+ * the same size. Optional: without admin_config NAS_FILE_ACTIVITY (or the
+ * NAS_FILE_ACTIVITY_URL/TOKEN env vars) nothing changes.
  */
 import type { SnapshotVersion } from "./snapshot-tools.js";
 
@@ -52,11 +53,20 @@ export function pickSaver(v: Pick<SnapshotVersion, "source_path" | "size" | "mti
   return best ? { name: displayUser(best.username), via: best.source } : null;
 }
 
+/** Set from the server's heartbeat config (admin_config NAS_FILE_ACTIVITY); env vars are a fallback. */
+let fromServer: { url?: string; token?: string } | null = null;
+export function setNasFileActivity(cfg: { url?: string; token?: string } | null): void {
+  fromServer = cfg && typeof cfg.url === "string" && typeof cfg.token === "string" ? { url: cfg.url, token: cfg.token } : null;
+}
+function currentEnv(): { url?: string; token?: string } {
+  return fromServer ?? { url: process.env.NAS_FILE_ACTIVITY_URL, token: process.env.NAS_FILE_ACTIVITY_TOKEN };
+}
+
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 export async function addNasSavers<T extends SnapshotVersion>(
   versions: T[],
-  env: { url?: string; token?: string } = { url: process.env.NAS_FILE_ACTIVITY_URL, token: process.env.NAS_FILE_ACTIVITY_TOKEN },
+  env: { url?: string; token?: string } = currentEnv(),
   fetchFn: Fetch = fetch,
 ): Promise<Array<T & { saved_by_nas?: SavedByNas }>> {
   if (!env.url || !env.token) return versions;

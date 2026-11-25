@@ -226,6 +226,7 @@ const HEARTBEAT_CONFIG_KEYS_COMMON = [
 
 // Config keys needed only by bridge agents (Linux/Docker)
 const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
+  "NAS_FILE_ACTIVITY", // {url, token}: read-only "saved by" lookup on the office NAS (popdam3#1342)
   ...HEARTBEAT_CONFIG_KEYS_COMMON,
   "AGENT_UPDATE_REQUEST", // bridge-only: Windows agents use trigger_update in their own metadata
   "SCAN_ROOTS",
@@ -811,6 +812,8 @@ async function handleHeartbeat(
       resource_guard: resourceDirectives,
       auto_scan: autoScanConfig,
       windows_render_mode: (configMap.WINDOWS_RENDER_MODE as string) || "fallback_only",
+      // Scoped, read-only key (synology-monitor nas-api /file-activity only), popdam3#1342.
+      nas_file_activity: agentType === "bridge" ? (configMap.NAS_FILE_ACTIVITY as Record<string, unknown>) ?? null : null,
       windows_render_policy: (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown>) || null,
       windows_healthy: windowsHealthy,
       pending_render_jobs: pendingRenderJobs ?? 0,
