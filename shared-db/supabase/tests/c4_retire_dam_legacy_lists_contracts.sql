@@ -1,4 +1,4 @@
--- Verification for migration 20261225120402_c4_retire_dam_legacy_lists (popcre/shared-db#6996).
+-- Verification for migration 20261225120502_c4_retire_dam_legacy_lists (popcre/shared-db#6996).
 -- Proves: the five retired copies are absent, the bridge licensor FK targets
 -- core.licensor, the style-tracker view and bridge refresh no longer read
 -- public.licensors, and the DAM named-search contract still answers. Rolls back.

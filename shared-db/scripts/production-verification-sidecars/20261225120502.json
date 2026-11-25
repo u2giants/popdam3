@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225120502",
+  "migration_sha256": "cbefa3a84430f5dc00535e31f8806b454ef581c86ce2eaf1a812f3f631cd21d4",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 86,
+      "line_end": 86,
+      "disposition": "checks",
+      "reason": "Verify the installed style-tracker view now joins core.licensor, the bridge FK targets core.licensor, and the retired copies are absent.",
+      "check_ids": [
+        "c4_style_tracker_core_licensor_reissue"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "c4_style_tracker_core_licensor_reissue",
+      "kind": "catalog_contract",
+      "contract": "c4_style_tracker_core_licensor_v1",
+      "expected_count": 1
+    }
+  ]
+}

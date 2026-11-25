@@ -479,6 +479,11 @@ HARD_BLOCKED = {
     # 45283352676) and parked. Never applied anywhere. Superseded by the
     # byte-identical re-issue 20261225091103; never apply this version.
     "20261225090902",
+    # 20261225120402 (PR #7076, popcre/shared-db#6996): declared a sandbox-only
+    # derived-from base (20261116120100); the preview preflight refused it (run
+    # 45520189197). Never applied anywhere. Superseded by the re-issue 20261225120502
+    # (identical executable SQL); never apply this version.
+    "20261225120402",
     # 20261225091203 (PR #7024, popcre/shared-db#6995): declared sandbox-only
     # derived-from bases, refused at the derivation gate three times (runs
     # 45451516994, 45453158775, 45454438874) and parked. Never applied anywhere.
@@ -604,6 +609,7 @@ RETIRED_VERSION_REASONS = {
     "20261115031325": "#6440 superseded: never reached production (ledger read 2026-11-15 9:20 PM EST). Owner ruling 2026-11-15 makes core.licensor the ColdLion MG05 list only; 20261116124500 redefines plm.sync_core_licensor_from_coldlion with recoverable retirement and the write guard, and owns the cron job. Never apply this version.",
     "20261106174810": "merged-stranded: PR5910 merged without a PR-owned evidence pair, so the DesignFlow release observer refuses its issue binding; never applied to DesignFlow production; retain source, never apply this version; claim5909 reissued as claim5943 to forward replacement 20261108135128 under issue5026",
     "20261106214905": "merged-stranded on the issue #1608 derivation gate: declared derived-from: 20261015132149, a retired stamp held by no preview or production ledger, so the base-absent gate blocked its preview applies (runs 42309935289, 42311124480) and automatic promotion parked it after three attempts; retain source, never apply this version; reissued with the same executable SQL as 20261108195205 under issue 5950 claim 5971",
+    "20261225120402": "PR #7076 (C4 retirement of PopDAM legacy lists): its derived-from base 20261116120100 was a sandbox catch-up no ledger outside sandbox holds, so the preview preflight refused it (run 45520189197). Never applied. Superseded by 20261225120502 with identical executable SQL. Never apply this version.",
     "20261225091203": "PR #7024 (C2 re-point of public.asset_characters at core.character): its derived-from bases were sandbox catch-ups no ledger outside sandbox holds, so the preview preflight refused three times (runs 45451516994, 45453158775, 45454438874) and the change was parked. Never applied. Superseded by 20261225091406 with identical executable SQL. Never apply this version.",
     "20261225090902": "PR #7006 (S2 drop of PopDAM production-order copy tables): its first derived-from bases were sandbox catch-ups no ledger outside sandbox holds, so the preview preflight refused three times (run 45283352676) and the change was parked. Never applied. Superseded by 20261225091103 with identical executable SQL. Never apply this version.",
 }

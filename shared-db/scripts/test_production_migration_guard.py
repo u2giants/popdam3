@@ -373,6 +373,7 @@ class GuardTests(unittest.TestCase):
             {
                 "20261225090902",
                 "20261225091203",
+                "20261225120402",
                 "20261111230455",
                 "20261112011634",
                 "20261111230502",
@@ -3426,6 +3427,11 @@ class LexerFalseAcceptDefects(unittest.TestCase):
         removed: dict[str, str] = {}
         offenders: list[str] = []
         for version in sorted(migrations):
+            # A retired version never applies anywhere (the production walk reads
+            # only ledger versions), so its drops remove nothing (#6996: retired
+            # 20261225120402 and its re-issue 20261225120502 drop the same tables).
+            if version in production_migration_guard.RETIRED_VERSIONS:
+                continue
             raw = migrations[version].read_text(encoding="utf-8")
             restorations = validate_retired_object_restorations(version, raw, removed)
             for obj, reason in hard_references(raw):
