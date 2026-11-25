@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parallelTagRun, parallelModel, parallelTrialOrder } from "./ai-tag-parallel.js";
-import { handleBulkAiTag } from "./ai-tagging.js";
+import { handleBulkAiTag, settledPool } from "./ai-tagging.js";
 import { retryStatementTimeout } from "./ai-tagging.js";
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const setting = { run_id: "run", models: ["openai/gpt-6-luna", "qwen/qwen3.8-flash", "google/gemini-2.5-flash"], concurrency: 6 };
@@ -88,7 +88,7 @@ test("a whole-library run tags a candidate page instead of demanding asset IDs",
   } as never, true, true);
   assert.equal(result.ok, true);
   assert.equal(result.tagged, 8);
-  assert.deepEqual(limits, [8]);
+  assert.deepEqual(limits, [32]);
   assert.ok(seen.every(([, model]) => model === "z-ai/glm-5.3-flash"));
 });
 test("untagged-only discovery runs are parsed and cannot be combined with force", () => {
@@ -97,4 +97,21 @@ test("untagged-only discovery runs are parsed and cannot be combined with force"
   assert.equal(run.force, undefined);
   assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: true, force: true}, "run", undefined));
   assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: "yes"}, "run", undefined));
+});
+test("settledPool starts the next item when any worker frees up, not after the slowest", async () => {
+  const started: number[] = [];
+  let releaseSlow!: () => void;
+  const slow = new Promise<void>((r) => { releaseSlow = r; });
+  const run = settledPool([0, 1, 2, 3, 4], 2, async (n) => {
+    started.push(n);
+    if (n === 0) await slow;
+    if (n === 3) throw new Error("boom");
+    return n * 10;
+  });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(started, [0, 1, 2, 3, 4]);
+  releaseSlow();
+  const results = await run;
+  assert.deepEqual(results.map((r) => r.status), ["fulfilled", "fulfilled", "fulfilled", "rejected", "fulfilled"]);
+  assert.equal((results[4] as PromiseFulfilledResult<number>).value, 40);
 });

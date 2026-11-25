@@ -1113,6 +1113,25 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
 
 // ── Batch handler (called from operation-loop) ───────────────────────────────
 
+const PARALLEL_PAGE_MULTIPLIER = 4;
+
+/** Runs fn over items with at most `limit` in flight; a worker takes the next
+ * item as soon as it finishes, so one slow item never idles the others.
+ * Results keep input order, in Promise.allSettled shape. */
+export async function settledPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try { results[index] = { status: "fulfilled", value: await fn(items[index]) }; }
+      catch (reason) { results[index] = { status: "rejected", reason }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return results;
+}
+
 export async function handleBulkAiTag(
   opState: OpState,
   tagAll: boolean,
@@ -1141,8 +1160,9 @@ export async function handleBulkAiTag(
     if (parallel) CONCURRENCY = parallel.concurrency;
     // An untagged-only run discovers and tags only assets that were never tagged.
     if (parallel?.untagged_only) tagAll = false;
-    // One page per concurrent chunk, so every chunk is checkpointed.
-    if (parallel?.discover) BATCH_SIZE = parallel.concurrency;
+    // A page holds several pool-widths so slow files overlap fast ones
+    // instead of stalling the whole page; each page is still checkpointed.
+    if (parallel?.discover) BATCH_SIZE = parallel.concurrency * PARALLEL_PAGE_MULTIPLIER;
   }
   if (requireParallel && !parallel) return {ok: false, done: false, error: "Parallel operation requires its exact-run model configuration and no provider receipt"};
   if (opState.external_job?.provider === "meta-responses" || (!opState.external_job && isMetaDirectModel(configuredModels.primary) && !parallel && !dependencies.tagAsset)) {
@@ -1215,14 +1235,11 @@ export async function handleBulkAiTag(
     let tagged = 0, skipped = 0, failed = 0, visualAnalysisUnavailable = 0, fileSourcesFailed = 0;
     const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
 
-    for (let i = 0; i < page.length; i += CONCURRENCY) {
-      const chunk = page.slice(i, i + CONCURRENCY);
-      const results = await Promise.allSettled(
-        chunk.map(async (id) => {
+    {
+      const results = await settledPool(page, CONCURRENCY, async (id) => {
           const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : []), "meta-direct/muse-spark-1.3-contributor"] : undefined);
           return { ...result, asset_id: id };
-        }),
-      );
+        });
       for (const r of results) {
         if (r.status === "fulfilled") {
           if (r.value.outcome === "tagged") {
@@ -1347,16 +1364,13 @@ export async function handleBulkAiTag(
   const skipSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; reason: string }> = [];
 
   // Process in parallel chunks of CONCURRENCY
-  for (let i = 0; i < assets.length; i += CONCURRENCY) {
-    const chunk = assets.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      chunk.map(async (asset) => {
+  {
+    const results = await settledPool(assets, CONCURRENCY, async (asset) => {
         const result = parallel
           ? await tagAsset(asset.id as string, tagAll, parallelModel(parallel, asset.id as string), parallel.force ? undefined : [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : [])])
           : await tagAsset(asset.id as string, tagAll);
         return { ...result, asset };
-      }),
-    );
+      });
 
     for (const r of results) {
       if (r.status === "fulfilled") {
