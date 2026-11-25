@@ -50,6 +50,70 @@ test("FAMA label and value on one line (layout text)", () => {
   assert.equal(f.issuedOn, "2026-01-02");
 });
 
+test("FAMA recovers a unique detached facility and reads values next to their labels", () => {
+  const f = parseFamaForm(`FACILITY AND MERCHANDISE AUTHORIZATION
+FACILITY NAME:
+FACILITY ALIAS NAME(S):
+FAMA ID
+1WSJUPOCR6TX
+Expires Date:
+01/02/2027
+Issued Date
+01/02/2026
+ACME CO (FAC-000001)
+OKAY HOME
+OTHER VENDOR PRODUCTS CO
+`);
+  assert.deepEqual(f, {
+    name: "ACME CO",
+    number: "FAC-000001",
+    formReference: "1WSJUPOCR6TX",
+    issuedOn: "2026-01-02",
+    expiresOn: "2027-01-02",
+    aliases: null,
+  });
+});
+
+test("FAMA prefers the labelled facility and keeps short aliases without duplicates", () => {
+  const f = parseFamaForm(`OTHER CO (FAC-000002)
+UNRELATED123
+FAMA ID: 1WSJUPOCR6TX extra
+FACILITY NAME: ACME CO
+(FAC-000001)
+FACILITY ALIAS NAME(S):
+ACME CO
+OKAY HOME
+Okay Home
+FACILITY ADDRESS:
+No. 1 Road
+`);
+  assert.equal(f.name, "ACME CO");
+  assert.equal(f.number, "FAC-000001");
+  assert.equal(f.formReference, "1WSJUPOCR6TX");
+  assert.deepEqual(f.aliases, ["OKAY HOME"]);
+});
+
+test("FAMA leaves ambiguous detached values unset", () => {
+  const f = parseFamaForm(`FAMA ID
+Issued Date
+FACILITY NAME:
+FACILITY ADDRESS:
+ABCD123456
+01/02/2027
+01/02/2026
+OTHER CO (FAC-000002)
+ACME CO (FAC-000001)
+`);
+  assert.deepEqual(f, {
+    name: null,
+    number: null,
+    formReference: null,
+    issuedOn: null,
+    expiresOn: null,
+    aliases: null,
+  });
+});
+
 test("NBCU LMS fields", () => {
   const f = parseNbcuLmsForm(LMS);
   assert.equal(f.name, "Zhejiang Xianju Tianyuan Crafts Co Ltd");

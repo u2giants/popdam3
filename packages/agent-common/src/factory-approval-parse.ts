@@ -95,53 +95,47 @@ export function detectFactoryApprovalProgram(text: string): FactoryApprovalProgr
 }
 
 const FAC_TAIL = /\(?\s*FAC\s*-\s*\d{4,}\s*\)?\s*$/i;
-const COMPANY_WORD = /\b(co\.?|ltd\.?|limited|company|corp\.?|corporation|factory|industr(?:y|ial)\s+co|products)\b/i;
+const FACILITY_NAME = /^FACILITY\s+NAME\s*:/i;
+const FAMA_ID = /^FAMA\s+ID\b\s*(?:#|NO\b\.?|NUMBER\b)?\s*:?\s*/i;
+const ISSUANCE_DATE = /^Issu(?:ance|ed)\s+Date\b\s*:?\s*/i;
+const EXPIRATION_DATE = /^Expir(?:ation|y|es)\s+Date\b\s*:?\s*/i;
 
-/**
- * FAMA PDFs are fillable forms: embedded text often lists every label first and
- * every value later, out of order. Use the label when its value follows it,
- * else recognise each value by its shape.
- */
+/** Recover a detached facility only when the form identifies one candidate. */
 export function parseFamaForm(text: string): FactoryApprovalFields {
-  const ls = lines(text);
-  const facLine = ls.find((l) => FAC_TAIL.test(l) && l.replace(FAC_TAIL, "").trim().length > 2);
-  const rawName = facLine ?? valueAfter(ls, /FACILITY\s+NAME\s*:/i);
-  let name: string | null = null;
-  let number: string | null = null;
-  if (rawName) {
-    const fac = rawName.match(/FAC\s*-\s*(\d{4,})/i);
-    if (fac) number = `FAC-${fac[1]}`;
-    name = rawName.replace(FAC_TAIL, "").replace(/^FACILITY\s+NAME\s*:\s*/i, "").trim() || null;
-  }
-  if (!number) {
-    const fac = text.match(/\bFAC\s*-\s*(\d{4,})\b/i);
-    if (fac) number = `FAC-${fac[1]}`;
-  }
+  const ls = lines(text).map((line) =>
+    line.replace(/^(FAMA\s+ID(?:\s+(?:#|NO\.?|NUMBER))?|Issu(?:ance|ed)\s+Date|Expir(?:ation|y|es)\s+Date)$/i, "$1:"),
+  );
+  // Join a split facility number to the preceding value before reading the label.
+  const facilityLines = ls.map((line, i) =>
+    line && !FAC_TAIL.test(line) && /^\(?\s*FAC\s*-\s*\d{4,}\s*\)?$/i.test(ls[i + 1] ?? "")
+      ? `${line} ${ls[i + 1]}`
+      : line,
+  );
+  const labelledName = valueAfter(facilityLines, FACILITY_NAME);
+  const detachedFacilities = ls.filter((line) => FAC_TAIL.test(line) && line.replace(FAC_TAIL, "").trim().length > 2);
+  const rawName = labelledName ?? (ls.some((line) => FACILITY_NAME.test(line)) && detachedFacilities.length === 1
+    ? detachedFacilities[0]
+    : null);
+  const facilityNumber = rawName?.match(/FAC\s*-\s*(\d{4,})\s*\)?\s*$/i)?.[1];
+  const name = rawName?.replace(FAC_TAIL, "").trim() || null;
+  const number = facilityNumber ? `FAC-${facilityNumber}` : null;
 
-  const isRef = (l: string) => /^[A-Z0-9]{8,16}$/.test(l) && /[A-Z]/.test(l) && /\d/.test(l);
-  const refRaw = valueAfter(ls, /FAMA\s+ID\s*(?:#|NO\.?|NUMBER)?\s*:?/i);
-  const formReference = (refRaw && isRef(refRaw.trim()) ? refRaw.trim() : null) ?? ls.find(isRef) ?? null;
+  const refRaw = valueAfter(ls, FAMA_ID);
+  const formReference = refRaw?.match(/[A-Z0-9]{6,}/)?.[0] ?? null;
+  const issuedOn = parseFormDate(valueAfter(ls, ISSUANCE_DATE));
+  const expiresOn = parseFormDate(valueAfter(ls, EXPIRATION_DATE));
 
-  const issuedOn = parseFormDate(valueAfter(ls, /Issu(?:ance|ed)\s+Date\s*:/i))
-    ?? parseFormDate(ls.find((l) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(l)) ?? null);
-
-  // Aliases: labelled lines when the label is followed by values; otherwise company-like
-  // lines that are neither the facility nor the licensee (POP Creations, COM- code).
-  let aliases = linesAfter(ls, /FACILITY\s+ALIAS\s+NAME\(?S?\)?\s*:/i, /^(FACILITY|FAMA|ISSUANCE|LICENSEE|VENDOR|STREET|ADDRESS)\b/i)
-    .filter((l) => !/^(N\/?A|none)$/i.test(l));
-  if (aliases.length === 0) {
-    aliases = ls.filter((l) => l.length <= 120 && COMPANY_WORD.test(l) && !FAC_TAIL.test(l)
-      && !/\(COM-\d+\)|\bDBA\b|POP CREATIONS|Disney|Licensee|Facility|Authori[sz]ation/i.test(l)
-      && !/\d{3,}/.test(l));
-  }
-  return {
-    name,
-    number,
-    issuedOn,
-    expiresOn: parseFormDate(valueAfter(ls, /Expir(?:ation|y)\s+Date\s*:/i)),
-    formReference,
-    aliases: aliases.length ? aliases : null,
-  };
+  const aliases = linesAfter(ls, /^FACILITY\s+ALIAS\s+NAME\(?S?\)?\s*:/i,
+    /^(FACILITY|FAMA|ISSUANCE|ISSUED|EXPIRATION|EXPIRY|EXPIRES|LICENSEE|VENDOR|STREET|ADDRESS)\b/i)
+    .filter((line) => !/^(N\/?A|none)$/i.test(line) && !FAC_TAIL.test(line));
+  const seen = new Set([name?.toLowerCase()]);
+  const uniqueAliases = aliases.filter((alias) => {
+    const key = alias.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { name, number, issuedOn, expiresOn, formReference, aliases: uniqueAliases.length ? uniqueAliases : null };
 }
 
 export function parseNbcuLmsForm(text: string): FactoryApprovalFields {
