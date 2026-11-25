@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildOpenRouterBatchPayload, chatCompletion, getOpenRouterBatch, isToolChoiceCompatibilityError, submitOpenRouterBatch, withExactoRouting } from "./openrouter.js";
 import { AmbiguousBatchSubmissionError, DefinitiveBatchRejectionError } from "./batch-submission-error.js";
+import { setOpenRouterRoutingForTests } from "./provider-api-key.js";
+setOpenRouterRoutingForTests("exacto");
 
 test("appends :exacto to a bare model slug", () => {
   assert.equal(withExactoRouting("qwen/qwen3-vl-32b-instruct"), "qwen/qwen3-vl-32b-instruct:exacto");

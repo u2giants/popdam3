@@ -15,7 +15,7 @@
 
 import { logger } from "./logger.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
-import { getStraitlyApiKey, isStraitlyRoutingEnabled } from "./provider-api-key.js";
+import { getStraitlyApiKey, isStraitlyRoutingEnabled, openRouterCheapestRouting } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -626,12 +626,16 @@ export async function chatCompletion(
     throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");
   }
   const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
+  const cheapest = !openAiDirect && !straitly && !routingOverride && !request.provider && !request.model.includes(":") &&
+    await openRouterCheapestRouting();
   let currentRequest: ChatCompletionRequest | Record<string, unknown> = openAiDirect
     ? toOpenAiDirectRequest(request)
     : straitly
     ? toStraitlyRequest(request)
     : routingOverride
     ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
+    : cheapest
+    ? { ...request, provider: { sort: "price", allow_fallbacks: true, require_parameters: true } }
     : { ...request, model: withExactoRouting(request.model) };
   const url = openAiDirect ? OPENAI_DIRECT_URL : straitly ? STRAITLY_URL : OPENROUTER_URL;
   const headers = openAiDirect
