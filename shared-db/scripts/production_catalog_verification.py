@@ -6073,6 +6073,28 @@ CATALOG_CONTRACTS["master_data_rfq_lookup_predicate_v1"] = (
 )
 
 
+# Issue #6996 (C4). The style-tracker view reads the licensor fallback name from
+# core.licensor, the bridge FK targets core.licensor, and the retired copies are gone.
+CATALOG_CONTRACTS["c4_style_tracker_core_licensor_v1"] = (
+    """exists (
+      select 1 from pg_class c
+      where c.oid = to_regclass('public.style_tracker_rows_with_bridge')
+        and c.relkind = 'v'
+        and strpos(pg_get_viewdef(c.oid), 'LEFT JOIN core.licensor public_lic ON') > 0
+    )
+    and exists (
+      select 1 from pg_constraint k
+      where k.conrelid = to_regclass('plm.style_tracker_item_bridge')
+        and k.conname = 'style_tracker_item_bridge_public_licensor_id_fkey'
+        and k.confrelid = to_regclass('core.licensor')
+    )
+    and to_regclass('public.licensors') is null
+    and to_regclass('public.properties') is null
+    and to_regclass('public.characters') is null
+    and to_regclass('public.dam_character_catalog') is null
+    and to_regclass('dam.character_core_map') is null"""
+)
+
 POPSG_REFRESH_SEARCH_SYNC_QUEUE_CONTRACT = (
     # Issue #3023. The refresh reads search-sync candidates from a narrow queue
     # fed by a trigger instead of scanning every style guide file.

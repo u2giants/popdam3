@@ -20,7 +20,7 @@ begin
   if exists (
     select 1 from pg_constraint
     where conrelid = 'public.asset_characters'::regclass and contype = 'f'
-      and confrelid = 'public.characters'::regclass) then
+      and confrelid = to_regclass('public.characters')) then
     raise exception 'asset_characters must not reference public.characters';
   end if;
 
