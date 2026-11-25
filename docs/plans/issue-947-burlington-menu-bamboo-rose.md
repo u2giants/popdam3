@@ -25,7 +25,7 @@ Written 2026-11-25 (about 4:10 PM EST) by Claude on `al8960ofc`, plan only. Code
 | 0. Re-verify resolved findings | ⬜ open | — |
 | 1. Bamboo Rose dialog: download, empty input, wording, no personal defaults (#932 f1, f3, f7; #947 f1) | ⬜ open | — |
 | 2. Bamboo Rose writer: keep template formulas on blank values; case-safe keys (#932 f2, f4) | ⬜ open | — |
-| 3. Burlington menu: wording for the customer choice (#947 f3) | ⬜ open | — |
+| 3. Import dialog is Burlington-only: remove the customer choice (#947 f3) | ⬜ open | — |
 | 4. Docs: menu name, row count (#947 f2, #932 f6) | ⬜ open | — |
 | 5. Tests: menu opens both dialogs; Clear item in both modes, hermetic (#947 f4, #1034 f1) | ⬜ open | — |
 | 6. Tests: Bamboo Rose ordering and options paths (#932 f5) | ⬜ open | — |
@@ -85,7 +85,7 @@ All three PRs are merged and live. PR #946 moved the two buttons into the Burlin
 |---|---|---|---|
 | f1 | Error text names a button "Import buy sheet" that no longer exists | **Open** | `BambooRoseDialog.tsx:62` |
 | f2 | Doc names the old toolbar button | **Open** | `docs/ORDER_LIST.md:154` "**Import buy sheet** lets…" |
-| f3 | Menu labelled "Burlington" though the import dialog offers any customer | **Open (decision below)** | `OrdersPage.tsx:500`; customer select `BuySheetImportDialog.tsx:203-215` |
+| f3 | Menu labelled "Burlington" though the import dialog offers any customer | **Open — decided: Burlington-only (owner 2026-11-25)** | `OrdersPage.tsx:500`; customer select `BuySheetImportDialog.tsx:203-215` |
 | f4 | No test that the menu items open the dialogs | **Open** | `OrdersPage.integration.test.tsx:327-335` only checks the item texts are present |
 
 ### #932 (PR #931)
@@ -110,18 +110,19 @@ All three PRs are merged and live. PR #946 moved the two buttons into the Burlin
 
 ## 7. Approaches considered and rejected
 
-- **Remove the customer select from the import dialog** (#947 f3). Rejected for now: it removes a working control, and `docs/ORDER_LIST.md` step 1 documents "canonical customer list, Burlington by default". Also rejected: renaming the menu to something generic, because the parser reads only Burlington's "PURCHASE ORDER WORKSHEET - DOMESTIC" layout and the Bamboo Rose tool is Burlington-only. Chosen (step 3): keep the menu name, and show a plain warning in the import dialog when a customer other than Burlington is chosen. This is a reversible assumption: if Albert says the import must be Burlington-only, replace the select with fixed text; if another customer adopts the same worksheet, drop the warning.
+- **Keep the customer select and warn for other customers** (#947 f3). Rejected 2026-11-25: Albert ruled that only Burlington has the HFC buy-sheet system, so offering other customers invites importing a sheet the parser cannot read. Also rejected: renaming the menu to something generic. Chosen (step 3): the import dialog is Burlington-only — no customer choice.
 - **Storing the buyer and vendor email defaults in `admin_config`** (#932 f7). Rejected: a new configuration key for two text boxes is more moving parts. Chosen: remember the last values the user typed in `localStorage` (key `popdam.bambooRose.defaults`), start blank otherwise, and require both before download.
 - **Testing the sandbox branch by setting `VITE_SUPABASE_URL` in the test** (#1034 f1). Rejected: the flag is computed at module load, so env tweaks are order-dependent. Chosen: `vi.mock("@/lib/app-mode", …)` with a mutable value and `vi.resetModules()` + dynamic import per case.
 
 ## 8. Design decisions
 
 Locked:
+- The HFC buy-sheet import is Burlington-only; only Burlington has the HFC buy-sheet system (owner, Albert, 2026-11-25, in chat: "only bulington has that HFC buy sheet system").
 - Clear is sandbox-only (owner correction 2026-11-16; UI PR #1033; database guard shared-db #6520).
 - The Burlington menu is the entry point for both tools (PR #946).
 - Carton sizes, weights, materials, inner packs and pallets stay blank for a person.
 
-Open (criteria): the exact non-Burlington warning text — plain English, one sentence, says to check the preview.
+Open (criteria): the exact wording of the "Burlington missing" error — plain English, says to tell Albert.
 
 ## 9. The plan
 
@@ -149,11 +150,18 @@ File `src/lib/bamboo-rose-sheet.ts`.
 2. Key lookups: define `const key = (sku: string, date: string) => `${sku.trim().toUpperCase()}|${date}``; use it at `:66` (map build) and at `:91`, `:102`; at `:139` look up `opts.hts?.[l.sku.trim().toUpperCase()] ?? opts.hts?.[l.sku]`.
 You'll know it worked when the writer and lower-case tests in section 10 pass and the existing "matches Fabi's hand-made sheet" test stays green.
 
-### Step 3 — Non-Burlington warning (helper-ok; one conditional)
-File `src/components/orders/BuySheetImportDialog.tsx`, below the customer select (`:203-215`): when the chosen customer's label is not `burlington` (case-insensitive), render in amber: "This reads Burlington's purchase-order worksheet layout. For another customer, check every line of the preview before importing." Coordinate with the sibling plan, which edits the same file elsewhere (rebase).
-You'll know it worked when the test "non-Burlington customer shows the layout warning" passes.
+### Step 3 — Burlington-only import dialog (helper-ok; edits named)
+File `src/components/orders/BuySheetImportDialog.tsx`.
+1. Remove the customer `<select>` (`:203-215`) and the `customerId` state (`:67`); `customer` becomes the Burlington id found at `:63-66` (label `burlington`, case-insensitive). Show the text "Customer: Burlington" where the select was.
+2. If no Burlington entry is in `customerOptions`, disable Preview and show in red: "Burlington is missing from the customer list, so the buy sheet cannot be imported. Tell Albert."
+3. Title (`:196`) → "Import Burlington buy sheet (HFC)"; description drops "customer" wording.
+4. In `src/pages/OrdersPage.tsx`, keep passing `customerOptions` (the dialog still needs Burlington's id); do not add a new prop.
+Coordinate with the sibling plan, which edits the same file elsewhere (rebase).
+You'll know it worked when the tests "no customer choice; Burlington used" and "Burlington missing disables Preview" pass.
+Stop-and-ask trigger: Burlington appears more than once in `customerOptions` — bring the list to the lead.
 
 ### Step 4 — Docs (helper-ok; wording given)
+0. `docs/ORDER_LIST.md` buy-sheet step 1 ("Choose the customer (canonical customer list, Burlington by default) and the `.xlsx`") → "Choose the `.xlsx` (Burlington only; only Burlington has the HFC buy-sheet system, owner 2026-11-25)".
 1. `docs/ORDER_LIST.md:154`: "**Import buy sheet**" → "**Burlington → Import buy sheet (HFC)**".
 2. `docs/ORDER_LIST.md:251`: open the fixture and the test; if the 68 entries are 67 sheet rows plus one header/meta entry, say "all 67 data rows"; otherwise change to 68. State which in the commit message.
 3. Add one sentence in the Bamboo Rose section: buyer and vendor email are typed once and remembered in that browser.
@@ -190,7 +198,7 @@ New `src/test/bamboo-rose-dialog.test.tsx`:
 3. Download appends an anchor to `document.body` and revokes the URL only after a timer.
 4. Download disabled until Buyer and Vendor email are filled; values are restored from `localStorage`.
 
-`src/test/buy-sheet-revision-stop.test.tsx` (or the sibling plan's dialog test file): non-Burlington customer shows the layout warning.
+`src/test/buy-sheet-revision-stop.test.tsx` (or the sibling plan's dialog test file): (a) no customer select is rendered and the RPC receives Burlington's id as `p_customer_id`; (b) with no Burlington in `customerOptions`, Preview is disabled and the "Burlington is missing" message shows.
 
 `src/pages/OrdersPage.integration.test.tsx`: the four menu tests in step 5.
 
@@ -224,12 +232,12 @@ Done when: all open findings fixed; section 10 tests pass; CI green; merged; fro
 
 Risks: the formula-keeping change could leave a stale formula in a row Burlington expects blank — the live Excel check in step 8 covers it; rollback by reverting the PR.
 
-Open: whether Albert wants the import locked to Burlington (assumption in section 7; the warning is the reversible middle).
+Open: none (Burlington-only decided by Albert 2026-11-25).
 
 ## Self-audit (2026-11-25)
 
 1. *Could a fresh session execute it without asking?* Yes — sections 2, 6 and 9 give files, lines, exact edits and gates; section 12 says where test inputs are.
-2. *All background, including rejections?* Yes — section 7 (dropping the select, generic rename, config key for defaults, env-var tests) and section 8.
+2. *All background, including rejections?* Yes — section 7 (keeping the select with a warning, generic rename, config key for defaults, env-var tests) and section 8.
 3. *Goal clear for judgment calls?* Yes — section 1: real control names, reliable download that keeps formulas, no personal data, tests that prove the menu.
 
 ## Lead launch prompt

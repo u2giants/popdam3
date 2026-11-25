@@ -10,7 +10,7 @@ read-when: picking up any of issues #905, #918, #927, #932, #939, #947, #1032, #
 Written Nov 25, 2026, about 4:30 PM EST on `al8960ofc` by Claude (plan-writing side session of the "plan every open issue" coordinator). Branch `claude/serene-rubin-e56867`. No application code was changed.
 
 ## 0. Business decisions only the owner can make
-None blocking. One reversible assumption, recorded in [issue-947 plan](../docs/plans/issue-947-burlington-menu-bamboo-rose.md) section 7: the import dialog keeps its customer choice and warns when the customer is not Burlington. Albert may later say the import is Burlington-only.
+None. Albert decided 2026-11-25 that the buy-sheet import is Burlington-only (only Burlington has the HFC system); recorded in [issue-947 plan](../docs/plans/issue-947-burlington-menu-bamboo-rose.md) sections 7–8 and step 3.
 
 ## 1. What this application is
 PopDAM — see `AGENTS.md`. Repo u2giants/popdam3; OrderList is `/orders` (`docs/ORDER_LIST.md`).
