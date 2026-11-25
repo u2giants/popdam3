@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lookupSavedBy, matchVersion, parseLibraries, toSeafile } from "./saved-by.ts";
+import { lookupSavedBy, matchVersion, NAS_UPLOAD_LAG_SEC, parseLibraries, toSeafile } from "./saved-by.ts";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const LIBS = [{ libraryId: "lib-char", pathPrefix: "Decor/Character Licensed", displayName: "x", rootId: "Decor", seaDriveFolder: "x" }];
@@ -55,6 +55,18 @@ describe("saved-by helpers (popdam3#1342)", () => {
     const v = { source_path: "p", size: 100, mtime: MTIME };
     expect(matchVersion(v, [rev(T + 354, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: "nas", name: null });
     expect(matchVersion(v, [rev(T - 354, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: null, name: null });
+  });
+
+  it("ignores a closer human revision outside the matching window", () => {
+    const v = { source_path: "p", size: 100, mtime: MTIME };
+    const revs = [rev(T + 300, 100, "João Melhorance"), rev(T + 600, 100, "nas-sync")];
+    expect(matchVersion(v, revs, [])).toEqual({ via: "nas", name: null });
+  });
+
+  it("accepts the NAS upload lag limit and rejects uploads beyond it", () => {
+    const v = { source_path: "p", size: 100, mtime: MTIME };
+    expect(matchVersion(v, [rev(T + NAS_UPLOAD_LAG_SEC, 100, "nas-sync")], [])).toEqual({ via: "nas", name: null });
+    expect(matchVersion(v, [rev(T + NAS_UPLOAD_LAG_SEC + 1, 100, "nas-sync")], [])).toEqual({ via: null, name: null });
   });
 
   it("a save uploaded by the NAS sync account is reported as a NAS save", () => {

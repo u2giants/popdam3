@@ -82,12 +82,12 @@ export function matchVersion(v: VersionIn, revs: Revision[], syncEmails: string[
     const d = r.ctime - t;
     // A person's Seafile save lands on the NAS stamped with the commit time (seconds apart);
     // a NAS save reaches Seafile later, whenever the sync account next uploads.
-    if (d < -MATCH_WINDOW_SEC || d > NAS_UPLOAD_LAG_SEC) continue;
+    const maxLag = isSyncAccount(r, syncEmails) ? NAS_UPLOAD_LAG_SEC : MATCH_WINDOW_SEC;
+    if (d < -MATCH_WINDOW_SEC || d > maxLag) continue;
     if (!best || Math.abs(d) < Math.abs(best.ctime - t)) best = r;
   }
   if (!best) return { via: null, name: null };
   if (isSyncAccount(best, syncEmails)) return { via: "nas", name: null };
-  if (Math.abs(best.ctime - t) > MATCH_WINDOW_SEC) return { via: null, name: null };
   return { via: "seafile", name: best.name ?? best.email };
 }
 
