@@ -211,6 +211,7 @@ async function run() {
     const at = now();
     try {
       psql(db, `begin;
+set local statement_timeout = '20min';
 insert into dam.folder_rename_log (share, old_path, new_path, renamed_at, batch_id, rule)
 values (${q(SHARE)}, ${q(s.from)}, ${q(s.to)}, ${q(at)}, ${q(batchId)}, ${q(s.rule)});
 ${rewriteSql(s.from, s.to)}
@@ -258,6 +259,7 @@ function revert(a, db, disk, lines) {
     const ok = ssh(`mv -n ${shq(disk(r.new_path))} ${shq(disk(r.old_path))} && [ -d ${shq(disk(r.old_path))} ] && echo ok`);
     if (ok !== "ok") throw new Error(`revert rename failed for ${r.new_path}`);
     psql(db, `begin;
+set local statement_timeout = '20min';
 ${rewriteSql(r.new_path, r.old_path)}
 update dam.folder_rename_log set reverted_at = now() where id = ${Number(r.id)};
 commit;`);
