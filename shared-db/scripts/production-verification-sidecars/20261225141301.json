@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225141301",
+  "migration_sha256": "3055415abc99dfff35e1a583288ec2d0634ea5972dc7112d043f44222fd1a4fd",
+  "marker_schema_version": 1,
+  "marker_reviews": [
+    {
+      "line_start": 69,
+      "line_end": 89,
+      "disposition": "checks",
+      "reason": "Dynamic grants and revokes for ai_readonly_reader: verify the role bypasses row rules, holds only SELECT, cannot read dflow_prod.users.passw, and can read dflow_prod Roles.",
+      "check_ids": [
+        "ai_readonly_reader_role"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "ai_readonly_reader_role",
+      "kind": "catalog_contract",
+      "contract": "ai_readonly_reader_role_v1",
+      "expected_count": 1
+    }
+  ]
+}

@@ -6713,6 +6713,21 @@ CATALOG_CONTRACTS["core_mg_category_merch_group_fk_dflow_prod_v1"] = (
 )
 
 
+# Claim #7133 (#7132), migration 20261225141301. Role ai_readonly_reader for AI
+# helper tools: bypasses row rules, holds only SELECT, and cannot read the
+# DesignFlow password column. LOGIN is enabled outside git, so not asserted.
+CATALOG_CONTRACTS["ai_readonly_reader_role_v1"] = (
+    "exists (select 1 from pg_roles where rolname='ai_readonly_reader'"
+    " and rolbypassrls and not rolsuper and not rolcreatedb and not rolcreaterole and not rolreplication)"
+    " and not exists (select 1 from information_schema.role_table_grants"
+    " where grantee='ai_readonly_reader' and privilege_type<>'SELECT')"
+    " and (to_regclass('dflow_prod.users') is null"
+    " or not has_column_privilege('ai_readonly_reader','dflow_prod.users','passw','SELECT'))"
+    " and (to_regclass('dflow_prod.\"Roles\"') is null"
+    " or has_table_privilege('ai_readonly_reader','dflow_prod.\"Roles\"','SELECT'))"
+)
+
+
 # Claim #7110 (#7041 follow-up, designflow-item-master#194 step 5.1), migration
 # 20261225130904, DesignFlow sandbox only. dflow.item_description_parts.item_fk
 # references plm."itemHeader"(item_id_pk) ON DELETE CASCADE (the table the

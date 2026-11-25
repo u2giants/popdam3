@@ -54,6 +54,19 @@ Important gotchas from the 2026-07-08 PopDAM style-group repair:
   DB password.
 - After fixing or rotating any credential, update the matching 1Password item
   notes so the next AI session sees the durable usage path.
+- **Ad-hoc read-only checks use `ai_readonly_reader` (#7132), never `postgres`
+  and never an application runtime login** (`designflow_prod_backend_runtime`
+  and friends). Supavisor pools per login, so a session setting a tool leaves
+  behind on port 6543 stays on that tool's own backends. On 2026-11-25 a helper
+  connected as the DesignFlow backend login with
+  `PGOPTIONS='-c default_transaction_read_only=on'`; the setting stuck to the
+  shared backends and production role saves failed. Rules: user
+  `ai_readonly_reader.qsllyeztdwjgirsysgai`, password in 1Password item
+  `Supabase DB login ai_readonly_reader - shared POP database (production, read-only)`;
+  wrap queries in `BEGIN READ ONLY; …; COMMIT;`; never pass `PGOPTIONS`/`options=`
+  or run a session-level `SET` through 6543. The role reads every business
+  schema (row rules bypassed) but no password or sign-in token column, and
+  holds no write privilege.
 
 Gotchas added 2026-07-16 (each cost real time; all verified):
 
