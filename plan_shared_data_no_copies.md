@@ -28,9 +28,9 @@ Child issues (parent u2giants/popdam3#1298): S1 popcre/shared-db#6992 · P1 u2gi
 | T1 | designflow-tracking | Remove the production-order feed service key | ✅ done 2026-11-23 — migration `20261225091103` (popcre/shared-db PR #7018; original 20261225090902 retired), production apply run 45314731038; re-check: 0 of the 5 tables in `information_schema.tables` |
 | S2 | shared-db | Drop the production-order copy tables and two empty placeholders | ✅ done 2026-11-23 9:50 PM EST | migration 20261225091103 (popcre/shared-db PR #7018), production apply run 45314731038; proof on popcre/shared-db#6993 |
 | C1 | shared-db + popdam3 | Build and review the PopDAM→shared character map | ✅ live 2026-11-23 7:15 PM EST | popcre/shared-db #7000 + #7004; 99.11% of links mapped; proof on popcre/shared-db#6994 |
-| C2 | shared-db | Point image character tags at shared characters | 🔄 in progress 2026-11-24 | popcre/shared-db#6995 |
-| C3 | popdam3 | PopDAM code uses shared characters | 🔄 in progress 2026-11-24 (merges after C2 is live) | #1301 |
-| C4 | shared-db | Retire PopDAM's character, property and licensor lists | ⬜ open | — |
+| C2 | shared-db | Point image character tags at shared characters | ✅ live 2026-11-24 | popcre/shared-db#6995 |
+| C3 | popdam3 | PopDAM code uses shared characters | ✅ live 2026-11-24 (#1324, #1333) | #1301 |
+| C4 | shared-db | Retire PopDAM's character, property and licensor lists | ✅ live 2026-11-24 (old lists dropped in production) | popcre/shared-db#6996 |
 | N1 | shared-db + popdam3 | Style-group names derived from the linked shared records | ✅ live 2026-11-23 8:40 PM EST | popcre/shared-db #7001; drift 0 (was 254/2,565); proof on popcre/shared-db#6997 |
 | D2 | designflow-data-syncing | Stop the second ERP customer download | ✅ done 2026-11-23 4:15 PM EST | proof on popcre/designflow-data-syncing#192 |
 | D1 | shared-db | ERP customer list served from the main ERP feed | ✅ live 2026-11-23 | popcre/shared-db #7008 (+#7013), apply run 45290818081; proof on popcre/shared-db#6998 |
