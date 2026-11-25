@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const CACHE_TTL_MS = 60_000;
-type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY" | "STRAITLY_API_KEY" | "STRAITLY_ROUTING";
+type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY" | "STRAITLY_API_KEY" | "STRAITLY_ROUTING" | "OPENROUTER_ROUTING";
 type KeyRow = { found: boolean; value: string };
 const cache = new Map<DirectProviderKey, { value: string; cachedAt: number }>();
 
@@ -61,6 +61,12 @@ export function getScaleDownApiKey(): Promise<string> {
 }
 
 let straitlyKeyOverride: string | null = null;
+let openRouterRoutingOverride: string | null = null;
+
+/** Test hook: force OPENROUTER_ROUTING (null restores normal lookup). */
+export function setOpenRouterRoutingForTests(value: string | null): void {
+  openRouterRoutingOverride = value;
+}
 
 export function getStraitlyApiKey(): Promise<string> {
   if (straitlyKeyOverride !== null) return Promise.resolve(straitlyKeyOverride);
@@ -71,6 +77,12 @@ export function getStraitlyApiKey(): Promise<string> {
 export async function isStraitlyRoutingEnabled(): Promise<boolean> {
   if (straitlyKeyOverride !== null) return true;
   return (await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).toLowerCase() !== "off";
+}
+
+/** admin_config.OPENROUTER_ROUTING = "cheapest" routes by price among healthy providers instead of Exacto. */
+export async function openRouterCheapestRouting(): Promise<boolean> {
+  if (straitlyKeyOverride !== null || openRouterRoutingOverride !== null) return openRouterRoutingOverride === "cheapest";
+  return (await resolveDirectProviderApiKey("OPENROUTER_ROUTING", "")).toLowerCase() === "cheapest";
 }
 
 /** Test hook: force the Straitly key (null restores normal lookup). */

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { executeStructuredOutput, isStrictCompatibleSchema } from "./structured-output.js";
 import type { ModelCapabilities } from "./model-capabilities.js";
+import { setOpenRouterRoutingForTests } from "./provider-api-key.js";
+setOpenRouterRoutingForTests("exacto");
 
 const capabilities: ModelCapabilities = { modelId: "test/model", imageInput: true, tools: true, toolChoice: true, toolChoiceModes: ["required"], structuredOutputs: true, jsonObject: true, prefer: [], source: "live", fetchedAt: new Date().toISOString() };
 const schema = { type: "object", properties: { answer: { type: "string" } }, required: ["answer"] };
