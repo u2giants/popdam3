@@ -91,3 +91,10 @@ test("a whole-library run tags a candidate page instead of demanding asset IDs",
   assert.deepEqual(limits, [8]);
   assert.ok(seen.every(([, model]) => model === "z-ai/glm-5.3-flash"));
 });
+test("untagged-only discovery runs are parsed and cannot be combined with force", () => {
+  const run = parallelTagRun({...setting, discover: true, untagged_only: true}, "run", undefined)!;
+  assert.equal(run.untagged_only, true);
+  assert.equal(run.force, undefined);
+  assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: true, force: true}, "run", undefined));
+  assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: "yes"}, "run", undefined));
+});

@@ -1,5 +1,5 @@
 /** Explicit, single-run OpenRouter distribution. Existing provider receipts always finish first. */
-export interface ParallelTagRun { run_id: string; models: string[]; concurrency: number; max_cursor?: number; force?: boolean; discover?: boolean }
+export interface ParallelTagRun { run_id: string; models: string[]; concurrency: number; max_cursor?: number; force?: boolean; discover?: boolean; untagged_only?: boolean }
 export function parallelTagRun(value: unknown, runId: string | undefined, explicitIds: unknown): ParallelTagRun | null {
   if (value == null) return null;
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid parallel tagging configuration");
@@ -19,7 +19,9 @@ export function parallelTagRun(value: unknown, runId: string | undefined, explic
   if (!Number.isInteger(v.concurrency) || Number(v.concurrency) < 2 || Number(v.concurrency) > 32) throw new Error("Parallel tagging concurrency must be between two and thirty-two");
   if (v.max_cursor !== undefined && (!Number.isSafeInteger(v.max_cursor) || Number(v.max_cursor) < 0 || Number(v.max_cursor) > (Array.isArray(explicitIds) ? explicitIds.length : 0))) throw new Error("Invalid parallel tagging trial cursor");
   if (v.force !== undefined && typeof v.force !== "boolean") throw new Error("Invalid parallel tagging force flag");
-  return { run_id: runId as string, models: v.models as string[], concurrency: Number(v.concurrency), ...(v.max_cursor === undefined ? {} : {max_cursor: Number(v.max_cursor)}), ...(v.force ? {force: true} : {}), ...(discover ? {discover: true} : {}) };
+  if (v.untagged_only !== undefined && typeof v.untagged_only !== "boolean") throw new Error("Invalid parallel tagging untagged_only flag");
+  if (v.untagged_only === true && v.force === true) throw new Error("Parallel tagging cannot combine force with untagged_only");
+  return { run_id: runId as string, models: v.models as string[], concurrency: Number(v.concurrency), ...(v.max_cursor === undefined ? {} : {max_cursor: Number(v.max_cursor)}), ...(v.force ? {force: true} : {}), ...(discover ? {discover: true} : {}), ...(v.untagged_only === true ? {untagged_only: true} : {}) };
 }
 export function parallelModel(run: ParallelTagRun, assetId: string): string {
   // Assignment survives page-size changes, restart, and failed-asset retries.

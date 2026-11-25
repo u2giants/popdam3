@@ -1139,6 +1139,8 @@ export async function handleBulkAiTag(
     try { parallel = parallelTagRun(setting, opState.run_id, opState.params?.asset_ids); }
     catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
     if (parallel) CONCURRENCY = parallel.concurrency;
+    // An untagged-only run discovers and tags only assets that were never tagged.
+    if (parallel?.untagged_only) tagAll = false;
     // One page per concurrent chunk, so every chunk is checkpointed.
     if (parallel?.discover) BATCH_SIZE = parallel.concurrency;
   }
