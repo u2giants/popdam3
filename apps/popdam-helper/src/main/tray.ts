@@ -7,6 +7,7 @@ import { app, Tray, BrowserWindow, nativeImage, screen, Menu, shell, Notificatio
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { getActiveCheckouts } from "./checkoutManager";
+import { getQueueError } from "./uploadQueue";
 import { getConfig } from "./config";
 import { log } from "./logger";
 
@@ -150,7 +151,9 @@ export function updateTrayIcon(): void {
   // Icon state: normal / uploading / error
   // For now we use the same icon and rely on tooltip text
   const count = checkouts.length;
-  const tooltip = count === 0
+  const tooltip = getQueueError()
+    ? "POP DAM Helper — Error: upload list needs repair"
+    : count === 0
     ? "POP DAM Helper — Idle"
     : uploading
     ? `POP DAM Helper — Uploading (${count} checked out)`

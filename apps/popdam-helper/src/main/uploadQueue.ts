@@ -8,6 +8,7 @@ import { app } from "electron";
 import { join, dirname } from "path";
 import { existsSync } from "fs";
 import { readQueueFile, writeQueueFile } from "./queueStore";
+import { renameSync } from "fs";
 import { log } from "./logger";
 import { loadToken } from "./credentials";
 import { uploadFile } from "./synologyClient";
@@ -30,6 +31,58 @@ let running = false;
 let progressCallback: ((checkoutId: string, percent: number) => void) | null = null;
 let verifyingCallback: ((checkoutId: string) => void) | null = null;
 let failedCallback: ((checkoutId: string, message: string) => void) | null = null;
+let queueErrorCallback: ((message: string) => void) | null = null;
+let queueError: string | null = null;
+
+export const QUEUE_UNREADABLE_MESSAGE =
+  "PopDAM can't read its list of pending uploads, so it can't check files in right now. Your files are safe. Open POP DAM Helper and click \"Repair upload list\".";
+
+function recordQueueError(err: unknown): void {
+  const firstTime = queueError === null;
+  queueError = String(err);
+  if (firstTime) {
+    log.error(`Upload queue unreadable: ${queueError}`);
+    queueErrorCallback?.(QUEUE_UNREADABLE_MESSAGE);
+  }
+}
+
+export function setQueueErrorCallback(cb: (message: string) => void): void {
+  queueErrorCallback = cb;
+}
+
+/** Tries to read the queue; reports whether it is usable. */
+export function getQueueHealth(): { ok: true } | { ok: false; message: string } {
+  try {
+    readJobs();
+    queueError = null;
+    return { ok: true };
+  } catch (err) {
+    recordQueueError(err);
+    return { ok: false, message: QUEUE_UNREADABLE_MESSAGE };
+  }
+}
+
+export function getQueueError(): string | null {
+  return queueError === null ? null : QUEUE_UNREADABLE_MESSAGE;
+}
+
+/**
+ * Repair an unreadable queue: move the damaged file aside (never deleted),
+ * start a fresh empty list. Returns the aside path (null if nothing to move).
+ */
+export function repairQueue(): string | null {
+  let aside: string | null = null;
+  try {
+    readJobs();
+  } catch {
+    aside = `${queuePath}.corrupt-${Date.now()}`;
+    renameSync(queuePath, aside);
+    writeJobs([]);
+    log.warn(`Upload queue repaired; damaged list kept at ${aside}`);
+  }
+  queueError = null;
+  return aside;
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -40,7 +93,7 @@ export function initQueue(): void {
   } catch (err) {
     // Unreadable queue: leave the file untouched for recovery rather than
     // crashing startup or replacing it with an empty list.
-    log.error(`Upload queue could not be read at startup: ${String(err)}`);
+    recordQueueError(err);
   }
 }
 
@@ -114,7 +167,7 @@ export function enqueue(job: UploadJob): void {
   }
   writeJobs(jobs);
   log.info(`Enqueued upload for checkout ${job.checkoutId}`);
-  if (!running) processQueue();
+  if (!running) void processQueue().catch(recordQueueError);
 }
 
 // ── Process ───────────────────────────────────────────────────────────────────
@@ -132,6 +185,8 @@ export async function processQueue(): Promise<void> {
       if (!job) break;
       await processJob(job);
     }
+  } catch (err) {
+    recordQueueError(err);
   } finally {
     running = false;
   }
@@ -288,7 +343,14 @@ function removeJob(checkoutId: string): void {
 }
 
 export function getPendingJobs(): { checkoutId: string; status: string; retryCount: number }[] {
-  return readJobs().map((j) => ({
+  let jobs: StoredJob[];
+  try {
+    jobs = readJobs();
+  } catch (err) {
+    recordQueueError(err);
+    return [];
+  }
+  return jobs.map((j) => ({
     checkoutId: j.checkoutId,
     status: j.status,
     retryCount: j.retryCount,

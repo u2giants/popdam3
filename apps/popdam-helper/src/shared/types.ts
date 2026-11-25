@@ -133,6 +133,7 @@ export type IpcChannel =
   | "open-file"
   | "reveal-file"
   | "checkin"
+  | "repair-upload-queue"
   | "discard"
   | "open-dam"
   | "get-auth-state"
