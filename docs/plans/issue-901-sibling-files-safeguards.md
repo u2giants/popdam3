@@ -1,5 +1,5 @@
 ---
-summary: Issue #901 plan: Find sibling files stays open to every signed-in user (owner ruling 2026-11-10) but the server only links files a real Bridge Agent scan found in that group's own folder, scan requests are tied to a group and throttled per user, and access routing is tested for real. Read its STATUS first.
+summary: Issue #901 plan: sibling files stay open to all users but only scanned files of the group folder; throttled scans. Read STATUS first.
 kind: plan
 status: open
 read-when: implementing or planning issue work for issue-901, ingest-sibling-images, list-sibling-images, sibling scan, admin-api user actions

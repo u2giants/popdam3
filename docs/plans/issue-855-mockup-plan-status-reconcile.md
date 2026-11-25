@@ -1,5 +1,5 @@
 ---
-summary: Issue #855 plan: make the two mockup auto-match plans agree that the work (#544) is finished, fix their stale version numbers, and store real screenshots as the live-proof evidence. Read its STATUS first.
+summary: Issue #855 plan: make both mockup auto-match plans say done, fix stale versions, store live screenshots. Read STATUS first.
 kind: plan
 status: open
 read-when: implementing or planning issue work for issue-855, plan_mockup_auto_match.md, issue-544 plan status, mockup live-proof screenshots

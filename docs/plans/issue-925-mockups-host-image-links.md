@@ -1,5 +1,5 @@
 ---
-summary: Issue #925 plan: picture links opened on mock.designflow.app must load art (its /spaces/ requests are rewritten to /mockup/spaces/ and get the web page instead of the image). Read its STATUS first.
+summary: Issue #925 plan: art links on mock.designflow.app load images (nginx /mockup/spaces/ proxy). Read STATUS first.
 kind: plan
 status: open
 read-when: implementing or planning issue work for issue-925, mock.designflow.app, Mockups header link, /spaces/ proxy, nginx.conf

@@ -1,5 +1,5 @@
 ---
-summary: Issue #763 plan: style-group "Download all" must open every file (no token expiry race, no all-or-nothing) and Styles cell-save refresh must never throw unhandled. Read its STATUS first.
+summary: Issue #763 plan: Download all opens every file (claim tokens first, partial success); Styles refresh never fails silently. Read STATUS first.
 kind: plan
 status: open
 read-when: implementing or planning issue work for issue-763, Download all, checkout-batch, Helper batch checkout, StylesPage refresh

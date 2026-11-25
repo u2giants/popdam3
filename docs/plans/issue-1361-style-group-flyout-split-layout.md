@@ -1,5 +1,5 @@
 ---
-summary: Issue #1361 plan: fix the wide Style Group flyout (PR #1360) — actions always visible, bounded thumbnail strip, no dead 3-column branch, Older copies default restored, docked width never overflows, split-mode tests, UI doc. Read its STATUS first.
+summary: Issue #1361 plan: wide Style Group flyout fixes (pinned actions, bounded thumbnails, width fits screen, tests, doc). Read STATUS first.
 kind: plan
 status: open
 read-when: implementing or planning issue work for issue-1361, StyleGroupDetailPanel split layout, flyout width, detail panel resize
