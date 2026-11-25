@@ -340,6 +340,7 @@ The OCR engine (Python venv + models under `C:\ProgramData\PopDAM\indra`) is pro
 - **Path escaping:** env-sourced paths (`INDRA_OCR_MODEL_DIR`) are embedded into generated Python as JSON string literals and into PowerShell as single-quoted strings (`''` for a quote). Paths with spaces, `'`, or `"` are safe; no quote-free assumption is required.
 - **Never blocking:** a failure leaves extraction on tesseract.js for that run; the panel shows the reason.
 - **Manual path:** `scripts/windows-agent/install-service.ps1` (same pins). No system Python 3.11+ → the panel reports `no system Python found` and the agent stays on tesseract.js.
+- **Open plan:** lock windows, version check and tests — [issue #1329 plan](plans/issue-1329-indra-provisioning-lock-and-version-check.md) (read its STATUS first).
 
 ## 10. Factory approval forms (Disney FAMA / NBCU LMS)
 
@@ -355,3 +356,4 @@ parser recognises values by shape (`(FAC-nnnnnn)` line, 12-char ID, M/D/YYYY dat
 Real samples are not in the repo; to test against them set `FAMA_SAMPLE_TXT` /
 `LMS_SAMPLE_TXT` to extracted text files. Live-verified 2026-11-24 11:44 PM EST on agent
 0.17.0.225 (both samples → `done`, values copied into `core.factory_approval`).
+Open hardening plan (retry vs fail, bounded download, parser fallbacks): [issues #1341/#1346 plan](plans/issue-1341-1346-factory-approval-form-reader.md) — read its STATUS first.
