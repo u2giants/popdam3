@@ -25,7 +25,7 @@ import {
   getOpenCheckouts,
   redrive as apiRedrive,
 } from "./damClient";
-import { enqueue } from "./uploadQueue";
+import { enqueue, getQueueHealth } from "./uploadQueue";
 import { makeUploadQueueItem } from "@shared/upload-job";
 import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
@@ -337,6 +337,11 @@ export async function checkin(checkoutId: string): Promise<void> {
 
   const config = getConfig();
 
+  // Refuse before telling the server anything if the local upload list is
+  // unreadable — otherwise the server moves to checkin_queued for nothing.
+  const health = getQueueHealth();
+  if (!health.ok) throw new Error(health.message);
+
   updateStatus(checkoutId, "checkin_queued");
 
   // If anything before the upload is enqueued fails (file still saving,
@@ -379,6 +384,22 @@ export async function checkin(checkoutId: string): Promise<void> {
 
   updateStatus(checkoutId, "uploading");
   notify();
+}
+
+/**
+ * After the upload list is repaired, checkouts stuck "uploading" with no job
+ * go back to "active" so the user can check in again.
+ */
+export function resetUploadingCheckouts(): number {
+  let n = 0;
+  for (const [id, rec] of active) {
+    if (rec.status === "uploading") {
+      updateStatus(id, "active");
+      n++;
+    }
+  }
+  if (n > 0) notify();
+  return n;
 }
 
 // ── Discard ───────────────────────────────────────────────────────────────────

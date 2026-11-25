@@ -30,7 +30,7 @@ describe("queueStore", () => {
     writeFileSync(path, '[{"checkoutId": "a"}, {"check'); // simulated torn write
     const warnings: string[] = [];
     const jobs = readQueueFile<{ checkoutId: string }>(path, (m) => warnings.push(m));
-    expect(jobs.map((j) => j.checkoutId)).toEqual(["a"]);
+    expect(jobs.map((j) => j.checkoutId)).toEqual(["a", "b"]);
     expect(warnings.length).toBe(1);
     expect(readdirSync(dir).some((f) => f.includes(".corrupt-"))).toBe(true);
   });
@@ -39,7 +39,7 @@ describe("queueStore", () => {
     writeQueueFile(path, [{ checkoutId: "a" }]);
     writeQueueFile(path, [{ checkoutId: "b" }]);
     rmSync(path);
-    expect(readQueueFile(path)).toEqual([{ checkoutId: "a" }]);
+    expect(readQueueFile(path)).toEqual([{ checkoutId: "b" }]);
   });
 
   it("throws rather than reporting empty when unreadable with no backup", () => {
@@ -47,12 +47,22 @@ describe("queueStore", () => {
     expect(() => readQueueFile(path)).toThrow(QueueUnreadableError);
   });
 
-  it("does not replace a good backup with a corrupt primary", () => {
+  it("never copies a corrupt primary into the backup", () => {
     writeQueueFile(path, [{ checkoutId: "a" }]);
     writeQueueFile(path, [{ checkoutId: "b" }]);
     writeFileSync(path, "{bad");
-    writeQueueFile(path, [{ checkoutId: "c" }]);
-    rmSync(path);
-    expect(readQueueFile(path)).toEqual([{ checkoutId: "a" }]);
+    expect(readQueueFile(path)).toEqual([{ checkoutId: "b" }]);
+  });
+});
+
+describe("queueStore backup ordering", () => {
+  it("backup equals latest written list after removal", () => {
+    const d = mkdtempSync(join(tmpdir(), "queue-store-bak-"));
+    const p = join(d, "upload-queue.json");
+    writeQueueFile(p, [{ checkoutId: "a" }, { checkoutId: "b" }]);
+    writeQueueFile(p, [{ checkoutId: "a" }]);
+    writeFileSync(p, "[{\"check"); // torn write
+    expect(readQueueFile(p)).toEqual([{ checkoutId: "a" }]);
+    rmSync(d, { recursive: true, force: true });
   });
 });

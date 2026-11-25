@@ -18,14 +18,14 @@ Covers [u2giants/popdam3#1087](https://github.com/u2giants/popdam3/issues/1087) 
 |---|---|---|
 | 0. Crash-safe write/read store | ✅ done | `apps/popdam-helper/src/main/queueStore.ts` on main; PR #1125 (merge in main history), tests in `apps/popdam-helper/src/main/queueStore.vitest.ts` |
 | 0b. Released to Helpers | ✅ done | Helper 1.4.16 via PR #1138; main now ships `HELPER_VERSION = "1.4.18"` (`apps/popdam-helper/src/shared/constants.ts:1`) |
-| 1. Guard every queue consumer | ⬜ open | |
-| 2. Show stuck/failed retries in the window | ⬜ open | |
-| 3. Repair path for an unreadable list | ⬜ open | |
-| 4. Tests for the failure paths | ⬜ open | |
-| 5. Release a Helper patch | ⬜ open | |
+| 1. Guard every queue consumer | ✅ done | branch claude/helper-queue-failure-paths |
+| 2. Show stuck/failed retries in the window | ✅ done | branch claude/helper-queue-failure-paths |
+| 3. Repair path for an unreadable list | ✅ done | branch claude/helper-queue-failure-paths |
+| 4. Tests for the failure paths | ✅ done | branch claude/helper-queue-failure-paths |
+| 5. Release a Helper patch | 🟡 PR open | Helper 1.4.19 |
 | 6. Live proof | ⬜ open | |
 
-**Fresh session starts at step 1.**
+**Next: merge, confirm release, then step 6 on a Windows PC.**
 
 ## 1. Ultimate goal
 

@@ -14,7 +14,7 @@ import { autoUpdater } from "electron-updater";
 import { createTray, updateTrayIcon, showWindow, showNotification } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
-import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
+import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, setQueueErrorCallback, processQueue } from "./uploadQueue";
 import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts, findCheckoutByWorkspacePath, checkin } from "./checkoutManager";
 import { heartbeat } from "./damClient";
 import { getSeafileHealthAsync } from "./seafileAdapter";
@@ -186,8 +186,14 @@ app.whenReady().then(async () => {
     });
   });
 
+  setQueueErrorCallback((message) => {
+    sendToRenderer("checkouts-changed");
+    updateTrayIcon();
+    showNotification("PopDAM can't read its upload list", message);
+  });
+
   // Resume any queued uploads from before restart
-  processQueue();
+  void processQueue().catch((e: unknown) => log.error("Upload queue failed:", e));
 
   // Load active checkouts from server
   await loadActiveCheckouts();

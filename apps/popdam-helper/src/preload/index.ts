@@ -17,7 +17,10 @@ const api = {
   getCheckouts: (): Promise<IpcResponse<{
     checkouts: unknown[];
     uploadJobs: unknown[];
+    queueError: string | null;
   }>> => ipcRenderer.invoke("get-checkouts"),
+  repairUploadQueue: (): Promise<IpcResponse<{ aside: string | null }>> =>
+    ipcRenderer.invoke("repair-upload-queue"),
 
   // File actions
   openFile: (checkoutId: string): Promise<IpcResponse> =>

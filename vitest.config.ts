@@ -41,6 +41,7 @@ export default defineConfig({
           alias: {
             "@": path.resolve(__dirname, "./src"),
             "@popdam/path-filters": path.resolve(__dirname, "packages/path-filters/index.ts"),
+            "@shared": path.resolve(__dirname, "apps/popdam-helper/src/shared"),
           },
         },
         test: {

@@ -13,8 +13,9 @@ import {
   discard,
   revealFile,
   openFile,
+  resetUploadingCheckouts,
 } from "./checkoutManager";
-import { getPendingJobs } from "./uploadQueue";
+import { getPendingJobs, getQueueError, repairQueue } from "./uploadQueue";
 import { fetchConfig, discoverSupabaseConfig } from "./damClient";
 import { validateRoot } from "./rootValidator";
 import { getSeafileHealthAsync, testSeafileMapping } from "./seafileAdapter";
@@ -67,8 +68,19 @@ export function registerIpcHandlers(): void {
       data: {
         checkouts: getActiveCheckouts(),
         uploadJobs: getPendingJobs(),
+        queueError: getQueueError(),
       },
     };
+  });
+
+  ipcMain.handle("repair-upload-queue", () => {
+    try {
+      const aside = repairQueue();
+      resetUploadingCheckouts();
+      return { ok: true, data: { aside } };
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   });
 
   // ── File actions ────────────────────────────────────────────────────────────

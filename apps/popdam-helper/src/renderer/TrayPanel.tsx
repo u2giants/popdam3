@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { CheckoutRecord } from "../shared/types";
+import { UPLOAD_MAX_RETRIES } from "../shared/constants";
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ interface Props {
 interface CheckoutState {
   checkouts: CheckoutRecord[];
   uploadJobs: { checkoutId: string; status: string; retryCount: number }[];
+  queueError: string | null;
 }
 
 function statusLabel(status: CheckoutRecord["status"]): string {
@@ -46,7 +48,7 @@ function relativeTime(iso: string): string {
 }
 
 export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement {
-  const [state, setState] = useState<CheckoutState>({ checkouts: [], uploadJobs: [] });
+  const [state, setState] = useState<CheckoutState>({ checkouts: [], uploadJobs: [], queueError: null });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authState, setAuthState] = useState<{ loggedIn: boolean; email: string | null }>({ loggedIn: true, email: null });
@@ -89,6 +91,13 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
     const res = await window.popdam.checkin(id);
     if (!res.ok) setError(res.error ?? "Check-in failed");
     setBusyId(null);
+  }
+
+  async function handleRepairQueue(): Promise<void> {
+    setError(null);
+    const res = await window.popdam.repairUploadQueue();
+    if (!res.ok) setError(res.error ?? "Repair failed");
+    refresh();
   }
 
   async function handleDiscard(id: string): Promise<void> {
@@ -186,6 +195,13 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
           </div>
         )}
 
+        {state.queueError && (
+          <div className="checkout-card">
+            <div className="error-msg" style={{ marginBottom: 6 }}>{state.queueError}</div>
+            <button className="primary" onClick={handleRepairQueue}>Repair upload list</button>
+          </div>
+        )}
+
         <div className="section-label">Checked Out Files</div>
 
         {activeCheckouts.length === 0 ? (
@@ -220,6 +236,17 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
                 {isUploading && co.uploadProgress !== null && (
                   <div className="progress-bar">
                     <div className="fill" style={{ width: `${co.uploadProgress}%` }} />
+                  </div>
+                )}
+
+                {uploadJob?.status === "pending" && uploadJob.retryCount > 0 && (
+                  <div className="meta" style={{ marginBottom: 6 }}>
+                    Retrying upload (attempt {uploadJob.retryCount + 1} of {UPLOAD_MAX_RETRIES})
+                  </div>
+                )}
+                {uploadJob?.status === "failed" && !co.errorMessage && (
+                  <div className="error-msg" style={{ fontSize: 11, marginBottom: 6 }}>
+                    Upload failed — check in again
                   </div>
                 )}
 

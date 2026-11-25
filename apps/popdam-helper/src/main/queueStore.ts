@@ -65,7 +65,7 @@ export function writeQueueFile<T>(path: string, jobs: T[]): void {
   writeFileSync(tmp, JSON.stringify(jobs, null, 2), "utf-8");
   // Validate what landed on disk before it replaces anything.
   parseArray<T>(tmp);
-  // Keep the last good copy so a damaged primary can be recovered.
-  if (existsSync(path) && isReadable(path)) copyFileSync(path, `${path}.bak`);
   renameSync(tmp, path);
+  // Backup = the list just written, so it never resurrects removed jobs.
+  copyFileSync(path, `${path}.bak`);
 }
