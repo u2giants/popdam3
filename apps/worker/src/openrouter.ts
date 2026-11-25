@@ -27,10 +27,10 @@ const STRAITLY_URL = "https://api.straitly.ai/v1/chat/completions";
 /**
  * Owner decision 2026-11-24: every interactive chat model that is not OpenAI
  * or Anthropic (GLM, Gemini, Qwen, MiniMax, …) goes through Straitly's
- * OpenAI-compatible gateway instead of OpenRouter. ScaleDown, Meta and
+ * OpenAI-compatible gateway unless STRAITLY_ROUTING is set to "off". ScaleDown, Meta and
  * DeepSeek-direct use their own clients and are unaffected. Batch jobs stay on
- * OpenRouter's Batch API (Straitly has none). No silent fallback: a missing
- * key is an error.
+ * OpenRouter's Batch API (Straitly has none). When Straitly routing is enabled, a missing
+ * Straitly key is an error. When disabled, eligible requests use OpenRouter.
  */
 export function isStraitlyModel(model: string): boolean {
   const m = model.trim().toLowerCase();

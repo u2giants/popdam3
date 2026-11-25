@@ -1,4 +1,4 @@
-import { setStraitlyApiKeyForTests } from "./provider-api-key.js";
+import { resetDirectProviderApiKeyCacheForTests, resolveDirectProviderApiKey } from "./provider-api-key.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chatCompletion } from "./openrouter.js";
@@ -15,6 +15,12 @@ function capture(reply: Record<string, unknown>) {
   return { calls, restore: () => { globalThis.fetch = original; } };
 }
 const ok = { id: "x", model: "m", choices: [{ message: { content: "hi" } }] };
+
+async function configureStraitly(routing: string, key: string) {
+  resetDirectProviderApiKeyCacheForTests();
+  await resolveDirectProviderApiKey("STRAITLY_ROUTING", "", async () => ({ found: true, value: routing }));
+  await resolveDirectProviderApiKey("STRAITLY_API_KEY", "", async () => ({ found: true, value: key }));
+}
 
 test("route defaults to direct; only 'openrouter' switches", () => {
   assert.equal(parseOpenAiRoute(undefined), "direct");
@@ -50,9 +56,9 @@ test("switch set to openrouter keeps the OpenRouter path", async () => {
   } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); }
 });
 
-test("non-openai models never consult the switch and go to Straitly", async () => {
+test("eligible models skip the OpenAI switch when Straitly routing is enabled", async () => {
   setOpenAiRoutingLoaderForTests(async () => { throw new Error("must not be read"); });
-  setStraitlyApiKeyForTests("st-key");
+  await configureStraitly("on", "st-key");
   const f = capture(ok);
   try {
     await chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }], provider: { only: ["x"] } });
@@ -60,7 +66,7 @@ test("non-openai models never consult the switch and go to Straitly", async () =
     assert.equal(f.calls[0].auth, "Bearer st-key");
     assert.equal(f.calls[0].body.model, "z-ai/glm-5.3-flash");
     assert.equal(f.calls[0].body.provider, undefined);
-  } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); setStraitlyApiKeyForTests(null); }
+  } finally { f.restore(); setOpenAiRoutingLoaderForTests(null); resetDirectProviderApiKeyCacheForTests(); }
 });
 
 test("anthropic models stay on OpenRouter", async () => {
@@ -71,13 +77,25 @@ test("anthropic models stay on OpenRouter", async () => {
   } finally { f.restore(); }
 });
 
-test("Straitly without a key fails instead of silently using OpenRouter", async () => {
-  setStraitlyApiKeyForTests("");
+test("enabled Straitly routing without a key fails instead of silently using OpenRouter", async () => {
+  await configureStraitly("on", "");
   const f = capture(ok);
   try {
     await assert.rejects(chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] }), /STRAITLY_API_KEY/);
     assert.equal(f.calls.length, 0);
-  } finally { f.restore(); setStraitlyApiKeyForTests(null); }
+  } finally { f.restore(); resetDirectProviderApiKeyCacheForTests(); }
+});
+
+test("disabled Straitly routing uses OpenRouter without a Straitly key", async () => {
+  await configureStraitly("off", "");
+  const f = capture(ok);
+  try {
+    await chatCompletion("or-key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }] });
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.equal(f.calls[0].auth, "Bearer or-key");
+    assert.equal(f.calls[0].body.model, "z-ai/glm-5.3-flash:exacto");
+  } finally { f.restore(); resetDirectProviderApiKeyCacheForTests(); }
 });
 
 test("direct mode without a key fails instead of silently using OpenRouter", async () => {

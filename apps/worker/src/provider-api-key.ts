@@ -60,22 +60,13 @@ export function getScaleDownApiKey(): Promise<string> {
   return resolveDirectProviderApiKey("SCALEDOWN_API_KEY", config.scaledownApiKey);
 }
 
-let straitlyKeyOverride: string | null = null;
-
 export function getStraitlyApiKey(): Promise<string> {
-  if (straitlyKeyOverride !== null) return Promise.resolve(straitlyKeyOverride);
   return resolveDirectProviderApiKey("STRAITLY_API_KEY", config.straitlyApiKey);
 }
 
 /** admin_config.STRAITLY_ROUTING = "off" sends non-OpenAI models back to OpenRouter. */
 export async function isStraitlyRoutingEnabled(): Promise<boolean> {
-  if (straitlyKeyOverride !== null) return true;
-  return (await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).toLowerCase() !== "off";
-}
-
-/** Test hook: force the Straitly key (null restores normal lookup). */
-export function setStraitlyApiKeyForTests(value: string | null): void {
-  straitlyKeyOverride = value;
+  return (await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).trim().toLowerCase() !== "off";
 }
 
 export function resetDirectProviderApiKeyCacheForTests(): void {

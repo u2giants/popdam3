@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resetDirectProviderApiKeyCacheForTests, resolveDirectProviderApiKey } from "./provider-api-key.js";
+import { isStraitlyRoutingEnabled, resetDirectProviderApiKeyCacheForTests, resolveDirectProviderApiKey } from "./provider-api-key.js";
 
 test("saved direct-provider keys take priority over environment fallbacks", async () => {
   resetDirectProviderApiKeyCacheForTests();
@@ -30,4 +30,18 @@ test("direct-provider keys are cached and can be refreshed", async () => {
   assert.equal(reads, 1);
   resetDirectProviderApiKeyCacheForTests();
   assert.equal(await resolveDirectProviderApiKey("META_API_KEY", "", load), "key-2");
+});
+
+test("only a saved off value disables Straitly routing", async (t) => {
+  t.after(resetDirectProviderApiKeyCacheForTests);
+  for (const [setting, enabled] of [
+    [null, true], ["off", false], ["OFF", false], ["  Off  ", false],
+    ["", true], ["false", true], ["0", true], ["disabled", true],
+  ] as const) {
+    resetDirectProviderApiKeyCacheForTests();
+    await resolveDirectProviderApiKey("STRAITLY_ROUTING", "", async () => ({
+      found: setting !== null, value: setting ?? "",
+    }));
+    assert.equal(await isStraitlyRoutingEnabled(), enabled, String(setting));
+  }
 });
