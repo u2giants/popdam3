@@ -261,13 +261,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ai_tag_bakeoff_results_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "dam_character_catalog"
-            referencedColumns: ["core_property_id"]
-          },
-          {
             foreignKeyName: "ai_tag_bakeoff_results_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
@@ -974,13 +967,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "assets_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "dam_character_catalog"
-            referencedColumns: ["core_property_id"]
-          },
-          {
             foreignKeyName: "assets_style_group_id_fkey"
             columns: ["style_group_id"]
             isOneToOne: false
@@ -1036,47 +1022,6 @@ export type Database = {
           succeeded?: boolean
         }
         Relationships: []
-      }
-      characters: {
-        Row: {
-          created_at: string
-          external_id: string | null
-          id: string
-          is_priority: boolean
-          name: string
-          property_id: string
-          updated_at: string
-          usage_count: number
-        }
-        Insert: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          is_priority?: boolean
-          name: string
-          property_id: string
-          updated_at?: string
-          usage_count?: number
-        }
-        Update: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          is_priority?: boolean
-          name?: string
-          property_id?: string
-          updated_at?: string
-          usage_count?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "characters_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       dam_search_documents: {
         Row: {
@@ -2156,30 +2101,6 @@ export type Database = {
         }
         Relationships: []
       }
-      licensors: {
-        Row: {
-          created_at: string
-          external_id: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       order_list_user_views: {
         Row: {
           column_state: Json
@@ -2571,41 +2492,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      properties: {
-        Row: {
-          created_at: string
-          external_id: string | null
-          id: string
-          licensor_id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          licensor_id: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          licensor_id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "properties_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licensors"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       render_queue: {
         Row: {
@@ -3042,13 +2928,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "assets"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "style_groups_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "dam_character_catalog"
-            referencedColumns: ["core_property_id"]
           },
         ]
       }
@@ -4100,19 +3979,6 @@ export type Database = {
       }
     }
     Views: {
-      dam_character_catalog: {
-        Row: {
-          core_property_id: string | null
-          created_at: string | null
-          external_id: string | null
-          id: string | null
-          is_priority: boolean | null
-          name: string | null
-          updated_at: string | null
-          usage_count: number | null
-        }
-        Relationships: []
-      }
       sg_archive_usage: {
         Row: {
           active_files: number | null
