@@ -7,6 +7,7 @@ import {
   isTerminalColabVisionApiError,
 } from "../colab-vision-api.js";
 import { db } from "../supabase.js";
+import { logger } from "../logger.js";
 import { getOpenRouterApiKey } from "../openrouter-key.js";
 import { getGoogleAiApiKey } from "../google-ai-key.js";
 import { getMetaApiKey } from "../provider-api-key.js";
@@ -100,6 +101,33 @@ function isToolCapabilityError(error: unknown): boolean {
     msg.includes("no structured tags")
   );
 }
+
+/**
+ * Repairs common model slips before validation: evidence given as one string
+ * becomes a one-item list, and tags that still lack a name or evidence, or
+ * repeat an earlier tag, are dropped. The 4-tag minimum still applies after.
+ */
+export function normalizeTagAssetData(value: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(value.asset_tags)) return value;
+  const seen = new Set<string>();
+  const kept: Array<Record<string, unknown>> = [];
+  for (const raw of value.asset_tags as unknown[]) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = { ...(raw as Record<string, unknown>) };
+    if (typeof item.evidence === "string") item.evidence = [item.evidence];
+    if (Array.isArray(item.evidence)) {
+      item.evidence = item.evidence.filter((e): e is string => typeof e === "string" && e.trim() !== "");
+    }
+    if (typeof item.confidence === "string" && Number.isFinite(Number(item.confidence))) item.confidence = Number(item.confidence);
+    const tag = normalizeMetadataTag(item.tag);
+    if (!tag || !Array.isArray(item.evidence) || item.evidence.length === 0 || seen.has(tag)) continue;
+    seen.add(tag);
+    kept.push(item);
+  }
+  return { ...value, asset_tags: kept.slice(0, 18) };
+}
+
+let lastInvalidSampleLog = 0;
 
 export function validateTagAssetData(value: Record<string, unknown>, mode: string) {
   const errors: string[] = [];
@@ -649,7 +677,16 @@ export async function callTagAssetModel(
       : directColab
         ? (error) => isTerminalColabVisionApiError(error) || isRetryableTagTransportError(error)
         : undefined,
-    validate(value) { validateTagAssetData(value, "structured"); if (characterCatalogIds !== undefined) validateTagCharacterBinding(value.character_ids, characterCatalogIds); return value; },
+    validate(raw) {
+      const value = normalizeTagAssetData(raw);
+      try { validateTagAssetData(value, "structured"); } catch (error) {
+        if (Date.now() - lastInvalidSampleLog > 60_000) {
+          lastInvalidSampleLog = Date.now();
+          logger.warn("ai-tag: invalid structured tag sample", { model, sample: JSON.stringify(raw).slice(0, 1200) });
+        }
+        throw error;
+      } if (characterCatalogIds !== undefined) validateTagCharacterBinding(value.character_ids, characterCatalogIds); return value;
+    },
   });
   return { tagData: result.value, usage: result.usage as TagAssetCompletionResult["usage"], outputMode: result.outputMode, providerInfo: result.providerInfo, retryCount: result.repairCount, attempts: result.attempts };
 }
