@@ -794,6 +794,12 @@ FOREIGN_TARGET_MIGRATIONS = {
         "issue": "#5020",
         "note": "PR#5029, claim #5772. Core Product Type sandbox half: creates the dflow.mg_combination_description / dflow.item_product_description pairs with audit and human-override guard triggers on the DesignFlow non-production project only. The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is issue #5026 (version re-reserved on resume). This is target scope, not retirement.",
     },
+    "20261225130602": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#7095",
+        "note": "Claim #7096. Assembled item descriptions search functions, sandbox half: resolve_mg_path, product_type_search and embellishment_phrase_search in schema dflow on the DesignFlow non-production project only (popcre/designflow-item-master#194 step 3.1). The migration's own self-check refuses to run where dflow_prod exists, and the paired production half is version 20261225130603 (same issue), which the shared preview and production lanes promote normally. This is target scope, not retirement.",
+    },
     "20261225091506": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
