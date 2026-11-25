@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225130904",
+  "migration_sha256": "8e7870c773a46129b7cbfaa6371f520548d45cf6ad252593ab5cb3ffbef70736",
+  "checks": [
+    {
+      "id": "dflow_item_description_parts_item_fk_plm",
+      "kind": "catalog_contract",
+      "contract": "dflow_item_description_parts_item_fk_plm_v1",
+      "expected_count": 1
+    }
+  ]
+}

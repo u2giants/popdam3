@@ -6713,6 +6713,21 @@ CATALOG_CONTRACTS["core_mg_category_merch_group_fk_dflow_prod_v1"] = (
 )
 
 
+# Claim #7110 (#7041 follow-up, designflow-item-master#194 step 5.1), migration
+# 20261225130904, DesignFlow sandbox only. dflow.item_description_parts.item_fk
+# references plm."itemHeader"(item_id_pk) ON DELETE CASCADE (the table the
+# sandbox item service writes), exactly once.
+CATALOG_CONTRACTS["dflow_item_description_parts_item_fk_plm_v1"] = (
+    "exists (select 1 from pg_constraint con"
+    " where con.conrelid=to_regclass('dflow.item_description_parts')"
+    " and con.conname='item_description_parts_item_fk_fkey'"
+    " and con.contype='f' and con.confrelid=to_regclass('plm.\"itemHeader\"')"
+    " and con.confdeltype='c' and con.convalidated)"
+    " and (select count(*) from pg_constraint where conrelid=to_regclass('dflow.item_description_parts') and contype='f'"
+    " and conname='item_description_parts_item_fk_fkey')=1"
+)
+
+
 # Claim #6343 (designflow-item-master#205 3.1, remaining links), migration
 # 20261115060819. The ten merchandise-group keys on dflow.art_piece (9) and
 # dflow.artists (1) reference dflow_prod."merchGroup"(mg_id), NO ACTION, and are
