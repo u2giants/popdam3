@@ -285,6 +285,18 @@ Locked (2026-11-25, this plan; do not relitigate):
   handlers set `selectedAssetId` to the asset they show (never `null`). Row
   highlight is `asset.id === activeAsset?.id`. The section header names the
   file ("Older copies — <filename>").
+  **Conflict with [issue-1361 plan](issue-1361-style-group-flyout-split-layout.md)
+  (merged 2026-11-25), its locked rule "target = `selectedAssetId ?? (only
+  file)`" and its step 4:** that rule brings back #1332 finding 1 (no section
+  in a multi-file group until a row is clicked; the section vanishes on the
+  hero arrows while a row stays highlighted). L2 supersedes it: with L2 the
+  panel always has exactly one selected file, so "the selected file" and
+  "the active file" are the same thing. #1361's concern (an extra query on
+  every open) is met because Older copies queries nothing until **Find older
+  copies** is clicked. Whoever implements first: implement L2, and update the
+  #1361 plan's step 4 and its test `Older copies shows only for the selected
+  or only file` to "follows the one active file". Do the two plans' panel
+  edits in one session or in sequence, never in parallel (same file).
 - **L3** Restore button hidden only when `sameAsCurrent && !fileMissingAt`.
   When the file is marked missing, the matching row says "same as the last
   copy PopDAM saw (no longer on the NAS)" and keeps its button.
