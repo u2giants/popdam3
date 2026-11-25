@@ -901,7 +901,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
               {isAdmin && (
                 <>
                   {!wide && <Separator />}
-                  <OlderCopiesSection assetId={asset.id} relativePath={asset.relative_path} />
+                  <OlderCopiesSection assetId={asset.id} relativePath={asset.relative_path} fileSize={asset.file_size} modifiedAt={asset.modified_at} />
                 </>
               )}
 

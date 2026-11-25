@@ -1200,7 +1200,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                   const sel = orderedAssets.find((a) => a.id === (selectedAssetId ?? (orderedAssets.length === 1 ? orderedAssets[0].id : null)));
                   return sel ? (
                     <div className="pt-3">
-                      <OlderCopiesSection key={sel.id} assetId={sel.id} relativePath={sel.relative_path} />
+                      <OlderCopiesSection key={sel.id} assetId={sel.id} relativePath={sel.relative_path} fileSize={sel.file_size} modifiedAt={sel.modified_at} />
                     </div>
                   ) : null;
                 })()}
