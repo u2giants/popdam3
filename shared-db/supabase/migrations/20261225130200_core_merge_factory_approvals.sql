@@ -1,7 +1,7 @@
--- derived-from: 20261116120100
+-- derived-from: 20261029041610
 -- Issue #7070. core.merge_factory now carries factory licensor and retailer approvals,
 -- approval forms and reminder marks from the loser to the survivor.
--- Body is the 20261116120100 definition plus the #7070 block only.
+-- Body is the 20261029041610 definition (identical to 20261116120100) plus the #7070 block only.
 
 CREATE OR REPLACE FUNCTION core.merge_factory(p_loser uuid, p_survivor uuid, p_alias_loser_name boolean DEFAULT true)
  RETURNS void
