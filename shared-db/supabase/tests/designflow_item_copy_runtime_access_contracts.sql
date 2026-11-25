@@ -23,7 +23,11 @@ begin
       and a.grantee in (runtime_role::regrole, grants_role::regrole)
       and a.privilege_type = 'EXECUTE'
       -- #4707 orphan retirement owner function only.
-      and p.oid <> 'plm.designflow_retire_orphan_items(uuid, integer[])'::regprocedure
+      and p.oid not in ('plm.designflow_retire_orphan_items(uuid, integer[])'::regprocedure,
+        -- #4707 owner-ruled relink functions only.
+        'plm.designflow_relink_items(uuid, jsonb)'::regprocedure,
+        'plm.designflow_relink_items_rollback(uuid)'::regprocedure,
+        'plm.designflow_product_type_division(text)'::regprocedure)
   ) then
     raise exception 'The item copy grants an unrelated shared function';
   end if;

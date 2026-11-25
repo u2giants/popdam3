@@ -281,6 +281,14 @@
       "reason": "Operational rollback records for #4707 reconciliation runs."
     },
     {
+      "family": "designflow_item_relink_log",
+      "licensor": "POP Creations application data",
+      "business_purpose": "Record of owner-ruled DesignFlow item link corrections",
+      "disposition": "not_applicable_no_source_property_vocabulary",
+      "table_names": ["designflow_relink_log"],
+      "reason": "Operational rollback records for #4707 relink runs."
+    },
+    {
       "family": "item_landing_and_import",
       "licensor": "POP Creations application data",
       "business_purpose": "Item landing, import and taxonomy staging",
