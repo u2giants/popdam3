@@ -51,6 +51,12 @@ describe("saved-by helpers (popdam3#1342)", () => {
     expect(matchVersion(v, [rev(T + 600, 100, "João Melhorance")], [])).toEqual({ via: null, name: null });
   });
 
+  it("a NAS save uploaded minutes later by the sync account is a NAS save", () => {
+    const v = { source_path: "p", size: 100, mtime: MTIME };
+    expect(matchVersion(v, [rev(T + 354, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: "nas", name: null });
+    expect(matchVersion(v, [rev(T - 354, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: null, name: null });
+  });
+
   it("a save uploaded by the NAS sync account is reported as a NAS save", () => {
     const v = { source_path: "p", size: 100, mtime: MTIME };
     expect(matchVersion(v, [rev(T + 1, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: "nas", name: null });
