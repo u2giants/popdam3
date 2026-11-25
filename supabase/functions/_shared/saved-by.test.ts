@@ -12,9 +12,8 @@ function fakeDb(relative = "Decor/Character Licensed/New/a.ai", cands = ["Decor/
     from: (table: string) => ({
       select: () => ({
         eq: (_c: string, v: string) => ({
-          maybeSingle: async () => table === "assets"
-            ? { data: v === A ? { id: A, relative_path: relative } : null }
-            : { data: v in config ? { value: config[v] } : null },
+          maybeSingle: async () =>
+            table === "assets" ? { data: v === A ? { id: A, relative_path: relative } : null } : { data: v in config ? { value: config[v] } : null },
         }),
       }),
     }),
@@ -62,13 +61,18 @@ describe("saved-by helpers (popdam3#1342)", () => {
 describe("lookupSavedBy", () => {
   it("looks up the current and old paths, never a path the asset never had", async () => {
     const { fn, seen } = fakeFetch({ "/New/a.ai": [commit(T + 2, 100, "João Melhorance")] });
-    const r = await lookupSavedBy(fakeDb(), {
-      asset_id: A,
-      versions: [
-        { source_path: "Decor/Character Licensed/Old/a.ai", size: 100, mtime: MTIME },
-        { source_path: "Decor/Character Licensed/../../etc/passwd", size: 1, mtime: MTIME },
-      ],
-    }, { token: "t", syncEmails: [] }, fn);
+    const r = await lookupSavedBy(
+      fakeDb(),
+      {
+        asset_id: A,
+        versions: [
+          { source_path: "Decor/Character Licensed/Old/a.ai", size: 100, mtime: MTIME },
+          { source_path: "Decor/Character Licensed/../../etc/passwd", size: 1, mtime: MTIME },
+        ],
+      },
+      { token: "t", syncEmails: [] },
+      fn,
+    );
     expect(r.status).toBe(200);
     expect(seen.every((s) => s.startsWith("/api2/repos/lib-char/file/history/"))).toBe(true);
     expect(seen.map((s) => s.split("|")[1])).toEqual(["/New/a.ai", "/Old/a.ai"]);
