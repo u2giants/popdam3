@@ -33,6 +33,7 @@ import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { type AiModelDef, type PdfSampleAsset, runPdfTextSample } from "./pdf-text-sampler";
 import { runPdfBackfill } from "./pdf-backfill";
+import { runFactoryApprovalOcr } from "./factory-approval-ocr";
 import { runStyleGuidePdfBackfill } from "./style-guide-pdf-backfill";
 import { assertSafeRelativePath } from "./common/path-containment.js";
 import { createCompatAuditWorker, runCompatAudit, runCompatAuditPreview } from "./compat-audit";
@@ -919,6 +920,10 @@ async function main() {
 
   // Start heartbeat early
   startHeartbeat();
+
+  // Factory approval forms (FAMA / LMS) uploaded in DesignFlow: read every 2 minutes.
+  setInterval(() => { void runFactoryApprovalOcr(); }, 120_000);
+  void runFactoryApprovalOcr();
 
   if (!cloudNasHost) {
     logger.warn(

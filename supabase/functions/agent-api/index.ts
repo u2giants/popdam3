@@ -4045,6 +4045,53 @@ async function handleCompleteStyleGuidePdfText(body: Record<string, unknown>) {
   return json({ ok: true, accepted, refused });
 }
 
+// ── Route: claim/complete factory approval form OCR (shared-db#7070) ─────────
+// Disney FAMA and NBCU LMS PDFs uploaded in DesignFlow; the Windows agent reads them with Indra.
+
+async function handleClaimFactoryApprovalForms(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const limit = Math.min(Math.max(Number(body.limit ?? 10) || 10, 1), 10);
+  const { data, error } = await db.schema("core").rpc("claim_factory_approval_form_ocr", { p_limit: limit });
+  if (error) return err(`claim_factory_approval_form_ocr failed: ${error.message}`, 500);
+  const rows = (data as Array<{ id: string; program: string; storage_bucket: string; storage_path: string; file_name: string | null }>) ?? [];
+  const forms = [];
+  for (const r of rows) {
+    const { data: signed, error: signErr } = await db.storage.from(r.storage_bucket || "factory-approval-forms")
+      .createSignedUrl(r.storage_path, 900);
+    if (signErr || !signed?.signedUrl) {
+      await db.schema("core").rpc("record_factory_approval_form_ocr", {
+        p_form_id: r.id, p_ocr_text: null, p_name: null, p_number: null, p_expires_on: null,
+        p_error: `storage: ${signErr?.message ?? "no signed url"}`.slice(0, 500), p_engine: "indra",
+      });
+      continue;
+    }
+    forms.push({ id: r.id, program: r.program, file_name: r.file_name, download_url: signed.signedUrl });
+  }
+  return json({ ok: true, forms });
+}
+
+async function handleCompleteFactoryApprovalForm(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  const formId = str(body.form_id);
+  if (!formId) return err("form_id required", 400);
+  const aliases = Array.isArray(body.aliases) ? (body.aliases as unknown[]).filter((a) => typeof a === "string") : null;
+  const { error } = await db.schema("core").rpc("record_factory_approval_form_ocr", {
+    p_form_id: formId,
+    p_ocr_text: str(body.ocr_text),
+    p_name: str(body.name),
+    p_number: str(body.number),
+    p_expires_on: str(body.expires_on),
+    p_error: str(body.error)?.slice(0, 1000) ?? null,
+    p_engine: "indra",
+    p_issued_on: str(body.issued_on),
+    p_form_reference: str(body.form_reference),
+    p_aliases: aliases && aliases.length ? aliases : null,
+  });
+  if (error) return err(`record_factory_approval_form_ocr failed: ${error.message}`, 500);
+  return json({ ok: true });
+}
+
 // ── Route: claim-pdf-backfill-batch ──────────────────────────────────────────
 
 async function handleClaimPdfBackfillBatch() {
@@ -5165,6 +5212,10 @@ corsServe(async (req: Request) => {
         return await handleTranscribeStyleGuidePdfPage(body, agentId, agentType);
       case "complete-style-guide-pdf-text":
         return await handleCompleteStyleGuidePdfText(body);
+      case "claim-factory-approval-forms":
+        return await handleClaimFactoryApprovalForms(body);
+      case "complete-factory-approval-form":
+        return await handleCompleteFactoryApprovalForm(body);
       case "claim-pdf-backfill-batch":
         return await handleClaimPdfBackfillBatch();
       case "complete-pdf-backfill-batch":

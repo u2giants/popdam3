@@ -494,3 +494,31 @@ export async function bootstrap(
 ): Promise<{ agent_id: string; agent_key: string }> {
   return pair(bootstrapToken, agentName);
 }
+
+// ── Factory approval forms (Disney FAMA / NBCU LMS, shared-db#7070) ──────────
+
+export interface FactoryApprovalFormJob {
+  id: string;
+  program: "disney" | "nbcu";
+  file_name: string | null;
+  download_url: string;
+}
+
+export async function claimFactoryApprovalForms(limit = 10): Promise<FactoryApprovalFormJob[]> {
+  const data = await callApi("claim-factory-approval-forms", { limit });
+  return (data.forms as FactoryApprovalFormJob[]) ?? [];
+}
+
+export async function completeFactoryApprovalForm(result: {
+  form_id: string;
+  ocr_text: string | null;
+  name: string | null;
+  number: string | null;
+  expires_on: string | null;
+  issued_on: string | null;
+  form_reference: string | null;
+  aliases: string[] | null;
+  error: string | null;
+}): Promise<void> {
+  await callApi("complete-factory-approval-form", result as unknown as Record<string, unknown>);
+}
