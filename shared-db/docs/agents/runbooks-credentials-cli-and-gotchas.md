@@ -62,11 +62,15 @@ Important gotchas from the 2026-07-08 PopDAM style-group repair:
   `PGOPTIONS='-c default_transaction_read_only=on'`; the setting stuck to the
   shared backends and production role saves failed. Rules: user
   `ai_readonly_reader.qsllyeztdwjgirsysgai`, password in 1Password item
-  `Supabase DB login ai_readonly_reader - shared POP database (production, read-only)`;
+  `Supabase DB login ai_readonly_reader - shared POP database (production, read-only)`
+  (item `tfjjww3u5vmaawzl5uf4d7vsfm`; `op://vibe_coding/tfjjww3u5vmaawzl5uf4d7vsfm/password`);
   wrap queries in `BEGIN READ ONLY; …; COMMIT;`; never pass `PGOPTIONS`/`options=`
   or run a session-level `SET` through 6543. The role reads every business
   schema (row rules bypassed) but no password or sign-in token column, and
-  holds no write privilege.
+  holds no write privilege. Its grants cover tables that existed when
+  migration 20261225141301 ran; a table created later is unreadable until a
+  migration grants it (`plm` default privileges stay pinned to `service_role`).
+  LOGIN and the password are set outside git, as for `oracle_directory_reader`.
 
 Gotchas added 2026-07-16 (each cost real time; all verified):
 
