@@ -38,8 +38,8 @@ interface StyleGroupDetailPanelProps {
   width?: number;
 }
 
-/** Above this width the overview content reflows into two columns. */
-const WIDE_THRESHOLD = 620;
+/** At or above this width the panel splits: preview on the left, tabs on the right. */
+const SPLIT_THRESHOLD = 720;
 
 const MATCH_METHOD_LABELS: Record<string, string> = {
   filename_exact: "portal file match",
@@ -65,7 +65,12 @@ function skuToHue(sku: string): number {
 /* ── Main component ───────────────────────────────────────── */
 
 export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: StyleGroupDetailPanelProps) {
-  const wide = width >= WIDE_THRESHOLD;
+  const split = width >= SPLIT_THRESHOLD;
+  const leftWidth = split ? Math.min(440, Math.max(300, Math.round(width * 0.38))) : 0;
+  // Width available to tab content, used to pick how many columns it flows into.
+  const contentWidth = split ? width - leftWidth : width;
+  const contentCols = contentWidth >= 900 ? 3 : contentWidth >= 520 ? 2 : 1;
+  const filesGrid = contentWidth >= 600;
   const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
@@ -400,38 +405,16 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
   // Build "Category · Stage" for title block
   const titleSubline = [group.product_category, group.stage].filter(Boolean).join(" · ");
 
-  return (
-    <TooltipProvider>
-      {/* Panel container */}
-      <div
-        className="flex flex-col overflow-hidden border-l border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]"
-        style={{
-          width,
-          height: "100%",
-          // Slide-in animation via CSS custom property + inline style for compat
-        }}
-      >
-        <style>{`
-          @media (prefers-reduced-motion: no-preference) {
-            .sgdp-panel {
-              animation: sgdp-slide-in 0.26s cubic-bezier(.22,.61,.36,1) both;
-            }
-            @keyframes sgdp-slide-in {
-              from { transform: translateX(100%); }
-              to   { transform: translateX(0); }
-            }
-          }
-        `}</style>
-        <div className="sgdp-panel flex flex-col h-full overflow-hidden">
-
+  const heroEl = (
+    <>
           {/* ── Hero (16:10) ──────────────────────────────────── */}
           <div
             className="relative flex-shrink-0 overflow-hidden cursor-pointer"
             style={{
-              aspectRatio: "16/10",
-              // On short screens a 16:10 hero eats the whole panel and the tab
-              // content below never gets enough height to scroll. Cap it.
-              maxHeight: compact ? "26vh" : undefined,
+              // Split layout: a near-square preview fills the left column with
+              // little dead space. Stacked: a short banner so the tabs get room.
+              aspectRatio: split ? "1/1" : "16/10",
+              maxHeight: split ? "52vh" : compact ? "26vh" : "34vh",
             }}
             onClick={() => { if (displayThumbnail) setLightboxUrl(displayThumbnail); }}
           >
@@ -464,7 +447,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
             {/* Product mockup — top-right, beside Close; uses the thumbnail currently in the hero */}
             {displayThumbnail && (
               <button
-                className="absolute top-2 right-11 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors"
+                className={cn("absolute top-2 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors", split ? "right-2" : "right-11")}
                 onClick={(e) => {
                   e.stopPropagation();
                   openMockupTool();
@@ -476,14 +459,14 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               </button>
             )}
 
-            {/* Close button — top-right */}
-            <button
+            {/* Close button — top-right (in the split layout it sits on the tab bar) */}
+            {!split && <button
               className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors"
               onClick={(e) => { e.stopPropagation(); onClose(); }}
               aria-label="Close"
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </button>}
 
             {/* Category label — bottom-left */}
             {heroCategoryLabel && (
@@ -523,11 +506,14 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               </>
             )}
           </div>
-
+    </>
+  );
+  const thumbsEl = (
+    <>
           {/* Thumbnail strip */}
           {thumbStrip.length > 1 && (
             <div className={cn(
-              "flex gap-1 overflow-x-auto px-3 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] border-b border-[var(--pd-border,hsl(var(--border)))]",
+              "flex flex-wrap gap-1 px-3 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] border-b border-[var(--pd-border,hsl(var(--border)))]",
               compact ? "py-1" : "py-1.5",
             )}>
               {thumbStrip.map((a, idx) => (
@@ -535,7 +521,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                   key={a.id}
                   className={cn(
                     "relative shrink-0 rounded overflow-hidden border-2 transition-colors",
-                    compact ? "h-7 w-7" : "h-9 w-9",
+                    split ? "h-11 w-11" : compact ? "h-7 w-7" : "h-9 w-9",
                     carouselIndex === idx ? "border-primary" : "border-transparent hover:border-muted-foreground/30"
                   )}
                   onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
@@ -551,7 +537,10 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               ))}
             </div>
           )}
-
+    </>
+  );
+  const titleEl = (
+    <>
           {/* ── Title block ───────────────────────────────────── */}
           <div className={cn(
             "flex-shrink-0 px-4 border-b border-[var(--pd-border,hsl(var(--border)))]",
@@ -568,7 +557,8 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 </p>
                 {/* Property name / ERP description */}
                 <p className={cn(
-                  "font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight truncate",
+                  "font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight",
+                  !split && "truncate",
                   compact ? "text-[15px]" : "text-[19px]",
                 )}>
                   {itemDescription ?? group.sku}
@@ -609,10 +599,13 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               </div>
             </div>
           </div>
-
+    </>
+  );
+  const tabsEl = (
+    <>
           {/* ── Sticky tabs ───────────────────────────────────── */}
           <div className="flex-shrink-0 sticky top-0 z-10 border-b border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]/80 backdrop-blur-md">
-            <div className="flex">
+            <div className="flex items-center">
               {(["overview", "files", "activity"] as Tab[]).map((tab) => {
                 const label =
                   tab === "overview" ? "Overview" :
@@ -638,9 +631,21 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                   </button>
                 );
               })}
+              {split && (
+                <button
+                  className="ml-auto mr-2 h-7 w-7 rounded-full flex items-center justify-center text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] hover:bg-[hsl(var(--muted))] hover:text-[var(--pd-fg,hsl(var(--foreground)))] transition-colors"
+                  onClick={onClose}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
-
+    </>
+  );
+  const contentEl = (
+    <>
           {/* ── Scrollable tab content ───────────────────────── */}
           <div className="flex-1 overflow-y-auto">
 
@@ -649,10 +654,11 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               <div
                 className={cn(
                   "p-4",
-                  wide
-                    ? "[column-count:2] [column-gap:1.25rem] [&>*]:mb-5 [&>*]:break-inside-avoid"
+                  contentCols > 1
+                    ? "[column-gap:1.5rem] [&>*]:mb-5 [&>*]:break-inside-avoid"
                     : "space-y-5",
                 )}
+                style={contentCols > 1 ? { columnCount: contentCols } : undefined}
               >
 
                 {/* DETAILS */}
@@ -678,12 +684,6 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     {(group as any).designer_name && <DlRow label="Designer">{(group as any).designer_name}</DlRow>}
                     {(group as any).technical_designer_name && <DlRow label="Tech Designer">{(group as any).technical_designer_name}</DlRow>}
                     {(group as any).freelancer_name && <DlRow label="Freelancer">{(group as any).freelancer_name}</DlRow>}
-                    {detailAsset && (
-                      <>
-                        <DlRow label="Modified">{formatDateValue(detailAsset.modified_at)}</DlRow>
-                        <DlRow label="Created">{formatDateValue(detailAsset.file_created_at)}</DlRow>
-                      </>
-                    )}
                   </dl>
                 </div>
 
@@ -1058,7 +1058,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
 
             {/* ===== FILES TAB ===== */}
             {activeTab === "files" && (
-              <div className="p-4 space-y-1">
+              <div className={cn("p-3", filesGrid ? "grid content-start gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]" : "space-y-1")}>
                 {assetsLoading ? (
                   <div className="flex items-center gap-2 text-[12px] text-muted-foreground py-6 justify-center">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading files…
@@ -1111,7 +1111,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                             {/* Info */}
                             <div className="flex-1 min-w-0 space-y-0.5">
                               <p className="font-mono text-[13px] font-[600] truncate" title={asset.filename}>
-                                {formatFilename(asset.filename, 26)}
+                                {formatFilename(asset.filename, filesGrid ? 34 : 26)}
                               </p>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[11px] text-muted-foreground">{formatSize(asset.file_size)}</span>
@@ -1197,9 +1197,9 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 )}
                 {/* Older copies for the selected file (admin only; component self-gates), popdam3#963 */}
                 {(() => {
-                  const sel = orderedAssets.find((a) => a.id === (selectedAssetId ?? (orderedAssets.length === 1 ? orderedAssets[0].id : null)));
+                  const sel = orderedAssets.find((a) => a.id === (selectedAssetId ?? localPrimaryId ?? orderedAssets[0]?.id));
                   return sel ? (
-                    <div className="pt-3">
+                    <div className="pt-3 col-span-full">
                       <OlderCopiesSection key={sel.id} assetId={sel.id} relativePath={sel.relative_path} fileSize={sel.file_size} modifiedAt={sel.modified_at} />
                     </div>
                   ) : null;
@@ -1211,7 +1211,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
             {activeTab === "activity" && (
               <div className="p-4">
                 {/* Vertical timeline */}
-                <ol className="relative border-l border-[var(--pd-border,hsl(var(--border)))] ml-3 space-y-5">
+                <ol className="relative max-w-2xl border-l border-[var(--pd-border,hsl(var(--border)))] ml-3 space-y-5">
 
                   {/* Creation event */}
                   <li className="ml-4">
@@ -1285,9 +1285,12 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               </div>
             )}
           </div>
-
+    </>
+  );
+  const footerEl = (
+    <>
           {/* ── Sticky footer ─────────────────────────────────── */}
-          <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]">
+          <div className="mt-auto flex-shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]">
             <Button
               className="flex-1 gap-1.5 text-[13px] h-8 bg-[var(--pd-accent,hsl(var(--primary)))] text-[var(--pd-accent-fg,hsl(var(--primary-foreground)))] hover:opacity-90"
               onClick={handleDownloadAll}
@@ -1327,6 +1330,59 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
               <TooltipContent side="top">Open folder</TooltipContent>
             </Tooltip>
           </div>
+    </>
+  );
+
+  return (
+    <TooltipProvider>
+      {/* Panel container */}
+      <div
+        className="flex flex-col overflow-hidden border-l border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]"
+        style={{
+          width,
+          height: "100%",
+          // Slide-in animation via CSS custom property + inline style for compat
+        }}
+      >
+        <style>{`
+          @media (prefers-reduced-motion: no-preference) {
+            .sgdp-panel {
+              animation: sgdp-slide-in 0.26s cubic-bezier(.22,.61,.36,1) both;
+            }
+            @keyframes sgdp-slide-in {
+              from { transform: translateX(100%); }
+              to   { transform: translateX(0); }
+            }
+          }
+        `}</style>
+        <div className="sgdp-panel flex h-full overflow-hidden">
+          {split ? (
+            <>
+              {/* Left: preview, title and actions stay in view while the right side scrolls */}
+              <aside
+                className="flex shrink-0 flex-col overflow-y-auto border-r border-[var(--pd-border,hsl(var(--border)))]"
+                style={{ width: leftWidth }}
+              >
+                {heroEl}
+                {thumbsEl}
+                {titleEl}
+                {footerEl}
+              </aside>
+              <div className="flex min-w-0 flex-1 flex-col">
+                {tabsEl}
+                {contentEl}
+              </div>
+            </>
+          ) : (
+            <div className="flex min-w-0 flex-1 flex-col">
+              {heroEl}
+              {thumbsEl}
+              {titleEl}
+              {tabsEl}
+              {contentEl}
+              {footerEl}
+            </div>
+          )}
         </div>
       </div>
 

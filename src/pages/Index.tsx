@@ -32,8 +32,8 @@ import { effectiveSortField } from "@/lib/library-sort";
 
 /** Detail-panel resize bounds (desktop only). */
 const DETAIL_MIN_WIDTH = 360;
-const DETAIL_MAX_WIDTH = 960;
-const DETAIL_DEFAULT_WIDTH = 408;
+const DETAIL_MAX_WIDTH = 1280;
+const DETAIL_DEFAULT_WIDTH = 900;
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -57,14 +57,17 @@ export default function LibraryPage() {
   const compactChrome = useCompactChrome();
   const { width: detailWidth, dragging: detailDragging, reset: resetDetailWidth, handleProps: detailHandleProps } =
     useResizablePanel({
-      storageKey: "pd-detail-panel-width",
+      // v2: the panel now opens wider by default; old saved narrow widths are ignored.
+      storageKey: "pd-detail-panel-width-v2",
       defaultWidth: DETAIL_DEFAULT_WIDTH,
       min: DETAIL_MIN_WIDTH,
       max: DETAIL_MAX_WIDTH,
       side: "left",
     });
   // Panel width: dynamic when docked side-by-side, fixed default when overlaying.
-  const panelWidth = isDesktop ? detailWidth : DETAIL_DEFAULT_WIDTH;
+  const panelWidth = isDesktop
+    ? detailWidth
+    : Math.min(DETAIL_DEFAULT_WIDTH, Math.max(DETAIL_MIN_WIDTH, (typeof window !== "undefined" ? window.innerWidth : 1200) - 160));
 
   // ── Agent & scan state ──────────────────────────────────────────
   const agentStatus = useAgentStatus(isAdmin);
