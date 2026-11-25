@@ -5,13 +5,13 @@ status: current
 read-when: classifying Mickey Mouse, Minnie Mouse, Mickey Group, or X-Men properties
 ---
 
-# Mickey/Minnie property codes and X-Men scrape precedence (§6.38, §6.40, §6.43)
+# Mickey/Minnie property codes and X-Men scrape precedence (§6.38, §6.40, §6.43, §6.44)
 
 **Decided by:** Albert Hazan, 2026-11-13, 2026-11-14, and 2026-11-16
 
 ## Decision
 
-Solo Mickey (`MM`) maps to `Mickey Mouse` (under `Mickey Mouse Family`); solo Minnie (`ME`, avoiding `I`/`L` and `MN` which is Minions) maps to `Minnie & Me` (under `Mickey Mouse Family`); Mickey plus anyone else (`MMF`, renamed `Mickey Group` in ColdLion) maps to `Standard Characters`. The earlier one-property X-Men merge in §6.38 was dropped in §6.40 so the submissions-site scrape wins.
+Solo Mickey (`MM`) maps to `Mickey Mouse` (under `Mickey Mouse Family`); solo Minnie (`ME`, avoiding `I`/`L` and `MN` which is Minions) maps to `Minnie` > `Minnie & Me` (never under `Mickey Mouse Family`; §6.44, 2026-11-25); Mickey plus anyone else (`MMF`, renamed `Mickey Group` in ColdLion) maps to `Standard Characters`. The earlier one-property X-Men merge in §6.38 was dropped in §6.40 so the submissions-site scrape wins.
 
 > "if it contradicts the submission site scrape drop my one-property X-Men ruling" (2026-11-14)
 > "MM = Mickey alone ('Mickey Mouse'); new code ME = Minnie alone ('Minnie & Me'; avoid letters I/L; MN is Minions); MMF renamed 'Mickey Group' in ColdLion → 'Standard Characters'" (2026-11-16)

@@ -70,6 +70,15 @@ Where the canonical submission lists and reviewed mappings live (private reposit
 - Other licensors' scraped submission vocabularies: `api.db_data_admin_scraped_source_inventory('property')` in production, rows with `source_purpose='Submissions'`.
 - Paramount = Viacom = Nickelodeon is the one `VM` Licensor: [licensing-master-data.md § Licensor naming aliases](licensing-master-data.md#licensor-naming-aliases).
 
+## Mickey and Minnie solo art: which submission Property and Character
+
+**Settled - Albert Hazan, 2026-11-25 (ruling 6.44), refining 6.38 and 6.43. Verbatim 2026-11-25: "'Minnie > Minnie & Me'. delete the 'Mickey Mouse Family > Minnie & Me' decision."** Records: [owner-rulings §6.38, §6.43, §6.44](../owner-rulings-part-4.md).
+
+- **Mickey alone** (ColdLion MG06 `MM`, "Mickey Mouse"): Disney OPA property **"Mickey Mouse Family"**, character **"Mickey Mouse"**. Never the root "Mickey Mouse" property for solo Mickey art.
+- **Minnie alone** (ColdLion MG06 `ME`, "Minnie & Me"): Disney OPA root property **"Minnie"**, character **"Minnie & Me"**. Never under "Mickey Mouse Family".
+- **Mickey plus anyone else** (ColdLion MG06 `MMF`, "Mickey Group"): Disney OPA property **"Standard Characters"**.
+- Separate properties: never merge them or link one to another's OPA property. The database already carries these paths (migration `20261204000500`).
+
 ## Licensor naming aliases
 
 **Settled - Albert Hazan, 2026-09-06.** The Licensor recorded as `VM` / "Viacom Multi" is Paramount, and is also the Nickelodeon licensor. Paramount, Viacom and Nickelodeon are one Licensor under this single record, not three. Any item, property or asset whose description names Paramount or Nickelodeon resolves to this Licensor. Never create a separate Paramount or Nickelodeon Licensor, and never report such an item as having an unknown Licensor because the word "Paramount" does not appear in the Licensor list.
