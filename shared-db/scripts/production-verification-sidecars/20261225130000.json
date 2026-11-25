@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225130000",
+  "migration_sha256": "8e5f957fbf5431e763392aefea46f38a319ec8173a5a46e905debf13dfcdea15",
+  "checks": [
+    {"id":"app_role_production_value_exists","kind":"exact_row_count","relation":"pg_catalog.pg_enum","filters":[{"column":"enumlabel","type":"text","equals":"production"}],"expected_count":1}
+  ]
+}
