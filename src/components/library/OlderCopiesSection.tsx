@@ -23,6 +23,8 @@ export interface SnapshotVersion {
   first_taken_at: string;
   last_taken_at: string;
   snapshot_count: number;
+  /** Person who saved this version, from the office NAS's SMB/Drive logs (#1342). */
+  saved_by_nas?: { name: string; via: "smb" | "drive" };
 }
 
 export interface SavedByInfo { via: "seafile" | "nas" | null; name: string | null }
@@ -188,10 +190,15 @@ function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props
                   Saved {fmtSaved(v.mtime)} · {fmtSize(v.size)}
                   {current && <span className="font-normal" style={muted}> · same as the current file</span>}
                 </p>
-                {who?.via === "seafile" && who.name && (
+                {v.saved_by_nas && (
+                  <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>
+                    Saved by {v.saved_by_nas.name} ({v.saved_by_nas.via === "drive" ? "Synology Drive" : "office network drive"})
+                  </p>
+                )}
+                {!v.saved_by_nas && who?.via === "seafile" && who.name && (
                   <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Saved by {who.name} (Seafile)</p>
                 )}
-                {who?.via === "nas" && (
+                {!v.saved_by_nas && who?.via === "nas" && (
                   <p className="text-[11px]" style={muted}>Saved on the office NAS</p>
                 )}
                 <p className="text-[11px]" style={muted}>

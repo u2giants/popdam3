@@ -12,6 +12,7 @@
  * Per PROJECT_BIBLE: outbound HTTPS only, no inbound networking.
  */
 
+import { setNasFileActivity } from "./handlers/saved-by-nas.js";
 import { renderQueueReason, requestRender } from "./render-queue-request.js";
 import { createErrorCollector } from "./scan-error-detail.js";
 import { retireConfirmedStaleRecords } from "./stale-record-retirement.js";
@@ -480,6 +481,7 @@ interface CloudConfig {
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
   windows_render_mode?: "fallback_only" | "primary";
+  nas_file_activity?: { url?: string; token?: string } | null;
   windows_render_policy?: WindowsRenderPolicy | null;
   windows_healthy?: boolean;
   pending_render_jobs?: number;
@@ -636,6 +638,7 @@ async function ensureRootMarkers(
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
+  setNasFileActivity(cfg.nas_file_activity ?? null);
   // Hot-reload S3 client if DO Spaces config changed (bucket, region, endpoint, key, secret)
   if (cfg.do_spaces) {
     reinitializeS3Client({

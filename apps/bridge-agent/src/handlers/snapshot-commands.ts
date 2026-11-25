@@ -2,12 +2,13 @@
 import * as api from "../api-client.js";
 import { config } from "../config.js";
 import { logger } from "../common/logger.js";
+import { addNasSavers } from "./saved-by-nas.js";
 import { listSnapshotVersions, restoreFromSnapshot, type RestoreRequest } from "./snapshot-tools.js";
 
 export async function handleSnapshotVersions(cmd: { request_id: string; candidates: string[] }) {
   logger.info("Snapshot versions requested", { requestId: cmd.request_id, candidates: cmd.candidates.length });
   try {
-    const versions = await listSnapshotVersions(config.nasContainerMountRoot, cmd.candidates);
+    const versions = await addNasSavers(await listSnapshotVersions(config.nasContainerMountRoot, cmd.candidates));
     await api.reportSnapshotVersions(cmd.request_id, { ok: true, versions });
   } catch (e) {
     const msg = (e as Error).message ?? String(e);
