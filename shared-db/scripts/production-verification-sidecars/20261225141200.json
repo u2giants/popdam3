@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225141200",
+  "migration_sha256": "3361ab723212e28a5db5d2c7916feb55f8311af79cb09f41dc8e7f2d0fd05f67",
+  "checks": [
+    {"id":"factory_approval_form_backend_insert_policy_present","kind":"exact_row_count","relation":"pg_catalog.pg_policies","filters":[{"column":"schemaname","type":"text","equals":"core"},{"column":"tablename","type":"text","equals":"factory_approval_form"},{"column":"policyname","type":"text","equals":"factory_approval_form_dflow_prod_backend_insert"}],"expected_count":1}
+  ]
+}
