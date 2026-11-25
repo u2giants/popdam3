@@ -20,6 +20,8 @@ read-when: "implementing cleanup 18 on backend string validators"
 
 Albert authorized implementation and release of this item in the November 19 cleanup portfolio. See #1200 for release and live evidence.
 
+Review follow-up: #1208 (validator test proof) → [issue-1208-validator-test-proof.md](issue-1208-validator-test-proof.md).
+
 ## 1. Ultimate goal
 
 Make every backend entry point handle missing or malformed text consistently. If a step conflicts with this goal, the goal wins — stop and flag it.
