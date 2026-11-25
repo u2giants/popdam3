@@ -20,6 +20,8 @@ read-when: "implementing cleanup 09 on check-in retry records"
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
+Review follow-up: #1221 (fingerprint hardening and Helper import guard) → [issue-1221-check-in-fingerprint-hardening.md](issue-1221-check-in-fingerprint-hardening.md).
+
 ## 1. Ultimate goal
 
 Let a retried upload use the designer’s original file and destination. If a step conflicts with this goal, the goal wins — stop and flag it.

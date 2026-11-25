@@ -12,6 +12,8 @@ Written 2026-11-04 by Claude (plan only; no implementation started).
 
 ## STATUS
 
+**Superseded STATUS (2026-11-25):** issue #708 is closed; Steps 2–7 landed in PR #850 and PR #856. Remaining review findings (#851, #857) are planned in [issue-851-857-duplicated-code-followups.md](issue-851-857-duplicated-code-followups.md), whose Step 7 rewrites this table.
+
 | # | Step | State | Evidence / notes |
 |---|------|-------|------------------|
 | 1 | Worktree + branch | ⬜ open | |

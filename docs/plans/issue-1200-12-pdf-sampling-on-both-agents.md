@@ -20,6 +20,8 @@ read-when: "implementing cleanup 12 on pdf sampling on both agents"
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
+Review follow-up: #1221 (fingerprint hardening and Helper import guard) → [issue-1221-check-in-fingerprint-hardening.md](issue-1221-check-in-fingerprint-hardening.md).
+
 ## 1. Ultimate goal
 
 Return consistent PDF sampling progress from Windows and the NAS without losing platform-specific errors. If a step conflicts with this goal, the goal wins — stop and flag it.

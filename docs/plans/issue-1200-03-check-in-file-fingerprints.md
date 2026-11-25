@@ -20,6 +20,8 @@ read-when: "implementing cleanup 03 on check-in file fingerprints"
 
 Albert authorized this item as part of the November 19 portfolio. Release and live proof are tracked on #1200.
 
+Review follow-up: #1221 (fingerprint hardening and Helper import guard) → [issue-1221-check-in-fingerprint-hardening.md](issue-1221-check-in-fingerprint-hardening.md).
+
 ## 1. Ultimate goal
 
 Let a designer check in a file and have the NAS recognize the same saved version. If a step conflicts with this goal, the goal wins — stop and flag it.
