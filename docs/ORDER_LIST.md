@@ -9,6 +9,8 @@ read-when: changing OrderList or order-line handling
 
 Active loading/Find-performance work is tracked in [`../plan_master_data_orderlist_loading_performance.md`](../plan_master_data_orderlist_loading_performance.md). Read its STATUS table first; do not re-derive or re-plan completed steps.
 
+Open review-finding plans for this page (read each STATUS first): buy-sheet import and Clear tool [`plans/issue-905-buy-sheet-import-hardening.md`](plans/issue-905-buy-sheet-import-hardening.md); Burlington menu and Bamboo Rose sheet [`plans/issue-947-burlington-menu-bamboo-rose.md`](plans/issue-947-burlington-menu-bamboo-rose.md); voided lines on every read path [`plans/issue-918-orderlist-voided-lines-everywhere.md`](plans/issue-918-orderlist-voided-lines-everywhere.md).
+
 PopDAM's replacement for the legacy Google Sheet `OrderList`. Signed-in PopDAM
 staff can view, search, filter, sort, edit and create order lines. Linked product
 descriptions come from Item Master (`plm.item.description`, then item name),
