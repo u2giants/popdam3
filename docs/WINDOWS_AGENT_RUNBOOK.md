@@ -340,3 +340,18 @@ The OCR engine (Python venv + models under `C:\ProgramData\PopDAM\indra`) is pro
 - **Path escaping:** env-sourced paths (`INDRA_OCR_MODEL_DIR`) are embedded into generated Python as JSON string literals and into PowerShell as single-quoted strings (`''` for a quote). Paths with spaces, `'`, or `"` are safe; no quote-free assumption is required.
 - **Never blocking:** a failure leaves extraction on tesseract.js for that run; the panel shows the reason.
 - **Manual path:** `scripts/windows-agent/install-service.ps1` (same pins). No system Python 3.11+ → the panel reports `no system Python found` and the agent stays on tesseract.js.
+
+## 10. Factory approval forms (Disney FAMA / NBCU LMS)
+
+Every 2 minutes the agent asks agent-api `claim-factory-approval-forms` for pending
+rows of `core.factory_approval_form` (shared-db#7070), downloads each PDF from bucket
+`factory-approval-forms` by signed URL, reads embedded text (Indra OCR when a page has
+none), parses it (`packages/agent-common/src/factory-approval-parse.ts`) and posts
+`complete-factory-approval-form`, which calls `core.record_factory_approval_form_ocr`.
+Unreadable forms go to `failed` with the reason in `ocr_error`.
+
+FAMA embedded text comes out of order (all labels, then all values), so the FAMA
+parser recognises values by shape (`(FAC-nnnnnn)` line, 12-char ID, M/D/YYYY date).
+Real samples are not in the repo; to test against them set `FAMA_SAMPLE_TXT` /
+`LMS_SAMPLE_TXT` to extracted text files. Live-verified 2026-11-24 11:44 PM EST on agent
+0.17.0.225 (both samples → `done`, values copied into `core.factory_approval`).
