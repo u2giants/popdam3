@@ -94,32 +94,53 @@ export function detectFactoryApprovalProgram(text: string): FactoryApprovalProgr
   return null;
 }
 
+const FAC_TAIL = /\(?\s*FAC\s*-\s*\d{4,}\s*\)?\s*$/i;
+const COMPANY_WORD = /\b(co\.?|ltd\.?|limited|company|corp\.?|corporation|factory|industr(?:y|ial)\s+co|products)\b/i;
+
+/**
+ * FAMA PDFs are fillable forms: embedded text often lists every label first and
+ * every value later, out of order. Use the label when its value follows it,
+ * else recognise each value by its shape.
+ */
 export function parseFamaForm(text: string): FactoryApprovalFields {
   const ls = lines(text);
+  const facLine = ls.find((l) => FAC_TAIL.test(l) && l.replace(FAC_TAIL, "").trim().length > 2);
+  const rawName = facLine ?? valueAfter(ls, /FACILITY\s+NAME\s*:/i);
   let name: string | null = null;
   let number: string | null = null;
-  const rawName = valueAfter(ls, /FACILITY\s+NAME\s*:/i);
   if (rawName) {
-    const fac = rawName.match(/\(?\s*(FAC\s*-\s*\d{4,})\s*\)?\s*$/i);
-    if (fac) number = fac[1].replace(/\s+/g, "").toUpperCase();
-    name = rawName.replace(/\(?\s*FAC\s*-\s*\d{4,}\s*\)?\s*$/i, "").trim() || null;
+    const fac = rawName.match(/FAC\s*-\s*(\d{4,})/i);
+    if (fac) number = `FAC-${fac[1]}`;
+    name = rawName.replace(FAC_TAIL, "").replace(/^FACILITY\s+NAME\s*:\s*/i, "").trim() || null;
   }
   if (!number) {
     const fac = text.match(/\bFAC\s*-\s*(\d{4,})\b/i);
     if (fac) number = `FAC-${fac[1]}`;
   }
-  const aliasLines = linesAfter(ls, /FACILITY\s+ALIAS\s+NAME\(?S?\)?\s*:/i, /^(FACILITY|FAMA|ISSUANCE|LICENSEE|VENDOR|ADDRESS)\b/i)
-    .filter((l) => !/^(N\/?A|none)$/i.test(l));
+
+  const isRef = (l: string) => /^[A-Z0-9]{8,16}$/.test(l) && /[A-Z]/.test(l) && /\d/.test(l);
   const refRaw = valueAfter(ls, /FAMA\s+ID\s*(?:#|NO\.?|NUMBER)?\s*:?/i);
-  const formReference = refRaw?.match(/[A-Z0-9]{6,}/)?.[0] ?? null;
-  const issuedRaw = valueAfter(ls, /Issu(?:ance|ed)\s+Date\s*:/i);
+  const formReference = (refRaw && isRef(refRaw.trim()) ? refRaw.trim() : null) ?? ls.find(isRef) ?? null;
+
+  const issuedOn = parseFormDate(valueAfter(ls, /Issu(?:ance|ed)\s+Date\s*:/i))
+    ?? parseFormDate(ls.find((l) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(l)) ?? null);
+
+  // Aliases: labelled lines when the label is followed by values; otherwise company-like
+  // lines that are neither the facility nor the licensee (POP Creations, COM- code).
+  let aliases = linesAfter(ls, /FACILITY\s+ALIAS\s+NAME\(?S?\)?\s*:/i, /^(FACILITY|FAMA|ISSUANCE|LICENSEE|VENDOR|STREET|ADDRESS)\b/i)
+    .filter((l) => !/^(N\/?A|none)$/i.test(l));
+  if (aliases.length === 0) {
+    aliases = ls.filter((l) => l.length <= 120 && COMPANY_WORD.test(l) && !FAC_TAIL.test(l)
+      && !/\(COM-\d+\)|\bDBA\b|POP CREATIONS|Disney|Licensee|Facility|Authori[sz]ation/i.test(l)
+      && !/\d{3,}/.test(l));
+  }
   return {
     name,
     number,
-    issuedOn: parseFormDate(issuedRaw),
-    expiresOn: parseFormDate(valueAfter(ls, /Expir(?:ation|y|es)\s+Date\s*:/i)),
+    issuedOn,
+    expiresOn: parseFormDate(valueAfter(ls, /Expir(?:ation|y)\s+Date\s*:/i)),
     formReference,
-    aliases: aliasLines.length ? aliasLines : null,
+    aliases: aliases.length ? aliases : null,
   };
 }
 

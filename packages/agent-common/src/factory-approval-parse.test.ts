@@ -31,7 +31,7 @@ Issued Date: May 28, 2026
 Approval Expiration Date: May 28, 2027
 `;
 
-test("FAMA fields", () => {
+test("FAMA fields (reading order)", () => {
   const f = parseFamaForm(FAMA);
   assert.equal(f.name, "ZHEJIANG MYART CULTURAL AND CREATIVE PRODUCTS CO., LTD");
   assert.equal(f.number, "FAC-046111");
