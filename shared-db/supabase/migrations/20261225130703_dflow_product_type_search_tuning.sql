@@ -21,6 +21,10 @@ begin
     raise exception '#7095/20261225130703 self-check: schema dflow_prod exists here — this is the production project; the paired version 20261225130704 applies there, never this one'
       using errcode = 'feature_not_supported';
   end if;
+end $$;
+
+do $$
+begin
   if to_regprocedure('dflow.product_type_search(text,text,text,text[],integer)') is null then
     raise exception '#7095/20261225130703 self-check: dflow.product_type_search is missing — 20261225130602 has not been applied here'
       using errcode = 'feature_not_supported';

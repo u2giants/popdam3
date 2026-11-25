@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "work_issue": 7095,
+  "generation": 3,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Split the first self-check DO block of the unapplied sandbox half 20261225130703 so no statement names both the absent dflow_prod schema and live dflow (DesignFlow sandbox lane dry-run run 45565260054 refused it). Not applied on any ledger; same precedent as PR 7052.",
+  "base_sha": "3ba93aac9b58d5e19c1029af1c49f8a58d23130c",
+  "branch": "claude/194-search-tuning-split",
+  "worktree": "/var/tmp/ai-sessions-1000/shared-db-194-search",
+  "dispatcher": "claim-first (claim on #7095)",
+  "worker": "claude",
+  "evidence_parent": {
+    "work_issue": 7095,
+    "generation": 2,
+    "contract_sha256": "9bb832954bf835628e8500b87f8d623faf07e162ae246b825f62bfa3d42946ec"
+  },
+  "allowed_paths": [
+    ".agent/work/7095/3/completion.json",
+    ".agent/work/7095/3/contract.json",
+    "supabase/migrations/20261225130703_dflow_product_type_search_tuning.sql"
+  ],
+  "file_writes": [
+    ".agent/work/7095/3/completion.json",
+    ".agent/work/7095/3/contract.json",
+    "supabase/migrations/20261225130703_dflow_product_type_search_tuning.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function dflow.product_type_search"
+  ],
+  "prohibited_actions": [
+    "Do not write application rows in any database",
+    "Do not write production or dispatch production manually",
+    "Do not apply the sandbox half 20261225130703 to shared preview or shared production"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "Database Contract Tests on isolated ephemeral database",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "python3 -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261225130703"
+  ],
+  "assumptions": [
+    "20261225130703 is on no ledger: the sandbox lane dry-run refused before apply and the version targets designflow-nonprod only."
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed lanes is required"
+  ]
+}
