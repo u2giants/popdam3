@@ -82,6 +82,8 @@ select pg_get_functiondef(to_regprocedure('plm.import_coldlion_customers(jsonb)'
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261225130400": "#7070: stops because the sandbox has no pg_cron (run 45549448884). Superseded by sandbox catch-up 20261225130600.",
+    "20261225130500": "#7070: its base 20261029041610 is not in the sandbox ledger. Superseded by sandbox catch-up 20261225130600.",
     CUSTOMER_IMPORT_BASE: "#6998: applying the historical file would recreate the retired vendor importer.",
     "20261224000000": (
         "issue #6472: sandbox catch-up batch 23 committed its first four blocks and then stopped on the sandbox's "

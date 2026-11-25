@@ -667,6 +667,12 @@ PREVIEW_ONLY_HISTORICAL_RESTORATIONS = {
 KNOWN_MIGRATION_TARGETS = frozenset({"production", "preview", "designflow-nonprod", "designflow-prod"})
 
 FOREIGN_TARGET_MIGRATIONS = {
+    "20261225130600": {
+        "target": "designflow-nonprod",
+        "project": "DesignFlow sandbox xupnyeifmpsacrqahwwm",
+        "issue": "#7070",
+        "note": "Sandbox catch-up: replays production's 20261225130400 and 20261225130500 (factory approvals) without the pg_cron reminder job the sandbox lacks; merge_factory derives from sandbox-held 20261116120100. Source excludes shared preview and production.",
+    },
     "20261225090600": {
         "target": "designflow-nonprod",
         "project": "DesignFlow sandbox",
