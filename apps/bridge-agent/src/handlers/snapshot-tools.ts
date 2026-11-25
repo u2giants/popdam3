@@ -27,6 +27,8 @@ export interface SnapshotVersion {
   first_taken_at: string;
   last_taken_at: string;
   snapshot_count: number;
+  /** The snapshot before first_snapshot (the version was not there yet); absent for the oldest snapshot. */
+  prev_taken_at?: string;
 }
 
 export function assertSnapshotName(name: unknown): asserts name is string {
@@ -78,6 +80,7 @@ export async function listSnapshotVersions(mountRoot: string, candidates: string
   const snapshots = await listSnapshotNames(mountRoot);
   const versions: SnapshotVersion[] = [];
   const open = new Map<string, SnapshotVersion>();
+  let prevTaken: string | undefined;
   for (const snap of snapshots) {
     const snapRoot = path.join(mountRoot, SNAPSHOT_DIR, snap);
     const taken = parseSnapshotTime(snap);
@@ -99,10 +102,12 @@ export async function listSnapshotVersions(mountRoot: string, candidates: string
         source_path: rel, size: s.size, mtime,
         first_snapshot: snap, last_snapshot: snap,
         first_taken_at: taken, last_taken_at: taken, snapshot_count: 1,
+        ...(prevTaken ? { prev_taken_at: prevTaken } : {}),
       };
       versions.push(v);
       open.set(rel, v);
     }
+    prevTaken = taken;
   }
   versions.sort((a, b) => a.first_taken_at.localeCompare(b.first_taken_at) || a.source_path.localeCompare(b.source_path));
   return versions.slice(-MAX_VERSIONS);

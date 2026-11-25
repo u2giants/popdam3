@@ -48,7 +48,14 @@ describe("saved-by helpers (popdam3#1342)", () => {
     const v = { source_path: "p", size: 100, mtime: MTIME };
     expect(matchVersion(v, [rev(T + 2, 100, "João Melhorance")], [])).toEqual({ via: "seafile", name: "João Melhorance" });
     expect(matchVersion(v, [rev(T + 2, 101, "João Melhorance")], [])).toEqual({ via: null, name: null });
-    expect(matchVersion(v, [rev(T + 600, 100, "João Melhorance")], [])).toEqual({ via: null, name: null });
+    expect(matchVersion(v, [rev(T + 1000, 100, "João Melhorance")], [])).toEqual({ via: null, name: null });
+  });
+
+  it("a person's commit up to 15 minutes late matches only when no other person could be the saver", () => {
+    const v = { source_path: "p", size: 100, mtime: MTIME };
+    expect(matchVersion(v, [rev(T + 673, 100, "João Melhorance")], [])).toEqual({ via: "seafile", name: "João Melhorance" });
+    expect(matchVersion(v, [rev(T + 673, 100, "João Melhorance"), rev(T + 800, 100, "Andre Manoel")], [])).toEqual({ via: null, name: null });
+    expect(matchVersion(v, [rev(T + 673, 100, "João Melhorance"), rev(T + 30, 100, "nas-sync", "sync@auth.local")], [])).toEqual({ via: "nas", name: null });
   });
 
   it("a NAS save uploaded minutes later by the sync account is a NAS save", () => {

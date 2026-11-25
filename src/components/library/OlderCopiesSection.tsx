@@ -24,7 +24,7 @@ export interface SnapshotVersion {
   last_taken_at: string;
   snapshot_count: number;
   /** Person who saved this version, from the office NAS's SMB/Drive logs (#1342). */
-  saved_by_nas?: { name: string; via: "smb" | "drive" };
+  saved_by_nas?: { name: string; via: "smb" | "drive" | "filestation"; kind?: "save" | "transfer" };
 }
 
 export interface SavedByInfo { via: "seafile" | "nas" | null; name: string | null }
@@ -190,17 +190,16 @@ function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props
                   Saved {fmtSaved(v.mtime)} · {fmtSize(v.size)}
                   {current && <span className="font-normal" style={muted}> · same as the current file</span>}
                 </p>
-                {v.saved_by_nas && (
-                  <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>
-                    Saved by {v.saved_by_nas.name} ({v.saved_by_nas.via === "drive" ? "Synology Drive" : "office network drive"})
-                  </p>
-                )}
-                {!v.saved_by_nas && who?.via === "seafile" && who.name && (
-                  <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Saved by {who.name} (Seafile)</p>
-                )}
-                {!v.saved_by_nas && who?.via === "nas" && (
-                  <p className="text-[11px]" style={muted}>Saved on the office NAS</p>
-                )}
+                {(() => {
+                  const nas = v.saved_by_nas;
+                  const where = nas?.via === "drive" ? "Synology Drive" : nas?.via === "filestation" ? "NAS web File Station" : "office network drive";
+                  // A confirmed save beats a later transfer; a person's Seafile save beats a transfer too.
+                  if (nas && nas.kind !== "transfer") return <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Saved by {nas.name} ({where})</p>;
+                  if (who?.via === "seafile" && who.name) return <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Saved by {who.name} (Seafile)</p>;
+                  if (nas) return <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Transferred in by {nas.name} ({where}); keeps its original saved time</p>;
+                  if (who?.via === "nas") return <p className="text-[11px]" style={muted}>Saved on the office NAS</p>;
+                  return null;
+                })()}
                 <p className="text-[11px]" style={muted}>
                   {sameDay
                     ? `Kept in the snapshot of ${fmtDay(v.first_taken_at)}`
