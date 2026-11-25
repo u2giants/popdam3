@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "work_issue": 7095,
+  "generation": 2,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Revise product_type_search (sandbox 20261225130703, production 20261225130704): set-based division resolution (database p95 808 ms on Cloud Run with the per-row plpgsql call) and tuned fusion weights (words 0.5, trigram > 0.7 weight 1, meaning 2, k 10) chosen on the tuning half of designflow-item-master#194's search evaluation.",
+  "base_sha": "b47d9c9d9a01a3499619c09ddad6913d7e20cd7e",
+  "branch": "claude/194-search-tuning",
+  "worktree": "/var/tmp/ai-sessions-1000/shared-db-194-search",
+  "dispatcher": "claim-first (claim on #7095)",
+  "worker": "claude",
+  "evidence_parent": {
+    "work_issue": 7095,
+    "generation": 1,
+    "contract_sha256": "2cb3a87b43830991b333f19efbc93fc5221a9fc274da52bace915220ef6db9b7"
+  },
+  "allowed_paths": [
+    ".agent/work/7095/2/completion.json",
+    ".agent/work/7095/2/contract.json",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261225130703_dflow_product_type_search_tuning.sql",
+    "supabase/migrations/20261225130704_dflow_prod_product_type_search_tuning.sql",
+    "supabase/tests/dflow_product_type_search_tuning_contracts.sql",
+    "supabase/tests/dflow_prod_product_type_search_tuning_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/7095/2/completion.json",
+    ".agent/work/7095/2/contract.json",
+    "scripts/production_migration_guard.py",
+    "supabase/migrations/20261225130703_dflow_product_type_search_tuning.sql",
+    "supabase/migrations/20261225130704_dflow_prod_product_type_search_tuning.sql",
+    "supabase/tests/dflow_product_type_search_tuning_contracts.sql",
+    "supabase/tests/dflow_prod_product_type_search_tuning_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "function dflow.product_type_search",
+    "function dflow_prod.product_type_search"
+  ],
+  "prohibited_actions": [
+    "Do not write application rows in any database",
+    "Do not write production or dispatch production manually",
+    "Do not apply the sandbox half 20261225130703 to shared preview or shared production"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "Database Contract Tests on isolated ephemeral database",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "python3 -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261225130703 --scan-version 20261225130704"
+  ],
+  "assumptions": [
+    "20261225130602 is applied on the DesignFlow sandbox (run 45556256535); 20261225130603 is merged and promotes automatically."
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed lanes is required"
+  ]
+}
