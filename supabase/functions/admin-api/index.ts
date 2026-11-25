@@ -88,6 +88,7 @@ import {
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
 import {
+  handleGetSavedBy,
   handleGetSnapshotRestoreResult,
   handleGetSnapshotVersionsResult,
   handleRequestSnapshotRestore,
@@ -2095,6 +2096,8 @@ corsServe(async (req: Request) => {
         return await handleRequestSnapshotRestore(body, userId);
       case "get-snapshot-restore-result":
         return await handleGetSnapshotRestoreResult(body);
+      case "get-saved-by":
+        return await handleGetSavedBy(body);
 
       // ── Metadata (from metadata-handlers.ts) ──
       case "reprocess-asset-metadata":

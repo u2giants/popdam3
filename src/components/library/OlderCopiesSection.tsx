@@ -25,6 +25,9 @@ export interface SnapshotVersion {
   snapshot_count: number;
 }
 
+export interface SavedByInfo { via: "seafile" | "nas" | null; name: string | null }
+const savedByKey = (v: { source_path: string; size: number; mtime: string }) => `${v.source_path}|${v.size}|${new Date(v.mtime).getTime()}`;
+
 type State =
   | { kind: "idle" }
   | { kind: "searching" }
@@ -98,6 +101,7 @@ function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props
   const { bridgeStatus } = useAgentStatus();
   const [state, setState] = useState<State>({ kind: "idle" });
   const [confirm, setConfirm] = useState<MergedVersion | null>(null);
+  const [savedBy, setSavedBy] = useState<Record<string, SavedByInfo>>({});
 
   async function poll(action: string, requestId: string) {
     const until = Date.now() + TIMEOUT_MS;
@@ -111,11 +115,22 @@ function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props
 
   async function find() {
     setState({ kind: "searching" });
+    setSavedBy({});
     try {
       const { request_id } = await call<{ request_id: string }>("request-snapshot-versions", { asset_id: assetId });
       const r = await poll("get-snapshot-versions-result", request_id);
       if (!r.ok) throw new Error(String(r.error ?? "Search failed"));
-      setState({ kind: "listed", versions: mergeVersions((r.versions as SnapshotVersion[]) ?? []) });
+      const raw = (r.versions as SnapshotVersion[]) ?? [];
+      setState({ kind: "listed", versions: mergeVersions(raw) });
+      // Names are a bonus: a failure here never hides the list.
+      call<{ versions?: Array<SavedByInfo & { source_path: string; size: number; mtime: string }> }>("get-saved-by", {
+        asset_id: assetId,
+        versions: raw.map((v) => ({ source_path: v.source_path, size: v.size, mtime: v.mtime })),
+      }).then((res) => {
+        const m: Record<string, SavedByInfo> = {};
+        for (const x of res.versions ?? []) m[savedByKey(x)] = { via: x.via, name: x.name };
+        setSavedBy(m);
+      }).catch(() => {});
     } catch (e) {
       setState({ kind: "error", message: (e as Error).message });
     }
@@ -166,12 +181,19 @@ function OlderCopiesInner({ assetId, relativePath, fileSize, modifiedAt }: Props
             const current = sameAsCurrent(v, fileSize, modifiedAt);
             const oldFolders = v.folders.filter((f) => f !== folderOf(relativePath));
             const sameDay = fmtDay(v.first_taken_at) === fmtDay(v.last_taken_at);
+            const who = savedBy[savedByKey(v)];
             return (
               <div key={`${v.source_path}|${v.first_snapshot}`} className="rounded p-2 space-y-0.5" style={{ background: "var(--pd-surface-2)" }}>
                 <p className="text-[11px] font-medium" style={{ color: "var(--pd-fg-muted)" }}>
                   Saved {fmtSaved(v.mtime)} · {fmtSize(v.size)}
                   {current && <span className="font-normal" style={muted}> · same as the current file</span>}
                 </p>
+                {who?.via === "seafile" && who.name && (
+                  <p className="text-[11px]" style={{ color: "var(--pd-fg-muted)" }}>Saved by {who.name} (Seafile)</p>
+                )}
+                {who?.via === "nas" && (
+                  <p className="text-[11px]" style={muted}>Saved on the office NAS</p>
+                )}
                 <p className="text-[11px]" style={muted}>
                   {sameDay
                     ? `Kept in the snapshot of ${fmtDay(v.first_taken_at)}`
