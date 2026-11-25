@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "work_issue": 7106,
+  "generation": 1,
+  "work_type": "structural",
+  "route": "claim-first",
+  "goal": "Load the DesignFlow naming convention v1 rows (one current row per division CW001/SP001/EH001) into dflow_prod.description_convention through the automatic production promotion lane, for popcre/designflow-item-master#194 step 4.2. Data only; no structure change.",
+  "base_sha": "05a0b71af0ddc6591bb65fe40f01e80b6e2a25f7",
+  "branch": "dflow-194-convention-prod",
+  "worktree": "/var/tmp/ai-sessions-1000/sdb-194-conv",
+  "dispatcher": "claim-first (claim #7106)",
+  "worker": "claude",
+  "allowed_paths": [
+    ".agent/work/7106/1/completion.json",
+    ".agent/work/7106/1/contract.json",
+    "supabase/migrations/20261225130804_dflow_prod_description_convention_v1.sql",
+    "supabase/tests/dflow_prod_description_convention_v1_contracts.sql"
+  ],
+  "file_writes": [
+    ".agent/work/7106/1/completion.json",
+    ".agent/work/7106/1/contract.json",
+    "supabase/migrations/20261225130804_dflow_prod_description_convention_v1.sql",
+    "supabase/tests/dflow_prod_description_convention_v1_contracts.sql"
+  ],
+  "db_reads": [],
+  "db_writes": [
+    "table dflow_prod.description_convention"
+  ],
+  "prohibited_actions": [
+    "Do not write production or dispatch production manually",
+    "Do not change any table structure",
+    "Do not write rows outside dflow_prod.description_convention"
+  ],
+  "required_checks": [
+    "bash scripts/check-sql.sh",
+    "git diff --check",
+    "python3 -m unittest discover -s scripts -p test_*.py",
+    "Database Contract Tests on isolated ephemeral database",
+    "node scripts/check-throughput-truth-audit.mjs",
+    "python3 -I -B scripts/check_production_verification_sidecars.py --repo . --scan-version 20261225130804"
+  ],
+  "assumptions": [
+    "20261225091507 (dflow_prod.description_convention) is applied in production and shared preview."
+  ],
+  "stop_conditions": [
+    "stop if admission inspector objects differ from the issue writes",
+    "stop if any database write outside the governed lanes is required"
+  ],
+  "evidence_parent": null
+}
