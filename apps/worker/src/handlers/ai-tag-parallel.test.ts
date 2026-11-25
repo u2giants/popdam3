@@ -98,3 +98,13 @@ test("untagged-only discovery runs are parsed and cannot be combined with force"
   assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: true, force: true}, "run", undefined));
   assert.throws(() => parallelTagRun({...setting, discover: true, untagged_only: "yes"}, "run", undefined));
 });
+
+test("untagged-only requires effective discovery before checking force", () => {
+  const config = { ...setting, untagged_only: true };
+  for (const ids of [undefined, [id]]) {
+    assert.throws(() => parallelTagRun(config, "run", ids), /requires discovery/);
+  }
+  for (const force of [false, true]) {
+    assert.throws(() => parallelTagRun({ ...config, discover: true, force }, "run", [id]), /requires discovery/);
+  }
+});

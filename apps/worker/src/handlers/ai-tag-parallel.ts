@@ -8,6 +8,7 @@ export function parallelTagRun(value: unknown, runId: string | undefined, explic
   if (v.run_id !== runId) return null;
   // A whole-library run pages through candidates: its IDs would not fit in the shared operations record.
   const discover = v.discover === true && explicitIds == null;
+  if (v.untagged_only === true && !discover) throw new Error("Parallel tagging untagged_only requires discovery without explicit asset IDs");
   if (discover && (typeof runId !== "string" || !runId)) throw new Error("Parallel tagging requires a run identity");
   if (!discover && (typeof runId !== "string" || !runId || !Array.isArray(explicitIds) || !explicitIds.length || new Set(explicitIds).size !== explicitIds.length || explicitIds.some(id => typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)))) throw new Error("Parallel tagging requires unique explicit asset IDs and a run identity");
   const isValidParallelModel = (m: unknown): m is string =>

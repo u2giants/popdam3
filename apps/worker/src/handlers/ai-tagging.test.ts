@@ -196,6 +196,25 @@ test("candidate timeout records its stage and reduces only after the first resum
   assert.equal(resumed.retry_page_size, 25);
 });
 
+test("parallel untagged discovery selects untagged candidates and tags without force", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const seen: Array<[string, boolean]> = [];
+  const result = await handleBulkAiTag(
+    { status: "running", run_id: "run" }, true,
+    {
+      parallelConfig: { run_id: "run", models: ["openai/test"], concurrency: 2, discover: true, untagged_only: true },
+      client: fakeClient([{ data: [candidate(IDS[0], 1)], error: null }], calls),
+      tagAsset: async (id, force) => {
+        seen.push([id, force]);
+        return { outcome: "tagged" };
+      },
+    }, true, true,
+  );
+  assert.equal(result.tagged, 1);
+  assert.equal(calls[0].p_mode, "untagged");
+  assert.deepEqual(seen, [[IDS[0], false]]);
+});
+
 test("group-scoped mode passes all mode and explicit group IDs", async () => {
   const calls: Array<Record<string, unknown>> = [];
   const groupId = "323e4567-e89b-42d3-a456-426614174002";
