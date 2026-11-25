@@ -2060,6 +2060,14 @@ class RefundFaultClassifier(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertTrue(classifier.classify_failure(f"something REFUSED: {marker}\n"))
 
+    def test_production_lease_contention_is_refundable(self):
+        # #7070: run 45635561432 refused only because PR #7116 held the lease.
+        text = ("::error::REFUSED: refs/db-coordination/production is occupied; "
+                "hold_reason lease:production held by PR #7116\n")
+        self.assertTrue(classifier.classify_failure(text))
+        self.assertFalse(classifier.classify_failure(
+            "::error::REFUSED: refs/db-coordination/production is occupied\n"))
+
     def test_a_plain_sql_error_or_guard_refusal_stays_a_change_fault(self):
         for text in ("ERROR:  syntax error at or near \"select\"\n",
                      "REFUSED: merged_preview_source_pr is a post-merge APPLY\n",

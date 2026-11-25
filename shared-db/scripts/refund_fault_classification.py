@@ -75,6 +75,9 @@ COORDINATION_REFUSALS = (
     # run (acquire or release refused). Contention, not the change: PR #6709
     # burned all three attempts on this and parked.
     "refs/db-coordination/author-acquisition remained occupied at",
+    # #7070: the production lane lease was held by another pull request's
+    # apply. Contention, not the change: PR #7119 parked on this alone.
+    "refs/db-coordination/production is occupied; hold_reason lease:production held by",
 )
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
