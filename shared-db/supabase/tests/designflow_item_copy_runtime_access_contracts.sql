@@ -22,6 +22,8 @@ begin
     where p.pronamespace in ('plm'::regnamespace, 'app'::regnamespace)
       and a.grantee in (runtime_role::regrole, grants_role::regrole)
       and a.privilege_type = 'EXECUTE'
+      -- #4707 orphan retirement owner function only.
+      and p.oid <> 'plm.designflow_retire_orphan_items(uuid, integer[])'::regprocedure
   ) then
     raise exception 'The item copy grants an unrelated shared function';
   end if;
