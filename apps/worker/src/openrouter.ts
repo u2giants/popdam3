@@ -15,7 +15,7 @@
 
 import { logger } from "./logger.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
-import { getStraitlyApiKey } from "./provider-api-key.js";
+import { getStraitlyApiKey, isStraitlyRoutingEnabled } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -620,7 +620,7 @@ export async function chatCompletion(
   if (openAiDirect && !openAiRouting.apiKey) {
     throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
   }
-  const straitlyKey = !openAiRouting && isStraitlyModel(request.model) ? await getStraitlyApiKey() : null;
+  const straitlyKey = !openAiRouting && isStraitlyModel(request.model) && await isStraitlyRoutingEnabled() ? await getStraitlyApiKey() : null;
   const straitly = straitlyKey !== null;
   if (straitly && !straitlyKey) {
     throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");

@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 import { withDependencyTimeout } from "./bounded-dependency.js";
 
 const CACHE_TTL_MS = 60_000;
-type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY" | "STRAITLY_API_KEY";
+type DirectProviderKey = "META_API_KEY" | "SCALEDOWN_API_KEY" | "STRAITLY_API_KEY" | "STRAITLY_ROUTING";
 type KeyRow = { found: boolean; value: string };
 const cache = new Map<DirectProviderKey, { value: string; cachedAt: number }>();
 
@@ -65,6 +65,12 @@ let straitlyKeyOverride: string | null = null;
 export function getStraitlyApiKey(): Promise<string> {
   if (straitlyKeyOverride !== null) return Promise.resolve(straitlyKeyOverride);
   return resolveDirectProviderApiKey("STRAITLY_API_KEY", config.straitlyApiKey);
+}
+
+/** admin_config.STRAITLY_ROUTING = "off" sends non-OpenAI models back to OpenRouter. */
+export async function isStraitlyRoutingEnabled(): Promise<boolean> {
+  if (straitlyKeyOverride !== null) return true;
+  return (await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).toLowerCase() !== "off";
 }
 
 /** Test hook: force the Straitly key (null restores normal lookup). */
