@@ -553,9 +553,17 @@ export function detectFailureKillSwitch(progress: Record<string, unknown>, start
     const recent = samples.slice(-KILL_SAME_ERROR_COUNT);
     const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
     const first = normalize(recent[0].error);
+    // `seen` is the running total when a failure's batch merged, so the window of items
+    // processed starts at the total before the first recent failure's batch (the last
+    // sample with a smaller `seen`, else zero) — failures from one batch share a `seen`.
     const firstSeen = recent[0].seen, lastSeen = recent[recent.length - 1].seen;
-    const processed = typeof firstSeen === "number" && typeof lastSeen === "number"
-      ? Math.max(KILL_SAME_ERROR_COUNT, lastSeen - firstSeen + KILL_SAME_ERROR_COUNT) : KILL_SAME_ERROR_COUNT;
+    let processed = KILL_SAME_ERROR_COUNT;
+    if (typeof firstSeen === "number" && typeof lastSeen === "number") {
+      const older = (allSamples ?? []).map((s) => s.seen)
+        .filter((v): v is number => typeof v === "number" && v < firstSeen);
+      const windowStart = older.length ? Math.max(...older) : 0;
+      processed = Math.max(KILL_SAME_ERROR_COUNT, lastSeen - windowStart);
+    }
     const burst = KILL_SAME_ERROR_COUNT / processed >= KILL_SAME_ERROR_MIN_SHARE;
     if (first && burst && recent.every((s) => normalize(s.error) === first)) {
       return `Last ${KILL_SAME_ERROR_COUNT} failures share the same error: "${first.slice(0, 200)}"`;
