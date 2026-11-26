@@ -519,6 +519,9 @@ export function nextAutoResumeAt(reason: string, op: OpState): string | undefine
 // for a large sample. Does not require failures to be consecutive — skips
 // and successes in between don't reset it.
 const KILL_SAME_ERROR_COUNT = 20;
+// ...but only when those failures are a burst: at least this share of the items
+// processed across them failed. Rare per-item failures spread over many successes never stop a run.
+const KILL_SAME_ERROR_MIN_SHARE = 0.5;
 
 // Tier 2: if the overall failure rate exceeds this threshold once a minimum
 // number of assets have been processed, stop. Catches high-rate mixed errors
@@ -532,7 +535,7 @@ const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
  * Only considers failures that occurred on or after startedAt (current run).
  */
 export function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
-  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string; reason_category?: string }> | undefined;
+  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string; reason_category?: string; seen?: number }> | undefined;
   const startMs = startedAt ? new Date(startedAt).getTime() : 0;
 
   // Only consider failures from the current run (filter by started_at). Items
@@ -550,7 +553,11 @@ export function detectFailureKillSwitch(progress: Record<string, unknown>, start
     const recent = samples.slice(-KILL_SAME_ERROR_COUNT);
     const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
     const first = normalize(recent[0].error);
-    if (first && recent.every((s) => normalize(s.error) === first)) {
+    const firstSeen = recent[0].seen, lastSeen = recent[recent.length - 1].seen;
+    const processed = typeof firstSeen === "number" && typeof lastSeen === "number"
+      ? Math.max(KILL_SAME_ERROR_COUNT, lastSeen - firstSeen + KILL_SAME_ERROR_COUNT) : KILL_SAME_ERROR_COUNT;
+    const burst = KILL_SAME_ERROR_COUNT / processed >= KILL_SAME_ERROR_MIN_SHARE;
+    if (first && burst && recent.every((s) => normalize(s.error) === first)) {
       return `Last ${KILL_SAME_ERROR_COUNT} failures share the same error: "${first.slice(0, 200)}"`;
     }
   }

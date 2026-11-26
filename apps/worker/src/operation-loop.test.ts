@@ -507,3 +507,14 @@ test("Meta guarded exact clear advances one asset or persists bounded retry, nev
  assert.equal(await clearCompletedJobNow("meta",{ok:true,state_revision:1,operation:stored},"receipt",refused),false);
  assert.equal(stored.cursor,0);assert.equal(stored.external_job?.provider_batch_id,"opaque-id");
 });
+
+test("the same error spread thinly over many successes does not stop a run; a burst does", async () => {
+  const { detectFailureKillSwitch } = await import("./operation-loop.js");
+  const at = new Date().toISOString();
+  const error = "AI call error: Model returned invalid structured tag data";
+  let progress: Record<string, unknown> = {};
+  for (let i = 0; i < 25; i++) progress = mergeProgress("ai-tag-parallel", progress, { ok: true, done: false, tagged: 19, failed: 1, failure_samples: [{ at, error }] });
+  assert.equal(detectFailureKillSwitch(progress), null);
+  progress = mergeProgress("ai-tag-parallel", progress, { ok: true, done: false, failed: 20, failure_samples: Array.from({ length: 20 }, () => ({ at, error })) });
+  assert.match(detectFailureKillSwitch(progress) ?? "", /same error/);
+});

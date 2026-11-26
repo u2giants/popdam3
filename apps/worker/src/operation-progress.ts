@@ -29,7 +29,12 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "ai-tag-groups":
     case "ai-tag-parallel": {
       const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
+      // Each failure remembers how many items had been processed by then, so the
+      // kill switch can tell a burst of failures from rare ones spread over many successes.
+      const seen = ((prev.tagged as number) || 0) + ((prev.skipped as number) || 0) + ((prev.failed as number) || 0) +
+        ((batch.tagged as number) || 0) + ((batch.skipped as number) || 0) + ((batch.failed as number) || 0);
+      const batchFail = (Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [])
+        .map((sample) => sample && typeof sample === "object" ? { ...sample as Record<string, unknown>, seen } : sample);
       const prevSkip = Array.isArray(prev.skip_samples) ? prev.skip_samples as unknown[] : [];
       const batchSkip = Array.isArray(batch.skip_samples) ? batch.skip_samples as unknown[] : [];
       return {
