@@ -18,14 +18,14 @@ Covers [u2giants/popdam3#1087](https://github.com/u2giants/popdam3/issues/1087) 
 |---|---|---|
 | 0. Crash-safe write/read store | ✅ done | `apps/popdam-helper/src/main/queueStore.ts` on main; PR #1125 (merge in main history), tests in `apps/popdam-helper/src/main/queueStore.vitest.ts` |
 | 0b. Released to Helpers | ✅ done | Helper 1.4.16 via PR #1138; main now ships `HELPER_VERSION = "1.4.18"` (`apps/popdam-helper/src/shared/constants.ts:1`) |
-| 1. Guard every queue consumer | ✅ done | branch claude/helper-queue-failure-paths |
-| 2. Show stuck/failed retries in the window | ✅ done | branch claude/helper-queue-failure-paths |
-| 3. Repair path for an unreadable list | ✅ done | branch claude/helper-queue-failure-paths |
-| 4. Tests for the failure paths | ✅ done | branch claude/helper-queue-failure-paths |
-| 5. Release a Helper patch | 🟡 PR open | Helper 1.4.19 |
-| 6. Live proof | ⬜ open | |
+| 1. Guard every queue consumer | ✅ done | PR #1390, merge eb5de4c2 |
+| 2. Show stuck/failed retries in the window | ✅ done | PR #1390, merge eb5de4c2 |
+| 3. Repair path for an unreadable list | ✅ done | PR #1390, merge eb5de4c2 |
+| 4. Tests for the failure paths | ✅ done | PR #1390, merge eb5de4c2 |
+| 5. Release a Helper patch | ✅ done | Helper 1.4.19, publish run 45716079924 green; latest.yml + latest-mac.yml serve 1.4.19 (2026-11-25 5:48 PM EST) |
+| 6. Live proof | ⬜ blocked | needs a Windows PC with Helper ≥1.4.19; as of 2026-11-25 no device reported ≥1.4.16 |
 
-**Next: merge, confirm release, then step 6 on a Windows PC.**
+**Next: step 6 only, on a Windows PC.**
 
 ## 1. Ultimate goal
 
