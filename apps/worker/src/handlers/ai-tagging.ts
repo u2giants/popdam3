@@ -1340,6 +1340,12 @@ export async function handleBulkAiTag(
   });
 
   if (!assets || assets.length === 0) {
+    // A whole-library untagged run starts its next pass by itself while the last
+    // hour still tagged something; files that only ever fail then end the run.
+    if (parallel?.discover && parallel.untagged_only && cursor && await taggedWithinLastHour()) {
+      logger.info("ai-tag: pass finished; starting the next pass", { stage: "candidate_fetch" });
+      return { ok: true, done: false, tagged: 0, skipped: 0, failed: 0, failure_samples: [], skip_samples: [], nextOffset: 0, last_stage: "candidate_fetch", last_stage_started_at: stageStartedAt, elapsed_ms: fetchElapsedMs };
+    }
     if (usesColab) {
       await releaseColabConsumerAndMaybeShutdown(colabConsumerId, { reason: "bulk_ai_tag_completed" });
     }
@@ -1442,4 +1448,10 @@ export async function handleBulkAiTag(
     last_stage_started_at: stageStartedAt,
     elapsed_ms: fetchElapsedMs,
   };
+}
+
+async function taggedWithinLastHour(): Promise<boolean> {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data, error } = await db().from("assets").select("id").gte("ai_tagged_at", since).limit(1);
+  return !error && Array.isArray(data) && data.length > 0;
 }
