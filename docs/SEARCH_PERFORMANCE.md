@@ -10,6 +10,8 @@ read-when: making search faster or diagnosing timeouts
 PopDAM library search is backed by Supabase Postgres, not an external search
 cluster.
 
+Active speedup plan: [Issue #1430 — PopDAM and PopSG semantic search speed and Groups file-count truncation](plans/issue-1430-semantic-search-speed.md) (read its STATUS table first; do not re-derive or re-plan completed steps).
+
 ## Current Stack
 
 - `public.dam_search_documents` is the flattened search table for DAM assets and
