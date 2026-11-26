@@ -14,7 +14,7 @@ test("parallel distribution is opt-in and limited to its exact explicit-ID run",
 });
 test("invalid provider routes and concurrency fail closed", () => {
   for (const model of ["meta-direct/muse", "google-direct/gemini:batch", "google/gemini:batch", "", "scaledown/foo"]) assert.throws(() => parallelTagRun({...setting, models: [model, "openai/gpt-6-luna"]}, "run", [id]));
-  for (const concurrency of [0, 1, 33, 2.5, "6"]) assert.throws(() => parallelTagRun({...setting, concurrency}, "run", [id]));
+  for (const concurrency of [0, 1, 49, 2.5, "6"]) assert.throws(() => parallelTagRun({...setting, concurrency}, "run", [id]));
 });
 test("asset assignment is stable across page boundaries and covers every model", () => {
   const run = parallelTagRun(setting, "run", [id])!;
