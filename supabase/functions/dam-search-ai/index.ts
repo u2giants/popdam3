@@ -659,7 +659,13 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           "search_config",
           Promise.resolve(
             serviceClient().from("admin_config").select("key, value")
-              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY, SEARCH_TEXT_MIN_SCORE_KEY, SEARCH_TEXT_SCORE_MARGIN_KEY, SEARCH_MIN_SEMANTIC_SCORE_KEY]),
+              .in("key", [
+                SEARCH_TEXT_LEG_MODE_KEY,
+                SEARCH_TEXT_EMBEDDING_MODEL_KEY,
+                SEARCH_TEXT_MIN_SCORE_KEY,
+                SEARCH_TEXT_SCORE_MARGIN_KEY,
+                SEARCH_MIN_SEMANTIC_SCORE_KEY,
+              ]),
           ).then((result) => result, (error: unknown) => ({ data: null, error })),
         );
         // Only after both code gates say "not a code": embed the typed query's semantic texts
