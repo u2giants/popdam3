@@ -11,6 +11,7 @@
 import { app, BrowserWindow, dialog } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { autoUpdater } from "electron-updater";
+import { createAutoInstaller } from "./autoInstall";
 import { createTray, updateTrayIcon, showWindow, showNotification } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
@@ -153,6 +154,7 @@ app.whenReady().then(async () => {
     updateUploadProgress(checkoutId, percent);
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
+    autoInstaller?.onCheckoutsChanged();
   });
   // Seafile check-ins stay in 'verifying' after upload until the bridge agent
   // confirms receipt on the Synology — keep them visible, don't mark complete.
@@ -236,9 +238,21 @@ app.whenReady().then(async () => {
     provider: "generic",
     url: "https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/",
   });
-  autoUpdater.checkForUpdatesAndNotify().catch((e: unknown) => {
-    log.debug("Auto-update check skipped:", (e as Error).message);
+  // Install downloaded updates without waiting for a tray Quit (#1423).
+  autoInstaller = createAutoInstaller({
+    getCheckouts: getActiveCheckouts,
+    install: () => autoUpdater.quitAndInstall(true, true),
+    log: (m) => log.info(m),
   });
+  autoUpdater.on("update-downloaded", (info) => {
+    autoInstaller.onUpdateDownloaded(info.version);
+  });
+  const checkForUpdates = () =>
+    autoUpdater.checkForUpdatesAndNotify().catch((e: unknown) => {
+      log.debug("Auto-update check skipped:", (e as Error).message);
+    });
+  checkForUpdates();
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 
   log.info(`POP DAM Helper v${HELPER_VERSION} started`);
 });
@@ -251,6 +265,8 @@ app.on("window-all-closed", () => {});
 // yet confirmed on the server. Their edits live only in the local workspace
 // until a check-in finishes uploading — quitting silently here is exactly how
 // someone loses hours of work without knowing. Warn, and require confirmation.
+let autoInstaller: ReturnType<typeof createAutoInstaller> | null = null;
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 let quitConfirmed = false;
 app.on("before-quit", (event) => {
   const outstanding = getActiveCheckouts().filter(
