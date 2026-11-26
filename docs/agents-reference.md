@@ -399,6 +399,7 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 
 Full entries live in [`docs/incident-log.md`](incident-log.md) — read the matching entry before changing any of this behaviour. Add new entries there, not here. Index:
 
+- 2026-11-25: Bulk AI tagging auto-stopped on GLM missing-tag output from one OpenRouter host — reroute + 60 s ladder budget (#1397); failures ~10.6% → ~7.8%, not yet solved
 - 2026-11-10: OrderList showed ColdLion-replaced (voided) assortment lines on PO 62012008 — voided lines now hidden from list, counts and Find (shared-db #6022)
 - Resolved 2026-11-09: Nightly rebuild monitor "no terminal outcome" — worker skipped terminal-outcome recording after #713's applied-check inversion; the alarm was true (#866, #863)
 - Resolved 2026-11-06: Production canary false-failing on stale worker heartbeat during long bulk operations — heartbeat now refreshes on an independent timer (#836, #846)

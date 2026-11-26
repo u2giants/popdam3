@@ -675,3 +675,11 @@ property **by value** against `core.licensor` (name + merch-group `code`) and `c
 **Actually**: `handleTriggerScan` writes `requested_by`/`updated_by` verbatim from the auth context; the service-key path yields `"system"`, which Postgres rejects for the uuid column. Sibling `handleTriggerAgentUpdate` maps `"system"` to `null` first (`supabase/functions/_shared/admin-handlers/agent-handlers.ts`); `handleTriggerScan` never got that line. The website's Scan Now button is unaffected (verified 2026-11-19, #1233).
 
 **What to do**: Use Scan Now until `handleTriggerScan` maps `"system"` to `null` like its sibling; gate by a service-key `trigger-scan` returning `ok: true`.
+
+## 83. GLM 5.3 Flash tag items arrive without `tag` from one OpenRouter host (2026-11-25)
+
+**Looks like**: the tagger "randomly" fails files with `asset_tags must contain 4-18 items`, and the fix seems to be clearer prompt or schema wording.
+
+**Actually**: measured on 20 real untagged thumbnails (tool_named, production prompt), the Pareto Inference host for `z-ai/glm-5.3-flash` drops the `tag` field on 35–40% of files; `wafer/us` and `wafer/nvfp4` returned 0 invalid; `deepinfra/fp4` mostly returned no tool call. Stronger `tag` wording made it worse (14/20 invalid), renaming `tag` to `term` too (12/20). Since #1397 (c7595103) `executeStructuredOutput` retries the same method once with the serving host added to `provider.ignore`, and the whole tag ladder (plus the same-model retry) stops starting new steps after `TAG_LADDER_BUDGET_MS` (60 s). Probe after the fix: 0/20 invalid.
+
+**Do not change because**: prompt or schema rewording was measured to raise the failure rate; recovering a missing `tag` from evidence is unsafe (whole files arrive with no tags). Albert ruled the model stays GLM 5.3 Flash. Live, the first 15 minutes after the fix still failed ~8% (down from ~10.6%): some files fail on the second host too, so the remaining gap is open, not solved.
