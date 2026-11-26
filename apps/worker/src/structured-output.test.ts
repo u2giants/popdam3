@@ -100,3 +100,16 @@ test("an ignore-only provider keeps cheapest routing and its allowlist", async (
     assert.equal(provider.sort, "price"); assert.deepEqual(provider.ignore, ["Bad Host"]);
   } finally { globalThis.fetch = original; setOpenRouterRoutingForTests("exacto"); }
 });
+
+test("a reroute away from Straitly goes to OpenRouter with cheapest routing", async () => {
+  const { chatCompletion } = await import("./openrouter.js");
+  setOpenRouterRoutingForTests("cheapest");
+  const original = globalThis.fetch; let url = ""; let body: Record<string, unknown> = {};
+  globalThis.fetch = async (u, init) => { url = String(u); body = JSON.parse(String(init?.body)); return response({ content: "{}" }); };
+  try {
+    await chatCompletion("key", { model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "x" }], provider: { ignore: ["straitly"] } });
+    assert.match(url, /openrouter\.ai/);
+    const provider = body.provider as Record<string, unknown>;
+    assert.equal(provider.sort, "price"); assert.equal(provider.ignore, undefined);
+  } finally { globalThis.fetch = original; setOpenRouterRoutingForTests("exacto"); }
+});

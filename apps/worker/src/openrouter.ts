@@ -621,7 +621,16 @@ export async function chatCompletion(
   if (openAiDirect && !openAiRouting.apiKey) {
     throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
   }
-  const straitlyMode = !openAiRouting && isStraitlyModel(request.model) ? await straitlyRouting() : null;
+  // A structured-output reroute that lists "straitly" in provider.ignore goes to OpenRouter instead.
+  const ignored = request.provider?.ignore ?? [];
+  const skipStraitly = ignored.some((host) => host.toLowerCase() === "straitly");
+  if (skipStraitly) {
+    const rest = ignored.filter((host) => host.toLowerCase() !== "straitly");
+    const { ignore: _ignore, ...otherProvider } = request.provider ?? {};
+    const provider = rest.length ? { ...otherProvider, ignore: rest } : otherProvider;
+    request = { ...request, provider: Object.keys(provider).length ? provider : undefined };
+  }
+  const straitlyMode = !skipStraitly && !openAiRouting && isStraitlyModel(request.model) ? await straitlyRouting() : null;
   // "share:N" fills Straitly up to N requests in flight; the overflow goes to OpenRouter.
   const straitlyShare = straitlyMode?.cap !== undefined && straitlyInFlight < straitlyMode.cap;
   if (straitlyShare) straitlyInFlight++;
