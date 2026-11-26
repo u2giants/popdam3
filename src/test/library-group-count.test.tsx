@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
   countHook: vi.fn(),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
-vi.mock("@/lib/dam-search", () => ({ searchAccessStatus: () => null }));
+vi.mock("@/lib/dam-search", () => ({ searchAccessStatus: () => null, preloadSearchMode: () => {} }));
 vi.mock("@/hooks/useStyleGroups", () => ({
   useStyleGroups: () => ({ data: state.pageTotal === undefined ? undefined : { groups: [], totalCount: state.pageTotal } }),
   useStyleGroupCount: (...args: unknown[]) => { state.countHook(...args); return { data: state.headTotal }; },
