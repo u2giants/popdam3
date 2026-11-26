@@ -9,6 +9,16 @@ read-when: debugging a familiar symptom before re-investigating
 
 Moved verbatim from `AGENTS.md` on 2026-09-18 to keep the router under its size cap. Add new entries here, then add a one-line title to the index in `AGENTS.md` → Critical incidents.
 
+## 2026-11-25: Bulk AI tagging auto-stopped on missing-tag model output
+
+What happened: `ai-tag-parallel` hit the 20-identical-failures kill switch at 5:40 PM EST (last tag 5:35 PM EST) with 815 tagged and 97 failed (~10.6%). Each failure was `asset_tags must contain 4-18 items` after a ~4-minute structured-output ladder ending in "AI call error".
+
+Root cause: the Pareto Inference OpenRouter host serving `z-ai/glm-5.3-flash` returns tag items with no `tag` field; `normalizeTagAssetData` drops them and validation fails. Cheapest routing sent every probe call there. See KNOWN_QUIRKS #83 for the probe table.
+
+Fix: PR #1397 (c7595103): reroute the same method once with the failing host in `provider.ignore`; 60 s budget on the tag ladder and same-model retry. Worker heartbeat showed c7595103 at 10:48 PM EST. Run resumed 10:48 PM EST; it stopped once more because a peer set concurrency to 80 (allowed 2–32), restored to 32 and running at 10:50 PM EST.
+
+Live result, 10:50–11:06 PM EST: +118 tagged, +10 failed (~7.8%, down from ~10.6%). Not solved: failure samples show both the first and the rerouted host failing. Next step is measuring which host serves the second call and whether pinning to the wafer hosts closes the gap.
+
 ## 2026-11-10: OrderList showed a replaced assortment on PO 62012008
 
 What happened: a buyer reported PO 62012008 (Ross, ColdLion SO 7128129) listed assortment AAH6208 next to the correct BRG6205, and asked why AAH6208 was linked.

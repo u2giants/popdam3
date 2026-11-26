@@ -166,3 +166,4 @@ pipeline (e.g. Coolify). Don't put host-level changes here, and don't manage thi
 container with Ansible. Scope boundary: **Ansible owns the host; Coolify owns the apps.**
 
 The [November 19 cleanup plan directory](HANDOFF.d/2026-11-19T1750Z-edge-dev3-codex-cleanup-plans.md) lists 20 separately selectable plans. Read the selected plan’s STATUS first.
+The [November 19 cleanup plan directory](HANDOFF.d/2026-11-19T1750Z-edge-dev3-codex-cleanup-plans.md) lists 20 separately selectable plans. Read the selected plan’s STATUS first.
