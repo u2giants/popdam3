@@ -52,11 +52,23 @@ begin
        where (select relrowsecurity from pg_class where oid = t.name::regclass)) <> 7 then
     raise exception 'all seven stage catalog tables must have RLS enabled';
   end if;
-  -- #4464: the only permitted policies are scoped solely to the DesignFlow production
-  -- tracking runtime role (20261020125826); no policy may reach public, anon or authenticated.
-  if exists (select 1 from pg_policy where polrelid = any (select t::regclass from unnest(v_access) t)
-             and polroles is distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_tracking_runtime')]) then
-    raise exception 'stage catalog tables must have no RLS policy except the production tracking runtime role policy';
+  -- #4464 + designflow-tracking#130: the only permitted policies are scoped solely
+  -- to designflow_prod_tracking_runtime (20261020125826) or FOR SELECT to
+  -- designflow_prod_item_master_grants on stage_list/stage/stage_duration (20261225141700);
+  -- no policy may reach public, anon or authenticated.
+  if exists (
+    select 1 from pg_policy
+    where polrelid = any (select t::regclass from unnest(v_access) t)
+      and not (
+        polroles = array[(select oid from pg_roles where rolname = 'designflow_prod_tracking_runtime')]
+        or (
+          polrelid = any (array['plm.stage_list'::regclass, 'plm.stage'::regclass, 'plm.stage_duration'::regclass])
+          and polcmd = 'r'
+          and polroles = array[(select oid from pg_roles where rolname = 'designflow_prod_item_master_grants')]
+        )
+      )
+  ) then
+    raise exception 'stage catalog tables must have no RLS policy except the authorized tracking/item_master runtime role policies';
   end if;
   if exists (select 1 from pg_roles r cross join unnest(v_access) t(name)
              cross join unnest(array['select','insert','update','delete']) p(priv)
