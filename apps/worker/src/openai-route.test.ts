@@ -1,4 +1,4 @@
-import { setStraitlyApiKeyForTests } from "./provider-api-key.js";
+import { setStraitlyApiKeyForTests, setStraitlyRoutingForTests, setOpenRouterRoutingForTests } from "./provider-api-key.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { chatCompletion } from "./openrouter.js";
@@ -103,4 +103,33 @@ test("unsupported parameter is dropped once and retried", async () => {
     assert.equal(bodies.length, 2);
     assert.equal("temperature" in bodies[1], false);
   } finally { globalThis.fetch = original; setOpenAiRoutingLoaderForTests(null); }
+});
+
+test("share:N fills Straitly up to N in flight and overflows to OpenRouter", async () => {
+  setStraitlyApiKeyForTests("st-key");
+  setStraitlyRoutingForTests("share:1");
+  setOpenRouterRoutingForTests("exacto");
+  const urls: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((r) => { release = r; });
+  const original = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    if (urls.length === 1) await gate;
+    return new Response(JSON.stringify(ok), { status: 200 });
+  };
+  const req = { model: "z-ai/glm-5.3-flash", messages: [{ role: "user" as const, content: "x" }] };
+  try {
+    const first = chatCompletion("or-key", req);
+    await new Promise((r) => setTimeout(r, 5));
+    await chatCompletion("or-key", req);
+    release();
+    await first;
+    await chatCompletion("or-key", req);
+    assert.deepEqual(urls.filter((u) => u.endsWith("/chat/completions")), [
+      "https://api.straitly.ai/v1/chat/completions",
+      "https://openrouter.ai/api/v1/chat/completions",
+      "https://api.straitly.ai/v1/chat/completions",
+    ]);
+  } finally { globalThis.fetch = original; setStraitlyApiKeyForTests(null); setStraitlyRoutingForTests(null); setOpenRouterRoutingForTests(null); }
 });

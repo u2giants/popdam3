@@ -79,6 +79,21 @@ export async function isStraitlyRoutingEnabled(): Promise<boolean> {
   return (await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).toLowerCase() !== "off";
 }
 
+/**
+ * admin_config.STRAITLY_ROUTING: "off" → null (OpenRouter only); "share:N" →
+ * { cap: N } (Straitly up to N in flight, rest OpenRouter); anything else → {} (all Straitly).
+ */
+let straitlyRoutingOverride: string | null = null;
+export function setStraitlyRoutingForTests(value: string | null): void { straitlyRoutingOverride = value; }
+
+export async function straitlyRouting(): Promise<{ cap?: number } | null> {
+  if (straitlyRoutingOverride === null && straitlyKeyOverride !== null) return {};
+  const raw = (straitlyRoutingOverride ?? await resolveDirectProviderApiKey("STRAITLY_ROUTING", "")).trim().toLowerCase();
+  if (raw === "off") return null;
+  const share = /^share:(\d+)$/.exec(raw);
+  return share ? { cap: Number(share[1]) } : {};
+}
+
 /** admin_config.OPENROUTER_ROUTING = "cheapest" routes by price among healthy providers instead of Exacto. */
 export async function openRouterCheapestRouting(): Promise<boolean> {
   if (straitlyKeyOverride !== null || openRouterRoutingOverride !== null) return openRouterRoutingOverride === "cheapest";
