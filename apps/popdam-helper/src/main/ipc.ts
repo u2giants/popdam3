@@ -14,6 +14,7 @@ import {
   revealFile,
   openFile,
   resetUploadingCheckouts,
+  retryFailedUploads,
 } from "./checkoutManager";
 import { getPendingJobs, getQueueError, repairQueue } from "./uploadQueue";
 import { fetchConfig, discoverSupabaseConfig } from "./damClient";
@@ -55,6 +56,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("save-config", (_event, updates: Partial<LocalConfig>) => {
     try {
       const saved = saveConfig(updates);
+      // Fixed settings (credentials, drive mapping) may unblock failed uploads.
+      try {
+        retryFailedUploads();
+      } catch (err) {
+        log.warn("Could not re-queue failed uploads after settings save:", (err as Error).message);
+      }
       return { ok: true, data: saved };
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };

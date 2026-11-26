@@ -25,7 +25,7 @@ import {
   getOpenCheckouts,
   redrive as apiRedrive,
 } from "./damClient";
-import { enqueue, getQueueHealth } from "./uploadQueue";
+import { enqueue, getQueueHealth, requeueFailed, hasJob } from "./uploadQueue";
 import { makeUploadQueueItem } from "@shared/upload-job";
 import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
@@ -342,6 +342,15 @@ export async function checkin(checkoutId: string): Promise<void> {
   const health = getQueueHealth();
   if (!health.ok) throw new Error(health.message);
 
+  // Retry of a failed upload: the server checkout is already checkin_queued
+  // and refuses a second prepare-checkin, so re-run the existing job instead.
+  if (requeueFailed(checkoutId).length > 0 || (record.status === "checkin_queued" && hasJob(checkoutId))) {
+    record.errorMessage = null;
+    updateStatus(checkoutId, "uploading");
+    notify();
+    return;
+  }
+
   updateStatus(checkoutId, "checkin_queued");
 
   // If anything before the upload is enqueued fails (file still saving,
@@ -403,6 +412,23 @@ export function resetUploadingCheckouts(): number {
 }
 
 // ── Discard ───────────────────────────────────────────────────────────────────
+
+/**
+ * Settings changed (e.g. Synology credentials or drive mapping fixed): give
+ * every failed upload a fresh set of attempts.
+ */
+export function retryFailedUploads(): number {
+  const ids = requeueFailed();
+  for (const id of ids) {
+    const rec = active.get(id);
+    if (rec) {
+      rec.errorMessage = null;
+      updateStatus(id, "uploading");
+    }
+  }
+  if (ids.length > 0) notify();
+  return ids.length;
+}
 
 export async function discard(checkoutId: string): Promise<void> {
   await apiDiscard(checkoutId);
