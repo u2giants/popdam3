@@ -236,15 +236,16 @@ describe("DAM search embedding availability", () => {
       // Speculative embedding may run before spelling; its result is discarded. No picture leg runs.
       expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
       if (state.productCode) expect(state.namesRpc).not.toHaveBeenCalled();
-      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
+      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null, p_compute_anchor: false }));
     });
   }
 
   it("a later successful attempt uses semantic ranking", async () => {
     vi.stubGlobal("fetch", embedFetch());
     expect((await search("semantic ranking")).status).toBe(200);
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
+    // One database call: the anchor is computed inside it (#1430 Step 6).
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0), p_compute_anchor: true }));
   });
 
   it("denies an invalid viewer before embedding or searching", async () => {
@@ -381,19 +382,13 @@ describe("DAM search embedding availability", () => {
     const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
     expect((await search("zorb studios toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{ semanticLicensorIds: ["11111111-1111-4111-8111-111111111111"] }]);
-    // The picture floor is anchored on the same licensor's best picture (popcre/shared-db#6024).
-    expect(state.rpc).toHaveBeenCalledWith(
-      "dam_search_semantic_anchor_scoped",
-      expect.objectContaining({
-        p_licensor_ids: ["11111111-1111-4111-8111-111111111111"],
-      }),
-    );
-    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+    // The database anchors the picture floor inside the same scope (popcre/shared-db#6024, #1430).
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_compute_anchor: true }));
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
     state.rpc.mockClear();
     expect((await search("plain toy chest")).status).toBe(200);
     expect(filtersOf()).toEqual([{}]);
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.not.objectContaining({ p_licensor_ids: expect.anything() }));
-    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor_scoped", expect.anything());
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
   });
 
   it("requires a named character on every leg and anchors inside it (#1037)", async () => {
@@ -410,8 +405,8 @@ describe("DAM search embedding availability", () => {
       requiredCharacterIds: [marie1, marie2],
     };
     expect(filtersOf()).toEqual([scope]);
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor_named", expect.objectContaining({ p_filters: scope }));
-    expect(state.rpc).not.toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_filters: scope, p_compute_anchor: true }));
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
     // Keyword-only searches (no picture leg) still require the character.
     state.rpc.mockClear();
     state.meaningful = false;
@@ -425,7 +420,7 @@ describe("DAM search embedding availability", () => {
     const filtersOf = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents").map(([, args]) => args.p_filters);
     expect((await search("mariella frame")).status).toBe(200);
     expect(filtersOf()).toEqual([{}]);
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.anything());
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
   });
 
   it("product-code searches never carry the character rule (#1037)", async () => {
@@ -456,7 +451,8 @@ describe("DAM search embedding availability", () => {
       JSON.stringify({ texts: ["spiderman floor covering", "spiderman mat", "spiderman rug"] }),
     );
     // Each variant's picture leg carries its own vector from the batch.
-    expect(state.rpc).toHaveBeenCalledWith("dam_search_semantic_anchor", expect.objectContaining({ p_query_embedding: Array(768).fill(0) }));
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0), p_compute_anchor: true }));
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
   });
 
   it("falls back to single-text embed calls while the service predates the batch endpoint", async () => {
@@ -530,8 +526,9 @@ describe("DAM search embedding availability", () => {
       vi.stubGlobal("fetch", embedFetch());
       expect((await search("no floor row phrase")).status).toBe(200);
       expect(state.adminConfigReads).toBe(1);
-      // Only the relative margin below the anchor (0.5 - 0.035) remains.
-      expect(searchCalls()[0][1].p_min_semantic_score as number).toBeCloseTo(0.465);
+      // No admin floor is sent; the database applies the relative floor below its own anchor.
+      expect(searchCalls()[0][1].p_min_semantic_score).toBeNull();
+      expect(searchCalls()[0][1].p_compute_anchor).toBe(true);
     });
 
     it("applies the admin floor when its row is in the same read", async () => {
