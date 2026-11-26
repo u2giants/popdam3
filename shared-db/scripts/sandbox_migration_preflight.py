@@ -82,6 +82,8 @@ select pg_get_functiondef(to_regprocedure('plm.import_coldlion_customers(jsonb)'
 
 # Versions this route refuses outright, with the reason printed on refusal.
 SANDBOX_BLOCKED = {
+    "20261225141700": "#7154: stops on sandbox because designflow_prod_item_master_grants does not exist (run 45852863298). Superseded by 20261225141800.",
+    "20261225141800": "#7154: production-only runtime role grant (designflow_prod_item_master_runtime does not exist on sandbox; sandbox connects directly).",
     "20261225130400": "#7070: stops because the sandbox has no pg_cron (run 45549448884). Superseded by sandbox catch-up 20261225130600.",
     "20261225130500": "#7070: its base 20261029041610 is not in the sandbox ledger. Superseded by sandbox catch-up 20261225130600.",
     CUSTOMER_IMPORT_BASE: "#6998: applying the historical file would recreate the retired vendor importer.",

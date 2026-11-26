@@ -54,21 +54,34 @@ begin
   end if;
   -- #4464 + designflow-tracking#130: the only permitted policies are scoped solely
   -- to designflow_prod_tracking_runtime (20261020125826) or FOR SELECT to
-  -- designflow_prod_item_master_grants on stage_list/stage/stage_duration (20261225141700);
-  -- no policy may reach public, anon or authenticated.
+  -- designflow_prod_item_master_runtime on stage_list/stage/stage_duration (20261225141800);
+  -- no policy may reach public, anon, authenticated, or designflow_prod_item_master_grants.
   if exists (
     select 1 from pg_policy
     where polrelid = any (select t::regclass from unnest(v_access) t)
       and not (
-        polroles = array[(select oid from pg_roles where rolname = 'designflow_prod_tracking_runtime')]
+        polroles is not distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_tracking_runtime')]
         or (
           polrelid = any (array['plm.stage_list'::regclass, 'plm.stage'::regclass, 'plm.stage_duration'::regclass])
           and polcmd = 'r'
-          and polroles = array[(select oid from pg_roles where rolname = 'designflow_prod_item_master_grants')]
+          and polroles is not distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_item_master_runtime')]
         )
       )
   ) then
     raise exception 'stage catalog tables must have no RLS policy except the authorized tracking/item_master runtime role policies';
+  end if;
+  if (
+    select count(distinct polrelid) from pg_policy
+    where polrelid = any (array['plm.stage_list'::regclass, 'plm.stage'::regclass, 'plm.stage_duration'::regclass])
+      and polcmd = 'r'
+      and polroles is not distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_item_master_runtime')]
+  ) <> 3 or (
+    select count(*) from pg_policy
+    where polrelid = any (array['plm.stage_list'::regclass, 'plm.stage'::regclass, 'plm.stage_duration'::regclass])
+      and polcmd = 'r'
+      and polroles is not distinct from array[(select oid from pg_roles where rolname = 'designflow_prod_item_master_runtime')]
+  ) <> 3 then
+    raise exception 'stage catalog tables must have exactly 1 FOR SELECT policy per table for designflow_prod_item_master_runtime';
   end if;
   if exists (select 1 from pg_roles r cross join unnest(v_access) t(name)
              cross join unnest(array['select','insert','update','delete']) p(priv)

@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "migration_version": "20261225141800",
+  "migration_sha256": "ecb82939eff5e13b92cdb97ff5bf68e2ca30b8ce359f0d91cfd609e3ac3a48fd",
+  "checks": [
+    {
+      "id": "stage_list_item_master_read_policy_present",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "plm"
+        },
+        {
+          "column": "tablename",
+          "type": "text",
+          "equals": "stage_list"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "stage_list_dflow_prod_item_master_read"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "stage_item_master_read_policy_present",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "plm"
+        },
+        {
+          "column": "tablename",
+          "type": "text",
+          "equals": "stage"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "stage_dflow_prod_item_master_read"
+        }
+      ],
+      "expected_count": 1
+    },
+    {
+      "id": "stage_duration_item_master_read_policy_present",
+      "kind": "exact_row_count",
+      "relation": "pg_catalog.pg_policies",
+      "filters": [
+        {
+          "column": "schemaname",
+          "type": "text",
+          "equals": "plm"
+        },
+        {
+          "column": "tablename",
+          "type": "text",
+          "equals": "stage_duration"
+        },
+        {
+          "column": "policyname",
+          "type": "text",
+          "equals": "stage_duration_dflow_prod_item_master_read"
+        }
+      ],
+      "expected_count": 1
+    }
+  ]
+}
