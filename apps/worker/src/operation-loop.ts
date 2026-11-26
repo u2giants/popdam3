@@ -1,6 +1,6 @@
 import { conflictsFor, getOperationLane } from "../../../supabase/functions/_shared/operation-policy.js";
-import { buildResultMessage, mergeProgress, qualifyRebuildRowCounts } from "./operation-progress.js";
-export { buildResultMessage, mergeProgress, qualifyRebuildRowCounts } from "./operation-progress.js";
+import { buildResultMessage, detectFailureKillSwitch, mergeProgress, qualifyRebuildRowCounts } from "./operation-progress.js";
+export { buildResultMessage, detectFailureKillSwitch, mergeProgress, qualifyRebuildRowCounts } from "./operation-progress.js";
 import { synchronizeMetaReservations, observePausedMetaResponse, MetaCapabilityRejectionError } from "./meta-model-api.js";
 import { getMetaApiKey } from "./provider-api-key.js";
 import { metaCompletedTransition, advanceMetaCapabilityRejection } from "./handlers/meta-tag-response-state.js";
@@ -510,64 +510,6 @@ export function nextAutoResumeAt(reason: string, op: OpState): string | undefine
   if (!isTransientInterruption(reason)) return undefined;
   if ((op.auto_resume_attempts ?? 0) >= AUTO_RESUME_MAX_ATTEMPTS) return undefined;
   return getNextAutoResumeAt(Date.now(), op.auto_resume_attempts ?? 0);
-}
-
-// ── Failure kill switch ───────────────────────────────────────────────────────
-
-// Tier 1: if the last N failures are all the same error, stop immediately.
-// Catches systematic breakage (missing column, bad API key) without waiting
-// for a large sample. Does not require failures to be consecutive — skips
-// and successes in between don't reset it.
-const KILL_SAME_ERROR_COUNT = 20;
-// ...but only when those failures are a burst: at least this share of the items
-// processed across them failed. Rare per-item failures spread over many successes never stop a run.
-const KILL_SAME_ERROR_MIN_SHARE = 0.5;
-
-// Tier 2: if the overall failure rate exceeds this threshold once a minimum
-// number of assets have been processed, stop. Catches high-rate mixed errors
-// that tier 1 misses (e.g. several different timeout messages).
-const KILL_RATE_THRESHOLD = 0.80;   // 80% failure rate
-const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
-
-/**
- * Returns a human-readable reason string if the kill switch should fire,
- * otherwise null. Two independent tiers — either can trigger.
- * Only considers failures that occurred on or after startedAt (current run).
- */
-export function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
-  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string; reason_category?: string; seen?: number }> | undefined;
-  const startMs = startedAt ? new Date(startedAt).getTime() : 0;
-
-  // Only consider failures from the current run (filter by started_at). Items
-  // whose image is unusable are per-item data problems, not systematic
-  // breakage: they are recorded and skipped past, never a reason to stop.
-  const samples = allSamples?.filter((s) => (!s.at || new Date(s.at).getTime() >= startMs) && s.reason_category !== "image_unusable");
-
-  const failed  = Math.max(0, ((progress.failed as number) || 0) - ((progress.image_unusable as number) || 0));
-  const tagged  = (progress.tagged  as number) || 0;
-  const skipped = (progress.skipped as number) || 0;
-  const total   = tagged + skipped + failed;
-
-  // Tier 1: last N failures share the same error (non-consecutive — just the last N in the sample list)
-  if (samples && samples.length >= KILL_SAME_ERROR_COUNT) {
-    const recent = samples.slice(-KILL_SAME_ERROR_COUNT);
-    const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
-    const first = normalize(recent[0].error);
-    const firstSeen = recent[0].seen, lastSeen = recent[recent.length - 1].seen;
-    const processed = typeof firstSeen === "number" && typeof lastSeen === "number"
-      ? Math.max(KILL_SAME_ERROR_COUNT, lastSeen - firstSeen + KILL_SAME_ERROR_COUNT) : KILL_SAME_ERROR_COUNT;
-    const burst = KILL_SAME_ERROR_COUNT / processed >= KILL_SAME_ERROR_MIN_SHARE;
-    if (first && burst && recent.every((s) => normalize(s.error) === first)) {
-      return `Last ${KILL_SAME_ERROR_COUNT} failures share the same error: "${first.slice(0, 200)}"`;
-    }
-  }
-
-  // Tier 2: overall failure rate too high across a meaningful sample
-  if (total >= KILL_RATE_MIN_SAMPLE && failed / total >= KILL_RATE_THRESHOLD) {
-    return `Failure rate ${Math.round((failed / total) * 100)}% (${failed} failed out of ${total} processed)`;
-  }
-
-  return null;
 }
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────

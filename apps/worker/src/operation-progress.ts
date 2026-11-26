@@ -20,6 +20,16 @@ export function qualifyRebuildRowCounts(batch: BatchResult, op: OpState): BatchR
   return { ...batch, rebuild_counts_exact: exact };
 }
 
+function mergeFailureSamples(prev: Record<string, unknown>, batch: BatchResult, limit: number, ...counts: string[]) {
+  const previous = Array.isArray(prev.failure_samples) ? prev.failure_samples : [];
+  if (!Array.isArray(batch.failure_samples) || !batch.failure_samples.length) return previous.slice(-limit);
+  const batchStart = counts.reduce((sum, key) => sum + (Number(prev[key]) || 0), 0);
+  const seen = counts.reduce((sum, key) => sum + (Number(batch[key]) || 0), batchStart);
+  const samples = batch.failure_samples.map(sample =>
+    sample && typeof sample === "object" ? { ...sample, batchStart, seen } : sample);
+  return [...previous, ...samples].slice(-limit);
+}
+
 export function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
   // Normalize dynamic keys for matching
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
@@ -28,13 +38,6 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "ai-tag-all":
     case "ai-tag-groups":
     case "ai-tag-parallel": {
-      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      // Each failure remembers how many items had been processed by then, so the
-      // kill switch can tell a burst of failures from rare ones spread over many successes.
-      const seen = ((prev.tagged as number) || 0) + ((prev.skipped as number) || 0) + ((prev.failed as number) || 0) +
-        ((batch.tagged as number) || 0) + ((batch.skipped as number) || 0) + ((batch.failed as number) || 0);
-      const batchFail = (Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [])
-        .map((sample) => sample && typeof sample === "object" ? { ...sample as Record<string, unknown>, seen } : sample);
       const prevSkip = Array.isArray(prev.skip_samples) ? prev.skip_samples as unknown[] : [];
       const batchSkip = Array.isArray(batch.skip_samples) ? batch.skip_samples as unknown[] : [];
       return {
@@ -45,13 +48,11 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         image_unusable: ((prev.image_unusable as number) || 0) + ((batch.image_unusable as number) || 0),
         // Prefer previously-set total; fall back to batch-supplied count (set by handler when total is unknown)
         total: (prev.total as number) || (batch.total_count as number) || 0,
-        failure_samples: [...prevFail, ...batchFail].slice(-200),
+        failure_samples: mergeFailureSamples(prev, batch, 200, "tagged", "skipped", "failed"),
         skip_samples: [...prevSkip, ...batchSkip].slice(-200),
       };
     }
     case "ai-tag-group-profiles": {
-      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       return {
         profiled: ((prev.profiled as number) || 0) + ((batch.profiled as number) || 0),
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
@@ -59,17 +60,15 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         visual_analysis_unavailable: ((prev.visual_analysis_unavailable as number) || 0) + ((batch.visual_analysis_unavailable as number) || 0),
         image_unusable: ((prev.image_unusable as number) || 0) + ((batch.image_unusable as number) || 0),
         total: (prev.total as number) || (batch.total_count as number) || 0,
-        failure_samples: [...prevFail, ...batchFail].slice(-200),
+        failure_samples: mergeFailureSamples(prev, batch, 200, "profiled", "skipped", "failed"),
       };
     }
     case "ai-tag-bakeoff": {
-      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       return {
         evaluated: ((prev.evaluated as number) || 0) + ((batch.evaluated as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         total: (prev.total as number) || (batch.total_count as number) || 0,
-        failure_samples: [...prevFail, ...batchFail].slice(-100),
+        failure_samples: mergeFailureSamples(prev, batch, 100, "evaluated", "failed"),
       };
     }
     case "rebuild-style-groups": {
@@ -141,10 +140,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         shortened: ((prev.shortened as number) || 0) + ((batch.shortened as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         scanned: ((prev.scanned as number) || 0) + ((batch.scanned as number) || 0),
-        failure_samples: [
-          ...(Array.isArray(prev.failure_samples) ? prev.failure_samples : []),
-          ...(Array.isArray(batch.failure_samples) ? batch.failure_samples : []),
-        ].slice(-100),
+        failure_samples: mergeFailureSamples(prev, batch, 100, "shortened", "failed"),
       };
     case "erp-classify":
       return {
@@ -157,14 +153,12 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "refresh-group-metadata": {
       // Terminology deliberately changed from "assets propagated" to "groups
       // refreshed": nothing is copied between files any more.
-      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
       return {
         refreshed: ((prev.refreshed as number) || 0) + ((batch.refreshed as number) || 0),
         unchanged: ((prev.unchanged as number) || 0) + ((batch.unchanged as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         total: prev.total || 0,
-        failure_samples: [...prevFail, ...batchFail].slice(-200),
+        failure_samples: mergeFailureSamples(prev, batch, 200, "refreshed", "unchanged", "failed"),
         ...(batch.deprecated ? { deprecated: true, deprecation_notice: batch.deprecation_notice } : {}),
       };
     }
@@ -191,10 +185,7 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         property_unmatched: ((prev.property_unmatched as number) || 0) + ((batch.property_unmatched as number) || 0),
         consensus_folders: ((prev.consensus_folders as number) || 0) + ((batch.consensus_folders as number) || 0),
         consensus_relationships: ((prev.consensus_relationships as number) || 0) + ((batch.consensus_relationships as number) || 0),
-        failure_samples: [
-          ...(Array.isArray(prev.failure_samples) ? prev.failure_samples : []),
-          ...(Array.isArray(batch.failure_samples) ? batch.failure_samples : []),
-        ].slice(-100),
+        failure_samples: mergeFailureSamples(prev, batch, 100, "processed", "failed"),
       };
     case "embed-dam-search":
       return {
@@ -208,8 +199,8 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
         exhausted_documents: (batch.exhausted_documents as number) ?? (prev.exhausted_documents as number) ?? 0,
       };
     case "rebuild-image-vectors": {
-      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
-      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
+      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples : [];
+      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples : [];
       return {
         stale_found: ((prev.stale_found as number) || 0) + ((batch.stale_found as number) || 0),
         enqueued: ((prev.enqueued as number) || 0) + ((batch.enqueued as number) || 0),
@@ -266,4 +257,66 @@ export function buildResultMessage(opKey: string, progress: Record<string, unkno
     default:
       return "Operation completed";
   }
+}
+
+// ── Failure kill switch ───────────────────────────────────────────────────────
+
+// Tier 1: if the last N failures are all the same error, stop immediately.
+// Catches systematic breakage (missing column, bad API key) without waiting
+// for a large sample. Does not require failures to be consecutive — skips
+// and successes in between don't reset it.
+const KILL_SAME_ERROR_COUNT = 20;
+// ...but only when those failures are a burst: at least this share of the items
+// processed across them failed. Rare per-item failures spread over many successes never stop a run.
+const KILL_SAME_ERROR_MIN_SHARE = 0.5;
+
+// Tier 2: if the overall failure rate exceeds this threshold once a minimum
+// number of assets have been processed, stop. Catches high-rate mixed errors
+// that tier 1 misses (e.g. several different timeout messages).
+const KILL_RATE_THRESHOLD = 0.80;   // 80% failure rate
+const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
+
+/**
+ * Returns a human-readable reason string if the kill switch should fire,
+ * otherwise null. Two independent tiers — either can trigger.
+ * Only considers failures that occurred on or after startedAt (current run).
+ */
+export function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
+  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string; reason_category?: string; seen?: number; batchStart?: number }> | undefined;
+  const startMs = startedAt ? new Date(startedAt).getTime() : 0;
+
+  // Only consider failures from the current run (filter by started_at). Items
+  // whose image is unusable are per-item data problems, not systematic
+  // breakage: they are recorded and skipped past, never a reason to stop.
+  const samples = allSamples?.filter((s) => (!s.at || new Date(s.at).getTime() >= startMs) && s.reason_category !== "image_unusable");
+
+  const failed  = Math.max(0, ((progress.failed as number) || 0) - ((progress.image_unusable as number) || 0));
+  const tagged  = (progress.tagged  as number) || 0;
+  const skipped = (progress.skipped as number) || 0;
+  const total   = tagged + skipped + failed;
+
+  // Tier 1: last N failures share the same error (non-consecutive — just the last N in the sample list)
+  if (samples && samples.length >= KILL_SAME_ERROR_COUNT) {
+    const recent = samples.slice(-KILL_SAME_ERROR_COUNT);
+    const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
+    const first = normalize(recent[0].error);
+    // Samples have batch boundaries, not individual positions. Include both
+    // endpoint batches in full. Legacy samples cannot establish a burst.
+    const start = recent[0].batchStart;
+    const end = recent[recent.length - 1].seen;
+    const fullyStamped = recent.every(s => typeof s.batchStart === "number" && typeof s.seen === "number");
+    const processed = typeof start === "number" && typeof end === "number" ? end - start : 0;
+    const burst = fullyStamped && processed >= KILL_SAME_ERROR_COUNT
+      && KILL_SAME_ERROR_COUNT / processed >= KILL_SAME_ERROR_MIN_SHARE;
+    if (first && burst && recent.every((s) => normalize(s.error) === first)) {
+      return `Last ${KILL_SAME_ERROR_COUNT} failures share the same error: "${first.slice(0, 200)}"`;
+    }
+  }
+
+  // Tier 2: overall failure rate too high across a meaningful sample
+  if (total >= KILL_RATE_MIN_SAMPLE && failed / total >= KILL_RATE_THRESHOLD) {
+    return `Failure rate ${Math.round((failed / total) * 100)}% (${failed} failed out of ${total} processed)`;
+  }
+
+  return null;
 }
