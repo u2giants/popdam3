@@ -61,6 +61,16 @@ describe("checkin retry of a failed upload (#1401)", () => {
     expect(m.getActiveCheckouts()[0].status).toBe("uploading");
   });
 
+  it("keeps a queued checkout with a missing job actionable across repeated clicks", async () => {
+    requeueFailed.mockReturnValue([]);
+    hasJob.mockReturnValue(false);
+    const m = await load();
+    await expect(m.checkin("co1")).rejects.toThrow(/upload list lost/);
+    await expect(m.checkin("co1")).rejects.toThrow(/upload list lost/);
+    expect(m.getActiveCheckouts()[0]).toMatchObject({ status: "error", errorMessage: expect.stringContaining("discard") });
+    expect(prepareCheckin).not.toHaveBeenCalled();
+  });
+
   it("retryFailedUploads moves re-queued checkouts back to uploading and clears the error", async () => {
     requeueFailed.mockReturnValue(["co1"]);
     const m = await load();

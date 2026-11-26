@@ -112,12 +112,6 @@ function recoverStaleJobs(): void {
     if (job.status === "uploading") {
       job.status = "pending";
       recovered++;
-    } else if (job.status === "failed") {
-      // A fresh start (e.g. after the drive or credentials were fixed) gets a
-      // fresh set of attempts, so a failed check-in is never stuck for good.
-      job.status = "pending";
-      job.retryCount = 0;
-      recovered++;
     }
   }
   if (recovered > 0) {
@@ -198,7 +192,7 @@ export function requeueFailed(checkoutId?: string): string[] {
   if (ids.length > 0) {
     writeJobs(jobs);
     log.info(`Re-queued failed upload(s) for checkout(s) ${ids.join(", ")}`);
-    if (!running) void processQueue().catch(recordQueueError);
+    if (!running) queueMicrotask(() => void processQueue().catch(recordQueueError));
   }
   return ids;
 }

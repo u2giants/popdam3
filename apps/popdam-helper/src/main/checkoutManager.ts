@@ -109,6 +109,7 @@ export async function loadActiveCheckouts(): Promise<void> {
         /* ignore */
       }
 
+      if (co.status === "checkin_queued") preparedCheckouts.add(record);
       active.set(co.id, record);
       watchFile(co.id, record.workspacePath);
     }
@@ -331,6 +332,11 @@ async function resolveCopyAndOpen(
 
 // ── Check-in ──────────────────────────────────────────────────────────────────
 
+// Local preparation and server acceptance share the same display status.
+const preparedCheckouts = new WeakSet<CheckoutRecord>();
+const missingUploadMessage =
+  "The upload list lost this check-in. Save a copy of your edits, discard the checkout, then check the file out again.";
+
 export async function checkin(checkoutId: string): Promise<void> {
   const record = active.get(checkoutId);
   if (!record) throw new Error(`Checkout ${checkoutId} not found`);
@@ -344,13 +350,19 @@ export async function checkin(checkoutId: string): Promise<void> {
 
   // Retry of a failed upload: the server checkout is already checkin_queued
   // and refuses a second prepare-checkin, so re-run the existing job instead.
-  if (requeueFailed(checkoutId).length > 0 || (record.status === "checkin_queued" && hasJob(checkoutId))) {
+  if (requeueFailed(checkoutId).length > 0 || (preparedCheckouts.has(record) && hasJob(checkoutId))) {
     record.errorMessage = null;
     updateStatus(checkoutId, "uploading");
     notify();
     return;
   }
 
+  if (preparedCheckouts.has(record)) {
+    markUploadFailed(checkoutId, missingUploadMessage);
+    throw new Error(missingUploadMessage);
+  }
+
+  if (record.status === "checkin_queued") throw new Error("Check-in is already being prepared.");
   updateStatus(checkoutId, "checkin_queued");
 
   // If anything before the upload is enqueued fails (file still saving,
@@ -380,12 +392,17 @@ export async function checkin(checkoutId: string): Promise<void> {
       snapshot_size: snap.size,
     });
 
+    preparedCheckouts.add(record);
     record.snapshotPath = snap.snapshotPath;
 
     // Enqueue async upload
     enqueue(makeUploadQueueItem(record, snap.snapshotPath, instructions.upload_instructions, config.preferredProvider));
 
   } catch (e) {
+    if (preparedCheckouts.has(record)) {
+      markUploadFailed(checkoutId, missingUploadMessage);
+      throw e;
+    }
     updateStatus(checkoutId, "active");
     notify();
     throw e;
@@ -397,13 +414,13 @@ export async function checkin(checkoutId: string): Promise<void> {
 
 /**
  * After the upload list is repaired, checkouts stuck "uploading" with no job
- * go back to "active" so the user can check in again.
+ * need recovery because the server already accepted their check-in.
  */
 export function resetUploadingCheckouts(): number {
   let n = 0;
   for (const [id, rec] of active) {
-    if (rec.status === "uploading") {
-      updateStatus(id, "active");
+    if (preparedCheckouts.has(rec) && ["uploading", "checkin_queued", "error"].includes(rec.status) && !hasJob(id)) {
+      markUploadFailed(id, missingUploadMessage);
       n++;
     }
   }

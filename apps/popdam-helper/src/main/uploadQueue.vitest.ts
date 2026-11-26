@@ -100,10 +100,13 @@ describe("uploadQueue retry of failed jobs (#1401)", () => {
     expect(q.requeueFailed("zzz")).toEqual([]);
   });
 
-  it("startup gives failed jobs a fresh set of attempts", async () => {
-    writeFileSync(p(), JSON.stringify([failed("a")]));
-    writeFileSync(`${p()}.bak`, JSON.stringify([failed("a")]));
+  it("recovers interrupted uploads and leaves failed jobs alone on startup", async () => {
+    const interrupted = { ...failed("b"), status: "uploading", retryCount: 1 };
+    writeFileSync(p(), JSON.stringify([failed("a"), interrupted]));
     const q = await load();
-    expect(q.getPendingJobs()).toEqual([{ checkoutId: "a", status: "pending", retryCount: 0 }]);
+    expect(q.getPendingJobs()).toEqual([
+      { checkoutId: "a", status: "failed", retryCount: 3 },
+      { checkoutId: "b", status: "pending", retryCount: 1 },
+    ]);
   });
 });
