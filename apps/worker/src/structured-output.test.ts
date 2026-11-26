@@ -63,3 +63,40 @@ test("JSON object fallback and repair carry the complete contract without changi
   assert.equal(result.repairCount, 1);
   assert.equal(seen.length, 2);
 });
+
+test("invalid output from one host retries the same method on another host", async () => {
+  const requests: Array<{ method: string; ignore?: string[] }> = [];
+  const result = await executeStructuredOutput({
+    apiKey: "key", model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "test" }], schemaName: "answer", schema, validate, capabilities,
+    completion: async (_key, request) => {
+      const method = request.response_format?.type ?? "tool";
+      requests.push({ method, ignore: request.provider?.ignore });
+      const bad = !request.provider?.ignore?.includes("Bad Host");
+      return { content: bad ? "{}" : '{"answer":"ok"}', providerInfo: { provider: bad ? "Bad Host" : "Good Host" } } as never;
+    },
+  });
+  assert.equal(result.value, "ok");
+  assert.deepEqual(requests, [{ method: "json_schema", ignore: undefined }, { method: "json_schema", ignore: ["Bad Host"] }]);
+});
+
+test("a host is skipped only once and the ladder stops starting steps after its budget", async () => {
+  let calls = 0;
+  await assert.rejects(executeStructuredOutput({
+    apiKey: "key", model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "test" }], schemaName: "answer", schema, validate, capabilities, budgetMs: 0,
+    completion: async () => { calls++; await new Promise((r) => setTimeout(r, 5)); return { content: "{}", providerInfo: { provider: "Bad Host" } } as never; },
+  }));
+  // First step, its one reroute is skipped by the budget, then the JSON repair.
+  assert.equal(calls, 2);
+});
+
+test("an ignore-only provider keeps cheapest routing and its allowlist", async () => {
+  const { chatCompletion } = await import("./openrouter.js");
+  setOpenRouterRoutingForTests("cheapest");
+  const original = globalThis.fetch; let body: Record<string, unknown> = {};
+  globalThis.fetch = async (_url, init) => { body = JSON.parse(String(init?.body)); return response({ content: "{}" }); };
+  try {
+    await chatCompletion("key", { model: "anthropic/test-model", messages: [{ role: "user", content: "x" }], provider: { ignore: ["Bad Host"] } });
+    const provider = body.provider as Record<string, unknown>;
+    assert.equal(provider.sort, "price"); assert.deepEqual(provider.ignore, ["Bad Host"]);
+  } finally { globalThis.fetch = original; setOpenRouterRoutingForTests("exacto"); }
+});
