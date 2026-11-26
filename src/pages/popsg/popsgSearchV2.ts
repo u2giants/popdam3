@@ -317,20 +317,34 @@ export function mapPopSGV2Guide(row: Record<string, unknown>): PopSGV2GuideViewR
     .filter((part): part is string => !!part)
     .filter((part, index, parts) => index === 0 || part !== parts[index - 1]);
 
+  const fallbackPath = pathParts.join("/") || styleGuideName;
+  // #1430 Step 9: the RPC returns whole-guide totals for the visible page.
+  const inline = hasInlineGuideSummary(row);
+  const memberPaths = inline
+    ? Array.from(new Set((row.member_directory_paths as unknown[]).filter((p): p is string => typeof p === "string" && !!p)))
+    : [];
+
   return {
     group_key: groupKey,
     root_label: stringValue(row, "root_label"),
-    directory_path: pathParts.join("/") || styleGuideName,
+    directory_path: inline && memberPaths.length === 1 ? memberPaths[0] : fallbackPath,
     licensor_name: licensor,
     property_folder: property,
     style_guide_folder: styleGuideFolder,
     style_guide_name: styleGuideName,
-    file_count: numberValue(row, "matched_file_count") ?? 0,
+    file_count: inline ? numberValue(row, "whole_guide_file_count") ?? 0 : numberValue(row, "matched_file_count") ?? 0,
     latest_modified_at: stringValue(row, "modified_at"),
-    total_size_bytes: null,
+    total_size_bytes: inline ? numberValue(row, "total_size_bytes") : null,
     sample_thumbnail_url: stringValue(row, "thumbnail_url"),
-    member_directory_paths: [pathParts.join("/") || styleGuideName],
+    member_directory_paths: inline && memberPaths.length ? memberPaths : [fallbackPath],
   };
+}
+
+/** True when the guide row already carries whole-guide totals (no browser enrichment needed). */
+export function hasInlineGuideSummary(row: Record<string, unknown>): boolean {
+  return numberValue(row, "whole_guide_file_count") !== null
+    && numberValue(row, "total_size_bytes") !== null
+    && Array.isArray(row.member_directory_paths);
 }
 
 function guideIdentityKey(row: {

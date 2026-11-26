@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addCorrectedTerm,
+  hasInlineGuideSummary,
   buildPopSGV2Args,
   buildPopSGSummaryIdentityFilters,
   buildPopSGV2WebsearchQuery,
@@ -246,5 +247,18 @@ describe("PopSG single-call spelling (#1430 Step 8)", () => {
     expect(addCorrectedTerm(["spidermen"], "Spider Man")).toEqual(["spidermen", "spider man", "spider-man"]);
     expect(addCorrectedTerm(["batman"], "batman")).toEqual(["batman"]);
     expect(addCorrectedTerm(["batman"], null)).toEqual(["batman"]);
+  });
+});
+
+describe("PopSG inline whole-guide summary (#1430 Step 9)", () => {
+  const base = { guide_key: "g", root_label: "R", licensor_name: "L", property_folder: "P", style_guide_folder: null, style_guide_name: "P", matched_file_count: 1 };
+  it("uses inline totals; single member path becomes the directory", () => {
+    const row = { ...base, whole_guide_file_count: 4, total_size_bytes: 9, member_directory_paths: ["L/P/x"] };
+    expect(hasInlineGuideSummary(row)).toBe(true);
+    expect(mapPopSGV2Guide(row)).toMatchObject({ file_count: 4, total_size_bytes: 9, directory_path: "L/P/x", member_directory_paths: ["L/P/x"] });
+  });
+  it("falls back to matched count when the RPC has no summary", () => {
+    expect(hasInlineGuideSummary(base)).toBe(false);
+    expect(mapPopSGV2Guide(base)).toMatchObject({ file_count: 1, total_size_bytes: null, member_directory_paths: ["L/P"] });
   });
 });

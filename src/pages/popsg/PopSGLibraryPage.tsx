@@ -45,6 +45,7 @@ import {
   buildPopSGV2WebsearchQuery,
   canUsePopSGV2,
   enrichPopSGV2Guides,
+  hasInlineGuideSummary,
   getPopSGV2ContinuationOffsets,
   getPopSGSummaryContinuationOffsets,
   mapPopSGV2File,
@@ -209,6 +210,11 @@ export async function fetchPopSGV2Page(
 
   if (mode === "guides") {
     const guides = results.map(mapPopSGV2Guide);
+    // #1430 Step 9: the RPC now returns whole-guide totals; skip the extra
+    // summary requests. The fetch below remains only for a deploy-overlap row.
+    if (results.every(hasInlineGuideSummary)) {
+      return { rows: guides as StyleGuideGroup[], total: first.total };
+    }
     // v2 owns membership, filters, order, totals, and paging. Its guide rows do
     // not include total bytes, so enrich only visible guide identities from the
     // materialized summary, never the entire root or the 217k file table.
