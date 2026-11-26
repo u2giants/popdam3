@@ -229,6 +229,13 @@ app.whenReady().then(async () => {
 
   // Auto-update check — silently checks GitHub for a newer release
   autoUpdater.logger = log;
+  // Pin the feed to the Helper's own release tag (#1392). The GitHub provider
+  // follows the repo-wide "latest" release, which the Windows-agent publisher
+  // also claims; that release has no latest.yml, so updates 404'd.
+  autoUpdater.setFeedURL({
+    provider: "generic",
+    url: "https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/",
+  });
   autoUpdater.checkForUpdatesAndNotify().catch((e: unknown) => {
     log.debug("Auto-update check skipped:", (e as Error).message);
   });
