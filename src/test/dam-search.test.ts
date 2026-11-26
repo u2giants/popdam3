@@ -59,6 +59,8 @@ describe("DAM hybrid search", () => {
       totalCount: 23,
       hasMore: true,
       facets: { fileType: { psd: 12 } },
+      totalGroupFiles: null,
+      facetsIncluded: true,
     });
     expect(invoke).toHaveBeenCalledWith("dam-search-ai", {
       signal: expect.any(AbortSignal),

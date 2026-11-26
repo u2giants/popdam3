@@ -18,6 +18,8 @@ export type SearchPage = {
   total_count: number;
   has_more: boolean;
   facets: Record<string, unknown>;
+  /** #1430: exact whole-group file total for style-group searches; null when not reported. */
+  total_group_files?: number | null;
 };
 
 /**
@@ -41,10 +43,12 @@ export function mergeSearchPages(pages: SearchPage[]): SearchPage {
   let totalCount = 0;
   let hasMore = false;
   let facets: Record<string, unknown> = {};
+  let totalGroupFiles: number | null = pages.length > 0 ? (pages[0].total_group_files ?? null) : null;
   for (const page of pages) {
     if (page.total_count > totalCount) {
       totalCount = page.total_count;
       facets = page.facets;
+      totalGroupFiles = page.total_group_files ?? null;
     }
     hasMore = hasMore || page.has_more;
     for (const hit of page.results) {
@@ -73,5 +77,5 @@ export function mergeSearchPages(pages: SearchPage[]): SearchPage {
   // Never report fewer documents than the rows returned on this page: the
   // union of variant windows can exceed every single variant's total.
   const total_count = Math.max(totalCount, results.length);
-  return { results, total_count, has_more: hasMore, facets };
+  return { results, total_count, has_more: hasMore, facets, total_group_files: totalGroupFiles };
 }

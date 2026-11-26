@@ -4,7 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { type DamDocumentType, invalidateSearchMode, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { type DamDocumentType, invalidateSearchMode, searchAccessStatus, buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, keepAcrossFacetChange, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 import { createFullTextSearchHelpers, getOrLoadRankedIds, type RankedListCacheEntry } from "@/lib/full-text-search";
 import { clearStyleGroupRankedListCache } from "@/hooks/useStyleGroups";
@@ -327,11 +327,16 @@ export function useAssets(
   visibilityDate?: string,
   customPageSize?: number,
   enabled = true,
+  includeFacets = true,
 ) {
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
+  // #1430: only a typed search asks the server for facets, so only it is keyed on them.
+  const facetKey = filters.search?.trim() ? includeFacets : null;
   return useQuery({
     retry: filters.search ? false : undefined,
-    queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize],
+    queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize, facetKey],
+    // Opening the Filter Sidebar refetches the same search with facets: keep its cards.
+    placeholderData: keepAcrossFacetChange(["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize, facetKey]),
     enabled,
     queryFn: async ({ signal }) => {
       const from = page * effectivePageSize;
@@ -346,6 +351,7 @@ export function useAssets(
           limit: effectivePageSize,
           offset: from,
           filters: buildDamSearchFilters(filters),
+          includeFacets,
         });
         const { data, error } = await supabase.from("assets").select("*").in(
           "id",
@@ -359,7 +365,8 @@ export function useAssets(
             (asset) => [asset.filename, asset.relative_path].filter(Boolean).join(" "),
           ),
           totalCount: ranked.totalCount,
-          searchFacets: parseDamSearchFacets(ranked.facets),
+          searchFacets: ranked.facetsIncluded !== false ? parseDamSearchFacets(ranked.facets) : undefined,
+          facetsIncluded: ranked.facetsIncluded !== false,
           pageSize: effectivePageSize,
           page,
         };

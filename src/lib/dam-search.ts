@@ -27,6 +27,8 @@ export interface DamSearchRequest {
   offset?: number;
   filters?: Record<string, unknown>;
   minRank?: number;
+  /** #1430: false skips facet work when the Filter Sidebar is closed. Default true. */
+  includeFacets?: boolean;
 }
 
 export interface DamSearchPage {
@@ -34,6 +36,10 @@ export interface DamSearchPage {
   totalCount: number;
   hasMore: boolean;
   facets: Record<string, unknown>;
+  /** #1430: exact whole-group file total (style-group searches); null when not reported. */
+  totalGroupFiles: number | null;
+  /** Whether the server computed facets for this page. */
+  facetsIncluded: boolean;
 }
 
 export function buildDamSearchFilters(filters: AssetFilters): Record<string, unknown> {
@@ -114,6 +120,7 @@ export async function fetchHybridSearchPage({
   offset = 0,
   filters = {},
   minRank = 0,
+  includeFacets,
 }: DamSearchRequest): Promise<DamSearchPage> {
   const { data, error } = await invokeSearch({
     action: "search",
@@ -123,6 +130,7 @@ export async function fetchHybridSearchPage({
     filters,
     min_rank: minRank,
     document_types: [documentType],
+    ...(includeFacets === undefined ? {} : { include_facets: includeFacets }),
   });
   if (error) throw error;
   const results = Array.isArray(data?.results) ? data.results : [];
@@ -141,6 +149,9 @@ export async function fetchHybridSearchPage({
     totalCount: typeof data?.total_count === "number" ? data.total_count : ids.length,
     hasMore: data?.has_more === true,
     facets,
+    totalGroupFiles: typeof data?.total_group_files === "number" ? data.total_group_files : null,
+    // An older server omits the flag: it always computed facets unless told otherwise.
+    facetsIncluded: typeof data?.facets_included === "boolean" ? data.facets_included : includeFacets !== false,
   };
 }
 
@@ -230,4 +241,21 @@ export function sortByRank<T>(rows: T[], rankedIds: string[], getId: (row: T) =>
   return [...rows].sort(
     (a, b) => (rank.get(getId(a)) ?? Number.MAX_SAFE_INTEGER) - (rank.get(getId(b)) ?? Number.MAX_SAFE_INTEGER),
   );
+}
+
+/**
+ * #1430: true when two library query keys differ only in their last element, the
+ * facet flag. Lets a grid keep its cards while the same search refetches with facets.
+ */
+export function sameQueryExceptFacets(previous: readonly unknown[] | undefined, next: readonly unknown[]): boolean {
+  if (!previous || previous.length !== next.length || previous.length === 0) return false;
+  const last = next.length - 1;
+  if (previous[last] === next[last]) return false;
+  return JSON.stringify(previous.slice(0, last)) === JSON.stringify(next.slice(0, last));
+}
+
+/** React Query placeholderData that keeps the previous page only across a facet-flag change. */
+export function keepAcrossFacetChange(nextKey: readonly unknown[]) {
+  return <T,>(previous: T | undefined, previousQuery?: { queryKey: readonly unknown[] }): T | undefined =>
+    sameQueryExceptFacets(previousQuery?.queryKey, nextKey) ? previous : undefined;
 }

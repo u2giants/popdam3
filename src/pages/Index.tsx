@@ -81,11 +81,11 @@ export default function LibraryPage() {
   // ── Data queries ────────────────────────────────────────────────
   const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
-  const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate, isGroupsMode);
+  const { data: sgData, isLoading: sgLoading, error: sgError } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate, isGroupsMode, filtersOpen);
   const { data: totalGroupCount, error: groupCountError } = useStyleGroupCount(filters, visibilityDate, !filters.search?.trim());
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
-  const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
+  const { data: assetData, isLoading: assetLoading, error: assetError } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode, filtersOpen);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const activeListData = isGroupsMode ? sgData : assetData;
   const searching = Boolean(filters.search.trim());
@@ -93,12 +93,16 @@ export default function LibraryPage() {
   // facets. Reuse that exact authenticated response; do not run another search.
   // Wait for keyword list data before enabling its existing separate counts.
   const searchFacets = searching ? activeListData?.searchFacets : undefined;
+  // #1430: a closed sidebar shows no counts, so the search skips facets
+  // (facetsIncluded false). Never back-fill them with a separate count query;
+  // opening the sidebar refetches the search with facets instead.
+  const facetsOmitted = searching && activeListData?.facetsIncluded === false;
   const { data: independentFacetCounts, error: independentFacetError } = useFilterCounts(
     filters, isGroupsMode ? "style_group" : "asset",
-    !searching || (activeListData !== undefined && searchFacets === undefined),
+    filtersOpen && (!searching || (activeListData !== undefined && searchFacets === undefined && !facetsOmitted)),
   );
   const activeListError = isGroupsMode ? sgError : assetError;
-  const facetCounts = (searching && (!activeListData || activeListError))
+  const facetCounts = (searching && (!activeListData || activeListError || facetsOmitted))
     || (searchFacets === undefined && independentFacetError)
     ? undefined : searchFacets ?? independentFacetCounts;
   const { data: pathFacets } = usePathFacets(filters.customer);
@@ -174,7 +178,14 @@ export default function LibraryPage() {
     queryClient.invalidateQueries({ queryKey: ["assets"] });
   }, [queryClient]);
 
-  const { data: filteredGroupAssetCount, error: groupAssetCountError } = useStyleGroupAssetCount(filters, visibilityDate, isGroupsMode && hasLibraryFilters);
+  const { data: filteredGroupAssetCount, error: groupAssetCountError } = useStyleGroupAssetCount(
+    filters,
+    visibilityDate,
+    // #1430: a hybrid search reports the exact whole-group file total itself; only
+    // browsing and keyword search (no totalGroupFiles) still need this count.
+    isGroupsMode && hasLibraryFilters && (!searching || (sgData !== undefined && typeof sgData.totalGroupFiles !== "number")),
+  );
+  const searchGroupFiles = searching && typeof sgData?.totalGroupFiles === "number" ? sgData.totalGroupFiles : undefined;
   const selectedGroups = groups.filter((g) => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
@@ -191,7 +202,7 @@ export default function LibraryPage() {
     <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col">
       <LibraryTopBar
         resultsUnavailable={Boolean(activeQueryError)}
-        countsUnavailable={Boolean(filters.search.trim() && isGroupsMode && (groupCountError || groupAssetCountError))}
+        countsUnavailable={Boolean(searching && isGroupsMode && (activeQueryError || groupCountError || groupAssetCountError))}
         search={searchInput}
         onSearchChange={handleSearchChange}
         viewMode={viewMode}
@@ -223,7 +234,7 @@ export default function LibraryPage() {
         cardStyle={cardStyle}
         onCardStyleChange={setCardStyle}
         groupCount={isGroupsMode ? groupCount : 0}
-        fileCount={isGroupsMode ? (hasLibraryFilters ? (filteredGroupAssetCount ?? 0) : (totalAssets ?? 0)) : (assetData?.totalCount ?? 0)}
+        fileCount={isGroupsMode ? (hasLibraryFilters ? (searchGroupFiles ?? filteredGroupAssetCount ?? 0) : (totalAssets ?? 0)) : (assetData?.totalCount ?? 0)}
         scanProgress={scanProgress}
         ungroupedCount={isGroupsMode && !hasLibraryFilters ? ungroupedCount : null}
         canManageScan={isAdmin}
