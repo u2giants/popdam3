@@ -16,7 +16,7 @@ export function parallelTagRun(value: unknown, runId: string | undefined, explic
       (/^[a-z0-9.-]+\/[a-zA-Z0-9._-]+$/.test(m) && !/^(meta-direct|google-direct|scaledown)\//.test(m))
     );
   if (!Array.isArray(v.models) || v.models.length < 1 || v.models.length > 4 || new Set(v.models).size !== v.models.length || v.models.some(m => !isValidParallelModel(m))) throw new Error("Parallel tagging requires one to four distinct synchronous OpenRouter or colab-direct models");
-  if (!Number.isInteger(v.concurrency) || Number(v.concurrency) < 2 || Number(v.concurrency) > 32) throw new Error("Parallel tagging concurrency must be between two and thirty-two");
+  if (!Number.isInteger(v.concurrency) || Number(v.concurrency) < 2 || Number(v.concurrency) > 48) throw new Error("Parallel tagging concurrency must be between two and forty-eight");
   if (v.max_cursor !== undefined && (!Number.isSafeInteger(v.max_cursor) || Number(v.max_cursor) < 0 || Number(v.max_cursor) > (Array.isArray(explicitIds) ? explicitIds.length : 0))) throw new Error("Invalid parallel tagging trial cursor");
   if (v.force !== undefined && typeof v.force !== "boolean") throw new Error("Invalid parallel tagging force flag");
   if (v.untagged_only !== undefined && typeof v.untagged_only !== "boolean") throw new Error("Invalid parallel tagging untagged_only flag");
