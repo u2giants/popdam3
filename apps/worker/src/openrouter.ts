@@ -15,7 +15,7 @@
 
 import { logger } from "./logger.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
-import { getStraitlyApiKey, isStraitlyRoutingEnabled, openRouterCheapestRouting, openRouterProviderAllowlist } from "./provider-api-key.js";
+import { getStraitlyApiKey, straitlyRouting, openRouterCheapestRouting, openRouterProviderAllowlist } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -23,6 +23,7 @@ const OPENROUTER_BATCH_URL = "https://openrouter.ai/api/beta/batches";
 const OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation";
 const OPENAI_DIRECT_URL = "https://api.openai.com/v1/chat/completions";
 const STRAITLY_URL = "https://api.straitly.ai/v1/chat/completions";
+let straitlyInFlight = 0;
 
 /**
  * Owner decision 2026-11-24: every interactive chat model that is not OpenAI
@@ -620,7 +621,12 @@ export async function chatCompletion(
   if (openAiDirect && !openAiRouting.apiKey) {
     throw new OpenRouterError(401, "OPENAI_API_KEY is not configured; set it in Settings or switch OpenAI models to OpenRouter");
   }
-  const straitlyKey = !openAiRouting && isStraitlyModel(request.model) && await isStraitlyRoutingEnabled() ? await getStraitlyApiKey() : null;
+  const straitlyMode = !openAiRouting && isStraitlyModel(request.model) ? await straitlyRouting() : null;
+  // "share:N" fills Straitly up to N requests in flight; the overflow goes to OpenRouter.
+  const straitlyShare = straitlyMode?.cap !== undefined && straitlyInFlight < straitlyMode.cap;
+  if (straitlyShare) straitlyInFlight++;
+  try {
+  const straitlyKey = straitlyMode && (straitlyMode.cap === undefined || straitlyShare) ? await getStraitlyApiKey() : null;
   const straitly = straitlyKey !== null;
   if (straitly && !straitlyKey) {
     throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");
@@ -723,7 +729,10 @@ export async function chatCompletion(
     throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers, errJson));
   }
 
-  throw lastError ?? new Error(`${label} request failed after retries`);
+    throw lastError ?? new Error(`${label} request failed after retries`);
+  } finally {
+    if (straitlyShare) straitlyInFlight--;
+  }
 }
 
 /** OpenRouter-shaped request → OpenAI's own chat completions request. */
