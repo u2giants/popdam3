@@ -5,16 +5,15 @@ import type { UploadInstructions } from "@shared/types";
  */
 
 import { getConfig } from "./config";
-import { loadSession } from "./credentials";
+import { getValidAccessToken, refreshSession } from "./session";
 import { log } from "./logger";
 
-async function getHeaders(): Promise<Record<string, string>> {
-  const session = await loadSession();
+function headersFor(accessToken: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (session?.accessToken) {
-    headers["Authorization"] = `Bearer ${session.accessToken}`;
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
   }
   return headers;
 }
@@ -39,33 +38,34 @@ export async function discoverSupabaseConfig(damUrl: string): Promise<{ supabase
   };
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+/** Send a request; on 401 refresh the sign-in once and retry (#1396). */
+async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
   const url = apiUrl(path);
-  log.debug("POST", url);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: await getHeaders(),
-    body: JSON.stringify(body),
-  });
+  log.debug(method, url);
+  const send = (token: string | null) =>
+    fetch(url, {
+      method,
+      headers: headersFor(token),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  let res = await send(await getValidAccessToken());
+  if (res.status === 401) {
+    const fresh = await refreshSession();
+    if (fresh) res = await send(fresh);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`POST ${path} failed (${res.status}): ${text}`);
+    throw new Error(`${method} ${path} failed (${res.status}): ${text}`);
   }
   return await res.json() as T;
 }
 
-async function get<T>(path: string): Promise<T> {
-  const url = apiUrl(path);
-  log.debug("GET", url);
-  const res = await fetch(url, {
-    method: "GET",
-    headers: await getHeaders(),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`GET ${path} failed (${res.status}): ${text}`);
-  }
-  return await res.json() as T;
+function post<T>(path: string, body: unknown): Promise<T> {
+  return request<T>("POST", path, body);
+}
+
+function get<T>(path: string): Promise<T> {
+  return request<T>("GET", path);
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
