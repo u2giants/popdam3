@@ -5,7 +5,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }) },
 }));
 
-import { buildDamSearchFilters, fetchHybridSearchIds, fetchHybridSearchPage, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, fetchHybridSearchIds, fetchHybridSearchPage, fetchSearchIds, getSearchMode, invalidateSearchMode, parseSearchMode, preloadSearchMode, sortByRank } from "@/lib/dam-search";
 import { defaultFilters } from "@/types/assets";
 
 describe("DAM hybrid search", () => {
@@ -143,6 +143,37 @@ describe("DAM hybrid search", () => {
     invalidateSearchMode();
     invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
     await expect(getSearchMode()).resolves.toBe("hybrid");
+  });
+
+  it("preloadSearchMode starts one probe that a later getSearchMode reuses within the TTL", async () => {
+    invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
+    preloadSearchMode();
+    expect(invoke).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenCalledWith("dam-search-ai", expect.objectContaining({ body: { action: "search-modes" } }));
+    await expect(getSearchMode()).resolves.toBe("hybrid");
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
+  it("evicts a rejected cold probe so the next getSearchMode probes again", async () => {
+    invoke.mockResolvedValueOnce({ data: null, error: { context: new Response(null, { status: 503 }) } });
+    preloadSearchMode();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
+    await expect(getSearchMode()).resolves.toBe("hybrid");
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([401, 403])("a %s on a warm mode probe throws and never returns the last known good mode", async (status) => {
+    vi.useFakeTimers();
+    try {
+      invoke.mockResolvedValueOnce({ data: { modes: { dam: "hybrid" } }, error: null });
+      await expect(getSearchMode()).resolves.toBe("hybrid");
+      vi.advanceTimersByTime(30_001);
+      const denied = { context: new Response(null, { status }) };
+      invoke.mockResolvedValueOnce({ data: null, error: denied });
+      await expect(getSearchMode()).rejects.toBe(denied);
+      expect(invoke).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
   });
 
   it("cancels a stalled semantic request after 30 seconds, retries once, then reports failure", async () => {

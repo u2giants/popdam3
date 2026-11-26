@@ -67,6 +67,29 @@ export function createQueryEmbedder(transport: QueryEmbedTransport): QueryEmbedd
     cache.set(text, vector);
   };
 
+  // Two simultaneous cold misses for the same texts share ONE batch call instead of
+  // queueing two forward passes on the service (#1430). The entry lives only while
+  // the call is in flight, so a failed outcome is never cached. The transport takes
+  // no caller signal, so one caller giving up cannot fail another.
+  const inFlight = new Map<string, Promise<BatchEmbedOutcome>>();
+  const embedBatch = async (texts: string[]): Promise<BatchEmbedOutcome> => {
+    const sorted = [...new Set(texts)].sort();
+    const key = JSON.stringify(sorted);
+    let shared = inFlight.get(key);
+    if (!shared) {
+      shared = transport.embedBatch(sorted).finally(() => inFlight.delete(key));
+      inFlight.set(key, shared);
+    }
+    const outcome = await shared;
+    if (outcome.status !== "ok") return outcome;
+    const at = texts.map((text) => sorted.indexOf(text));
+    return {
+      ...outcome,
+      vectors: at.map((index) => outcome.vectors[index]),
+      ...(outcome.textVectors ? { textVectors: at.map((index) => outcome.textVectors![index] ?? null) } : {}),
+    };
+  };
+
   const textCache = new Map<string, TextVector>();
   const cachedText = (text: string): TextVector | null => {
     const hit = textCache.get(text) ?? null;
@@ -97,7 +120,7 @@ export function createQueryEmbedder(transport: QueryEmbedTransport): QueryEmbedd
         if (!picture || !meaning) misses.push(text);
       }
       if (!misses.length) return { vectors, textVectors };
-      const outcome = await transport.embedBatch(misses);
+      const outcome = await embedBatch(misses);
       // Only the batch endpoint carries text vectors: an absent endpoint or a failure leaves
       // them null and the caller fails the search when the text leg is required (D4).
       if (outcome.status !== "ok") {
@@ -139,7 +162,7 @@ export function createQueryEmbedder(transport: QueryEmbedTransport): QueryEmbedd
       }
       if (!misses.length) return out;
 
-      const outcome = await transport.embedBatch(misses);
+      const outcome = await embedBatch(misses);
       if (outcome.status === "ok") {
         misses.forEach((text, index) => {
           const vector = outcome.vectors[index] ?? null;

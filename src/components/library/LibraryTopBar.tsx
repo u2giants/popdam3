@@ -21,6 +21,7 @@ import type { ScanProgress } from "@/hooks/useScanProgress";
 import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { cn } from "@/lib/utils";
 import { formatCount } from "@/lib/format-count";
+import { preloadSearchMode } from "@/lib/dam-search";
 import ImageSimilarityResults, { type ImageSimilarityPhase } from "./ImageSimilarityResults";
 import {
   fetchImageSimQueryStatus,
@@ -475,6 +476,7 @@ export default function LibraryTopBar({
           type="text"
           placeholder="Search…"
           value={search}
+          onFocus={preloadSearchMode}
           onChange={(e) => onSearchChange(e.target.value)}
           style={{
             width: "100%",
