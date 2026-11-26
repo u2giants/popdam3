@@ -25,7 +25,7 @@
   "jobs": {
     "notify-central": {
       "if": "github.repository_owner == 'popcre' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)",
-      "runs-on": "ubuntu-latest",
+      "runs-on": ["self-hosted", "Linux", "X64", "ai-devops-linux"],
       "timeout-minutes": 5,
       "steps": [
         {
