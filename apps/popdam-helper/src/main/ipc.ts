@@ -6,8 +6,8 @@
 import { ipcMain, dialog, app } from "electron";
 import { join } from "path";
 import { getConfig, saveConfig } from "./config";
-import { refreshSession } from "./session";
-import { clearSession, storeSession, storeToken, loadToken, loadSession } from "./credentials";
+import { getValidAccessToken } from "./session";
+import { clearSession, storeSession, storeToken, loadToken } from "./credentials";
 import {
   getActiveCheckouts,
   checkin,
@@ -130,27 +130,18 @@ export function registerIpcHandlers(): void {
 
   // ── Auth ────────────────────────────────────────────────────────────────────
   ipcMain.handle("get-auth-state", async () => {
-    const session = loadSession();
-    if (!session) {
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) {
       return { ok: true, data: { loggedIn: false, userId: null, email: null, accessToken: null } };
     }
     // Decode JWT payload to extract sub (userId) and email without a crypto library
-    let accessToken: string | null = session.accessToken;
     let userId: string | null = null;
     let email: string | null = null;
     try {
-      const payloadB64 = session.accessToken.split(".")[1];
+      const payloadB64 = accessToken.split(".")[1];
       const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
       userId = (payload.sub as string) ?? null;
       email = (payload.email as string) ?? null;
-      const exp = typeof payload.exp === "number" ? payload.exp : null;
-      if (exp && exp * 1000 <= Date.now()) {
-        // Expired access token: refresh instead of signing out (#1396).
-        accessToken = await refreshSession();
-        if (!accessToken) {
-          return { ok: true, data: { loggedIn: false, userId: null, email: null, accessToken: null } };
-        }
-      }
     } catch {
       // JWT decode failed — session still valid, just no email display
     }

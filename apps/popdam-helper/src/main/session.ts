@@ -33,7 +33,10 @@ let inFlight: Promise<string | null> | null = null;
  */
 export function refreshSession(): Promise<string | null> {
   if (!inFlight) {
-    inFlight = doRefresh().finally(() => {
+    inFlight = doRefresh().catch(() => {
+      log.warn("Session refresh could not be completed.");
+      return null;
+    }).finally(() => {
       inFlight = null;
     });
   }
@@ -58,7 +61,9 @@ async function doRefresh(): Promise<string | null> {
   }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    if (res.status >= 400 && res.status < 500) {
+    const rejectedGrant = json?.error === "invalid_grant" ||
+      json?.error_code === "refresh_token_not_found" || json?.error_code === "refresh_token_already_used";
+    if (res.status === 401 || (res.status === 400 && rejectedGrant)) {
       log.warn(`Session refresh rejected (${res.status}); signing out.`);
       clearSession();
     } else {
