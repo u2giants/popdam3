@@ -18,6 +18,13 @@ const state = vi.hoisted(() => ({
   links: [] as { property_id: string; character_id: string }[],
   config: [] as { key: string; value: unknown }[],
   configError: null as null | { message: string },
+  spellingCalls: 0,
+  countWords: [] as string[],
+  keyCountError: null as null | { message: string },
+  keyCountQueries: 0,
+  userRoleQueries: 0,
+  adminConfigReads: 0,
+  roles: [] as { role: string }[],
 }));
 const tableRows = (table: string): unknown[] =>
   ({
@@ -29,21 +36,34 @@ const tableRows = (table: string): unknown[] =>
     property: state.properties,
     property_character_associations_current: state.links,
   } as Record<string, unknown[]>)[table] ?? [];
-const tableQuery = (table: string) => ({
-  select: (_columns?: string, options?: { head?: boolean }) => {
-    const query = {
-      order: () => query,
-      range: () => query,
-      abortSignal: async () => options?.head ? { count: tableRows(table).length, error: null } : { data: tableRows(table), error: null },
-      in: async () => state.configError ? { data: null, error: state.configError } : { data: table === "admin_config" ? state.config : [], error: null },
-      eq: () =>
-        Object.assign(Promise.resolve({ data: [] }), {
-          maybeSingle: async () => ({ data: null, error: null }),
-        }),
-    };
-    return query;
-  },
-});
+const tableQuery = (table: string) => {
+  if (table === "user_roles") state.userRoleQueries += 1;
+  return {
+    select: (_columns?: string, options?: { head?: boolean }) => {
+      const query = {
+        order: () => query,
+        range: () => query,
+        textSearch: () => query,
+        abortSignal: async () => {
+          if (table === "dam_search_keys") {
+            state.keyCountQueries += 1;
+            return state.keyCountError ? { count: null, error: state.keyCountError } : { count: 2, error: null };
+          }
+          return options?.head ? { count: tableRows(table).length, error: null } : { data: tableRows(table), error: null };
+        },
+        in: async () => {
+          if (table === "admin_config") state.adminConfigReads += 1;
+          return state.configError ? { data: null, error: state.configError } : { data: table === "admin_config" ? state.config : [], error: null };
+        },
+        eq: () =>
+          Object.assign(Promise.resolve({ data: table === "user_roles" ? state.roles : [] }), {
+            maybeSingle: async () => ({ data: null, error: null }),
+          }),
+      };
+      return query;
+    },
+  };
+};
 vi.mock("../_shared/http.ts", () => ({
   corsServe: (handler: typeof state.handler) => {
     state.handler = handler;
@@ -67,9 +87,14 @@ vi.mock("../_shared/search-spelling.ts", () => ({
   RARE_WORD_DOCS: 3,
   VOCABULARY_BUDGET_MS: 4000,
   addNameToVocabulary: vi.fn(),
-  checkSpelling: async () => ({ meaningful: state.meaningful, corrected: state.corrected }),
+  checkSpelling: async (_query: string, lookup: { countDocs(word: string): Promise<number> }) => {
+    state.spellingCalls += 1;
+    // The real spelling step counts unknown words; a failed count costs only this search's help.
+    for (const word of state.countWords) await lookup.countDocs(word).catch(() => 0);
+    return { meaningful: state.meaningful, corrected: state.corrected };
+  },
 }));
-const { resetLicensorCacheForTests } = await import("./index.ts");
+const { resetLicensorCacheForTests, resetCountDocsCacheForTests } = await import("./index.ts");
 // Answers both text-embed endpoints like the real service: batch requests get
 // one vector per requested text, single-text requests get one vector.
 const embedFetch = () =>
@@ -99,12 +124,20 @@ describe("DAM search embedding availability", () => {
     state.aliases.length = 0;
     for (const rows of [state.characters, state.characterAliases, state.legacyCharacters, state.properties, state.links]) rows.length = 0;
     resetLicensorCacheForTests();
+    resetCountDocsCacheForTests();
     vi.stubGlobal("Deno", { env: { get: () => "https://embed.invalid" } });
     state.config.length = 0;
     state.configError = null;
     state.productCode = false;
     state.meaningful = true;
     state.corrected = null;
+    state.spellingCalls = 0;
+    state.countWords = [];
+    state.keyCountError = null;
+    state.keyCountQueries = 0;
+    state.userRoleQueries = 0;
+    state.adminConfigReads = 0;
+    state.roles = [];
     state.authenticate.mockResolvedValue({ ok: true, via: "user", userId: "viewer" });
     state.formatRpc.mockReset().mockResolvedValue({ data: false, error: null });
     state.namesRpc.mockReset().mockImplementation(async () => ({
@@ -200,7 +233,8 @@ describe("DAM search embedding availability", () => {
       vi.stubGlobal("fetch", fetch);
       const response = await search(`keyword only ${kind}`);
       expect(response.status).toBe(200);
-      expect(fetch).not.toHaveBeenCalled();
+      // Speculative embedding may run before spelling; its result is discarded. No picture leg runs.
+      expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
       if (state.productCode) expect(state.namesRpc).not.toHaveBeenCalled();
       expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
     });
@@ -248,7 +282,8 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await search("x7q9v2n8")).status).toBe(200);
     expect(state.formatRpc).toHaveBeenCalledOnce();
-    expect(fetch).not.toHaveBeenCalled();
+    // Speculative embedding may run before spelling; its result is discarded. No picture leg runs.
+    expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
     expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
   });
 
@@ -446,6 +481,137 @@ describe("DAM search embedding availability", () => {
     expect((await search("disney floor covering")).status).toBe(503);
     expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")).toHaveLength(2);
     expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  describe("#1430 search speed", () => {
+    const post = (body: Record<string, unknown>) =>
+      state.handler!(
+        new Request("https://example.invalid", {
+          method: "POST",
+          headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+    const searchCalls = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents");
+    const batchBodies = (fetch: ReturnType<typeof embedFetch>) =>
+      fetch.mock.calls
+        .filter(([input]) => new URL(String(input)).pathname === "/embed-text-batch")
+        .map(([, init]) => JSON.parse(String(init?.body ?? "{}")).texts as string[]);
+
+    it("search and search-modes never read user_roles", async () => {
+      state.rpc.mockImplementation(async (name: string) => ({
+        data: name === "require_dam_access" ? true : name.startsWith("dam_search_semantic_anchor") ? 0.5 : [],
+        error: null,
+      }));
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("roles untouched phrase")).status).toBe(200);
+      expect((await post({ action: "search-modes" })).status).toBe(200);
+      expect(state.userRoleQueries).toBe(0);
+    });
+
+    it.each(["embedding-status", "reset-embedding-errors"])("%s reads user_roles: 403 for a viewer, 200 for an admin", async (action) => {
+      state.roles = [];
+      expect((await post({ action })).status).toBe(403);
+      state.roles = [{ role: "admin" }];
+      expect((await post({ action })).status).toBe(200);
+      expect(state.userRoleQueries).toBe(2);
+    });
+
+    it("a DB error on the combined admin_config read returns 503 before any ranked search", async () => {
+      state.configError = { message: "boom" };
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("combined read error phrase")).status).toBe(503);
+      expect(state.adminConfigReads).toBe(1);
+      expect(searchCalls()).toHaveLength(0);
+    });
+
+    it("a missing semantic-floor row searches with no admin floor, from the same single read", async () => {
+      state.config.push({ key: "SEARCH_TEXT_LEG_MODE", value: "off" });
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("no floor row phrase")).status).toBe(200);
+      expect(state.adminConfigReads).toBe(1);
+      // Only the relative margin below the anchor (0.5 - 0.035) remains.
+      expect(searchCalls()[0][1].p_min_semantic_score as number).toBeCloseTo(0.465);
+    });
+
+    it("applies the admin floor when its row is in the same read", async () => {
+      state.config.push({ key: "SEARCH_MIN_SEMANTIC_SCORE", value: 0.6 });
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("admin floor row phrase")).status).toBe(200);
+      expect(state.adminConfigReads).toBe(1);
+      expect(searchCalls()[0][1].p_min_semantic_score as number).toBeCloseTo(0.6);
+    });
+
+    it("counts the same rare word once across two searches", async () => {
+      state.countWords = ["quazzlefrond"];
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("quazzlefrond")).status).toBe(200);
+      expect((await search("quazzlefrond")).status).toBe(200);
+      expect(state.spellingCalls).toBe(2);
+      expect(state.keyCountQueries).toBe(1);
+    });
+
+    it("does not cache an erroring count; the next search counts again", async () => {
+      state.countWords = ["zorblefrump"];
+      state.keyCountError = { message: "statement timeout" };
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("zorblefrump")).status).toBe(200);
+      expect(state.keyCountQueries).toBe(1);
+      state.keyCountError = null;
+      expect((await search("zorblefrump")).status).toBe(200);
+      expect(state.keyCountQueries).toBe(2);
+      expect((await search("zorblefrump")).status).toBe(200);
+      expect(state.keyCountQueries).toBe(2);
+    });
+
+    it("a product code or unknown catalog format runs no spelling check and no embedding", async () => {
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      state.productCode = true;
+      expect((await search("VDD83MVSP01")).status).toBe(200);
+      state.productCode = false;
+      state.formatRpc.mockResolvedValue({ data: true, error: null });
+      expect((await search("ZZZ83MVSP99")).status).toBe(200);
+      expect(state.spellingCalls).toBe(0);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("a rejecting speculative embed never fails a non-meaningful search", async () => {
+      state.meaningful = false;
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("network down")));
+      const response = await search("quimble zorp");
+      expect(response.status).toBe(200);
+      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
+      expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
+    });
+
+    it("a failing speculative embed never fails a non-meaningful search", async () => {
+      state.meaningful = false;
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 })));
+      const response = await search("quimble zorp again");
+      expect(response.status).toBe(200);
+      expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: null }));
+      expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
+    });
+
+    it("a corrected spelling embeds only the corrected text; the typed text reuses its speculative vector", async () => {
+      state.corrected = "Pleeple rug";
+      const fetch = embedFetch();
+      vi.stubGlobal("fetch", fetch);
+      expect((await search("Pleeble rug")).status).toBe(200);
+      expect(batchBodies(fetch)).toEqual([["Pleeble rug"], ["Pleeple rug"]]);
+    });
+
+    it("loads named scope for both the typed and the corrected phrase", async () => {
+      state.corrected = "Frabbel rug";
+      vi.stubGlobal("fetch", embedFetch());
+      expect((await search("Frabble rug")).status).toBe(200);
+      expect(state.namesRpc).toHaveBeenCalledWith(
+        "get_dam_search_named_rows",
+        { p_keys: expect.arrayContaining(["frabble rug", "frabbel rug"]) },
+        expect.any(AbortSignal),
+      );
+    });
   });
 
   describe("text-meaning leg (#1037 Step 6)", () => {

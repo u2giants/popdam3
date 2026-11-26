@@ -111,4 +111,92 @@ describe("createQueryEmbedder", () => {
     expect(out.vectors.get("mat")).toEqual(vector(1));
     expect(out.textVectors.get("mat")).toBeNull();
   });
+
+  it("coalesces two concurrent cold misses for the same texts into one batch call", async () => {
+    const batches: string[][] = [];
+    let release!: (outcome: BatchEmbedOutcome) => void;
+    const gate = new Promise<BatchEmbedOutcome>((resolve) => {
+      release = resolve;
+    });
+    const embedder = createQueryEmbedder({
+      async embedBatch(texts) {
+        batches.push(texts);
+        return gate;
+      },
+      async embedOne() {
+        throw new Error("embedOne must not run when the batch endpoint answers");
+      },
+    });
+    const first = embedder.embedAll(["rug", "mat"]);
+    const second = embedder.embedAll(["mat", "rug"]);
+    release({ status: "ok", vectors: [vector(1), vector(2)] }); // sorted order: mat, rug
+    const [a, b] = await Promise.all([first, second]);
+    expect(batches).toEqual([["mat", "rug"]]);
+    expect(a.get("mat")).toEqual(vector(1));
+    expect(a.get("rug")).toEqual(vector(2));
+    expect(b.get("mat")).toEqual(vector(1));
+    expect(b.get("rug")).toEqual(vector(2));
+  });
+
+  it("does not cache a failed batch outcome, so the next call asks the service again", async () => {
+    const batches: string[][] = [];
+    const outcomes: BatchEmbedOutcome[] = [{ status: "failed" }, { status: "ok", vectors: [vector(7)] }];
+    const embedder = createQueryEmbedder({
+      async embedBatch(texts) {
+        batches.push(texts);
+        return outcomes.shift()!;
+      },
+      async embedOne() {
+        throw new Error("embedOne must not run when the batch endpoint answers");
+      },
+    });
+    expect((await embedder.embedAll(["mat"])).get("mat")).toBeNull();
+    expect((await embedder.embedAll(["mat"])).get("mat")).toEqual(vector(7));
+    expect(batches).toEqual([["mat"], ["mat"]]);
+  });
+
+  it("does not cache a rejected batch, so the next call asks the service again", async () => {
+    const batches: string[][] = [];
+    let fail = true;
+    const embedder = createQueryEmbedder({
+      async embedBatch(texts) {
+        batches.push(texts);
+        if (fail) throw new Error("socket reset");
+        return { status: "ok", vectors: [vector(8)] };
+      },
+      async embedOne() {
+        throw new Error("embedOne must not run when the batch endpoint answers");
+      },
+    });
+    await expect(embedder.embedAll(["mat"])).rejects.toThrow("socket reset");
+    fail = false;
+    expect((await embedder.embedAll(["mat"])).get("mat")).toEqual(vector(8));
+    expect(batches).toEqual([["mat"], ["mat"]]);
+  });
+
+  it("one caller giving up on a shared batch does not fail the other caller", async () => {
+    let calls = 0;
+    let release!: (outcome: BatchEmbedOutcome) => void;
+    const gate = new Promise<BatchEmbedOutcome>((resolve) => {
+      release = resolve;
+    });
+    const embedder = createQueryEmbedder({
+      async embedBatch() {
+        calls += 1;
+        return gate;
+      },
+      async embedOne() {
+        throw new Error("embedOne must not run when the batch endpoint answers");
+      },
+    });
+    const callerA = Promise.race([
+      embedder.embedAll(["mat"]),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("caller A deadline")), 5)),
+    ]);
+    const callerB = embedder.embedAll(["mat"]);
+    await expect(callerA).rejects.toThrow("caller A deadline");
+    release({ status: "ok", vectors: [vector(9)] });
+    expect((await callerB).get("mat")).toEqual(vector(9));
+    expect(calls).toBe(1);
+  });
 });
