@@ -17,11 +17,12 @@ export async function getPopSGQueryEmbedding(
   spelling: (query: string) => Promise<SpellingResult> = async () => ({ corrected: null, meaningful: true }),
 ) {
   const productCode = mode === "hybrid" && !!query && await isProductCodeSearch(query, lookup);
-  if (mode !== "hybrid" || !query || productCode) return { embedding: null, skipped: productCode ? "product_code" : null };
+  if (mode !== "hybrid" || !query || productCode) return { embedding: null, skipped: productCode ? "product_code" : null, corrected: null };
   const [checked, embedding] = await Promise.all([spelling(query), embed(query)]);
-  if (!checked.meaningful) return { embedding: null, skipped: "not_meaningful" };
+  if (!checked.meaningful) return { embedding: null, skipped: "not_meaningful", corrected: null };
   if (!embedding) throw new Error("Search unavailable. Please try again.");
-  return { embedding, skipped: null };
+  // Returned so the page needs no second "spelling" call (#1430 Step 8).
+  return { embedding, skipped: null, corrected: checked.corrected ?? null };
 }
 
 /** Name vectors must beat this cosine and the runner-up by NAME_MARGIN (measured 2026-11-05, #706). */

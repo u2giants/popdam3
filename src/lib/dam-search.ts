@@ -189,10 +189,12 @@ const expandTermsCache = new Map<string, Promise<string[]>>();
  * stored values like "Spider-Man" / "SPIDER MAN". Without this, a raw substring
  * search returns 0 results for hyphenated/spaced brand names.
  */
-export function expandFallbackTerms(rawTerm: string): Promise<string[]> {
+export function expandFallbackTerms(rawTerm: string, options: { spelling?: boolean } = {}): Promise<string[]> {
   const term = rawTerm.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim();
   if (!term) return Promise.resolve([]);
-  const key = term.toLowerCase();
+  // PopSG gets its spelling fix from popsg-query-embedding instead (#1430 Step 8).
+  const withSpelling = options.spelling !== false;
+  const key = `${withSpelling ? "" : "nospell:"}${term.toLowerCase()}`;
   let cached = expandTermsCache.get(key);
   if (!cached) {
     cached = (async () => {
@@ -204,7 +206,7 @@ export function expandFallbackTerms(rawTerm: string): Promise<string[]> {
         if (v.includes("-")) variants.add(v.replace(/-/g, " "));
         if (/\s/.test(v)) variants.add(v.replace(/\s+/g, "-"));
       };
-      add(key);
+      add(term.toLowerCase());
       try {
         const { data, error } = await (supabase.rpc as any)("expand_dam_search_queries", {
           p_query: term,
@@ -213,8 +215,10 @@ export function expandFallbackTerms(rawTerm: string): Promise<string[]> {
         for (const row of (data ?? []) as Array<{ query_text?: string }>) {
           if (row?.query_text) add(row.query_text);
         }
-        const spelling = await invokeSearch({ action: "spelling", query: term });
-        if (typeof spelling.data?.corrected === "string") add(spelling.data.corrected);
+        if (withSpelling) {
+          const spelling = await invokeSearch({ action: "spelling", query: term });
+          if (typeof spelling.data?.corrected === "string") add(spelling.data.corrected);
+        }
       } catch {
         expandTermsCache.delete(key); // transient failure: allow a later retry
       }

@@ -542,6 +542,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
       expansion,
       fallback: fallback?.fallback ?? null,
       fallback_kind: fallback?.kind ?? null,
+      corrected: semantic.corrected ?? null,
       min_semantic_score: parseSemanticFloor(stored("POPSG_SEARCH_MIN_SEMANTIC_SCORE")),
     });
   }

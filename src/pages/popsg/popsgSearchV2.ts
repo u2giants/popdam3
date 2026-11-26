@@ -169,7 +169,7 @@ export function buildPopSGSummaryIdentityFilters(guides: PopSGV2GuideViewRow[]):
  * valid vector in hybrid mode must show the existing error and Retry state.
  * Keyword mode and explicitly identified product codes intentionally skip it.
  */
-export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null; expansion: string | null; fallback: string | null; fallbackAfterMatches: boolean } {
+export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: string | null; minSemanticScore: number | null; expansion: string | null; fallback: string | null; fallbackAfterMatches: boolean; corrected: string | null } {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const skip = row.mode === "keyword" || (row.mode === "hybrid" && (row.skipped === "product_code" || row.skipped === "not_meaningful" || row.skipped === "names_only"));
   if (!skip && row.mode !== "hybrid") throw new Error("Search unavailable. Please try again.");
@@ -185,7 +185,20 @@ export function parsePopSGQueryEmbedding(value: unknown): { queryEmbedding: stri
     fallback: row.mode === "hybrid" && typeof row.fallback === "string" && row.fallback.trim() ? row.fallback.trim() : null,
     // ...unless it is a known name inside the words: then its files are listed after the all-word matches.
     fallbackAfterMatches: row.mode === "hybrid" && typeof row.fallback === "string" && !!row.fallback.trim() && row.fallback_kind === "name",
+    // The spelling fix, returned here so the page makes no separate "spelling" call.
+    corrected: row.mode === "hybrid" && typeof row.corrected === "string" && row.corrected.trim() ? row.corrected.trim() : null,
   };
+}
+
+/** Adds the spelling fix (and its hyphen/space forms) as expandFallbackTerms used to. */
+export function addCorrectedTerm(terms: string[], corrected: string | null): string[] {
+  const value = corrected?.trim().toLowerCase();
+  if (!value) return terms;
+  const variants = new Set(terms);
+  variants.add(value);
+  if (value.includes("-")) variants.add(value.replace(/-/g, " "));
+  if (/\s/.test(value)) variants.add(value.replace(/\s+/g, "-"));
+  return [...variants];
 }
 
 export function buildPopSGV2Args(request: PopSGSearchRequest) {
