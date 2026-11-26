@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addCorrectedTerm,
   buildPopSGV2Args,
   buildPopSGSummaryIdentityFilters,
   buildPopSGV2WebsearchQuery,
@@ -228,5 +229,22 @@ describe("PopSG meaning-based search args", () => {
     const hybrid = buildPopSGV2Args({ ...base, queryEmbedding: "[1]", minSemanticScore: 0.3 });
     expect(hybrid.p_query_embedding).toBe("[1]");
     expect(hybrid.p_min_semantic_score).toBe(0.3);
+  });
+});
+
+describe("PopSG single-call spelling (#1430 Step 8)", () => {
+  const vector = Array.from({ length: 768 }, () => 0.1);
+  it("reads the spelling fix from the embedding response", () => {
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", skipped: "names_only", corrected: " spider man " }).corrected).toBe("spider man");
+    expect(parsePopSGQueryEmbedding({ mode: "hybrid", embedding: vector, corrected: null }).corrected).toBeNull();
+    expect(parsePopSGQueryEmbedding({ mode: "keyword", corrected: "x" }).corrected).toBeNull();
+  });
+  it("still shows the error state when the vector is missing", () => {
+    expect(() => parsePopSGQueryEmbedding({ mode: "hybrid", corrected: "x" })).toThrow("Search unavailable");
+  });
+  it("adds the fix and its separator forms without duplicates", () => {
+    expect(addCorrectedTerm(["spidermen"], "Spider Man")).toEqual(["spidermen", "spider man", "spider-man"]);
+    expect(addCorrectedTerm(["batman"], "batman")).toEqual(["batman"]);
+    expect(addCorrectedTerm(["batman"], null)).toEqual(["batman"]);
   });
 });

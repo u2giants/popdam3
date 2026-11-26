@@ -8,13 +8,13 @@ it("PopSG hybrid awaits the catalog and embeds ordinary words", async () => {
     return Promise.resolve([1]);
   });
   expect(calls).toBe(1);
-  expect(result).toEqual({ embedding: [1], skipped: null });
+  expect(result).toEqual({ embedding: [1], skipped: null, corrected: null });
 });
 it("PopSG product codes intentionally skip embedding", async () => {
   const result = await getPopSGQueryEmbedding("hybrid", "TEST123", async () => ({ data: [{ id: "1" }], error: null }), () => {
     throw new Error("must not embed");
   });
-  expect(result).toEqual({ embedding: null, skipped: "product_code" });
+  expect(result).toEqual({ embedding: null, skipped: "product_code", corrected: null });
 });
 it("PopSG keyword mode never calls the catalog or embedding service", async () => {
   const result = await getPopSGQueryEmbedding("keyword", "words", () => {
@@ -22,7 +22,7 @@ it("PopSG keyword mode never calls the catalog or embedding service", async () =
   }, () => {
     throw new Error("must not embed");
   });
-  expect(result).toEqual({ embedding: null, skipped: null });
+  expect(result).toEqual({ embedding: null, skipped: null, corrected: null });
 });
 it("PopSG hybrid embedding outage fails rather than returning keyword results", async () => {
   await expect(getPopSGQueryEmbedding("hybrid", "words", async () => ({ data: [], error: null }), () => Promise.resolve(null)))
@@ -35,7 +35,7 @@ it("PopSG hybrid embeds the typed words while spelling runs", async () => {
     return Promise.resolve([1]);
   }, async () => ({ corrected: null, meaningful: true }));
   expect(seen).toEqual(["harry poter"]);
-  expect(result).toEqual({ embedding: [1], skipped: null });
+  expect(result).toEqual({ embedding: [1], skipped: null, corrected: null });
 });
 it("PopSG hybrid skips pictures for words with no catalog meaning", async () => {
   const result = await getPopSGQueryEmbedding(
@@ -45,7 +45,7 @@ it("PopSG hybrid skips pictures for words with no catalog meaning", async () => 
     () => Promise.resolve([1]),
     async () => ({ corrected: null, meaningful: false }),
   );
-  expect(result).toEqual({ embedding: null, skipped: "not_meaningful" });
+  expect(result).toEqual({ embedding: null, skipped: "not_meaningful", corrected: null });
 });
 it("PopSG name expansion needs a clear winner", async () => {
   const { nameExpansion } = await import("./popsg-query-embedding.ts");
@@ -85,4 +85,15 @@ it("empty-result fallback prefers a whole name over a joined two-word form on a 
   const names = new Set(["heroman", "hero ben"]);
   const vocabulary = new Map([["heroben", 1], ["heroman", 1], ["hero", 1]]);
   expect(zeroResultFallback("heromen", names, vocabulary)?.fallback).toBe("heroman");
+});
+
+it("returns the spelling fix with the embedding so no second call is needed (#1430 Step 8)", async () => {
+  const lookup = async () => ({ data: [], error: null });
+  const embed = async () => [0.1];
+  const fixed = await getPopSGQueryEmbedding("hybrid", "wordz", lookup, embed, async () => ({ corrected: "words", meaningful: true }));
+  expect(fixed).toEqual({ embedding: [0.1], skipped: null, corrected: "words" });
+  const gibberish = await getPopSGQueryEmbedding("hybrid", "qqq", lookup, embed, async () => ({ corrected: "x", meaningful: false }));
+  expect(gibberish.corrected).toBeNull();
+  const keyword = await getPopSGQueryEmbedding("keyword", "wordz", lookup, embed);
+  expect(keyword.corrected).toBeNull();
 });

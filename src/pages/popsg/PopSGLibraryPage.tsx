@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import {
+  addCorrectedTerm,
   buildPopSGV2Args,
   parsePopSGQueryEmbedding,
   buildPopSGSummaryIdentityFilters,
@@ -151,10 +152,12 @@ export async function fetchPopSGV2Page(
 ) {
   const pageOffset = page * pageSize;
   // Embed the words as typed: the expansion below is keyword OR-syntax.
-  const [fallbackTerms, { expansion, fallback, fallbackAfterMatches, ...semantic }] = await Promise.all([
-    filters.nameSearch ? expandFallbackTerms(filters.nameSearch) : Promise.resolve([]),
+  const [synonymTerms, { expansion, fallback, fallbackAfterMatches, corrected, ...semantic }] = await Promise.all([
+    filters.nameSearch ? expandFallbackTerms(filters.nameSearch, { spelling: false }) : Promise.resolve([]),
     fetchPopSGQueryEmbedding(filters.nameSearch.trim(), signal),
   ]);
+  // The spelling fix comes back with the embedding call, so no extra serial round-trip.
+  const fallbackTerms = addCorrectedTerm(synonymTerms, corrected);
   const expandedTerms = expansion ? [...fallbackTerms, expansion] : fallbackTerms;
   const searchFilters = {
     licensor: filters.licensor,
