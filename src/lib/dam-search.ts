@@ -83,7 +83,7 @@ export function parseSearchMode(value: unknown): SearchMode {
 export function getSearchMode(): Promise<SearchMode> {
   if (!searchModePromise || Date.now() >= searchModeExpiresAt) {
     searchModeExpiresAt = Date.now() + SEARCH_MODE_TTL_MS;
-    searchModePromise = (async () => {
+    const probe: Promise<SearchMode> = (async () => {
       try {
         const { data, error } = await invokeSearch({ action: "search-modes" });
         if (error) throw error;
@@ -97,8 +97,21 @@ export function getSearchMode(): Promise<SearchMode> {
         throw error;
       }
     })();
+    searchModePromise = probe;
+    // Never cache a rejection: Retry must probe again (#1430).
+    probe.catch(() => {
+      if (searchModePromise === probe) {
+        searchModePromise = null;
+        searchModeExpiresAt = 0;
+      }
+    });
   }
   return searchModePromise;
+}
+
+/** Warm the search-mode probe so the first search does not wait on it (#1430). */
+export function preloadSearchMode(): void {
+  getSearchMode().catch(() => {});
 }
 
 export function invalidateSearchMode(): void {

@@ -1,7 +1,7 @@
 import LibrarySearchError from "@/components/library/LibrarySearchError";
 import SearchAccessNotice from "@/components/library/SearchAccessNotice";
-import { searchAccessStatus } from "@/lib/dam-search";
-import { useState, useCallback, useMemo } from "react";
+import { preloadSearchMode, searchAccessStatus } from "@/lib/dam-search";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { isDamAccessDenied, resetLibrarySearchCaches, useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
@@ -37,6 +37,8 @@ const DETAIL_DEFAULT_WIDTH = 900;
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
+  // Warm the search-mode probe so the first search skips that round-trip (#1430).
+  useEffect(() => { preloadSearchMode(); }, []);
   const [filters, setFilters] = useState<AssetFilters>(defaultFilters);
   // Null until the user picks a sort; typed searches then default to Relevance (#1037).
   const [chosenSortField, setSortField] = useState<SortField | null>(null);

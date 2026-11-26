@@ -233,6 +233,14 @@ function popsgNameVectors(): Promise<NameVectors | null> {
   return value;
 }
 
+/** Per-isolate LRU of successful spelling document counts (#1430). */
+const COUNT_DOCS_MAX = 512;
+const COUNT_DOCS_TTL_MS = 5 * 60_000;
+const countDocsCache = new Map<string, { count: number; expires: number }>();
+export function resetCountDocsCacheForTests() {
+  countDocsCache.clear();
+}
+
 /** Licensor, property and character names plus product words, refreshed hourly. */
 const spellingLookup: SpellingLookup = {
   vocabulary() {
@@ -254,6 +262,13 @@ const spellingLookup: SpellingLookup = {
     return words;
   },
   async countDocs(word, signal) {
+    // Successful counts only: an error, abort or timeout is never cached (#1430).
+    const hit = countDocsCache.get(word);
+    if (hit && hit.expires > Date.now()) {
+      countDocsCache.delete(word);
+      countDocsCache.set(word, hit);
+      return hit.count;
+    }
     // dam_search_keys carries the indexed copy of search_tsv (the documents copy lost its
     // index). A count, not a limit: with LIMIT the planner seq-scans for rare words (~20 s).
     // "estimated" is exact while the planner expects at most the API row limit (1000) and the
@@ -265,7 +280,11 @@ const spellingLookup: SpellingLookup = {
       .textSearch("search_tsv", `'${word.replace(/'/g, "")}'`, { config: "simple" })
       .abortSignal(signal ?? AbortSignal.timeout(1000));
     if (error) throw new Error(error.message);
-    return Math.min(count ?? 0, RARE_WORD_DOCS);
+    const docs = Math.min(count ?? 0, RARE_WORD_DOCS);
+    countDocsCache.delete(word);
+    countDocsCache.set(word, { count: docs, expires: Date.now() + COUNT_DOCS_TTL_MS });
+    while (countDocsCache.size > COUNT_DOCS_MAX) countDocsCache.delete(countDocsCache.keys().next().value!);
+    return docs;
   },
 };
 
@@ -280,15 +299,20 @@ async function authenticateCaller(req: Request) {
   });
   if (!result.ok) return null;
   if (result.via === "service_role") {
-    return { userId: "system", serviceRole: true, admin: true, client: serviceClient() };
+    return { userId: "system", serviceRole: true, isAdmin: () => Promise.resolve(true), client: serviceClient() };
   }
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
     { global: { headers: { Authorization: req.headers.get("Authorization")! } } },
   );
-  const { data: roles } = await serviceClient().from("user_roles").select("role").eq("user_id", result.userId);
-  return { userId: result.userId, serviceRole: false, admin: rolesGrantAdmin(roles), client };
+  // user_roles is read only by admin actions; search never waits on it (#1430).
+  const userId = result.userId;
+  let admin: Promise<boolean> | null = null;
+  const isAdmin = () =>
+    admin ??= Promise.resolve(serviceClient().from("user_roles").select("role").eq("user_id", userId))
+      .then(({ data: roles }) => rolesGrantAdmin(roles));
+  return { userId, serviceRole: false, isAdmin, client };
 }
 
 /**
@@ -562,7 +586,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
   }
 
   if (action === "embedding-status") {
-    if (!auth.admin) return err("Admin authorization required", 403);
+    if (!(await auth.isAdmin())) return err("Admin authorization required", 403);
     const db = serviceClient();
     const { data, error } = await db.rpc("get_dam_search_embedding_status");
     if (error) throw error;
@@ -570,7 +594,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
   }
 
   if (action === "reset-embedding-errors") {
-    if (!auth.admin) return err("Admin authorization required", 403);
+    if (!(await auth.isAdmin())) return err("Admin authorization required", 403);
     const { data, error } = await serviceClient().rpc("reset_dam_search_embedding_errors", {
       p_document_type: typeof body.document_type === "string" ? body.document_type : null,
       p_entity_ids: null,
@@ -629,13 +653,32 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // Both known codes and unknown codes in a supported format use the keyword
         // search with the same filters and totals. Spelling and vector settings cannot
         // change their result, and can delay or fail an otherwise usable search.
-        const textLegConfig = codeSearch ? null : timer.time(
-          "text_leg_config",
+        // One admin_config read serves the text-leg settings (fail closed) and the semantic
+        // floor (fail open) (#1430).
+        const searchConfig = codeSearch ? null : timer.time(
+          "search_config",
           Promise.resolve(
             serviceClient().from("admin_config").select("key, value")
-              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY, SEARCH_TEXT_MIN_SCORE_KEY, SEARCH_TEXT_SCORE_MARGIN_KEY]),
+              .in("key", [SEARCH_TEXT_LEG_MODE_KEY, SEARCH_TEXT_EMBEDDING_MODEL_KEY, SEARCH_TEXT_MIN_SCORE_KEY, SEARCH_TEXT_SCORE_MARGIN_KEY, SEARCH_MIN_SEMANTIC_SCORE_KEY]),
           ).then((result) => result, (error: unknown) => ({ data: null, error })),
         );
+        // Only after both code gates say "not a code": embed the typed query's semantic texts
+        // while spelling runs (#1430). Its outcome is discarded when spelling says the query is
+        // not meaningful; a rejection is swallowed there and never surfaces unhandled.
+        const initialSemanticTexts = codeSearch
+          ? []
+          : [...new Set(expandProductQueries(query).filter(({ semantic }) => semantic).map(({ query: variant }) => variant))];
+        const speculativeConfig = searchConfig ? searchConfig.then((result) => textLegSettings(result)) : null;
+        const speculativeEmbed: Promise<EmbedWithText | null> | null = initialSemanticTexts.length && speculativeConfig
+          ? speculativeConfig.then((settings) =>
+            !settings
+              ? null
+              : settings.on
+              ? queryEmbedder.embedAllWithText(initialSemanticTexts)
+              : queryEmbedder.embedAll(initialSemanticTexts).then((vectors) => ({ vectors, textVectors: new Map() }))
+          )
+          : null;
+        speculativeEmbed?.catch(() => null);
         const spelling = codeSearch ? { corrected: null, meaningful: true } : await timer.time("spelling", () => checkSpelling(query, spellingLookup));
         const usePictures = !codeSearch && spelling.meaningful;
         // Product-type phrases ("floor covering") also run as catalog nouns
@@ -649,22 +692,25 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // calls (one per variant, or query-then-variants) queue behind each other
         // and pay 1–3 s of tail (#804). One call, one latency draw.
         const semanticTexts = usePictures ? [...new Set(expanded.filter(({ semantic }) => semantic).map(({ query: variant }) => variant))] : [];
-        const textLeg = textLegConfig ? textLegSettings(await textLegConfig) : { on: false, model: null, minScore: TEXT_MIN_SCORE, margin: TEXT_SCORE_MARGIN };
+        const configResult = searchConfig ? await searchConfig : null;
+        const textLeg = configResult ? textLegSettings(configResult) : { on: false, model: null, minScore: TEXT_MIN_SCORE, margin: TEXT_SCORE_MARGIN };
         if (!textLeg) return err("Search unavailable", 503);
         // Text leg on: the text-meaning vectors ride the SAME batched call (#804: one latency draw).
-        const embedCall = (): Promise<EmbedWithText | null> => {
-          if (!semanticTexts.length) return Promise.resolve(null);
+        // The speculative call already embedded the typed variants; these calls hit the
+        // per-isolate cache (or coalesce with it in flight) and send only corrected texts.
+        const embedCall = async (): Promise<EmbedWithText | null> => {
+          if (!semanticTexts.length) return null;
+          const speculative = speculativeEmbed ? await speculativeEmbed.catch(() => null) : null;
+          // A failed typed variant fails the search either way (D4); do not pay a second embed for it.
+          if (speculative && initialSemanticTexts.some((text) => !speculative.vectors.get(text))) return speculative;
+          if (speculative && semanticTexts.every((text) => initialSemanticTexts.includes(text))) return speculative;
           if (textLeg.on) return queryEmbedder.embedAllWithText(semanticTexts);
           return queryEmbedder.embedAll(semanticTexts).then((vectors) => ({ vectors, textVectors: new Map() }));
         };
-        const [embedded, floorConfig, licensors, namedScope] = await timer.time(
+        const [embedded, licensors, namedScope] = await timer.time(
           "prepare",
           Promise.all([
             timer.time("embed", embedCall()),
-            // Server-side only: callers cannot override the admin-configured floor.
-            codeSearch
-              ? Promise.resolve({ data: null, error: null })
-              : timer.time("floor_config", serviceClient().from("admin_config").select("value").eq("key", SEARCH_MIN_SEMANTIC_SCORE_KEY).maybeSingle()),
             usePictures ? timer.time("licensors", licensorNames()) : Promise.resolve([]),
             codeSearch ? Promise.resolve({}) : timer.time("names", () => loadNamedScope([query, spelling.corrected], requestSignal)),
           ]),
@@ -680,12 +726,10 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         }
         const embeddings = embedded?.vectors ?? null;
         const embedding = embeddings?.get(query) ?? null;
-        // Fail open: a config read failure must not take search down; it only
-        // drops the optional floor for this request.
-        if (floorConfig.error) {
-          console.error("SEARCH_MIN_SEMANTIC_SCORE read failed; searching without floor", floorConfig.error.message);
-        }
-        const minSemanticScore = floorConfig.error ? null : parseSemanticFloor(floorConfig.data?.value);
+        // Server-side only: callers cannot override the admin-configured floor. A missing floor
+        // key fails open (no floor); a failed config read already failed closed above.
+        const floorRow = configResult?.data?.find((row) => row.key === SEARCH_MIN_SEMANTIC_SCORE_KEY);
+        const minSemanticScore = floorRow ? parseSemanticFloor(floorRow.value) : null;
         if (usePictures && !embedding) {
           return err("Search unavailable", 503);
         }
