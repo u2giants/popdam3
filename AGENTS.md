@@ -55,7 +55,7 @@ Always start with `AGENTS.md` (this file), then `HANDOFF.md` → the open files 
 | Master Data / style tracker | `docs/MASTER_DATA.md` |
 | Helper / checkout-checkin / Seafile | `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` |
 | Image similarity / embeddings | `plan_image_similarity_upload_search.md` (STATUS first), `apps/image-embed-worker/README.md` |
-| Search embeddings / semantic search (DAM or PopSG) | `plan_vector_consolidation.md` (STATUS first) |
+| Search embeddings / semantic search (DAM or PopSG) | `plan_vector_consolidation.md` (STATUS first), `docs/plans/issue-1430-semantic-search-speed.md` (STATUS first) |
 | PopSG style-guide mode | `docs/POPSG.md` |
 | Mockup tool | `docs/MOCKUP_TOOL.md`, `plan_mockup_auto_match.md` (STATUS first) |
 | Auth / SSO / login | `docs/AUTHENTICATION.md` |
