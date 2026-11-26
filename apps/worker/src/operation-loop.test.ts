@@ -518,3 +518,13 @@ test("the same error spread thinly over many successes does not stop a run; a bu
   progress = mergeProgress("ai-tag-parallel", progress, { ok: true, done: false, failed: 20, failure_samples: Array.from({ length: 20 }, () => ({ at, error })) });
   assert.match(detectFailureKillSwitch(progress) ?? "", /same error/);
 });
+
+test("twenty scattered failures merged in one large batch do not stop a run", async () => {
+  const { detectFailureKillSwitch } = await import("./operation-loop.js");
+  const at = new Date().toISOString();
+  const error = "AI call error: Model returned invalid structured tag data";
+  let progress: Record<string, unknown> = {};
+  for (let i = 0; i < 3; i++) progress = mergeProgress("ai-tag-parallel", progress, { ok: true, done: false, tagged: 180, failed: 12, failure_samples: Array.from({ length: 12 }, () => ({ at, error })) });
+  progress = mergeProgress("ai-tag-parallel", progress, { ok: true, done: false, tagged: 171, failed: 21, failure_samples: Array.from({ length: 21 }, () => ({ at, error })) });
+  assert.equal(detectFailureKillSwitch(progress), null);
+});
