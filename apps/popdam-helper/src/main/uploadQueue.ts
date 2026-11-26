@@ -112,6 +112,12 @@ function recoverStaleJobs(): void {
     if (job.status === "uploading") {
       job.status = "pending";
       recovered++;
+    } else if (job.status === "failed") {
+      // A fresh start (e.g. after the drive or credentials were fixed) gets a
+      // fresh set of attempts, so a failed check-in is never stuck for good.
+      job.status = "pending";
+      job.retryCount = 0;
+      recovered++;
     }
   }
   if (recovered > 0) {
@@ -171,6 +177,36 @@ export function enqueue(job: UploadJob): void {
 }
 
 // ── Process ───────────────────────────────────────────────────────────────────
+
+/**
+ * Put failed job(s) back to "pending" with a fresh retry budget and start the
+ * queue. With a checkoutId, only that job; otherwise every failed job.
+ * Returns the checkout ids re-queued. The server checkout is already
+ * checkin_queued for these, so re-running the existing job (not a new
+ * prepare-checkin, which the server refuses) is the only way to retry.
+ */
+export function requeueFailed(checkoutId?: string): string[] {
+  const jobs = readJobs();
+  const ids: string[] = [];
+  for (const job of jobs) {
+    if (job.status !== "failed") continue;
+    if (checkoutId && job.checkoutId !== checkoutId) continue;
+    job.status = "pending";
+    job.retryCount = 0;
+    ids.push(job.checkoutId);
+  }
+  if (ids.length > 0) {
+    writeJobs(jobs);
+    log.info(`Re-queued failed upload(s) for checkout(s) ${ids.join(", ")}`);
+    if (!running) void processQueue().catch(recordQueueError);
+  }
+  return ids;
+}
+
+/** Whether a queued (pending/uploading/failed) job exists for a checkout. */
+export function hasJob(checkoutId: string): boolean {
+  return readJobs().some((j) => j.checkoutId === checkoutId);
+}
 
 export async function processQueue(): Promise<void> {
   if (running) return;

@@ -78,3 +78,32 @@ describe("uploadQueue with a torn write and a backup", () => {
     expect(q.getQueueError()).toBeNull();
   });
 });
+
+describe("uploadQueue retry of failed jobs (#1401)", () => {
+  const p = () => join(dir, "upload-queue.json");
+  const failed = (id: string) => ({ checkoutId: id, status: "failed", retryCount: 3, lastAttempt: 1 });
+
+  it("requeueFailed resets only the named failed job to pending with retryCount 0", async () => {
+    const q = await load();
+    writeFileSync(p(), JSON.stringify([failed("a"), failed("b")]));
+    const ids = q.requeueFailed("a");
+    expect(ids).toEqual(["a"]);
+    const jobs = JSON.parse(readFileSync(p(), "utf-8"));
+    expect(jobs.find((j: { checkoutId: string }) => j.checkoutId === "b").status).toBe("failed");
+    expect(q.hasJob("a")).toBe(true);
+  });
+
+  it("requeueFailed with no id re-queues every failed job and ignores pending ones", async () => {
+    const q = await load();
+    writeFileSync(p(), JSON.stringify([failed("a"), { checkoutId: "c", status: "pending", retryCount: 1, lastAttempt: null }]));
+    expect(q.requeueFailed()).toEqual(["a"]);
+    expect(q.requeueFailed("zzz")).toEqual([]);
+  });
+
+  it("startup gives failed jobs a fresh set of attempts", async () => {
+    writeFileSync(p(), JSON.stringify([failed("a")]));
+    writeFileSync(`${p()}.bak`, JSON.stringify([failed("a")]));
+    const q = await load();
+    expect(q.getPendingJobs()).toEqual([{ checkoutId: "a", status: "pending", retryCount: 0 }]);
+  });
+});
