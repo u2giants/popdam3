@@ -67,6 +67,7 @@ import {
   TAG_ASSET_SCHEMA,
   TAG_ASSET_TOOL,
   validateTagAssetData,
+  TAG_LADDER_BUDGET_MS,
 } from "./ai-tagging-shared.js";
 import { GROUP_SHOT_CHARACTER_ID, customerMatchForms, finishTagResult, isKnownDesigner, isManagerNotTechnicalDesigner } from "./tag-finish.js";
 import { indexBatchResults, nextBatchAction, pollBoundProviderBatch, transientPollDelayMs } from "./ai-tagging-batch-state.js";
@@ -1050,6 +1051,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           : "OPENROUTER_API_KEY";
       return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
+    const attemptStarted = Date.now();
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
       // Call through the provider selected by the model ID.
       try {
@@ -1074,7 +1076,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && (isRetryableStructuredOutputError(msg) || ((isMetaDirectModel(model) || isColabDirectModel(model)) && isRetryableTagTransportError(e)))) {
+        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && Date.now() - attemptStarted < TAG_LADDER_BUDGET_MS && (isRetryableStructuredOutputError(msg) || ((isMetaDirectModel(model) || isColabDirectModel(model)) && isRetryableTagTransportError(e)))) {
           logger.warn("ai-tag: structured output/routing error, retrying same model", {
             assetId,
             model,

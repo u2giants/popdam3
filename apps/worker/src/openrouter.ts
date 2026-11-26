@@ -632,7 +632,9 @@ export async function chatCompletion(
     throw new OpenRouterError(401, "STRAITLY_API_KEY is not configured");
   }
   const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
-  const cheapest = !openAiDirect && !straitly && !routingOverride && !request.provider && !request.model.includes(":") &&
+  // A provider object that only lists hosts to skip keeps cheapest routing.
+  const ignoreOnly = !!request.provider && Object.keys(request.provider).every((key) => key === "ignore");
+  const cheapest = !openAiDirect && !straitly && !routingOverride && (!request.provider || ignoreOnly) && !request.model.includes(":") &&
     await openRouterCheapestRouting();
   const allowlist = cheapest ? await openRouterProviderAllowlist(request.model) : null;
   let currentRequest: ChatCompletionRequest | Record<string, unknown> = openAiDirect
@@ -642,7 +644,7 @@ export async function chatCompletion(
     : routingOverride
     ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
     : cheapest
-    ? { ...request, provider: { sort: "price", allow_fallbacks: true, require_parameters: true, ...(allowlist ? { only: allowlist } : {}) } }
+    ? { ...request, provider: { sort: "price", allow_fallbacks: true, require_parameters: true, ...(allowlist ? { only: allowlist } : {}), ...(request.provider?.ignore?.length ? { ignore: request.provider.ignore } : {}) } }
     : { ...request, model: withExactoRouting(request.model) };
   const url = openAiDirect ? OPENAI_DIRECT_URL : straitly ? STRAITLY_URL : OPENROUTER_URL;
   const headers = openAiDirect

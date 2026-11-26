@@ -26,6 +26,8 @@ import { canonicalItems } from "../canonical-erp-items.js";
 import { displayCharacterName } from "./tag-finish.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
+/** A file's structured-output ladder starts no new step after this long. */
+export const TAG_LADDER_BUDGET_MS = 60_000;
 
 export { TAG_ASSET_SCHEMA };
 
@@ -670,7 +672,7 @@ export async function callTagAssetModel(
   } : await getRuntimeModelCapabilities(selectedApiKey, model);
   const result = await executeStructuredOutput({
     apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: tagAssetSchemaForCharacters(characterCatalogIds),
-    capabilities, timeoutMs, maxTokens, provider: directMeta || directColab ? undefined : provider,
+    capabilities, timeoutMs, maxTokens, provider: directMeta || directColab ? undefined : provider, budgetMs: TAG_LADDER_BUDGET_MS,
     completion: directMeta ? metaChatCompletion : directColab ? colabChatCompletion : undefined,
     isTerminalError: directMeta
       ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error)
