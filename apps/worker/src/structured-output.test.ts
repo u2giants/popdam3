@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { executeStructuredOutput, isStrictCompatibleSchema } from "./structured-output.js";
 import type { ModelCapabilities } from "./model-capabilities.js";
-import { setOpenRouterRoutingForTests } from "./provider-api-key.js";
+import { setOpenRouterRoutingForTests, setStraitlyApiKeyForTests } from "./provider-api-key.js";
 setOpenRouterRoutingForTests("exacto");
 
 const capabilities: ModelCapabilities = { modelId: "test/model", imageInput: true, tools: true, toolChoice: true, toolChoiceModes: ["required"], structuredOutputs: true, jsonObject: true, prefer: [], source: "live", fetchedAt: new Date().toISOString() };
@@ -64,20 +64,35 @@ test("JSON object fallback and repair carry the complete contract without changi
   assert.equal(seen.length, 2);
 });
 
-test("invalid output from one host retries the same method on another host", async () => {
-  const requests: Array<{ method: string; ignore?: string[] }> = [];
-  const result = await executeStructuredOutput({
-    apiKey: "key", model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "test" }], schemaName: "answer", schema, validate, capabilities,
-    completion: async (_key, request) => {
-      const method = request.response_format?.type ?? "tool";
-      requests.push({ method, ignore: request.provider?.ignore });
-      const bad = !request.provider?.ignore?.includes("Bad Host");
-      return { content: bad ? "{}" : '{"answer":"ok"}', providerInfo: { provider: bad ? "Bad Host" : "Good Host" } } as never;
-    },
+for (const straitly of [false, true]) {
+  test(`invalid output follows the selected route (Straitly=${straitly})`, async () => {
+    setStraitlyApiKeyForTests("test");
+    const original = globalThis.fetch;
+    const forms: string[] = [];
+    const ignored: Array<string[] | undefined> = [];
+    const urls: string[] = [];
+    globalThis.fetch = async (url, init) => {
+      urls.push(String(url));
+      const body = JSON.parse(String(init?.body));
+      forms.push(body.response_format.type);
+      ignored.push(body.provider?.ignore);
+      const res = response({ content: forms.length < (straitly ? 2 : 3) ? "{}" : '{"answer":"ok"}' });
+      res.headers.set("x-openrouter-provider", `Host ${forms.length}`);
+      return res;
+    };
+    try {
+      const model = straitly ? "z-ai/glm-5.3-flash" : "anthropic/test-model:exacto";
+      const result = await executeStructuredOutput({ apiKey: "key", model, messages: [], schemaName: "answer", schema, validate, capabilities });
+      assert.equal(result.value, "ok");
+      assert.ok(urls.every(url => new URL(url).hostname === (straitly ? "api.straitly.ai" : "openrouter.ai")));
+      assert.deepEqual(forms, straitly ? ["json_schema", "json_object"] : ["json_schema", "json_schema", "json_object"]);
+      assert.deepEqual(ignored, straitly ? [undefined, undefined] : [undefined, ["Host 1"], ["Host 1", "Host 2"]]);
+    } finally {
+      globalThis.fetch = original;
+      setStraitlyApiKeyForTests(null);
+    }
   });
-  assert.equal(result.value, "ok");
-  assert.deepEqual(requests, [{ method: "json_schema", ignore: undefined }, { method: "json_schema", ignore: ["Bad Host"] }]);
-});
+}
 
 test("a host is skipped only once and the ladder stops starting steps after its budget", async () => {
   let calls = 0;
@@ -85,8 +100,8 @@ test("a host is skipped only once and the ladder stops starting steps after its 
     apiKey: "key", model: "z-ai/glm-5.3-flash", messages: [{ role: "user", content: "test" }], schemaName: "answer", schema, validate, capabilities, budgetMs: 0,
     completion: async () => { calls++; await new Promise((r) => setTimeout(r, 5)); return { content: "{}", providerInfo: { provider: "Bad Host" } } as never; },
   }));
-  // First step, its one reroute is skipped by the budget, then the JSON repair.
-  assert.equal(calls, 2);
+  // Neither a fallback method nor the final repair may start after expiry.
+  assert.equal(calls, 1);
 });
 
 test("an ignore-only provider keeps cheapest routing and its allowlist", async () => {

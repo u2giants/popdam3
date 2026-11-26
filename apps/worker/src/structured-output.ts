@@ -56,11 +56,13 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
   // "tag") is skipped for the rest of this call, and the same method is tried
   // once more elsewhere, so one bad host does not walk the whole ladder.
   const ignored: string[] = [];
+  const rerouted = new Set<StructuredOutputMethod>();
   const ladderStarted = Date.now();
+  const budgetExpired = () => options.budgetMs !== undefined && Date.now() - ladderStarted >= options.budgetMs;
   const plan = buildStructuredOutputPlan(options.capabilities, options.override);
   for (let index = 0; index < plan.length; index++) {
     const method = plan[index];
-    if (options.budgetMs !== undefined && index > 0 && Date.now() - ladderStarted > options.budgetMs) break;
+    if (index > 0 && budgetExpired()) break;
     const started = Date.now();
     let servedBy: string | null = null;
     const requestedForm = method === "tool_named" ? "tool_choice:named" : method === "tool_required" ? "tool_choice:required" : method === "tool_auto" ? "tool_choice:auto" : `response_format:${method}`;
@@ -68,7 +70,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     try {
       const request = buildStructuredOutputRequest({ ...options, provider: withIgnoredProviders(options.provider, ignored) }, method);
       const result = await completion(options.apiKey, request, options.timeoutMs);
-      servedBy = result.providerInfo?.provider ?? null;
+      servedBy = result.reroutableHost ?? null;
       stage = "parse";
       const candidate = result.toolCalls?.[0]?.arguments ?? parseStructuredJson(result.content);
       if (!candidate) throw new Error("No parsable structured output");
@@ -83,11 +85,14 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       if (method === "json_schema" || method === "json_object") jsonMethodFailed = true;
       if (stage === "validation" && servedBy && !ignored.includes(servedBy)) {
         ignored.push(servedBy);
-        plan.splice(index + 1, 0, method);
+        if (!rerouted.has(method)) {
+          rerouted.add(method);
+          plan.splice(index + 1, 0, method);
+        }
       }
     }
   }
-  if (repairSource && jsonMethodFailed && options.capabilities.jsonObject !== false) {
+  if (!budgetExpired() && repairSource && jsonMethodFailed && options.capabilities.jsonObject !== false) {
     let repaired: Awaited<ReturnType<typeof runJsonRepair<T>>>;
     try {
       repaired = await runJsonRepair({ ...options, provider: withIgnoredProviders(options.provider, ignored), completion, isTerminalError, repairSource });

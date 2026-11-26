@@ -111,6 +111,8 @@ export interface ToolCallResult {
 }
 
 export interface ChatCompletionResult {
+  /** Serving host, only when this route can exclude it on another request. */
+  reroutableHost?: string;
   toolCalls?: ToolCallResult[];
   content?: string;
   id?: string;
@@ -669,7 +671,12 @@ export async function chatCompletion(
 
     if (response.ok) {
       const data = await response.json() as Record<string, unknown>;
-      return parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect, straitly);
+      const result = await parseChatCompletionResult(apiKey, data, response.headers, timeoutMs, false, openAiDirect, straitly);
+      const preferences = (currentRequest as ChatCompletionRequest).provider;
+      if (!openAiDirect && !straitly && preferences?.only?.length !== 1 && result.providerInfo?.provider) {
+        result.reroutableHost = result.providerInfo.provider;
+      }
+      return result;
     }
 
     if (response.status === 429) {
