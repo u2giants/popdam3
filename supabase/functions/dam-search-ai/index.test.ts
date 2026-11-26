@@ -175,10 +175,13 @@ describe("DAM search embedding availability", () => {
     expect(state.namesRpc).toHaveBeenCalledExactlyOnceWith("get_dam_search_named_rows", {
       p_keys: ["berl", "berl rug", "rug", "beryl", "beryl rug"],
     }, expect.any(AbortSignal));
+    // Typed and corrected phrases are two variants: one multi-variant call (#1430 Step 7).
     expect(state.rpc).toHaveBeenCalledWith(
-      "search_dam_documents",
+      "search_dam_documents_multi",
       expect.objectContaining({
-        p_filters: expect.objectContaining({ requiredCharacterIds: ["beryl"], requiredCharacterNames: ["beryl"] }),
+        p_variants: expect.arrayContaining([expect.objectContaining({
+          filters: expect.objectContaining({ requiredCharacterIds: ["beryl"], requiredCharacterNames: ["beryl"] }),
+        })]),
       }),
     );
   });
@@ -451,8 +454,36 @@ describe("DAM search embedding availability", () => {
       JSON.stringify({ texts: ["spiderman floor covering", "spiderman mat", "spiderman rug"] }),
     );
     // Each variant's picture leg carries its own vector from the batch.
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query_embedding: Array(768).fill(0), p_compute_anchor: true }));
+    // All three variants ride ONE exact-union database call, each with its own vector (#1430 Step 7).
+    const multi = state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents_multi");
+    expect(multi).toHaveLength(1);
+    expect(state.rpc).not.toHaveBeenCalledWith("search_dam_documents", expect.anything());
+    expect((multi[0][1].p_variants as { query: string; query_embedding: number[]; compute_anchor: boolean }[]).map((v) => [v.query, v.query_embedding.length, v.compute_anchor]))
+      .toEqual([["spiderman floor covering", 768, true], ["spiderman mat", 768, true], ["spiderman rug", 768, true]]);
     expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
+  });
+
+  it("returns the database's exact union total for multi-variant searches, never a lower bound", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.rpc.mockImplementation(async (name: string) => ({
+      data: name === "search_dam_documents_multi"
+        ? [{ document_type: "style_group", entity_id: "g1", rank: 0.9, total_count: 86, has_more: true, facets: {}, total_group_files: 300 }]
+        : [],
+      error: null,
+    }));
+    const response = await search("spiderman floor covering");
+    expect(response.status).toBe(200);
+    expect((await response.json()).total_count).toBe(86);
+  });
+
+  it("fails the whole multi-variant search when the union call fails twice", async () => {
+    vi.stubGlobal("fetch", embedFetch());
+    state.rpc.mockImplementation(async (name: string) => ({
+      data: null,
+      error: name === "search_dam_documents_multi" ? { message: "boom" } : null,
+    }));
+    expect((await search("spiderman floor covering")).status).toBe(503);
+    expect(state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents_multi")).toHaveLength(2);
   });
 
   it("falls back to single-text embed calls while the service predates the batch endpoint", async () => {
@@ -464,7 +495,9 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await search("batman floor covering")).status).toBe(200);
     expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text").length).toBe(3);
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents", expect.objectContaining({ p_query: "batman mat" }));
+    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents_multi", expect.objectContaining({
+      p_variants: expect.arrayContaining([expect.objectContaining({ query: "batman mat" })]),
+    }));
   });
 
   it("returns unavailable when the batched variant embedding fails after its retry", async () => {
