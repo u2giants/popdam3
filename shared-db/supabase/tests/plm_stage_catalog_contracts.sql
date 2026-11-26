@@ -29,8 +29,11 @@ begin
   end if;
   -- shared-db#4373 (claim #4402): the tracker-order/options migration updates 14
   -- seeded stage rows, so each list's version reflects exactly those bumps.
-  if (select string_agg(key || '=' || version, ',' order by key) from plm.stage_list)
-     <> 'design=1,licensing=4,production=7,sampling=5,shipping=2' then
+  -- designflow-tracking#127: the temporary AI-tester maintainer add/remove
+  -- migrations each bump licensing once, so licensing is pinned to a floor.
+  if (select string_agg(key || '=' || version, ',' order by key) from plm.stage_list where key <> 'licensing')
+     <> 'design=1,production=7,sampling=5,shipping=2'
+     or (select version from plm.stage_list where key = 'licensing') < 4 then
     raise exception 'seeded list versions after #4373 are wrong: %',
       (select string_agg(key || '=' || version, ',' order by key) from plm.stage_list);
   end if;
