@@ -5549,6 +5549,33 @@ export type Database = {
           total_group_files: number
         }[]
       }
+      search_dam_documents_multi: {
+        Args: {
+          p_document_types?: string[]
+          p_include_facets?: boolean
+          p_limit: number
+          p_min_rank?: number
+          p_min_semantic_score?: number
+          p_min_text_score?: number
+          p_offset: number
+          p_text_score_margin?: number
+          p_variants: Json
+        }
+        Returns: {
+          asset_id: string
+          document_type: string
+          entity_id: string
+          facets: Json
+          has_more: boolean
+          keyword_rank: number
+          rank: number
+          semantic_rank: number
+          style_group_id: string
+          text_rank: number
+          total_count: number
+          total_group_files: number
+        }[]
+      }
       search_dam_image_similarity: {
         Args: {
           p_dino_weight?: number
