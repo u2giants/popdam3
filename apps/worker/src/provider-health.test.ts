@@ -58,3 +58,16 @@ describe("bad answer with no host retries on the other provider", () => {
     assert.equal((out.value as { ok: number }).ok, 2);
   });
 });
+
+describe("openRouterFirst", () => {
+  const caps = { modelId: "m", imageInput: true, tools: false, toolChoice: false, toolChoiceModes: [], structuredOutputs: true, jsonObject: false, prefer: ["json_schema"], source: "override", fetchedAt: "" } as never;
+  it("starts on OpenRouter and falls back to Straitly once on an endpoint error", async () => {
+    const seen: unknown[] = [];
+    const out = await executeStructuredOutput({ apiKey: "k", model: "z-ai/glm", messages: [], schemaName: "s", schema: { type: "object" }, capabilities: caps, timeoutMs: 1000, openRouterFirst: true,
+      isTerminalError: () => false,
+      completion: async (_k: string, req: { provider?: { ignore?: string[] } }) => { seen.push([...(req.provider?.ignore ?? [])]); if (seen.length === 1) throw Object.assign(new Error("OpenRouter 503"), { status: 503 }); return { content: "{\"ok\":1}" }; },
+      validate: (v: unknown) => v } as never);
+    assert.deepEqual(seen, [["straitly"], []]);
+    assert.ok(out.value);
+  });
+});

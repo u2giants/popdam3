@@ -673,6 +673,7 @@ export async function callTagAssetModel(
   const result = await executeStructuredOutput({
     apiKey: selectedApiKey, model, messages, schemaName: "tag_asset", schema: tagAssetSchemaForCharacters(characterCatalogIds),
     capabilities, timeoutMs, maxTokens, provider: directMeta || directColab ? undefined : provider, budgetMs: TAG_LADDER_BUDGET_MS,
+    openRouterFirst: !directMeta && !directColab && model.trim().toLowerCase().startsWith("z-ai/"),
     completion: directMeta ? metaChatCompletion : directColab ? colabChatCompletion : undefined,
     isTerminalError: directMeta
       ? (error) => isTerminalMetaModelApiError(error) || isRetryableTagTransportError(error)
