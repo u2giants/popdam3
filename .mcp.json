@@ -9,18 +9,18 @@
       ]
     },
     "devops-mcp": {
-      "type": "http",
-      "url": "https://mcp.designflow.app/mcp",
-      "headers": {
-        "Authorization": "Bearer ${DEVOPS_MCP_TOKEN}"
-      }
+      "command": "/home/ahazan/.config/ai-devops/mcp-remote-launch.sh",
+      "args": [
+        "https://mcp.designflow.app/mcp",
+        "op://vibe_coding/f335s4oy3m6n74jmwj74hunrtu/devops_token"
+      ]
     },
     "synology-monitor": {
-      "type": "http",
-      "url": "https://nas-mcp.designflow.app/mcp",
-      "headers": {
-        "Authorization": "Bearer ${NAS_MCP_TOKEN}"
-      }
+      "command": "/home/ahazan/.config/ai-devops/mcp-remote-launch.sh",
+      "args": [
+        "https://nas-mcp.designflow.app/mcp",
+        "op://vibe_coding/f335s4oy3m6n74jmwj74hunrtu/nas_token"
+      ]
     },
     "playwright": {
       "command": "npx",
