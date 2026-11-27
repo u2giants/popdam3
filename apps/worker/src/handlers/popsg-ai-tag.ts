@@ -31,20 +31,20 @@ const FACETS: Record<string, PopSGTagFacet> = { file_type: "asset_type", color: 
 /** Map the shared tag_asset result onto PopSG tag rows. */
 export function popsgVisionTags(tagData: Record<string, unknown>, model: string, licensedNames: ReadonlySet<string> = new Set()) {
   const seen = new Set<string>();
-  const rows: Array<{ normalized: string; display_name: string; facet: PopSGTagFacet; confidence: number; evidence: Record<string, unknown> }> = [];
+  const rows: Array<{ normalized: string; display_name: string; facet: PopSGTagFacet; confidence: number; guessedName: boolean; evidence: Record<string, unknown> }> = [];
   for (const item of (Array.isArray(tagData.asset_tags) ? tagData.asset_tags : []) as Array<Record<string, unknown>>) {
     const display = typeof item?.tag === "string" ? item.tag.trim() : "";
     const normalized = normalizePopSGTag(display);
     if (!normalized || seen.has(normalized)) continue;
-    // A licensor, property or character name guessed from the picture is not a
-    // reliable tag: it made searches for that name rank other guides first
-    // (#1430 accuracy regression). Names come from the folders, not the model.
-    if (licensedNames.has(normalized)) continue;
+    // A licensor, property or character name guessed from the picture is kept
+    // but marked `suggested`, so it never feeds search ahead of folder metadata
+    // (#1430 accuracy regression). Search reads only `accepted` tags.
+    const guessedName = licensedNames.has(normalized);
     seen.add(normalized);
     const c = Number(item.confidence);
     rows.push({
       normalized, display_name: display.slice(0, 200), facet: FACETS[String(item.category)] ?? "other",
-      confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.8,
+      confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.8, guessedName,
       evidence: { category: item.category ?? null, evidence: item.evidence ?? null, model },
     });
   }
@@ -74,16 +74,16 @@ export async function loadLicensedNames(): Promise<Set<string>> {
   return names;
 }
 
-let purgeQueue: string[] | null = null;
+let demoteQueue: string[] | null = null;
 
 /**
- * Remove up to `limit` earlier vision_ai links whose tag is a licensed name, so
- * files tagged before the name filter stop matching name searches. Returns the
- * number removed; 0 once nothing is left.
+ * Mark up to `limit` earlier accepted vision_ai links whose tag is a licensed
+ * name as `suggested`. Nothing is deleted. Returns the number marked; 0 once
+ * none are left.
  */
-export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 40000): Promise<number> {
+export async function demoteLicensedNameTags(names: ReadonlySet<string>, limit = 20000): Promise<number> {
   const client = db();
-  if (purgeQueue === null) {
+  if (demoteQueue === null) {
     const list = [...names];
     const ids: string[] = [];
     for (let i = 0; i < list.length; i += 200) {
@@ -91,23 +91,21 @@ export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 
       if (error) throw new Error(`name tag lookup: ${error.message}`);
       for (const r of data ?? []) ids.push(r.id as string);
     }
-    purgeQueue = ids;
+    demoteQueue = ids;
   }
-  let removed = 0;
-  while (purgeQueue.length && removed < limit) {
-    const tagId = purgeQueue[0];
-    const { data, error } = await client.from("style_guide_file_tags").select("id").eq("tag_id", tagId).eq("source", "vision_ai").limit(Math.min(1000, limit - removed));
+  let marked = 0;
+  while (demoteQueue.length && marked < limit) {
+    const tagId = demoteQueue[0];
+    const { data, error } = await client.from("style_guide_file_tags").select("id")
+      .eq("tag_id", tagId).eq("status", "accepted").eq("source", "vision_ai").limit(Math.min(150, limit - marked));
     if (error) throw new Error(`name link lookup: ${error.message}`);
     const ids = (data ?? []).map(r => r.id as string);
-    if (!ids.length) { purgeQueue.shift(); continue; }
-    // Delete by id in groups of 150 so the request address stays under the API's length limit.
-    for (let i = 0; i < ids.length; i += 150) {
-      const del = await client.from("style_guide_file_tags").delete().in("id", ids.slice(i, i + 150));
-      if (del.error) throw new Error(`name link delete: ${del.error.message}`);
-    }
-    removed += ids.length;
+    if (!ids.length) { demoteQueue.shift(); continue; }
+    const upd = await client.from("style_guide_file_tags").update({ status: "suggested" }).in("id", ids);
+    if (upd.error) throw new Error(`name link mark: ${upd.error.message}`);
+    marked += ids.length;
   }
-  return removed;
+  return marked;
 }
 
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
@@ -126,7 +124,7 @@ async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>,
   if (removed.error) throw new Error(`old tag delete: ${removed.error.message}`);
   const links = rows.filter(r => ids.has(r.normalized)).map(r => ({
     style_guide_file_id: file.id, tag_id: ids.get(r.normalized), source: "vision_ai", facet: r.facet,
-    confidence: r.confidence, status: "accepted", evidence: r.evidence, inherited: false, rule_version: POPSG_VISION_RULE_VERSION,
+    confidence: r.confidence, status: r.guessedName ? "suggested" : "accepted", evidence: r.evidence, inherited: false, rule_version: POPSG_VISION_RULE_VERSION,
   }));
   const saved = await client.from("style_guide_file_tags").insert(links);
   if (saved.error) throw new Error(`file tag insert: ${saved.error.message}`);
@@ -181,7 +179,7 @@ export interface PopSGAiTagDeps {
   doneStates?: (ids: string[]) => Promise<Map<string, { status: string; attempt_count: number }>>;
   tagFile?: (file: PopSGVisionFile, model: string, attempts: number) => Promise<PopSGTagOutcome>;
   taggedRecently?: () => Promise<boolean>;
-  purgeNames?: () => Promise<number>;
+  demoteNames?: () => Promise<number>;
 }
 
 async function fetchPageDefault(afterId: string | null, limit: number): Promise<PopSGVisionFile[]> {
@@ -215,10 +213,10 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
   if (!run?.discover) return { ok: false, done: false, error: `PopSG tagging requires ${POPSG_AI_TAG_CONFIG_KEY} with discover:true and the operation's run_id` };
   const model = run.models[0];
-  // Clear earlier licensed-name tags a slice at a time; a failure here never stops tagging.
-  const purged = await (deps.purgeNames ?? (async () => purgeLicensedNameTags(await loadLicensedNames())))()
-    .catch((error) => { logger.warn(`ai-tag-popsg: name tag cleanup failed: ${String(error).slice(0, 200)}`); return 0; });
-  if (purged) logger.info(`ai-tag-popsg: removed ${purged} licensed-name tags`);
+  // Mark earlier licensed-name tags `suggested` a slice at a time; a failure here never stops tagging.
+  const marked = await (deps.demoteNames ?? (async () => demoteLicensedNameTags(await loadLicensedNames())))()
+    .catch((error) => { logger.warn(`ai-tag-popsg: name tag marking failed: ${String(error).slice(0, 200)}`); return 0; });
+  if (marked) logger.info(`ai-tag-popsg: marked ${marked} licensed-name tags suggested`);
   const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
   let files: PopSGVisionFile[];
   let states: Map<string, { status: string; attempt_count: number }>;
