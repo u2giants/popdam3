@@ -1,4 +1,5 @@
 import { chatCompletion, isTerminalOpenRouterError, tool, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "./openrouter.js";
+import { recordOpenRouterSchema, withOpenRouterTask } from "./openrouter-call-log.js";
 import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilities, type StructuredOutputMethod } from "./model-capabilities.js";
 
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; /** Endpoint that served or failed this call (e.g. straitly, openrouter). */ endpoint?: string; /** True when the endpoint itself failed (outage, overload, timeout), not the answer. */ endpointFailure?: boolean; }
@@ -84,18 +85,20 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     let stage: "transport" | "parse" | "validation" = "transport";
     try {
       const request = buildStructuredOutputRequest({ ...options, provider: withIgnoredProviders(options.provider, ignored) }, method);
-      const result = await completion(options.apiKey, request, options.timeoutMs);
+      const result = await withOpenRouterTask(options.schemaName, () => completion(options.apiKey, request, options.timeoutMs));
       servedBy = result.providerInfo?.provider ?? null;
       stage = "parse";
       const candidate = result.toolCalls?.[0]?.arguments ?? parseStructuredJson(result.content);
       if (!candidate) throw new Error("No parsable structured output");
       stage = "validation";
       const value = options.validate(candidate);
+      recordOpenRouterSchema({ task: options.schemaName, model: options.model, host: servedBy, ok: true });
       attempts.push({ method, status: "success", latencyMs: Date.now() - started, requestedForm, parse: "ok", validation: "ok", usage: result.usage, providerInfo: result.providerInfo });
       return { value, outputMode: method, attempts, usage: result.usage, providerInfo: result.providerInfo, repairCount: 0 };
     } catch (error) {
       const endpoint = (error as { endpoint?: unknown })?.endpoint;
       const endpointFailure = stage === "transport" && isEndpointFailure(error);
+      if (stage !== "transport") recordOpenRouterSchema({ task: options.schemaName, model: options.model, host: servedBy, ok: false, errorClass: stage === "parse" ? "invalid_json" : "schema_invalid" });
       attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm, httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined, providerInfo: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo, endpoint: typeof endpoint === "string" ? endpoint : undefined, endpointFailure: endpointFailure || undefined });
       // Owner ruling 2026-11-27: an endpoint outage on Straitly is retried on
       // the second endpoint (OpenRouter) before the call gives up, even when
@@ -165,7 +168,7 @@ export async function runJsonRepair<T>(options: JsonRepairOptions<T>): Promise<
   const method: StructuredOutputMethod = "json_repair"; const started = Date.now();
   let stage: "transport" | "parse" | "validation" = "transport";
   try {
-    const result = await completion(options.apiKey, buildJsonRepairRequest(options), options.timeoutMs);
+    const result = await withOpenRouterTask("json_repair", () => completion(options.apiKey, buildJsonRepairRequest(options), options.timeoutMs));
     stage = "parse"; const candidate = parseStructuredJson(result.content); if (!candidate) throw new Error("No parsable JSON after repair");
     stage = "validation";
     const value = options.validate(candidate);

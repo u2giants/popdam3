@@ -14,6 +14,7 @@
  */
 
 import { logger } from "./logger.js";
+import { classifyOpenRouterError, currentOpenRouterTask, recordOpenRouterCall } from "./openrouter-call-log.js";
 import { getOpenAiRouting, isOpenAiModel, openAiDirectModelId } from "./openai-route.js";
 import { getStraitlyApiKey, straitlyRouting, openRouterCheapestRouting, openRouterProviderAllowlist } from "./provider-api-key.js";
 import { AmbiguousBatchSubmissionError, classifySubmissionHttpFailure, pollTransport, PreSubmissionError } from "./batch-submission-error.js";
@@ -595,6 +596,25 @@ export async function chatCompletion(
   apiKey: string,
   request: ChatCompletionRequest,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<ChatCompletionResult> {
+  const started = Date.now();
+  const task = currentOpenRouterTask();
+  try {
+    const result = await chatCompletionUnlogged(apiKey, request, timeoutMs);
+    const empty = !result.toolCalls?.length && !result.content?.trim();
+    recordOpenRouterCall({ task, model: request.model, host: result.providerInfo?.provider, ok: !empty, latencyMs: Date.now() - started, httpStatus: 200, errorClass: empty ? "empty" : undefined });
+    return result;
+  } catch (error) {
+    const status = (error as { status?: unknown })?.status;
+    recordOpenRouterCall({ task, model: request.model, host: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo?.provider, ok: false, latencyMs: Date.now() - started, httpStatus: typeof status === "number" ? status : undefined, errorClass: classifyOpenRouterError(error) });
+    throw error;
+  }
+}
+
+async function chatCompletionUnlogged(
+  apiKey: string,
+  request: ChatCompletionRequest,
+  timeoutMs: number,
 ): Promise<ChatCompletionResult> {
   if (request.model.trim().endsWith(":batch")) {
     throw new Error("Batch-only models require the durable asynchronous Batch API path");
