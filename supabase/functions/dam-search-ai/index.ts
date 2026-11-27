@@ -3,7 +3,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { authenticateUser } from "../_shared/admin-auth.ts";
 import { rolesGrantAdmin } from "../_shared/auth-policy.ts";
-import { parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
+import { effectiveSemanticFloor, parseSemanticFloor, SEARCH_MIN_SEMANTIC_SCORE_KEY } from "../_shared/semantic-floor.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
 import { loadDamSearchMode, searchAccessStatus } from "../_shared/search-access.ts";
 import { expandProductQueries } from "../_shared/search-query-expand.ts";
@@ -15,7 +15,7 @@ import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 import { type BatchEmbedOutcome, createQueryEmbedder, type EmbedWithText } from "../_shared/query-embed-batch.ts";
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
-import { buildNameIndex, namedCharacterScope, namedLookupKeys, type NamedScope, namedSearchPhrases, withNamedScope } from "../_shared/named-characters.ts";
+import { buildNameIndex, hasNamedScope, namedCharacterScope, namedLookupKeys, type NamedScope, namedSearchPhrases, pickScopeKeys, withNamedScope } from "../_shared/named-characters.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
@@ -775,9 +775,47 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
         // different result sets between refreshes ("13 groups" vs "140+").
         const callSearch = async (variant: string) => {
           const variantEmbedding = variantEmbeddings.get(variant) ?? null;
-          // Keep only picture matches near this query's best one (relative floor). The database
-          // computes that anchor inside the same call over the same scope (#1430 Step 6), so the
-          // raw admin floor goes in; an anchor that cannot be computed fails the call (D4).
+          // Keep only picture matches near this query's best one. When the semantic
+          // leg is active the anchor is REQUIRED: failing open to no floor floods
+          // the result set with weak picture matches (measured live: 288 groups for
+          // "spiderman coir"), so an anchor that fails twice fails the search.
+          let bestSemanticScore: number | null = null;
+          let anchorError: unknown = null;
+          if (variantEmbedding) {
+            // A search that names a licensor anchors on that licensor's best picture, the same
+            // scope the search applies; otherwise another licensor's closer picture raises the
+            // floor past every picture-only match it keeps (popcre/shared-db#6024).
+            const scope = withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, true);
+            const scopedIds = Array.isArray(scope.semanticLicensorIds) ? scope.semanticLicensorIds : [];
+            // A named character or property anchors on the best picture inside the same scope
+            // the search applies (#1037), for the same reason.
+            const named = withNamedScope(scope, namedScope, true);
+            const anchorRpc = hasNamedScope(named)
+              ? "dam_search_semantic_anchor_named"
+              : scopedIds.length
+              ? "dam_search_semantic_anchor_scoped"
+              : "dam_search_semantic_anchor";
+            const anchorCall = () =>
+              auth.client.rpc(anchorRpc, {
+                p_query_embedding: variantEmbedding,
+                p_document_types: documentTypes,
+                ...(anchorRpc === "dam_search_semantic_anchor_named"
+                  ? { p_filters: pickScopeKeys(named) }
+                  : scopedIds.length
+                  ? { p_licensor_ids: scopedIds }
+                  : {}),
+              });
+            let anchor = await timer.time("anchor_rpc", anchorCall);
+            if (anchor.error) {
+              console.error(`${anchorRpc} failed; retrying once`, anchor.error.message);
+              anchor = await anchorCall();
+            }
+            if (anchor.error) anchorError = anchor.error;
+            else if (typeof anchor.data !== "number") anchorError = new Error(`${anchorRpc} returned no score`);
+            else bestSemanticScore = anchor.data;
+          }
+          if (anchorError !== null) return { data: null, error: anchorError };
+          const floor = effectiveSemanticFloor(minSemanticScore, bestSemanticScore);
           const invoke = () =>
             auth.client.rpc("search_dam_documents", {
               p_query: variant,
@@ -791,8 +829,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               p_document_types: documentTypes,
               p_query_embedding: variantEmbedding,
               p_min_rank: minRank,
-              p_min_semantic_score: minSemanticScore,
-              p_compute_anchor: variantEmbedding !== null,
+              p_min_semantic_score: floor,
               p_include_facets: includeFacets,
               ...(variantTextEmbeddings.get(variant)
                 ? {
