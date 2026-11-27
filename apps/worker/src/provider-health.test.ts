@@ -45,3 +45,16 @@ describe("invalid answers keep their host", () => {
     assert.ok(hour["m|openrouter|Wafer"]?.invalid);
   });
 });
+
+describe("bad answer with no host retries on the other provider", () => {
+  it("adds straitly to ignore and retries once", async () => {
+    const caps = { modelId: "m", imageInput: true, tools: false, toolChoice: false, toolChoiceModes: [], structuredOutputs: true, jsonObject: false, prefer: ["json_schema"], source: "override", fetchedAt: "" } as never;
+    const seen: unknown[] = [];
+    let n = 0;
+    const out = await executeStructuredOutput({ apiKey: "k", model: "m", messages: [], schemaName: "s", schema: { type: "object" }, capabilities: caps, timeoutMs: 1000,
+      completion: async (_k: string, req: { provider?: { ignore?: string[] } }) => { seen.push(req.provider?.ignore ?? []); return { content: JSON.stringify({ ok: ++n }) }; },
+      validate: (v: { ok: number }) => { if (v.ok === 1) throw new Error("bad"); return v; }, otherProviderRetry: true } as never);
+    assert.deepEqual(seen, [[], ["straitly"]]);
+    assert.equal((out.value as { ok: number }).ok, 2);
+  });
+});
