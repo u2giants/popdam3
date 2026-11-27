@@ -810,12 +810,44 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           return { data, error };
         };
 
+        // Several product-phrase variants: ONE database call returns their exact union, paged and
+        // counted there (#1430 Step 7); a page-level merge here could only report a lower bound.
+        const callMulti = async () => {
+          const usesPictures = (variant: string) => variantEmbeddings.get(variant) != null;
+          const invoke = () =>
+            auth.client.rpc("search_dam_documents_multi", {
+              p_variants: queryVariants.map((variant) => ({
+                query: variant,
+                filters: withNamedScope(
+                  withSemanticLicensorScope(filters as Record<string, unknown>, semanticLicensorIds, usesPictures(variant)),
+                  namedScope,
+                  usesPictures(variant),
+                ),
+                query_embedding: variantEmbeddings.get(variant) ?? null,
+                query_text_embedding: variantTextEmbeddings.get(variant) ?? null,
+                compute_anchor: usesPictures(variant),
+              })),
+              p_limit: limit,
+              p_offset: offset,
+              p_document_types: documentTypes,
+              p_min_rank: minRank,
+              p_min_semantic_score: minSemanticScore,
+              p_include_facets: includeFacets,
+              ...(textLeg.on ? { p_min_text_score: textLeg.minScore, p_text_score_margin: textLeg.margin } : {}),
+            });
+          let { data, error } = await timer.time("search_rpc", invoke);
+          if (error) {
+            console.error("search_dam_documents_multi failed; retrying once", error.message);
+            ({ data, error } = await invoke());
+          }
+          return { data, error };
+        };
         timer.add("variants", queryVariants.length);
         const variantResults = await timer.time(
           "rpc_phase",
-          Promise.all(
-            queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) })),
-          ),
+          queryVariants.length > 1
+            ? callMulti().then((result) => [{ variant: queryVariants.join(" | "), result }])
+            : Promise.all(queryVariants.map(async (variant) => ({ variant, result: await callSearch(variant) }))),
         );
         const shapeStarted = performance.now();
         const failed = variantResults.find(({ result }) => result.error);
