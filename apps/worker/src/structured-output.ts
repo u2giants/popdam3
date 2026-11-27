@@ -1,5 +1,6 @@
 import { chatCompletion, isTerminalOpenRouterError, tool, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "./openrouter.js";
 import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilities, type StructuredOutputMethod } from "./model-capabilities.js";
+import { recordProviderAttempt } from "./provider-health.js";
 
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; /** Endpoint that served or failed this call (e.g. straitly, openrouter). */ endpoint?: string; /** True when the endpoint itself failed (outage, overload, timeout), not the answer. */ endpointFailure?: boolean; }
 export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; /** Stop starting new methods once this many ms have passed. */ budgetMs?: number; }
@@ -92,11 +93,13 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       stage = "validation";
       const value = options.validate(candidate);
       attempts.push({ method, status: "success", latencyMs: Date.now() - started, requestedForm, parse: "ok", validation: "ok", usage: result.usage, providerInfo: result.providerInfo });
+      recordProviderAttempt(options.model, attempts[attempts.length - 1]);
       return { value, outputMode: method, attempts, usage: result.usage, providerInfo: result.providerInfo, repairCount: 0 };
     } catch (error) {
       const endpoint = (error as { endpoint?: unknown })?.endpoint;
       const endpointFailure = stage === "transport" && isEndpointFailure(error);
       attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm, httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined, providerInfo: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo, endpoint: typeof endpoint === "string" ? endpoint : undefined, endpointFailure: endpointFailure || undefined });
+      recordProviderAttempt(options.model, attempts[attempts.length - 1]);
       // Owner ruling 2026-11-27: an endpoint outage on Straitly is retried on
       // the second endpoint (OpenRouter) before the call gives up, even when
       // the error is otherwise terminal (429/5xx).
