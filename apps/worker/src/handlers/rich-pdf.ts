@@ -8,8 +8,8 @@
  * style group (refresh_style_group_rich_metadata) and refreshes its search
  * document. See docs/RICH_PDF_EXTRACTION.md.
  *
- * Idempotent: each extraction records source_text_sha256; a PDF whose text is
- * unchanged is skipped on re-run.
+ * Idempotent: each extraction records source_text_sha256 (text + prompt
+ * version); a PDF whose text and prompt are unchanged is skipped on re-run.
  */
 
 import { createHash } from "node:crypto";
@@ -21,7 +21,7 @@ import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
 
 export const RICH_PDF_SCHEMA_VERSION = 1;
-export const RICH_PDF_PROMPT_VERSION = "rich-pdf-v1";
+export const RICH_PDF_PROMPT_VERSION = "rich-pdf-v2";
 const DEFAULT_RICH_PDF_MODEL = "deepseek-chat";
 
 /** Canonical field shape (collapsed from the discovery-spike field zoo). */
@@ -33,6 +33,7 @@ const RICH_PDF_FIELD_DOC = `{
   "production_specs": {
     "dimensions": string | null,
     "materials": string[],
+    "component_materials": string[],
     "finish": string[],
     "hardware": string[],
     "packaging": string | null,
@@ -72,7 +73,10 @@ export function buildRichPdfSystemPrompt(): string {
     "- Every field is optional: use null for missing scalars and [] for missing arrays.",
     "- Dates as YYYY-MM-DD when a full date is present; otherwise null.",
     "- 'source_files' = entries from any 'Files Used' / 'Source Files' / 'Art Files' section; 'normalized' is the filename lowercased with surrounding whitespace trimmed.",
-    "- 'materials'/'finish'/'hardware' capture production spec bullet values (e.g. MDF, canvas, high-gloss, sawtooth hanger).",
+    "- 'materials' = ONLY the main body material(s) the product itself is made of, most important first, usually one value (e.g. MDF, CANVAS, 100% COTTON BLEND, METAL, CERAMIC, PLASTIC). For a printed piece, the material the art is printed on or mounted to. Never list hangers, hooks, ropes, dowels, frames or moulding of a framed print, glass/acrylic glazing, backing boards, inserts, easels, mechanisms, batteries, labels, stickers or packaging here.",
+    "- 'component_materials' = every other material call-out (frame, glass covering, backing board, insert, hanging rope, dowel, hardware materials), as written.",
+    "- 'finish'/'hardware' capture finishes (e.g. high-gloss, sugar glitter) and hardware (e.g. sawtooth hanger, keyhole hanger, easel back).",
+    "- 'packaging' = how the product is packed (e.g. OPP bag, header card, UPC sticker); never a product material.",
     "- 'regulatory'/'warnings' capture compliance/legal requirements (e.g. TSCA Title VI, CARB Phase 2, Prop 65, 'not a toy').",
     "- Respond with the json object only. No markdown, no commentary.",
   ].join("\n");
@@ -134,16 +138,44 @@ export function normalizeMaterialList(v: unknown): string[] {
   return out;
 }
 
-/** Normalize the materials array in-place on a parsed extraction object. */
+/** Call-outs that are never the product's main body material. */
+const NON_BODY_MATERIAL =
+  /\b(HANGERS?|HOOKS?|SAWTOOTH|KEYHOLE|ROPES?|DOWELS?|EASEL|UPC|STICKERS?|LABELS?|PACKAG\w*|OPP|POLYBAG|HEADER ?CARD|BATTER(Y|IES)|MECHANISM|BACKING|BACKER|INSERT|GLASS COVERING|SCREWS?|NAILS?)\b/;
+
+/**
+ * Keep only main body materials in `materials` (feeds assets.product_material);
+ * move frame/hanger/backing/packaging call-outs that slipped through into
+ * `component_materials`. Exported for tests.
+ */
+export function splitMainMaterials(materials: unknown, components: unknown): { materials: string[]; component_materials: string[] } {
+  const main: string[] = [];
+  const real = (m: string) => /[A-Z0-9]/.test(m); // drop OCR bullets like "•"
+  const other = normalizeMaterialList(components).filter(real);
+  for (const m of normalizeMaterialList(materials).filter(real)) {
+    if (NON_BODY_MATERIAL.test(m)) {
+      if (!other.includes(m)) other.push(m);
+    } else main.push(m);
+  }
+  return { materials: main, component_materials: other };
+}
+
+/** Normalize the materials arrays in-place on a parsed extraction object. */
 function normalizeExtraction(data: RichPdfData): RichPdfData {
   const ps = (data as { production_specs?: unknown }).production_specs;
   if (ps && typeof ps === "object" && !Array.isArray(ps)) {
-    const specs = ps as { materials?: unknown };
-    if (Array.isArray(specs.materials)) {
-      specs.materials = normalizeMaterialList(specs.materials);
-    }
+    const specs = ps as { materials?: unknown; component_materials?: unknown };
+    Object.assign(specs, splitMainMaterials(specs.materials, specs.component_materials));
   }
   return data;
+}
+
+/**
+ * Idempotency key stored in source_text_sha256: the prompt version is folded in
+ * so a prompt change re-extracts every PDF once (the hash RPC does not return
+ * prompt_version), while unchanged text under the same prompt is still skipped.
+ */
+export function richPdfSourceKey(text: string, promptVersion = RICH_PDF_PROMPT_VERSION): string {
+  return sha256(`${promptVersion}\n${text}`);
 }
 
 function docKindFromFilename(filename: string): "tech_pack" | "licensing_sheet" {
@@ -280,7 +312,7 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
   const work = eligible.filter((r) => {
     const asset = assetById.get(r.asset_id);
     if (!asset) return false; // deleted / missing
-    const hash = sha256(r.extracted_text as string);
+    const hash = richPdfSourceKey(r.extracted_text as string);
     hashByAssetId.set(r.asset_id, hash);
     return shouldExtractRichPdf(existingByAsset.get(r.asset_id), hash, now, retryAfterHours);
   });
