@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, sortByRank } from "@/lib/dam-search";
+import { buildDamSearchFilters, fetchHybridSearchPage, getSearchMode, parseDamSearchFacets, keepAcrossFacetChange, sortByRank } from "@/lib/dam-search";
 import { sortByConceptThenRank } from "@/lib/search-concept-rank";
 import { createFullTextSearchHelpers, getOrLoadRankedIds, type RankedListCacheEntry } from "@/lib/full-text-search";
 
@@ -175,13 +175,18 @@ export function useStyleGroups(
   customPageSize?: number,
   visibilityDate?: string,
   enabled = true,
+  includeFacets = true,
 ) {
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
+  // #1430: only a typed search asks the server for facets, so only it is keyed on them.
+  const facetKey = filters.search?.trim() ? includeFacets : null;
 
   return useQuery({
     enabled,
     retry: filters.search ? false : undefined,
-    queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate],
+    queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate, facetKey],
+    // Opening the Filter Sidebar refetches the same search with facets: keep its cards.
+    placeholderData: keepAcrossFacetChange(["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate, facetKey]),
     queryFn: async () => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
@@ -194,6 +199,7 @@ export function useStyleGroups(
           limit: effectivePageSize,
           offset: from,
           filters: buildDamSearchFilters(filters),
+          includeFacets,
         });
         const { data, error } = await supabase
           .from("style_groups")
@@ -210,7 +216,17 @@ export function useStyleGroups(
           searchTerm,
           (group) => [group.sku, group.item_description, group.cover_description, group.item_short_description].filter(Boolean).join(" "),
         );
-        return { groups, totalCount: ranked.totalCount, searchFacets: parseDamSearchFacets(ranked.facets), pageSize: effectivePageSize, page };
+        return {
+          groups,
+          totalCount: ranked.totalCount,
+          // #1430: exact whole-group file total from the same search; undefined when the
+          // server did not report one, so the caller falls back to its own count.
+          totalGroupFiles: ranked.totalGroupFiles ?? undefined,
+          searchFacets: ranked.facetsIncluded !== false ? parseDamSearchFacets(ranked.facets) : undefined,
+          facetsIncluded: ranked.facetsIncluded !== false,
+          pageSize: effectivePageSize,
+          page,
+        };
       }
       const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
       const minDate = visibilityDate ?? "2020-01-01";

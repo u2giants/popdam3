@@ -623,6 +623,9 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           return err("Invalid document_types", 400);
         }
         const filters = body.filters === undefined || body.filters === null ? {} : body.filters;
+        // #1430: facets cost real time and the Filter Sidebar is usually closed. Only an
+        // explicit boolean false skips them; anything else keeps today's behavior.
+        const includeFacets = body.include_facets !== false;
         if (typeof filters !== "object" || Array.isArray(filters)) {
           return err("Invalid filters", 400);
         }
@@ -836,6 +839,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               p_query_embedding: variantEmbedding,
               p_min_rank: minRank,
               p_min_semantic_score: floor,
+              p_include_facets: includeFacets,
               ...(variantTextEmbeddings.get(variant)
                 ? {
                   p_query_text_embedding: variantTextEmbeddings.get(variant),
@@ -885,6 +889,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
             total_count: typeof first?.total_count === "number" ? first.total_count : 0,
             has_more: first?.has_more === true,
             facets: first?.facets && typeof first.facets === "object" ? (first.facets as Record<string, unknown>) : {},
+            total_group_files: typeof first?.total_group_files === "number" ? first.total_group_files : null,
           } satisfies SearchPage;
         });
         const merged = mergeSearchPages(pages);
@@ -895,6 +900,8 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
           total_count: merged.total_count,
           has_more: merged.has_more,
           facets: merged.facets,
+          facets_included: includeFacets,
+          total_group_files: merged.total_group_files ?? null,
           semantic: embedding ? "siglip2" : "skipped",
           corrected_query: spelling.corrected,
         });

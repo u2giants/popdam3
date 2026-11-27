@@ -734,6 +734,68 @@ describe("DAM search embedding availability", () => {
       for (const [, args] of searchCalls()) expect(args).not.toHaveProperty("p_query_text_embedding");
     });
   });
+
+  describe("facet and whole-group total contract (#1430)", () => {
+    const groupRow = {
+      entity_id: "group-1",
+      document_type: "style_group",
+      asset_id: null,
+      style_group_id: "group-1",
+      keyword_rank: 1,
+      semantic_rank: null,
+      rank: 1,
+      total_count: 1,
+      has_more: false,
+      facets: { fileType: { ai: 5 } },
+      total_group_files: 321,
+    };
+    const searchWith = (extra: Record<string, unknown>) =>
+      state.handler!(
+        new Request("https://example.invalid", {
+          method: "POST",
+          headers: { Authorization: "Bearer viewer", "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "search", query: "test phrase", ...extra }),
+        }),
+      );
+    const searchDocumentCalls = () => state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents");
+
+    beforeEach(() => {
+      state.rpc.mockImplementation(async (name: string) => ({
+        data: name === "search_dam_documents" ? [groupRow] : name.startsWith("dam_search_semantic_anchor") ? 0.5 : [],
+        error: null,
+      }));
+      vi.stubGlobal("fetch", embedFetch());
+    });
+
+    it("include_facets false skips facets in the search and reports them as not included", async () => {
+      const response = await searchWith({ include_facets: false });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.facets_included).toBe(false);
+      expect(body.total_group_files).toBe(321);
+      expect(searchDocumentCalls().length).toBeGreaterThan(0);
+      for (const [, args] of searchDocumentCalls()) expect(args).toHaveProperty("p_include_facets", false);
+    });
+
+    it("omitting include_facets keeps facets on and reports them as included", async () => {
+      const response = await searchWith({});
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.facets_included).toBe(true);
+      expect(body.total_group_files).toBe(321);
+      expect(searchDocumentCalls().length).toBeGreaterThan(0);
+      for (const [, args] of searchDocumentCalls()) expect(args).toHaveProperty("p_include_facets", true);
+    });
+
+    it.each(["false", 0, null])("only an explicit boolean false skips facets (include_facets %j keeps them)", async (value) => {
+      const response = await searchWith({ include_facets: value });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.facets_included).toBe(true);
+      expect(searchDocumentCalls().length).toBeGreaterThan(0);
+      for (const [, args] of searchDocumentCalls()) expect(args).toHaveProperty("p_include_facets", true);
+    });
+  });
 });
 
 describe("textLegSettings floor overrides (#1037)", () => {
