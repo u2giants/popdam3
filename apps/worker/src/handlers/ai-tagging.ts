@@ -1239,7 +1239,7 @@ export async function handleBulkAiTag(
 
     {
       const results = await settledPool(page, CONCURRENCY, async (id) => {
-          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : []), "meta-direct/muse-spark-1.3-contributor"] : undefined);
+          const result = await tagAsset(id, tagAll, parallel ? parallelModel(parallel, id) : undefined, parallel && !parallel.force ? [...parallel.models, ...(configuredModels.fallback ? [configuredModels.fallback] : [])] : undefined);
           return { ...result, asset_id: id };
         });
       for (const r of results) {
