@@ -7,6 +7,10 @@ import {
   richPdfSourceKey,
   RICH_PDF_PROMPT_VERSION,
   splitMainMaterials,
+  batchOverdue,
+  messageText,
+  richPdfRequestParams,
+  RICH_PDF_MODEL,
 } from "./rich-pdf.js";
 
 test("system prompt is stable and carries the schema + json instruction", () => {
@@ -109,4 +113,25 @@ test("prompt separates main material from component call-outs", () => {
   const p = buildRichPdfSystemPrompt();
   assert.match(p, /component_materials/);
   assert.match(p, /ONLY the main body material/);
+});
+
+test("reads with Claude Haiku 5.5 at low effort", () => {
+  const p = richPdfRequestParams("x") as any;
+  assert.equal(RICH_PDF_MODEL, "claude-haiku-5-5");
+  assert.equal(p.model, "claude-haiku-5-5");
+  assert.deepEqual(p.output_config, { effort: "low" });
+  assert.equal(p.system, buildRichPdfSystemPrompt());
+});
+
+test("a batch is abandoned for direct reads after 30 minutes", () => {
+  const now = Date.parse("2026-11-27T20:00:00Z");
+  assert.equal(batchOverdue({ submitted_at: "2026-11-27T19:31:00Z" }, now), false);
+  assert.equal(batchOverdue({ submitted_at: "2026-11-27T19:30:00Z" }, now), true);
+  assert.equal(batchOverdue({ submitted_at: "not a date" }, now), true);
+});
+
+test("refusals and cut-off replies are failures, not data", () => {
+  assert.throws(() => messageText({ stop_reason: "refusal", content: [] } as any), /refused/);
+  assert.throws(() => messageText({ stop_reason: "max_tokens", content: [] } as any), /cut off/);
+  assert.equal(messageText({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] } as any), "{}");
 });

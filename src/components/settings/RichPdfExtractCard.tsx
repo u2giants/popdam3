@@ -20,7 +20,7 @@ export default function RichPdfExtractCard() {
   const run = () =>
     op.start({
       confirmMessage:
-        "Run rich-PDF extraction over tech-pack / licensing-sheet PDFs? Requires DEEPSEEK_API_KEY set in the worker env.",
+        "Run rich-PDF extraction over tech-pack / licensing-sheet PDFs? Reads with Claude Haiku 5.5 in batches; requires ANTHROPIC_API_KEY in the worker env.",
     });
 
   return (
