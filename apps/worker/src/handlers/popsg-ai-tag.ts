@@ -108,6 +108,20 @@ export async function demoteLicensedNameTags(names: ReadonlySet<string>, limit =
   return marked;
 }
 
+/** Rebuild up to 3 x 5,000 queued PopSG search records. Returns the number rebuilt. */
+export async function refreshSearchSlice(): Promise<number> {
+  let total = 0;
+  for (let i = 0; i < 3; i++) {
+    const { data, error } = await db().rpc("refresh_style_guide_matviews", { p_run_id: null, p_search_batch_size: 5000, p_step: "search" });
+    if (error) throw new Error(`search refresh: ${error.message}`);
+    const row = (Array.isArray(data) ? data[0] : data) as { search_documents_synced?: number } | null;
+    const n = Number(row?.search_documents_synced ?? 0);
+    total += n;
+    if (n < 5000) break;
+  }
+  return total;
+}
+
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
   const client = db();
   const rows = popsgVisionTags(tagData, model, await loadLicensedNames());
@@ -180,6 +194,7 @@ export interface PopSGAiTagDeps {
   tagFile?: (file: PopSGVisionFile, model: string, attempts: number) => Promise<PopSGTagOutcome>;
   taggedRecently?: () => Promise<boolean>;
   demoteNames?: () => Promise<number>;
+  refreshSearch?: () => Promise<number>;
 }
 
 async function fetchPageDefault(afterId: string | null, limit: number): Promise<PopSGVisionFile[]> {
@@ -217,6 +232,12 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   const marked = await (deps.demoteNames ?? (async () => demoteLicensedNameTags(await loadLicensedNames())))()
     .catch((error) => { logger.warn(`ai-tag-popsg: name tag marking failed: ${String(error).slice(0, 200)}`); return 0; });
   if (marked) logger.info(`ai-tag-popsg: marked ${marked} licensed-name tags suggested`);
+  // Tag changes reach search only when their search records are rebuilt; the
+  // hourly job rebuilds ~3,500. Rebuild a bounded slice here so changed tags
+  // are searchable within minutes. A failure never stops tagging.
+  const synced = await (deps.refreshSearch ?? refreshSearchSlice)()
+    .catch((error) => { logger.warn(`ai-tag-popsg: search refresh failed: ${String(error).slice(0, 200)}`); return 0; });
+  if (synced) logger.info(`ai-tag-popsg: refreshed ${synced} search records`);
   const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
   let files: PopSGVisionFile[];
   let states: Map<string, { status: string; attempt_count: number }>;
