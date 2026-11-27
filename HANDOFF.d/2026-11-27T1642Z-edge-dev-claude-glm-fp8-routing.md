@@ -1,5 +1,7 @@
 # Handoff — GLM 5.3 Flash routed to cheapest fp8 OpenRouter hosts (unverified live)
 
+> **Superseded 2026-11-27 3:05 PM EST.** Albert lifted the fp8-only rule: "take out any fp8 requirement from anywhere i may have put it". Quality probe (https://github.com/u2giants/popdam3/pull/1486#issuecomment-7226969319) found fp4 tags no worse. Live allowlist is now `{"z-ai/glm-5.3-flash": ["morph/fp8","wafer/us","wafer/nvfp4","deepinfra/fp4"]}`. Do not restore an fp8-only list.
+
 ## 1. Goal
 Albert (2026-11-27 11:36 AM EST): "change it to choose the cheapest fp8 models from openrouter." Vision tagging model `z-ai/glm-5.3-flash`, OpenRouter overflow traffic only.
 
