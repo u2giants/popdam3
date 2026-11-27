@@ -9,7 +9,7 @@ do $test$
 declare src text;
 begin
   select p.prosrc into src from pg_proc p
-  where p.oid=to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)');
+  where p.oid=to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)');
   if src is null then raise exception 'search_dam_documents missing'; end if;
   if position('product_types as materialized' in src)=0 or position('named_type as materialized' in src)=0 then
     raise exception 'popdam3#1037 product type: product_types / named_type CTEs missing';

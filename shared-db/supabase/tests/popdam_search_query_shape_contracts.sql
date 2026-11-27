@@ -56,7 +56,7 @@ end $$;
 do $$
 begin
   if to_regprocedure(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)'
   ) is null then
     raise exception 'search_dam_documents signature drifted from the 8-arg contract';
   end if;
@@ -74,7 +74,7 @@ begin
                     ' allow_substring', 1)
     into guard_sql
     from pg_proc
-   where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure;
+   where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)'::regprocedure;
   if nullif(btrim(guard_sql), '') is null then
     raise exception 'could not extract the installed substring guard';
   end if;
@@ -96,13 +96,13 @@ end $$;
 -- 5. Grants: anon denied; authenticated and service_role allowed.
 do $$
 begin
-  if has_function_privilege('anon', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE') then
+  if has_function_privilege('anon', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)', 'EXECUTE') then
     raise exception 'anon can execute search_dam_documents';
   end if;
-  if not has_function_privilege('authenticated', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE') then
+  if not has_function_privilege('authenticated', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)', 'EXECUTE') then
     raise exception 'authenticated cannot execute search_dam_documents';
   end if;
-  if not has_function_privilege('service_role', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE') then
+  if not has_function_privilege('service_role', 'public.search_dam_documents(text,jsonb,int,int,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)', 'EXECUTE') then
     raise exception 'service_role cannot execute search_dam_documents';
   end if;
 end $$;
@@ -173,7 +173,7 @@ do $$
 begin
   if position('where p_query_embedding is not null' in (
     select prosrc from pg_proc
-    where oid='public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure
+    where oid='public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)'::regprocedure
   )) = 0 then
     raise exception 'semantic_ann lost its one-time null-embedding gate';
   end if;

@@ -150,8 +150,8 @@ begin
   if not raised then raise exception 'popdam3#1037 S6 wrong-size text vector accepted'; end if;
 
   -- 7. Grants and mode key.
-  if has_function_privilege('anon', 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'execute')
-     or not has_function_privilege('authenticated', 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'execute') then
+  if has_function_privilege('anon', 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)', 'execute')
+     or not has_function_privilege('authenticated', 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean,boolean)', 'execute') then
     raise exception 'popdam3#1037 S6 grants';
   end if;
   if not exists (select 1 from public.admin_config where key = 'SEARCH_TEXT_LEG_MODE') then
