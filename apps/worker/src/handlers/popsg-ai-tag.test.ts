@@ -34,15 +34,15 @@ test("maps tag_asset items to PopSG facets and drops duplicates", () => {
   assert.deepEqual(rows.map(r => [r.normalized, r.facet, r.confidence]), [["batman", "other", 0.9], ["red", "color", 1]]);
 });
 
-test("drops licensed names guessed from the picture (#1430 accuracy)", () => {
+test("keeps licensed names guessed from the picture but marks them (#1430 accuracy)", () => {
   const rows = popsgVisionTags({ asset_tags: [{ tag: "Example Hero", category: "visible_content" }, { tag: "Tree", category: "visible_content" }] }, "m", new Set(["example hero"]));
-  assert.deepEqual(rows.map(r => r.normalized), ["tree"]);
+  assert.deepEqual(rows.map(r => [r.normalized, r.guessedName]), [["example hero", true], ["tree", false]]);
 });
 
-test("name tag cleanup runs before tagging and its failure never stops tagging", async () => {
+test("name tag marking runs before tagging and its failure never stops tagging", async () => {
   let purged = 0;
-  const ok = await handlePopSGAiTag(op(), { config: cfg, purgeNames: async () => { purged++; return 3; }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
+  const ok = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { purged++; return 3; }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
   assert.equal(purged, 1); assert.equal(ok.tagged, 1);
-  const failing = await handlePopSGAiTag(op(), { config: cfg, purgeNames: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
+  const failing = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
   assert.equal(failing.ok, true); assert.equal(failing.tagged, 1);
 });
