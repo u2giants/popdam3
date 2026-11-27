@@ -14,8 +14,9 @@ import {
   getAiTaggingApiKey, TAG_LADDER_BUDGET_MS,
 } from "./ai-tagging-shared.js";
 import { normalizePopSGTag, type PopSGTagFacet } from "./popsg-tags.js";
+import { loadPopSGCatalog, resolvePopSGGuide, type PopSGGuide } from "./popsg-catalog-guide.js";
 
-export const POPSG_VISION_RULE_VERSION = "vision-v1";
+export const POPSG_VISION_RULE_VERSION = "vision-v2";
 export const POPSG_AI_TAG_CONFIG_KEY = "AI_TAG_POPSG_RUN";
 const AI_TIMEOUT_MS = 60_000;
 const PAGE_MULTIPLIER = 4;
@@ -28,23 +29,40 @@ export type PopSGTagOutcome = { outcome: "tagged" | "failed" | "unavailable"; er
 
 const FACETS: Record<string, PopSGTagFacet> = { file_type: "asset_type", color: "color", technique: "style", scene: "theme" };
 
-/** Map the shared tag_asset result onto PopSG tag rows. */
-export function popsgVisionTags(tagData: Record<string, unknown>, model: string, licensedNames: ReadonlySet<string> = new Set()) {
+/** True when `tag` contains `name` as whole words. */
+function containsName(tag: string, name: string): boolean {
+  return tag === name || ` ${tag} `.includes(` ${name} `);
+}
+
+/**
+ * Map the shared tag_asset result onto PopSG tag rows (#1505). Names come only
+ * from the catalog: the chosen candidate characters become `character` tags,
+ * and any free-text tag holding a licensed name outside this file's candidate
+ * names (whole or part, e.g. "<name> logo") is dropped.
+ */
+export function popsgVisionTags(tagData: Record<string, unknown>, model: string, licensedNames: ReadonlySet<string> = new Set(),
+  guide: Pick<PopSGGuide, "characters" | "allowedNames"> = { characters: [], allowedNames: new Set() }) {
   const seen = new Set<string>();
-  const rows: Array<{ normalized: string; display_name: string; facet: PopSGTagFacet; confidence: number; guessedName: boolean; evidence: Record<string, unknown> }> = [];
+  const rows: Array<{ normalized: string; display_name: string; facet: PopSGTagFacet; confidence: number; evidence: Record<string, unknown> }> = [];
+  const byId = new Map(guide.characters.map(c => [c.id.toLowerCase(), c]));
+  for (const id of (Array.isArray(tagData.character_ids) ? tagData.character_ids : []) as unknown[]) {
+    const c = typeof id === "string" ? byId.get(id.toLowerCase()) : undefined;
+    const normalized = c ? normalizePopSGTag(c.name) : "";
+    if (!c || !normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    rows.push({ normalized, display_name: c.name.slice(0, 200), facet: "character", confidence: 0.9, evidence: { character_id: c.id, source: "catalog_candidate", model } });
+  }
+  const offList = [...licensedNames].filter(n => !guide.allowedNames.has(n));
   for (const item of (Array.isArray(tagData.asset_tags) ? tagData.asset_tags : []) as Array<Record<string, unknown>>) {
     const display = typeof item?.tag === "string" ? item.tag.trim() : "";
     const normalized = normalizePopSGTag(display);
     if (!normalized || seen.has(normalized)) continue;
-    // A licensor, property or character name guessed from the picture is kept
-    // but marked `suggested`, so it never feeds search ahead of folder metadata
-    // (#1430 accuracy regression). Search reads only `accepted` tags.
-    const guessedName = licensedNames.has(normalized);
+    if (offList.some(n => containsName(normalized, n))) continue;
     seen.add(normalized);
     const c = Number(item.confidence);
     rows.push({
       normalized, display_name: display.slice(0, 200), facet: FACETS[String(item.category)] ?? "other",
-      confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.8, guessedName,
+      confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0.8,
       evidence: { category: item.category ?? null, evidence: item.evidence ?? null, model },
     });
   }
@@ -72,50 +90,6 @@ export async function loadLicensedNames(): Promise<Set<string>> {
   }
   namesCache = { at: Date.now(), names };
   return names;
-}
-
-let demoteCursor: string | null = null;
-let demoteDone = false;
-let nameTagIds: Map<string, string> | null = null;
-
-/**
- * Mark earlier accepted vision_ai links whose tag is a licensed name as
- * `suggested`, walking files in id order (indexed per file, so folder-based
- * tags sharing those names are never scanned). Nothing is deleted. Returns
- * the number marked in this call.
- */
-export async function demoteLicensedNameTags(names: ReadonlySet<string>, fileBudget = 3000): Promise<number> {
-  if (demoteDone) return 0;
-  const client = db();
-  if (nameTagIds === null) {
-    const list = [...names];
-    nameTagIds = new Map();
-    for (let i = 0; i < list.length; i += 200) {
-      const { data, error } = await client.from("style_guide_tags").select("id, normalized_tag").in("normalized_tag", list.slice(i, i + 200));
-      if (error) throw new Error(`name tag lookup: ${error.message}`);
-      for (const r of data ?? []) nameTagIds.set(r.id as string, r.normalized_tag as string);
-    }
-  }
-  let marked = 0;
-  for (let seen = 0; seen < fileBudget; seen += 100) {
-    let q = client.from("style_guide_tagging_state").select("style_guide_file_id").eq("pipeline", "vision").eq("status", "completed").order("style_guide_file_id").limit(100);
-    if (demoteCursor) q = q.gt("style_guide_file_id", demoteCursor);
-    const { data: files, error } = await q;
-    if (error) throw new Error(`name file page: ${error.message}`);
-    const ids = (files ?? []).map(r => r.style_guide_file_id as string);
-    if (!ids.length) { demoteDone = true; break; }
-    const { data: links, error: le } = await client.from("style_guide_file_tags").select("id, tag_id")
-      .in("style_guide_file_id", ids).eq("status", "accepted").eq("source", "vision_ai");
-    if (le) throw new Error(`name link lookup: ${le.message}`);
-    const hit = (links ?? []).filter(l => nameTagIds!.has(l.tag_id as string)).map(l => l.id as string);
-    for (let i = 0; i < hit.length; i += 150) {
-      const upd = await client.from("style_guide_file_tags").update({ status: "suggested" }).in("id", hit.slice(i, i + 150));
-      if (upd.error) throw new Error(`name link mark: ${upd.error.message}`);
-    }
-    marked += hit.length;
-    demoteCursor = ids[ids.length - 1];
-  }
-  return marked;
 }
 
 let rebuildCursor: string | null = null;
@@ -149,9 +123,9 @@ export async function refreshSearchSlice(calls = 200, budgetMs = 60_000): Promis
   return docs;
 }
 
-async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
+async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number, guide: PopSGGuide) {
   const client = db();
-  const rows = popsgVisionTags(tagData, model, await loadLicensedNames());
+  const rows = popsgVisionTags(tagData, model, await loadLicensedNames(), guide);
   if (!rows.length) throw new Error("No usable tags");
   const names = rows.map(r => r.normalized);
   const inserted = await client.from("style_guide_tags").upsert(
@@ -165,7 +139,7 @@ async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>,
   if (removed.error) throw new Error(`old tag delete: ${removed.error.message}`);
   const links = rows.filter(r => ids.has(r.normalized)).map(r => ({
     style_guide_file_id: file.id, tag_id: ids.get(r.normalized), source: "vision_ai", facet: r.facet,
-    confidence: r.confidence, status: r.guessedName ? "suggested" : "accepted", evidence: r.evidence, inherited: false, rule_version: POPSG_VISION_RULE_VERSION,
+    confidence: r.confidence, status: "accepted", evidence: r.evidence, inherited: false, rule_version: POPSG_VISION_RULE_VERSION,
   }));
   const saved = await client.from("style_guide_file_tags").insert(links);
   if (saved.error) throw new Error(`file tag insert: ${saved.error.message}`);
@@ -205,19 +179,20 @@ export async function tagPopSGFile(file: PopSGVisionFile, model: string, attempt
     }
     return { outcome: "failed", error: `Thumbnail fetch error: ${msg.slice(0, 200)}` };
   }
+  const guide = resolvePopSGGuide(file, await loadPopSGCatalog());
   const prompt = await buildImageTaggingPrompt({ id: file.id, filename: file.filename, relative_path: file.relative_path,
-    file_type: file.file_extension, tags: null, licensor_id: null, property_id: null, sku: null });
+    file_type: file.file_extension, tags: null, licensor_id: null, property_id: null, sku: null }, { characters: guide.characters });
   const context = [file.licensor_name && `licensor folder "${file.licensor_name}"`, file.property_folder && `property folder "${file.property_folder}"`, file.style_guide_folder && `style guide "${file.style_guide_folder}"`].filter(Boolean).join(", ");
   const messages = buildImageTaggingMessages(prompt, image,
-    `This is a page or art file from a licensor style guide${context ? ` (${context})` : ""}. Analyze the image and return structured tags matching the tag_asset schema.`);
+    `This is a page or art file from a licensor style guide${context ? ` (${context})` : ""}. Analyze the image and return structured tags matching the tag_asset schema. Name characters only by choosing ids from the supplied character list, and only when clearly visible; never put licensor, property or character names in asset_tags.`);
   const apiKey = await getAiTaggingApiKey(model);
   const started = Date.now();
   let lastError = "AI call failed";
   for (let retry = 0; retry <= 1; retry++) {
     try {
-      const { tagData, providerInfo } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, undefined, []);
+      const { tagData, providerInfo } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, undefined, guide.characters.map(c => c.id.toLowerCase()));
       recordPopSGHost(providerInfo?.provider, true);
-      await saveTags(file, tagData, model, attempts);
+      await saveTags(file, tagData, model, attempts, guide);
       return { outcome: "tagged" };
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
@@ -233,10 +208,9 @@ export async function tagPopSGFile(file: PopSGVisionFile, model: string, attempt
 export interface PopSGAiTagDeps {
   config?: unknown;
   fetchPage?: (afterId: string | null, limit: number) => Promise<PopSGVisionFile[]>;
-  doneStates?: (ids: string[]) => Promise<Map<string, { status: string; attempt_count: number }>>;
+  doneStates?: (ids: string[]) => Promise<Map<string, { status: string; attempt_count: number; rule_version?: string | null }>>;
   tagFile?: (file: PopSGVisionFile, model: string, attempts: number) => Promise<PopSGTagOutcome>;
   taggedRecently?: () => Promise<boolean>;
-  demoteNames?: () => Promise<number>;
   refreshSearch?: () => Promise<number>;
 }
 
@@ -249,13 +223,13 @@ async function fetchPageDefault(afterId: string | null, limit: number): Promise<
   return (data ?? []) as PopSGVisionFile[];
 }
 async function doneStatesDefault(ids: string[]) {
-  const { data, error } = await db().from("style_guide_tagging_state").select("style_guide_file_id, status, attempt_count").eq("pipeline", "vision").in("style_guide_file_id", ids);
+  const { data, error } = await db().from("style_guide_tagging_state").select("style_guide_file_id, status, attempt_count, rule_version").eq("pipeline", "vision").in("style_guide_file_id", ids);
   if (error) throw new Error(`state fetch: ${error.message}`);
-  return new Map((data ?? []).map(r => [r.style_guide_file_id as string, { status: r.status as string, attempt_count: Number(r.attempt_count) || 0 }]));
+  return new Map((data ?? []).map(r => [r.style_guide_file_id as string, { status: r.status as string, attempt_count: Number(r.attempt_count) || 0, rule_version: (r.rule_version as string | null) ?? null }]));
 }
 async function taggedRecentlyDefault() {
   const since = new Date(Date.now() - 3_600_000).toISOString();
-  const { data, error } = await db().from("style_guide_tagging_state").select("style_guide_file_id").eq("pipeline", "vision").eq("status", "completed").gte("completed_at", since).limit(1);
+  const { data, error } = await db().from("style_guide_tagging_state").select("style_guide_file_id").eq("pipeline", "vision").eq("status", "completed").eq("rule_version", POPSG_VISION_RULE_VERSION).gte("completed_at", since).limit(1);
   return !error && (data?.length ?? 0) > 0;
 }
 
@@ -271,10 +245,6 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
   if (!run?.discover) return { ok: false, done: false, error: `PopSG tagging requires ${POPSG_AI_TAG_CONFIG_KEY} with discover:true and the operation's run_id` };
   const model = run.models[0];
-  // Mark earlier licensed-name tags `suggested` a slice at a time; a failure here never stops tagging.
-  const marked = await (deps.demoteNames ?? (async () => demoteLicensedNameTags(await loadLicensedNames())))()
-    .catch((error) => { logger.warn(`ai-tag-popsg: name tag marking failed: ${String(error).slice(0, 200)}`); return 0; });
-  if (marked) logger.info(`ai-tag-popsg: marked ${marked} licensed-name tags suggested`);
   // Tag changes reach search only when their search records are rebuilt; the
   // hourly job rebuilds ~3,500. Rebuild a bounded slice here so changed tags
   // are searchable within minutes. A failure never stops tagging.
@@ -283,7 +253,7 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   if (synced) logger.info(`ai-tag-popsg: refreshed ${synced} search records`);
   const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
   let files: PopSGVisionFile[];
-  let states: Map<string, { status: string; attempt_count: number }>;
+  let states: Map<string, { status: string; attempt_count: number; rule_version?: string | null }>;
   try {
     files = await (deps.fetchPage ?? fetchPageDefault)(cursor, run.concurrency * PAGE_MULTIPLIER);
     states = files.length ? await (deps.doneStates ?? doneStatesDefault)(files.map(f => f.id)) : new Map();
@@ -297,7 +267,9 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
     }
     return { ok: true, done: true, tagged: 0, skipped: 0, failed: 0, failure_samples: [], skip_samples: [], nextOffset: cursor ?? 0 };
   }
-  const todo = files.filter(f => states.get(f.id)?.status !== "completed");
+  // A file is done only when tagged by this rule version; older picture tags are redone (#1505).
+  const isDone = (id: string) => { const st = states.get(id); return st?.status === "completed" && (st.rule_version ?? POPSG_VISION_RULE_VERSION) === POPSG_VISION_RULE_VERSION; };
+  const todo = files.filter(f => !isDone(f.id));
   const skipped = files.length - todo.length;
   const tagFile = deps.tagFile ?? tagPopSGFile;
   const results = await settledPool(todo, run.concurrency, f => tagFile(f, model, (states.get(f.id)?.attempt_count ?? 0) + 1));
