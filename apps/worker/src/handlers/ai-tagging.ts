@@ -1,6 +1,6 @@
 import { changedFields } from "../../../../supabase/functions/_shared/changed-fields.js";
 import { parallelTagRun, parallelModel } from "./ai-tag-parallel.js";
-import { buildStructuredOutputRequest, buildJsonRepairRequest } from "../structured-output.js";
+import { buildStructuredOutputRequest, buildJsonRepairRequest, failedEndpoints, type OutputAttempt } from "../structured-output.js";
 /**
  * AI Tagging handler — persistent worker version.
  *
@@ -133,6 +133,12 @@ export async function getVisionModels(): Promise<{ primary: string; fallback: st
 /** Returns true if the error is specific to the model/provider (not a transient infra failure). */
 export function isTooFewTagsError(msg: string): boolean {
   return /asset_tags must contain \d+-\d+ items/.test(msg);
+}
+
+/** Why the backup model may be tried for this file, or null when it may not. */
+export function shouldUseBackupModel(primaryError: string, failedEndpointList: readonly string[]): "too_few_tags" | "two_endpoints_failed" | null {
+  if (isTooFewTagsError(primaryError)) return "too_few_tags";
+  return new Set(failedEndpointList).size >= 2 ? "two_endpoints_failed" : null;
 }
 
 export function isModelSpecificError(msg: string): boolean {
@@ -1023,7 +1029,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   const { primary: primaryModel, fallback: fallbackModel, providerPin } = selected;
   const providerOverride = buildProviderPin(providerPin);
 
-  type AttemptResult = TagOutcome & { _rawMsg?: string };
+  type AttemptResult = TagOutcome & { _rawMsg?: string; _failedEndpoints?: string[] };
   const describeTagApplyFailure = (model: string, error: unknown): string => {
     const stage = error instanceof AssetTagApplyError ? error.stage
       : error instanceof CharacterReferenceValidationError ? "character_reference"
@@ -1056,6 +1062,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
       return { outcome: "failed", error: `No AI API key configured (set ${keyName} in Settings)` };
     }
     const attemptStarted = Date.now();
+    const endpointsFailed = new Set<string>();
     for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
       // Call through the provider selected by the model ID.
       try {
@@ -1080,6 +1087,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        for (const endpoint of failedEndpoints((e as { attempts?: OutputAttempt[] })?.attempts)) endpointsFailed.add(endpoint);
         if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && Date.now() - attemptStarted < TAG_LADDER_BUDGET_MS && (isRetryableStructuredOutputError(msg) || ((isMetaDirectModel(model) || isColabDirectModel(model)) && isRetryableTagTransportError(e)))) {
           logger.warn("ai-tag: structured output/routing error, retrying same model", {
             assetId,
@@ -1091,7 +1099,7 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
           continue;
         }
         logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
-        return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}`, _rawMsg: msg };
+        return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}`, _rawMsg: msg, _failedEndpoints: [...endpointsFailed] };
       }
     }
 
@@ -1103,14 +1111,14 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
 
   // If the primary model failed with a model-specific error and a fallback is configured, retry once
   const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
-  // No batch-only model (legacy OpenRouter `:batch` or direct Gemini) can answer synchronously.
-  const primaryUnavailable = primaryResult._rawMsg !== undefined && isModelOutageError(primaryResult._rawMsg);
-  // Owner ruling 2026-11-26: the backup MODEL is only for answers with too few
-  // tags. An endpoint error retries the same model on its backup endpoint
-  // (handled in the model route), never a different model.
-  void primaryUnavailable;
-  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && isTooFewTagsError(primaryResult.error ?? rawMsg)) {
-    logger.info("ai-tag: primary model returned too few tags — trying backup model", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
+  // Owner rulings: the backup model is used when the primary answered with too
+  // few tags (2026-11-26), or when the primary failed on two DIFFERENT
+  // endpoints for this file (2026-11-27). One endpoint failing twice, or any
+  // failure that is not an endpoint failure, never moves to the backup model.
+  const failedOn = primaryResult._failedEndpoints ?? [];
+  const reason = shouldUseBackupModel(primaryResult.error ?? rawMsg, failedOn);
+  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && reason) {
+    logger.info(reason === "too_few_tags" ? "ai-tag: primary model returned too few tags — trying backup model" : "ai-tag: primary model failed on two endpoints — trying backup model", { assetId, primaryModel, fallbackModel, failedEndpoints: failedOn, error: rawMsg.slice(0, 200) });
     const fallbackResult = await attemptTag(fallbackModel);
     if (fallbackResult.outcome === "tagged") return fallbackResult;
     // Both failed — return the primary error (more informative) with a note

@@ -634,6 +634,7 @@ export async function chatCompletion(
   // "share:N" fills Straitly up to N requests in flight; the overflow goes to OpenRouter.
   const straitlyShare = straitlyMode?.cap !== undefined && straitlyInFlight < straitlyMode.cap;
   if (straitlyShare) straitlyInFlight++;
+  let label = "OpenRouter";
   try {
   const straitlyKey = straitlyMode && (straitlyMode.cap === undefined || straitlyShare) ? await getStraitlyApiKey() : null;
   const straitly = straitlyKey !== null;
@@ -661,7 +662,7 @@ export async function chatCompletion(
     : straitly
     ? { Authorization: `Bearer ${straitlyKey}`, "Content-Type": "application/json" }
     : openRouterHeaders(apiKey);
-  const label = openAiDirect ? "OpenAI" : straitly ? "Straitly" : "OpenRouter";
+  label = openAiDirect ? "OpenAI" : straitly ? "Straitly" : "OpenRouter";
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -741,6 +742,11 @@ export async function chatCompletion(
   }
 
     throw lastError ?? new Error(`${label} request failed after retries`);
+  } catch (error) {
+    // Record which endpoint failed so callers can tell two different
+    // endpoints failing apart from one endpoint failing twice.
+    if (error && typeof error === "object" && !("endpoint" in error)) (error as { endpoint?: string }).endpoint = label.toLowerCase();
+    throw error;
   } finally {
     if (straitlyShare) straitlyInFlight--;
   }
