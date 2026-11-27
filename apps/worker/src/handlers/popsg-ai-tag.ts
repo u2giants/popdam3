@@ -81,7 +81,7 @@ let purgeQueue: string[] | null = null;
  * files tagged before the name filter stop matching name searches. Returns the
  * number removed; 0 once nothing is left.
  */
-export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 5000): Promise<number> {
+export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 40000): Promise<number> {
   const client = db();
   if (purgeQueue === null) {
     const list = [...names];
@@ -96,7 +96,7 @@ export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 
   let removed = 0;
   while (purgeQueue.length && removed < limit) {
     const tagId = purgeQueue[0];
-    const { data, error } = await client.from("style_guide_file_tags").select("id").eq("tag_id", tagId).eq("source", "vision_ai").limit(Math.min(500, limit - removed));
+    const { data, error } = await client.from("style_guide_file_tags").select("id").eq("tag_id", tagId).eq("source", "vision_ai").limit(Math.min(1000, limit - removed));
     if (error) throw new Error(`name link lookup: ${error.message}`);
     const ids = (data ?? []).map(r => r.id as string);
     if (!ids.length) { purgeQueue.shift(); continue; }
