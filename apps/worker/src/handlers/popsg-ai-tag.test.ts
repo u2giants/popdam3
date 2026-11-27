@@ -41,8 +41,8 @@ test("keeps licensed names guessed from the picture but marks them (#1430 accura
 
 test("name tag marking runs before tagging and its failure never stops tagging", async () => {
   let purged = 0;
-  const ok = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { purged++; return 3; }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
-  assert.equal(purged, 1); assert.equal(ok.tagged, 1);
-  const failing = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
+  const ok = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { purged++; return 3; }, refreshSearch: async () => { purged++; return 7; }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
+  assert.equal(purged, 2); assert.equal(ok.tagged, 1);
+  const failing = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { throw new Error("down"); }, refreshSearch: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
   assert.equal(failing.ok, true); assert.equal(failing.tagged, 1);
 });
