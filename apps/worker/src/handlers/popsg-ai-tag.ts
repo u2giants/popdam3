@@ -108,16 +108,16 @@ export async function demoteLicensedNameTags(names: ReadonlySet<string>, limit =
   return marked;
 }
 
-/** Rebuild up to 3 x 5,000 queued PopSG search records. Returns the number rebuilt. */
+/** Rebuild up to 15 x 1,000 queued PopSG search records (each call stays under the API statement timeout). */
 export async function refreshSearchSlice(): Promise<number> {
   let total = 0;
-  for (let i = 0; i < 3; i++) {
-    const { data, error } = await db().rpc("refresh_style_guide_matviews", { p_run_id: null, p_search_batch_size: 5000, p_step: "search" });
+  for (let i = 0; i < 15; i++) {
+    const { data, error } = await db().rpc("refresh_style_guide_matviews", { p_run_id: null, p_search_batch_size: 1000, p_step: "search" });
     if (error) throw new Error(`search refresh: ${error.message}`);
     const row = (Array.isArray(data) ? data[0] : data) as { search_documents_synced?: number } | null;
     const n = Number(row?.search_documents_synced ?? 0);
     total += n;
-    if (n < 5000) break;
+    if (n < 1000) break;
   }
   return total;
 }
