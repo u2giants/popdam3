@@ -129,10 +129,11 @@ let rebuildLimit = 100;
  * files, halves on a timeout (down to 5) and grows back after a success.
  * Returns documents rebuilt.
  */
-export async function refreshSearchSlice(calls = 20): Promise<number> {
+export async function refreshSearchSlice(calls = 200, budgetMs = 60_000): Promise<number> {
   if (rebuildDone) return 0;
   let docs = 0;
-  for (let i = 0; i < calls; i++) {
+  const started = Date.now();
+  for (let i = 0; i < calls && Date.now() - started < budgetMs; i++) {
     const { data, error } = await db().rpc("popsg_rebuild_vision_tag_cache_batch", { p_after: rebuildCursor, p_limit: rebuildLimit });
     if (error) {
       if (/statement timeout/i.test(error.message) && rebuildLimit > 5) { rebuildLimit = Math.max(5, Math.floor(rebuildLimit / 2)); continue; }
