@@ -458,7 +458,11 @@ describe("DAM search embedding availability", () => {
     const multi = state.rpc.mock.calls.filter(([name]) => name === "search_dam_documents_multi");
     expect(multi).toHaveLength(1);
     expect(state.rpc).not.toHaveBeenCalledWith("search_dam_documents", expect.anything());
-    expect((multi[0][1].p_variants as { query: string; query_embedding: number[]; compute_anchor: boolean }[]).map((v) => [v.query, v.query_embedding.length, v.compute_anchor]))
+    expect(
+      (multi[0][1].p_variants as { query: string; query_embedding: number[]; compute_anchor: boolean }[]).map((
+        v,
+      ) => [v.query, v.query_embedding.length, v.compute_anchor]),
+    )
       .toEqual([["spiderman floor covering", 768, true], ["spiderman mat", 768, true], ["spiderman rug", 768, true]]);
     expect(state.rpc).not.toHaveBeenCalledWith(expect.stringMatching(/^dam_search_semantic_anchor/), expect.anything());
   });
@@ -495,9 +499,12 @@ describe("DAM search embedding availability", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await search("batman floor covering")).status).toBe(200);
     expect(fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname === "/embed-text").length).toBe(3);
-    expect(state.rpc).toHaveBeenCalledWith("search_dam_documents_multi", expect.objectContaining({
-      p_variants: expect.arrayContaining([expect.objectContaining({ query: "batman mat" })]),
-    }));
+    expect(state.rpc).toHaveBeenCalledWith(
+      "search_dam_documents_multi",
+      expect.objectContaining({
+        p_variants: expect.arrayContaining([expect.objectContaining({ query: "batman mat" })]),
+      }),
+    );
   });
 
   it("returns unavailable when the batched variant embedding fails after its retry", async () => {
