@@ -20,6 +20,11 @@ if [[ -s "$token_file" ]]; then
 fi
 
 if command -v op >/dev/null 2>&1; then
+  # Desktop sessions have no op sign-in; use the managed service account.
+  sa="$HOME/.config/ai-devops/op-service-account"
+  if [[ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" && -s "$sa" ]]; then
+    OP_SERVICE_ACCOUNT_TOKEN="$(cat "$sa")"; export OP_SERVICE_ACCOUNT_TOKEN
+  fi
   refs="$(mktemp)"; trap 'rm -f "$refs"' EXIT
   printf 'SUPABASE_ACCESS_TOKEN=op://vibe_coding/Supabase CLI Personal Access Token/credential\n' > "$refs"
   op run --env-file="$refs" -- "${server[@]}"
