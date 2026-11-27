@@ -31,3 +31,17 @@ describe("provider health", () => {
     assert.equal(out["2026-11-27T19"].k.ok, 5);
   });
 });
+
+import { executeStructuredOutput } from "./structured-output.js";
+describe("invalid answers keep their host", () => {
+  beforeEach(() => resetProviderHealthForTests());
+  it("records the serving host on a validation failure", async () => {
+    const caps = { modelId: "m", imageInput: true, tools: false, toolChoice: false, toolChoiceModes: [], structuredOutputs: true, jsonObject: false, prefer: ["json_schema"], source: "override", fetchedAt: "" } as never;
+    await executeStructuredOutput({ apiKey: "k", model: "m", messages: [], schemaName: "s", schema: { type: "object" }, capabilities: caps, timeoutMs: 1000,
+      completion: async () => ({ content: "{\"a\":1}", providerInfo: { provider: "Wafer" } }) as never,
+      isTerminalError: () => true,
+      validate: () => { throw new Error("bad"); } } as never).catch(() => undefined);
+    const hour = Object.values(pendingProviderHealthForTests())[0];
+    assert.ok(hour["m|openrouter|Wafer"]?.invalid);
+  });
+});

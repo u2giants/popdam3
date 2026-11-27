@@ -82,12 +82,14 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
     if (options.budgetMs !== undefined && index > 0 && Date.now() - ladderStarted > options.budgetMs) break;
     const started = Date.now();
     let servedBy: string | null = null;
+    let servedInfo: OpenRouterProviderInfo | undefined;
     const requestedForm = method === "tool_named" ? "tool_choice:named" : method === "tool_required" ? "tool_choice:required" : method === "tool_auto" ? "tool_choice:auto" : `response_format:${method}`;
     let stage: "transport" | "parse" | "validation" = "transport";
     try {
       const request = buildStructuredOutputRequest({ ...options, provider: withIgnoredProviders(options.provider, ignored) }, method);
       const result = await withOpenRouterTask(options.schemaName, () => completion(options.apiKey, request, options.timeoutMs));
       servedBy = result.providerInfo?.provider ?? null;
+      servedInfo = result.providerInfo;
       stage = "parse";
       const candidate = result.toolCalls?.[0]?.arguments ?? parseStructuredJson(result.content);
       if (!candidate) throw new Error("No parsable structured output");
@@ -101,7 +103,7 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       const endpoint = (error as { endpoint?: unknown })?.endpoint;
       const endpointFailure = stage === "transport" && isEndpointFailure(error);
       if (stage !== "transport") recordOpenRouterSchema({ task: options.schemaName, model: options.model, host: servedBy, ok: false, errorClass: stage === "parse" ? "invalid_json" : "schema_invalid" });
-      attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm, httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined, providerInfo: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo, endpoint: typeof endpoint === "string" ? endpoint : undefined, endpointFailure: endpointFailure || undefined });
+      attempts.push({ method, status: "failed", latencyMs: Date.now() - started, requestedForm, httpStatus: (error as { status?: number })?.status, error: safe(error), parse: stage === "parse" ? "failed" : undefined, validation: stage === "validation" ? "failed" : undefined, providerInfo: (error as { providerInfo?: OpenRouterProviderInfo })?.providerInfo ?? servedInfo, endpoint: typeof endpoint === "string" ? endpoint : undefined, endpointFailure: endpointFailure || undefined });
       recordProviderAttempt(options.model, attempts[attempts.length - 1]);
       // Owner ruling 2026-11-27: an endpoint outage on Straitly is retried on
       // the second endpoint (OpenRouter) before the call gives up, even when
