@@ -200,3 +200,16 @@ Verbatim Albert, 2026-11-25 3:59 PM EST, asked whether solo Minnie art goes unde
 > "'Minnie > Minnie & Me'. delete the 'Mickey Mouse Family > Minnie & Me' decision."
 
 **Effect.** Solo Minnie art (ColdLion MG06 `ME`) is submitted under the Disney OPA root property **"Minnie"**, character **"Minnie & Me"** — never under "Mickey Mouse Family". This replaces the Minnie half of 6.38 and the "under Mickey Mouse Family" wording of 6.43. Mickey alone ("Mickey Mouse Family" > "Mickey Mouse") and Mickey plus anyone ("Standard Characters") are unchanged. The database already carries this path (migration `20261204000500`); no data change.
+
+### 6.45 OWNER RULING — every licensor's approval / submission number is the BA#, under its own name (Albert Hazan, 2026-11-27)
+
+Verbatim Albert, 2026-11-27 1:33 PM EST: "not every licensor calls their approval numbers Brand Assurance # (BA#). disney, marvel, and star wars/lucas call it "Disney Ref", WB's approval sheet doesn't even name the field, it just puts the number in a box on the pdf (one example is S1459335 ). NBCUniversal, peanuts, sesame street, wildbrain/strawberry shortcake call it 'project number'. Paramount (Viacom, Nickelodeon) calls it "component #". Sega calls it "submission #". Coca Cola calls it just 'item;'. Aardman doesn't call it anything, just puts a 5-digit number before our SKU# on the sheet. Paul Frank calls it "Article SKU". WWE used to call it "Submission Number" now they call it "Submission Reference"." 1:41 PM EST: "One Piece uses our SKU#." 1:55 PM EST: "Zag is a defunct license. disregard it."
+
+**Effect.** Business topic: [product-development-workflow.md § Licensor approval / submission number (BA#)](business-rules/product-development-workflow.md).
+
+### 6.46 OWNER RULING — DesignFlow is authoritative for the BA#; it pushes to ColdLion and never pulls from it (Albert Hazan, 2026-11-27)
+
+Verbatim Albert, 2026-11-27 2:04 PM EST: "WE (designflow) are the authoritative source for submission/approval/BA numbers. and we should not be pulling from coldlion, we push to them." and "change the code so that we don't push blank BA#s".
+
+**Effect.** DesignFlow's BA# is the record; ColdLion's `brand_assurance_no` is a downstream copy. Inbound ColdLion syncs must not overwrite DesignFlow's BA#, and a blank DesignFlow BA# is not sent to ColdLion. Same business topic as 6.45.
+

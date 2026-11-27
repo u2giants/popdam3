@@ -143,6 +143,35 @@ list only named buyer requested changes).
 | Pre-production Approved | 3D Resubmitted | 3D must be redone |
 | Pre-production Approved with changes | 3D Resubmitted | same |
 
+## Licensor approval / submission number (BA#)
+
+**Settled - Albert Hazan, 2026-11-27 ([owner-rulings §6.45, §6.46](../owner-rulings-part-4.md)).**
+
+Every licensor gives each of our submitted styles its own approval / submission
+number. POP calls it the **BA#** (Brand Assurance number) whatever the licensor
+calls it. One concept, one field; the licensor's name for it is only a label.
+
+| Licensor | What the licensor's approval sheet calls it |
+|---|---|
+| Disney, Marvel, Lucasfilm / Star Wars | "Disney Ref" (older Marvel Brand Assurance receipts: "Submission ID") |
+| Warner Bros | No name: the number is printed in a box on the sheet (for example S1459335) |
+| NBCUniversal, Peanuts, Sesame Street, WildBrain / Strawberry Shortcake | "Project Number" |
+| Paramount (Viacom, Nickelodeon) | "Component #" |
+| Sega | "Submission #" |
+| Coca-Cola | "Item" |
+| Aardman | No name: a 5-digit number printed before our SKU# |
+| Paul Frank | "Article SKU" |
+| WWE | "Submission Number" (older sheets), "Submission Reference" (newer) |
+| One Piece (Toei) | Our own SKU# |
+| Any other licensor | "Brand Assurance #" (BA#) |
+
+ZAG is a defunct license and is ignored.
+
+**Authority: DesignFlow is the source of the BA#.** DesignFlow PLM is the
+authoritative record of each style's BA#. DesignFlow pushes it to ColdLion;
+ColdLion's copy is downstream and must never be pulled back into DesignFlow
+as truth. A blank DesignFlow BA# must never erase a number ColdLion already has.
+
 ## Proposed rules awaiting confirmation
 
 The historical PM/PIM plan describes detailed POP and Spruce transitions,
