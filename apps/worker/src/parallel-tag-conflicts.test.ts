@@ -41,6 +41,7 @@ test("real tick queues a direct-RPC running manual retag before any provider dis
 test("benchmark pages yield while tagging retains its full processing turn", () => {
   assert.equal(operationBatchLimit("ai-tag-bakeoff"),1);
   assert.equal(operationBatchLimit("ai-tag-parallel"),50);
+  assert.equal(operationBatchLimit("ai-tag-popsg"),5);
   assert.equal(operationBatchLimit("erp-enrichment"),50);
 });
 
