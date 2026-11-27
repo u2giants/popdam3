@@ -4581,6 +4581,14 @@ export type Database = {
             Args: { p_filters: Json; p_need_asset_sets: boolean }
             Returns: Record<string, unknown>
           }
+      dam_search_required_anchor: {
+        Args: {
+          p_document_types: string[]
+          p_filters: Json
+          p_query_embedding: string
+        }
+        Returns: number
+      }
       dam_search_semantic_anchor: {
         Args: { p_document_types?: string[]; p_query_embedding: string }
         Returns: number
@@ -5512,6 +5520,7 @@ export type Database = {
       }
       search_dam_documents: {
         Args: {
+          p_compute_anchor?: boolean
           p_document_types?: string[]
           p_filters: Json
           p_include_facets?: boolean
