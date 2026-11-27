@@ -84,6 +84,11 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       if (stage === "validation" && servedBy && !ignored.includes(servedBy)) {
         ignored.push(servedBy);
         plan.splice(index + 1, 0, method);
+      } else if (stage === "transport" && !ignored.includes("straitly")) {
+        // Owner ruling 2026-11-26: an endpoint error retries the SAME model on
+        // its backup endpoint (Straitly -> OpenRouter), never a different model.
+        ignored.push("straitly");
+        plan.splice(index + 1, 0, method);
       }
     }
   }
