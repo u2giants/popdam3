@@ -118,28 +118,27 @@ export async function demoteLicensedNameTags(names: ReadonlySet<string>, fileBud
   return marked;
 }
 
-let refreshBatch = 1000;
+let rebuildCursor: string | null = null;
+let rebuildDone = false;
 
 /**
- * Rebuild queued PopSG search records in calls that stay under the API
- * statement timeout: the call size halves on a timeout (down to 50) and grows
- * back after a full call. Returns the number rebuilt.
+ * Drain the one-time PopSG keyword-cache rebuild (shared-db
+ * popsg_rebuild_vision_tag_cache_batch): up to `calls` x 500 vision-tagged
+ * files per batch, resuming where the last call stopped. Before the database
+ * function exists this logs and returns 0. Returns documents rebuilt.
  */
-export async function refreshSearchSlice(maxCalls = 15): Promise<number> {
-  let total = 0;
-  for (let i = 0; i < maxCalls; i++) {
-    const { data, error } = await db().rpc("refresh_style_guide_matviews", { p_run_id: null, p_search_batch_size: refreshBatch, p_step: "search" });
-    if (error) {
-      if (/statement timeout/i.test(error.message) && refreshBatch > 50) { refreshBatch = Math.max(50, Math.floor(refreshBatch / 2)); continue; }
-      throw new Error(`search refresh: ${error.message}`);
-    }
-    const row = (Array.isArray(data) ? data[0] : data) as { search_documents_synced?: number } | null;
-    const n = Number(row?.search_documents_synced ?? 0);
-    total += n;
-    if (n < refreshBatch) break;
-    refreshBatch = Math.min(1000, refreshBatch * 2);
+export async function refreshSearchSlice(calls = 10): Promise<number> {
+  if (rebuildDone) return 0;
+  let docs = 0;
+  for (let i = 0; i < calls; i++) {
+    const { data, error } = await db().rpc("popsg_rebuild_vision_tag_cache_batch", { p_after: rebuildCursor, p_limit: 500 });
+    if (error) throw new Error(`vision cache rebuild: ${error.message}`);
+    const row = (Array.isArray(data) ? data[0] : data) as { last_id?: string | null; documents_changed?: number } | null;
+    if (!row?.last_id) { rebuildDone = true; logger.info("ai-tag-popsg: vision cache rebuild finished"); break; }
+    rebuildCursor = row.last_id;
+    docs += Number(row.documents_changed ?? 0);
   }
-  return total;
+  return docs;
 }
 
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
