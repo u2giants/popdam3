@@ -393,10 +393,15 @@ async function failNeverSentSubmissionOnce(
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
  *  enough to check for user interruptions and serve other lanes. */
 const MAX_BATCHES_PER_TICK = 50;
+export const POPSG_BATCHES_PER_TICK = 5;
 export function operationBatchLimit(opKey: string): number {
   // Yield after one persisted benchmark page (up to two assets/five models).
   // Tagging keeps its normal full turn so slow benchmarks cannot dominate it.
-  return opKey === "ai-tag-bakeoff" ? 1 : MAX_BATCHES_PER_TICK;
+  if (opKey === "ai-tag-bakeoff") return 1;
+  // PopSG pages take ~3 min each; 50 would hold the single worker loop for
+  // ~2.5 h and starve the whole-library run. Five pages (~15 min) take turns.
+  if (opKey === "ai-tag-popsg") return POPSG_BATCHES_PER_TICK;
+  return MAX_BATCHES_PER_TICK;
 }
 
 async function recordStyleGroupTerminalOutcome(
