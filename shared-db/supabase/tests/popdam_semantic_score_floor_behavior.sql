@@ -19,7 +19,7 @@ begin
     raise exception 'T8 FAIL: old 7-arg signature still present';
   end if;
 
-  v_new := to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)');
+  v_new := to_regprocedure('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)');
   if v_new is null then
     raise exception 'T8 FAIL: 8-arg signature with p_min_semantic_score is missing';
   end if;
@@ -36,15 +36,15 @@ begin
   end if;
 
   if has_function_privilege('anon',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)','EXECUTE') then
     raise exception 'T8 FAIL: anon has EXECUTE on the 8-arg signature';
   end if;
   if not has_function_privilege('authenticated',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)','EXECUTE') then
     raise exception 'T8 FAIL: authenticated lacks EXECUTE on the 8-arg signature';
   end if;
   if not has_function_privilege('service_role',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)','EXECUTE') then
     raise exception 'T8 FAIL: service_role lacks EXECUTE on the 8-arg signature';
   end if;
   raise notice 'T8 PASS: 8-arg present, 7-arg dropped, grants correct';

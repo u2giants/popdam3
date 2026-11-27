@@ -23,19 +23,18 @@ $$;
 
 do $test$
 declare
-  t jsonb; f jsonb; want bigint; want_lic bigint; lic uuid; q text := 'zq1430token';
+  t jsonb; f jsonb; want bigint; want_lic bigint; q text := 'zq1430token';
   probe_f jsonb := '{"customer":""}'::jsonb; lic_f jsonb;
 begin
-  insert into core.licensor (name) values ('ZQ1430 Licensor') returning id into lic;
-  -- 230 visible groups, the licensor owns groups 1..5 and 221..230 (ranked past 200 when
+  -- 230 visible groups; groups 1..5 and 221..230 hold .ai files (ranked past 200 when
   -- the title weight below orders them), plus 5 hidden groups that must not count.
-  insert into public.style_groups (id, sku, folder_path, licensor_id)
-  select md5('zq1430-g' || i)::uuid, 'ZQ1430G' || i, '/zq1430/' || i,
-         case when i <= 5 or i between 221 and 230 then lic end
+  insert into public.style_groups (id, sku, folder_path)
+  select md5('zq1430-g' || i)::uuid, 'ZQ1430G' || i, '/zq1430/' || i
   from generate_series(1, 235) i;
   insert into public.assets (filename, relative_path, file_type, quick_hash, modified_at, file_created_at,
                              thumbnail_url, style_group_id)
-  select 'zq1430-' || i || '-' || j || '.pdf', 'zq1430/' || i || '/' || j || '.pdf', 'pdf',
+  select 'zq1430-' || i || '-' || j || '.pdf', 'zq1430/' || i || '/' || j || '.pdf',
+         case when i <= 5 or i between 221 and 230 then 'ai' else 'pdf' end::public.file_type,
          'zq1430-' || i || '-' || j,
          case when i > 230 then '1990-01-01'::timestamptz else now() end,
          case when i > 230 then '1990-01-01'::timestamptz else now() end,
@@ -55,8 +54,8 @@ begin
   select sum(asset_count) into want from public.style_groups
   where sku like 'ZQ1430G%' and substr(sku, 8)::int <= 230;
   select sum(asset_count) into want_lic from public.style_groups
-  where sku like 'ZQ1430G%' and substr(sku, 8)::int <= 230 and licensor_id = lic;
-  lic_f := jsonb_build_object('licensorId', lic);
+  where sku like 'ZQ1430G%' and (substr(sku, 8)::int <= 5 or substr(sku, 8)::int between 221 and 230);
+  lic_f := '{"fileType":["ai"]}'::jsonb;
 
   -- Fast path and probe path, > 200 groups, any page window.
   foreach f in array array['{}'::jsonb, probe_f] loop
@@ -78,7 +77,7 @@ begin
   -- Filtered groups ranked past 200 are counted.
   t := pg_temp.t1430(q, lic_f, 5, 0, array['style_group'], false);
   if (t->>'total')::bigint <> 15 or (t->>'group_files')::bigint <> want_lic then
-    raise exception '#1430 licensor total=% files=% (want 15 / %)', t->>'total', t->>'group_files', want_lic;
+    raise exception '#1430 filtered total=% files=% (want 15 / %)', t->>'total', t->>'group_files', want_lic;
   end if;
   if t - 'facets' is distinct from pg_temp.t1430(q, lic_f, 5, 0, array['style_group'], true) - 'facets' then
     raise exception '#1430 include_facets=false changed the filtered result';

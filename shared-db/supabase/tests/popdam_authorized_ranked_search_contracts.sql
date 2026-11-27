@@ -101,7 +101,7 @@ begin
   end if;
 
   select pg_get_functiondef(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'::regprocedure
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure
   ) into v_definition;
 
   -- #4529 (20261021152741): Style Group members are expanded lazily inside
@@ -145,11 +145,11 @@ begin
   end if;
 
   if has_function_privilege('anon',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)', 'EXECUTE')
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE')
      or not has_function_privilege('authenticated',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)', 'EXECUTE')
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE')
      or not has_function_privilege('service_role',
-       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)', 'EXECUTE') then
+       'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)', 'EXECUTE') then
     raise exception 'ranked search execute grants violate the authenticated boundary';
   end if;
 
@@ -199,7 +199,7 @@ begin
     raise exception 'ranked Style Group expansion requires its active asset key index';
   end if;
   select pg_get_functiondef(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'::regprocedure
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure
   ) into v_definition;
   if position('candidate_asset_ids' in v_definition) = 0
      -- #5053: ranked_documents is gone (totals from exact_docs); the ranked
@@ -251,7 +251,7 @@ begin
   end if;
   if not exists (
     select 1 from pg_proc
-    where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'::regprocedure
+    where oid = 'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure
       and 'statement_timeout=30s' = any(coalesce(proconfig,'{}'))
   ) then
     raise exception 'ranked search lost its explicit edge timeout';

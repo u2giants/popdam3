@@ -4,7 +4,7 @@ do $$
 declare v_filter text; v_search text; v_counts text; v_helper text; v_scan_zone text;
 begin
   select pg_get_functiondef('public.filter_effective_assets(jsonb)'::regprocedure) into v_filter;
-  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'::regprocedure) into v_search;
+  select pg_get_functiondef('public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'::regprocedure) into v_search;
   select pg_get_functiondef('public.get_effective_filter_counts(jsonb)'::regprocedure) into v_counts;
   -- #4508 (20261029161104): the ranked search's per-asset parity predicates
   -- moved into the planner-opaque helper dam_asset_matches_filters (its
@@ -89,7 +89,7 @@ begin
      -- popdam3#1037 (20261218230700): the visibility pre-test value reader stays owner-only.
      or has_function_privilege('anon','public.dam_search_filter_pretest_values(jsonb)','EXECUTE')
      or has_function_privilege('authenticated','public.dam_search_filter_pretest_values(jsonb)','EXECUTE')
-     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)','EXECUTE') then
+     or has_function_privilege('anon','public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)','EXECUTE') then
     raise exception 'anon gained access to a DAM filter contract';
   end if;
 end;

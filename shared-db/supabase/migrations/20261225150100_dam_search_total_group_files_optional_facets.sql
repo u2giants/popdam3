@@ -77,7 +77,7 @@ AS $function$
       -- popdam3#1037 Step 2: named character (every leg) and property accepted set (picture-only
       -- matches), read once as sets of allowed style groups / assets (20261204003633: the
       -- per-candidate subqueries cost ~13 s on production for a character search).
-      ns.character_groups, ns.character_assets, ns.property_groups, ns.property_assets
+      ns.character_groups, ns.character_assets, ns.property_groups, ns.property_assets,
       -- popdam3#1430: asset sets are only read by asset documents; a style-group-only
       -- search skips building them.
       coalesce(p_include_facets, true) include_facets,
@@ -797,7 +797,7 @@ begin
   if f is null
      or (select count(*) from pg_proc where proname = 'search_dam_documents' and pronamespace = 'public'::regnamespace) <> 1
      or not exists (select 1 from pg_proc p where p.oid = f
-       and md5(p.prosrc) = 'b02e4e1a99703fcf0d80698fa1cd2dba'
+       and md5(p.prosrc) = 'a12bfb6494629b701b71cb6c39d377dd'
        and pg_get_userbyid(p.proowner) = 'postgres'
        and p.prosecdef and p.provolatile = 's' and p.proretset
        and p.proconfig = ARRAY['search_path=public, extensions','statement_timeout=30s']::text[])

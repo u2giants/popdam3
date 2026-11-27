@@ -235,7 +235,7 @@ end $$;
 do $$
 begin
   if to_regprocedure(
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)'
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)'
   ) is null then
     raise exception 'search_dam_documents signature drifted from the 8-arg contract';
   end if;
@@ -267,13 +267,13 @@ declare
   auth_ok boolean;
 begin
   select has_function_privilege('anon',
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)',
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)',
     'EXECUTE') into anon_ok;
   if anon_ok then
     raise exception 'anon must not execute search_dam_documents';
   end if;
   select has_function_privilege('authenticated',
-    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real)',
+    'public.search_dam_documents(text,jsonb,integer,integer,text[],extensions.vector,real,real,extensions.halfvec,real,real,boolean)',
     'EXECUTE') into auth_ok;
   if not auth_ok then
     raise exception 'authenticated must execute search_dam_documents';
