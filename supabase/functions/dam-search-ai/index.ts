@@ -15,7 +15,16 @@ import { addNameToVocabulary, checkSpelling, RARE_WORD_DOCS, type SpellingLookup
 import { mergeSearchPages, type SearchHit, type SearchPage } from "../_shared/dam-search-merge.ts";
 import { type BatchEmbedOutcome, createQueryEmbedder, type EmbedWithText } from "../_shared/query-embed-batch.ts";
 import { type LicensorName, namedLicensorIds, withSemanticLicensorScope } from "../_shared/named-licensors.ts";
-import { buildNameIndex, hasNamedScope, namedCharacterScope, namedLookupKeys, type NamedScope, namedSearchPhrases, pickScopeKeys, withNamedScope } from "../_shared/named-characters.ts";
+import {
+  buildNameIndex,
+  hasNamedScope,
+  namedCharacterScope,
+  namedLookupKeys,
+  type NamedScope,
+  namedSearchPhrases,
+  pickScopeKeys,
+  withNamedScope,
+} from "../_shared/named-characters.ts";
 
 /**
  * Query embeddings must use the SAME model as document picture vectors:
