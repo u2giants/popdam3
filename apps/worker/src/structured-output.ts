@@ -4,7 +4,7 @@ import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilit
 import { recordProviderAttempt } from "./provider-health.js";
 
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; /** Endpoint that served or failed this call (e.g. straitly, openrouter). */ endpoint?: string; /** True when the endpoint itself failed (outage, overload, timeout), not the answer. */ endpointFailure?: boolean; }
-export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; /** Stop starting new methods once this many ms have passed. */ budgetMs?: number; /** Retry a bad answer with no reported host on OpenRouter (default: only on the normal chat path). */ otherProviderRetry?: boolean; }
+export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; /** Stop starting new methods once this many ms have passed. */ budgetMs?: number; /** Retry a bad answer with no reported host on OpenRouter (default: only on the normal chat path). */ otherProviderRetry?: boolean; /** Send to OpenRouter first; Straitly only as the backup on an endpoint error. */ openRouterFirst?: boolean; }
 
 export function parseStructuredJson(content?: string): Record<string, unknown> | null {
   if (!content?.trim()) return null;
@@ -74,7 +74,9 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
   // A host that returns well-formed but invalid output (e.g. tag items with no
   // "tag") is skipped for the rest of this call, and the same method is tried
   // once more elsewhere, so one bad host does not walk the whole ladder.
-  const ignored: string[] = [];
+  // Owner ruling 2026-11-27: GLM tagging goes to OpenRouter first, Straitly is the backup.
+  const ignored: string[] = options.openRouterFirst ? ["straitly"] : [];
+  let straitlyBackupUsed = false;
   const ladderStarted = Date.now();
   const plan = buildStructuredOutputPlan(options.capabilities, options.override);
   for (let index = 0; index < plan.length; index++) {
@@ -108,6 +110,12 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       // Owner ruling 2026-11-27: an endpoint outage on Straitly is retried on
       // the second endpoint (OpenRouter) before the call gives up, even when
       // the error is otherwise terminal (429/5xx).
+      if (options.openRouterFirst && stage === "transport" && !straitlyBackupUsed && ignored.includes("straitly") && (endpointFailure || !isTerminalError(error))) {
+        straitlyBackupUsed = true;
+        ignored.splice(ignored.indexOf("straitly"), 1);
+        plan.splice(index + 1, 0, method);
+        continue;
+      }
       if (endpointFailure && endpoint === "straitly" && !ignored.includes("straitly")) {
         ignored.push("straitly");
         plan.splice(index + 1, 0, method);
