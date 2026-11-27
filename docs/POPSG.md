@@ -237,3 +237,10 @@ Per style guide (`licensor_name`, `property_folder`): the most recent PopDAM des
 - Writes `style_guide_file_tags` (source `vision_ai`, rule `vision-v1`) and `style_guide_tagging_state` (pipeline `vision`); files with a `completed` state are skipped, failed ones are retried on the next pass.
 - Conflicts with `ai-tag-parallel`: it waits for a running PopDAM whole-library run instead of halving its speed (the worker runs one operation at a time).
 - Queue it only after the worker heartbeat sha includes #1450; an older worker fails it with "Unknown operation".
+
+**Provider health (all structured AI calls).** The worker counts every attempt per
+hour by model, endpoint (`straitly` / `openrouter`), upstream host and outcome
+(`ok`, `invalid`, `parse`, `timeout`, `transport`) in the single row
+`admin_config.AI_PROVIDER_HEALTH` (`value.buckets["YYYY-MM-DDTHH"]["model|endpoint|host"]`),
+flushed every 5 minutes. Hours older than 14 days are dropped on every write, so
+the row stays small. Read: `select value->'buckets' from admin_config where key='AI_PROVIDER_HEALTH';`
