@@ -172,6 +172,20 @@ async function writeState(fileId: string, fields: Record<string, unknown>) {
   if (error) throw new Error(`state write: ${error.message}`);
 }
 
+/** Per-host success/failure tally for overflow routing proof; logged at most once a minute. */
+const hostTally = new Map<string, { ok: number; failed: number }>();
+let hostTallyLoggedAt = Date.now();
+export function recordPopSGHost(provider: string | null | undefined, ok: boolean, now = Date.now()): void {
+  const key = provider || "unknown";
+  const row = hostTally.get(key) ?? { ok: 0, failed: 0 };
+  if (ok) row.ok++; else row.failed++;
+  hostTally.set(key, row);
+  if (now - hostTallyLoggedAt < 60_000) return;
+  logger.info("ai-tag-popsg: hosts served", { hosts: Object.fromEntries(hostTally) });
+  hostTally.clear();
+  hostTallyLoggedAt = now;
+}
+
 export async function tagPopSGFile(file: PopSGVisionFile, model: string, attempts: number): Promise<PopSGTagOutcome> {
   let image;
   try { image = await fetchImageData(file.thumbnail_url); }
@@ -193,11 +207,13 @@ export async function tagPopSGFile(file: PopSGVisionFile, model: string, attempt
   let lastError = "AI call failed";
   for (let retry = 0; retry <= 1; retry++) {
     try {
-      const { tagData } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, undefined, []);
+      const { tagData, providerInfo } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 4000, undefined, []);
+      recordPopSGHost(providerInfo?.provider, true);
       await saveTags(file, tagData, model, attempts);
       return { outcome: "tagged" };
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
+      recordPopSGHost((e as { providerInfo?: { provider?: string | null } })?.providerInfo?.provider, false);
       if (retry === 0 && Date.now() - started < TAG_LADDER_BUDGET_MS && isRetryableStructuredOutputError(lastError)) continue;
       break;
     }
