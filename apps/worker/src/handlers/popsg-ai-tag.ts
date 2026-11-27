@@ -4,6 +4,7 @@
 // style_guide_file_tags (source `vision_ai`) and style_guide_tagging_state
 // (pipeline `vision`). Settings live in admin_config.AI_TAG_POPSG_RUN, shaped
 // like AI_TAG_PARALLEL_RUN; its run_id must equal the operation's run_id.
+import { refreshQueuedSearch } from "./popsg-search-refresh.js";
 import { db } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
@@ -118,27 +119,11 @@ export async function demoteLicensedNameTags(names: ReadonlySet<string>, fileBud
   return marked;
 }
 
-let rebuildCursor: string | null = null;
-let rebuildDone = false;
-
-/**
- * Drain the one-time PopSG keyword-cache rebuild (shared-db
- * popsg_rebuild_vision_tag_cache_batch): up to `calls` x 500 vision-tagged
- * files per batch, resuming where the last call stopped. Before the database
- * function exists this logs and returns 0. Returns documents rebuilt.
- */
-export async function refreshSearchSlice(calls = 10): Promise<number> {
-  if (rebuildDone) return 0;
-  let docs = 0;
-  for (let i = 0; i < calls; i++) {
-    const { data, error } = await db().rpc("popsg_rebuild_vision_tag_cache_batch", { p_after: rebuildCursor, p_limit: 500 });
-    if (error) throw new Error(`vision cache rebuild: ${error.message}`);
-    const row = (Array.isArray(data) ? data[0] : data) as { last_id?: string | null; documents_changed?: number } | null;
-    if (!row?.last_id) { rebuildDone = true; logger.info("ai-tag-popsg: vision cache rebuild finished"); break; }
-    rebuildCursor = row.last_id;
-    docs += Number(row.documents_changed ?? 0);
-  }
-  return docs;
+/** Drain queued search updates on every tagging pass. */
+export async function refreshSearchSlice(maxCalls = 15): Promise<number> {
+  return refreshQueuedSearch(size => db().rpc("refresh_style_guide_matviews", {
+    p_run_id: null, p_search_batch_size: size, p_step: "search",
+  }), maxCalls);
 }
 
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
