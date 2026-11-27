@@ -120,24 +120,31 @@ export async function demoteLicensedNameTags(names: ReadonlySet<string>, fileBud
 
 let rebuildCursor: string | null = null;
 let rebuildDone = false;
+let rebuildLimit = 100;
 
 /**
  * Drain the one-time PopSG keyword-cache rebuild (shared-db
- * popsg_rebuild_vision_tag_cache_batch): up to `calls` x 500 vision-tagged
- * files per batch, resuming where the last call stopped. Before the database
- * function exists this logs and returns 0. Returns documents rebuilt.
+ * popsg_rebuild_vision_tag_cache_batch), resuming where the last call stopped.
+ * The API statement timeout governs each call, so the slice starts at 100
+ * files, halves on a timeout (down to 5) and grows back after a success.
+ * Returns documents rebuilt.
  */
-export async function refreshSearchSlice(calls = 10): Promise<number> {
+export async function refreshSearchSlice(calls = 20): Promise<number> {
   if (rebuildDone) return 0;
   let docs = 0;
   for (let i = 0; i < calls; i++) {
-    const { data, error } = await db().rpc("popsg_rebuild_vision_tag_cache_batch", { p_after: rebuildCursor, p_limit: 500 });
-    if (error) throw new Error(`vision cache rebuild: ${error.message}`);
+    const { data, error } = await db().rpc("popsg_rebuild_vision_tag_cache_batch", { p_after: rebuildCursor, p_limit: rebuildLimit });
+    if (error) {
+      if (/statement timeout/i.test(error.message) && rebuildLimit > 5) { rebuildLimit = Math.max(5, Math.floor(rebuildLimit / 2)); continue; }
+      throw new Error(`vision cache rebuild: ${error.message}`);
+    }
     const row = (Array.isArray(data) ? data[0] : data) as { last_id?: string | null; documents_changed?: number } | null;
     if (!row?.last_id) { rebuildDone = true; logger.info("ai-tag-popsg: vision cache rebuild finished"); break; }
     rebuildCursor = row.last_id;
     docs += Number(row.documents_changed ?? 0);
+    rebuildLimit = Math.min(200, rebuildLimit + 25);
   }
+  if (docs) logger.info(`ai-tag-popsg: vision cache rebuild at ${rebuildCursor} (slice ${rebuildLimit})`);
   return docs;
 }
 
