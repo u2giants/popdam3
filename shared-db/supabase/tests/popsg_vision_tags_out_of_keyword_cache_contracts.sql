@@ -32,6 +32,12 @@ begin
   if not exists (select 1 from public.style_guide_file_tags where style_guide_file_id = v_file and tag_id = v_tag_ai and status = 'accepted') then
     raise exception 'vision_ai tag row was not kept';
   end if;
+  -- A null limit is refused (#7198).
+  begin
+    perform public.popsg_rebuild_vision_tag_cache_batch(null, null);
+    raise exception 'null limit was accepted';
+  exception when sqlstate '22023' then null;
+  end;
   -- The batch rebuild handles this file and reports it.
   if (select last_id from public.popsg_rebuild_vision_tag_cache_batch(null, 1000) limit 1) is null then
     raise exception 'batch rebuild found no vision-tagged file';
