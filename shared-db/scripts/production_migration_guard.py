@@ -489,6 +489,11 @@ HARD_BLOCKED = {
     # 45635561432, 45657013307, 45659367174) and it parked. Never applied to production.
     # Superseded by the re-issue 20261225141200 (identical executable SQL).
     "20261225131200",
+    # 20261225150100 (PR #7164, u2giants/popdam3#1430): syntax error on its first preview apply
+    # (run 45912159260); the corrected file (#7172) applied to preview, but the PR had exhausted its
+    # three automatic attempts. Never applied to production. Superseded by the re-issue
+    # 20261225150400 (identical function body).
+    "20261225150100",
     # 20261225130000/130100/130200 (PR #7071, popcre/shared-db#7070): 130200 declared the
     # sandbox-only base 20261116120100; preview refused the batch (run 45535905928). Never
     # applied. Superseded by 20261225130300/130400/130500 (identical executable SQL).
@@ -622,6 +627,7 @@ RETIRED_VERSION_REASONS = {
     "20261106214905": "merged-stranded on the issue #1608 derivation gate: declared derived-from: 20261015132149, a retired stamp held by no preview or production ledger, so the base-absent gate blocked its preview applies (runs 42309935289, 42311124480) and automatic promotion parked it after three attempts; retain source, never apply this version; reissued with the same executable SQL as 20261108195205 under issue 5950 claim 5971",
     "20261225120402": "PR #7076 (C4 retirement of PopDAM legacy lists): its derived-from base 20261116120100 was a sandbox catch-up no ledger outside sandbox holds, so the preview preflight refused it (run 45520189197). Never applied. Superseded by 20261225120502 with identical executable SQL. Never apply this version.",
     "20261225131200": "PR #7119 (#7117 factory approval upload policy): applied to preview, but its three automatic production applies were refused because the production lane lease was held for PR #7116 (runs 45635561432, 45657013307, 45659367174), and it parked. Never applied to production. Superseded by 20261225141200 with identical executable SQL. Never apply this version.",
+    "20261225150100": "PR #7164 (u2giants/popdam3#1430 search_dam_documents total_group_files): its first preview apply failed on a syntax error (run 45912159260); the corrected file (PR #7172) applied to preview, but PR #7164 had exhausted its automatic attempts. Never applied to production. Superseded by 20261225150400 with the identical function body. Never apply this version.",
     "20261225130000": "PR #7071 (factory licensor/retailer approvals): its batch was refused at preview because 20261225130200 declared the sandbox-only base 20261116120100 (run 45535905928). Never applied. Superseded by the re-issue 20261225130300/130400/130500 with identical executable SQL. Never apply this version.",
     "20261225130100": "PR #7071 (factory licensor/retailer approvals): its batch was refused at preview because 20261225130200 declared the sandbox-only base 20261116120100 (run 45535905928). Never applied. Superseded by the re-issue 20261225130300/130400/130500 with identical executable SQL. Never apply this version.",
     "20261225130200": "PR #7071 (factory licensor/retailer approvals): its batch was refused at preview because 20261225130200 declared the sandbox-only base 20261116120100 (run 45535905928). Never applied. Superseded by the re-issue 20261225130300/130400/130500 with identical executable SQL. Never apply this version.",
