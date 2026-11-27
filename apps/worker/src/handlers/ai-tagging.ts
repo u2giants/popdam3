@@ -131,6 +131,10 @@ export async function getVisionModels(): Promise<{ primary: string; fallback: st
 }
 
 /** Returns true if the error is specific to the model/provider (not a transient infra failure). */
+export function isTooFewTagsError(msg: string): boolean {
+  return /asset_tags must contain \d+-\d+ items/.test(msg);
+}
+
 export function isModelSpecificError(msg: string): boolean {
   return (
     msg.includes("data_inspection_failed") ||
@@ -1101,8 +1105,12 @@ async function tagSingleAsset(assetId: string, force: boolean, parallelModel?: s
   const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
   // No batch-only model (legacy OpenRouter `:batch` or direct Gemini) can answer synchronously.
   const primaryUnavailable = primaryResult._rawMsg !== undefined && isModelOutageError(primaryResult._rawMsg);
-  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && (isModelSpecificError(rawMsg) || primaryUnavailable)) {
-    logger.info("ai-tag: primary model failed with model-specific or outage error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
+  // Owner ruling 2026-11-26: the backup MODEL is only for answers with too few
+  // tags. An endpoint error retries the same model on its backup endpoint
+  // (handled in the model route), never a different model.
+  void primaryUnavailable;
+  if (fallbackModel && !fallbackModel.trim().endsWith(":batch") && isTooFewTagsError(primaryResult.error ?? rawMsg)) {
+    logger.info("ai-tag: primary model returned too few tags — trying backup model", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
     const fallbackResult = await attemptTag(fallbackModel);
     if (fallbackResult.outcome === "tagged") return fallbackResult;
     // Both failed — return the primary error (more informative) with a note
