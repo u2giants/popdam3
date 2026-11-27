@@ -23,20 +23,14 @@ export type SearchPage = {
 };
 
 /**
- * Merge the per-variant RPC answers into one response.
+ * Shape the database answer into one response.
  *
- * Total semantics (owner ruling: numbers must be exact, never estimates):
- * each variant page's total_count is the EXACT number of documents matching
- * that one variant's query. The merged result list is the deduplicated UNION
- * across variants, and the union's true size is not derivable from per-variant
- * totals alone (it lies between max and sum depending on overlap), because
- * only the page windows — not the full variant sets — are visible here.
- * The merged total is therefore max(largest variant total, merged rows on
- * this page): exact whenever one variant's matches contain the others'
- * (nested sets), never smaller than the rows actually returned, and a floor
- * — never an invented estimate — when variants match disjoint sets. Computing
- * the exact disjoint union would require a DB-side multi-query union
- * (search_dam_documents takes one query per call).
+ * Total semantics (owner ruling: numbers must be exact, never estimates): a single-variant search
+ * gets exactly one page from search_dam_documents; a multi-variant search gets one page from
+ * search_dam_documents_multi, which unions, deduplicates, pages and counts in the database
+ * (popdam3#1430 Step 7). Either way there is one page and its totals are passed through as they
+ * are. Several pages are still merged by best rank for callers that send them, but their total is
+ * only a floor and the app no longer sends several.
  */
 export function mergeSearchPages(pages: SearchPage[]): SearchPage {
   const byKey = new Map<string, SearchHit>();
