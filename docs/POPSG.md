@@ -229,3 +229,11 @@ Per style guide (`licensor_name`, `property_folder`): the most recent PopDAM des
 - **Email/password**: Enabled. Users who sign in via Google OAuth and also need to use the PopDAM Helper can set a password in PopDAM Settings → "Helper App Password" (calls `supabase.auth.updateUser({ password })` — same account, no new user created).
 - **Redirect URLs**: Verify `https://sg.designflow.app/**` and `https://sg.designflow.app/auth/callback` are listed under Auth → URL Configuration in the Supabase Dashboard.
 - **App access**: Users need an `app_access` row with `app = 'styleguides'` to enter PopSG. The invite flow grants this automatically when the invitation `apps` array includes `'styleguides'`.
+
+## AI image tagging (`ai-tag-popsg`, since #1450)
+
+- Same GLM model call as the PopDAM tagger (KNOWN_QUIRKS #83: Straitly share route, OpenRouter fallback, missing-tag host retry, burst-only kill switch, automatic next pass).
+- Settings: `admin_config.AI_TAG_POPSG_RUN` = `{models:["z-ai/glm-5.3-flash"], run_id, discover:true, untagged_only:true, concurrency:48}`. `BULK_OPERATIONS.ai-tag-popsg.run_id` must equal it, or the run refuses to start.
+- Writes `style_guide_file_tags` (source `vision_ai`, rule `vision-v1`) and `style_guide_tagging_state` (pipeline `vision`); files with a `completed` state are skipped, failed ones are retried on the next pass.
+- Conflicts with `ai-tag-parallel`: it waits for a running PopDAM whole-library run instead of halving its speed (the worker runs one operation at a time).
+- Queue it only after the worker heartbeat sha includes #1450; an older worker fails it with "Unknown operation".
