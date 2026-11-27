@@ -5514,6 +5514,7 @@ export type Database = {
         Args: {
           p_document_types?: string[]
           p_filters: Json
+          p_include_facets?: boolean
           p_limit: number
           p_min_rank?: number
           p_min_semantic_score?: number
@@ -5536,6 +5537,7 @@ export type Database = {
           style_group_id: string
           text_rank: number
           total_count: number
+          total_group_files: number
         }[]
       }
       search_dam_image_similarity: {
