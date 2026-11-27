@@ -38,9 +38,28 @@ begin
     raise exception 'null limit was accepted';
   exception when sqlstate '22023' then null;
   end;
+  -- Give the file a search document whose stored text lexemes must survive,
+  -- and whose old vector carries the vision tag at weight C.
+  insert into public.style_guide_search_documents
+    (style_guide_file_id, root_label, licensor_name, property_folder, style_guide_folder,
+     style_guide_name, directory_path, relative_path, filename, file_extension,
+     tag_names, size_bytes, modified_at, thumbnail_url, is_active,
+     pdf_text_status, pdf_text_length, source_identity, content_sha256, search_vector)
+  select f.id, f.root_label, f.licensor_name, f.property_folder, f.style_guide_folder,
+     f.style_guide_folder, f.directory_path, f.relative_path, f.filename, f.file_extension,
+     array['zz1430 example hero'], f.size_bytes, f.modified_at, f.thumbnail_url, true,
+     null, 0, 'stale', 'stale',
+     setweight(to_tsvector('simple', 'zz1430 example hero'), 'C') || setweight(to_tsvector('simple', 'zzkeeptext'), 'D')
+    from public.style_guide_files f where f.id = v_file;
   -- The batch rebuild handles this file and reports it.
   if (select last_id from public.popsg_rebuild_vision_tag_cache_batch(null, 1000) limit 1) is null then
     raise exception 'batch rebuild found no vision-tagged file';
+  end if;
+  if (select search_vector from public.style_guide_search_documents where style_guide_file_id = v_file) @@ to_tsquery('simple', 'hero') then
+    raise exception 'vision tag still in the rebuilt search vector';
+  end if;
+  if not (select search_vector from public.style_guide_search_documents where style_guide_file_id = v_file) @@ to_tsquery('simple', 'zzkeeptext') then
+    raise exception 'stored document-text lexemes were lost';
   end if;
 end
 $t$;
