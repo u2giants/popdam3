@@ -29,13 +29,17 @@ export type PopSGTagOutcome = { outcome: "tagged" | "failed" | "unavailable"; er
 const FACETS: Record<string, PopSGTagFacet> = { file_type: "asset_type", color: "color", technique: "style", scene: "theme" };
 
 /** Map the shared tag_asset result onto PopSG tag rows. */
-export function popsgVisionTags(tagData: Record<string, unknown>, model: string) {
+export function popsgVisionTags(tagData: Record<string, unknown>, model: string, licensedNames: ReadonlySet<string> = new Set()) {
   const seen = new Set<string>();
   const rows: Array<{ normalized: string; display_name: string; facet: PopSGTagFacet; confidence: number; evidence: Record<string, unknown> }> = [];
   for (const item of (Array.isArray(tagData.asset_tags) ? tagData.asset_tags : []) as Array<Record<string, unknown>>) {
     const display = typeof item?.tag === "string" ? item.tag.trim() : "";
     const normalized = normalizePopSGTag(display);
     if (!normalized || seen.has(normalized)) continue;
+    // A licensor, property or character name guessed from the picture is not a
+    // reliable tag: it made searches for that name rank other guides first
+    // (#1430 accuracy regression). Names come from the folders, not the model.
+    if (licensedNames.has(normalized)) continue;
     seen.add(normalized);
     const c = Number(item.confidence);
     rows.push({
@@ -47,9 +51,65 @@ export function popsgVisionTags(tagData: Record<string, unknown>, model: string)
   return rows;
 }
 
+const NAMES_TTL_MS = 3_600_000;
+let namesCache: { at: number; names: Set<string> } | null = null;
+
+/** Normalized licensor, property, character and character-alias names (3+ characters). */
+export async function loadLicensedNames(): Promise<Set<string>> {
+  if (namesCache && Date.now() - namesCache.at < NAMES_TTL_MS) return namesCache.names;
+  const names = new Set<string>();
+  const sources: Array<[string, string]> = [["licensor", "name"], ["property", "name"], ["character", "name"], ["character_alias", "alias"]];
+  for (const [table, column] of sources) {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db().schema("core").from(table).select(column).order(column).range(from, from + 999);
+      if (error) throw new Error(`name list ${table}: ${error.message}`);
+      for (const row of (data ?? []) as unknown as Array<Record<string, unknown>>) {
+        const n = typeof row[column] === "string" ? normalizePopSGTag(row[column] as string) : "";
+        if (n.length >= 3) names.add(n);
+      }
+      if ((data ?? []).length < 1000) break;
+    }
+  }
+  namesCache = { at: Date.now(), names };
+  return names;
+}
+
+let purgeQueue: string[] | null = null;
+
+/**
+ * Remove up to `limit` earlier vision_ai links whose tag is a licensed name, so
+ * files tagged before the name filter stop matching name searches. Returns the
+ * number removed; 0 once nothing is left.
+ */
+export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 5000): Promise<number> {
+  const client = db();
+  if (purgeQueue === null) {
+    const list = [...names];
+    const ids: string[] = [];
+    for (let i = 0; i < list.length; i += 200) {
+      const { data, error } = await client.from("style_guide_tags").select("id").in("normalized_tag", list.slice(i, i + 200));
+      if (error) throw new Error(`name tag lookup: ${error.message}`);
+      for (const r of data ?? []) ids.push(r.id as string);
+    }
+    purgeQueue = ids;
+  }
+  let removed = 0;
+  while (purgeQueue.length && removed < limit) {
+    const tagId = purgeQueue[0];
+    const { data, error } = await client.from("style_guide_file_tags").select("id").eq("tag_id", tagId).eq("source", "vision_ai").limit(Math.min(500, limit - removed));
+    if (error) throw new Error(`name link lookup: ${error.message}`);
+    const ids = (data ?? []).map(r => r.id as string);
+    if (!ids.length) { purgeQueue.shift(); continue; }
+    const del = await client.from("style_guide_file_tags").delete().in("id", ids);
+    if (del.error) throw new Error(`name link delete: ${del.error.message}`);
+    removed += ids.length;
+  }
+  return removed;
+}
+
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
   const client = db();
-  const rows = popsgVisionTags(tagData, model);
+  const rows = popsgVisionTags(tagData, model, await loadLicensedNames());
   if (!rows.length) throw new Error("No usable tags");
   const names = rows.map(r => r.normalized);
   const inserted = await client.from("style_guide_tags").upsert(
@@ -118,6 +178,7 @@ export interface PopSGAiTagDeps {
   doneStates?: (ids: string[]) => Promise<Map<string, { status: string; attempt_count: number }>>;
   tagFile?: (file: PopSGVisionFile, model: string, attempts: number) => Promise<PopSGTagOutcome>;
   taggedRecently?: () => Promise<boolean>;
+  purgeNames?: () => Promise<number>;
 }
 
 async function fetchPageDefault(afterId: string | null, limit: number): Promise<PopSGVisionFile[]> {
@@ -151,6 +212,10 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   catch (error) { return { ok: false, done: false, error: String(error), error_stage: "candidate_fetch" }; }
   if (!run?.discover) return { ok: false, done: false, error: `PopSG tagging requires ${POPSG_AI_TAG_CONFIG_KEY} with discover:true and the operation's run_id` };
   const model = run.models[0];
+  // Clear earlier licensed-name tags a slice at a time; a failure here never stops tagging.
+  const purged = await (deps.purgeNames ?? (async () => purgeLicensedNameTags(await loadLicensedNames())))()
+    .catch((error) => { logger.warn(`ai-tag-popsg: name tag cleanup failed: ${String(error).slice(0, 200)}`); return 0; });
+  if (purged) logger.info(`ai-tag-popsg: removed ${purged} licensed-name tags`);
   const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
   let files: PopSGVisionFile[];
   let states: Map<string, { status: string; attempt_count: number }>;
