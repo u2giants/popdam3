@@ -1,11 +1,23 @@
 ---
-summary: Rich tech-pack and licensing PDF extraction, shipped 2026-07-15: schema, the DeepSeek direct-API worker op, frontend facets and design history.
+summary: Rich tech-pack and licensing PDF extraction: schema, the Claude Haiku 5.5 low-effort Message Batches worker op (owner decision 2026-11-27), frontend facets and design history.
 kind: living
 status: current
 read-when: changing rich PDF extraction or its facets
 ---
 
 # Rich PDF Extraction
+
+> **Model — owner decision 2026-11-27 (bake-off on #1488):** `rich-pdf-extract` reads
+> every PDF with **Claude Haiku 5.5 at low effort through the Anthropic Message Batches
+> API** (`claude-haiku-5-5`, fixed in `apps/worker/src/handlers/rich-pdf.ts`; it ignores
+> `AI_TASK_MODELS.rich_pdf_extraction`). Key: Railway worker `ANTHROPIC_API_KEY`
+> (value from 1Password `vibe_coding` "Anthropic Claude API for shared-db"). One tick
+> submits up to `RICH_PDF_BATCH_SIZE` (default 1000) PDFs as one batch and saves it in
+> `admin_config.RICH_PDF_PENDING_BATCH`; later ticks poll every ~20 s, apply results and
+> advance the cursor. A batch unfinished after 30 minutes is cancelled and its
+> unfinished PDFs are read with direct Haiku low calls. Bake-off (250 PDFs): Haiku low
+> 99.6% main-material accuracy, about $0.60 per 1,000 PDFs before the batch discount.
+> The DeepSeek notes below are history.
 
 > **Status — SHIPPED to production 2026-07-15** (design spike was 2026-07-09, below).
 > Schema, worker op, and frontend are all live.
