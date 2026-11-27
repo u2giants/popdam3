@@ -683,3 +683,11 @@ property **by value** against `core.licensor` (name + merch-group `code`) and `c
 **Actually**: measured on 20 real untagged thumbnails (tool_named, production prompt), the Pareto Inference host for `z-ai/glm-5.3-flash` drops the `tag` field on 35–40% of files; `wafer/us` and `wafer/nvfp4` returned 0 invalid; `deepinfra/fp4` mostly returned no tool call. Stronger `tag` wording made it worse (14/20 invalid), renaming `tag` to `term` too (12/20). Since #1397 (c7595103) `executeStructuredOutput` retries the same method once with the serving host added to `provider.ignore`, and the whole tag ladder (plus the same-model retry) stops starting new steps after `TAG_LADDER_BUDGET_MS` (60 s). Probe after the fix: 0/20 invalid.
 
 **Do not change because**: prompt or schema rewording was measured to raise the failure rate; recovering a missing `tag` from evidence is unsafe (whole files arrive with no tags). Albert ruled the model stays GLM 5.3 Flash. Live, the first 15 minutes after the fix still failed ~8% (down from ~10.6%): some files fail on the second host too, so the remaining gap is open, not solved.
+
+**Follow-ups 2026-11-25/26** (all live by bd2c5b6):
+- Straitly is the primary route for GLM (`STRAITLY_ROUTING = "share:48"`), not off. A reroute that ignores `straitly` now skips Straitly and goes to OpenRouter (#1407, 7fce17f); Straitly also returns missing-tag answers (probe: 1/20 invalid, 3/20 overloaded/timeouts, median ~31 s).
+- Relace is listed for the model but OpenRouter never routes our image requests there; unusable.
+- Parallel cap raised 32 → 48 (#1411); at 48 throughput rose from ~11 to ~25–45 tagged/min.
+- The tier-1 same-error kill switch kept stopping runs on scattered missing-tag failures. #1415 added a burst rule using each failure sample's `seen` (running total); #1420 (83312e5) fixed it to measure from the running total before the failure's batch, because a 192-item batch's ~20 failures all share one `seen`.
+- A whole-library untagged pass ended after one sweep and nothing restarted it (idle from 4:58 PM EST 2026-11-26 with ~31,600 untagged). #1440 (bd2c5b6) loops back to the start while anything was tagged in the last hour.
+- Restarting by hand: `BULK_OPERATIONS.ai-tag-parallel.run_id` must equal `AI_TAG_PARALLEL_RUN.run_id` (`untagged-20261125`), or the parallel settings are ignored and the run goes stale.
