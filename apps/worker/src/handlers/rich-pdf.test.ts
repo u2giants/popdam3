@@ -4,7 +4,9 @@ import {
   buildRichPdfSystemPrompt,
   normalizeMaterialList,
   parseRichPdfData,
+  richPdfSourceKey,
   RICH_PDF_PROMPT_VERSION,
+  splitMainMaterials,
 } from "./rich-pdf.js";
 
 test("system prompt is stable and carries the schema + json instruction", () => {
@@ -17,7 +19,7 @@ test("system prompt is stable and carries the schema + json instruction", () => 
 });
 
 test("prompt version pinned", () => {
-  assert.equal(RICH_PDF_PROMPT_VERSION, "rich-pdf-v1");
+  assert.equal(RICH_PDF_PROMPT_VERSION, "rich-pdf-v2");
 });
 
 test("parses a clean JSON object", () => {
@@ -81,4 +83,30 @@ test("failed rich PDF hashes retry only after the bounded cooldown", async () =>
   assert.equal(shouldExtractRichPdf(recent, "same", now, NaN), false);
   assert.equal(shouldExtractRichPdf(recent, "same", now, 0), false);
   assert.equal(shouldExtractRichPdf(recent, "same", now, 1), true);
+});
+
+test("main material keeps the body and moves call-outs aside (HSR57PNUT04 sheet)", () => {
+  const r = splitMainMaterials(
+    ["Sawtooth hanger", "•", "backing board", "paper print", "insert", "glass covering", "MDF frame"],
+    [],
+  );
+  assert.deepEqual(r.materials, ["PAPER PRINT", "MDF FRAME"]);
+  assert.deepEqual(r.component_materials, ["SAWTOOTH HANGER", "BACKING BOARD", "INSERT", "GLASS COVERING"]);
+});
+
+test("main material leaves real body materials alone", () => {
+  const r = splitMainMaterials(["100% woven cotton blend"], ["hanging rope", "wooden dowel rod"]);
+  assert.deepEqual(r.materials, ["100% WOVEN COTTON BLEND"]);
+  assert.deepEqual(r.component_materials, ["HANGING ROPE", "WOODEN DOWEL ROD"]);
+});
+
+test("source key changes with the prompt version so old reads are redone once", () => {
+  assert.notEqual(richPdfSourceKey("abc", "rich-pdf-v1"), richPdfSourceKey("abc", "rich-pdf-v2"));
+  assert.equal(richPdfSourceKey("abc"), richPdfSourceKey("abc"));
+});
+
+test("prompt separates main material from component call-outs", () => {
+  const p = buildRichPdfSystemPrompt();
+  assert.match(p, /component_materials/);
+  assert.match(p, /ONLY the main body material/);
 });

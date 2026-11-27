@@ -253,3 +253,22 @@ search rollup functions. All additive → cannot break CRM/PM/PLM.
 ### Failed provider extraction retries
 
 Successful unchanged text is skipped. A saved extraction with a non-null parse error is retried on a subsequent extraction run once its saved extraction time is at least 24 hours old. Optional worker environment `RICH_PDF_RETRY_AFTER_HOURS` changes that cooldown; missing, non-finite or non-positive values use 24 hours. Changed source text remains eligible immediately. Missing/invalid failure timestamps abstain instead of creating a hot loop. The production reader contract was expanded by shared-db PR #5627 (ledger 20261105041612). This does not restart or change the full image-tagging run.
+
+### Main material (prompt rich-pdf-v2, 2026-11-27)
+
+`production_specs.materials` now holds only the product's main body material(s),
+most important first; it feeds `assets.product_material` through
+`refresh_style_group_rich_metadata()` unchanged. Frame, glazing, backing, insert,
+rope, dowel and other call-outs go to `production_specs.component_materials`;
+hangers to `hardware`; packing to `packaging`. A worker guard
+(`splitMainMaterials`) moves hanger/packaging/backing words that slip into
+`materials`. The idempotency key stored in `source_text_sha256` is
+sha256(prompt version + text), so a prompt bump re-reads every PDF once.
+
+`pdf_text_samples.extracted_fields.materials` (the agent-api sheet parser) is the
+verbatim "CONSTRUCTION / MATERIALS" call-out block by design; it is not a main
+material and nothing should read it as one.
+
+Pass 2 status: Indra OCR text now covers ~19.5k eligible PDFs. The op had been
+user-stopped at cursor 0 since Pass 1, which is why only 399 PDFs had rows.
+
