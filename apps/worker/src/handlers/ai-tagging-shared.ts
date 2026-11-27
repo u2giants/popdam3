@@ -137,7 +137,9 @@ export function validateTagAssetData(value: Record<string, unknown>, mode: strin
     errors.push("asset_tags must be an array");
   } else {
     const tags = value.asset_tags as Array<Record<string, unknown>>;
-    if (tags.length < 4 || tags.length > 18) errors.push("asset_tags must contain 4-18 items");
+    // A sparse file (one character, a blank comp) can honestly have only one or two
+    // supported tags; rejecting it failed whole runs once GLM became the only model.
+    if (tags.length < 1 || tags.length > 18) errors.push("asset_tags must contain 1-18 items");
     const normalizedTags: string[] = [];
     for (const item of tags) {
       if (!item || typeof item !== "object") {
