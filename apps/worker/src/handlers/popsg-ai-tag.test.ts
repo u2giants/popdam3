@@ -34,15 +34,25 @@ test("maps tag_asset items to PopSG facets and drops duplicates", () => {
   assert.deepEqual(rows.map(r => [r.normalized, r.facet, r.confidence]), [["batman", "other", 0.9], ["red", "color", 1]]);
 });
 
-test("keeps licensed names guessed from the picture but marks them (#1430 accuracy)", () => {
-  const rows = popsgVisionTags({ asset_tags: [{ tag: "Example Hero", category: "visible_content" }, { tag: "Tree", category: "visible_content" }] }, "m", new Set(["example hero"]));
-  assert.deepEqual(rows.map(r => [r.normalized, r.guessedName]), [["example hero", true], ["tree", false]]);
+test("drops licensed names outside the file's candidates, whole or partial (#1505)", () => {
+  const guide = { characters: [{ id: "11111111-1111-4111-8111-111111111111", name: "Example Hero" }], allowedNames: new Set(["example hero", "example show"]) };
+  const rows = popsgVisionTags({
+    character_ids: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
+    asset_tags: [{ tag: "Other Hero", category: "visible_content" }, { tag: "Other Hero Logo", category: "visible_content" },
+      { tag: "Example Show logo", category: "visible_content" }, { tag: "Tree", category: "visible_content" }],
+  }, "m", new Set(["example hero", "example show", "other hero"]), guide);
+  assert.deepEqual(rows.map(r => [r.normalized, r.facet]), [["example hero", "character"], ["example show logo", "other"], ["tree", "other"]]);
 });
 
-test("name tag marking runs before tagging and its failure never stops tagging", async () => {
-  let purged = 0;
-  const ok = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { purged++; return 3; }, refreshSearch: async () => { purged++; return 7; }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
-  assert.equal(purged, 2); assert.equal(ok.tagged, 1);
-  const failing = await handlePopSGAiTag(op(), { config: cfg, demoteNames: async () => { throw new Error("down"); }, refreshSearch: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
+test("files tagged by an older rule version are tagged again (#1505)", async () => {
+  const seen: string[] = [];
+  await handlePopSGAiTag(op(), { config: cfg, refreshSearch: async () => 0, fetchPage: async () => [file("a"), file("b")],
+    doneStates: async () => new Map([["a", { status: "completed", attempt_count: 1, rule_version: "vision-v1" }], ["b", { status: "completed", attempt_count: 1, rule_version: "vision-v2" }]]),
+    tagFile: async (f) => { seen.push(f.id); return { outcome: "tagged" }; } });
+  assert.deepEqual(seen, ["a"]);
+});
+
+test("search refresh failure never stops tagging", async () => {
+  const failing = await handlePopSGAiTag(op(), { config: cfg, refreshSearch: async () => { throw new Error("down"); }, fetchPage: async () => [file("a")], doneStates: async () => new Map(), tagFile: async () => ({ outcome: "tagged" }) });
   assert.equal(failing.ok, true); assert.equal(failing.tagged, 1);
 });

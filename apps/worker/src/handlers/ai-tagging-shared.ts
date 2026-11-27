@@ -347,6 +347,8 @@ export interface TaggingPromptOptions {
   requireCharacterReadSuccess?: boolean;
   client?: ReturnType<typeof db>;
   cache?: PromptCache;
+  /** Catalog-chosen candidate characters (PopSG #1505); replaces the licensing-scope lookup. */
+  characters?: { id: string; name: string }[];
 }
 
 /** Grouped assets take licensing from their Style Group; only ungrouped assets fall back to their own columns. */
@@ -456,8 +458,9 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset, options
     .maybeSingle(), true);
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
-  let characters: { id: string; name: string; status?: string | null }[] = [];
-  const scope = await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
+  let characters: { id: string; name: string; status?: string | null }[] = options.characters ? [...options.characters] : [];
+  const scope = options.characters ? { licensor_id: null, property_id: null, unlicensed: true }
+    : await resolveCharacterScope(client, asset, checkedQuery, checkedCharacterRead);
 
   // Characters come only from the licensor-scraped master list (core.character):
   // the property's linked characters, else the whole licensor list when it is
