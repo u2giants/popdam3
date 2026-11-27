@@ -4,6 +4,7 @@
 // style_guide_file_tags (source `vision_ai`) and style_guide_tagging_state
 // (pipeline `vision`). Settings live in admin_config.AI_TAG_POPSG_RUN, shaped
 // like AI_TAG_PARALLEL_RUN; its run_id must equal the operation's run_id.
+import { demoteLicensedNameTags, refreshSearchSlice } from "./popsg-tag-maintenance.js";
 import { db } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
@@ -72,74 +73,6 @@ export async function loadLicensedNames(): Promise<Set<string>> {
   }
   namesCache = { at: Date.now(), names };
   return names;
-}
-
-let demoteCursor: string | null = null;
-let demoteDone = false;
-let nameTagIds: Map<string, string> | null = null;
-
-/**
- * Mark earlier accepted vision_ai links whose tag is a licensed name as
- * `suggested`, walking files in id order (indexed per file, so folder-based
- * tags sharing those names are never scanned). Nothing is deleted. Returns
- * the number marked in this call.
- */
-export async function demoteLicensedNameTags(names: ReadonlySet<string>, fileBudget = 3000): Promise<number> {
-  if (demoteDone) return 0;
-  const client = db();
-  if (nameTagIds === null) {
-    const list = [...names];
-    nameTagIds = new Map();
-    for (let i = 0; i < list.length; i += 200) {
-      const { data, error } = await client.from("style_guide_tags").select("id, normalized_tag").in("normalized_tag", list.slice(i, i + 200));
-      if (error) throw new Error(`name tag lookup: ${error.message}`);
-      for (const r of data ?? []) nameTagIds.set(r.id as string, r.normalized_tag as string);
-    }
-  }
-  let marked = 0;
-  for (let seen = 0; seen < fileBudget; seen += 100) {
-    let q = client.from("style_guide_tagging_state").select("style_guide_file_id").eq("pipeline", "vision").eq("status", "completed").order("style_guide_file_id").limit(100);
-    if (demoteCursor) q = q.gt("style_guide_file_id", demoteCursor);
-    const { data: files, error } = await q;
-    if (error) throw new Error(`name file page: ${error.message}`);
-    const ids = (files ?? []).map(r => r.style_guide_file_id as string);
-    if (!ids.length) { demoteDone = true; break; }
-    const { data: links, error: le } = await client.from("style_guide_file_tags").select("id, tag_id")
-      .in("style_guide_file_id", ids).eq("status", "accepted").eq("source", "vision_ai");
-    if (le) throw new Error(`name link lookup: ${le.message}`);
-    const hit = (links ?? []).filter(l => nameTagIds!.has(l.tag_id as string)).map(l => l.id as string);
-    for (let i = 0; i < hit.length; i += 150) {
-      const upd = await client.from("style_guide_file_tags").update({ status: "suggested" }).in("id", hit.slice(i, i + 150));
-      if (upd.error) throw new Error(`name link mark: ${upd.error.message}`);
-    }
-    marked += hit.length;
-    demoteCursor = ids[ids.length - 1];
-  }
-  return marked;
-}
-
-let refreshBatch = 1000;
-
-/**
- * Rebuild queued PopSG search records in calls that stay under the API
- * statement timeout: the call size halves on a timeout (down to 50) and grows
- * back after a full call. Returns the number rebuilt.
- */
-export async function refreshSearchSlice(maxCalls = 15): Promise<number> {
-  let total = 0;
-  for (let i = 0; i < maxCalls; i++) {
-    const { data, error } = await db().rpc("refresh_style_guide_matviews", { p_run_id: null, p_search_batch_size: refreshBatch, p_step: "search" });
-    if (error) {
-      if (/statement timeout/i.test(error.message) && refreshBatch > 50) { refreshBatch = Math.max(50, Math.floor(refreshBatch / 2)); continue; }
-      throw new Error(`search refresh: ${error.message}`);
-    }
-    const row = (Array.isArray(data) ? data[0] : data) as { search_documents_synced?: number } | null;
-    const n = Number(row?.search_documents_synced ?? 0);
-    total += n;
-    if (n < refreshBatch) break;
-    refreshBatch = Math.min(1000, refreshBatch * 2);
-  }
-  return total;
 }
 
 async function saveTags(file: PopSGVisionFile, tagData: Record<string, unknown>, model: string, attempts: number) {
@@ -249,13 +182,13 @@ export async function handlePopSGAiTag(opState: OpState, deps: PopSGAiTagDeps = 
   if (!run?.discover) return { ok: false, done: false, error: `PopSG tagging requires ${POPSG_AI_TAG_CONFIG_KEY} with discover:true and the operation's run_id` };
   const model = run.models[0];
   // Mark earlier licensed-name tags `suggested` a slice at a time; a failure here never stops tagging.
-  const marked = await (deps.demoteNames ?? (async () => demoteLicensedNameTags(await loadLicensedNames())))()
+  const marked = await (deps.demoteNames ?? (async () => demoteLicensedNameTags(db(), await loadLicensedNames())))()
     .catch((error) => { logger.warn(`ai-tag-popsg: name tag marking failed: ${String(error).slice(0, 200)}`); return 0; });
   if (marked) logger.info(`ai-tag-popsg: marked ${marked} licensed-name tags suggested`);
   // Tag changes reach search only when their search records are rebuilt; the
   // hourly job rebuilds ~3,500. Rebuild a bounded slice here so changed tags
   // are searchable within minutes. A failure never stops tagging.
-  const synced = await (deps.refreshSearch ?? refreshSearchSlice)()
+  const synced = await (deps.refreshSearch ?? (() => refreshSearchSlice(db())))()
     .catch((error) => { logger.warn(`ai-tag-popsg: search refresh failed: ${String(error).slice(0, 200)}`); return 0; });
   if (synced) logger.info(`ai-tag-popsg: refreshed ${synced} search records`);
   const cursor = typeof opState.cursor === "string" && opState.cursor ? opState.cursor : null;
