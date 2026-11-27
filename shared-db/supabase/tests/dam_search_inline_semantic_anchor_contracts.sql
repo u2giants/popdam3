@@ -56,7 +56,7 @@ begin
 
   -- The scoped anchor is licensor two's best picture (0.6), not the global best (0.95).
   perform public.search_dam_documents('zq1430token', jsonb_build_object('semanticLicensorIds', jsonb_build_array(l2)),
-    50, 0, array['style_group'], q, 0, null, null, null, null, true, true);
+    50, 0, null, q, 0, null, null, null, null, true, true);
   if abs(current_setting('app.dam_search_anchor')::float8 - 0.6) > 1e-4 then
     raise exception 'popdam3#1430 scoped anchor % (want 0.6, the in-scope best, not the global 0.95)',
       current_setting('app.dam_search_anchor');
@@ -83,6 +83,13 @@ begin
       end loop;
     end loop;
   end loop;
+
+  -- Style-group-only searches fold the anchor into their own vector scan: no anchor function runs.
+  perform public.search_dam_documents('zq1430token', jsonb_build_object('semanticLicensorIds', jsonb_build_array(l2)),
+    50, 0, array['style_group'], q, 0, null, null, null, null, true, true);
+  if current_setting('app.dam_search_anchor') <> '' then
+    raise exception 'popdam3#1430 style-group search still called the anchor function';
+  end if;
 
   -- Default (false) and keyword-only calls keep the old behavior: no anchor is computed.
   perform public.search_dam_documents('zq1430token', '{}'::jsonb, 10, 0, null, q, 0, 0.2);
