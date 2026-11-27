@@ -55,6 +55,13 @@ begin
   if (select last_id from public.popsg_rebuild_vision_tag_cache_batch(null, 1000) limit 1) is null then
     raise exception 'batch rebuild found no vision-tagged file';
   end if;
+  -- The cron walk does the same for a document left stale (#1430 Step: finish without the worker).
+  update public.style_guide_search_documents
+     set tag_names = array['zz1430 example hero'],
+         search_vector = setweight(to_tsvector('simple', 'zz1430 example hero'), 'C') || setweight(to_tsvector('simple', 'zzkeeptext'), 'D')
+   where style_guide_file_id = v_file;
+  update public.admin_config set value = jsonb_build_object('after', null, 'done', false) where key = 'POPSG_STALE_TAG_REBUILD';
+  perform public.popsg_stale_tag_rebuild_job();
   if (select search_vector from public.style_guide_search_documents where style_guide_file_id = v_file) @@ to_tsquery('simple', 'hero') then
     raise exception 'vision tag still in the rebuilt search vector';
   end if;
