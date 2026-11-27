@@ -100,8 +100,11 @@ export async function purgeLicensedNameTags(names: ReadonlySet<string>, limit = 
     if (error) throw new Error(`name link lookup: ${error.message}`);
     const ids = (data ?? []).map(r => r.id as string);
     if (!ids.length) { purgeQueue.shift(); continue; }
-    const del = await client.from("style_guide_file_tags").delete().in("id", ids);
-    if (del.error) throw new Error(`name link delete: ${del.error.message}`);
+    // Delete by id in groups of 150 so the request address stays under the API's length limit.
+    for (let i = 0; i < ids.length; i += 150) {
+      const del = await client.from("style_guide_file_tags").delete().in("id", ids.slice(i, i + 150));
+      if (del.error) throw new Error(`name link delete: ${del.error.message}`);
+    }
     removed += ids.length;
   }
   return removed;
