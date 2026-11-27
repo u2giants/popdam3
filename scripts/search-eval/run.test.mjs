@@ -32,7 +32,7 @@ for (const failSpelling of [false, true]) {
         } else {
           const body = JSON.parse(options.body);
           clock += 2_000_000;
-          if (body.action === "spelling" && failSpelling) return new Response("{}", { status: 401 });
+          if (body.action === "popsg-query-embedding" && failSpelling) return new Response("{}", { status: 401 });
           if (path === "/rest/v1/rpc/expand_dam_search_queries") result = [];
           else if (path === "/rest/v1/rpc/search_style_guide_library_v2") { guideSearches++; result = { results: [], total: 0 }; }
           else if (body.action === "spelling") result = {};

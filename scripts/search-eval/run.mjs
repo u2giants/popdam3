@@ -68,13 +68,14 @@ async function timed(fn) {
 
 const damSearch = (query) => timed(async () => {
   const data = await viewerPost("/functions/v1/dam-search-ai", {
-    action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"],
+    // Same as the library page with its filter sidebar closed (the default): no facets (#1430).
+    action: "search", query, limit: 50, offset: 0, filters: {}, min_rank: 0, document_types: ["style_group"], include_facets: false,
   }, 45_000);
   return { hits: data.results.map((r) => r.entity_id), total: data.total_count, semantic: data.semantic ?? null, corrected_query: data.corrected_query ?? null };
 });
 
 // Same expansion and query text as src/pages/popsg/PopSGLibraryPage.tsx.
-async function popsgQuery(query, expansion = null) {
+async function popsgQuery(query, expansion = null, corrected = null) {
   const variants = new Set();
   const add = (value) => {
     const v = value.trim().toLowerCase();
@@ -87,11 +88,8 @@ async function popsgQuery(query, expansion = null) {
   add(term);
   const rows = await viewerPost("/rest/v1/rpc/expand_dam_search_queries", { p_query: term });
   for (const row of rows ?? []) if (row?.query_text) add(row.query_text);
-  const spelling = await viewerPost("/functions/v1/dam-search-ai", { action: "spelling", query: term }).catch((error) => {
-    if (error instanceof ViewerAuthenticationError || error.status === 401 || error.status === 403) throw error;
-    return null;
-  });
-  if (typeof spelling?.corrected === "string") add(spelling.corrected);
+  // The spelling fix arrives with the embedding (popsg-query-embedding), as on the live page (#1430 Step 8).
+  if (typeof corrected === "string" && corrected.trim()) add(corrected);
   if (expansion) add(expansion);
   return [...variants]
     .map((t) => t.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim())
@@ -124,6 +122,7 @@ async function popsgSemantic(query) {
     expansion: row?.mode === "hybrid" && typeof row.expansion === "string" && row.expansion.trim() ? row.expansion.trim() : null,
     fallback: row?.mode === "hybrid" && typeof row.fallback === "string" && row.fallback.trim() ? row.fallback.trim() : null,
     fallbackAfterMatches: row?.mode === "hybrid" && row.fallback_kind === "name",
+    corrected: row?.mode === "hybrid" && typeof row.corrected === "string" && row.corrected.trim() ? row.corrected.trim() : null,
     mode: row?.mode ?? null,
   };
 }
@@ -138,7 +137,7 @@ const sgSearch = (query, mode) => timed(async () => {
     ...(semantic.embedding ? { p_query_embedding: semantic.embedding } : {}),
     ...(semantic.embedding && semantic.floor != null ? { p_min_semantic_score: semantic.floor } : {}),
   }, 45_000);
-  let data = await search(await popsgQuery(query, semantic.expansion), after);
+  let data = await search(await popsgQuery(query, semantic.expansion, semantic.corrected), after);
   // Same empty-result retry as the live page.
   if (semantic.fallback && (data.total ?? (data.results ?? []).length) === 0) data = await search(after ?? await popsgQuery(semantic.fallback));
   const results = data.results ?? [];
