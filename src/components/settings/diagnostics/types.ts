@@ -80,6 +80,7 @@ export const OP_NAMES: Record<string, string> = {
   "relink-orphaned-assets": "Relink Orphaned Assets",
   "rich-pdf-extract": "Rich PDF Extract",
   "tag-popsg-files": "Tag PopSG Files",
+  "ai-tag-popsg": "AI-Tag PopSG Files",
   "embed-dam-search": "Embed DAM Search",
   "sg-embed-search": "Embed PopSG Search",
   "rebuild-image-vectors": "Rebuild Image Vectors",

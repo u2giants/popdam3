@@ -30,6 +30,7 @@ export const OP_NAMES: Record<string, string> = {
   "embed-dam-search": "Embed DAM Search",
   "sg-embed-search": "Embed PopSG Search",
   "tag-popsg-files": "Tag PopSG Files",
+  "ai-tag-popsg": "AI-Tag PopSG Files",
   "rebuild-image-vectors": "Rebuild Image Vectors",
 };
 

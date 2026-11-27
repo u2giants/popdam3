@@ -32,6 +32,7 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handler
 import { handleShortenItemDescriptions } from "./handlers/item-short-description.js";
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
+import { handlePopSGAiTag } from "./handlers/popsg-ai-tag.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import { handleEmbedSearch } from "./handlers/embed-search.js";
 import { handleEmbedSgSearch } from "./handlers/embed-sg-search.js";
@@ -637,6 +638,8 @@ export async function dispatch(opKey: string, opState: OpState): Promise<BatchRe
       return handleRichPdfExtract(opState);
     case "tag-popsg-files":
       return handlePopSGFileTags(opState);
+    case "ai-tag-popsg":
+      return handlePopSGAiTag(opState);
     case "embed-dam-search":
       return handleEmbedSearch(opState);
     case "sg-embed-search":

@@ -28,7 +28,7 @@ export function isValidAutoResumeCursor(opKey: string, cursor: unknown): boolean
   // erp-enrichment apply mode keysets by the canonical PLM item id (#630): without
   // this entry its statement-timeout interruptions schedule an auto-resume that
   // can never fire, and the op stays interrupted indefinitely.
-  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata" || opKey === "rebuild-image-vectors" || opKey === "erp-enrichment") {
+  if (opKey === "ai-tag-group-profiles" || opKey === "shorten-item-descriptions" || opKey === "reprocess-metadata" || opKey === "rebuild-image-vectors" || opKey === "erp-enrichment" || opKey === "ai-tag-popsg") {
     return typeof cursor === "string" && UUID_CURSOR_RE.test(cursor);
   }
   return false;

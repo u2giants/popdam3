@@ -24,6 +24,7 @@ export const OP_LANES = {
   "embed-dam-search": "search-index",
   "sg-embed-search": "search-index",
   "tag-popsg-files": "popsg-tags",
+  "ai-tag-popsg": "popsg-ai-tagging",
   "rebuild-image-vectors": "embed",
 };
 
@@ -84,6 +85,7 @@ export const OP_CONFLICTS = {
   ],
   "ai-tag-groups": ["ai-tag-parallel", "rebuild-style-groups", "reprocess-metadata", "propagate-group-tags", "ai-tag-group-profiles", "refresh-group-metadata"],
   "ai-tag-parallel": [
+    "ai-tag-popsg",
     "ai-tag-untagged",
     "ai-tag-all",
     "ai-tag-groups",
@@ -109,6 +111,9 @@ export const OP_CONFLICTS = {
   "refresh-group-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "ai-tag-group-profiles"],
   "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "rich-pdf-extract", "ai-tag-group-profiles"],
   "rich-pdf-extract": ["rebuild-style-groups"],
+  // Both tagging runs share one worker loop and one model route: PopSG waits
+  // for the whole-library PopDAM run instead of halving its speed.
+  "ai-tag-popsg": ["ai-tag-parallel"],
   "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-parallel", "ai-tag-bakeoff", "erp-enrichment", "ai-tag-group-profiles"],
   "backfill-sku-names": ["erp-enrichment"],
   "erp-enrichment": ["reprocess-metadata", "backfill-sku-names"],

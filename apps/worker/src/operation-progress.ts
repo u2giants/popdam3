@@ -27,7 +27,8 @@ export function mergeProgress(opKey: string, prev: Record<string, unknown>, batc
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
-    case "ai-tag-parallel": {
+    case "ai-tag-parallel":
+    case "ai-tag-popsg": {
       const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
       // Each failure remembers how many items had been processed by then, so the
       // kill switch can tell a burst of failures from rare ones spread over many successes.
