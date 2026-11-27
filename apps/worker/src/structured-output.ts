@@ -1,10 +1,10 @@
-import { chatCompletion, isTerminalOpenRouterError, tool, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "./openrouter.js";
+import { chatCompletion, isStraitlyModel, isTerminalOpenRouterError, tool, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "./openrouter.js";
 import { recordOpenRouterSchema, withOpenRouterTask } from "./openrouter-call-log.js";
 import { buildStructuredOutputPlan, type CapabilityOverride, type ModelCapabilities, type StructuredOutputMethod } from "./model-capabilities.js";
 import { recordProviderAttempt } from "./provider-health.js";
 
 export interface OutputAttempt { method: StructuredOutputMethod; status: "success" | "failed"; latencyMs: number; requestedForm?: string; httpStatus?: number; error?: string; parse?: "ok" | "failed"; validation?: "ok" | "failed"; usage?: unknown; providerInfo?: OpenRouterProviderInfo; /** Endpoint that served or failed this call (e.g. straitly, openrouter). */ endpoint?: string; /** True when the endpoint itself failed (outage, overload, timeout), not the answer. */ endpointFailure?: boolean; }
-export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; /** Stop starting new methods once this many ms have passed. */ budgetMs?: number; }
+export interface ExecuteStructuredOutputOptions<T> { apiKey: string; model: string; messages: ChatMessage[]; schemaName: string; schema: Record<string, unknown>; validate: (value: Record<string, unknown>) => T; capabilities: ModelCapabilities; override?: CapabilityOverride; timeoutMs?: number; maxTokens?: number; provider?: ChatCompletionRequest["provider"]; completion?: typeof chatCompletion; isTerminalError?: (error: unknown) => boolean; /** Stop starting new methods once this many ms have passed. */ budgetMs?: number; /** Retry a bad answer with no reported host on OpenRouter (default: only on the normal chat path). */ otherProviderRetry?: boolean; }
 
 export function parseStructuredJson(content?: string): Record<string, unknown> | null {
   if (!content?.trim()) return null;
@@ -118,6 +118,11 @@ export async function executeStructuredOutput<T>(options: ExecuteStructuredOutpu
       if (method === "json_schema" || method === "json_object") jsonMethodFailed = true;
       if (stage === "validation" && servedBy && !ignored.includes(servedBy)) {
         ignored.push(servedBy);
+        plan.splice(index + 1, 0, method);
+      } else if ((stage === "validation" || stage === "parse") && !servedBy && (options.otherProviderRetry ?? !options.completion) && isStraitlyModel(options.model) && !ignored.includes("straitly")) {
+        // Owner ruling 2026-11-27: a bad answer is retried right away on the
+        // other provider. With no host reported, move off Straitly to OpenRouter.
+        ignored.push("straitly");
         plan.splice(index + 1, 0, method);
       } else if (stage === "transport" && !ignored.includes("straitly")) {
         // Owner ruling 2026-11-26: an endpoint error retries the SAME model on
