@@ -832,6 +832,7 @@ async function handleRequest(req: Request, requestSignal: AbortSignal): Promise<
               p_document_types: documentTypes,
               p_min_rank: minRank,
               p_min_semantic_score: minSemanticScore,
+              p_include_facets: includeFacets,
               ...(textLeg.on ? { p_min_text_score: textLeg.minScore, p_text_score_margin: textLeg.margin } : {}),
             });
           let { data, error } = await timer.time("search_rpc", invoke);
