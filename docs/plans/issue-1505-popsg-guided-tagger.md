@@ -15,10 +15,10 @@ Issue: https://github.com/u2giants/popdam3/issues/1505
 | Step | State | Evidence |
 |---|---|---|
 | 0. Pause old run | ✅ done 2026-11-27 4:05 PM EST | `admin_config.BULK_OPERATIONS` → `ai-tag-popsg.status = paused` (re-check with the step 0 query) |
-| 1. Licensor map row | ⬜ open | |
-| 2. Catalog guide module + tests | ⬜ open | |
-| 3. Guided prompt + save (vision-v2) | ⬜ open | |
-| 4. PR merged, worker deployed | ⬜ open | |
+| 1. Licensor map row | ✅ 2026-11-27 | `admin_config.POPSG_LICENSOR_CATALOG_MAP` (25 folder keys; query `select jsonb_object_keys(value) from admin_config where key='POPSG_LICENSOR_CATALOG_MAP'`) |
+| 2. Catalog guide module + tests | ✅ 2026-11-27 | `apps/worker/src/handlers/popsg-catalog-guide.test.ts` (commit ab8e976a9) |
+| 3. Guided prompt + save (vision-v2) | ✅ 2026-11-27 | `apps/worker/src/handlers/popsg-ai-tag.test.ts` (commit ab8e976a9) |
+| 4. PR merged, worker deployed | ✅ 2026-11-27 4:10 PM EST | merge ab8e976a9; Railway deployment 03328571 SUCCESS |
 | 5. Backup + wipe vision_ai | ⬜ open | |
 | 6. Sample run + quality check | ⬜ open | |
 | 7. Full re-tag | ⬜ open | |
