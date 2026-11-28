@@ -497,6 +497,10 @@ HARD_BLOCKED = {
     # and rolled back (run 46043726223). Never applied to production. Superseded by 20261225150900
     # (same function body; rebuild moved to a bounded batch function).
     "20261225150800",
+    # 20261225151400 (PR #7212, u2giants/popdam3#1430): held by review finding #7213. Never applied
+    # to production and no longer needed: the 20261225151300 job finished the rebuild on
+    # 2026-11-27 (admin_config POPSG_STALE_TAG_REBUILD done=true) and unscheduled itself.
+    "20261225151400",
     # 20261225150900 (PR #7197, u2giants/popdam3#1430): held from production by review finding
     # #7198 (content_sha256 not updated with source_identity). Never applied to production.
     # Superseded by 20261225151000 (PR #7202).
@@ -640,6 +644,7 @@ RETIRED_VERSION_REASONS = {
     "20261225120402": "PR #7076 (C4 retirement of PopDAM legacy lists): its derived-from base 20261116120100 was a sandbox catch-up no ledger outside sandbox holds, so the preview preflight refused it (run 45520189197). Never applied. Superseded by 20261225120502 with identical executable SQL. Never apply this version.",
     "20261225131200": "PR #7119 (#7117 factory approval upload policy): applied to preview, but its three automatic production applies were refused because the production lane lease was held for PR #7116 (runs 45635561432, 45657013307, 45659367174), and it parked. Never applied to production. Superseded by 20261225141200 with identical executable SQL. Never apply this version.",
     "20261225150900": "PR #7197 (u2giants/popdam3#1430): held from production by review finding #7198 (batch rebuild did not update content_sha256). Never applied to production. Superseded by 20261225151000 (PR #7202). Never apply this version.",
+    "20261225151400": "PR #7212 (u2giants/popdam3#1430 one-window rebuild job): held by review finding #7213; never applied to production and not needed, because 20261225151300 completed the rebuild on 2026-11-27 and unscheduled itself. Never apply this version.",
     "20261225150800": "PR #7192 (u2giants/popdam3#1430): its single-statement rebuild hit the production statement timeout and rolled back (run 46043726223). Never applied to production. Superseded by 20261225150900 with the same function body and a bounded batch rebuild function. Never apply this version.",
     "20261225150700": "PR #7188 (u2giants/popdam3#1430 vision_ai tags out of the PopSG keyword cache): held from production by review finding #7189. Never applied to production. Superseded by 20261225150800 with the same function body and a guarded rebuild. Never apply this version.",
     "20261225150100": "PR #7164 (u2giants/popdam3#1430 search_dam_documents total_group_files): its first preview apply failed on a syntax error (run 45912159260); the corrected file (PR #7172) applied to preview, but PR #7164 had exhausted its automatic attempts. Never applied to production. Superseded by 20261225150400 with the identical function body. Never apply this version.",
